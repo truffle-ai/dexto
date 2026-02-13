@@ -34,7 +34,9 @@ export {
     LocalBlobStoreSchema,
     type BlobStoreType,
     type BlobStoreConfig,
+    type InMemoryBlobStoreConfigInput,
     type InMemoryBlobStoreConfig,
+    type LocalBlobStoreConfigInput,
     type LocalBlobStoreConfig,
 } from './blob/schemas.js';
 

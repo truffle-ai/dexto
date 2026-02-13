@@ -26,62 +26,33 @@ export function generateIndexForCodeFirstDI(context: TemplateContext): string {
     const defaultProvider = context.llmProvider ?? 'openai';
     const defaultModel = context.llmModel ?? 'gpt-4o';
     return `// Standalone Dexto app (programmatic)
-	import 'dotenv/config';
-	import type { LLMProvider } from '@dexto/core';
-	import { DextoAgent, createLogger } from '@dexto/core';
-	import { MemoryCacheStore, MemoryDatabaseStore, InMemoryBlobStore } from '@dexto/storage';
+import 'dotenv/config';
 
-async function main() {
-    const agentId = process.env.DEXTO_AGENT_ID ?? '${context.projectName}';
-    const llmProvider = (process.env.DEXTO_LLM_PROVIDER ?? '${defaultProvider}') as LLMProvider;
-    const llmModel = process.env.DEXTO_LLM_MODEL ?? '${defaultModel}';
+import { DextoAgent, createLogger } from '@dexto/core';
+import { InMemoryBlobStore, MemoryCacheStore, MemoryDatabaseStore } from '@dexto/storage';
 
-    const logger = createLogger({
-        agentId,
-        config: { level: 'info', transports: [{ type: 'console', colorize: true }] },
-    });
+const agentId = '${context.projectName}';
+const logger = createLogger({
+    agentId,
+    config: { level: 'info', transports: [{ type: 'console', colorize: true }] },
+});
 
-    const storage = {
+const agent = new DextoAgent({
+    agentId,
+    llm: { provider: '${defaultProvider}', model: '${defaultModel}' },
+    systemPrompt: 'You are a helpful AI assistant.',
+    logger,
+    storage: {
         cache: new MemoryCacheStore(),
         database: new MemoryDatabaseStore(),
-        blob: new InMemoryBlobStore(
-            { type: 'in-memory', maxBlobSize: 10 * 1024 * 1024, maxTotalSize: 100 * 1024 * 1024 },
-            logger
-        ),
-    };
-
-	    const agent = new DextoAgent({
-	        agentId,
-	        llm: {
-	            provider: llmProvider,
-	            model: llmModel,
-	        },
-	        systemPrompt: 'You are a helpful AI assistant.',
-	        logger,
-	        storage,
-        tools: [],
-        plugins: [],
-        compaction: null,
-    });
-
-    await agent.start();
-    const session = await agent.createSession();
-
-    const response = await agent.generate('Hello! What can you do?', session.id);
-    console.log(response.content);
-
-    // Streaming example:
-    // for await (const event of await agent.stream('Say hello in one sentence.', session.id)) {
-    //     if (event.name === 'llm:chunk') process.stdout.write(event.content);
-    // }
-
-    await agent.stop();
-}
-
-main().catch((error) => {
-    console.error(error);
-    process.exit(1);
+        blob: new InMemoryBlobStore({ type: 'in-memory' }, logger),
+    },
 });
+
+await agent.start();
+const session = await agent.createSession();
+console.log((await agent.generate('Hello! What can you do?', session.id)).content);
+await agent.stop();
 `;
 }
 
@@ -92,97 +63,39 @@ export function generateWebServerIndexForCodeFirstDI(context: TemplateContext): 
     const defaultProvider = context.llmProvider ?? 'openai';
     const defaultModel = context.llmModel ?? 'gpt-4o';
     return `// Dexto Web Server (programmatic)
-	import 'dotenv/config';
-	import type { LLMProvider } from '@dexto/core';
-	import { DextoAgent, createLogger } from '@dexto/core';
-	import { MemoryCacheStore, MemoryDatabaseStore, InMemoryBlobStore } from '@dexto/storage';
-	import { startDextoServer } from '@dexto/server';
-	import { resolve } from 'node:path';
-	import { existsSync } from 'node:fs';
+import 'dotenv/config';
 
-async function main() {
-    const agentId = process.env.DEXTO_AGENT_ID ?? '${context.projectName}';
-    const llmProvider = (process.env.DEXTO_LLM_PROVIDER ?? '${defaultProvider}') as LLMProvider;
-    const llmModel = process.env.DEXTO_LLM_MODEL ?? '${defaultModel}';
+import { DextoAgent, createLogger } from '@dexto/core';
+import { InMemoryBlobStore, MemoryCacheStore, MemoryDatabaseStore } from '@dexto/storage';
+import { startDextoServer } from '@dexto/server';
+import { resolve } from 'node:path';
 
-    const logger = createLogger({
-        agentId,
-        config: { level: 'info', transports: [{ type: 'console', colorize: true }] },
-    });
+const agentId = '${context.projectName}';
+const logger = createLogger({
+    agentId,
+    config: { level: 'info', transports: [{ type: 'console', colorize: true }] },
+});
 
-    const storage = {
+const agent = new DextoAgent({
+    agentId,
+    llm: { provider: '${defaultProvider}', model: '${defaultModel}' },
+    systemPrompt: 'You are a helpful AI assistant.',
+    logger,
+    storage: {
         cache: new MemoryCacheStore(),
         database: new MemoryDatabaseStore(),
-        blob: new InMemoryBlobStore(
-            { type: 'in-memory', maxBlobSize: 10 * 1024 * 1024, maxTotalSize: 100 * 1024 * 1024 },
-            logger
-        ),
-    };
-
-	    const agent = new DextoAgent({
-	        agentId,
-	        llm: {
-	            provider: llmProvider,
-	            model: llmModel,
-	        },
-	        systemPrompt: 'You are a helpful AI assistant.',
-	        logger,
-	        storage,
-        tools: [],
-        plugins: [],
-        compaction: null,
-    });
-
-    // Start the server
-    console.log('🌐 Starting Dexto server...');
-
-    const webRoot = resolve(process.cwd(), 'app');
-
-    if (!existsSync(webRoot)) {
-        console.error(\`❌ Error: Web root not found at \${webRoot}\`);
-        console.error('   Make sure the app/ directory exists');
-        process.exit(1);
-    }
-
-    console.log(\`📁 Serving static files from: \${webRoot}\`);
-
-    const { stop } = await startDextoServer(agent, {
-        port: 3000,
-        webRoot,
-        agentCard: {
-            name: '${context.projectName}',
-            description: '${context.description}',
-        },
-    });
-
-    console.log('\\n✅ Server is running!\\n');
-    console.log('🌐 Open your browser:');
-    console.log('  http://localhost:3000\\n');
-    console.log('📚 Available endpoints:');
-    console.log('  • Web UI:        http://localhost:3000');
-    console.log('  • REST API:      http://localhost:3000/api/*');
-    console.log('  • Health Check:  http://localhost:3000/health');
-    console.log('  • OpenAPI Spec:  http://localhost:3000/openapi.json');
-    console.log('  • Agent Card:    http://localhost:3000/.well-known/agent-card.json\\n');
-
-    console.log('Press Ctrl+C to stop the server...\\n');
-
-    // Handle graceful shutdown
-    const shutdown = async () => {
-        console.log('\\n🛑 Shutting down...');
-        await stop();
-        console.log('✅ Server stopped\\n');
-        process.exit(0);
-    };
-
-    process.on('SIGINT', shutdown);
-    process.on('SIGTERM', shutdown);
-}
-
-main().catch((error) => {
-    console.error(error);
-    process.exit(1);
+        blob: new InMemoryBlobStore({ type: 'in-memory' }, logger),
+    },
 });
+
+const { stop } = await startDextoServer(agent, {
+    port: 3000,
+    webRoot: resolve(process.cwd(), 'app'),
+    agentCard: { name: '${context.projectName}', description: '${context.description}' },
+});
+
+process.on('SIGINT', () => void stop());
+process.on('SIGTERM', () => void stop());
 `;
 }
 

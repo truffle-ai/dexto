@@ -11,7 +11,8 @@ import type {
     BlobStats,
     StoredBlobMetadata,
 } from './types.js';
-import type { InMemoryBlobStoreConfig } from './schemas.js';
+import { InMemoryBlobStoreSchema, type InMemoryBlobStoreConfig } from './schemas.js';
+import type { InMemoryBlobStoreConfigInput } from './schemas.js';
 
 /**
  * In-memory blob store implementation.
@@ -38,8 +39,8 @@ export class InMemoryBlobStore implements BlobStore {
     private connected = false;
     private logger: IDextoLogger;
 
-    constructor(config: InMemoryBlobStoreConfig, logger: IDextoLogger) {
-        this.config = config;
+    constructor(config: InMemoryBlobStoreConfigInput, logger: IDextoLogger) {
+        this.config = InMemoryBlobStoreSchema.parse(config);
         this.logger = logger.createChild(DextoLogComponent.STORAGE);
     }
 

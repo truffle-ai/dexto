@@ -31,7 +31,9 @@ export type {
     SqliteDatabaseConfig,
     PostgresDatabaseConfig,
     BlobStoreConfig,
+    InMemoryBlobStoreConfigInput,
     InMemoryBlobStoreConfig,
+    LocalBlobStoreConfigInput,
     LocalBlobStoreConfig,
 } from './schemas.js';
 

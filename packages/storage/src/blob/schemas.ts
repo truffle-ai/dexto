@@ -30,6 +30,7 @@ const InMemoryBlobStoreSchema = z
     })
     .strict();
 
+export type InMemoryBlobStoreConfigInput = z.input<typeof InMemoryBlobStoreSchema>;
 export type InMemoryBlobStoreConfig = z.output<typeof InMemoryBlobStoreSchema>;
 
 /**
@@ -67,6 +68,7 @@ const LocalBlobStoreSchema = z
     })
     .strict();
 
+export type LocalBlobStoreConfigInput = z.input<typeof LocalBlobStoreSchema>;
 export type LocalBlobStoreConfig = z.output<typeof LocalBlobStoreSchema>;
 
 /**
