@@ -6,7 +6,7 @@
  * and must `export const factory = ...` from their `index.ts`.
  */
 
-export type ImageDefaults = import('@dexto/agent-config').ImageDefaults;
+import type { ImageDefaults } from '@dexto/agent-config';
 
 /**
  * Image definition structure consumed by `@dexto/image-bundler`.
@@ -47,14 +47,6 @@ export interface ImageDefinition {
      * Selective named exports from packages (optional).
      */
     exports?: Record<string, string[]>;
-
-    /**
-     * Legacy provider configuration (deprecated / ignored).
-     *
-     * Kept only for backwards compatibility with older `dexto.image.ts` templates that included
-     * a placeholder `providers` object for validation.
-     */
-    providers?: unknown;
 }
 
 /**

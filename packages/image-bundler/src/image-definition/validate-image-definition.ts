@@ -1,7 +1,7 @@
 import type { ImageDefinition } from './types.js';
 
 /**
- * Validate a legacy image definition.
+ * Validate an image definition.
  * Throws if the definition is invalid.
  *
  * Used by bundler to validate images before building.

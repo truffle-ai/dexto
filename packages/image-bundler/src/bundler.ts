@@ -5,7 +5,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { dirname, join, resolve, relative, extname, basename } from 'node:path';
+import { dirname, join, resolve, extname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { validateImageDefinition } from './image-definition/validate-image-definition.js';
 import type { ImageDefinition } from './image-definition/types.js';
@@ -72,24 +72,16 @@ export async function bundle(options: BundleOptions): Promise<BundleResult> {
         compiledCount++;
     }
 
-    // compaction/ (preferred) or compression/ (legacy)
-    const compactionDir = existsSync(join(imageDir, 'compaction'))
-        ? join(imageDir, 'compaction')
-        : existsSync(join(imageDir, 'compression'))
-          ? join(imageDir, 'compression')
-          : null;
-    if (compactionDir) {
+    // compaction/
+    const compactionDir = join(imageDir, 'compaction');
+    if (existsSync(compactionDir)) {
         compileSourceFiles(compactionDir, join(outDir, 'compaction'));
         compiledCount++;
     }
 
-    // storage/blob (preferred) or blob-store (legacy)
-    const storageBlobDir = existsSync(join(imageDir, 'storage', 'blob'))
-        ? join(imageDir, 'storage', 'blob')
-        : existsSync(join(imageDir, 'blob-store'))
-          ? join(imageDir, 'blob-store')
-          : null;
-    if (storageBlobDir) {
+    // storage/blob/
+    const storageBlobDir = join(imageDir, 'storage', 'blob');
+    if (existsSync(storageBlobDir)) {
         compileSourceFiles(storageBlobDir, join(outDir, 'storage', 'blob'));
         compiledCount++;
     }
@@ -362,9 +354,11 @@ export interface DiscoveredFactories {
  *       index.ts     - Factory implementation (auto-discovered)
  *       helpers.ts   - Optional helper files
  *       types.ts     - Optional type definitions
- *   blob-store/      - BlobStoreFactory folders
  *   compaction/      - CompactionFactory folders
  *   plugins/         - PluginFactory folders
+ *   storage/blob/    - BlobStoreFactory folders
+ *   storage/cache/   - CacheFactory folders
+ *   storage/database/ - DatabaseFactory folders
  *
  * Naming Convention (Node.js standard):
  *   <folder>/index.ts    - Auto-discovered and registered
@@ -429,43 +423,19 @@ function discoverFactories(imageDir: string, warnings: string[]): DiscoveredFact
         label: 'plugins/',
     });
 
-    // compaction/ (preferred) or compression/ (legacy)
-    const compactionSrcDir = existsSync(join(imageDir, 'compaction'))
-        ? join(imageDir, 'compaction')
-        : existsSync(join(imageDir, 'compression'))
-          ? join(imageDir, 'compression')
-          : null;
-    if (compactionSrcDir) {
-        if (basename(compactionSrcDir) === 'compression') {
-            warnings.push(
-                "Legacy folder 'compression/' detected. Prefer 'compaction/' going forward."
-            );
-        }
-        result.compaction = discoverFolder({
-            srcDir: compactionSrcDir,
-            importBase: 'compaction',
-            label: `${relative(imageDir, compactionSrcDir)}/`,
-        });
-    }
+    // compaction/
+    result.compaction = discoverFolder({
+        srcDir: join(imageDir, 'compaction'),
+        importBase: 'compaction',
+        label: 'compaction/',
+    });
 
-    // storage/blob (preferred) or blob-store (legacy)
-    const storageBlobSrcDir = existsSync(join(imageDir, 'storage', 'blob'))
-        ? join(imageDir, 'storage', 'blob')
-        : existsSync(join(imageDir, 'blob-store'))
-          ? join(imageDir, 'blob-store')
-          : null;
-    if (storageBlobSrcDir) {
-        if (basename(storageBlobSrcDir) === 'blob-store') {
-            warnings.push(
-                "Legacy folder 'blob-store/' detected. Prefer 'storage/blob/' going forward."
-            );
-        }
-        result.storage.blob = discoverFolder({
-            srcDir: storageBlobSrcDir,
-            importBase: 'storage/blob',
-            label: `${relative(imageDir, storageBlobSrcDir)}/`,
-        });
-    }
+    // storage/blob/
+    result.storage.blob = discoverFolder({
+        srcDir: join(imageDir, 'storage', 'blob'),
+        importBase: 'storage/blob',
+        label: 'storage/blob/',
+    });
 
     // storage/database/
     result.storage.database = discoverFolder({
