@@ -141,6 +141,8 @@ interface OverlayContainerProps {
     agent: DextoAgent;
     inputService: InputService;
     buffer: TextBuffer;
+    /** Source agent config file path (if available) */
+    configFilePath: string | null;
     /** Callback to refresh static content (clear terminal and force re-render) */
     refreshStatic?: () => void;
     /** Callback to submit a prompt command through the normal streaming flow */
@@ -167,13 +169,12 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             agent,
             inputService,
             buffer,
+            configFilePath,
             refreshStatic,
             onSubmitPromptCommand,
         },
         ref
     ) {
-        const eventBus = agent.agentEventBus;
-
         // Refs to overlay components for input handling
         const approvalRef = useRef<ApprovalPromptHandle>(null);
         const slashAutocompleteRef = useRef<SlashCommandAutocompleteHandle>(null);
@@ -208,6 +209,26 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         // State for selected plugin (for plugin-actions overlay)
         const [selectedPlugin, setSelectedPlugin] = useState<ListedPlugin | null>(null);
         const marketplaceAddPromptRef = useRef<MarketplaceAddPromptHandle>(null);
+
+        const getConfigFilePathOrWarn = useCallback(
+            (action: string): string | null => {
+                if (configFilePath) {
+                    return configFilePath;
+                }
+
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: `⚠️ Cannot ${action}: this agent is not file-backed (no config path).`,
+                        timestamp: new Date(),
+                    },
+                ]);
+                return null;
+            },
+            [configFilePath, setMessages]
+        );
 
         // Expose handleInput method via ref - routes to appropriate overlay
         useImperativeHandle(
@@ -336,7 +357,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 enableAcceptEditsMode?: boolean;
                 rememberDirectory?: boolean;
             }) => {
-                if (!approval || !eventBus) return;
+                if (!approval) return;
 
                 // Enable "accept all edits" mode if requested
                 if (options.enableAcceptEditsMode) {
@@ -359,7 +380,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     }));
                 }
 
-                eventBus.emit('approval:response', {
+                agent.emit('approval:response', {
                     approvalId: approval.approvalId,
                     status: ApprovalStatus.APPROVED,
                     sessionId: approval.sessionId,
@@ -373,19 +394,19 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                 completeApproval();
             },
-            [approval, eventBus, completeApproval, setUi]
+            [approval, agent, completeApproval, setUi]
         );
 
         const handleDeny = useCallback(
             (feedback?: string) => {
-                if (!approval || !eventBus) return;
+                if (!approval) return;
 
                 // Include user feedback in the denial message if provided
                 const message = feedback
                     ? `User requested changes: ${feedback}`
                     : 'User denied the tool execution';
 
-                eventBus.emit('approval:response', {
+                agent.emit('approval:response', {
                     approvalId: approval.approvalId,
                     status: ApprovalStatus.DENIED,
                     sessionId: approval.sessionId,
@@ -395,13 +416,13 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                 completeApproval();
             },
-            [approval, eventBus, completeApproval]
+            [approval, agent, completeApproval]
         );
 
         const handleCancelApproval = useCallback(() => {
-            if (!approval || !eventBus) return;
+            if (!approval) return;
 
-            eventBus.emit('approval:response', {
+            agent.emit('approval:response', {
                 approvalId: approval.approvalId,
                 status: ApprovalStatus.CANCELLED,
                 sessionId: approval.sessionId,
@@ -410,7 +431,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             });
 
             completeApproval();
-        }, [approval, eventBus, completeApproval]);
+        }, [approval, agent, completeApproval]);
 
         // Helper: Check if error is due to missing API key
         const isApiKeyMissingError = (error: unknown): LLMProvider | null => {
@@ -1221,7 +1242,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     },
                 ]);
             },
-            [setUi, setInput, setMessages, agent, buffer]
+            [setUi, setInput, setMessages, agent, buffer, getConfigFilePathOrWarn]
         );
 
         // Handle stream mode selection
@@ -1339,12 +1360,11 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         const { updateMcpServerField } = await import('@dexto/agent-management');
 
                         // Persist to config file AFTER successful enable/disable
-                        await updateMcpServerField(
-                            agent.getAgentFilePath(),
-                            server.name,
-                            'enabled',
-                            newEnabled
-                        );
+                        const agentPath = getConfigFilePathOrWarn('persist MCP server settings');
+                        if (!agentPath) {
+                            return;
+                        }
+                        await updateMcpServerField(agentPath, server.name, 'enabled', newEnabled);
 
                         setMessages((prev) => [
                             ...prev,
@@ -1428,7 +1448,10 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         );
 
                         // Persist to config file using surgical removal
-                        await removeMcpServerFromConfig(agent.getAgentFilePath(), server.name);
+                        const agentPath = getConfigFilePathOrWarn('persist MCP server deletion');
+                        if (agentPath) {
+                            await removeMcpServerFromConfig(agentPath, server.name);
+                        }
 
                         // Also disconnect if connected
                         try {
@@ -1707,13 +1730,14 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                         // Refresh prompts to remove uninstalled plugin skills
                         try {
-                            const newConfig = await reloadAgentConfigFromFile(
-                                agent.getAgentFilePath()
+                            const agentPath = getConfigFilePathOrWarn(
+                                'refresh prompts after plugin uninstall'
                             );
-                            const enrichedConfig = enrichAgentConfig(
-                                newConfig,
-                                agent.getAgentFilePath()
-                            );
+                            if (!agentPath) {
+                                return;
+                            }
+                            const newConfig = await reloadAgentConfigFromFile(agentPath);
+                            const enrichedConfig = enrichAgentConfig(newConfig, agentPath);
                             await agent.refreshPrompts(enrichedConfig.prompts);
                         } catch {
                             // Non-critical: prompts will refresh on next agent restart
@@ -1734,7 +1758,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     setUi((prev) => ({ ...prev, isProcessing: false }));
                 }
             },
-            [setUi, setMessages, agent]
+            [setUi, setMessages, agent, getConfigFilePathOrWarn]
         );
 
         // Handle marketplace browser actions
@@ -1759,11 +1783,14 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         const { reloadAgentConfigFromFile, enrichAgentConfig } = await import(
                             '@dexto/agent-management'
                         );
-                        const newConfig = await reloadAgentConfigFromFile(agent.getAgentFilePath());
-                        const enrichedConfig = enrichAgentConfig(
-                            newConfig,
-                            agent.getAgentFilePath()
+                        const agentPath = getConfigFilePathOrWarn(
+                            'refresh prompts after plugin install'
                         );
+                        if (!agentPath) {
+                            return;
+                        }
+                        const newConfig = await reloadAgentConfigFromFile(agentPath);
+                        const enrichedConfig = enrichAgentConfig(newConfig, agentPath);
                         await agent.refreshPrompts(enrichedConfig.prompts);
                     } catch (error) {
                         // Non-critical: prompts will refresh on next agent restart
@@ -1771,7 +1798,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     }
                 }
             },
-            [setUi, setMessages, agent]
+            [setUi, setMessages, agent, getConfigFilePathOrWarn]
         );
 
         // Handle marketplace add completion
@@ -2031,15 +2058,24 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         const { reloadAgentConfigFromFile, enrichAgentConfig } = await import(
                             '@dexto/agent-management'
                         );
-                        const newConfig = await reloadAgentConfigFromFile(agent.getAgentFilePath());
-                        const enrichedConfig = enrichAgentConfig(
-                            newConfig,
-                            agent.getAgentFilePath()
+                        const agentPath = getConfigFilePathOrWarn(
+                            'refresh prompts after creating shared prompt'
                         );
+                        if (!agentPath) {
+                            return;
+                        }
+                        const newConfig = await reloadAgentConfigFromFile(agentPath);
+                        const enrichedConfig = enrichAgentConfig(newConfig, agentPath);
                         await agent.refreshPrompts(enrichedConfig.prompts);
                     } else {
                         // Create in agent's prompts directory
-                        const agentDir = dirname(agent.getAgentFilePath());
+                        const agentPath = getConfigFilePathOrWarn(
+                            'create prompt in agent prompts directory'
+                        );
+                        if (!agentPath) {
+                            return;
+                        }
+                        const agentDir = dirname(agentPath);
                         const promptsDir = join(agentDir, 'prompts');
                         filePath = join(promptsDir, `${data.name}.md`);
                         await mkdir(promptsDir, { recursive: true });
@@ -2051,17 +2087,14 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             reloadAgentConfigFromFile,
                             enrichAgentConfig,
                         } = await import('@dexto/agent-management');
-                        await addPromptToAgentConfig(agent.getAgentFilePath(), {
+                        await addPromptToAgentConfig(agentPath, {
                             type: 'file',
                             file: `\${{dexto.agent_dir}}/prompts/${data.name}.md`,
                         });
 
                         // Reload config from disk, enrich to include discovered commands, then refresh
-                        const newConfig = await reloadAgentConfigFromFile(agent.getAgentFilePath());
-                        const enrichedConfig = enrichAgentConfig(
-                            newConfig,
-                            agent.getAgentFilePath()
-                        );
+                        const newConfig = await reloadAgentConfigFromFile(agentPath);
+                        const enrichedConfig = enrichAgentConfig(newConfig, agentPath);
                         await agent.refreshPrompts(enrichedConfig.prompts);
                     }
 
@@ -2086,7 +2119,15 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     ]);
                 }
             },
-            [ui.promptAddWizard?.scope, setUi, setInput, setMessages, buffer, agent]
+            [
+                ui.promptAddWizard?.scope,
+                setUi,
+                setInput,
+                setMessages,
+                buffer,
+                agent,
+                getConfigFilePathOrWarn,
+            ]
         );
 
         // Handle prompt delete
@@ -2108,13 +2149,18 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     const { deletePromptByMetadata, reloadAgentConfigFromFile, enrichAgentConfig } =
                         await import('@dexto/agent-management');
 
+                    const agentPath = getConfigFilePathOrWarn('delete prompt');
+                    if (!agentPath) {
+                        return;
+                    }
+
                     // Use the higher-level delete function that handles file + config
                     // Pass full metadata including originalId for inline prompt deletion
                     const promptMetadata = deletable.prompt.metadata as
                         | { filePath?: string; originalId?: string }
                         | undefined;
                     const result = await deletePromptByMetadata(
-                        agent.getAgentFilePath(),
+                        agentPath,
                         {
                             name: deletable.prompt.name,
                             metadata: {
@@ -2130,8 +2176,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     }
 
                     // Reload config from disk, enrich to include discovered commands, then refresh
-                    const newConfig = await reloadAgentConfigFromFile(agent.getAgentFilePath());
-                    const enrichedConfig = enrichAgentConfig(newConfig, agent.getAgentFilePath());
+                    const newConfig = await reloadAgentConfigFromFile(agentPath);
+                    const enrichedConfig = enrichAgentConfig(newConfig, agentPath);
                     await agent.refreshPrompts(enrichedConfig.prompts);
 
                     setMessages((prev) => [
@@ -2168,7 +2214,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     }));
                 }
             },
-            [setUi, setMessages, agent]
+            [setUi, setMessages, agent, getConfigFilePathOrWarn]
         );
 
         // Handle prompt add wizard close

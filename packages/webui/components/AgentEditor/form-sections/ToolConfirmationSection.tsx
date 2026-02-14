@@ -2,7 +2,7 @@ import React from 'react';
 import { Input } from '../../ui/input';
 import { LabelWithTooltip } from '../../ui/label-with-tooltip';
 import { Collapsible } from '../../ui/collapsible';
-import type { AgentConfig } from '@dexto/core';
+import type { AgentConfig } from '@dexto/agent-config';
 import {
     TOOL_CONFIRMATION_MODES,
     ALLOWED_TOOLS_STORAGE_TYPES,

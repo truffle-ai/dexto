@@ -6,7 +6,7 @@
  */
 
 import chalk from 'chalk';
-import type { ILoggerTransport, LogEntry, LogLevel } from '../types.js';
+import type { LoggerTransport, LogEntry, LogLevel } from '../types.js';
 
 export interface ConsoleTransportConfig {
     colorize?: boolean;
@@ -15,7 +15,7 @@ export interface ConsoleTransportConfig {
 /**
  * Console transport for terminal output
  */
-export class ConsoleTransport implements ILoggerTransport {
+export class ConsoleTransport implements LoggerTransport {
     private colorize: boolean;
 
     constructor(config: ConsoleTransportConfig = {}) {

@@ -5,7 +5,8 @@
  * the lifecycle of multiple agent instances.
  */
 
-import type { DextoAgent, AgentConfig } from '@dexto/core';
+import type { AgentConfig } from '@dexto/agent-config';
+import type { DextoAgent } from '@dexto/core';
 
 /**
  * Configuration for spawning an agent

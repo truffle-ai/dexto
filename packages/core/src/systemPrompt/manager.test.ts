@@ -63,7 +63,6 @@ describe('SystemPromptManager', () => {
             const config = SystemPromptConfigSchema.parse('You are a helpful assistant');
             const manager = new SystemPromptManager(
                 config,
-                process.cwd(),
                 mockMemoryManager,
                 undefined,
                 mockLogger
@@ -79,7 +78,6 @@ describe('SystemPromptManager', () => {
             const config = SystemPromptConfigSchema.parse({});
             const manager = new SystemPromptManager(
                 config,
-                process.cwd(),
                 mockMemoryManager,
                 undefined,
                 mockLogger
@@ -115,7 +113,6 @@ describe('SystemPromptManager', () => {
 
             const manager = new SystemPromptManager(
                 config,
-                process.cwd(),
                 mockMemoryManager,
                 undefined,
                 mockLogger
@@ -149,7 +146,6 @@ describe('SystemPromptManager', () => {
 
             const manager = new SystemPromptManager(
                 config,
-                process.cwd(),
                 mockMemoryManager,
                 undefined,
                 mockLogger
@@ -171,7 +167,6 @@ describe('SystemPromptManager', () => {
 
             const manager = new SystemPromptManager(
                 config,
-                process.cwd(),
                 mockMemoryManager,
                 undefined,
                 mockLogger
@@ -200,7 +195,6 @@ describe('SystemPromptManager', () => {
 
             const manager = new SystemPromptManager(
                 config,
-                process.cwd(),
                 mockMemoryManager,
                 undefined,
                 mockLogger
@@ -231,7 +225,6 @@ You can help with:
 
             const manager = new SystemPromptManager(
                 config,
-                process.cwd(),
                 mockMemoryManager,
                 undefined,
                 mockLogger
@@ -260,7 +253,6 @@ You can help with:
 
             const manager = new SystemPromptManager(
                 config,
-                process.cwd(),
                 mockMemoryManager,
                 undefined,
                 mockLogger
@@ -288,13 +280,7 @@ You can help with:
 
             const error = (() => {
                 try {
-                    new SystemPromptManager(
-                        config,
-                        process.cwd(),
-                        mockMemoryManager,
-                        undefined,
-                        mockLogger
-                    );
+                    new SystemPromptManager(config, mockMemoryManager, undefined, mockLogger);
                     return null;
                 } catch (e) {
                     return e;
@@ -325,7 +311,6 @@ You can help with:
 
             const manager = new SystemPromptManager(
                 config,
-                process.cwd(),
                 mockMemoryManager,
                 undefined,
                 mockLogger
@@ -360,7 +345,6 @@ You can help with:
 
             const manager = new SystemPromptManager(
                 config,
-                '/custom/config/dir',
                 mockMemoryManager,
                 undefined,
                 mockLogger
@@ -372,7 +356,7 @@ You can help with:
             expect(contributors[0]?.priority).toBe(5);
         });
 
-        it('should use custom config directory', () => {
+        it('should accept file contributor paths', () => {
             const customConfigDir = '/custom/project/path';
             const config = SystemPromptConfigSchema.parse({
                 contributors: [
@@ -387,13 +371,11 @@ You can help with:
 
             const manager = new SystemPromptManager(
                 config,
-                customConfigDir,
                 mockMemoryManager,
                 undefined,
                 mockLogger
             );
 
-            // The FileContributor should receive the custom config directory
             expect(manager.getContributors()).toHaveLength(1);
         });
     });
@@ -422,7 +404,6 @@ You can help with:
 
             const manager = new SystemPromptManager(
                 config,
-                process.cwd(),
                 mockMemoryManager,
                 undefined,
                 mockLogger
@@ -456,7 +437,6 @@ You can help with:
 
             const manager = new SystemPromptManager(
                 config,
-                process.cwd(),
                 mockMemoryManager,
                 undefined,
                 mockLogger
@@ -480,7 +460,6 @@ You can help with:
 
             const manager = new SystemPromptManager(
                 config,
-                process.cwd(),
                 mockMemoryManager,
                 undefined,
                 mockLogger
@@ -500,7 +479,6 @@ You can help with:
 
             const manager = new SystemPromptManager(
                 config,
-                process.cwd(),
                 mockMemoryManager,
                 undefined,
                 mockLogger
@@ -533,7 +511,6 @@ You can help with:
 
             const manager = new SystemPromptManager(
                 config,
-                process.cwd(),
                 mockMemoryManager,
                 undefined,
                 mockLogger
@@ -556,7 +533,6 @@ You can help with:
 
             const manager = new SystemPromptManager(
                 config,
-                process.cwd(),
                 mockMemoryManager,
                 undefined,
                 mockLogger
@@ -574,7 +550,6 @@ You can help with:
 
             const manager = new SystemPromptManager(
                 config,
-                process.cwd(),
                 mockMemoryManager,
                 undefined,
                 mockLogger
@@ -601,7 +576,6 @@ You can help with:
             const config = SystemPromptConfigSchema.parse({});
             const manager = new SystemPromptManager(
                 config,
-                process.cwd(),
                 mockMemoryManager,
                 undefined,
                 mockLogger
@@ -650,7 +624,6 @@ You can help with:
 
             const manager = new SystemPromptManager(
                 config,
-                process.cwd(),
                 mockMemoryManager,
                 undefined,
                 mockLogger

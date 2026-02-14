@@ -25,6 +25,7 @@
     "workflow"
   ],
   "dependencies": {
+    "@dexto/core": "workspace:*",
     "zod": "^3.25.0"
   },
   "devDependencies": {

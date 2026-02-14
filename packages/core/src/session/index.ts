@@ -6,3 +6,5 @@ export { SessionError } from './errors.js';
 export { MessageQueueService } from './message-queue.js';
 export type { UserMessageInput } from './message-queue.js';
 export type { QueuedMessage, CoalescedMessage } from './types.js';
+export { SessionConfigSchema } from './schemas.js';
+export type { SessionConfig, ValidatedSessionConfig } from './schemas.js';

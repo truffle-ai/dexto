@@ -1,6 +1,0 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-Whenever making changes, make sure to update documentation - check /docs folder which contains the existing documentation

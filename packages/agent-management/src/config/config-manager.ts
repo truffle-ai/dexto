@@ -3,8 +3,11 @@ import * as path from 'path';
 import { parseDocument, stringify } from 'yaml';
 import { loadAgentConfig } from './loader.js';
 import { enrichAgentConfig } from './config-enrichment.js';
-import type { AgentConfig, ValidatedAgentConfig } from '@dexto/core';
-import { AgentConfigSchema } from '@dexto/core';
+import {
+    AgentConfigSchema,
+    type AgentConfig,
+    type ValidatedAgentConfig,
+} from '@dexto/agent-config';
 import { DextoValidationError } from '@dexto/core';
 import { fail, zodToIssues } from '@dexto/core';
 

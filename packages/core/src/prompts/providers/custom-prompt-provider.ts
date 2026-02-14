@@ -8,7 +8,7 @@ import type {
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
 import type { Database } from '../../storage/database/types.js';
 import type { ResourceManager } from '../../resources/manager.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { expandPlaceholders } from '../utils.js';
 import { PromptError } from '../errors.js';
@@ -48,12 +48,12 @@ export class CustomPromptProvider implements PromptProvider {
     private cacheValid = false;
     private promptsCache: PromptInfo[] = [];
     private promptRecords: Map<string, StoredCustomPrompt> = new Map();
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     constructor(
         private database: Database,
         private resourceManager: ResourceManager,
-        logger: IDextoLogger
+        logger: Logger
     ) {
         this.logger = logger.createChild(DextoLogComponent.PROMPT);
     }

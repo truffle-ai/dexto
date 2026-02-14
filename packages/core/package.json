@@ -1,131 +1,131 @@
 {
-  "name": "@dexto/core",
-  "version": "1.5.8",
-  "private": false,
-  "type": "module",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "browser": {
-        "import": "./dist/index.browser.js",
-        "require": "./dist/index.browser.cjs"
-      },
-      "default": {
-        "import": "./dist/index.js",
-        "require": "./dist/index.cjs"
-      }
+    "name": "@dexto/core",
+    "version": "1.5.8",
+    "private": false,
+    "type": "module",
+    "main": "./dist/index.js",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "browser": {
+                "import": "./dist/index.browser.js",
+                "require": "./dist/index.browser.cjs"
+            },
+            "default": {
+                "import": "./dist/index.js",
+                "require": "./dist/index.cjs"
+            }
+        },
+        "./package.json": "./package.json",
+        "./utils/path.js": {
+            "import": "./dist/utils/path.js",
+            "require": "./dist/utils/path.cjs"
+        }
     },
-    "./package.json": "./package.json",
-    "./utils/path.js": {
-      "import": "./dist/utils/path.js",
-      "require": "./dist/utils/path.cjs"
-    }
-  },
-  "dependencies": {
-    "@ai-sdk/amazon-bedrock": "^3.0.71",
-    "@ai-sdk/anthropic": "^2.0.56",
-    "@ai-sdk/cohere": "^2.0.0",
-    "@ai-sdk/google": "^2.0.0",
-    "@ai-sdk/google-vertex": "^3.0.94",
-    "@ai-sdk/groq": "^2.0.0",
-    "@ai-sdk/openai": "^2.0.0",
-    "@ai-sdk/provider": "^2.0.0",
-    "@ai-sdk/xai": "^2.0.0",
-    "@modelcontextprotocol/sdk": "^1.25.2",
-    "@opentelemetry/api": "^1.9.0",
-    "ai": "^5.0.0",
-    "boxen": "^7.1.1",
-    "chalk": "^5.4.1",
-    "diff": "^8.0.2",
-    "dotenv": "^16.4.7",
-    "glob": "^11.0.3",
-    "nanoid": "^5.1.6",
-    "winston": "^3.17.0",
-    "yaml": "^2.7.1",
-    "zod-to-json-schema": "^3.24.6"
-  },
-  "devDependencies": {
-    "@opentelemetry/instrumentation-http": "^0.210.0",
-    "@opentelemetry/instrumentation-undici": "^0.20.0",
-    "@opentelemetry/resources": "^1.28.0",
-    "@opentelemetry/sdk-node": "^0.55.0",
-    "@opentelemetry/sdk-trace-base": "^1.28.0",
-    "@opentelemetry/semantic-conventions": "^1.28.0",
-    "@types/diff": "^8.0.0",
-    "@types/json-schema": "^7.0.15",
-    "zod": "^3.25.0"
-  },
-  "peerDependencies": {
-    "@opentelemetry/core": "^1.28.0",
-    "@opentelemetry/exporter-trace-otlp-grpc": "^0.55.0",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.55.0",
-    "@opentelemetry/instrumentation-http": "^0.210.0",
-    "@opentelemetry/instrumentation-undici": "^0.20.0",
-    "@opentelemetry/resources": "^1.28.0",
-    "@opentelemetry/sdk-node": "^0.55.0",
-    "@opentelemetry/sdk-trace-base": "^1.28.0",
-    "@opentelemetry/semantic-conventions": "^1.28.0",
-    "better-sqlite3": "^11.10.0",
-    "ioredis": "^5.7.0",
-    "pg": "^8.15.4",
-    "tsx": "^4.19.2",
-    "zod": "^3.25.0"
-  },
-  "peerDependenciesMeta": {
-    "@opentelemetry/core": {
-      "optional": true
+    "dependencies": {
+        "@ai-sdk/amazon-bedrock": "^3.0.71",
+        "@ai-sdk/anthropic": "^2.0.56",
+        "@ai-sdk/cohere": "^2.0.0",
+        "@ai-sdk/google": "^2.0.0",
+        "@ai-sdk/google-vertex": "^3.0.94",
+        "@ai-sdk/groq": "^2.0.0",
+        "@ai-sdk/openai": "^2.0.0",
+        "@ai-sdk/provider": "^2.0.0",
+        "@ai-sdk/xai": "^2.0.0",
+        "@modelcontextprotocol/sdk": "^1.25.2",
+        "@opentelemetry/api": "^1.9.0",
+        "ai": "^5.0.0",
+        "boxen": "^7.1.1",
+        "chalk": "^5.4.1",
+        "diff": "^8.0.2",
+        "dotenv": "^16.4.7",
+        "glob": "^11.0.3",
+        "nanoid": "^5.1.6",
+        "winston": "^3.17.0",
+        "yaml": "^2.7.1",
+        "zod-to-json-schema": "^3.24.6"
     },
-    "@opentelemetry/exporter-trace-otlp-grpc": {
-      "optional": true
+    "devDependencies": {
+        "@opentelemetry/instrumentation-http": "^0.210.0",
+        "@opentelemetry/instrumentation-undici": "^0.20.0",
+        "@opentelemetry/resources": "^1.28.0",
+        "@opentelemetry/sdk-node": "^0.55.0",
+        "@opentelemetry/sdk-trace-base": "^1.28.0",
+        "@opentelemetry/semantic-conventions": "^1.28.0",
+        "@types/diff": "^8.0.0",
+        "@types/json-schema": "^7.0.15",
+        "zod": "^3.25.0"
     },
-    "@opentelemetry/exporter-trace-otlp-http": {
-      "optional": true
+    "peerDependencies": {
+        "@opentelemetry/core": "^1.28.0",
+        "@opentelemetry/exporter-trace-otlp-grpc": "^0.55.0",
+        "@opentelemetry/exporter-trace-otlp-http": "^0.55.0",
+        "@opentelemetry/instrumentation-http": "^0.210.0",
+        "@opentelemetry/instrumentation-undici": "^0.20.0",
+        "@opentelemetry/resources": "^1.28.0",
+        "@opentelemetry/sdk-node": "^0.55.0",
+        "@opentelemetry/sdk-trace-base": "^1.28.0",
+        "@opentelemetry/semantic-conventions": "^1.28.0",
+        "better-sqlite3": "^11.10.0",
+        "ioredis": "^5.7.0",
+        "pg": "^8.15.4",
+        "tsx": "^4.19.2",
+        "zod": "^3.25.0"
     },
-    "@opentelemetry/instrumentation-http": {
-      "optional": true
+    "peerDependenciesMeta": {
+        "@opentelemetry/core": {
+            "optional": true
+        },
+        "@opentelemetry/exporter-trace-otlp-grpc": {
+            "optional": true
+        },
+        "@opentelemetry/exporter-trace-otlp-http": {
+            "optional": true
+        },
+        "@opentelemetry/instrumentation-http": {
+            "optional": true
+        },
+        "@opentelemetry/instrumentation-undici": {
+            "optional": true
+        },
+        "@opentelemetry/resources": {
+            "optional": true
+        },
+        "@opentelemetry/sdk-node": {
+            "optional": true
+        },
+        "@opentelemetry/sdk-trace-base": {
+            "optional": true
+        },
+        "@opentelemetry/semantic-conventions": {
+            "optional": true
+        },
+        "better-sqlite3": {
+            "optional": true
+        },
+        "ioredis": {
+            "optional": true
+        },
+        "pg": {
+            "optional": true
+        },
+        "tsx": {
+            "optional": true
+        }
     },
-    "@opentelemetry/instrumentation-undici": {
-      "optional": true
+    "scripts": {
+        "build": "cross-env NODE_OPTIONS='--max-old-space-size=4096' tsup && cross-env NODE_OPTIONS='--max-old-space-size=4096' tsc -b tsconfig.json --force --emitDeclarationOnly",
+        "dev": "tsup --watch",
+        "typecheck": "tsc -p tsconfig.typecheck.json --noEmit",
+        "lint": "eslint . --ext .ts"
     },
-    "@opentelemetry/resources": {
-      "optional": true
+    "files": [
+        "dist",
+        "README.md"
+    ],
+    "publishConfig": {
+        "access": "public"
     },
-    "@opentelemetry/sdk-node": {
-      "optional": true
-    },
-    "@opentelemetry/sdk-trace-base": {
-      "optional": true
-    },
-    "@opentelemetry/semantic-conventions": {
-      "optional": true
-    },
-    "better-sqlite3": {
-      "optional": true
-    },
-    "ioredis": {
-      "optional": true
-    },
-    "pg": {
-      "optional": true
-    },
-    "tsx": {
-      "optional": true
-    }
-  },
-  "scripts": {
-    "build": "cross-env NODE_OPTIONS='--max-old-space-size=4096' tsup && cross-env NODE_OPTIONS='--max-old-space-size=4096' tsc -p tsconfig.json --emitDeclarationOnly && node scripts/fix-dist-aliases.mjs",
-    "dev": "tsup --watch",
-    "typecheck": "tsc -p tsconfig.typecheck.json --noEmit",
-    "lint": "eslint . --ext .ts"
-  },
-  "files": [
-    "dist",
-    "README.md"
-  ],
-  "publishConfig": {
-    "access": "public"
-  },
-  "sideEffects": false
+    "sideEffects": false
 }

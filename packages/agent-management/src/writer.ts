@@ -3,7 +3,8 @@
 import { promises as fs } from 'fs';
 import { parseDocument, stringify as stringifyYaml } from 'yaml';
 import * as path from 'path';
-import type { LLMProvider, AgentConfig } from '@dexto/core';
+import type { AgentConfig } from '@dexto/agent-config';
+import type { LLMProvider } from '@dexto/core';
 import { type GlobalPreferences } from './preferences/schemas.js';
 import { logger } from '@dexto/core';
 import { ConfigError } from './config/index.js';

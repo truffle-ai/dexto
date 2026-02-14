@@ -47,6 +47,7 @@ interface StaticCLIProps {
     agent: DextoAgent;
     initialSessionId: string | null;
     startupInfo: StartupInfo;
+    configFilePath: string | null;
     /** Whether to stream chunks or wait for complete response */
     useStreaming?: boolean;
 }
@@ -55,6 +56,7 @@ export function StaticCLI({
     agent,
     initialSessionId,
     startupInfo,
+    configFilePath,
     useStreaming = true,
 }: StaticCLIProps) {
     // Use shared CLI state (no keyboard scroll in Static mode)
@@ -246,6 +248,7 @@ export function StaticCLI({
                     agent={agent}
                     inputService={inputService}
                     useStreaming={useStreaming}
+                    configFilePath={configFilePath}
                 />
 
                 <OverlayContainer
@@ -265,6 +268,7 @@ export function StaticCLI({
                     buffer={buffer}
                     refreshStatic={refreshStatic}
                     onSubmitPromptCommand={handleSubmitPromptCommand}
+                    configFilePath={configFilePath}
                 />
 
                 {/* Exit warning (Ctrl+C pressed once) - shown above footer */}

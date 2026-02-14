@@ -1,17 +1,23 @@
 {
-  "extends": "../../tsconfig.json",
-  "compilerOptions": {
-    "baseUrl": ".",
-    "rootDir": "src",
-    "outDir": "dist",
-    "noEmit": false,
-    "declaration": true,
-    "declarationMap": true,
-    "emitDeclarationOnly": false,
-    "paths": {
-      "@core/*": ["src/*"]
-    }
-  },
-  "include": ["src/**/*"],
-  "exclude": ["**/*.test.ts", "**/*.spec.ts", "**/*.integration.test.ts", "dist", "node_modules"]
+    "extends": "../../tsconfig.json",
+    "compilerOptions": {
+        "baseUrl": ".",
+        "rootDir": "src",
+        "outDir": "dist",
+        "composite": true,
+        "noEmit": false,
+        "declaration": true,
+        "declarationMap": true,
+        "emitDeclarationOnly": false
+    },
+    "include": ["src/**/*"],
+    "exclude": [
+        "**/*.test.ts",
+        "**/*.spec.ts",
+        "**/*.integration.test.ts",
+        "**/*.integration.ts",
+        "src/test-utils/**/*",
+        "dist",
+        "node_modules"
+    ]
 }

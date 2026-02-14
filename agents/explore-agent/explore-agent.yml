@@ -78,11 +78,8 @@ toolConfirmation:
   mode: auto-approve
   allowedToolsStorage: memory
 
-# No internal tools needed for exploration
-internalTools: []
-
-# Read-only filesystem tools only - explicitly enable only read operations
-customTools:
+# Tools - unified tool factory configuration (builtins + custom tool providers)
+tools:
   - type: filesystem-tools
     enabledTools: ["read_file", "glob_files", "grep_content"]  # Read-only tools only
     allowedPaths: ["."]

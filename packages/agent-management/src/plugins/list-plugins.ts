@@ -13,7 +13,7 @@ import { existsSync, readFileSync, readdirSync } from 'fs';
 import { getDextoGlobalPath } from '../utils/path.js';
 import { InstalledPluginsFileSchema } from './schemas.js';
 import { tryLoadManifest } from './validate-plugin.js';
-import type { ListedPlugin, PluginInstallScope } from './types.js';
+import type { ListedPlugin } from './types.js';
 
 /**
  * Path to Dexto's installed_plugins.json
@@ -118,7 +118,9 @@ function readDextoInstalledPlugins(currentProjectPath: string): {
             return { plugins };
         }
 
-        for (const [_pluginId, installations] of Object.entries(result.data.plugins)) {
+        const installedPlugins = result.data.plugins;
+        for (const pluginId of Object.keys(installedPlugins)) {
+            const installations = installedPlugins[pluginId] ?? [];
             for (const installation of installations) {
                 const { scope, installPath, version, installedAt, projectPath } = installation;
 
@@ -147,7 +149,7 @@ function readDextoInstalledPlugins(currentProjectPath: string): {
                         version: version || manifest.version,
                         path: installPath,
                         source: 'dexto',
-                        scope: scope as PluginInstallScope,
+                        scope,
                         installedAt,
                     });
                 }

@@ -62,10 +62,10 @@ export interface LogEntry {
 }
 
 /**
- * Logger interface
- * All logger implementations must implement this interface
+ * Logger type
+ * All logger implementations must implement this shape.
  */
-export interface IDextoLogger {
+export type Logger = {
     /**
      * Log debug message
      * @param message Log message
@@ -114,7 +114,7 @@ export interface IDextoLogger {
      * @param component Component identifier for the child logger
      * @returns New logger instance with specified component
      */
-    createChild(component: DextoLogComponent): IDextoLogger;
+    createChild(component: DextoLogComponent): Logger;
 
     /**
      * Set the log level dynamically
@@ -139,13 +139,13 @@ export interface IDextoLogger {
      * Cleanup resources and close transports
      */
     destroy(): Promise<void>;
-}
+};
 
 /**
  * Base transport interface
  * All transport implementations must implement this interface
  */
-export interface ILoggerTransport {
+export type LoggerTransport = {
     /**
      * Write a log entry to the transport
      * @param entry Structured log entry
@@ -156,4 +156,4 @@ export interface ILoggerTransport {
      * Cleanup resources when logger is destroyed
      */
     destroy?(): void | Promise<void>;
-}
+};

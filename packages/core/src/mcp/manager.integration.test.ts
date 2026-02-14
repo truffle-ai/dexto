@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { MCPManager } from './manager.js';
-import { MCPClient } from './mcp-client.js';
+import { DextoMcpClient } from './mcp-client.js';
 import { McpServerConfigSchema } from './schemas.js';
 import type { MCPResolvedResource } from './types.js';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +15,7 @@ const RESOURCES_DEMO_PATH = resolve(
     __dirname,
     '../../../../examples/resources-demo-server/server.js'
 );
+const MEMORY_DEMO_PATH = resolve(__dirname, '../../../../examples/memory-demo-server/server.js');
 
 /**
  * Integration tests for MCPManager with real MCP servers
@@ -47,7 +48,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const client = new MCPClient(mockLogger);
+            const client = new DextoMcpClient(mockLogger);
             await client.connect(config, 'resources-demo');
 
             manager.registerClient('resources-demo', client);
@@ -80,7 +81,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const client = new MCPClient(mockLogger);
+            const client = new DextoMcpClient(mockLogger);
             await client.connect(config, 'resources-demo');
 
             manager.registerClient('resources-demo', client);
@@ -109,7 +110,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const client = new MCPClient(mockLogger);
+            const client = new DextoMcpClient(mockLogger);
             await client.connect(config, 'resources-demo');
 
             manager.registerClient('resources-demo', client);
@@ -139,7 +140,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const client = new MCPClient(mockLogger);
+            const client = new DextoMcpClient(mockLogger);
             await client.connect(config, 'resources-demo');
 
             manager.registerClient('resources-demo', client);
@@ -170,7 +171,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const client = new MCPClient(mockLogger);
+            const client = new DextoMcpClient(mockLogger);
             await client.connect(config, 'resources-demo');
 
             manager.registerClient('resources-demo', client);
@@ -206,7 +207,7 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const client = new MCPClient(mockLogger);
+            const client = new DextoMcpClient(mockLogger);
             await client.connect(config, 'resources-demo');
 
             manager.registerClient('resources-demo', client);
@@ -235,13 +236,13 @@ describe('MCPManager Integration Tests', () => {
     describe('Memory MCP Server', () => {
         it('should connect to memory server and cache tools', async () => {
             const config = McpServerConfigSchema.parse({
-                command: 'npx',
-                args: ['-y', '@modelcontextprotocol/server-memory'],
+                command: 'node',
+                args: [MEMORY_DEMO_PATH],
                 type: 'stdio',
                 env: {},
             });
 
-            const client = new MCPClient(mockLogger);
+            const client = new DextoMcpClient(mockLogger);
             await client.connect(config, 'memory');
 
             manager.registerClient('memory', client);
@@ -270,18 +271,18 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const resourcesClient = new MCPClient(mockLogger);
+            const resourcesClient = new DextoMcpClient(mockLogger);
             await resourcesClient.connect(resourcesConfig, 'resources-demo');
 
             // Connect memory server
             const memoryConfig = McpServerConfigSchema.parse({
-                command: 'npx',
-                args: ['-y', '@modelcontextprotocol/server-memory'],
+                command: 'node',
+                args: [MEMORY_DEMO_PATH],
                 type: 'stdio',
                 env: {},
             });
 
-            const memoryClient = new MCPClient(mockLogger);
+            const memoryClient = new DextoMcpClient(mockLogger);
             await memoryClient.connect(memoryConfig, 'memory');
 
             // Register both
@@ -312,17 +313,17 @@ describe('MCPManager Integration Tests', () => {
                 env: {},
             });
 
-            const resourcesClient = new MCPClient(mockLogger);
+            const resourcesClient = new DextoMcpClient(mockLogger);
             await resourcesClient.connect(resourcesConfig, 'resources-demo');
 
             const memoryConfig = McpServerConfigSchema.parse({
-                command: 'npx',
-                args: ['-y', '@modelcontextprotocol/server-memory'],
+                command: 'node',
+                args: [MEMORY_DEMO_PATH],
                 type: 'stdio',
                 env: {},
             });
 
-            const memoryClient = new MCPClient(mockLogger);
+            const memoryClient = new DextoMcpClient(mockLogger);
             await memoryClient.connect(memoryConfig, 'memory');
 
             manager.registerClient('resources-demo', resourcesClient);
@@ -351,13 +352,13 @@ describe('MCPManager Integration Tests', () => {
     describe('Cache Performance', () => {
         it('should demonstrate caching eliminates network calls', async () => {
             const config = McpServerConfigSchema.parse({
-                command: 'npx',
-                args: ['-y', '@modelcontextprotocol/server-memory'],
+                command: 'node',
+                args: [MEMORY_DEMO_PATH],
                 type: 'stdio',
                 env: {},
             });
 
-            const client = new MCPClient(mockLogger);
+            const client = new DextoMcpClient(mockLogger);
             await client.connect(config, 'memory');
 
             manager.registerClient('memory', client);
@@ -381,6 +382,6 @@ describe('MCPManager Integration Tests', () => {
                 `First call (with cache): ${time1}ms, Second call (from cache): ${time2}ms`
             );
             expect(time2).toBeLessThan(time1);
-        }, 15000);
+        }, 20000);
     });
 });

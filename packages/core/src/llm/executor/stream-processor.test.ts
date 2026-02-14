@@ -4,7 +4,7 @@ import type { StreamProcessorConfig } from './stream-processor.js';
 import type { ContextManager } from '../../context/manager.js';
 import type { SessionEventBus } from '../../events/index.js';
 import type { ResourceManager } from '../../resources/index.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 
 /**
  * Creates a mock async generator that yields events
@@ -50,7 +50,7 @@ function createMocks() {
         info: vi.fn(),
         warn: vi.fn(),
         error: vi.fn(),
-    } as unknown as IDextoLogger;
+    } as unknown as Logger;
 
     const mockAbortController = new AbortController();
 

@@ -1,7 +1,7 @@
 import type { MCPManager } from '../../mcp/manager.js';
 import type { PromptProvider, PromptInfo, PromptDefinition, PromptListResult } from '../types.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 
 /**
  * MCP Prompt Provider - Provides prompts from connected MCP servers
@@ -12,9 +12,9 @@ import type { IDextoLogger } from '../../logger/v2/types.js';
  */
 export class MCPPromptProvider implements PromptProvider {
     private mcpManager: MCPManager;
-    private logger: IDextoLogger;
+    private logger: Logger;
 
-    constructor(mcpManager: MCPManager, logger: IDextoLogger) {
+    constructor(mcpManager: MCPManager, logger: Logger) {
         this.mcpManager = mcpManager;
         this.logger = logger;
     }

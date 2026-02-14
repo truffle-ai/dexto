@@ -8,12 +8,12 @@ import * as path from 'node:path';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { createPatch } from 'diff';
-import { InternalTool, ToolExecutionContext, ApprovalType } from '@dexto/core';
+import { Tool, ToolExecutionContext, ApprovalType } from '@dexto/core';
 import type { DiffDisplayData, ApprovalRequestDetails, ApprovalResponse } from '@dexto/core';
 import { ToolError } from '@dexto/core';
 import { ToolErrorCode } from '@dexto/core';
 import { DextoRuntimeError } from '@dexto/core';
-import type { FileToolOptions } from './file-tool-types.js';
+import type { FileSystemServiceGetter } from './file-tool-types.js';
 import { FileSystemErrorCode } from './error-codes.js';
 
 /**
@@ -73,9 +73,7 @@ function generateDiffPreview(
 /**
  * Create the edit_file internal tool with directory approval support
  */
-export function createEditFileTool(options: FileToolOptions): InternalTool {
-    const { fileSystemService, directoryApproval } = options;
-
+export function createEditFileTool(getFileSystemService: FileSystemServiceGetter): Tool {
     // Store parent directory for use in onApprovalGranted callback
     let pendingApprovalParentDir: string | undefined;
 
@@ -89,18 +87,29 @@ export function createEditFileTool(options: FileToolOptions): InternalTool {
          * Check if this edit operation needs directory access approval.
          * Returns custom approval request if the file is outside allowed paths.
          */
-        getApprovalOverride: async (args: unknown): Promise<ApprovalRequestDetails | null> => {
+        getApprovalOverride: async (
+            args: unknown,
+            context: ToolExecutionContext
+        ): Promise<ApprovalRequestDetails | null> => {
             const { file_path } = args as EditFileInput;
             if (!file_path) return null;
 
+            const resolvedFileSystemService = await getFileSystemService(context);
+
             // Check if path is within config-allowed paths (async for non-blocking symlink resolution)
-            const isAllowed = await fileSystemService.isPathWithinConfigAllowed(file_path);
+            const isAllowed = await resolvedFileSystemService.isPathWithinConfigAllowed(file_path);
             if (isAllowed) {
                 return null; // Use normal tool confirmation
             }
 
-            // Check if directory is already session-approved
-            if (directoryApproval?.isSessionApproved(file_path)) {
+            // Check if directory is already session-approved (prompting decision)
+            const approvalManager = context.services?.approval;
+            if (!approvalManager) {
+                throw ToolError.configInvalid(
+                    'edit_file requires ToolExecutionContext.services.approval'
+                );
+            }
+            if (approvalManager.isDirectorySessionApproved(file_path)) {
                 return null; // Already approved, use normal flow
             }
 
@@ -123,14 +132,21 @@ export function createEditFileTool(options: FileToolOptions): InternalTool {
         /**
          * Handle approved directory access - remember the directory for session
          */
-        onApprovalGranted: (response: ApprovalResponse): void => {
-            if (!directoryApproval || !pendingApprovalParentDir) return;
+        onApprovalGranted: (response: ApprovalResponse, context: ToolExecutionContext): void => {
+            if (!pendingApprovalParentDir) return;
 
             // Check if user wants to remember the directory
             // Use type assertion to access rememberDirectory since response.data is a union type
             const data = response.data as { rememberDirectory?: boolean } | undefined;
             const rememberDirectory = data?.rememberDirectory ?? false;
-            directoryApproval.addApproved(
+
+            const approvalManager = context.services?.approval;
+            if (!approvalManager) {
+                throw ToolError.configInvalid(
+                    'edit_file requires ToolExecutionContext.services.approval'
+                );
+            }
+            approvalManager.addApprovedDirectory(
                 pendingApprovalParentDir,
                 rememberDirectory ? 'session' : 'once'
             );
@@ -144,16 +160,18 @@ export function createEditFileTool(options: FileToolOptions): InternalTool {
          * Throws ToolError.validationFailed() for validation errors (file not found, string not found)
          * Stores content hash for change detection in execute phase.
          */
-        generatePreview: async (input: unknown, context?: ToolExecutionContext) => {
+        generatePreview: async (input: unknown, context: ToolExecutionContext) => {
             const { file_path, old_string, new_string, replace_all } = input as EditFileInput;
+
+            const resolvedFileSystemService = await getFileSystemService(context);
 
             try {
                 // Read current file content
-                const originalFile = await fileSystemService.readFile(file_path);
+                const originalFile = await resolvedFileSystemService.readFile(file_path);
                 const originalContent = originalFile.content;
 
                 // Store content hash for change detection in execute phase
-                if (context?.toolCallId) {
+                if (context.toolCallId) {
                     previewContentHashCache.set(
                         context.toolCallId,
                         computeContentHash(originalContent)
@@ -207,42 +225,50 @@ export function createEditFileTool(options: FileToolOptions): InternalTool {
             }
         },
 
-        execute: async (input: unknown, context?: ToolExecutionContext) => {
+        execute: async (input: unknown, context: ToolExecutionContext) => {
+            const resolvedFileSystemService = await getFileSystemService(context);
+
             // Input is validated by provider before reaching here
             const { file_path, old_string, new_string, replace_all } = input as EditFileInput;
 
             // Check if file was modified since preview (safety check)
             // This prevents corrupting user edits made between preview approval and execution
-            if (context?.toolCallId && previewContentHashCache.has(context.toolCallId)) {
-                const expectedHash = previewContentHashCache.get(context.toolCallId)!;
-                previewContentHashCache.delete(context.toolCallId); // Clean up regardless of outcome
+            const toolCallId = context.toolCallId;
+            if (toolCallId) {
+                const expectedHash = previewContentHashCache.get(toolCallId);
+                if (expectedHash === undefined) {
+                    // No preview hash stored for this toolCallId, skip modification check.
+                    // This can happen if generatePreview was not called or caching was cleared.
+                } else {
+                    previewContentHashCache.delete(toolCallId); // Clean up regardless of outcome
 
-                // Read current content to verify it hasn't changed
-                let currentContent: string;
-                try {
-                    const currentFile = await fileSystemService.readFile(file_path);
-                    currentContent = currentFile.content;
-                } catch (error) {
-                    // File was deleted between preview and execute - treat as modified
-                    if (
-                        error instanceof DextoRuntimeError &&
-                        error.code === FileSystemErrorCode.FILE_NOT_FOUND
-                    ) {
+                    // Read current content to verify it hasn't changed
+                    let currentContent: string;
+                    try {
+                        const currentFile = await resolvedFileSystemService.readFile(file_path);
+                        currentContent = currentFile.content;
+                    } catch (error) {
+                        // File was deleted between preview and execute - treat as modified
+                        if (
+                            error instanceof DextoRuntimeError &&
+                            error.code === FileSystemErrorCode.FILE_NOT_FOUND
+                        ) {
+                            throw ToolError.fileModifiedSincePreview('edit_file', file_path);
+                        }
+                        throw error;
+                    }
+                    const currentHash = computeContentHash(currentContent);
+
+                    if (expectedHash !== currentHash) {
                         throw ToolError.fileModifiedSincePreview('edit_file', file_path);
                     }
-                    throw error;
-                }
-                const currentHash = computeContentHash(currentContent);
-
-                if (expectedHash !== currentHash) {
-                    throw ToolError.fileModifiedSincePreview('edit_file', file_path);
                 }
             }
 
             // Edit file using FileSystemService
             // Backup behavior is controlled by config.enableBackups (default: false)
             // editFile returns originalContent and newContent, eliminating extra file reads
-            const result = await fileSystemService.editFile(file_path, {
+            const result = await resolvedFileSystemService.editFile(file_path, {
                 oldString: old_string,
                 newString: new_string,
                 replaceAll: replace_all,

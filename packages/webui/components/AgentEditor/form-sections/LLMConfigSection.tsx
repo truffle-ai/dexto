@@ -3,7 +3,8 @@ import { Input } from '../../ui/input';
 import { LabelWithTooltip } from '../../ui/label-with-tooltip';
 import { Collapsible } from '../../ui/collapsible';
 import { Eye, EyeOff } from 'lucide-react';
-import { LLM_PROVIDERS, isReasoningCapableModel, type AgentConfig } from '@dexto/core';
+import { LLM_PROVIDERS, isReasoningCapableModel } from '@dexto/core';
+import type { AgentConfig } from '@dexto/agent-config';
 
 type LLMConfig = AgentConfig['llm'];
 

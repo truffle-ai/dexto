@@ -1,5 +1,5 @@
-import { DextoRuntimeError } from '@core/errors/DextoRuntimeError.js';
-import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
+import { ErrorScope, ErrorType } from '../errors/types.js';
 import { AgentErrorCode } from './error-codes.js';
 
 /**

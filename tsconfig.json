@@ -19,5 +19,27 @@
     "declaration": true,
     "declarationMap": true,
     "noEmit": true
-  }
+  },
+  "files": [],
+  "references": [
+    { "path": "./packages/agent-config" },
+    { "path": "./packages/agent-management" },
+    { "path": "./packages/analytics" },
+    { "path": "./packages/cli" },
+    { "path": "./packages/client-sdk" },
+    { "path": "./packages/core" },
+    { "path": "./packages/image-bundler" },
+    { "path": "./packages/image-local" },
+    { "path": "./packages/image-logger-agent" },
+    { "path": "./packages/orchestration" },
+    { "path": "./packages/registry" },
+    { "path": "./packages/server" },
+    { "path": "./packages/storage" },
+    { "path": "./packages/tools-builtins" },
+    { "path": "./packages/tools-filesystem" },
+    { "path": "./packages/tools-plan" },
+    { "path": "./packages/tools-process" },
+    { "path": "./packages/tools-todo" },
+    { "path": "./packages/webui" }
+  ]
 }

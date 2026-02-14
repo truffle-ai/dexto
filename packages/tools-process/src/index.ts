@@ -1,12 +1,12 @@
 /**
  * @dexto/tools-process
  *
- * Process tools provider for Dexto agents.
+ * Process tools factory for Dexto agents.
  * Provides process operation tools: bash exec, output, kill.
  */
 
-// Main provider export
-export { processToolsProvider } from './tool-provider.js';
+// Main factory export (image-compatible)
+export { processToolsFactory } from './tool-factory.js';
 
 // Service and utilities (for advanced use cases)
 export { ProcessService } from './process-service.js';

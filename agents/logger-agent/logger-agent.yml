@@ -1,6 +1,7 @@
 # Request Logger Agent Configuration
-# Demonstrates custom plugin integration with complete lifecycle testing
 # Logs all user requests, tool calls, and assistant responses to ~/.dexto/logs/request-logger.log
+#
+# Uses `@dexto/image-logger-agent`, which provides the `request-logger` plugin via image factories.
 
 # MCP Servers - basic filesystem and browser tools
 mcpServers:
@@ -48,6 +49,9 @@ memories:
 # Optional greeting shown at chat start
 greeting: "Hi! I'm the Logger Agent — all interactions are being logged for analysis. How can I help?"
 
+# Image provides custom plugin(s) and DI providers
+image: "@dexto/image-logger-agent"
+
 # LLM configuration
 llm:
   provider: openai
@@ -77,9 +81,11 @@ elicitation:
   enabled: true
   # timeout: omitted = infinite wait
 
-# Internal tools
-internalTools:
-  - ask_user
+# Tools - unified tool factory configuration (builtins + custom tool providers)
+tools:
+  - type: builtin-tools
+    enabledTools:
+      - ask_user
 
 # Internal resources configuration
 internalResources:
@@ -95,31 +101,18 @@ internalResources:
 
 # Plugin system configuration
 plugins:
-  # Built-in plugins
-  contentPolicy:
-    priority: 10
-    blocking: true
+  - type: request-logger
+    logFileName: request-logger.log
+
+  - type: content-policy
     maxInputChars: 50000
     redactEmails: true
     redactApiKeys: true
-    enabled: true
 
-  responseSanitizer:
-    priority: 900
-    blocking: false
+  - type: response-sanitizer
     redactEmails: true
     redactApiKeys: true
     maxResponseLength: 100000
-    enabled: true
-
-  # Custom Request Logger Plugin
-  custom:
-    - name: request-logger
-      module: "${{dexto.agent_dir}}/plugins/request-logger.ts"
-      enabled: true
-      blocking: false  # Non-blocking - we just want to observe, not interfere
-      priority: 5      # Run early to capture original data before other plugins modify it
-      config: {}       # Empty config uses defaults: ~/.dexto/logs/request-logger.log
 
 # Prompts - shown as clickable buttons in WebUI
 prompts:

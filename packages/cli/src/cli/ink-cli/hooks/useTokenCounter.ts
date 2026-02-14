@@ -87,7 +87,6 @@ export function useTokenCounter({ agent, isActive }: TokenCounterOptions): Token
             return;
         }
 
-        const bus = agent.agentEventBus;
         const controller = new AbortController();
         const { signal } = controller;
 
@@ -98,7 +97,7 @@ export function useTokenCounter({ agent, isActive }: TokenCounterOptions): Token
         setCurrentSegmentEstimate(0);
 
         // Track streaming chunks - accumulate estimate for current segment
-        bus.on(
+        agent.on(
             'llm:chunk',
             (payload) => {
                 if (payload.chunkType === 'text') {
@@ -110,7 +109,7 @@ export function useTokenCounter({ agent, isActive }: TokenCounterOptions): Token
         );
 
         // On response: update input (replace), accumulate output, reset estimate
-        bus.on(
+        agent.on(
             'llm:response',
             (payload) => {
                 const usage = payload.tokenUsage;

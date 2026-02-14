@@ -1,6 +1,6 @@
 import type { Result } from '../utils/result.js';
 import { DextoValidationError } from './DextoValidationError.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 
 /**
  * Bridge function to convert Result pattern to validation exceptions
@@ -24,7 +24,7 @@ import type { IDextoLogger } from '../logger/v2/types.js';
  * const validatedConfig = ensureOk(configResult, logger);
  * ```
  */
-export function ensureOk<T, C>(result: Result<T, C>, logger: IDextoLogger): T {
+export function ensureOk<T, C>(result: Result<T, C>, logger: Logger): T {
     if (result.ok) {
         return result.data;
     }

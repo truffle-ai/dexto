@@ -92,37 +92,13 @@ export const systemCommands: CommandDefinition[] = [
         handler: async (
             _args: string[],
             agent: DextoAgent,
-            _ctx: CommandContext
+            ctx: CommandContext
         ): Promise<CommandHandlerResult> => {
             try {
                 const config = agent.getEffectiveConfig();
                 const servers = Object.keys(config.mcpServers || {});
 
-                // Get config file path (may not exist for programmatic agents)
-                let configFilePath: string | null = null;
-                try {
-                    configFilePath = agent.getAgentFilePath();
-                } catch {
-                    // No config file path available
-                }
-
-                // Get enabled plugins
-                const pluginsEnabled: string[] = [];
-                if (config.plugins) {
-                    // Check built-in plugins
-                    if (config.plugins.contentPolicy?.enabled) {
-                        pluginsEnabled.push('contentPolicy');
-                    }
-                    if (config.plugins.responseSanitizer?.enabled) {
-                        pluginsEnabled.push('responseSanitizer');
-                    }
-                    // Check custom plugins
-                    for (const plugin of config.plugins.custom || []) {
-                        if (plugin.enabled) {
-                            pluginsEnabled.push(plugin.name);
-                        }
-                    }
-                }
+                const configFilePath = ctx.configFilePath ?? null;
 
                 // Build styled data
                 const styledData: ConfigStyledData = {
@@ -138,7 +114,7 @@ export const systemCommands: CommandDefinition[] = [
                         : 'Default',
                     mcpServers: servers,
                     promptsCount: config.prompts?.length || 0,
-                    pluginsEnabled,
+                    pluginsEnabled: [],
                 };
 
                 // Build fallback text (no console.log - interferes with Ink rendering)

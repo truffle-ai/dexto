@@ -205,12 +205,10 @@ Approval handlers control how your application prompts for and receives user dec
 **Manual handler for server/API mode**: Use `createManualApprovalHandler` from `@dexto/server` when building web applications. This handler coordinates approvals between backend and frontend via event bus:
 
 ```typescript
-import { createManualApprovalHandler } from '@dexto/server';
+import { ApprovalCoordinator, createManualApprovalHandler } from '@dexto/server';
 
-const handler = createManualApprovalHandler(
-  agent.agentEventBus,
-  60000 // timeout in ms
-);
+const coordinator = new ApprovalCoordinator();
+const handler = createManualApprovalHandler(coordinator);
 agent.setApprovalHandler(handler);
 ```
 

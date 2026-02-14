@@ -11,7 +11,7 @@ import {
     findDextoSourceRoot,
     findDextoProjectRoot,
 } from './execution-context.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 
 /**
  * Standard path resolver for logs/db/config/anything in dexto projects
@@ -158,7 +158,7 @@ export async function ensureDextoGlobalDirectory(): Promise<void> {
  * @param logger Optional logger instance for logging
  * @returns Absolute path to .env file for saving
  */
-export function getDextoEnvPath(startPath: string = process.cwd(), logger?: IDextoLogger): string {
+export function getDextoEnvPath(startPath: string = process.cwd(), logger?: Logger): string {
     const context = getExecutionContext(startPath);
     let envPath = '';
     switch (context) {

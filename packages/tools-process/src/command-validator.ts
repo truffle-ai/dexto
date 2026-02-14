@@ -5,7 +5,7 @@
  */
 
 import { ProcessConfig, CommandValidation } from './types.js';
-import type { IDextoLogger } from '@dexto/core';
+import type { Logger } from '@dexto/core';
 
 const MAX_COMMAND_LENGTH = 10000; // 10K characters
 
@@ -276,9 +276,9 @@ const WRITE_PATTERNS = [
  */
 export class CommandValidator {
     private config: ProcessConfig;
-    private logger: IDextoLogger;
+    private logger: Logger;
 
-    constructor(config: ProcessConfig, logger: IDextoLogger) {
+    constructor(config: ProcessConfig, logger: Logger) {
         this.config = config;
         this.logger = logger;
         this.logger.debug(

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { z } from 'zod';
 import { ToolManager } from './tool-manager.js';
 import { MCPManager } from '../mcp/manager.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
@@ -6,7 +7,7 @@ import { ToolErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
 import { AgentEventBus } from '../events/index.js';
 import type { ApprovalManager } from '../approval/manager.js';
-import type { IAllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
+import type { AllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
 import { ApprovalStatus } from '../approval/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 
@@ -23,7 +24,7 @@ vi.mock('../logger/index.js', () => ({
 describe('ToolManager - Unit Tests (Pure Logic)', () => {
     let mockMcpManager: MCPManager;
     let mockApprovalManager: ApprovalManager;
-    let mockAllowedToolsProvider: IAllowedToolsProvider;
+    let mockAllowedToolsProvider: AllowedToolsProvider;
     let mockAgentEventBus: AgentEventBus;
     const mockLogger = createMockLogger();
 
@@ -72,7 +73,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'manual',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                { internalToolsConfig: [], internalToolsServices: {} as any },
+                [],
                 mockLogger
             );
 
@@ -88,7 +89,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'manual',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                { internalToolsConfig: [], internalToolsServices: {} as any },
+                [],
                 mockLogger
             );
 
@@ -104,7 +105,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'manual',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                { internalToolsConfig: [], internalToolsServices: {} as any },
+                [],
                 mockLogger
             );
 
@@ -121,7 +122,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'manual',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                { internalToolsConfig: [], internalToolsServices: {} as any },
+                [],
                 mockLogger
             );
 
@@ -161,7 +162,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'manual',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                { internalToolsConfig: [], internalToolsServices: {} as any },
+                [],
                 mockLogger
             );
 
@@ -182,7 +183,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'manual',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                { internalToolsConfig: [], internalToolsServices: {} as any },
+                [],
                 mockLogger
             );
 
@@ -214,15 +215,56 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'manual',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                { internalToolsConfig: [], internalToolsServices: {} as any },
+                [],
                 mockLogger
             );
 
-            await expect(
-                toolManager.executeTool('internal--search_history', {}, 'test-call-id')
-            ).rejects.toThrow(
-                'Internal tools not initialized, cannot execute: internal--search_history'
+            const error = (await toolManager
+                .executeTool('internal--search_history', {}, 'test-call-id')
+                .catch((e) => e)) as DextoRuntimeError;
+            expect(error).toBeInstanceOf(DextoRuntimeError);
+            expect(error.code).toBe(ToolErrorCode.TOOL_NOT_FOUND);
+            expect(error.scope).toBe(ErrorScope.TOOLS);
+            expect(error.type).toBe(ErrorType.NOT_FOUND);
+        });
+    });
+
+    describe('Local Tool Execution', () => {
+        it('should execute local tools provided to ToolManager', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    {
+                        id: 'custom--hello',
+                        description: 'Say hello',
+                        inputSchema: z
+                            .object({
+                                name: z.string(),
+                            })
+                            .strict(),
+                        execute: async (input: any) => `Hello, ${(input as any).name}`,
+                    },
+                ] as any,
+                mockLogger
             );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+
+            const allTools = await toolManager.getAllTools();
+            expect(allTools['custom--hello']).toBeDefined();
+
+            const result = await toolManager.executeTool(
+                'custom--hello',
+                { name: 'World' },
+                'call-1'
+            );
+            expect(result).toEqual({ result: 'Hello, World' });
         });
     });
 
@@ -237,7 +279,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'manual',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                { internalToolsConfig: [], internalToolsServices: {} as any },
+                [],
                 mockLogger
             );
 
@@ -245,7 +287,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'mcp--file_read',
                 {
                     path: '/test',
-                    __dexto: {
+                    __meta: {
                         callDescription: 'Read test file',
                     },
                 },
@@ -277,7 +319,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'auto-approve',
                     mockAgentEventBus,
                     { alwaysAllow: [], alwaysDeny: [] },
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -285,7 +327,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'mcp--file_read',
                     {
                         path: '/test',
-                        __dexto: {
+                        __meta: {
                             runInBackground: true,
                         },
                     },
@@ -332,7 +374,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'auto-approve',
                     mockAgentEventBus,
                     { alwaysAllow: [], alwaysDeny: [] },
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -340,7 +382,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'mcp--file_read',
                     {
                         path: '/test',
-                        __dexto: {
+                        __meta: {
                             runInBackground: true,
                         },
                     },
@@ -369,7 +411,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'manual',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                { internalToolsConfig: [], internalToolsServices: {} as any },
+                [],
                 mockLogger
             );
 
@@ -395,7 +437,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'manual',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                { internalToolsConfig: [], internalToolsServices: {} as any },
+                [],
                 mockLogger
             );
 
@@ -420,7 +462,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'manual',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                { internalToolsConfig: [], internalToolsServices: {} as any },
+                [],
                 mockLogger
             );
 
@@ -453,7 +495,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'manual',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                { internalToolsConfig: [], internalToolsServices: {} as any },
+                [],
                 mockLogger
             );
 
@@ -481,7 +523,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'auto-approve',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                { internalToolsConfig: [], internalToolsServices: {} as any },
+                [],
                 mockLogger
             );
 
@@ -504,7 +546,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'auto-deny',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                { internalToolsConfig: [], internalToolsServices: {} as any },
+                [],
                 mockLogger
             );
 
@@ -533,7 +575,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'manual',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                { internalToolsConfig: [], internalToolsServices: {} as any },
+                [],
                 mockLogger
             );
 
@@ -558,7 +600,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'manual',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                { internalToolsConfig: [], internalToolsServices: {} as any },
+                [],
                 mockLogger
             );
 
@@ -591,7 +633,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'manual',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                { internalToolsConfig: [], internalToolsServices: {} as any },
+                [],
                 mockLogger
             );
 
@@ -615,7 +657,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'manual',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                { internalToolsConfig: [], internalToolsServices: {} as any },
+                [],
                 mockLogger
             );
 
@@ -639,7 +681,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'manual',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                { internalToolsConfig: [], internalToolsServices: {} as any },
+                [],
                 mockLogger
             );
 
@@ -665,7 +707,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'manual',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                { internalToolsConfig: [], internalToolsServices: {} as any },
+                [],
                 mockLogger
             );
 
@@ -685,7 +727,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'manual',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                { internalToolsConfig: [], internalToolsServices: {} as any },
+                [],
                 mockLogger
             );
 
@@ -702,7 +744,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'manual',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                { internalToolsConfig: [], internalToolsServices: {} as any },
+                [],
                 mockLogger
             );
 
@@ -724,7 +766,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'manual',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                { internalToolsConfig: [], internalToolsServices: {} as any },
+                [],
                 mockLogger
             );
 
@@ -744,7 +786,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'manual',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                { internalToolsConfig: [], internalToolsServices: {} as any },
+                [],
                 mockLogger
             );
 
@@ -775,7 +817,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'manual',
                     mockAgentEventBus,
                     toolPolicies,
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -805,7 +847,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'manual',
                     mockAgentEventBus,
                     toolPolicies,
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -833,7 +875,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'manual',
                     mockAgentEventBus,
                     toolPolicies,
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -869,7 +911,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'manual',
                     mockAgentEventBus,
                     toolPolicies,
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -906,7 +948,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'manual',
                     mockAgentEventBus,
                     toolPolicies,
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -939,7 +981,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'auto-approve',
                     mockAgentEventBus,
                     toolPolicies,
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -967,7 +1009,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'auto-approve',
                     mockAgentEventBus,
                     toolPolicies,
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -996,7 +1038,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'auto-deny',
                     mockAgentEventBus,
                     toolPolicies,
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -1023,7 +1065,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'auto-deny',
                     mockAgentEventBus,
                     toolPolicies,
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -1054,7 +1096,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'manual',
                     mockAgentEventBus,
                     { alwaysAllow: [], alwaysDeny: [] }, // No policies
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -1091,7 +1133,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'manual',
                     mockAgentEventBus,
                     toolPolicies,
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -1124,16 +1166,26 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'manual',
                     mockAgentEventBus,
                     toolPolicies,
-                    {
-                        internalToolsServices: {},
-                        internalToolsConfig: ['ask_user'],
-                    },
+                    [
+                        {
+                            id: 'internal--ask_user',
+                            description: 'Ask user',
+                            inputSchema: z.object({}).strict(),
+                            execute: vi.fn().mockResolvedValue('ok'),
+                        },
+                    ] as any,
                     mockLogger
                 );
+                toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
 
-                // Should not throw since internal tools provider will be initialized
-                // This tests that the policy check happens before tool routing
-                expect(toolManager).toBeDefined();
+                const result = await toolManager.executeTool(
+                    'internal--ask_user',
+                    {},
+                    'test-call-id'
+                );
+
+                expect(result).toEqual({ result: 'ok' });
+                expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
             });
         });
 
@@ -1156,7 +1208,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'manual',
                     mockAgentEventBus,
                     toolPolicies,
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -1183,7 +1235,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'manual',
                     mockAgentEventBus,
                     toolPolicies,
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -1218,7 +1270,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'manual',
                     mockAgentEventBus,
                     toolPolicies,
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -1242,7 +1294,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'manual',
                     mockAgentEventBus,
                     toolPolicies,
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -1277,7 +1329,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'manual',
                     mockAgentEventBus,
                     toolPolicies,
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -1317,7 +1369,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'manual',
                     mockAgentEventBus,
                     toolPolicies,
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -1354,7 +1406,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'manual',
                     mockAgentEventBus,
                     toolPolicies,
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -1401,7 +1453,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'manual',
                     mockAgentEventBus,
                     { alwaysAllow: [], alwaysDeny: [] },
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -1422,7 +1474,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'manual',
                     mockAgentEventBus,
                     { alwaysAllow: [], alwaysDeny: [] },
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -1438,7 +1490,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'manual',
                     mockAgentEventBus,
                     { alwaysAllow: [], alwaysDeny: [] },
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -1461,7 +1513,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'manual',
                     mockAgentEventBus,
                     { alwaysAllow: [], alwaysDeny: [] },
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -1497,7 +1549,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'manual',
                     mockAgentEventBus,
                     { alwaysAllow: [], alwaysDeny: [] },
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -1519,7 +1571,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'manual',
                     mockAgentEventBus,
                     { alwaysAllow: [], alwaysDeny: [] },
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -1557,7 +1609,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'manual', // Manual mode - normally requires approval
                     mockAgentEventBus,
                     { alwaysAllow: [], alwaysDeny: [] },
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -1596,7 +1648,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'manual',
                     mockAgentEventBus,
                     { alwaysAllow: [], alwaysDeny: [] },
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -1626,7 +1678,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'manual',
                     mockAgentEventBus,
                     { alwaysAllow: [], alwaysDeny: ['mcp--dangerous_tool'] }, // In deny list (full qualified name)
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -1660,7 +1712,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'manual',
                     mockAgentEventBus,
                     { alwaysAllow: [], alwaysDeny: [] },
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 
@@ -1693,7 +1745,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'manual',
                     mockAgentEventBus,
                     { alwaysAllow: [], alwaysDeny: [] },
-                    { internalToolsConfig: [], internalToolsServices: {} as any },
+                    [],
                     mockLogger
                 );
 

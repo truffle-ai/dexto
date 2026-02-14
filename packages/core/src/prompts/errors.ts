@@ -1,6 +1,6 @@
-import { DextoRuntimeError } from '@core/errors/DextoRuntimeError.js';
-import { DextoValidationError } from '@core/errors/DextoValidationError.js';
-import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
+import { DextoValidationError } from '../errors/DextoValidationError.js';
+import { ErrorScope, ErrorType } from '../errors/types.js';
 import { PromptErrorCode } from './error-codes.js';
 
 /**

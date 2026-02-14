@@ -1,6 +1,6 @@
 import React from 'react';
 import FormEditorTabs from './FormEditorTabs';
-import type { AgentConfig } from '@dexto/core';
+import type { AgentConfig } from '@dexto/agent-config';
 
 interface FormEditorViewProps {
     config: AgentConfig;

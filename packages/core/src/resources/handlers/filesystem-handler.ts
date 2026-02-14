@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import path from 'path';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ResourceError } from '../errors.js';
 import type { ResourceMetadata } from '../types.js';
@@ -15,11 +15,11 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
     private fileCount: number = 0;
     private canonicalRoots: string[] = [];
     private blobStoragePath: string | undefined;
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     constructor(
         config: ValidatedFileSystemResourceConfig,
-        logger: IDextoLogger,
+        logger: Logger,
         blobStoragePath?: string
     ) {
         this.config = config;

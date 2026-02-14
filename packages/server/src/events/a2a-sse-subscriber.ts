@@ -37,7 +37,7 @@ interface SSEConnection {
  * Usage:
  * ```typescript
  * const sseSubscriber = new A2ASseEventSubscriber();
- * sseSubscriber.subscribe(agent.agentEventBus);
+ * agent.registerSubscriber(sseSubscriber);
  *
  * // In route handler
  * const stream = sseSubscriber.createStream(taskId);

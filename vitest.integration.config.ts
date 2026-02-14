@@ -3,10 +3,7 @@ import path from 'path';
 
 export default defineConfig({
     resolve: {
-        alias: {
-            // @core is used internally within the core package only
-            '@core': path.resolve(__dirname, 'packages/core/src'),
-        },
+        alias: {},
     },
     test: {
         globals: true,

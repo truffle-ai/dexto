@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { StorageAllowedToolsProvider } from './storage.js';
-import type { StorageManager } from '@core/storage/index.js';
-import { createMockLogger } from '@core/logger/v2/test-utils.js';
+import type { StorageManager } from '../../../storage/index.js';
+import { createMockLogger } from '../../../logger/v2/test-utils.js';
 
 const mockLogger = createMockLogger();
 

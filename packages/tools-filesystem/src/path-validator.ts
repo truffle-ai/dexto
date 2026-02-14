@@ -7,7 +7,7 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import { FileSystemConfig, PathValidation } from './types.js';
-import type { IDextoLogger } from '@dexto/core';
+import type { Logger } from '@dexto/core';
 
 /**
  * Callback type for checking if a path is in an approved directory.
@@ -33,10 +33,10 @@ export class PathValidator {
     private normalizedAllowedPaths: string[];
     private normalizedBlockedPaths: string[];
     private normalizedBlockedExtensions: string[];
-    private logger: IDextoLogger;
+    private logger: Logger;
     private directoryApprovalChecker: DirectoryApprovalChecker | undefined;
 
-    constructor(config: FileSystemConfig, logger: IDextoLogger) {
+    constructor(config: FileSystemConfig, logger: Logger) {
         this.config = config;
         this.logger = logger;
 

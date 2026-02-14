@@ -1,19 +1,19 @@
-import type { AgentErrorCode } from '@core/agent/error-codes.js';
+import type { AgentErrorCode } from '../agent/error-codes.js';
 // ConfigErrorCode has been moved to @dexto/agent-management
 // Import from there if needed for error type unions
-import type { ContextErrorCode } from '@core/context/error-codes.js';
-import type { LLMErrorCode } from '@core/llm/error-codes.js';
-import type { MCPErrorCode } from '@core/mcp/error-codes.js';
-import type { SessionErrorCode } from '@core/session/error-codes.js';
-import type { StorageErrorCode } from '@core/storage/error-codes.js';
-import type { SystemPromptErrorCode } from '@core/systemPrompt/error-codes.js';
-import type { ToolErrorCode } from '@core/tools/error-codes.js';
-import type { ResourceErrorCode } from '@core/resources/error-codes.js';
-import type { PromptErrorCode } from '@core/prompts/error-codes.js';
-import type { ApprovalErrorCode } from '@core/approval/error-codes.js';
-import type { MemoryErrorCode } from '@core/memory/error-codes.js';
-import type { PluginErrorCode } from '@core/plugins/error-codes.js';
-import type { TelemetryErrorCode } from '@core/telemetry/error-codes.js';
+import type { ContextErrorCode } from '../context/error-codes.js';
+import type { LLMErrorCode } from '../llm/error-codes.js';
+import type { MCPErrorCode } from '../mcp/error-codes.js';
+import type { SessionErrorCode } from '../session/error-codes.js';
+import type { StorageErrorCode } from '../storage/error-codes.js';
+import type { SystemPromptErrorCode } from '../systemPrompt/error-codes.js';
+import type { ToolErrorCode } from '../tools/error-codes.js';
+import type { ResourceErrorCode } from '../resources/error-codes.js';
+import type { PromptErrorCode } from '../prompts/error-codes.js';
+import type { ApprovalErrorCode } from '../approval/error-codes.js';
+import type { MemoryErrorCode } from '../memory/error-codes.js';
+import type { PluginErrorCode } from '../plugins/error-codes.js';
+import type { TelemetryErrorCode } from '../telemetry/error-codes.js';
 
 /**
  * Error scopes representing functional domains in the system

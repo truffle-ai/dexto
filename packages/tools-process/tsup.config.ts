@@ -5,7 +5,12 @@ export default defineConfig([
         entry: ['src/**/*.ts'],
         format: ['cjs', 'esm'],
         outDir: 'dist',
-        dts: true,
+        dts: {
+            compilerOptions: {
+                skipLibCheck: true,
+                composite: false,
+            },
+        },
         platform: 'node',
         bundle: false,
         clean: true,

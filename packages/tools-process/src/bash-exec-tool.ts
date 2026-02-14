@@ -7,7 +7,7 @@
 
 import * as path from 'node:path';
 import { z } from 'zod';
-import { InternalTool, ToolExecutionContext } from '@dexto/core';
+import { Tool, ToolExecutionContext } from '@dexto/core';
 import { ProcessService } from './process-service.js';
 import { ProcessError } from './errors.js';
 import type { ShellDisplayData } from '@dexto/core';
@@ -43,7 +43,9 @@ type BashExecInput = z.input<typeof BashExecInputSchema>;
 /**
  * Create the bash_exec internal tool
  */
-export function createBashExecTool(processService: ProcessService): InternalTool {
+export type ProcessServiceGetter = (context: ToolExecutionContext) => Promise<ProcessService>;
+
+export function createBashExecTool(getProcessService: ProcessServiceGetter): Tool {
     return {
         id: 'bash_exec',
         description: `Execute a shell command in the project root directory.
@@ -96,7 +98,7 @@ Security: Dangerous commands are blocked. Injection attempts are detected. Requi
         /**
          * Generate preview for approval UI - shows the command to be executed
          */
-        generatePreview: async (input: unknown, _context?: ToolExecutionContext) => {
+        generatePreview: async (input: unknown, _context: ToolExecutionContext) => {
             const { command, run_in_background } = input as BashExecInput;
 
             const preview: ShellDisplayData = {
@@ -109,7 +111,9 @@ Security: Dangerous commands are blocked. Injection attempts are detected. Requi
             return preview;
         },
 
-        execute: async (input: unknown, context?: ToolExecutionContext) => {
+        execute: async (input: unknown, context: ToolExecutionContext) => {
+            const resolvedProcessService = await getProcessService(context);
+
             // Input is validated by provider before reaching here
             const { command, description, timeout, run_in_background, cwd } =
                 input as BashExecInput;
@@ -117,7 +121,8 @@ Security: Dangerous commands are blocked. Injection attempts are detected. Requi
             // Validate cwd to prevent path traversal
             let validatedCwd: string | undefined = cwd;
             if (cwd) {
-                const baseDir = processService.getConfig().workingDirectory || process.cwd();
+                const baseDir =
+                    resolvedProcessService.getConfig().workingDirectory || process.cwd();
 
                 // Resolve cwd to absolute path
                 const candidatePath = path.isAbsolute(cwd)
@@ -141,13 +146,13 @@ Security: Dangerous commands are blocked. Injection attempts are detected. Requi
 
             // Execute command using ProcessService
             // Note: Approval is handled at ToolManager level with pattern-based approval
-            const result = await processService.executeCommand(command, {
+            const result = await resolvedProcessService.executeCommand(command, {
                 description,
                 timeout,
                 runInBackground: run_in_background,
                 cwd: validatedCwd,
                 // Pass abort signal for cancellation support
-                abortSignal: context?.abortSignal,
+                abortSignal: context.abortSignal,
             });
 
             // Type guard: if result has 'stdout', it's a ProcessResult (foreground)

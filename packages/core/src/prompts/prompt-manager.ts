@@ -1,7 +1,7 @@
 import type { MCPManager } from '../mcp/manager.js';
 import type { PromptSet, PromptProvider, PromptInfo, ResolvedPromptResult } from './types.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
-import type { ValidatedAgentConfig } from '../agent/schemas.js';
+import type { AgentRuntimeSettings } from '../agent/runtime-config.js';
 import type { PromptsConfig } from './schemas.js';
 import type { AgentEventBus } from '../events/index.js';
 import { MCPPromptProvider } from './providers/mcp-prompt-provider.js';
@@ -11,7 +11,7 @@ import {
     type CreateCustomPromptInput,
 } from './providers/custom-prompt-provider.js';
 import { PromptError } from './errors.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import type { ResourceManager } from '../resources/manager.js';
 import type { Database } from '../storage/database/types.js';
@@ -30,15 +30,15 @@ export class PromptManager {
     private promptIndex: Map<string, PromptCacheEntry> | undefined;
     private aliasMap: Map<string, string> = new Map();
     private buildPromise: Promise<void> | null = null;
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     constructor(
         mcpManager: MCPManager,
         resourceManager: ResourceManager,
-        agentConfig: ValidatedAgentConfig,
+        agentConfig: AgentRuntimeSettings,
         private readonly eventBus: AgentEventBus,
         private readonly database: Database,
-        logger: IDextoLogger
+        logger: Logger
     ) {
         this.logger = logger.createChild(DextoLogComponent.PROMPT);
         this.configProvider = new ConfigPromptProvider(agentConfig, this.logger);

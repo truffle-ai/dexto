@@ -130,7 +130,7 @@ describe('ApprovalManager', () => {
     });
 
     describe('Approval routing by type', () => {
-        it('should route tool confirmations to tool provider', async () => {
+        it('should route tool confirmations to tool confirmation handler', async () => {
             const manager = new ApprovalManager(
                 {
                     toolConfirmation: {
@@ -154,7 +154,7 @@ describe('ApprovalManager', () => {
             expect(response.status).toBe(ApprovalStatus.APPROVED);
         });
 
-        it('should route command confirmations to tool provider', async () => {
+        it('should route command confirmations to tool confirmation handler', async () => {
             const manager = new ApprovalManager(
                 {
                     toolConfirmation: {

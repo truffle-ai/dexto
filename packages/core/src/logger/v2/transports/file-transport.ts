@@ -7,7 +7,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import type { ILoggerTransport, LogEntry } from '../types.js';
+import type { LoggerTransport, LogEntry } from '../types.js';
 
 export interface FileTransportConfig {
     /** Absolute path to log file */
@@ -21,7 +21,7 @@ export interface FileTransportConfig {
 /**
  * File transport with size-based rotation
  */
-export class FileTransport implements ILoggerTransport {
+export class FileTransport implements LoggerTransport {
     private filePath: string;
     private maxSize: number;
     private maxFiles: number;

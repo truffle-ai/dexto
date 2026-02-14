@@ -5,7 +5,7 @@ import { Button } from '../../ui/button';
 import { Collapsible } from '../../ui/collapsible';
 import { Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 
-import type { AgentConfig } from '@dexto/core';
+import type { AgentConfig } from '@dexto/agent-config';
 import { MCP_SERVER_TYPES, MCP_CONNECTION_MODES, DEFAULT_MCP_CONNECTION_MODE } from '@dexto/core';
 
 type McpServersConfig = NonNullable<AgentConfig['mcpServers']>;

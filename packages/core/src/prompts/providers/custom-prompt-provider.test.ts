@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeAll } from 'vitest';
 import { CustomPromptProvider } from './custom-prompt-provider.js';
-import { MemoryDatabaseStore } from '../../storage/database/memory-database-store.js';
+import { createInMemoryDatabase } from '../../test-utils/in-memory-storage.js';
+import type { Database } from '../../storage/database/types.js';
 
 const mockLogger = {
     debug: () => {},
@@ -14,11 +15,11 @@ const mockLogger = {
 } as any;
 
 describe('CustomPromptProvider', () => {
-    let db: MemoryDatabaseStore;
+    let db: Database;
     const resourceManagerStub = { getBlobStore: () => undefined } as any;
 
     beforeAll(async () => {
-        db = new MemoryDatabaseStore();
+        db = createInMemoryDatabase();
         await db.connect();
     });
 

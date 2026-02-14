@@ -16,9 +16,21 @@ import type {
     ApprovalHandler,
     ApprovalRequest,
     ApprovalResponse,
-    AgentEventBus,
+    AgentEventMap,
 } from '@dexto/core';
 import { ApprovalStatus, DenialReason } from '@dexto/core';
+
+type ApprovalEventBus = {
+    on: <K extends keyof AgentEventMap>(
+        event: K,
+        listener: AgentEventMap[K] extends void ? () => void : (payload: AgentEventMap[K]) => void,
+        options?: { signal?: AbortSignal }
+    ) => void;
+    emit: <K extends keyof AgentEventMap>(
+        event: K,
+        ...args: AgentEventMap[K] extends void ? [] : [AgentEventMap[K]]
+    ) => boolean;
+};
 
 /**
  * Creates a manual approval handler for CLI mode that uses AgentEventBus directly.
@@ -28,11 +40,11 @@ import { ApprovalStatus, DenialReason } from '@dexto/core';
  *
  * @example
  * ```typescript
- * const handler = createCLIApprovalHandler(agent.agentEventBus);
+ * const handler = createCLIApprovalHandler(agent);
  * agent.setApprovalHandler(handler);
  * ```
  */
-export function createCLIApprovalHandler(eventBus: AgentEventBus): ApprovalHandler {
+export function createCLIApprovalHandler(eventBus: ApprovalEventBus): ApprovalHandler {
     // Track pending approvals for cancellation support
     const pendingApprovals = new Map<
         string,

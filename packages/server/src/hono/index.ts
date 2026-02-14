@@ -68,6 +68,9 @@ const dummyAgentsContext: AgentsRouterContext = {
 
 // Type for async getAgent with context support
 export type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
+export type GetAgentConfigPathFn = (
+    ctx: Context
+) => string | undefined | Promise<string | undefined>;
 
 export type CreateDextoAppOptions = {
     /**
@@ -75,6 +78,13 @@ export type CreateDextoAppOptions = {
      */
     apiPrefix?: string;
     getAgent: GetAgentFn;
+    /**
+     * Optional active agent config path resolver.
+     *
+     * Used by file-based endpoints (e.g. /api/agent/config) for reading/writing YAML.
+     * Host layers (CLI/server/platform) own config file paths; core does not.
+     */
+    getAgentConfigPath?: GetAgentConfigPathFn;
     getAgentCard: () => AgentCard;
     approvalCoordinator: ApprovalCoordinator;
     webhookSubscriber: WebhookEventSubscriber;
@@ -95,6 +105,7 @@ export function createDextoApp(options: CreateDextoAppOptions) {
     const {
         apiPrefix,
         getAgent,
+        getAgentConfigPath,
         getAgentCard,
         approvalCoordinator,
         webhookSubscriber,
@@ -139,6 +150,7 @@ export function createDextoApp(options: CreateDextoAppOptions) {
 
     // Mount all API routers at the configured prefix for proper type inference
     // Each router is mounted individually so Hono can properly track route types
+    const resolvedGetAgentConfigPath = getAgentConfigPath ?? ((_ctx: Context) => undefined);
     const fullApp = app
         // Public health endpoint
         .route('/health', createHealthRouter(getAgent))
@@ -152,18 +164,25 @@ export function createDextoApp(options: CreateDextoAppOptions) {
         .route(routePrefix, createLlmRouter(getAgent))
         .route(routePrefix, createSessionsRouter(getAgent))
         .route(routePrefix, createSearchRouter(getAgent))
-        .route(routePrefix, createMcpRouter(getAgent))
+        .route(routePrefix, createMcpRouter(getAgent, resolvedGetAgentConfigPath))
         .route(routePrefix, createWebhooksRouter(getAgent, webhookSubscriber))
         .route(routePrefix, createPromptsRouter(getAgent))
         .route(routePrefix, createResourcesRouter(getAgent))
         .route(routePrefix, createMemoryRouter(getAgent))
         .route(routePrefix, createApprovalsRouter(getAgent, approvalCoordinator))
-        .route(routePrefix, createAgentsRouter(getAgent, agentsContext || dummyAgentsContext))
+        .route(
+            routePrefix,
+            createAgentsRouter(
+                getAgent,
+                agentsContext || dummyAgentsContext,
+                resolvedGetAgentConfigPath
+            )
+        )
         .route(routePrefix, createQueueRouter(getAgent))
         .route(routePrefix, createOpenRouterRouter())
         .route(routePrefix, createKeyRouter())
         .route(routePrefix, createToolsRouter(getAgent))
-        .route(routePrefix, createDiscoveryRouter())
+        .route(routePrefix, createDiscoveryRouter(resolvedGetAgentConfigPath))
         .route(routePrefix, createModelsRouter())
         .route(routePrefix, createDextoAuthRouter(getAgent));
 

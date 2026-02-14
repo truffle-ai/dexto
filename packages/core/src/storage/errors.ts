@@ -1,5 +1,5 @@
-import { DextoRuntimeError, DextoValidationError } from '@core/errors/index.js';
-import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { DextoRuntimeError, DextoValidationError } from '../errors/index.js';
+import { ErrorScope, ErrorType } from '../errors/types.js';
 import { StorageErrorCode } from './error-codes.js';
 
 /**
@@ -144,6 +144,25 @@ export class StorageError {
         return new DextoValidationError([
             {
                 code: StorageErrorCode.DATABASE_INVALID_CONFIG,
+                message,
+                scope: ErrorScope.STORAGE,
+                type: ErrorType.USER,
+                severity: 'error' as const,
+                context: context || {},
+            },
+        ]);
+    }
+
+    /**
+     * Invalid cache configuration
+     */
+    static cacheInvalidConfig(
+        message: string,
+        context?: Record<string, unknown>
+    ): DextoValidationError {
+        return new DextoValidationError([
+            {
+                code: StorageErrorCode.CACHE_INVALID_CONFIG,
                 message,
                 scope: ErrorScope.STORAGE,
                 type: ErrorType.USER,
@@ -338,91 +357,5 @@ export class StorageError {
         );
     }
 
-    /**
-     * Unknown blob provider type
-     */
-    static unknownBlobProvider(type: string, availableTypes: string[]): DextoRuntimeError {
-        return new DextoRuntimeError(
-            StorageErrorCode.BLOB_PROVIDER_UNKNOWN,
-            ErrorScope.STORAGE,
-            ErrorType.USER,
-            `Unknown blob store type: '${type}'`,
-            { type, availableTypes },
-            `Available types: ${availableTypes.length > 0 ? availableTypes.join(', ') : 'none'}`
-        );
-    }
-
-    /**
-     * Blob provider already registered
-     */
-    static blobProviderAlreadyRegistered(type: string): DextoRuntimeError {
-        return new DextoRuntimeError(
-            StorageErrorCode.BLOB_PROVIDER_ALREADY_REGISTERED,
-            ErrorScope.STORAGE,
-            ErrorType.USER,
-            `Blob store provider '${type}' is already registered`,
-            { type },
-            `Use unregister() first if you need to replace it`
-        );
-    }
-
-    // ==================== Database Provider Registry Errors ====================
-
-    /**
-     * Unknown database provider type
-     */
-    static unknownDatabaseProvider(type: string, availableTypes: string[]): DextoRuntimeError {
-        return new DextoRuntimeError(
-            StorageErrorCode.DATABASE_PROVIDER_UNKNOWN,
-            ErrorScope.STORAGE,
-            ErrorType.USER,
-            `Unknown database type: '${type}'`,
-            { type, availableTypes },
-            `Available types: ${availableTypes.length > 0 ? availableTypes.join(', ') : 'none'}`
-        );
-    }
-
-    /**
-     * Database provider already registered
-     */
-    static databaseProviderAlreadyRegistered(type: string): DextoRuntimeError {
-        return new DextoRuntimeError(
-            StorageErrorCode.DATABASE_PROVIDER_ALREADY_REGISTERED,
-            ErrorScope.STORAGE,
-            ErrorType.USER,
-            `Database provider '${type}' is already registered`,
-            { type },
-            `Use unregister() first if you need to replace it`
-        );
-    }
-
-    // ==================== Cache Provider Registry Errors ====================
-
-    /**
-     * Unknown cache provider type
-     */
-    static unknownCacheProvider(type: string, availableTypes: string[]): DextoRuntimeError {
-        return new DextoRuntimeError(
-            StorageErrorCode.CACHE_PROVIDER_UNKNOWN,
-            ErrorScope.STORAGE,
-            ErrorType.USER,
-            `Unknown cache type: '${type}'`,
-            { type, availableTypes },
-            `Available types: ${availableTypes.length > 0 ? availableTypes.join(', ') : 'none'}`
-        );
-    }
-
-    /**
-     * Cache provider already registered
-     */
-    static cacheProviderAlreadyRegistered(type: string): DextoRuntimeError {
-        return new DextoRuntimeError(
-            StorageErrorCode.CACHE_PROVIDER_ALREADY_REGISTERED,
-            ErrorScope.STORAGE,
-            ErrorType.USER,
-            `Cache provider '${type}' is already registered`,
-            { type },
-            `Use unregister() first if you need to replace it`
-        );
-    }
+    // Note: Registry-era provider errors were removed as part of the DI refactor.
 }

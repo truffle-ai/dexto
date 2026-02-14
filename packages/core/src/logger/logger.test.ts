@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { Logger } from '../logger/index.js';
+import { GlobalLogger } from '../logger/index.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { tmpdir } from 'os';
@@ -37,20 +37,20 @@ describe('Logger utilities', () => {
 
     it('getDefaultLogLevel falls back to "info"', () => {
         const customLogPath = path.join(tempDir, 'test.log');
-        const l = new Logger({ customLogPath });
+        const l = new GlobalLogger({ customLogPath });
         expect(l.getLevel()).toBe('info');
     });
 
     it('respects DEXTO_LOG_LEVEL env var', () => {
         process.env.DEXTO_LOG_LEVEL = 'debug';
         const customLogPath = path.join(tempDir, 'test.log');
-        const l = new Logger({ customLogPath });
+        const l = new GlobalLogger({ customLogPath });
         expect(l.getLevel()).toBe('debug');
     });
 
     it('setLevel updates level and rejects invalid levels', () => {
         const customLogPath = path.join(tempDir, 'test.log');
-        const l = new Logger({ level: 'info', customLogPath });
+        const l = new GlobalLogger({ level: 'info', customLogPath });
         l.setLevel('warn');
         expect(l.getLevel()).toBe('warn');
         // Invalid level should not change current level
@@ -60,14 +60,14 @@ describe('Logger utilities', () => {
 
     it('uses file logging by default', () => {
         const customLogPath = path.join(tempDir, 'test.log');
-        const l = new Logger({ customLogPath });
+        const l = new GlobalLogger({ customLogPath });
         expect(l.getLogFilePath()).toBe(customLogPath);
     });
 
     it('enables console logging when DEXTO_LOG_TO_CONSOLE=true', () => {
         process.env.DEXTO_LOG_TO_CONSOLE = 'true';
         const customLogPath = path.join(tempDir, 'test.log');
-        const l = new Logger({ customLogPath });
+        const l = new GlobalLogger({ customLogPath });
 
         // Logger should still have file path set
         expect(l.getLogFilePath()).toBe(customLogPath);
@@ -79,7 +79,7 @@ describe('Logger utilities', () => {
 
     it('display methods always use console.log (UI display)', () => {
         const customLogPath = path.join(tempDir, 'test.log');
-        const l = new Logger({ customLogPath });
+        const l = new GlobalLogger({ customLogPath });
 
         l.toolCall('testTool', { foo: 'bar' });
         // Display methods (toolCall, displayAIResponse, toolResult) always use console.log for UI
@@ -90,7 +90,7 @@ describe('Logger utilities', () => {
         const logDir = path.join(tempDir, 'nested', 'log', 'dir');
         const customLogPath = path.join(logDir, 'test.log');
 
-        const l = new Logger({ customLogPath });
+        const l = new GlobalLogger({ customLogPath });
 
         // Give async initialization time to complete
         await new Promise((resolve) => setTimeout(resolve, 100));
@@ -101,7 +101,7 @@ describe('Logger utilities', () => {
 
     it('actually writes logs to the file', async () => {
         const customLogPath = path.join(tempDir, 'test.log');
-        const l = new Logger({ customLogPath });
+        const l = new GlobalLogger({ customLogPath });
 
         // Write a test log
         l.info('Test log message');
@@ -118,7 +118,7 @@ describe('Logger utilities', () => {
 
     it('uses synchronous path resolution for project detection', () => {
         const customLogPath = path.join(tempDir, 'test.log');
-        const l = new Logger({ customLogPath });
+        const l = new GlobalLogger({ customLogPath });
 
         // Logger should initialize synchronously without errors
         expect(l.getLogFilePath()).toBe(customLogPath);

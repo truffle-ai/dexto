@@ -10,7 +10,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { existsSync } from 'node:fs';
-import type { IDextoLogger } from '@dexto/core';
+import type { Logger } from '@dexto/core';
 import { PlanMetaSchema } from './types.js';
 import type { Plan, PlanMeta, PlanServiceOptions, PlanUpdateResult } from './types.js';
 import { PlanError } from './errors.js';
@@ -23,9 +23,9 @@ const META_FILENAME = 'plan-meta.json';
  */
 export class PlanService {
     private basePath: string;
-    private logger: IDextoLogger | undefined;
+    private logger: Logger;
 
-    constructor(options: PlanServiceOptions, logger?: IDextoLogger) {
+    constructor(options: PlanServiceOptions, logger: Logger) {
         this.basePath = options.basePath;
         this.logger = logger;
     }
@@ -109,7 +109,7 @@ export class PlanService {
                 fs.writeFile(this.getMetaPath(sessionId), JSON.stringify(meta, null, 2), 'utf-8'),
             ]);
 
-            this.logger?.debug(`Created plan for session ${sessionId}`);
+            this.logger.debug(`Created plan for session ${sessionId}`);
 
             return { content, meta };
         } catch (error) {
@@ -137,7 +137,7 @@ export class PlanService {
             const metaResult = PlanMetaSchema.safeParse(metaParsed);
 
             if (!metaResult.success) {
-                this.logger?.warn(`Invalid plan metadata for session ${sessionId}, using defaults`);
+                this.logger.warn(`Invalid plan metadata for session ${sessionId}, using defaults`);
                 // Return with minimal metadata if parsing fails
                 return {
                     content,
@@ -160,13 +160,11 @@ export class PlanService {
             // JSON parse errors (SyntaxError) mean corrupted data - treat as not found
             // but log for debugging
             if (error instanceof SyntaxError) {
-                this.logger?.error(
-                    `Failed to read plan for session ${sessionId}: ${error.message}`
-                );
+                this.logger.error(`Failed to read plan for session ${sessionId}: ${error.message}`);
                 return null;
             }
             // For real I/O errors (permission denied, disk issues), throw to surface the issue
-            this.logger?.error(
+            this.logger.error(
                 `Failed to read plan for session ${sessionId}: ${err.message ?? String(err)}`
             );
             throw PlanError.storageError('read', sessionId, err);
@@ -204,7 +202,7 @@ export class PlanService {
                 ),
             ]);
 
-            this.logger?.debug(`Updated plan for session ${sessionId}`);
+            this.logger.debug(`Updated plan for session ${sessionId}`);
 
             return {
                 oldContent,
@@ -244,7 +242,7 @@ export class PlanService {
                 'utf-8'
             );
 
-            this.logger?.debug(`Updated plan metadata for session ${sessionId}`);
+            this.logger.debug(`Updated plan metadata for session ${sessionId}`);
 
             return updatedMeta;
         } catch (error) {
@@ -265,7 +263,7 @@ export class PlanService {
 
         try {
             await fs.rm(this.getPlanDir(sessionId), { recursive: true, force: true });
-            this.logger?.debug(`Deleted plan for session ${sessionId}`);
+            this.logger.debug(`Deleted plan for session ${sessionId}`);
         } catch (error) {
             throw PlanError.storageError('delete', sessionId, error as Error);
         }

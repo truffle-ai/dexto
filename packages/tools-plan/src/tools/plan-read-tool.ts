@@ -6,8 +6,8 @@
  */
 
 import { z } from 'zod';
-import type { InternalTool, ToolExecutionContext } from '@dexto/core';
-import type { PlanService } from '../plan-service.js';
+import type { Tool, ToolExecutionContext } from '@dexto/core';
+import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
 
 const PlanReadInputSchema = z.object({}).strict();
@@ -15,19 +15,20 @@ const PlanReadInputSchema = z.object({}).strict();
 /**
  * Creates the plan_read tool
  */
-export function createPlanReadTool(planService: PlanService): InternalTool {
+export function createPlanReadTool(getPlanService: PlanServiceGetter): Tool {
     return {
         id: 'plan_read',
         description:
             'Read the current implementation plan for this session. Returns the plan content and metadata including status. Use markdown checkboxes (- [ ] and - [x]) in the content to track progress.',
         inputSchema: PlanReadInputSchema,
 
-        execute: async (_input: unknown, context?: ToolExecutionContext) => {
-            if (!context?.sessionId) {
+        execute: async (_input: unknown, context: ToolExecutionContext) => {
+            const resolvedPlanService = await getPlanService(context);
+            if (!context.sessionId) {
                 throw PlanError.sessionIdRequired();
             }
 
-            const plan = await planService.read(context.sessionId);
+            const plan = await resolvedPlanService.read(context.sessionId);
 
             if (!plan) {
                 return {
@@ -38,7 +39,7 @@ export function createPlanReadTool(planService: PlanService): InternalTool {
 
             return {
                 exists: true,
-                path: `.dexto/plans/${context.sessionId}/plan.md`,
+                path: resolvedPlanService.getPlanPath(context.sessionId),
                 content: plan.content,
                 status: plan.meta.status,
                 title: plan.meta.title,

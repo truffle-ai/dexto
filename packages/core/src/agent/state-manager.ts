@@ -1,8 +1,8 @@
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
-import type { ValidatedAgentConfig } from '@core/agent/schemas.js';
-import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
-import type { ValidatedMcpServerConfig } from '@core/mcp/schemas.js';
+import type { AgentRuntimeSettings } from './runtime-config.js';
+import type { ValidatedLLMConfig } from '../llm/schemas.js';
+import type { ValidatedMcpServerConfig } from '../mcp/schemas.js';
 import type { AgentEventBus } from '../events/index.js';
 
 /**
@@ -27,10 +27,10 @@ export interface SessionOverride {
  * 6. Maintain effective configuration for each session
  */
 export class AgentStateManager {
-    private runtimeConfig: ValidatedAgentConfig;
-    private readonly baselineConfig: ValidatedAgentConfig;
+    private runtimeConfig: AgentRuntimeSettings;
+    private readonly baselineConfig: AgentRuntimeSettings;
     private sessionOverrides: Map<string, SessionOverride> = new Map();
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     /**
      * Initialize AgentStateManager from a validated static configuration.
@@ -40,9 +40,9 @@ export class AgentStateManager {
      * @param logger Logger instance for this agent
      */
     constructor(
-        staticConfig: ValidatedAgentConfig,
+        staticConfig: AgentRuntimeSettings,
         private agentEventBus: AgentEventBus,
-        logger: IDextoLogger
+        logger: Logger
     ) {
         this.baselineConfig = structuredClone(staticConfig);
         this.runtimeConfig = structuredClone(staticConfig);
@@ -59,7 +59,7 @@ export class AgentStateManager {
     /**
      * Get runtime configuration for a session (includes session overrides if sessionId provided)
      */
-    public getRuntimeConfig(sessionId?: string): Readonly<ValidatedAgentConfig> {
+    public getRuntimeConfig(sessionId?: string): Readonly<AgentRuntimeSettings> {
         if (!sessionId) {
             return structuredClone(this.runtimeConfig);
         }
@@ -220,8 +220,8 @@ export class AgentStateManager {
      * Export current runtime state as config.
      * This allows users to save their runtime modifications as a new agent config.
      */
-    public exportAsConfig(): ValidatedAgentConfig {
-        const exportedConfig: ValidatedAgentConfig = {
+    public exportAsConfig(): AgentRuntimeSettings {
+        const exportedConfig: AgentRuntimeSettings = {
             ...this.baselineConfig,
             llm: structuredClone(this.runtimeConfig.llm),
             systemPrompt: this.runtimeConfig.systemPrompt,

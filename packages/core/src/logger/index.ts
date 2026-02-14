@@ -1,9 +1,14 @@
 // Logger factory for dependency injection
 export { createLogger } from './factory.js';
 export type { CreateLoggerOptions } from './factory.js';
+export {
+    defaultLoggerFactory,
+    DefaultLoggerFactoryConfigSchema,
+} from './default-logger-factory.js';
+export type { DefaultLoggerFactoryConfig } from './default-logger-factory.js';
 
 // Multi-transport logger - v2
-export type { LogLevel, LogEntry, IDextoLogger, ILoggerTransport } from './v2/types.js';
+export type { LogLevel, LogEntry, Logger, LoggerTransport } from './v2/types.js';
 export { DextoLogComponent } from './v2/types.js';
 export { LoggerTransportSchema, LoggerConfigSchema } from './v2/schemas.js';
 export type { LoggerTransportConfig, LoggerConfig } from './v2/schemas.js';
@@ -20,5 +25,5 @@ export { LoggerError } from './v2/errors.js';
 export { LoggerErrorCode } from './v2/error-codes.js';
 
 // Legacy logger (to be removed)
-export type { LoggerOptions } from './logger.js';
-export { Logger, logger } from './logger.js';
+export type { GlobalLoggerOptions } from './logger.js';
+export { GlobalLogger, logger } from './logger.js';

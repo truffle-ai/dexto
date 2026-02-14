@@ -4,7 +4,7 @@ import { InternalResourcesProvider } from './internal-provider.js';
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ValidatedInternalResourcesConfig } from './schemas.js';
 import type { InternalResourceServices } from './handlers/types.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { ResourceError } from './errors.js';
 import { eventBus } from '../events/index.js';
@@ -19,9 +19,9 @@ export class ResourceManager {
     private readonly mcpManager: MCPManager;
     private internalResourcesProvider?: InternalResourcesProvider;
     private readonly blobStore: BlobStore;
-    private logger: IDextoLogger;
+    private logger: Logger;
 
-    constructor(mcpManager: MCPManager, options: ResourceManagerOptions, logger: IDextoLogger) {
+    constructor(mcpManager: MCPManager, options: ResourceManagerOptions, logger: Logger) {
         this.mcpManager = mcpManager;
         this.blobStore = options.blobStore;
         this.logger = logger.createChild(DextoLogComponent.RESOURCE);

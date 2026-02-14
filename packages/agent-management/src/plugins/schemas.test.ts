@@ -178,7 +178,7 @@ describe('InstalledPluginEntrySchema', () => {
     });
 
     it('should validate all scope values', () => {
-        const scopes = ['project', 'user', 'local', 'managed'] as const;
+        const scopes = ['project', 'user', 'local'] as const;
 
         for (const scope of scopes) {
             const entry = {

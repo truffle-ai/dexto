@@ -1,16 +1,15 @@
 import { LanguageModel, type ModelMessage } from 'ai';
 import { ToolManager } from '../../tools/tool-manager.js';
 import { LLMServiceConfig } from './types.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ToolSet } from '../../tools/types.js';
 import { ContextManager } from '../../context/manager.js';
 import { getEffectiveMaxInputTokens, getMaxInputTokensForModel } from '../registry/index.js';
 import type { ModelLimits } from '../../context/compaction/overflow.js';
-import type { CompactionConfigInput } from '../../context/compaction/schemas.js';
 import { ContentPart } from '../../context/types.js';
 import type { SessionEventBus } from '../../events/index.js';
-import type { IConversationHistoryProvider } from '../../session/history/types.js';
+import type { ConversationHistoryProvider } from '../../session/history/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { VercelMessageFormatter } from '../formatters/vercel.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
@@ -48,14 +47,13 @@ export class VercelLLMService {
     private contextManager: ContextManager<ModelMessage>;
     private sessionEventBus: SessionEventBus;
     private readonly sessionId: string;
-    private logger: IDextoLogger;
+    private logger: Logger;
     private resourceManager: ResourceManager;
     private messageQueue: MessageQueueService;
     private compactionStrategy:
-        | import('../../context/compaction/types.js').ICompactionStrategy
+        | import('../../context/compaction/types.js').CompactionStrategy
         | null;
-    private modelLimits: ModelLimits;
-    private compactionThresholdPercent: number;
+    private modelLimits?: ModelLimits;
 
     /**
      * Helper to extract model ID from LanguageModel union type (string | LanguageModelV2)
@@ -68,14 +66,13 @@ export class VercelLLMService {
         toolManager: ToolManager,
         model: LanguageModel,
         systemPromptManager: SystemPromptManager,
-        historyProvider: IConversationHistoryProvider,
+        historyProvider: ConversationHistoryProvider,
         sessionEventBus: SessionEventBus,
         config: ValidatedLLMConfig,
         sessionId: string,
         resourceManager: ResourceManager,
-        logger: IDextoLogger,
-        compactionStrategy?: import('../../context/compaction/types.js').ICompactionStrategy | null,
-        compactionConfig?: CompactionConfigInput
+        logger: Logger,
+        compactionStrategy?: import('../../context/compaction/types.js').CompactionStrategy | null
     ) {
         this.logger = logger.createChild(DextoLogComponent.LLM);
         this.model = model;
@@ -85,7 +82,6 @@ export class VercelLLMService {
         this.sessionId = sessionId;
         this.resourceManager = resourceManager;
         this.compactionStrategy = compactionStrategy ?? null;
-        this.compactionThresholdPercent = compactionConfig?.thresholdPercent ?? 0.9;
 
         // Create session-level message queue for mid-task user messages
         this.messageQueue = new MessageQueueService(this.sessionEventBus, this.logger);
@@ -94,25 +90,10 @@ export class VercelLLMService {
         const formatter = new VercelMessageFormatter(this.logger);
         const maxInputTokens = getEffectiveMaxInputTokens(config, this.logger);
 
-        // Set model limits for compaction overflow detection
-        // - maxContextTokens overrides the model's context window
-        // - thresholdPercent is applied separately in isOverflow() to trigger before 100%
-        let effectiveContextWindow = maxInputTokens;
-
-        // Apply maxContextTokens override if set (cap the context window)
-        if (compactionConfig?.maxContextTokens !== undefined) {
-            effectiveContextWindow = Math.min(maxInputTokens, compactionConfig.maxContextTokens);
-            this.logger.debug(
-                `Compaction: Using maxContextTokens override: ${compactionConfig.maxContextTokens} (model max: ${maxInputTokens})`
-            );
+        // Set model limits for compaction overflow detection (if enabled)
+        if (this.compactionStrategy) {
+            this.modelLimits = this.compactionStrategy.getModelLimits(maxInputTokens);
         }
-
-        // NOTE: thresholdPercent is NOT applied here - it's only applied in isOverflow()
-        // to trigger compaction early (e.g., at 90% instead of 100%)
-
-        this.modelLimits = {
-            contextWindow: effectiveContextWindow,
-        };
 
         this.contextManager = new ContextManager<ModelMessage>(
             config,
@@ -164,8 +145,7 @@ export class VercelLLMService {
             this.messageQueue,
             this.modelLimits,
             externalSignal,
-            this.compactionStrategy,
-            this.compactionThresholdPercent
+            this.compactionStrategy
         );
     }
 
@@ -293,9 +273,11 @@ export class VercelLLMService {
     /**
      * Get the compaction strategy for external access (e.g., session-native compaction)
      */
-    getCompactionStrategy():
-        | import('../../context/compaction/types.js').ICompactionStrategy
-        | null {
+    getCompactionStrategy(): import('../../context/compaction/types.js').CompactionStrategy | null {
         return this.compactionStrategy;
+    }
+
+    getLanguageModel(): LanguageModel {
+        return this.model;
     }
 }

@@ -89,9 +89,10 @@ export class CommandService {
         command: string,
         args: string[],
         agent: DextoAgent,
-        sessionId?: string
+        sessionId?: string,
+        configFilePath?: string | null
     ): Promise<CommandExecutionResult> {
-        const result = await executeCommand(command, args, agent, sessionId);
+        const result = await executeCommand(command, args, agent, sessionId, configFilePath);
 
         // If result is a send message marker, return the text to send through normal flow
         if (isSendMessageMarker(result)) {

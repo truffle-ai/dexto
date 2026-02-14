@@ -11,14 +11,21 @@ import * as os from 'node:os';
 import { PlanService } from './plan-service.js';
 import { PlanErrorCode } from './errors.js';
 import { DextoRuntimeError } from '@dexto/core';
+import type { Logger } from '@dexto/core';
 
 // Create mock logger
 const createMockLogger = () => ({
     debug: vi.fn(),
+    silly: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
+    trackException: vi.fn(),
     createChild: vi.fn().mockReturnThis(),
+    setLevel: vi.fn(),
+    getLevel: vi.fn(() => 'debug'),
+    getLogFilePath: vi.fn(() => null),
+    destroy: vi.fn(async () => undefined),
 });
 
 describe('PlanService', () => {
@@ -33,7 +40,7 @@ describe('PlanService', () => {
         const rawTempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'dexto-plan-test-'));
         tempDir = await fs.realpath(rawTempDir);
 
-        planService = new PlanService({ basePath: tempDir }, mockLogger as any);
+        planService = new PlanService({ basePath: tempDir }, mockLogger as unknown as Logger);
 
         vi.clearAllMocks();
     });

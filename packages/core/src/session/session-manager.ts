@@ -3,25 +3,26 @@ import { ChatSession } from './chat-session.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { AgentEventBus } from '../events/index.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
-import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
+import type { ValidatedLLMConfig } from '../llm/schemas.js';
 import type { StorageManager } from '../storage/index.js';
 import type { PluginManager } from '../plugins/manager.js';
 import { SessionError } from './errors.js';
 import type { TokenUsage } from '../llm/types.js';
+import type { CompactionStrategy } from '../context/compaction/types.js';
 export type SessionLoggerFactory = (options: {
-    baseLogger: IDextoLogger;
+    baseLogger: Logger;
     agentId: string;
     sessionId: string;
-}) => IDextoLogger;
+}) => Logger;
 
 function defaultSessionLoggerFactory(options: {
-    baseLogger: IDextoLogger;
+    baseLogger: Logger;
     agentId: string;
     sessionId: string;
-}): IDextoLogger {
+}): Logger {
     // Default behavior (no filesystem assumptions): just a child logger.
     // Hosts (CLI/server) can inject a SessionLoggerFactory that writes to a file.
     return options.baseLogger.createChild(DextoLogComponent.SESSION);
@@ -106,7 +107,7 @@ export class SessionManager {
     private readonly pendingCreations = new Map<string, Promise<ChatSession>>();
     // Per-session mutex for token usage updates to prevent lost updates from concurrent calls
     private readonly tokenUsageLocks = new Map<string, Promise<void>>();
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     private readonly sessionLoggerFactory: SessionLoggerFactory;
 
@@ -120,9 +121,10 @@ export class SessionManager {
             resourceManager: import('../resources/index.js').ResourceManager;
             pluginManager: PluginManager;
             mcpManager: import('../mcp/manager.js').MCPManager;
+            compactionStrategy: CompactionStrategy | null;
         },
         config: SessionManagerConfig = {},
-        logger: IDextoLogger
+        logger: Logger
     ) {
         this.maxSessions = config.maxSessions ?? 100;
         this.sessionTTL = config.sessionTTL ?? 3600000; // 1 hour

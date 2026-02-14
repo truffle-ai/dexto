@@ -1,6 +1,6 @@
 // src/config/mcp/resolver.ts
 import { ok, fail, type Result, hasErrors, zodToIssues } from '../utils/result.js';
-import { type Issue, ErrorScope, ErrorType } from '@core/errors/types.js';
+import { type Issue, ErrorScope, ErrorType } from '../errors/types.js';
 import { MCPErrorCode } from './error-codes.js';
 
 import {

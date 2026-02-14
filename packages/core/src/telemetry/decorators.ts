@@ -7,7 +7,7 @@ import {
     SpanOptions,
     type BaggageEntry,
 } from '@opentelemetry/api';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { hasActiveTelemetry, getBaggageValues } from './utils.js';
 import { safeStringify } from '../utils/safe-stringify.js';
 
@@ -30,7 +30,7 @@ export function withSpan(options: {
 
         descriptor.value = function (this: unknown, ...args: unknown[]) {
             // Try to get logger from instance for DI pattern (optional)
-            const logger = (this as any)?.logger as IDextoLogger | undefined;
+            const logger = (this as any)?.logger as Logger | undefined;
 
             // Skip if no telemetry is available and skipIfNoTelemetry is true
             // Guard against Telemetry.get() throwing if globalThis.__TELEMETRY__ is not yet defined
@@ -207,7 +207,7 @@ export function withSpan(options: {
                 return result;
             } catch (error) {
                 // Try to use instance logger if available (DI pattern)
-                const logger = (this as any)?.logger as IDextoLogger | undefined;
+                const logger = (this as any)?.logger as Logger | undefined;
                 logger?.error(
                     `withSpan: Error in method '${methodName}': ${error instanceof Error ? error.message : String(error)}`,
                     { error }

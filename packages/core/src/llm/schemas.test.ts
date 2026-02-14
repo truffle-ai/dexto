@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 
 // Mock logger to prevent initialization issues
-vi.mock('@core/logger/index.js', () => ({
+vi.mock('../logger/index.js', () => ({
     logger: {
         debug: vi.fn(),
         info: vi.fn(),
@@ -114,15 +114,17 @@ describe('LLMConfigSchema', () => {
             expect(result.error?.issues[0]?.path).toEqual(['model']);
         });
 
-        it('should require apiKey field', () => {
+        it('should allow missing apiKey (runtime resolves from environment)', () => {
             const config = {
                 provider: 'openai',
                 model: 'gpt-5',
             };
 
             const result = LLMConfigSchema.safeParse(config);
-            expect(result.success).toBe(false);
-            expect(result.error?.issues[0]?.path).toEqual(['apiKey']);
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.data.apiKey).toBeUndefined();
+            }
         });
     });
 
@@ -243,7 +245,7 @@ describe('LLMConfigSchema', () => {
     });
 
     describe('BaseURL Validation', () => {
-        it('should require baseURL for providers that need it', () => {
+        it('should allow missing baseURL for providers that need it (runtime enforces)', () => {
             const provider = LLMTestHelpers.getProviderRequiringBaseURL();
             if (!provider) return; // Skip if no providers require baseURL
 
@@ -255,11 +257,7 @@ describe('LLMConfigSchema', () => {
             };
 
             const result = LLMConfigSchema.safeParse(config);
-            expect(result.success).toBe(false);
-            expect(result.error?.issues[0]?.path).toEqual(['baseURL']);
-            expect((result.error?.issues[0] as any).params?.code).toBe(
-                LLMErrorCode.BASE_URL_MISSING
-            );
+            expect(result.success).toBe(true);
         });
 
         it('should accept baseURL for providers that require it', () => {
@@ -360,9 +358,8 @@ describe('LLMConfigSchema', () => {
     describe('Edge Cases', () => {
         it('should reject empty string values', () => {
             const testCases = [
-                { provider: '', model: 'gpt-5', apiKey: 'key' },
-                { provider: 'openai', model: '', apiKey: 'key' },
-                { provider: 'openai', model: 'gpt-5', apiKey: '' },
+                { provider: '', model: 'gpt-5' },
+                { provider: 'openai', model: '' },
             ];
 
             for (const config of testCases) {
@@ -373,9 +370,8 @@ describe('LLMConfigSchema', () => {
 
         it('should reject whitespace-only values', () => {
             const testCases = [
-                { provider: '   ', model: 'gpt-5', apiKey: 'key' },
-                { provider: 'openai', model: '   ', apiKey: 'key' },
-                { provider: 'openai', model: 'gpt-5', apiKey: '   ' },
+                { provider: '   ', model: 'gpt-5' },
+                { provider: 'openai', model: '   ' },
             ];
 
             for (const config of testCases) {
@@ -431,7 +427,7 @@ describe('LLMConfigSchema', () => {
             const input: LLMConfig = LLMTestHelpers.getValidConfigForProvider('openai');
             const result: ValidatedLLMConfig = LLMConfigSchema.parse(input);
 
-            // Should have applied defaults
+            // maxIterations is optional (unlimited when omitted)
             expect(result.maxIterations).toBeUndefined();
 
             // Should preserve input values
@@ -447,7 +443,7 @@ describe('LLMConfigSchema', () => {
             // TypeScript should infer correct types
             expect(typeof result.provider).toBe('string');
             expect(typeof result.model).toBe('string');
-            expect(typeof result.apiKey).toBe('string');
+            expect(typeof result.maxIterations).toBe('undefined');
             expect(result.maxIterations).toBeUndefined();
         });
     });

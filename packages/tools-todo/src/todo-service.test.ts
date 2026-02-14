@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TodoService } from './todo-service.js';
-import type { Database, AgentEventBus, IDextoLogger } from '@dexto/core';
+import type { Database, AgentEventBus, Logger } from '@dexto/core';
 import type { TodoInput } from './types.js';
 
 // Mock database
@@ -39,7 +39,7 @@ function createMockEventBus(): AgentEventBus {
 }
 
 // Mock logger
-function createMockLogger(): IDextoLogger {
+function createMockLogger(): Logger {
     return {
         debug: vi.fn(),
         silly: vi.fn(),
@@ -52,14 +52,14 @@ function createMockLogger(): IDextoLogger {
         getLevel: vi.fn().mockReturnValue('info'),
         getLogFilePath: vi.fn().mockReturnValue(null),
         destroy: vi.fn().mockResolvedValue(undefined),
-    } as unknown as IDextoLogger;
+    } as unknown as Logger;
 }
 
 describe('TodoService', () => {
     let service: TodoService;
     let mockDb: Database;
     let mockEventBus: AgentEventBus;
-    let mockLogger: IDextoLogger;
+    let mockLogger: Logger;
 
     beforeEach(async () => {
         mockDb = createMockDatabase();

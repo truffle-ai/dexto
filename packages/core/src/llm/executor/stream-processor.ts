@@ -6,7 +6,7 @@ import { truncateToolResult } from './tool-output-truncator.js';
 import { StreamProcessorResult } from './types.js';
 import { sanitizeToolResult } from '../../context/utils.js';
 import type { SanitizedToolResult } from '../../context/types.js';
-import { IDextoLogger } from '../../logger/v2/types.js';
+import { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { LLMProvider, TokenUsage } from '../types.js';
 
@@ -37,7 +37,7 @@ export class StreamProcessor {
     private reasoningText: string = '';
     private reasoningMetadata: Record<string, unknown> | undefined;
     private accumulatedText: string = '';
-    private logger: IDextoLogger;
+    private logger: Logger;
     private hasStepUsage = false;
     /**
      * Track pending tool calls (added to context but no result yet).
@@ -61,7 +61,7 @@ export class StreamProcessor {
         private resourceManager: ResourceManager,
         private abortSignal: AbortSignal,
         private config: StreamProcessorConfig,
-        logger: IDextoLogger,
+        logger: Logger,
         private streaming: boolean = true,
         private approvalMetadata?: Map<
             string,

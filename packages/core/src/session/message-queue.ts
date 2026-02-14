@@ -1,7 +1,7 @@
 import type { SessionEventBus } from '../events/index.js';
 import type { QueuedMessage, CoalescedMessage } from './types.js';
 import type { ContentPart } from '../context/types.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 
 /**
  * Generates a unique ID for queued messages.
@@ -57,7 +57,7 @@ export class MessageQueueService {
 
     constructor(
         private eventBus: SessionEventBus,
-        private logger: IDextoLogger
+        private logger: Logger
     ) {}
 
     /**

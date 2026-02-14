@@ -8,7 +8,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { glob } from 'glob';
 import safeRegex from 'safe-regex';
-import { getDextoPath, IDextoLogger, DextoLogComponent } from '@dexto/core';
+import { getDextoPath, Logger, DextoLogComponent } from '@dexto/core';
 import {
     FileSystemConfig,
     FileContent,
@@ -36,11 +36,10 @@ const DEFAULT_MAX_SEARCH_RESULTS = 100;
 /**
  * FileSystemService - Handles all file system operations with security checks
  *
- * This service receives fully-validated configuration from the FileSystem Tools Provider.
- * All defaults have been applied by the provider's schema, so the service trusts the config
+ * This service receives fully-validated configuration from the FileSystem Tools Factory.
+ * All defaults have been applied by the factory's schema, so the service trusts the config
  * and uses it as-is without any fallback logic.
  *
- * TODO: Add tests for this class
  * TODO: instantiate only when internal file tools are enabled to avoid file dependencies which won't work in serverless
  */
 export class FileSystemService {
@@ -48,16 +47,16 @@ export class FileSystemService {
     private pathValidator: PathValidator;
     private initialized: boolean = false;
     private initPromise: Promise<void> | null = null;
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     /**
      * Create a new FileSystemService with validated configuration.
      *
-     * @param config - Fully-validated configuration from provider schema.
+     * @param config - Fully-validated configuration from the factory schema.
      *                 All required fields have values, defaults already applied.
      * @param logger - Logger instance for this service
      */
-    constructor(config: FileSystemConfig, logger: IDextoLogger) {
+    constructor(config: FileSystemConfig, logger: Logger) {
         // Config is already fully validated with defaults applied - just use it
         this.config = config;
 

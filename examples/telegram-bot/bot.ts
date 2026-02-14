@@ -144,8 +144,6 @@ export async function startTelegramBot(agent: DextoAgent) {
         throw new Error('TELEGRAM_BOT_TOKEN is not set');
     }
 
-    const agentEventBus = agent.agentEventBus;
-
     // Load prompts from DextoAgent at startup
     await loadPrompts(agent);
 
@@ -530,7 +528,7 @@ export async function startTelegramBot(agent: DextoAgent) {
                 logger.warn(`Failed to notify tool call: ${e}`)
             );
         };
-        agentEventBus.on('llm:tool-call', toolCallHandler);
+        agent.on('llm:tool-call', toolCallHandler);
 
         try {
             await ctx.replyWithChatAction('typing');
@@ -573,7 +571,7 @@ export async function startTelegramBot(agent: DextoAgent) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             await ctx.reply(`❌ Error: ${errorMessage}`);
         } finally {
-            agentEventBus.off('llm:tool-call', toolCallHandler);
+            agent.off('llm:tool-call', toolCallHandler);
         }
     });
 

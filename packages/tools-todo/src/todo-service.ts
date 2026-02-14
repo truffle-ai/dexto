@@ -6,7 +6,7 @@
  */
 
 import { nanoid } from 'nanoid';
-import type { Database, AgentEventBus, IDextoLogger } from '@dexto/core';
+import type { Database, AgentEventBus, Logger } from '@dexto/core';
 import { DextoRuntimeError } from '@dexto/core';
 import { TodoError } from './errors.js';
 import type { Todo, TodoInput, TodoUpdateResult, TodoConfig, TodoStatus } from './types.js';
@@ -15,20 +15,22 @@ import { TODO_STATUS_VALUES } from './types.js';
 const DEFAULT_MAX_TODOS = 100;
 const TODOS_KEY_PREFIX = 'todos:';
 
+type TodoEventEmitter = Pick<AgentEventBus, 'emit'>;
+
 /**
  * TodoService - Manages todo lists for agent workflow tracking
  */
 export class TodoService {
     private database: Database;
-    private eventBus: AgentEventBus;
-    private logger: IDextoLogger;
+    private eventBus: TodoEventEmitter;
+    private logger: Logger;
     private config: Required<TodoConfig>;
     private initialized: boolean = false;
 
     constructor(
         database: Database,
-        eventBus: AgentEventBus,
-        logger: IDextoLogger,
+        eventBus: TodoEventEmitter,
+        logger: Logger,
         config: TodoConfig = {}
     ) {
         this.database = database;

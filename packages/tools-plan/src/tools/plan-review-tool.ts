@@ -13,8 +13,8 @@
  */
 
 import { z } from 'zod';
-import type { InternalTool, ToolExecutionContext, FileDisplayData } from '@dexto/core';
-import type { PlanService } from '../plan-service.js';
+import type { Tool, ToolExecutionContext, FileDisplayData } from '@dexto/core';
+import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
 
 const PlanReviewInputSchema = z
@@ -33,7 +33,7 @@ type PlanReviewInput = z.input<typeof PlanReviewInputSchema>;
  *
  * @param planService - Service for plan operations
  */
-export function createPlanReviewTool(planService: PlanService): InternalTool {
+export function createPlanReviewTool(getPlanService: PlanServiceGetter): Tool {
     return {
         id: 'plan_review',
         description:
@@ -46,16 +46,17 @@ export function createPlanReviewTool(planService: PlanService): InternalTool {
          */
         generatePreview: async (
             input: unknown,
-            context?: ToolExecutionContext
+            context: ToolExecutionContext
         ): Promise<FileDisplayData> => {
+            const resolvedPlanService = await getPlanService(context);
             const { summary } = input as PlanReviewInput;
 
-            if (!context?.sessionId) {
+            if (!context.sessionId) {
                 throw PlanError.sessionIdRequired();
             }
 
             // Read the current plan
-            const plan = await planService.read(context.sessionId);
+            const plan = await resolvedPlanService.read(context.sessionId);
             if (!plan) {
                 throw PlanError.planNotFound(context.sessionId);
             }
@@ -67,7 +68,7 @@ export function createPlanReviewTool(planService: PlanService): InternalTool {
             }
 
             const lineCount = displayContent.split('\n').length;
-            const planPath = planService.getPlanPath(context.sessionId);
+            const planPath = resolvedPlanService.getPlanPath(context.sessionId);
             return {
                 type: 'file',
                 path: planPath,
@@ -78,21 +79,22 @@ export function createPlanReviewTool(planService: PlanService): InternalTool {
             };
         },
 
-        execute: async (_input: unknown, context?: ToolExecutionContext) => {
+        execute: async (_input: unknown, context: ToolExecutionContext) => {
+            const resolvedPlanService = await getPlanService(context);
             // Tool execution means user approved the plan (selected Approve or Approve + Accept Edits)
             // Request Changes and Reject are handled as denials in the approval flow
-            if (!context?.sessionId) {
+            if (!context.sessionId) {
                 throw PlanError.sessionIdRequired();
             }
 
             // Read plan to verify it still exists
-            const plan = await planService.read(context.sessionId);
+            const plan = await resolvedPlanService.read(context.sessionId);
             if (!plan) {
                 throw PlanError.planNotFound(context.sessionId);
             }
 
             // Update plan status to approved
-            await planService.updateMeta(context.sessionId, { status: 'approved' });
+            await resolvedPlanService.updateMeta(context.sessionId, { status: 'approved' });
 
             return {
                 approved: true,

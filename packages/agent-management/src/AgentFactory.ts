@@ -25,11 +25,11 @@
  */
 
 import { promises as fs } from 'fs';
-import { DextoAgent, type AgentConfig } from '@dexto/core';
+import type { AgentConfig } from '@dexto/agent-config';
+import type { DextoAgent } from '@dexto/core';
 import { getDextoGlobalPath } from './utils/path.js';
 import { deriveDisplayName } from './registry/types.js';
 import { loadBundledRegistryAgents } from './registry/registry.js';
-import { enrichAgentConfig } from './config/index.js';
 import {
     installBundledAgent,
     installCustomAgent,
@@ -37,6 +37,7 @@ import {
     type InstallOptions,
 } from './installation.js';
 import type { AgentMetadata } from './AgentManager.js';
+import { createDextoAgentFromConfig } from './agent-creation.js';
 
 /**
  * Options for listing agents
@@ -93,7 +94,7 @@ export const AgentFactory = {
         const installedSet = new Set(installed);
         const availableAgents = Object.entries(bundledAgents)
             .filter(([id]) => !installedSet.has(id))
-            .map(([id, entry]: [string, any]) => ({
+            .map(([id, entry]) => ({
                 id,
                 name: entry.name,
                 description: entry.description || descriptionFallback,
@@ -181,15 +182,10 @@ export const AgentFactory = {
             } as AgentConfig;
         }
 
-        // Enrich with runtime paths (logs, database, blob storage)
-        const enrichedConfig = enrichAgentConfig(
-            configToEnrich,
-            undefined, // No config path for inline configs
-            options?.isInteractiveCli ?? false
-        );
-
-        // Create and return unstarted agent
-        return new DextoAgent(enrichedConfig);
+        return await createDextoAgentFromConfig({
+            config: configToEnrich,
+            enrichOptions: { isInteractiveCli: options?.isInteractiveCli ?? false },
+        });
     },
 };
 

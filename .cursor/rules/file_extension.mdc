@@ -1,6 +1,0 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-For any new imports, ensure the import ends with .js for it to work

@@ -1,0 +1,37 @@
+{
+  "name": "@dexto/tools-builtins",
+  "version": "1.5.8",
+  "description": "Built-in tools factory for Dexto agents",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "dexto",
+    "tools",
+    "builtins"
+  ],
+  "dependencies": {
+    "@dexto/agent-config": "workspace:*",
+    "@dexto/core": "workspace:*",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.3"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ]
+}

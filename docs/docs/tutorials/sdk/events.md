@@ -40,15 +40,15 @@ const agent = new DextoAgent({
 });
 
 // Listen BEFORE starting
-agent.agentEventBus.on('llm:thinking', () => {
+agent.on('llm:thinking', () => {
   console.log('Agent is thinking...');
 });
 
-agent.agentEventBus.on('llm:chunk', ({ content }) => {
+agent.on('llm:chunk', ({ content }) => {
   process.stdout.write(content); // Stream text as it arrives
 });
 
-agent.agentEventBus.on('llm:response', () => {
+agent.on('llm:response', () => {
   console.log('\n✓ Complete');
 });
 
@@ -68,7 +68,7 @@ Much better!
 
 ### Thinking
 ```typescript
-agent.agentEventBus.on('llm:thinking', ({ sessionId }) => {
+agent.on('llm:thinking', ({ sessionId }) => {
   showLoadingSpinner(sessionId);
 });
 ```
@@ -76,7 +76,7 @@ Fires when the agent starts processing. Show a loading indicator.
 
 ### Streaming Text
 ```typescript
-agent.agentEventBus.on('llm:chunk', ({ sessionId, content }) => {
+agent.on('llm:chunk', ({ sessionId, content }) => {
   appendText(sessionId, content);
 });
 ```
@@ -84,7 +84,7 @@ Fires for each chunk of text. Build up the response in your UI.
 
 ### Response Complete
 ```typescript
-agent.agentEventBus.on('llm:response', ({ sessionId, content, usage }) => {
+agent.on('llm:response', ({ sessionId, content, usage }) => {
   hideLoadingSpinner(sessionId);
   console.log(`Tokens used: ${usage?.totalTokens}`);
 });
@@ -96,11 +96,11 @@ Fires when done. Hide loading, show final message.
 When your agent uses tools, show what it's doing:
 
 ```typescript
-agent.agentEventBus.on('llm:tool-call', ({ sessionId, toolName, args }) => {
+agent.on('llm:tool-call', ({ sessionId, toolName, args }) => {
   showToolBanner(sessionId, `Using ${toolName}...`);
 });
 
-agent.agentEventBus.on('llm:tool-result', ({ sessionId, toolName, success }) => {
+agent.on('llm:tool-result', ({ sessionId, toolName, success }) => {
   if (success) {
     hideToolBanner(sessionId);
   } else {
@@ -128,19 +128,19 @@ const uiState = new Map<string, {
   currentMessage: string;
 }>();
 
-agent.agentEventBus.on('llm:thinking', ({ sessionId }) => {
+agent.on('llm:thinking', ({ sessionId }) => {
   uiState.set(sessionId, { status: 'thinking', currentMessage: '' });
   updateUI(sessionId);
 });
 
-agent.agentEventBus.on('llm:chunk', ({ sessionId, content }) => {
+agent.on('llm:chunk', ({ sessionId, content }) => {
   const state = uiState.get(sessionId)!;
   state.status = 'streaming';
   state.currentMessage += content;
   updateUI(sessionId);
 });
 
-agent.agentEventBus.on('llm:response', ({ sessionId }) => {
+agent.on('llm:response', ({ sessionId }) => {
   const state = uiState.get(sessionId)!;
   state.status = 'idle';
   updateUI(sessionId);

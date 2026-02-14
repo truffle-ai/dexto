@@ -2,10 +2,16 @@ import React from 'react';
 import { Input } from '../../ui/input';
 import { LabelWithTooltip } from '../../ui/label-with-tooltip';
 import { Collapsible } from '../../ui/collapsible';
-import type { AgentConfig, CacheType, DatabaseType } from '@dexto/core';
-import { CACHE_TYPES, DATABASE_TYPES } from '@dexto/core';
+import type { AgentConfig } from '@dexto/agent-config';
+import type { CacheType, DatabaseType } from '@dexto/storage/schemas';
+import { CACHE_TYPES, DATABASE_TYPES } from '@dexto/storage/schemas';
 
 type StorageConfig = NonNullable<AgentConfig['storage']>;
+
+function readOptionalString(record: Record<string, unknown>, key: string): string | undefined {
+    const value = record[key];
+    return typeof value === 'string' ? value : undefined;
+}
 
 interface StorageSectionProps {
     value: StorageConfig;
@@ -26,6 +32,9 @@ export function StorageSection({
     errorCount = 0,
     sectionErrors = [],
 }: StorageSectionProps) {
+    const cacheRecord = value.cache as Record<string, unknown>;
+    const databaseRecord = value.database as Record<string, unknown>;
+
     const updateCache = (updates: Partial<Record<string, unknown>>) => {
         onChange({
             ...value,
@@ -77,7 +86,7 @@ export function StorageSection({
                         </select>
                     </div>
 
-                    {showCacheUrl && 'url' in value.cache && (
+                    {showCacheUrl && (
                         <div>
                             <LabelWithTooltip
                                 htmlFor="cache-url"
@@ -87,7 +96,7 @@ export function StorageSection({
                             </LabelWithTooltip>
                             <Input
                                 id="cache-url"
-                                value={value.cache.url || ''}
+                                value={readOptionalString(cacheRecord, 'url') ?? ''}
                                 onChange={(e) => updateCache({ url: e.target.value || undefined })}
                                 placeholder="redis://localhost:6379"
                                 aria-invalid={!!errors['storage.cache.url']}
@@ -144,8 +153,8 @@ export function StorageSection({
                             <Input
                                 id="database-url"
                                 value={
-                                    ('url' in value.database && value.database.url) ||
-                                    ('path' in value.database && value.database.path) ||
+                                    readOptionalString(databaseRecord, 'url') ??
+                                    readOptionalString(databaseRecord, 'path') ??
                                     ''
                                 }
                                 onChange={(e) => {

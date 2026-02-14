@@ -1,4 +1,4 @@
-import type { ImageDefinition, ImageMetadata } from '@dexto/core';
+import type { ImageMetadata } from './image-definition/types.js';
 
 export interface BundleOptions {
     /** Path to dexto.image.ts file */

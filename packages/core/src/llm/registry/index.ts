@@ -23,7 +23,7 @@ import {
     type SupportedFileType,
     type TokenUsage,
 } from '../types.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 import { getOpenRouterModelContextLength } from '../providers/openrouter-model-registry.js';
 import { MODELS_BY_PROVIDER } from './models.generated.js';
 import { MANUAL_MODELS_BY_PROVIDER } from './models.manual.js';
@@ -466,7 +466,7 @@ export function getSupportedModels(provider: LLMProvider): string[] {
 export function getMaxInputTokensForModel(
     provider: LLMProvider,
     model: string,
-    logger?: IDextoLogger
+    logger?: Logger
 ): number {
     const modelInfo = findModelInfo(provider, model);
     if (!modelInfo) {
@@ -929,7 +929,7 @@ export function validateModelFileSupport(
  * - If `baseURL` is not set and the model isn't found in the registry, this throws.
  * TODO: make more readable
  */
-export function getEffectiveMaxInputTokens(config: LLMConfig, logger: IDextoLogger): number {
+export function getEffectiveMaxInputTokens(config: LLMConfig, logger: Logger): number {
     const configuredMaxInputTokens = config.maxInputTokens;
 
     // Priority 1: Explicit config override or required value with baseURL

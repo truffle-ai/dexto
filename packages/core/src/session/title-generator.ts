@@ -1,10 +1,10 @@
-import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
-import type { ToolManager } from '@core/tools/tool-manager.js';
-import type { SystemPromptManager } from '@core/systemPrompt/manager.js';
-import type { ResourceManager } from '@core/resources/index.js';
-import type { IDextoLogger } from '@core/logger/v2/types.js';
-import { createLLMService } from '@core/llm/services/factory.js';
-import { SessionEventBus } from '@core/events/index.js';
+import type { ValidatedLLMConfig } from '../llm/schemas.js';
+import type { ToolManager } from '../tools/tool-manager.js';
+import type { SystemPromptManager } from '../systemPrompt/manager.js';
+import type { ResourceManager } from '../resources/index.js';
+import type { Logger } from '../logger/v2/types.js';
+import { createLLMService } from '../llm/services/factory.js';
+import { SessionEventBus } from '../events/index.js';
 import { MemoryHistoryProvider } from './history/memory.js';
 
 export interface GenerateSessionTitleResult {
@@ -23,7 +23,7 @@ export async function generateSessionTitle(
     systemPromptManager: SystemPromptManager,
     resourceManager: ResourceManager,
     userText: string,
-    logger: IDextoLogger,
+    logger: Logger,
     opts: { timeoutMs?: number } = {}
 ): Promise<GenerateSessionTitleResult> {
     const timeoutMs = opts.timeoutMs;
