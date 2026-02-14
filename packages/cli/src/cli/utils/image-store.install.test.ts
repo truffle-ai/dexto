@@ -6,49 +6,69 @@ import { loadImageRegistry } from '@dexto/agent-management';
 
 vi.mock('./execute.js', () => ({
     executeWithTimeout: vi.fn(
-        async (_command: string, _args: string[], options: { cwd: string }) => {
+        async (_command: string, args: string[], options: { cwd: string }) => {
             const cwd = options.cwd;
 
-            // Simulate `npm install <specifier>` by:
-            // - writing the dependency into package.json
-            // - creating node_modules/@myorg/my-image with a valid package.json + dist entry
-            const pkgPath = path.join(cwd, 'package.json');
-            const pkg = JSON.parse(await fs.readFile(pkgPath, 'utf-8')) as {
-                dependencies?: Record<string, string>;
-            };
-            pkg.dependencies = { ...(pkg.dependencies ?? {}), '@myorg/my-image': 'file:../mock' };
-            await fs.writeFile(pkgPath, JSON.stringify(pkg, null, 2), 'utf-8');
+            if (args[0] === 'pack') {
+                const destIndex = args.indexOf('--pack-destination');
+                const dest = destIndex >= 0 ? args[destIndex + 1] : undefined;
+                if (!dest) {
+                    throw new Error('Test mock expected npm pack to include --pack-destination');
+                }
 
-            const imageRoot = path.join(cwd, 'node_modules', '@myorg', 'my-image');
-            await fs.mkdir(path.join(imageRoot, 'dist'), { recursive: true });
-            await fs.writeFile(
-                path.join(imageRoot, 'dist', 'index.js'),
-                [
-                    `const schema = { parse: (value) => value };`,
-                    `export default {`,
-                    `  metadata: { name: '@myorg/my-image', version: '1.2.3', description: 'test image' },`,
-                    `  tools: {},`,
-                    `  storage: { blob: {}, database: {}, cache: {} },`,
-                    `  plugins: {},`,
-                    `  compaction: {},`,
-                    `  logger: { configSchema: schema, create: () => ({}) },`,
-                    `};`,
-                ].join('\n'),
-                'utf-8'
-            );
-            await fs.writeFile(
-                path.join(imageRoot, 'package.json'),
-                JSON.stringify(
-                    {
-                        name: '@myorg/my-image',
-                        version: '1.2.3',
-                        exports: { '.': { import: './dist/index.js' } },
-                    },
-                    null,
-                    2
-                ),
-                'utf-8'
-            );
+                await fs.mkdir(dest, { recursive: true });
+                await fs.writeFile(path.join(dest, 'myorg-my-image-1.2.3.tgz'), 'tgz', 'utf-8');
+                return;
+            }
+
+            if (args[0] === 'install') {
+                // Simulate `npm install <specifier>` by:
+                // - writing the dependency into package.json
+                // - creating node_modules/@myorg/my-image with a valid package.json + dist entry
+                const pkgPath = path.join(cwd, 'package.json');
+                const pkg = JSON.parse(await fs.readFile(pkgPath, 'utf-8')) as {
+                    dependencies?: Record<string, string>;
+                };
+                pkg.dependencies = {
+                    ...(pkg.dependencies ?? {}),
+                    '@myorg/my-image': 'file:../mock',
+                };
+                await fs.writeFile(pkgPath, JSON.stringify(pkg, null, 2), 'utf-8');
+
+                const imageRoot = path.join(cwd, 'node_modules', '@myorg', 'my-image');
+                await fs.mkdir(path.join(imageRoot, 'dist'), { recursive: true });
+                await fs.writeFile(
+                    path.join(imageRoot, 'dist', 'index.js'),
+                    [
+                        `const schema = { parse: (value) => value };`,
+                        `export default {`,
+                        `  metadata: { name: '@myorg/my-image', version: '1.2.3', description: 'test image' },`,
+                        `  tools: {},`,
+                        `  storage: { blob: {}, database: {}, cache: {} },`,
+                        `  plugins: {},`,
+                        `  compaction: {},`,
+                        `  logger: { configSchema: schema, create: () => ({}) },`,
+                        `};`,
+                    ].join('\n'),
+                    'utf-8'
+                );
+                await fs.writeFile(
+                    path.join(imageRoot, 'package.json'),
+                    JSON.stringify(
+                        {
+                            name: '@myorg/my-image',
+                            version: '1.2.3',
+                            exports: { '.': { import: './dist/index.js' } },
+                        },
+                        null,
+                        2
+                    ),
+                    'utf-8'
+                );
+                return;
+            }
+
+            throw new Error(`Unexpected npm args: ${args.join(' ')}`);
         }
     ),
 }));
@@ -59,12 +79,12 @@ async function makeTempDir(prefix: string): Promise<string> {
 
 describe('installImageToStore', () => {
     it('installs into the store and writes registry entry (mocked npm)', async () => {
-        vi.resetModules();
         const storeDir = await makeTempDir('dexto-image-store-install-');
+        const imageDir = await makeTempDir('dexto-image-store-image-src-');
         try {
             const { installImageToStore } = await import('./image-store.js');
 
-            const result = await installImageToStore('./my-image', { storeDir });
+            const result = await installImageToStore(imageDir, { storeDir });
 
             expect(result.id).toBe('@myorg/my-image');
             expect(result.version).toBe('1.2.3');
@@ -80,6 +100,7 @@ describe('installImageToStore', () => {
             );
         } finally {
             await fs.rm(storeDir, { recursive: true, force: true });
+            await fs.rm(imageDir, { recursive: true, force: true });
         }
     });
 });

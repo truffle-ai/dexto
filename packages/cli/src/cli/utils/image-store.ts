@@ -30,6 +30,27 @@ export interface InstallImageResult {
     installDir: string;
 }
 
+async function isDirectory(filePath: string): Promise<boolean> {
+    try {
+        const stat = await fs.stat(filePath);
+        return stat.isDirectory();
+    } catch {
+        return false;
+    }
+}
+
+async function findSingleTgzFile(dir: string): Promise<string> {
+    const entries = await fs.readdir(dir);
+    const tgzFiles = entries.filter((entry) => entry.endsWith('.tgz'));
+    if (tgzFiles.length !== 1) {
+        throw new Error(
+            `Expected exactly one .tgz file in ${dir}, found ${tgzFiles.length}: ${tgzFiles.join(', ')}`
+        );
+    }
+
+    return path.join(dir, tgzFiles[0] ?? '');
+}
+
 function getInstalledPackageRoot(installDir: string, packageName: string): string {
     const nodeModulesDir = path.join(installDir, 'node_modules');
     if (packageName.startsWith('@')) {
@@ -170,14 +191,37 @@ export async function installImageToStore(
             'utf-8'
         );
 
-        const installSpecifier = isFileLikeImageSpecifier(specifier)
+        let packDir: string | null = null;
+
+        let installSpecifier = isFileLikeImageSpecifier(specifier)
             ? resolveFileLikeImageSpecifierToPath(specifier)
             : specifier;
+
+        // `npm install <directory>` often installs as a relative link, which can break when
+        // the temp install directory is moved into the image store. Avoid this by packing
+        // directories into a tarball and installing from the tarball instead.
+        if (isFileLikeImageSpecifier(specifier) && (await isDirectory(installSpecifier))) {
+            packDir = path.join(tmpDir, '.dexto-pack');
+            await fs.mkdir(packDir, { recursive: true });
+
+            await executeWithTimeout(
+                'npm',
+                ['pack', installSpecifier, '--pack-destination', packDir],
+                { cwd: tmpDir, ...(npmTimeoutMs !== undefined && { timeoutMs: npmTimeoutMs }) }
+            );
+
+            installSpecifier = await findSingleTgzFile(packDir);
+        }
+
         await executeWithTimeout(
             'npm',
             ['install', installSpecifier, '--no-audit', '--no-fund', '--no-package-lock'],
             { cwd: tmpDir, ...(npmTimeoutMs !== undefined && { timeoutMs: npmTimeoutMs }) }
         );
+
+        if (packDir) {
+            await fs.rm(packDir, { recursive: true, force: true }).catch(() => {});
+        }
 
         const tmpPkgJson = readJsonFile(tmpPackageJsonPath) as {
             dependencies?: Record<string, string>;
