@@ -57,6 +57,7 @@ describe('image commands', () => {
             version: '1.2.3',
             entryFile: 'file:///tmp/my-image/dist/index.js',
             installDir: path.join(storeDir, 'packages', '@myorg', 'my-image', '1.2.3'),
+            installMode: 'store',
         });
 
         await handleImageInstallCommand({

@@ -28,6 +28,36 @@ export interface InstallImageResult {
     version: string;
     entryFile: string;
     installDir: string;
+    installMode: 'store' | 'linked';
+}
+
+function hasWorkspaceProtocolDependencies(pkg: unknown): boolean {
+    if (typeof pkg !== 'object' || pkg === null) {
+        return false;
+    }
+
+    const maybePkg = pkg as Record<string, unknown>;
+    const depFields = [
+        'dependencies',
+        'devDependencies',
+        'peerDependencies',
+        'optionalDependencies',
+    ];
+
+    for (const field of depFields) {
+        const deps = maybePkg[field];
+        if (typeof deps !== 'object' || deps === null) {
+            continue;
+        }
+
+        for (const version of Object.values(deps as Record<string, unknown>)) {
+            if (typeof version === 'string' && version.startsWith('workspace:')) {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 async function isDirectory(filePath: string): Promise<boolean> {
@@ -167,6 +197,46 @@ async function validateInstalledImageModule(
     }
 }
 
+async function installImageDirectoryByReference(options: {
+    packageDir: string;
+    packageJson: unknown;
+    storeDir: string;
+    activate: boolean;
+    force: boolean;
+}): Promise<InstallImageResult> {
+    const { packageDir, packageJson, storeDir, activate, force } = options;
+
+    if (typeof packageJson !== 'object' || packageJson === null) {
+        throw new Error(`Invalid package.json for local image at ${packageDir}`);
+    }
+
+    const maybePkg = packageJson as Record<string, unknown>;
+    const imageId = maybePkg.name;
+    if (typeof imageId !== 'string' || imageId.trim().length === 0) {
+        throw new Error(`Local image package.json is missing a valid 'name' field (${packageDir})`);
+    }
+
+    const version = maybePkg.version;
+    if (typeof version !== 'string' || version.trim().length === 0) {
+        throw new Error(
+            `Local image '${imageId}' package.json is missing a valid 'version' field (${packageDir})`
+        );
+    }
+
+    if (force) {
+        const existingInstallDir = getImagePackageInstallDir(imageId, version, storeDir);
+        await fs.rm(existingInstallDir, { recursive: true, force: true }).catch(() => {});
+    }
+
+    const entryFilePath = resolveEntryFileFromPackageJson(packageDir, packageJson);
+    const entryFile = pathToFileURL(entryFilePath).href;
+
+    await validateInstalledImageModule(imageId, version, entryFile);
+    await upsertRegistryInstall(imageId, version, entryFile, { storeDir, activate });
+
+    return { id: imageId, version, entryFile, installDir: packageDir, installMode: 'linked' };
+}
+
 export async function installImageToStore(
     specifier: string,
     options: InstallImageOptions = {}
@@ -179,6 +249,28 @@ export async function installImageToStore(
     } = options;
 
     await fs.mkdir(storeDir, { recursive: true });
+
+    if (isFileLikeImageSpecifier(specifier)) {
+        const resolvedPath = resolveFileLikeImageSpecifierToPath(specifier);
+        if (await isDirectory(resolvedPath)) {
+            const localPackageJsonPath = path.join(resolvedPath, 'package.json');
+            if (existsSync(localPackageJsonPath)) {
+                const localPkg = readJsonFile(localPackageJsonPath);
+                if (hasWorkspaceProtocolDependencies(localPkg)) {
+                    // `workspace:*` dependencies can only be resolved from within the workspace.
+                    // Installing this package into the global image store would break dependency
+                    // resolution, so we register a linked install that points at the local build.
+                    return await installImageDirectoryByReference({
+                        packageDir: resolvedPath,
+                        packageJson: localPkg,
+                        storeDir,
+                        activate,
+                        force,
+                    });
+                }
+            }
+        }
+    }
 
     const tmpDir = await fs.mkdtemp(path.join(storeDir, 'tmp-install-'));
     let installDir: string | null = null;
@@ -256,7 +348,7 @@ export async function installImageToStore(
                 await validateInstalledImageModule(imageId, version, entryFile);
                 await upsertRegistryInstall(imageId, version, entryFile, { storeDir, activate });
                 await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
-                return { id: imageId, version, entryFile, installDir };
+                return { id: imageId, version, entryFile, installDir, installMode: 'store' };
             }
 
             await fs.rm(installDir, { recursive: true, force: true });
@@ -270,7 +362,7 @@ export async function installImageToStore(
         await validateInstalledImageModule(imageId, version, entryFile);
         await upsertRegistryInstall(imageId, version, entryFile, { storeDir, activate });
 
-        return { id: imageId, version, entryFile, installDir };
+        return { id: imageId, version, entryFile, installDir, installMode: 'store' };
     } catch (error) {
         if (moved && installDir) {
             await fs.rm(installDir, { recursive: true, force: true }).catch(() => {});

@@ -256,8 +256,17 @@ export async function createImage(name?: string): Promise<string> {
         console.log(`  ${chalk.gray('plugins/')}          - Plugin factories`);
 
         console.log(`\n${chalk.gray('Install into the Dexto CLI:')}`);
-        console.log(`  ${chalk.gray('$')} npm pack`);
-        console.log(`  ${chalk.gray('$')} dexto image install ./<generated-file>.tgz`);
+        if (isDextoSource) {
+            console.log(`  ${chalk.gray('$')} dexto image install .`);
+            console.log(
+                chalk.dim(
+                    `  (linked install from local directory; workspace:* deps can't be installed into the global store)`
+                )
+            );
+        } else {
+            console.log(`  ${chalk.gray('$')} npm pack`);
+            console.log(`  ${chalk.gray('$')} dexto image install ./<generated-file>.tgz`);
+        }
         console.log(`\n${chalk.gray('Use it in an agent YAML:')}`);
         console.log(`  ${chalk.gray('image:')} '${projectName}'`);
         console.log(`  ${chalk.gray('# or:')} dexto --image ${projectName}\n`);

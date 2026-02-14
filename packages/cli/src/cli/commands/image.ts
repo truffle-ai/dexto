@@ -57,8 +57,15 @@ export async function handleImageInstallCommand(
         activate: validated.activate,
     });
 
-    console.log(chalk.green(`✓ Installed ${result.id}@${result.version}`));
+    console.log(
+        chalk.green(
+            `✓ ${result.installMode === 'linked' ? 'Linked' : 'Installed'} ${result.id}@${result.version}`
+        )
+    );
     console.log(chalk.dim(`  Store: ${getDefaultImageStoreDir()}`));
+    if (result.installMode === 'linked') {
+        console.log(chalk.dim(`  Source: ${result.installDir}`));
+    }
     console.log(chalk.dim(`  Entry: ${result.entryFile}`));
 }
 
