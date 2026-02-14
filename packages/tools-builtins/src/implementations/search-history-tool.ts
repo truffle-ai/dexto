@@ -34,6 +34,12 @@ const SearchHistoryInputSchema = z.object({
 
 type SearchHistoryInput = z.input<typeof SearchHistoryInputSchema>;
 
+/**
+ * Create the `search_history` tool.
+ *
+ * Searches message/session history using the configured SearchService.
+ * Requires `ToolExecutionContext.services.search`.
+ */
 export function createSearchHistoryTool(): Tool {
     return {
         id: 'search_history',

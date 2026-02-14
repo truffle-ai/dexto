@@ -22,6 +22,12 @@ const GetResourceInputSchema = z
 
 type GetResourceInput = z.output<typeof GetResourceInputSchema>;
 
+/**
+ * Create the `get_resource` tool.
+ *
+ * Retrieves resource metadata or a shareable URL for a stored blob resource.
+ * Requires `ToolExecutionContext.services.resources`.
+ */
 export function createGetResourceTool(): Tool {
     return {
         id: 'get_resource',

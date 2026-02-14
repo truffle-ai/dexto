@@ -20,6 +20,12 @@ const AskUserInputSchema = z
 
 type AskUserInput = z.input<typeof AskUserInputSchema>;
 
+/**
+ * Create the `ask_user` tool.
+ *
+ * Uses the approval/elicitation channel to collect structured user input via a JSON Schema form.
+ * Requires `ToolExecutionContext.services.approval`.
+ */
 export function createAskUserTool(): Tool {
     return {
         id: 'ask_user',

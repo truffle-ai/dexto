@@ -23,6 +23,13 @@ const InvokeSkillInputSchema = z
 
 type InvokeSkillInput = z.input<typeof InvokeSkillInputSchema>;
 
+/**
+ * Create the `invoke_skill` tool.
+ *
+ * Loads an auto-invocable prompt (“skill”) via the PromptManager and returns its content, or
+ * forks the skill into a sub-agent when the skill is marked as `context: fork`.
+ * Requires `ToolExecutionContext.services.prompts` and, for forked skills, `services.taskForker`.
+ */
 export function createInvokeSkillTool(): Tool {
     return {
         id: 'invoke_skill',

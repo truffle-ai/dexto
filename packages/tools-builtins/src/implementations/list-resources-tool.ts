@@ -36,6 +36,13 @@ interface ResourceInfo {
     createdAt: string;
 }
 
+/**
+ * Create the `list_resources` tool.
+ *
+ * Lists stored resources (backed by the configured BlobStore) and returns references
+ * that can be passed to `get_resource`.
+ * Requires `ToolExecutionContext.services.resources`.
+ */
 export function createListResourcesTool(): Tool {
     return {
         id: 'list_resources',
