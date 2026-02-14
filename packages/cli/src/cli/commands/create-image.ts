@@ -114,9 +114,6 @@ export async function createImage(name?: string): Promise<string> {
     let projectPath: string | undefined;
 
     try {
-        // Save original cwd before changing directories (for resolving relative paths)
-        const originalCwd = process.cwd();
-
         // Create project directory
         projectPath = await createProjectDirectory(projectName, spinner);
 
@@ -213,20 +210,10 @@ export async function createImage(name?: string): Promise<string> {
         ];
 
         if (baseImage) {
-            // Resolve base image path if we're in dexto source
-            let resolvedBaseImage = baseImage;
-            if (isDextoSource && baseImage.startsWith('@dexto/image-')) {
-                // In dexto source, resolve official images to local workspace packages
-                // e.g., @dexto/image-local -> packages/image-local
-                const imagePkgName = baseImage.replace('@dexto/', '');
-                const imagePkgPath = path.resolve(originalCwd, 'packages', imagePkgName);
-                if (await fs.pathExists(imagePkgPath)) {
-                    resolvedBaseImage = imagePkgPath;
-                }
-            }
-            const baseImageDependency = isDextoSource
-                ? resolvedBaseImage
-                : pinDextoPackageIfUnversioned(resolvedBaseImage, versionRange);
+            const baseImageDependency = pinDextoPackageIfUnversioned(
+                baseImage,
+                isDextoSource ? dextoDependencyVersion : versionRange
+            );
             dependencies.push(baseImageDependency);
         }
 

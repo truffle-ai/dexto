@@ -68,18 +68,14 @@ program
             }
 
             console.log(pc.green('\n✅ Image is ready to use!'));
-            console.log('   To use this image in an app:');
+            console.log('   Install into the Dexto CLI:');
+            console.log(pc.dim('   1. Install:    dexto image install .'));
             console.log(
                 pc.dim(
-                    `   1. Install it: pnpm add ${packageName}@file:../${packageName.split('/').pop()}`
+                    `   2. Use it:     set \`image: "${packageName}"\` in your agent config (or pass --image in the CLI)`
                 )
             );
-            console.log(
-                pc.dim(
-                    `   2. Use it:      set \`image: "${packageName}"\` in your agent config (or pass --image in the CLI)`
-                )
-            );
-            console.log(pc.dim(`\n   Or publish to npm and install normally.`));
+            console.log(pc.dim('\n   Or publish to npm and install by package name.'));
         } catch (error) {
             console.error(pc.red('\n❌ Build failed:'), error);
             process.exit(1);
