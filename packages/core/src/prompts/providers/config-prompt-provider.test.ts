@@ -411,6 +411,27 @@ describe('ConfigPromptProvider', () => {
             });
         });
 
+        test('does not treat argument name fields as prompt ids', async () => {
+            const config = makeAgentConfig([
+                {
+                    type: 'file',
+                    file: join(FIXTURES_DIR, 'arguments-frontmatter.md'),
+                    showInStarters: false,
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, mockLogger);
+            const result = await provider.listPrompts();
+
+            expect(result.prompts).toHaveLength(1);
+            expect(result.prompts[0]).toMatchObject({
+                name: 'config:arguments-frontmatter',
+                displayName: 'arguments-frontmatter',
+                title: 'Code Review',
+                source: 'config',
+            });
+        });
+
         test('gets file prompt content', async () => {
             const config = makeAgentConfig([
                 {
