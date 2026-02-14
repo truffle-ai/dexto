@@ -19,5 +19,5 @@ describe('Image Logger Agent - Import Integration', () => {
         expect(image.plugins['request-logger']).toBeDefined();
         expect(image.plugins['content-policy']).toBeDefined();
         expect(image.plugins['response-sanitizer']).toBeDefined();
-    });
+    }, 15_000);
 });

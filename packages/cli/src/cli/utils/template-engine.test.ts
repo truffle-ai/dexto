@@ -4,6 +4,11 @@ import {
     generateDextoImageFile,
     generateImageReadme,
     generateExampleTool,
+    generateExamplePlugin,
+    generateExampleCompaction,
+    generateExampleCacheFactory,
+    generateExampleDatabaseFactory,
+    generateExampleBlobStoreFactory,
     generateAppReadme,
 } from './template-engine.js';
 
@@ -112,7 +117,23 @@ describe('template-engine', () => {
             expect(resultDefault).toContain("target: 'local-development'");
         });
 
-        it('should include default configurations', () => {
+        it('should include persistent storage defaults when baseImage is provided', () => {
+            const result = generateDextoImageFile({
+                projectName: 'my-image',
+                packageName: 'my-image',
+                description: 'Test image',
+                baseImage: '@dexto/image-local',
+            });
+
+            expect(result).toContain('defaults: {');
+            expect(result).toContain('storage: {');
+            expect(result).toContain("type: 'local'");
+            expect(result).toContain("type: 'sqlite'");
+            expect(result).toContain("type: 'in-memory'");
+            expect(result).toContain('logger: {');
+        });
+
+        it('should include example storage defaults when no baseImage is provided', () => {
             const result = generateDextoImageFile({
                 projectName: 'my-image',
                 packageName: 'my-image',
@@ -121,8 +142,9 @@ describe('template-engine', () => {
 
             expect(result).toContain('defaults: {');
             expect(result).toContain('storage: {');
-            expect(result).toContain("type: 'local'");
-            expect(result).toContain("type: 'sqlite'");
+            expect(result).toContain("type: 'example-blob'");
+            expect(result).toContain("type: 'example-database'");
+            expect(result).toContain("type: 'example-cache'");
             expect(result).toContain('logger: {');
         });
     });
@@ -198,6 +220,7 @@ describe('template-engine', () => {
                 imageName: 'my-image',
             });
 
+            expect(result).toContain('tools/<type>/');
             expect(result).toContain('storage/blob/<type>/');
             expect(result).toContain('compaction/<type>/');
         });
@@ -248,6 +271,22 @@ describe('template-engine', () => {
             expect(result).toContain('inputSchema: z.object({');
             expect(result).toContain(
                 'execute: async (input: unknown, context: ToolExecutionContext)'
+            );
+        });
+    });
+
+    describe('example image factories', () => {
+        it('should generate minimal factories that export a `factory` constant', () => {
+            expect(generateExamplePlugin('example-plugin')).toContain('export const factory');
+            expect(generateExampleCompaction('example-compaction')).toContain(
+                'export const factory'
+            );
+            expect(generateExampleCacheFactory('example-cache')).toContain('export const factory');
+            expect(generateExampleDatabaseFactory('example-database')).toContain(
+                'export const factory'
+            );
+            expect(generateExampleBlobStoreFactory('example-blob')).toContain(
+                'export const factory'
             );
         });
     });
