@@ -150,7 +150,7 @@ describe('template-engine', () => {
 
             expect(result).toContain('A **Dexto image**');
             expect(result).toContain('# Build the image');
-            expect(result).toContain('pnpm add my-image');
+            expect(result).toContain('dexto image install');
         });
 
         it('should describe the DextoImageModule contract', () => {

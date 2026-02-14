@@ -614,8 +614,9 @@ This package contains:
 # Build the image
 pnpm run build
 
-# Install it
-pnpm add ${imageName}
+# Install into the Dexto CLI (local)
+npm pack
+dexto image install ./<generated-file>.tgz
 \`\`\`
 
 ## Usage
@@ -663,14 +664,8 @@ npm publish
 
 Users can then:
 \`\`\`bash
-pnpm add ${imageName}
+dexto image install ${imageName}
 \`\`\`
-
-## Learn More
-
-- [Dexto Images Guide](https://docs.dexto.ai/docs/guides/images)
-- [Provider Development](https://docs.dexto.ai/docs/guides/providers)
-- [Bundler Documentation](https://docs.dexto.ai/docs/tools/bundler)
 `;
 }
 

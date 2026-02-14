@@ -1,7 +1,7 @@
 import path from 'path';
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
-import { selectOrExit, textOrExit, confirmOrExit } from '../utils/prompt-helpers.js';
+import { selectOrExit, textOrExit } from '../utils/prompt-helpers.js';
 import {
     promptForProjectName,
     createProjectDirectory,
@@ -109,15 +109,6 @@ export async function createImage(name?: string): Promise<string> {
         'Image creation cancelled'
     );
 
-    // Step 6: Include example factories?
-    const includeExamples = await confirmOrExit(
-        {
-            message: 'Include example tool factory?',
-            initialValue: true,
-        },
-        'Image creation cancelled'
-    );
-
     // Start scaffolding
     const spinner = p.spinner();
     let projectPath: string | undefined;
@@ -149,14 +140,10 @@ export async function createImage(name?: string): Promise<string> {
         await fs.writeFile('compaction/.gitkeep', '');
         await fs.writeFile('plugins/.gitkeep', '');
 
-        // Create example tool if requested
-        if (includeExamples) {
-            await ensureDirectory('tools/example-tool');
-            const exampleToolCode = generateExampleTool('example-tool');
-            await fs.writeFile('tools/example-tool/index.ts', exampleToolCode);
-        } else {
-            await fs.writeFile('tools/.gitkeep', '');
-        }
+        // Create an example tool factory (gives the bundler something real to discover).
+        await ensureDirectory('tools/example-tool');
+        const exampleToolCode = generateExampleTool('example-tool');
+        await fs.writeFile('tools/example-tool/index.ts', exampleToolCode);
 
         spinner.message('Generating configuration files...');
 
@@ -267,7 +254,13 @@ export async function createImage(name?: string): Promise<string> {
         console.log(`  ${chalk.gray('storage/cache/')}    - Cache factories`);
         console.log(`  ${chalk.gray('compaction/')}       - Compaction factories`);
         console.log(`  ${chalk.gray('plugins/')}          - Plugin factories`);
-        console.log(`\n${chalk.gray('Learn more:')} https://docs.dexto.ai/docs/guides/images\n`);
+
+        console.log(`\n${chalk.gray('Install into the Dexto CLI:')}`);
+        console.log(`  ${chalk.gray('$')} npm pack`);
+        console.log(`  ${chalk.gray('$')} dexto image install ./<generated-file>.tgz`);
+        console.log(`\n${chalk.gray('Use it in an agent YAML:')}`);
+        console.log(`  ${chalk.gray('image:')} '${projectName}'`);
+        console.log(`  ${chalk.gray('# or:')} dexto --image ${projectName}\n`);
     } catch (error) {
         if (spinner) {
             spinner.stop(chalk.red('✗ Failed to create image'));

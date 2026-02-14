@@ -204,10 +204,10 @@ program
         })
     );
 
-// 3) `create-image` SUB-COMMAND
+// 3) `create-image` SUB-COMMAND (hidden alias for `dexto image create`)
 program
-    .command('create-image [name]')
-    .description('Create a Dexto image - a distributable agent harness package')
+    .command('create-image [name]', { hidden: true })
+    .description('Alias for `dexto image create`')
     .action(
         withAnalytics('create-image', async (name?: string) => {
             try {
@@ -229,11 +229,55 @@ program
 // 3b) `image` SUB-COMMAND
 const imageCommand = program.command('image').description('Manage images');
 
+imageCommand.addHelpText(
+    'after',
+    `
+Examples:
+  $ dexto image create my-image
+  $ dexto image install @dexto/image-local
+  $ dexto image install @myorg/my-image@1.2.3
+  $ dexto image list
+  $ dexto image use @myorg/my-image@1.2.3
+  $ dexto image remove @myorg/my-image@1.2.3
+  $ dexto image doctor
+`
+);
+
+imageCommand
+    .command('create [name]')
+    .description('Create a Dexto image project (scaffold)')
+    .action(
+        withAnalytics('image create', async (name?: string) => {
+            try {
+                p.intro(chalk.inverse('Create Dexto Image'));
+
+                // Create the image project structure
+                const projectPath = await createImage(name);
+
+                p.outro(chalk.greenBright(`Dexto image created successfully at ${projectPath}!`));
+                safeExit('image create', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto image create command failed: ${err}`);
+                safeExit('image create', 1, 'error');
+            }
+        })
+    );
+
 imageCommand
     .command('install <image>')
     .description('Install an image into the local Dexto image store')
     .option('--force', 'Force reinstall if already installed')
     .option('--no-activate', 'Do not set as the active version')
+    .addHelpText(
+        'after',
+        `
+Examples:
+  $ dexto image install @dexto/image-local
+  $ dexto image install @myorg/my-image@1.2.3
+  $ dexto image install ./my-image-1.0.0.tgz
+`
+    )
     .action(
         withAnalytics(
             'image install',
