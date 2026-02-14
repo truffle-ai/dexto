@@ -3,19 +3,22 @@ import { agentSpawnerToolsFactory } from './factory.js';
 import type { Logger, ToolExecutionContext } from '@dexto/core';
 
 describe('agentSpawnerToolsFactory', () => {
-    const createMockLogger = (): Logger => ({
-        debug: vi.fn(),
-        silly: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-        trackException: vi.fn(),
-        createChild: vi.fn(() => createMockLogger()),
-        destroy: vi.fn(),
-        setLevel: vi.fn(),
-        getLevel: vi.fn(() => 'info'),
-        getLogFilePath: vi.fn(() => null),
-    });
+    const createMockLogger = (): Logger => {
+        const logger: Logger = {
+            debug: vi.fn(),
+            silly: vi.fn(),
+            info: vi.fn(),
+            warn: vi.fn(),
+            error: vi.fn(),
+            trackException: vi.fn(),
+            createChild: vi.fn(() => logger),
+            destroy: vi.fn(async () => undefined),
+            setLevel: vi.fn(),
+            getLevel: vi.fn(() => 'info' as const),
+            getLogFilePath: vi.fn(() => null),
+        };
+        return logger;
+    };
 
     const config = {
         type: 'agent-spawner' as const,

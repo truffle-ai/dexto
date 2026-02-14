@@ -252,7 +252,7 @@ describe('Session Integration: Chat History Preservation', () => {
 });
 
 describe('Session Integration: Multi-Model Token Tracking', () => {
-    let agent: DextoAgent | undefined;
+    let agent: DextoAgent;
 
     const testSettings: AgentRuntimeSettings = {
         systemPrompt: SystemPromptConfigSchema.parse('You are a helpful assistant.'),
@@ -298,7 +298,7 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
     });
 
     afterEach(async () => {
-        if (agent && agent.isStarted()) {
+        if (agent.isStarted()) {
             await agent.stop();
         }
     });
