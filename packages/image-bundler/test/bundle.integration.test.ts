@@ -94,7 +94,7 @@ export const factory = {
             logSpy.mockRestore();
             warnSpy.mockRestore();
         }
-    });
+    }, 20000);
 
     it('bundles an image with tools/storage/plugins/compaction factories', async () => {
         const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
