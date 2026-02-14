@@ -228,7 +228,20 @@ async function installImageDirectoryByReference(options: {
         await fs.rm(existingInstallDir, { recursive: true, force: true }).catch(() => {});
     }
 
-    const entryFilePath = resolveEntryFileFromPackageJson(packageDir, packageJson);
+    let entryFilePath: string;
+    try {
+        entryFilePath = resolveEntryFileFromPackageJson(packageDir, packageJson);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (message.startsWith('Image entry file not found:')) {
+            throw new Error(
+                `Local image '${imageId}@${version}' has not been built.\n` +
+                    `${message}\n` +
+                    `Run: pnpm run build (or npm run build) in ${packageDir}, then re-run: dexto image install ${packageDir}`
+            );
+        }
+        throw error;
+    }
     const entryFile = pathToFileURL(entryFilePath).href;
 
     await validateInstalledImageModule(imageId, version, entryFile);

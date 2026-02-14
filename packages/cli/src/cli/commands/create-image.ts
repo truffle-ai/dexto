@@ -48,10 +48,11 @@ export async function createImage(name?: string): Promise<string> {
     // Step 3: Starting point - new base or extend existing
     const startingPoint = await selectOrExit<'base' | 'extend'>(
         {
-            message: 'Starting point:',
+            message: 'How do you want to start?',
+            initialValue: 'extend',
             options: [
-                { value: 'base', label: 'New base image (build from scratch)' },
-                { value: 'extend', label: 'Extend existing image (add factories to base)' },
+                { value: 'extend', label: 'Extend existing image (Recommended)' },
+                { value: 'base', label: 'New image (from scratch)' },
             ],
         },
         'Image creation cancelled'

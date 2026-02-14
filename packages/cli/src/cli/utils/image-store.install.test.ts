@@ -167,4 +167,48 @@ describe('installImageToStore', () => {
             await fs.rm(imageDir, { recursive: true, force: true });
         }
     });
+
+    it('fails with a helpful error when linked image is missing its build output', async () => {
+        const storeDir = await makeTempDir('dexto-image-store-install-');
+        const imageDir = await makeTempDir('dexto-image-store-image-src-');
+        try {
+            const { installImageToStore } = await import('./image-store.js');
+            const { executeWithTimeout } = await import('./execute.js');
+
+            await fs.writeFile(
+                path.join(imageDir, 'package.json'),
+                JSON.stringify(
+                    {
+                        name: '@myorg/workspace-image',
+                        version: '0.0.1',
+                        type: 'module',
+                        exports: { '.': { import: './dist/index.js' } },
+                        dependencies: {
+                            '@dexto/core': 'workspace:*',
+                        },
+                    },
+                    null,
+                    2
+                ),
+                'utf-8'
+            );
+
+            let thrown: unknown;
+            try {
+                await installImageToStore(imageDir, { storeDir });
+            } catch (error) {
+                thrown = error;
+            }
+
+            expect(thrown).toBeInstanceOf(Error);
+            const message = (thrown as Error).message;
+            expect(message).toMatch(/has not been built/);
+            expect(message).toMatch(/pnpm run build/);
+
+            expect(vi.mocked(executeWithTimeout)).not.toHaveBeenCalled();
+        } finally {
+            await fs.rm(storeDir, { recursive: true, force: true });
+            await fs.rm(imageDir, { recursive: true, force: true });
+        }
+    });
 });
