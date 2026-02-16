@@ -957,6 +957,15 @@ export class DextoAgent {
         this.agentEventBus.on('llm:tool-call', toolCallListener, { signal: cleanupSignal });
         listeners.push({ event: 'llm:tool-call', listener: toolCallListener });
 
+        const toolCallPartialListener = (data: AgentEventMap['llm:tool-call-partial']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'llm:tool-call-partial', ...data });
+        };
+        this.agentEventBus.on('llm:tool-call-partial', toolCallPartialListener, {
+            signal: cleanupSignal,
+        });
+        listeners.push({ event: 'llm:tool-call-partial', listener: toolCallPartialListener });
+
         const toolResultListener = (data: AgentEventMap['llm:tool-result']) => {
             if (data.sessionId !== sessionId) return;
             eventQueue.push({ name: 'llm:tool-result', ...data });

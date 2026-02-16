@@ -63,6 +63,7 @@ export const SESSION_EVENT_NAMES = [
     'llm:chunk',
     'llm:response',
     'llm:tool-call',
+    'llm:tool-call-partial',
     'llm:tool-result',
     'llm:error',
     'llm:switched',
@@ -104,6 +105,7 @@ export const STREAMING_EVENTS = [
     'llm:chunk',
     'llm:response',
     'llm:tool-call',
+    'llm:tool-call-partial',
     'llm:tool-result',
     'llm:error',
     'llm:unsupported-input',
@@ -378,6 +380,15 @@ export interface AgentEventMap {
         sessionId: string;
     };
 
+    /** LLM service streamed partial tool input */
+    'llm:tool-call-partial': {
+        toolName: string;
+        args: Record<string, any>;
+        callId?: string;
+        isComplete?: boolean;
+        sessionId: string;
+    };
+
     /** LLM service returned a tool result */
     'llm:tool-result': {
         toolName: string;
@@ -622,6 +633,14 @@ export interface SessionEventMap {
         toolName: string;
         args: Record<string, any>;
         callId?: string;
+    };
+
+    /** LLM service streamed partial tool input */
+    'llm:tool-call-partial': {
+        toolName: string;
+        args: Record<string, any>;
+        callId?: string;
+        isComplete?: boolean;
     };
 
     /** LLM service returned a tool result */
@@ -929,6 +948,14 @@ export class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
         this._emitter.off(event as string, listener);
         return this;
     }
+
+    /**
+     * Configure max listeners for this event bus to avoid noisy warnings when many subscribers exist.
+     */
+    setMaxListeners(count: number): this {
+        this._emitter.setMaxListeners(count);
+        return this;
+    }
 }
 
 /**
@@ -949,4 +976,4 @@ export class TypedEventEmitter extends BaseTypedEventEmitter<AgentEventMap> {}
 /**
  * Global shared event bus (backward compatibility)
  */
-export const eventBus = new TypedEventEmitter();
+export const eventBus = new TypedEventEmitter().setMaxListeners(200);
