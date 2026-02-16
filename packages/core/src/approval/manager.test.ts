@@ -620,8 +620,9 @@ describe('ApprovalManager', () => {
         });
     });
 
-    describe('Bash Pattern Approval', () => {
+    describe('Tool Pattern Approval', () => {
         let manager: ApprovalManager;
+        const toolName = 'bash_exec';
 
         beforeEach(() => {
             manager = new ApprovalManager(
@@ -638,18 +639,18 @@ describe('ApprovalManager', () => {
             );
         });
 
-        describe('addBashPattern', () => {
+        describe('addPattern', () => {
             it('should add a pattern to the approved list', () => {
-                manager.addBashPattern('git *');
-                expect(manager.getBashPatterns().has('git *')).toBe(true);
+                manager.addPattern(toolName, 'git *');
+                expect(manager.getToolPatterns(toolName).has('git *')).toBe(true);
             });
 
             it('should add multiple patterns', () => {
-                manager.addBashPattern('git *');
-                manager.addBashPattern('npm *');
-                manager.addBashPattern('ls *');
+                manager.addPattern(toolName, 'git *');
+                manager.addPattern(toolName, 'npm *');
+                manager.addPattern(toolName, 'ls *');
 
-                const patterns = manager.getBashPatterns();
+                const patterns = manager.getToolPatterns(toolName);
                 expect(patterns.size).toBe(3);
                 expect(patterns.has('git *')).toBe(true);
                 expect(patterns.has('npm *')).toBe(true);
@@ -657,101 +658,103 @@ describe('ApprovalManager', () => {
             });
 
             it('should not duplicate patterns', () => {
-                manager.addBashPattern('git *');
-                manager.addBashPattern('git *');
+                manager.addPattern(toolName, 'git *');
+                manager.addPattern(toolName, 'git *');
 
-                expect(manager.getBashPatterns().size).toBe(1);
+                expect(manager.getToolPatterns(toolName).size).toBe(1);
             });
         });
 
-        describe('matchesBashPattern (pattern-to-pattern covering)', () => {
-            // Note: matchesBashPattern expects pattern keys (e.g., "git push *"),
+        describe('matchesPattern (pattern-to-pattern covering)', () => {
+            // Note: matchesPattern expects pattern keys (e.g., "git push *"),
             // not raw commands. ToolManager generates pattern keys from commands.
 
             it('should match exact pattern against exact stored pattern', () => {
-                manager.addBashPattern('git status *');
-                expect(manager.matchesBashPattern('git status *')).toBe(true);
-                expect(manager.matchesBashPattern('git push *')).toBe(false);
+                manager.addPattern(toolName, 'git status *');
+                expect(manager.matchesPattern(toolName, 'git status *')).toBe(true);
+                expect(manager.matchesPattern(toolName, 'git push *')).toBe(false);
             });
 
             it('should cover narrower pattern with broader pattern', () => {
                 // "git *" is broader and should cover "git push *", "git status *", etc.
-                manager.addBashPattern('git *');
-                expect(manager.matchesBashPattern('git *')).toBe(true);
-                expect(manager.matchesBashPattern('git push *')).toBe(true);
-                expect(manager.matchesBashPattern('git status *')).toBe(true);
-                expect(manager.matchesBashPattern('npm *')).toBe(false);
+                manager.addPattern(toolName, 'git *');
+                expect(manager.matchesPattern(toolName, 'git *')).toBe(true);
+                expect(manager.matchesPattern(toolName, 'git push *')).toBe(true);
+                expect(manager.matchesPattern(toolName, 'git status *')).toBe(true);
+                expect(manager.matchesPattern(toolName, 'npm *')).toBe(false);
             });
 
             it('should not let narrower pattern cover broader pattern', () => {
                 // "git push *" should NOT cover "git *"
-                manager.addBashPattern('git push *');
-                expect(manager.matchesBashPattern('git push *')).toBe(true);
-                expect(manager.matchesBashPattern('git *')).toBe(false);
-                expect(manager.matchesBashPattern('git status *')).toBe(false);
+                manager.addPattern(toolName, 'git push *');
+                expect(manager.matchesPattern(toolName, 'git push *')).toBe(true);
+                expect(manager.matchesPattern(toolName, 'git *')).toBe(false);
+                expect(manager.matchesPattern(toolName, 'git status *')).toBe(false);
             });
 
             it('should match against multiple patterns', () => {
-                manager.addBashPattern('git *');
-                manager.addBashPattern('npm install *');
+                manager.addPattern(toolName, 'git *');
+                manager.addPattern(toolName, 'npm install *');
 
-                expect(manager.matchesBashPattern('git status *')).toBe(true);
-                expect(manager.matchesBashPattern('npm install *')).toBe(true);
+                expect(manager.matchesPattern(toolName, 'git status *')).toBe(true);
+                expect(manager.matchesPattern(toolName, 'npm install *')).toBe(true);
                 // npm * is not covered, only npm install * specifically
-                expect(manager.matchesBashPattern('npm run *')).toBe(false);
+                expect(manager.matchesPattern(toolName, 'npm run *')).toBe(false);
             });
 
             it('should return false when no patterns are set', () => {
-                expect(manager.matchesBashPattern('git status *')).toBe(false);
+                expect(manager.matchesPattern(toolName, 'git status *')).toBe(false);
             });
 
             it('should not cross-match unrelated commands', () => {
-                manager.addBashPattern('npm *');
+                manager.addPattern(toolName, 'npm *');
                 // "npx" starts with "np" but is not "npm " + something
-                expect(manager.matchesBashPattern('npx *')).toBe(false);
+                expect(manager.matchesPattern(toolName, 'npx *')).toBe(false);
             });
 
             it('should handle multi-level subcommands', () => {
-                manager.addBashPattern('docker compose *');
-                expect(manager.matchesBashPattern('docker compose *')).toBe(true);
-                expect(manager.matchesBashPattern('docker compose up *')).toBe(true);
-                expect(manager.matchesBashPattern('docker *')).toBe(false);
+                manager.addPattern(toolName, 'docker compose *');
+                expect(manager.matchesPattern(toolName, 'docker compose *')).toBe(true);
+                expect(manager.matchesPattern(toolName, 'docker compose up *')).toBe(true);
+                expect(manager.matchesPattern(toolName, 'docker *')).toBe(false);
+            });
+
+            it('should isolate patterns by tool', () => {
+                manager.addPattern('tool-a', 'git *');
+                expect(manager.matchesPattern('tool-a', 'git push *')).toBe(true);
+                expect(manager.matchesPattern('tool-b', 'git push *')).toBe(false);
             });
         });
 
-        describe('clearBashPatterns', () => {
-            it('should clear all patterns', () => {
-                manager.addBashPattern('git *');
-                manager.addBashPattern('npm *');
-                expect(manager.getBashPatterns().size).toBe(2);
+        describe('clearPatterns', () => {
+            it('should clear patterns for a tool', () => {
+                manager.addPattern(toolName, 'git *');
+                manager.addPattern(toolName, 'npm *');
+                expect(manager.getToolPatterns(toolName).size).toBe(2);
 
-                manager.clearBashPatterns();
-                expect(manager.getBashPatterns().size).toBe(0);
+                manager.clearPatterns(toolName);
+                expect(manager.getToolPatterns(toolName).size).toBe(0);
             });
 
             it('should allow adding patterns after clearing', () => {
-                manager.addBashPattern('git *');
-                manager.clearBashPatterns();
-                manager.addBashPattern('npm *');
+                manager.addPattern(toolName, 'git *');
+                manager.clearPatterns(toolName);
+                manager.addPattern(toolName, 'npm *');
 
-                expect(manager.getBashPatterns().size).toBe(1);
-                expect(manager.getBashPatterns().has('npm *')).toBe(true);
+                expect(manager.getToolPatterns(toolName).size).toBe(1);
+                expect(manager.getToolPatterns(toolName).has('npm *')).toBe(true);
             });
         });
 
-        describe('getBashPatterns', () => {
+        describe('getToolPatterns', () => {
             it('should return empty set initially', () => {
-                expect(manager.getBashPatterns().size).toBe(0);
+                expect(manager.getToolPatterns(toolName).size).toBe(0);
             });
 
             it('should return a copy that reflects current patterns', () => {
-                manager.addBashPattern('git *');
-                const patterns = manager.getBashPatterns();
+                manager.addPattern(toolName, 'git *');
+                const patterns = manager.getToolPatterns(toolName);
                 expect(patterns.has('git *')).toBe(true);
-
-                // Note: ReadonlySet is a TypeScript type constraint, not runtime protection
-                // The returned set IS the internal set, so modifying it would affect the manager
-                // This is acceptable for our use case (debugging/display)
             });
         });
     });

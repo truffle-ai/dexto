@@ -28,27 +28,10 @@ import type { Message, UIState, ToolStatus } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import { checkForSplit } from '../utils/streamSplitter.js';
-import { formatToolHeader } from '../utils/messageFormatting.js';
+import { formatToolHeader, shouldHideTool } from '../utils/messageFormatting.js';
 import { isAutoApprovableInEditMode } from '../utils/toolUtils.js';
 import { capture } from '../../../analytics/index.js';
 import chalk from 'chalk';
-
-const HIDDEN_TOOL_NAMES = new Set(['wait_for']);
-const normalizeToolName = (toolName: string) => {
-    if (toolName.startsWith('mcp--')) {
-        const trimmed = toolName.substring('mcp--'.length);
-        const parts = trimmed.split('--');
-        return parts.length >= 2 ? parts.slice(1).join('--') : trimmed;
-    }
-    if (toolName.startsWith('mcp__')) {
-        const trimmed = toolName.substring('mcp__'.length);
-        const parts = trimmed.split('__');
-        return parts.length >= 2 ? parts.slice(1).join('__') : trimmed;
-    }
-    return toolName;
-};
-const shouldHideTool = (toolName?: string) =>
-    toolName ? HIDDEN_TOOL_NAMES.has(normalizeToolName(toolName)) : false;
 
 /**
  * Build error message with recovery guidance if available

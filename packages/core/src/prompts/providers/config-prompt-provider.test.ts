@@ -606,8 +606,8 @@ describe('ConfigPromptProvider', () => {
         });
     });
 
-    describe('Claude Code tool name normalization', () => {
-        test('normalizes Claude Code tool names to Dexto format (case-insensitive)', async () => {
+    describe('allowed-tools passthrough', () => {
+        test('preserves allowed-tools from file prompts', async () => {
             const config = makeAgentConfig([
                 {
                     type: 'file',
@@ -619,19 +619,11 @@ describe('ConfigPromptProvider', () => {
             const provider = new ConfigPromptProvider(config, mockLogger);
             const def = await provider.getPromptDefinition('config:skill-with-tools');
 
-            // Should normalize: bash, Read, WRITE, edit -> Dexto names
-            // Should preserve: keep_as_is (already Dexto format)
             expect(def).not.toBeNull();
-            expect(def!.allowedTools).toEqual([
-                'bash_exec',
-                'read_file',
-                'write_file',
-                'edit_file',
-                'keep_as_is',
-            ]);
+            expect(def!.allowedTools).toEqual(['bash', 'Read', 'WRITE', 'edit', 'keep_as_is']);
         });
 
-        test('normalizes inline prompt allowed-tools', async () => {
+        test('preserves allowed-tools from inline prompts', async () => {
             const config = makeAgentConfig([
                 {
                     type: 'inline',
@@ -647,9 +639,9 @@ describe('ConfigPromptProvider', () => {
 
             expect(def).not.toBeNull();
             expect(def!.allowedTools).toEqual([
-                'bash_exec',
-                'grep_content',
-                'glob_files',
+                'BASH',
+                'Grep',
+                'glob',
                 'mcp--some_server', // MCP tools pass through unchanged
             ]);
         });

@@ -19,11 +19,6 @@ import type { AgentStateManager } from '../agent/state-manager.js';
 import type { BeforeToolCallPayload, AfterToolResultPayload } from '../hooks/types.js';
 import { InstrumentClass } from '../telemetry/decorators.js';
 import { extractToolCallMeta, wrapToolParametersSchema } from './tool-call-metadata.js';
-import {
-    generateBashPatternKey,
-    generateBashPatternSuggestions,
-    isDangerousCommand,
-} from './bash-pattern-utils.js';
 import { isBackgroundTasksEnabled } from '../utils/env.js';
 
 export type ToolExecutionContextFactory = (
@@ -92,6 +87,31 @@ export class ToolManager {
     private sessionUserAutoApproveTools: Map<string, string[]> = new Map();
     private sessionDisabledTools: Map<string, string[]> = new Map();
     private globalDisabledTools: string[] = [];
+
+    private resolveLocalToolIdOrAlias(name: string): string | null {
+        const direct = this.agentTools.get(name);
+        if (direct) return direct.id;
+
+        const lower = name.toLowerCase();
+        for (const tool of this.agentTools.values()) {
+            if (tool.id.toLowerCase() === lower) {
+                return tool.id;
+            }
+            if (tool.aliases?.some((alias) => alias.toLowerCase() === lower)) {
+                return tool.id;
+            }
+        }
+
+        return null;
+    }
+
+    private normalizeToolPolicyPattern(pattern: string): string {
+        if (pattern.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
+            return pattern;
+        }
+
+        return this.resolveLocalToolIdOrAlias(pattern) ?? pattern;
+    }
 
     constructor(
         mcpManager: MCPManager,
@@ -172,11 +192,14 @@ export class ToolManager {
             this.clearSessionAutoApproveTools(sessionId);
             return;
         }
-        this.sessionAutoApproveTools.set(sessionId, autoApproveTools);
+        const normalized = autoApproveTools.map((pattern) =>
+            this.normalizeToolPolicyPattern(pattern)
+        );
+        this.sessionAutoApproveTools.set(sessionId, normalized);
         this.logger.info(
             `Session auto-approve tools set for '${sessionId}': ${autoApproveTools.length} tools`
         );
-        this.logger.debug(`Auto-approve tools: ${autoApproveTools.join(', ')}`);
+        this.logger.debug(`Auto-approve tools: ${normalized.join(', ')}`);
     }
 
     /**
@@ -187,11 +210,14 @@ export class ToolManager {
             this.clearSessionUserAutoApproveTools(sessionId);
             return;
         }
-        this.sessionUserAutoApproveTools.set(sessionId, autoApproveTools);
+        const normalized = autoApproveTools.map((pattern) =>
+            this.normalizeToolPolicyPattern(pattern)
+        );
+        this.sessionUserAutoApproveTools.set(sessionId, normalized);
         this.logger.info(
             `Session user auto-approve tools set for '${sessionId}': ${autoApproveTools.length} tools`
         );
-        this.logger.debug(`User auto-approve tools: ${autoApproveTools.join(', ')}`);
+        this.logger.debug(`User auto-approve tools: ${normalized.join(', ')}`);
     }
 
     /**
@@ -395,48 +421,50 @@ export class ToolManager {
         });
     }
 
-    // ==================== Bash Pattern Approval Helpers ====================
+    // ==================== Pattern Approval Helpers ====================
 
-    /**
-     * Check if a tool name represents a bash execution tool
-     */
-    private isBashTool(toolName: string): boolean {
-        return toolName === 'bash_exec';
+    private getToolPatternKey(toolName: string, args: Record<string, unknown>): string | null {
+        if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
+            return null;
+        }
+
+        const tool = this.agentTools.get(toolName);
+        if (!tool?.getApprovalPatternKey) {
+            return null;
+        }
+
+        try {
+            return tool.getApprovalPatternKey(args);
+        } catch (error) {
+            this.logger.debug(
+                `Pattern key generation failed for '${toolName}': ${error instanceof Error ? error.message : String(error)}`
+            );
+            return null;
+        }
     }
 
-    /**
-     * Check if a bash command is covered by any approved pattern.
-     * Generates a pattern key from the command, then checks if it's covered by stored patterns.
-     *
-     * Returns approval info if covered, or pattern suggestions if not.
-     */
-    private checkBashPatternApproval(command: string): {
-        approved: boolean;
-        suggestedPatterns?: string[];
-    } {
-        // Generate the pattern key for this command
-        const patternKey = generateBashPatternKey(command);
-
-        if (!patternKey) {
-            // Dangerous command - no pattern, require explicit approval each time
-            if (isDangerousCommand(command)) {
-                this.logger.debug(
-                    `Skipping pattern generation for dangerous command: ${command.split(/\s+/)[0]}`
-                );
-            }
-            return { approved: false, suggestedPatterns: [] };
+    private getToolSuggestedPatterns(
+        toolName: string,
+        args: Record<string, unknown>
+    ): string[] | undefined {
+        if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
+            return undefined;
         }
 
-        // Check if this pattern key is covered by any approved pattern
-        if (this.approvalManager.matchesBashPattern(patternKey)) {
-            return { approved: true };
+        const tool = this.agentTools.get(toolName);
+        if (!tool?.suggestApprovalPatterns) {
+            return undefined;
         }
 
-        // Generate broader pattern suggestions for the UI
-        return {
-            approved: false,
-            suggestedPatterns: generateBashPatternSuggestions(command),
-        };
+        try {
+            const patterns = tool.suggestApprovalPatterns(args);
+            return patterns.length > 0 ? patterns : undefined;
+        } catch (error) {
+            this.logger.debug(
+                `Pattern suggestion failed for '${toolName}': ${error instanceof Error ? error.message : String(error)}`
+            );
+            return undefined;
+        }
     }
 
     /**
@@ -475,14 +503,20 @@ export class ToolManager {
     }
 
     /**
-     * Auto-approve pending bash command requests that match a pattern.
-     * Called after a user selects "remember pattern" for a bash command.
-     * This handles the case where parallel bash commands come in before the first one is approved.
-     *
-     * @param pattern The bash pattern that was just remembered
-     * @param sessionId The session ID for context
+     * Auto-approve pending tool confirmation requests that are now covered by a remembered pattern.
+     * Called after a user selects "remember pattern" for a tool.
      */
-    private autoApprovePendingBashRequests(pattern: string, sessionId?: string): void {
+    private autoApprovePendingPatternRequests(toolName: string, sessionId?: string): void {
+        if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
+            return;
+        }
+
+        const tool = this.agentTools.get(toolName);
+        const getPatternKey = tool?.getApprovalPatternKey;
+        if (!getPatternKey) {
+            return;
+        }
+
         const count = this.approvalManager.autoApprovePendingRequests(
             (request: ApprovalRequest) => {
                 // Only match tool confirmation requests
@@ -495,34 +529,27 @@ export class ToolManager {
                     return false;
                 }
 
-                // Check if it's a bash tool
                 const metadata = request.metadata as ToolConfirmationMetadata;
-                if (!this.isBashTool(metadata.toolName)) {
+                if (metadata.toolName !== toolName) {
                     return false;
                 }
 
-                // Check if the command matches the pattern
-                const command = metadata.args?.command as string | undefined;
-                if (!command) {
+                const args = metadata.args;
+                if (typeof args !== 'object' || args === null) {
                     return false;
                 }
 
-                // Generate pattern key for this command and check if it matches
-                const patternKey = generateBashPatternKey(command);
-                if (!patternKey) {
-                    return false;
-                }
+                const patternKey = getPatternKey(args as Record<string, unknown>);
+                if (!patternKey) return false;
 
-                // Check if this command would now be approved with the new pattern
-                // The pattern was just added, so we can use matchesBashPattern
-                return this.approvalManager.matchesBashPattern(patternKey);
+                return this.approvalManager.matchesPattern(toolName, patternKey);
             },
-            { rememberPattern: undefined } // Don't propagate pattern to auto-approved requests
+            { rememberPattern: undefined } // Don't propagate pattern choice to auto-approved requests
         );
 
         if (count > 0) {
             this.logger.info(
-                `Auto-approved ${count} parallel bash command(s) matching pattern '${pattern}'`
+                `Auto-approved ${count} parallel request(s) for tool '${toolName}' after user selected "remember pattern"`
             );
         }
     }
@@ -1169,7 +1196,7 @@ export class ToolManager {
      * 3. Session auto-approve (skill allowed-tools)
      * 4. Static allow list
      * 5. Dynamic "remembered" allowed list
-     * 6. Bash command patterns
+     * 6. Tool approval patterns
      * 7. Approval mode (auto-approve/auto-deny)
      */
     private async tryQuickApprovalResolution(
@@ -1219,18 +1246,13 @@ export class ToolManager {
             return { requireApproval: false };
         }
 
-        // 6. Check bash command patterns
-        if (this.isBashTool(toolName)) {
-            const command = args.command as string | undefined;
-            if (command) {
-                const bashResult = this.checkBashPatternApproval(command);
-                if (bashResult.approved) {
-                    this.logger.info(
-                        `Bash command '${command}' matched approved pattern – skipping confirmation.`
-                    );
-                    return { requireApproval: false };
-                }
-            }
+        // 6. Check tool approval patterns
+        const patternKey = this.getToolPatternKey(toolName, args);
+        if (patternKey && this.approvalManager.matchesPattern(toolName, patternKey)) {
+            this.logger.info(
+                `Tool '${toolName}' matched approved pattern key '${patternKey}' – skipping confirmation.`
+            );
+            return { requireApproval: false };
         }
 
         // 7. Check approval mode
@@ -1272,8 +1294,8 @@ export class ToolManager {
                 sessionId
             );
 
-            // Get suggested bash patterns if applicable
-            const suggestedPatterns = this.getBashSuggestedPatterns(toolName, args);
+            // Get suggested patterns if applicable
+            const suggestedPatterns = this.getToolSuggestedPatterns(toolName, args);
 
             // Build and send approval request
             const response = await this.approvalManager.requestToolConfirmation({
@@ -1345,24 +1367,6 @@ export class ToolManager {
     }
 
     /**
-     * Get suggested bash patterns for the approval UI.
-     */
-    private getBashSuggestedPatterns(
-        toolName: string,
-        args: Record<string, unknown>
-    ): string[] | undefined {
-        if (!this.isBashTool(toolName)) {
-            return undefined;
-        }
-        const command = args.command as string | undefined;
-        if (!command) {
-            return undefined;
-        }
-        const result = this.checkBashPatternApproval(command);
-        return result.suggestedPatterns?.length ? result.suggestedPatterns : undefined;
-    }
-
-    /**
      * Handle "remember choice" or "remember pattern" when user approves a tool.
      */
     private async handleRememberChoice(
@@ -1383,10 +1387,10 @@ export class ToolManager {
                 `Tool '${toolName}' added to allowed tools for session '${allowSessionId ?? 'global'}' (remember choice selected)`
             );
             this.autoApprovePendingToolRequests(toolName, allowSessionId);
-        } else if (rememberPattern && this.isBashTool(toolName)) {
-            this.approvalManager.addBashPattern(rememberPattern);
-            this.logger.info(`Bash pattern '${rememberPattern}' added for session approval`);
-            this.autoApprovePendingBashRequests(rememberPattern, sessionId);
+        } else if (rememberPattern && this.agentTools.get(toolName)?.getApprovalPatternKey) {
+            this.approvalManager.addPattern(toolName, rememberPattern);
+            this.logger.info(`Pattern '${rememberPattern}' added for tool '${toolName}' approval`);
+            this.autoApprovePendingPatternRequests(toolName, sessionId);
         }
     }
 

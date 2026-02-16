@@ -10,7 +10,8 @@ import { isTextPart, isAssistantMessage, isToolMessage } from '@dexto/core';
 import type { Message } from '../state/types.js';
 
 const HIDDEN_TOOL_NAMES = new Set(['wait_for']);
-const normalizeToolName = (toolName: string) => {
+
+export function normalizeToolName(toolName: string): string {
     if (toolName.startsWith('mcp--')) {
         const trimmed = toolName.substring('mcp--'.length);
         const parts = trimmed.split('--');
@@ -22,8 +23,15 @@ const normalizeToolName = (toolName: string) => {
         return parts.length >= 2 ? parts.slice(1).join('__') : trimmed;
     }
     return toolName;
-};
-const shouldHideTool = (toolName: string) => HIDDEN_TOOL_NAMES.has(normalizeToolName(toolName));
+}
+
+export function shouldHideTool(toolName: string | undefined): boolean {
+    if (!toolName) {
+        return false;
+    }
+
+    return HIDDEN_TOOL_NAMES.has(normalizeToolName(toolName));
+}
 
 const backgroundCompletionRegex =
     /<background-task-completion>[\s\S]*?<\/background-task-completion>/g;
@@ -165,82 +173,6 @@ export function centerTruncatePath(filePath: string, maxWidth: number): string {
 }
 
 /**
- * Tool-specific display configuration.
- * Controls how each tool is displayed in the UI - name, which args to show, etc.
- */
-interface ToolDisplayConfig {
-    /** User-friendly display name */
-    displayName: string;
-    /** Which args to display, in order */
-    argsToShow: string[];
-    /** Primary arg shown without key name (first in argsToShow) */
-    primaryArg?: string;
-}
-
-/**
- * Per-tool display configurations.
- * Each tool specifies exactly which arguments to show and how.
- */
-const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
-    // File tools - show file_path as primary
-    read_file: { displayName: 'Read', argsToShow: ['file_path'], primaryArg: 'file_path' },
-    write_file: { displayName: 'Write', argsToShow: ['file_path'], primaryArg: 'file_path' },
-    edit_file: { displayName: 'Update', argsToShow: ['file_path'], primaryArg: 'file_path' },
-
-    // Search tools - show pattern as primary, path as secondary
-    glob_files: {
-        displayName: 'Find files',
-        argsToShow: ['pattern', 'path'],
-        primaryArg: 'pattern',
-    },
-    grep_content: {
-        displayName: 'Search files',
-        argsToShow: ['pattern', 'path'],
-        primaryArg: 'pattern',
-    },
-
-    // Bash - show command only, skip description
-    bash_exec: { displayName: 'Bash', argsToShow: ['command'], primaryArg: 'command' },
-    bash_output: {
-        displayName: 'BashOutput',
-        argsToShow: ['process_id'],
-        primaryArg: 'process_id',
-    },
-    kill_process: { displayName: 'Kill', argsToShow: ['process_id'], primaryArg: 'process_id' },
-
-    // User interaction
-    ask_user: { displayName: 'Ask', argsToShow: ['question'], primaryArg: 'question' },
-
-    // Agent spawning - handled specially in formatToolHeader for dynamic agentId
-    spawn_agent: { displayName: 'Agent', argsToShow: ['task'], primaryArg: 'task' },
-
-    // Skill invocation - handled specially in formatToolHeader to show clean skill name
-    invoke_skill: { displayName: 'Skill', argsToShow: ['skill'], primaryArg: 'skill' },
-
-    plan_create: { displayName: 'Plan', argsToShow: [] },
-    plan_read: { displayName: 'Plan', argsToShow: [] },
-    plan_update: { displayName: 'Plan', argsToShow: [] },
-    plan_review: { displayName: 'Plan', argsToShow: [] },
-
-    wait_for: { displayName: 'Wait', argsToShow: ['taskId', 'taskIds', 'mode'] },
-    check_task: { displayName: 'CheckTask', argsToShow: ['taskId'] },
-    list_tasks: { displayName: 'ListTasks', argsToShow: ['status', 'type'] },
-
-    todo_write: { displayName: 'UpdateTasks', argsToShow: [] },
-};
-
-/**
- * Gets the display config for a tool.
- */
-function getToolConfig(toolName: string): ToolDisplayConfig | undefined {
-    // Try direct lookup first
-    if (TOOL_CONFIGS[toolName]) {
-        return TOOL_CONFIGS[toolName];
-    }
-    return undefined;
-}
-
-/**
  * Gets a user-friendly display name for a tool.
  * Returns the friendly name if known, otherwise returns a title-cased version.
  * MCP tools keep their server prefix for clarity (e.g., "mcp--filesystem--read_file").
@@ -255,10 +187,6 @@ function toTitleCase(name: string): string {
 }
 
 export function getToolDisplayName(toolName: string): string {
-    const config = getToolConfig(toolName);
-    if (config) {
-        return config.displayName;
-    }
     // MCP tools: strip mcp-- or mcp__ prefix and server name for clean display
     if (toolName.startsWith('mcp--')) {
         const parts = toolName.split('--');
@@ -416,7 +344,6 @@ export function formatToolArgsForDisplay(toolName: string, args: Record<string, 
     const entries = Object.entries(args);
     if (entries.length === 0) return '';
 
-    const config = getToolConfig(toolName);
     const parts: string[] = [];
 
     /**
@@ -450,38 +377,20 @@ export function formatToolArgsForDisplay(toolName: string, args: Record<string, 
         return strValue.length > 40 ? strValue.slice(0, 37) + '...' : strValue;
     };
 
-    if (config) {
-        // Use tool-specific config
-        for (const argName of config.argsToShow) {
-            if (!(argName in args)) continue;
-            if (argName === 'description') continue; // Skip description field
-            if (parts.length >= 3) break;
+    // Generic formatting for all tools:
+    // - Prefer common "primary" args (path/command/pattern/question/etc.)
+    // - Show up to 3 args total
+    // - Skip description (it's shown separately in the UI when present)
+    for (const [key, value] of entries) {
+        if (key === 'description') continue;
+        if (parts.length >= 3) break;
 
-            const formattedValue = formatArgValue(argName, args[argName]);
+        const formattedValue = formatArgValue(key, value);
 
-            if (argName === config.primaryArg) {
-                // Primary arg without key name
-                parts.unshift(formattedValue);
-            } else {
-                // Secondary args with key name
-                parts.push(`${argName}: ${formattedValue}`);
-            }
-        }
-    } else {
-        // Fallback for unknown tools (MCP, etc.)
-        for (const [key, value] of entries) {
-            if (key === 'description') continue; // Skip description field
-            if (parts.length >= 3) break;
-
-            const formattedValue = formatArgValue(key, value);
-
-            if (FALLBACK_PRIMARY_ARGS.has(key) || PATH_ARGS.has(key)) {
-                // Primary arg without key name
-                parts.unshift(formattedValue);
-            } else {
-                // Other args with key name
-                parts.push(`${key}: ${formattedValue}`);
-            }
+        if (FALLBACK_PRIMARY_ARGS.has(key) || PATH_ARGS.has(key)) {
+            parts.unshift(formattedValue);
+        } else {
+            parts.push(`${key}: ${formattedValue}`);
         }
     }
 

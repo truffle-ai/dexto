@@ -131,6 +131,33 @@ export interface Tool {
     ) => Promise<ToolDisplayData | null>;
 
     /**
+     * Optional aliases for this tool id.
+     *
+     * Used to support external prompt/skill ecosystems that refer to tools by short names
+     * (e.g. Claude Code "bash", "read", "grep" in allowed-tools). Aliases are resolved
+     * by {@link ToolManager} when applying session auto-approve lists.
+     */
+    aliases?: string[] | undefined;
+
+    /**
+     * Optional pattern key generator for approval memory.
+     *
+     * If provided, ToolManager will:
+     * - Skip confirmation when the pattern key is covered by previously approved patterns.
+     * - Offer suggested patterns (if {@link suggestApprovalPatterns} is provided) in the approval UI.
+     *
+     * Return null to disable pattern approvals for the given args (e.g. dangerous commands).
+     */
+    getApprovalPatternKey?: ((args: Record<string, unknown>) => string | null) | undefined;
+
+    /**
+     * Optional pattern suggestions for the approval UI.
+     *
+     * Returned patterns are shown as quick "remember pattern" options.
+     */
+    suggestApprovalPatterns?: ((args: Record<string, unknown>) => string[]) | undefined;
+
+    /**
      * Optional custom approval override.
      * If present and returns non-null, this approval request is used instead of
      * the default tool confirmation. Allows tools to request specialized approval

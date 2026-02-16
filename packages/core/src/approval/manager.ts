@@ -14,7 +14,7 @@ import { createApprovalRequest } from './factory.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { ApprovalError } from './errors.js';
-import { patternCovers } from '../tools/bash-pattern-utils.js';
+import { patternCovers } from '../tools/pattern-utils.js';
 import type { PermissionsMode } from '../tools/schemas.js';
 
 /**
@@ -70,11 +70,12 @@ export class ApprovalManager {
     private logger: Logger;
 
     /**
-     * Bash command patterns approved for the current session.
-     * Patterns use simple glob syntax (e.g., "git *", "npm install *").
-     * Cleared when session ends.
+     * Tool approval patterns, keyed by tool id.
+     *
+     * Patterns use simple glob syntax (e.g. "git *", "npm install *") and are matched
+     * using pattern-to-pattern covering (see {@link patternCovers}).
      */
-    private bashPatterns: Set<string> = new Set();
+    private toolPatterns: Map<string, Set<string>> = new Map();
 
     /**
      * Directories approved for file access for the current session.
@@ -94,35 +95,38 @@ export class ApprovalManager {
         );
     }
 
-    // ==================== Bash Pattern Methods ====================
+    // ==================== Pattern Methods ====================
 
-    /**
-     * Add a bash command pattern to the approved list for this session.
-     * Patterns use simple glob syntax with * as wildcard.
-     *
-     * @example
-     * ```typescript
-     * manager.addBashPattern("git *");        // Approves all git commands
-     * manager.addBashPattern("npm install *"); // Approves npm install with any package
-     * ```
-     */
-    addBashPattern(pattern: string): void {
-        this.bashPatterns.add(pattern);
-        this.logger.debug(`Added bash pattern: "${pattern}"`);
+    private getOrCreateToolPatternSet(toolName: string): Set<string> {
+        const existing = this.toolPatterns.get(toolName);
+        if (existing) return existing;
+        const created = new Set<string>();
+        this.toolPatterns.set(toolName, created);
+        return created;
     }
 
     /**
-     * Check if a bash pattern key is covered by any approved pattern.
-     * Uses pattern-to-pattern covering for broader pattern support.
-     *
-     * @param patternKey The pattern key generated from the command (e.g., "git push *")
-     * @returns true if the pattern key is covered by an approved pattern
+     * Add an approval pattern for a tool.
      */
-    matchesBashPattern(patternKey: string): boolean {
-        for (const storedPattern of this.bashPatterns) {
+    addPattern(toolName: string, pattern: string): void {
+        this.getOrCreateToolPatternSet(toolName).add(pattern);
+        this.logger.debug(`Added pattern for '${toolName}': "${pattern}"`);
+    }
+
+    /**
+     * Check if a pattern key is covered by any approved pattern for a tool.
+     *
+     * Note: This expects a pattern key (e.g. "git push *"), not raw arguments.
+     * Tools are responsible for generating the key via Tool.getApprovalPatternKey().
+     */
+    matchesPattern(toolName: string, patternKey: string): boolean {
+        const patterns = this.toolPatterns.get(toolName);
+        if (!patterns || patterns.size === 0) return false;
+
+        for (const storedPattern of patterns) {
             if (patternCovers(storedPattern, patternKey)) {
                 this.logger.debug(
-                    `Pattern key "${patternKey}" is covered by approved pattern "${storedPattern}"`
+                    `Pattern key "${patternKey}" is covered by approved pattern "${storedPattern}" (tool: ${toolName})`
                 );
                 return true;
             }
@@ -131,22 +135,42 @@ export class ApprovalManager {
     }
 
     /**
-     * Clear all approved bash patterns.
-     * Should be called when session ends.
+     * Clear all patterns for a tool (or all tools when omitted).
      */
-    clearBashPatterns(): void {
-        const count = this.bashPatterns.size;
-        this.bashPatterns.clear();
+    clearPatterns(toolName?: string): void {
+        if (toolName) {
+            const patterns = this.toolPatterns.get(toolName);
+            if (!patterns) return;
+            const count = patterns.size;
+            patterns.clear();
+            if (count > 0) {
+                this.logger.debug(`Cleared ${count} pattern(s) for '${toolName}'`);
+            }
+            return;
+        }
+
+        const count = Array.from(this.toolPatterns.values()).reduce(
+            (sum, set) => sum + set.size,
+            0
+        );
+        this.toolPatterns.clear();
         if (count > 0) {
-            this.logger.debug(`Cleared ${count} bash patterns`);
+            this.logger.debug(`Cleared ${count} total tool pattern(s)`);
         }
     }
 
     /**
-     * Get the current set of approved bash patterns (for debugging/display).
+     * Get patterns for a tool (for debugging/display).
      */
-    getBashPatterns(): ReadonlySet<string> {
-        return this.bashPatterns;
+    getToolPatterns(toolName: string): ReadonlySet<string> {
+        return this.toolPatterns.get(toolName) ?? new Set<string>();
+    }
+
+    /**
+     * Get all tool patterns (for debugging/display).
+     */
+    getAllToolPatterns(): ReadonlyMap<string, Set<string>> {
+        return this.toolPatterns;
     }
 
     // ==================== Directory Access Methods ====================
@@ -273,11 +297,11 @@ export class ApprovalManager {
     }
 
     /**
-     * Clear all session-scoped approvals (bash patterns and directories).
+     * Clear all session-scoped approvals (tool patterns and directories).
      * Convenience method for clearing all session state at once.
      */
     clearSessionApprovals(): void {
-        this.clearBashPatterns();
+        this.clearPatterns();
         this.clearApprovedDirectories();
         this.logger.debug('Cleared all session approvals');
     }

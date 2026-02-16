@@ -2,7 +2,7 @@
  * Bash Execute Tool
  *
  * Internal tool for executing shell commands.
- * Approval is handled at the ToolManager level with pattern-based approval.
+ * Pattern-based approval support is declared on the tool (ToolManager stays generic).
  */
 
 import * as path from 'node:path';
@@ -11,6 +11,10 @@ import { Tool, ToolExecutionContext } from '@dexto/core';
 import { ProcessService } from './process-service.js';
 import { ProcessError } from './errors.js';
 import type { ShellDisplayData } from '@dexto/core';
+import {
+    generateCommandPatternKey,
+    generateCommandPatternSuggestions,
+} from './command-pattern-utils.js';
 
 const BashExecInputSchema = z
     .object({
@@ -48,6 +52,7 @@ export type ProcessServiceGetter = (context: ToolExecutionContext) => Promise<Pr
 export function createBashExecTool(getProcessService: ProcessServiceGetter): Tool {
     return {
         id: 'bash_exec',
+        aliases: ['bash'],
         description: `Execute a shell command in the project root directory.
 
 IMPORTANT: This tool is for terminal operations like git, npm, docker, etc. Do NOT use it for file operations - use the specialized tools instead:
@@ -94,6 +99,18 @@ Each command runs in a fresh shell, so cd does not persist between calls.
 
 Security: Dangerous commands are blocked. Injection attempts are detected. Requires approval with pattern-based session memory.`,
         inputSchema: BashExecInputSchema,
+
+        getApprovalPatternKey: (args: Record<string, unknown>): string | null => {
+            const command = typeof args.command === 'string' ? args.command : '';
+            if (!command) return null;
+            return generateCommandPatternKey(command);
+        },
+
+        suggestApprovalPatterns: (args: Record<string, unknown>): string[] => {
+            const command = typeof args.command === 'string' ? args.command : '';
+            if (!command) return [];
+            return generateCommandPatternSuggestions(command);
+        },
 
         /**
          * Generate preview for approval UI - shows the command to be executed

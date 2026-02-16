@@ -1454,6 +1454,32 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 expect(toolManager.getSessionAutoApproveTools(sessionId)).toEqual(tools);
             });
 
+            it('should normalize local tool aliases when setting auto-approve tools', () => {
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'manual',
+                    mockAgentEventBus,
+                    { alwaysAllow: [], alwaysDeny: [] },
+                    [
+                        {
+                            id: 'bash_exec',
+                            aliases: ['bash'],
+                            description: 'Test bash tool',
+                            inputSchema: z.object({}).strict(),
+                            execute: () => null,
+                        },
+                    ],
+                    mockLogger
+                );
+
+                const sessionId = 'test-session-123';
+                toolManager.setSessionAutoApproveTools(sessionId, ['BASH']);
+
+                expect(toolManager.getSessionAutoApproveTools(sessionId)).toEqual(['bash_exec']);
+            });
+
             it('should return false/undefined for non-existent sessions', () => {
                 const toolManager = new ToolManager(
                     mockMcpManager,

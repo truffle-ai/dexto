@@ -47,8 +47,8 @@ export const ToolConfirmationMetadataSchema = z
             .array(z.string())
             .optional()
             .describe(
-                'Suggested patterns for session approval (for bash commands). ' +
-                    'E.g., ["git push *", "git *"] for command "git push origin main"'
+                'Suggested patterns for session approval. ' +
+                    'Tools may provide patterns to allow approving a broader subset of future calls (e.g., ["git push *", "git *"]).'
             ),
     })
     .strict()
@@ -184,8 +184,8 @@ export const ToolConfirmationResponseDataSchema = z
             .string()
             .optional()
             .describe(
-                'Remember a command pattern for bash commands (e.g., "git *"). ' +
-                    'Only applicable for bash_exec tool approvals.'
+                'Remember an approval pattern (e.g., "git *"). ' +
+                    'Only applicable when the tool provides pattern-based approval support.'
             ),
     })
     .strict()
