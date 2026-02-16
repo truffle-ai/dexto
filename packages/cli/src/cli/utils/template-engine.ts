@@ -612,7 +612,7 @@ ${context.description}${extendsNote}
 
 ## What is this?
 
-A **Dexto image** is a distributable npm module that exports a typed \`DextoImageModule\` (a plain object)
+A **Dexto image** is a distributable npm module that exports a typed \`DextoImage\` (a plain object)
 describing tool/storage/hook/compaction factories + optional default config.
 
 ## What's Included
@@ -667,7 +667,7 @@ pnpm run build
 This runs \`dexto-bundle build\`, which:
 1. Discovers factories from convention-based folders
 2. Compiles factory source files to \`dist/\`
-3. Generates \`dist/index.js\` exporting a \`DextoImageModule\` (no side effects)
+3. Generates \`dist/index.js\` exporting a \`DextoImage\` (no side effects)
 
 ## Publishing
 

@@ -106,7 +106,7 @@ export interface LoggerFactory<TConfig = unknown> {
  * - Factories are plain exports; resolution is explicit and testable
  * - Hosts decide how to load images (static import, dynamic import via `loadImage()`, allowlists, etc.)
  */
-export interface DextoImageModule {
+export interface DextoImage {
     /**
      * Metadata about the image package.
      *

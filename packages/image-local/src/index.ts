@@ -1,5 +1,5 @@
 import {
-    type DextoImageModule,
+    type DextoImage,
     type HookFactory,
     type CompactionFactory,
     NoOpCompactionConfigSchema,
@@ -88,7 +88,7 @@ const reactiveOverflowCompactionFactory: CompactionFactory<ReactiveOverflowCompa
         }),
 };
 
-const imageLocal: DextoImageModule = {
+const imageLocal: DextoImage = {
     metadata: {
         name: packageJson.name ?? '@dexto/image-local',
         version: packageJson.version ?? '0.0.0',

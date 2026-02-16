@@ -175,7 +175,7 @@ describe('template-engine', () => {
             expect(result).toContain('dexto image install');
         });
 
-        it('should describe the DextoImageModule contract', () => {
+        it('should describe the DextoImage contract', () => {
             const result = generateImageReadme({
                 projectName: 'my-image',
                 packageName: 'my-image',
@@ -183,7 +183,7 @@ describe('template-engine', () => {
                 imageName: 'my-image',
             });
 
-            expect(result).toContain('exports a typed `DextoImageModule`');
+            expect(result).toContain('exports a typed `DextoImage`');
             expect(result).toContain('plain object');
         });
 

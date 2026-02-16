@@ -1,6 +1,6 @@
 import type { Hook } from '@dexto/core';
 import type { ValidatedAgentConfig } from '../schemas/agent-config.js';
-import type { DextoImageModule } from '../image/types.js';
+import type { DextoImage } from '../image/types.js';
 import type { ResolvedServices } from './types.js';
 import type { PlainObject } from './utils.js';
 import { isPlainObject } from './utils.js';
@@ -38,7 +38,7 @@ function resolveByType<TFactory>(options: {
 
 export async function resolveServicesFromConfig(
     config: ValidatedAgentConfig,
-    image: DextoImageModule
+    image: DextoImage
 ): Promise<ResolvedServices> {
     const imageName = image.metadata.name;
 

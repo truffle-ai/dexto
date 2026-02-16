@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
 import type { Hook } from '@dexto/core';
-import type { DextoImageModule } from '../image/types.js';
+import type { DextoImage } from '../image/types.js';
 import { AgentConfigSchema, type AgentConfig } from '../schemas/agent-config.js';
 import { resolveServicesFromConfig } from './resolve-services-from-config.js';
 import {
@@ -28,7 +28,7 @@ describe('resolveServicesFromConfig', () => {
         compaction: { type: 'noop', enabled: false },
     };
 
-    function createMockImage(overrides?: Partial<DextoImageModule>): DextoImageModule {
+    function createMockImage(overrides?: Partial<DextoImage>): DextoImage {
         const loggerFactory = {
             configSchema: z
                 .object({
@@ -39,7 +39,7 @@ describe('resolveServicesFromConfig', () => {
             create: (_cfg: { agentId: string }) => createMockLogger(),
         };
 
-        const image: DextoImageModule = {
+        const image: DextoImage = {
             metadata: { name: 'mock-image', version: '0.0.0', description: 'mock' },
             tools: {},
             storage: {

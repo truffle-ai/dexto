@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
-import type { DextoImageModule } from '@dexto/agent-config';
+import type { DextoImage } from '@dexto/agent-config';
 import { loadImage } from '@dexto/agent-config';
 import { loadAgentConfig } from '@dexto/agent-management';
 import imageLocal from '@dexto/image-local';
@@ -73,10 +73,10 @@ function toMetadata(metadata: unknown): DiscoveryMetadata | undefined {
     return Object.keys(result).length > 0 ? result : undefined;
 }
 
-async function resolveImageModule(options: {
+async function resolveImage(options: {
     ctx: Context;
     getAgentConfigPath: GetAgentConfigPathFn;
-}): Promise<DextoImageModule> {
+}): Promise<DextoImage> {
     const { ctx, getAgentConfigPath } = options;
 
     const configPath = await getAgentConfigPath(ctx);
@@ -110,7 +110,7 @@ async function listDiscoveryFactories(options: {
     ctx: Context;
     getAgentConfigPath: GetAgentConfigPathFn;
 }) {
-    const image = await resolveImageModule(options);
+    const image = await resolveImage(options);
 
     const blob = Object.entries(image.storage.blob).map(([type, factory]) => ({
         type,

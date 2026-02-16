@@ -1,4 +1,4 @@
-import type { DextoImageModule, HookFactory } from '@dexto/agent-config';
+import type { DextoImage, HookFactory } from '@dexto/agent-config';
 import imageLocal from '@dexto/image-local';
 import { z } from 'zod';
 import { createRequire } from 'node:module';
@@ -20,7 +20,7 @@ const requestLoggerFactory: HookFactory<z.output<typeof requestLoggerConfigSchem
     create: (_config) => new RequestLoggerHook(),
 };
 
-const imageLoggerAgent: DextoImageModule = {
+const imageLoggerAgent: DextoImage = {
     ...imageLocal,
     metadata: {
         name: packageJson.name ?? '@dexto/image-logger-agent',

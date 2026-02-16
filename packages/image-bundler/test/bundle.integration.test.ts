@@ -11,7 +11,7 @@ async function writeFileEnsuringDir(filePath: string, contents: string): Promise
 }
 
 describe('@dexto/image-bundler - bundle (integration)', () => {
-    it('bundles a convention-based image into a loadable DextoImageModule', async () => {
+    it('bundles a convention-based image into a loadable DextoImage', async () => {
         const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 

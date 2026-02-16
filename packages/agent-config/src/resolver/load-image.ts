@@ -1,4 +1,4 @@
-import type { DextoImageModule } from '../image/types.js';
+import type { DextoImage } from '../image/types.js';
 import { isPlainObject, isSchemaLike } from './utils.js';
 
 export type ImageImporter = (specifier: string) => Promise<unknown>;
@@ -46,10 +46,7 @@ function assertFactoryMap(
     }
 }
 
-function assertDextoImageModule(
-    value: unknown,
-    imageName: string
-): asserts value is DextoImageModule {
+function assertDextoImage(value: unknown, imageName: string): asserts value is DextoImage {
     if (!isPlainObject(value)) {
         throw new Error(`Invalid image '${imageName}': expected an object export`);
     }
@@ -128,7 +125,7 @@ function extractImageExport(module: unknown): unknown {
     return module;
 }
 
-export async function loadImage(imageName: string): Promise<DextoImageModule> {
+export async function loadImage(imageName: string): Promise<DextoImage> {
     let module: unknown;
     try {
         const importer = configuredImageImporter ?? ((specifier: string) => import(specifier));
@@ -142,6 +139,6 @@ export async function loadImage(imageName: string): Promise<DextoImageModule> {
     }
 
     const candidate = extractImageExport(module);
-    assertDextoImageModule(candidate, imageName);
+    assertDextoImage(candidate, imageName);
     return candidate;
 }

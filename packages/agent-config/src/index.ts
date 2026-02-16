@@ -3,7 +3,7 @@ export type {
     CacheFactory,
     CompactionFactory,
     DatabaseFactory,
-    DextoImageModule,
+    DextoImage,
     ImageDefaults,
     LoggerFactory,
     HookFactory,

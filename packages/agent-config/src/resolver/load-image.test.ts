@@ -52,7 +52,7 @@ describe('loadImage', () => {
         setImageImporter(undefined);
     });
 
-    it('loads a valid DextoImageModule export', async () => {
+    it('loads a valid DextoImage export', async () => {
         const image = await loadImage('./__fixtures__/valid-image.ts');
         expect(image.metadata.name).toBe('fixture-image');
     });
@@ -116,7 +116,7 @@ describe('loadImage', () => {
         );
     });
 
-    it('throws a clear error when the module export is not a DextoImageModule', async () => {
+    it('throws a clear error when the module export is not a DextoImage', async () => {
         await expect(loadImage('./__fixtures__/not-an-image.ts')).rejects.toThrow(
             "Invalid image './__fixtures__/not-an-image.ts': expected an object export"
         );

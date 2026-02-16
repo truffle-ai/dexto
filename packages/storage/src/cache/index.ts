@@ -10,7 +10,7 @@
  *
  * ## Custom Factories
  * Product layers (CLI/server/platform) decide which factories are available by including them
- * in images (`DextoImageModule.storage.cache`).
+ * in images (`DextoImage.storage.cache`).
  *
  * ## Usage
  * Cache backends are typically constructed by the product-layer resolver (`@dexto/agent-config`)

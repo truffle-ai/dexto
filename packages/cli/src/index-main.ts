@@ -47,7 +47,7 @@ import {
     resolveServicesFromConfig,
     setImageImporter,
     toDextoAgentOptions,
-    type DextoImageModule,
+    type DextoImage,
     type ValidatedAgentConfig,
 } from '@dexto/agent-config';
 import {
@@ -745,7 +745,7 @@ async function bootstrapAgentFromGlobalOpts() {
         process.env.DEXTO_IMAGE || // DEXTO_IMAGE env var
         '@dexto/image-local'; // Default for convenience
 
-    let image: DextoImageModule;
+    let image: DextoImage;
     try {
         image = await loadImage(imageName);
     } catch (err) {
@@ -1286,7 +1286,7 @@ program
                 // ——— ENHANCED PREFERENCE-AWARE CONFIG LOADING ———
                 let validatedConfig: ValidatedAgentConfig;
                 let resolvedPath: string;
-                let image: DextoImageModule;
+                let image: DextoImage;
                 let imageName: string;
 
                 // Determine validation mode early - used throughout config loading and agent creation
