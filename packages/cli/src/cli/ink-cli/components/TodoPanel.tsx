@@ -77,14 +77,14 @@ export function TodoPanel({ todos, isExpanded, isProcessing = false }: TodoPanel
                 {/* Header */}
                 <Box>
                     <Text bold color="cyan">
-                        📋 Tasks{' '}
+                        📋 Todo{' '}
                     </Text>
                     <Text color="gray">
                         ({completedCount}/{totalCount})
                     </Text>
                     <Text color="gray" dimColor>
                         {' '}
-                        · ctrl+t to hide tasks
+                        · ctrl+t to hide todo list
                     </Text>
                 </Box>
 

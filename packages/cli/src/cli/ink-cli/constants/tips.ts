@@ -33,7 +33,7 @@ export const tips: string[] = [
     'Press Escape to close overlays and menus…',
     'Use Up/Down arrows to navigate command history…',
     'Press Enter to submit your message…',
-    'Press Ctrl+T to show/hide the task list…',
+    'Press Ctrl+T to show/hide the todo list…',
     'Press Ctrl+R to search previous prompts…',
     'Press Shift+Enter to insert a new line…',
 

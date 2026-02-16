@@ -88,11 +88,11 @@ export function StatusBar({
         return null;
     }
 
-    // Build the task toggle hint based on state
+    // Build the todo toggle hint based on state
     const todoHint = hasTodos
         ? todoExpanded
-            ? 'ctrl+t to hide tasks'
-            : 'ctrl+t to show tasks'
+            ? 'ctrl+t to hide todos'
+            : 'ctrl+t to show todos'
         : null;
 
     const backgroundHint = backgroundTasksRunning > 0 ? 'ctrl+b to view bg tasks' : null;
