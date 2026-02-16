@@ -135,7 +135,7 @@ internalTools:
   - grep_content
   - ask_user
 
-toolConfirmation:
+permissions:
   mode: auto-approve  # Safe since all read-only
 ```
 
@@ -151,7 +151,7 @@ internalTools:
   - bash_exec
   - ask_user
 
-toolConfirmation:
+permissions:
   mode: manual
   toolPolicies:
     alwaysAllow:
@@ -171,7 +171,7 @@ internalTools:
   - bash_output
   - kill_process
 
-toolConfirmation:
+permissions:
   mode: manual
   toolPolicies:
     alwaysAllow:
@@ -182,12 +182,12 @@ toolConfirmation:
       - internal--bash_exec--rm -rf*
 ```
 
-## Tool Confirmation Policies
+## Permissions Policies
 
 Configure which tools require approval:
 
 ```yaml
-toolConfirmation:
+permissions:
   mode: manual
   toolPolicies:
     # Safe, read-only operations
@@ -240,5 +240,5 @@ systemPrompt: |
 ## See Also
 
 - [agent.yml Reference → Internal Tools](./agent-yml.md#internal-tools) - Complete tool documentation
-- [Tool Confirmation](./toolConfirmation.md) - Configure approval policies
+- [Permissions](./permissions.md) - Configure approval policies
 - [System Prompt](./systemPrompt.md) - Guide agents on tool usage

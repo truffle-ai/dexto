@@ -306,8 +306,8 @@ sessions:
   maxSessions: 100
   sessionTTL: 3600000
 
-# Tool confirmation
-toolConfirmation:
+# Permissions
+permissions:
   mode: auto
   timeout: 30000
 ```

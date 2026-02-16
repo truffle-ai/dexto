@@ -126,7 +126,7 @@ The agent is pre-configured with sensible defaults:
 - Editing files (`internal--edit_file`)
 - Executing commands (`internal--bash_exec`)
 
-You can customize these policies in the `toolConfirmation.toolPolicies` section of `coding-agent.yml`.
+You can customize these policies in the `permissions.toolPolicies` section of `coding-agent.yml`.
 
 ### File Extensions
 
@@ -142,7 +142,7 @@ The agent indexes these file types by default:
 
 **Build Files**: .gradle, .maven, Makefile, Dockerfile, .dockerignore, .gitignore
 
-Add more extensions in the `internalResources.resources[0].includeExtensions` section.
+Add more extensions in the `resources[0].includeExtensions` section.
 
 ## Starter Prompts
 

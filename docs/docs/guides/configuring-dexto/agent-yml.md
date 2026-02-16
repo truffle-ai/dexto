@@ -14,15 +14,15 @@ Complete reference for all agent.yml configuration options.
 3. [LLM Configuration](#llm-configuration)
 4. [System Prompt Configuration](#system-prompt-configuration)
 5. [MCP Servers](#mcp-servers)
-6. [Tool Confirmation](#tool-confirmation)
+6. [Permissions](#permissions)
 7. [Elicitation Configuration](#elicitation-configuration)
 8. [Storage Configuration](#storage-configuration)
 9. [Session Configuration](#session-configuration)
 10. [Telemetry Configuration](#telemetry-configuration)
 11. [Logger Configuration](#logger-configuration)
-12. [Plugins](#plugins)
+12. [Hooks](#hooks)
 13. [Internal Tools](#internal-tools)
-14. [Internal Resources](#internal-resources)
+14. [Resources](#resources)
 15. [Agent Identity / A2A](#agent-identity--a2a)
 16. [Agent ID](#agent-id)
 17. [Dynamic Changes](#dynamic-changes)
@@ -77,8 +77,8 @@ mcpServers:
     command: npx
     args: ["-y", "@playwright/mcp@latest"]
 
-# Tool Confirmation
-toolConfirmation:
+# Permissions
+permissions:
   mode: manual
   timeout: 120000
   allowedToolsStorage: storage
@@ -125,15 +125,11 @@ logger:
       maxSize: 10485760
       maxFiles: 5
 
-# Plugins
-plugins:
-  contentPolicy:
-    priority: 10
-    blocking: true
+# Hooks
+hooks:
+  - type: content-policy
     enabled: true
-  responseSanitizer:
-    priority: 900
-    blocking: false
+  - type: response-sanitizer
     enabled: true
 
 # Internal Tools
@@ -146,15 +142,14 @@ internalTools:
   - grep_content
   - bash_exec
 
-# Internal Resources
-internalResources:
-  resources:
-    - type: filesystem
-      paths: ["."]
-      maxFiles: 50
-      maxDepth: 3
-      includeExtensions: [".txt", ".md", ".json", ".yaml", ".js", ".ts", ".py"]
-    - type: blob
+# Resources
+resources:
+  - type: filesystem
+    paths: ["."]
+    maxFiles: 50
+    maxDepth: 3
+    includeExtensions: [".txt", ".md", ".json", ".yaml", ".js", ".ts", ".py"]
+  - type: blob
 
 # Agent Identity / A2A
 agentCard:
@@ -343,10 +338,10 @@ api-service:
 - `lenient` (default) - Log errors, continue without server
 - `strict` - Require successful connection or fail startup
 
-## Tool Confirmation
+## Permissions
 
 :::info Guide
-For detailed policy configuration, see **[Tool Confirmation Guide](./toolConfirmation)**.
+For detailed policy configuration, see **[Permissions Guide](./permissions)**.
 :::
 
 Tool approval and confirmation behavior.
@@ -354,7 +349,7 @@ Tool approval and confirmation behavior.
 ### Schema
 
 ```yaml
-toolConfirmation:
+permissions:
   mode: manual | auto-approve | auto-deny  # Default: manual
   timeout: number               # Default: 120000ms
   allowedToolsStorage: memory | storage  # Default: storage
@@ -371,7 +366,7 @@ toolConfirmation:
 ### Example
 
 ```yaml
-toolConfirmation:
+permissions:
   mode: manual
   toolPolicies:
     alwaysAllow:
@@ -420,7 +415,7 @@ mcpServers:
     args: ["-y", "my-mcp-server"]
 ```
 
-**Note:** Elicitation and tool confirmation are independent features. Elicitation controls whether MCP servers can request user input, while tool confirmation controls whether tools require approval before execution.
+**Note:** Elicitation and permissions are independent features. Elicitation controls whether MCP servers can request user input, while permissions control whether tools require approval before execution.
 
 ## Storage Configuration
 
@@ -658,75 +653,38 @@ Where `<agent-id>` is derived from:
 2. Config filename (e.g., `my-agent.yml` → `my-agent`)
 3. Fallback: `coding-agent`
 
-## Plugins
+## Hooks
 
 :::info Guide
-For plugin development and configuration, see **[Plugins Guide](./plugins)**.
+For hook development and configuration, see **[Hooks Guide](./hooks)**.
 :::
 
-Built-in and custom plugins for input/output processing.
+Built-in and custom hooks for input/output processing.
 
 ### Schema
 
 ```yaml
-plugins:
-  # Built-in
-  contentPolicy:
-    priority: number
-    blocking: boolean
-    enabled: boolean
-    # Plugin-specific fields
-
-  responseSanitizer:
-    priority: number
-    blocking: boolean
-    enabled: boolean
-    # Plugin-specific fields
-
-  # Custom
-  custom:
-    - name: string
-      module: string
-      enabled: boolean
-      blocking: boolean
-      priority: number
-      config: {}
+hooks:
+  - type: string
+    enabled: boolean  # Optional
+    # Hook-specific fields
 ```
 
-### Built-in Plugins
+### Example
 
 ```yaml
-# Content Policy
-contentPolicy:
-  priority: 10
-  blocking: true
-  enabled: true
-  maxInputChars: 50000
-  redactEmails: boolean
-  redactApiKeys: boolean
-
-# Response Sanitizer
-responseSanitizer:
-  priority: 900
-  blocking: false
-  enabled: true
-  redactEmails: boolean
-  redactApiKeys: boolean
-  maxResponseLength: 100000
-```
-
-### Custom Plugins
-
-```yaml
-custom:
-  - name: tenant-auth
-    module: "${{dexto.agent_dir}}/plugins/tenant-auth.ts"
+hooks:
+  - type: content-policy
     enabled: true
-    blocking: true
-    priority: 100
-    config:
-      enforceQuota: true
-      maxRequestsPerHour: 1000
+    maxInputChars: 50000
+    redactEmails: true
+    redactApiKeys: true
+
+  - type: response-sanitizer
+    enabled: true
+    redactEmails: true
+    redactApiKeys: true
+    maxResponseLength: 100000
 ```
 
 ## Internal Tools
@@ -764,10 +722,10 @@ internalTools:
 - `bash_output` - Get output from background processes
 - `kill_process` - Terminate background processes
 
-## Internal Resources
+## Resources
 
 :::info Guide
-For detailed configuration and examples, see **[Internal Resources Guide](./internalResources)**.
+For detailed configuration and examples, see **[Resources Guide](./resources)**.
 :::
 
 Access to files and blob storage.
@@ -775,17 +733,15 @@ Access to files and blob storage.
 ### Schema
 
 ```yaml
-internalResources:
-  enabled: boolean              # Optional, auto-enabled if resources non-empty
-  resources:
-    - type: filesystem
-      paths: [string]           # Required
-      maxDepth: number          # Optional, default: 3, max: 10
-      maxFiles: number          # Optional, default: 1000, max: 10000
-      includeHidden: boolean    # Optional, default: false
-      includeExtensions: [string]  # Optional
+resources:
+  - type: filesystem
+    paths: [string]           # Required
+    maxDepth: number          # Optional, default: 3, max: 10
+    maxFiles: number          # Optional, default: 1000, max: 10000
+    includeHidden: boolean    # Optional, default: false
+    includeExtensions: [string]  # Optional
 
-    - type: blob                # Settings in storage.blob
+  - type: blob                # Settings in storage.blob
 ```
 
 ### Resource Types

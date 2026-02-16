@@ -2,7 +2,7 @@
 
 Local development image for Dexto.
 
-This package default-exports a typed `DextoImageModule` (no side effects, no registries). Hosts
+This package default-exports a typed `DextoImage` (no side effects, no registries). Hosts
 (CLI/server/apps) load the image and resolve config → concrete services via `@dexto/agent-config`.
 
 ## What’s included

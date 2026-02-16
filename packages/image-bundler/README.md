@@ -3,7 +3,7 @@
 Bundler for convention-based Dexto images.
 
 It consumes a `dexto.image.ts` (metadata + defaults) and a convention folder layout (tools/storage/hooks/compaction),
-then produces a distributable package that **default-exports a typed `DextoImageModule`** (no side effects, no registries).
+then produces a distributable package that **default-exports a typed `DextoImage`** (no side effects, no registries).
 
 ## CLI
 
@@ -14,7 +14,7 @@ dexto-bundle build --image dexto.image.ts --out dist
 ```
 
 Outputs:
-- `dist/index.js` (default export: `DextoImageModule`)
+- `dist/index.js` (default export: `DextoImage`)
 - `dist/index.d.ts` (types)
 - compiled convention folders under `dist/`
 
@@ -33,7 +33,7 @@ compaction/<type>/index.ts
 
 ## Generated image contract
 
-The generated default export matches `@dexto/agent-config`’s `DextoImageModule` interface:
+The generated default export matches `@dexto/agent-config`’s `DextoImage` interface:
 
 - `metadata` + optional `defaults`
 - `tools`, `storage.*`, `hooks`, `compaction` factory maps (keyed by config `type`)

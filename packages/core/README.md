@@ -191,7 +191,7 @@ Delegate tasks to other A2A-compliant agents using the built-in `delegate_to_url
 const agent = new DextoAgent({
   llm: { /* ... */ },
   internalTools: ['delegate_to_url'], // Enable delegation tool
-  toolConfirmation: { mode: 'auto-approve' }
+  permissions: { mode: 'auto-approve' }
 });
 await agent.start();
 
@@ -280,4 +280,3 @@ https://docs.dexto.ai/api/dexto-agent/
 ## License
 
 Elastic License 2.0. See the repository LICENSE for details.
-
