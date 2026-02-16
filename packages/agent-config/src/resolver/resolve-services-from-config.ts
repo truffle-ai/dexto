@@ -134,15 +134,15 @@ export async function resolveServicesFromConfig(
         });
 
         const parsedConfig = factory.configSchema.parse(stripEnabled(entry as PlainObject));
-        const plugin = factory.create(parsedConfig);
-        if (plugin.initialize) {
+        const hook = factory.create(parsedConfig);
+        if (hook.initialize) {
             if (!isPlainObject(parsedConfig)) {
-                throw new Error(`Invalid plugin config for '${entry.type}': expected an object`);
+                throw new Error(`Invalid hook config for '${entry.type}': expected an object`);
             }
-            await plugin.initialize(parsedConfig);
+            await hook.initialize(parsedConfig);
         }
 
-        hooks.push(plugin);
+        hooks.push(hook);
     }
 
     // 5) Compaction

@@ -7,7 +7,7 @@ import type {
 } from '../types.js';
 
 /**
- * Configuration options for the ContentPolicy plugin
+ * Configuration options for the ContentPolicy hook.
  */
 export interface ContentPolicyConfig {
     maxInputChars?: number;
@@ -42,11 +42,11 @@ export class ContentPolicyHook implements Hook {
     private config: Required<ContentPolicyConfig> = DEFAULTS;
 
     async initialize(config: Record<string, unknown>): Promise<void> {
-        const pluginConfig = config as Partial<ContentPolicyConfig>;
+        const hookConfig = config as Partial<ContentPolicyConfig>;
         this.config = {
-            maxInputChars: pluginConfig.maxInputChars ?? DEFAULTS.maxInputChars,
-            redactEmails: pluginConfig.redactEmails ?? DEFAULTS.redactEmails,
-            redactApiKeys: pluginConfig.redactApiKeys ?? DEFAULTS.redactApiKeys,
+            maxInputChars: hookConfig.maxInputChars ?? DEFAULTS.maxInputChars,
+            redactEmails: hookConfig.redactEmails ?? DEFAULTS.redactEmails,
+            redactApiKeys: hookConfig.redactApiKeys ?? DEFAULTS.redactApiKeys,
         };
     }
 

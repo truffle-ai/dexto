@@ -80,7 +80,7 @@ export * from './approval/index.js';
 // Memory
 export * from './memory/index.js';
 
-// Plugins
+// Hooks
 export * from './hooks/index.js';
 
 // Telemetry

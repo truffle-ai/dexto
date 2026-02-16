@@ -121,7 +121,7 @@ describe('DextoAgent Lifecycle Management', () => {
                 hasHandler: vi.fn().mockReturnValue(false),
             } as any,
             memoryManager: {} as any,
-            pluginManager: {
+            hookManager: {
                 cleanup: vi.fn(),
             } as any,
         };

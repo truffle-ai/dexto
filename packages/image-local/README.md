@@ -9,7 +9,7 @@ This package default-exports a typed `DextoImageModule` (no side effects, no reg
 
 - **Storage factories**: local filesystem blob store, SQLite database, in-memory cache (plus in-memory alternatives; Postgres/Redis factories are included but require optional deps)
 - **Tool factories**: builtin, filesystem, process, todo, plan, agent-spawner
-- **Plugins**: content-policy, response-sanitizer
+- **Hooks**: content-policy, response-sanitizer
 - **Compaction**: reactive-overflow, noop
 - **Logger**: core `defaultLoggerFactory`
 

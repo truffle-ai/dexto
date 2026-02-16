@@ -613,7 +613,7 @@ ${context.description}${extendsNote}
 ## What is this?
 
 A **Dexto image** is a distributable npm module that exports a typed \`DextoImageModule\` (a plain object)
-describing tool/storage/plugin/compaction factories + optional default config.
+describing tool/storage/hook/compaction factories + optional default config.
 
 ## What's Included
 

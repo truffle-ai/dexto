@@ -64,7 +64,7 @@ export interface HookExecutionContext {
     /** Current LLM configuration */
     llmConfig: ValidatedLLMConfig;
 
-    /** Logger scoped to this plugin execution */
+    /** Logger scoped to this hook execution */
     logger: Logger;
 
     /** Abort signal for cancellation */

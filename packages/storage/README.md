@@ -28,7 +28,7 @@ import {
 } from '@dexto/storage';
 
 export const myImage: DextoImageModule = {
-  /* metadata/defaults/tools/plugins/compaction/logger ... */
+  /* metadata/defaults/tools/hooks/compaction/logger ... */
   storage: {
     blob: { local: localBlobStoreFactory },
     database: { sqlite: sqliteDatabaseFactory },
