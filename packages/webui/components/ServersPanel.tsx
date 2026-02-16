@@ -82,7 +82,7 @@ export default function ServersPanel({
     const deleteServerMutation = useDeleteServer();
     const restartServerMutation = useRestartServer();
 
-    // Fetch all tools from all sources (internal, custom, MCP)
+    // Fetch all tools from all sources (local, MCP)
     const {
         data: allToolsData,
         isLoading: isLoadingAllTools,
@@ -113,10 +113,9 @@ export default function ServersPanel({
 
     // Group tools by source with server info
     const toolsBySource = useMemo(() => {
-        if (!allToolsData)
+        if (!allToolsData) {
             return {
-                internal: [],
-                custom: [],
+                local: [] as ToolInfo[],
                 mcp: new Map<
                     string,
                     {
@@ -125,6 +124,7 @@ export default function ServersPanel({
                     }
                 >(),
             };
+        }
 
         const local: ToolInfo[] = [];
         const mcp = new Map<
