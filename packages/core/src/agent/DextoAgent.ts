@@ -201,11 +201,11 @@ export class DextoAgent {
     private activeStreamControllers: Map<string, AbortController> = new Map();
 
     // Host overrides for service initialization (e.g. session logger factory)
-    private readonly serviceOverrides: InitializeServicesOptions;
+    private readonly overrides: InitializeServicesOptions;
 
     // DI-provided local tools.
-    private readonly injectedTools: Tool[];
-    private readonly injectedCompactionStrategy: CompactionStrategy | null;
+    private readonly tools: Tool[];
+    private readonly compactionStrategy: CompactionStrategy | null;
 
     // Logger instance for this agent (dependency injection)
     public readonly logger: Logger;
@@ -268,8 +268,8 @@ export class DextoAgent {
         // Agent logger is always provided by the host (typically created from config).
         this.logger = logger;
 
-        this.injectedTools = tools;
-        this.injectedCompactionStrategy = compaction ?? null;
+        this.tools = tools;
+        this.compactionStrategy = compaction ?? null;
 
         const overrides: InitializeServicesOptions = { ...(overridesInput ?? {}) };
 
@@ -288,7 +288,7 @@ export class DextoAgent {
             overrides.hooks = hooks;
         }
 
-        this.serviceOverrides = overrides;
+        this.overrides = overrides;
 
         if (overrides.mcpAuthProviderFactory !== undefined) {
             this.mcpAuthProviderFactory = overrides.mcpAuthProviderFactory;
@@ -322,8 +322,8 @@ export class DextoAgent {
                 this.config,
                 this.logger,
                 this.agentEventBus,
-                this.serviceOverrides,
-                this.injectedCompactionStrategy
+                this.overrides,
+                this.compactionStrategy
             );
 
             if (this.mcpAuthProviderFactory) {
@@ -414,11 +414,11 @@ export class DextoAgent {
                 services: toolExecutionServices,
             }));
 
-            const localTools = this.injectedTools;
+            const agentTools = this.tools;
 
             // Add skills contributor to system prompt if invoke_skill is enabled.
             // This lists available skills so the LLM knows what it can invoke.
-            if (localTools.some((t) => t.id === 'invoke_skill')) {
+            if (agentTools.some((t) => t.id === 'invoke_skill')) {
                 const skillsContributor = new SkillsContributor(
                     'skills',
                     50, // Priority after memories (40) but before most other content
@@ -429,7 +429,7 @@ export class DextoAgent {
                 this.logger.debug('Added SkillsContributor to system prompt');
             }
 
-            services.toolManager.setTools(localTools);
+            services.toolManager.setTools(agentTools);
 
             // Initialize toolManager after tools and context have been wired.
             await services.toolManager.initialize();
@@ -1923,10 +1923,10 @@ export class DextoAgent {
 
         // Get raw history for hasSummary check
         const history = await contextManager.getHistory();
-        // Get the effective max context tokens from the injected compaction strategy (if any)
+        // Get the effective max context tokens from the configured compaction strategy (if any)
         const runtimeConfig = this.stateManager.getRuntimeConfig(sessionId);
         const modelContextWindow = contextManager.getMaxInputTokens();
-        const compactionStrategy = this.injectedCompactionStrategy;
+        const compactionStrategy = this.compactionStrategy;
         const compactionSettings = compactionStrategy?.getSettings();
         const thresholdPercent =
             compactionSettings && compactionSettings.enabled
