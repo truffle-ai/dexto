@@ -538,6 +538,31 @@ header h1 {
  */
 export function generateDextoImageFile(context: TemplateContext): string {
     const extendsField = context.baseImage ? `    extends: '${context.baseImage}',\n` : '';
+    const storageDefaults = context.baseImage
+        ? `        storage: {
+            blob: {
+                type: 'local',
+                storePath: './data/blobs',
+            },
+            database: {
+                type: 'sqlite',
+                path: './data/agent.db',
+            },
+            cache: {
+                type: 'in-memory',
+            },
+        },`
+        : `        storage: {
+            blob: {
+                type: 'example-blob',
+            },
+            database: {
+                type: 'example-database',
+            },
+            cache: {
+                type: 'example-cache',
+            },
+        },`;
 
     return `import type { ImageDefinition } from '@dexto/image-bundler';
 
@@ -558,19 +583,7 @@ ${extendsField}
     // Each factory module must export a factory constant (export const factory = ...).
 
     defaults: {
-        storage: {
-            blob: {
-                type: 'local',
-                storePath: './data/blobs',
-            },
-            database: {
-                type: 'sqlite',
-                path: './data/agent.db',
-            },
-            cache: {
-                type: 'in-memory',
-            },
-        },
+${storageDefaults}
         logger: {
             level: 'info',
             transports: [{ type: 'console', colorize: true }],
@@ -721,6 +734,182 @@ export const factory: ToolFactory<${typeNameBase.charAt(0).toUpperCase() + typeN
         };
 
         return [tool];
+    },
+};
+`;
+}
+
+/**
+ * Generates an example custom plugin factory
+ */
+export function generateExamplePlugin(pluginName: string = 'example-plugin'): string {
+    return `import { z } from 'zod';
+import type { PluginFactory } from '@dexto/agent-config';
+import type { Plugin } from '@dexto/core';
+
+const ConfigSchema = z
+    .object({
+        type: z.literal('${pluginName}'),
+    })
+    .strict();
+
+type ExamplePluginConfig = z.output<typeof ConfigSchema>;
+
+/**
+ * Example plugin factory
+ *
+ * Plugins are resolved from image factories, same as tools.
+ * The bundler auto-discovers this module when placed in plugins/<type>/index.ts.
+ */
+export const factory: PluginFactory<ExamplePluginConfig> = {
+    configSchema: ConfigSchema,
+    create: (_config) => {
+        const plugin: Plugin = {
+            beforeLLMRequest: async (payload, context) => {
+                context.logger.info(\`${pluginName} saw input: \${payload.text}\`);
+                return { ok: true };
+            },
+        };
+
+        return plugin;
+    },
+};
+`;
+}
+
+/**
+ * Generates an example custom compaction factory
+ */
+export function generateExampleCompaction(compactionType: string = 'example-compaction'): string {
+    return `import { z } from 'zod';
+import type { CompactionFactory } from '@dexto/agent-config';
+import type { CompactionStrategy } from '@dexto/core';
+
+const ConfigSchema = z
+    .object({
+        type: z.literal('${compactionType}'),
+        enabled: z.boolean().default(true),
+        maxContextTokens: z.number().positive().optional(),
+        thresholdPercent: z.number().min(0.1).max(1.0).default(0.9),
+    })
+    .strict();
+
+type ExampleCompactionConfig = z.output<typeof ConfigSchema>;
+
+/**
+ * Example compaction factory
+ *
+ * Compaction is a DI surface. Agents select exactly one strategy via \`compaction.type\`.
+ * The bundler auto-discovers this module when placed in compaction/<type>/index.ts.
+ */
+export const factory: CompactionFactory<ExampleCompactionConfig> = {
+    configSchema: ConfigSchema,
+    create: (config) => {
+        const strategy: CompactionStrategy = {
+            name: '${compactionType}',
+            getSettings: () => ({
+                enabled: config.enabled,
+                maxContextTokens: config.maxContextTokens,
+                thresholdPercent: config.thresholdPercent,
+            }),
+            getModelLimits: (modelContextWindow) => ({
+                contextWindow: config.maxContextTokens
+                    ? Math.min(modelContextWindow, config.maxContextTokens)
+                    : modelContextWindow,
+            }),
+            shouldCompact: () => false,
+            compact: async () => [],
+        };
+
+        return strategy;
+    },
+};
+`;
+}
+
+/**
+ * Generates an example in-memory cache factory
+ */
+export function generateExampleCacheFactory(cacheType: string = 'example-cache'): string {
+    return `import { z } from 'zod';
+import type { CacheFactory } from '@dexto/agent-config';
+import { MemoryCacheStore } from '@dexto/storage';
+
+const ConfigSchema = z
+    .object({
+        type: z.literal('${cacheType}'),
+    })
+    .strict();
+
+type ExampleCacheConfig = z.output<typeof ConfigSchema>;
+
+/**
+ * Example cache factory
+ *
+ * Storage backends are resolved from image factories.
+ * The bundler auto-discovers this module when placed in storage/cache/<type>/index.ts.
+ */
+export const factory: CacheFactory<ExampleCacheConfig> = {
+    configSchema: ConfigSchema,
+    create: (_config, _logger) => new MemoryCacheStore(),
+};
+`;
+}
+
+/**
+ * Generates an example in-memory database factory
+ */
+export function generateExampleDatabaseFactory(databaseType: string = 'example-database'): string {
+    return `import { z } from 'zod';
+import type { DatabaseFactory } from '@dexto/agent-config';
+import { MemoryDatabaseStore } from '@dexto/storage';
+
+const ConfigSchema = z
+    .object({
+        type: z.literal('${databaseType}'),
+    })
+    .strict();
+
+type ExampleDatabaseConfig = z.output<typeof ConfigSchema>;
+
+/**
+ * Example database factory
+ *
+ * Storage backends are resolved from image factories.
+ * The bundler auto-discovers this module when placed in storage/database/<type>/index.ts.
+ */
+export const factory: DatabaseFactory<ExampleDatabaseConfig> = {
+    configSchema: ConfigSchema,
+    create: (_config, _logger) => new MemoryDatabaseStore(),
+};
+`;
+}
+
+/**
+ * Generates an example in-memory blob store factory
+ */
+export function generateExampleBlobStoreFactory(blobType: string = 'example-blob'): string {
+    return `import { z } from 'zod';
+import type { BlobStoreFactory } from '@dexto/agent-config';
+import { InMemoryBlobStoreSchema, MemoryBlobStore } from '@dexto/storage';
+
+const ConfigSchema = InMemoryBlobStoreSchema.extend({
+    type: z.literal('${blobType}'),
+}).strict();
+
+type ExampleBlobStoreConfig = z.output<typeof ConfigSchema>;
+
+/**
+ * Example blob store factory
+ *
+ * Blob stores are resolved from image factories.
+ * The bundler auto-discovers this module when placed in storage/blob/<type>/index.ts.
+ */
+export const factory: BlobStoreFactory<ExampleBlobStoreConfig> = {
+    configSchema: ConfigSchema,
+    create: (config, logger) => {
+        const { type: _type, ...options } = config;
+        return new MemoryBlobStore(options, logger);
     },
 };
 `;
