@@ -45,10 +45,10 @@ import type { LLMUpdates, ValidatedLLMConfig } from '../llm/schemas.js';
 import { ServersConfigSchema } from '../mcp/schemas.js';
 import { MemoriesConfigSchema } from '../memory/schemas.js';
 import { PromptsSchema } from '../prompts/schemas.js';
-import { InternalResourcesSchema } from '../resources/schemas.js';
+import { ResourcesConfigSchema } from '../resources/schemas.js';
 import { SessionConfigSchema } from '../session/schemas.js';
 import { SystemPromptConfigSchema } from '../systemPrompt/schemas.js';
-import { ElicitationConfigSchema, ToolConfirmationConfigSchema } from '../tools/schemas.js';
+import { ElicitationConfigSchema, PermissionsConfigSchema } from '../tools/schemas.js';
 import { OtelConfigurationSchema } from '../telemetry/schemas.js';
 import { AgentCardSchema } from './schemas.js';
 import type { AgentRuntimeSettings, DextoAgentConfigInput } from './runtime-config.js';
@@ -224,9 +224,9 @@ export class DextoAgent {
             systemPrompt: SystemPromptConfigSchema.parse(options.systemPrompt),
             mcpServers: ServersConfigSchema.parse(options.mcpServers ?? {}),
             sessions: SessionConfigSchema.parse(options.sessions ?? {}),
-            toolConfirmation: ToolConfirmationConfigSchema.parse(options.toolConfirmation ?? {}),
+            permissions: PermissionsConfigSchema.parse(options.permissions ?? {}),
             elicitation: ElicitationConfigSchema.parse(options.elicitation ?? {}),
-            internalResources: InternalResourcesSchema.parse(options.internalResources),
+            resources: ResourcesConfigSchema.parse(options.resources ?? []),
             prompts: PromptsSchema.parse(options.prompts),
             ...(options.agentCard !== undefined && {
                 agentCard: AgentCardSchema.parse(options.agentCard),
@@ -342,12 +342,12 @@ export class DextoAgent {
             // Validate approval configuration
             // Handler is required for manual tool confirmation OR when elicitation is enabled
             const needsHandler =
-                this.config.toolConfirmation.mode === 'manual' || this.config.elicitation.enabled;
+                this.config.permissions.mode === 'manual' || this.config.elicitation.enabled;
 
             if (needsHandler && !this.approvalHandler) {
                 const reasons = [];
-                if (this.config.toolConfirmation.mode === 'manual') {
-                    reasons.push('tool confirmation mode is "manual"');
+                if (this.config.permissions.mode === 'manual') {
+                    reasons.push('permissions mode is "manual"');
                 }
                 if (this.config.elicitation.enabled) {
                     reasons.push('elicitation is enabled');
@@ -357,7 +357,7 @@ export class DextoAgent {
                     `An approval handler is required but not configured (${reasons.join(' and ')}).\n` +
                         'Either:\n' +
                         '  • Call agent.setApprovalHandler() before starting\n' +
-                        '  • Set toolConfirmation: { mode: "auto-approve" } or { mode: "auto-deny" }\n' +
+                        '  • Set permissions: { mode: "auto-approve" } or { mode: "auto-deny" }\n' +
                         '  • Disable elicitation: { enabled: false }'
                 );
             }
@@ -2926,7 +2926,7 @@ export class DextoAgent {
     /**
      * Set a custom approval handler for manual approval mode.
      *
-     * When `toolConfirmation.mode` is set to 'manual', an approval handler must be
+     * When `permissions.mode` is set to 'manual', an approval handler must be
      * provided to process tool confirmation requests. The handler will be called
      * whenever a tool execution requires user approval.
      *

@@ -138,7 +138,7 @@ llm:
   model: gpt-5-mini
   apiKey: $OPENAI_API_KEY
 
-toolConfirmation:
+permissions:
   mode: manual
   allowedToolsStorage: memory
 

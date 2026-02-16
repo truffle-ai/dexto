@@ -1,16 +1,13 @@
 import type { LLMConfig, ValidatedLLMConfig } from '../llm/schemas.js';
 import type { ServersConfig, ValidatedServersConfig } from '../mcp/schemas.js';
 import type { MemoriesConfig, ValidatedMemoriesConfig } from '../memory/schemas.js';
-import type {
-    InternalResourcesConfig,
-    ValidatedInternalResourcesConfig,
-} from '../resources/schemas.js';
+import type { ResourcesConfig, ValidatedResourcesConfig } from '../resources/schemas.js';
 import type { SessionConfig, ValidatedSessionConfig } from '../session/schemas.js';
 import type { SystemPromptConfig, ValidatedSystemPromptConfig } from '../systemPrompt/schemas.js';
 import type {
     ElicitationConfig,
-    ToolConfirmationConfig,
-    ValidatedToolConfirmationConfig,
+    PermissionsConfig,
+    ValidatedPermissionsConfig,
     ValidatedElicitationConfig,
 } from '../tools/schemas.js';
 import type { PromptsConfig, ValidatedPromptsConfig } from '../prompts/schemas.js';
@@ -36,10 +33,10 @@ export interface AgentRuntimeSettings {
     mcpServers: ValidatedServersConfig;
     sessions: ValidatedSessionConfig;
 
-    toolConfirmation: ValidatedToolConfirmationConfig;
+    permissions: ValidatedPermissionsConfig;
     elicitation: ValidatedElicitationConfig;
 
-    internalResources: ValidatedInternalResourcesConfig;
+    resources: ValidatedResourcesConfig;
     prompts: ValidatedPromptsConfig;
 }
 
@@ -62,9 +59,9 @@ export interface DextoAgentConfigInput {
     mcpServers?: ServersConfig | undefined;
     sessions?: SessionConfig | undefined;
 
-    toolConfirmation?: ToolConfirmationConfig | undefined;
+    permissions?: PermissionsConfig | undefined;
     elicitation?: ElicitationConfig | undefined;
 
-    internalResources?: InternalResourcesConfig | undefined;
+    resources?: ResourcesConfig | undefined;
     prompts?: PromptsConfig | undefined;
 }

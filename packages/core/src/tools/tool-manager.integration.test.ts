@@ -115,7 +115,7 @@ describe('ToolManager Integration Tests', () => {
         // Create ApprovalManager in auto-approve mode for integration tests
         approvalManager = new ApprovalManager(
             {
-                toolConfirmation: {
+                permissions: {
                     mode: 'auto-approve',
                     timeout: 120000,
                 },
@@ -295,7 +295,7 @@ describe('ToolManager Integration Tests', () => {
         it('should work with auto-approve mode', async () => {
             const autoApproveManager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-approve',
                         timeout: 120000,
                     },
@@ -341,7 +341,7 @@ describe('ToolManager Integration Tests', () => {
         it('should work with auto-deny mode', async () => {
             const autoDenyManager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-deny',
                         timeout: 120000,
                     },

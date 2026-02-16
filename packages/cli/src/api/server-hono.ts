@@ -243,8 +243,7 @@ export async function initializeHonoApi(
 
         // Set approval handler if manual mode OR elicitation enabled (before start() for validation)
         const needsHandler =
-            newAgent.config.toolConfirmation?.mode === 'manual' ||
-            newAgent.config.elicitation.enabled;
+            newAgent.config.permissions.mode === 'manual' || newAgent.config.elicitation.enabled;
 
         if (needsHandler) {
             logger.debug('Setting up manual approval handler for new agent...');
@@ -475,8 +474,7 @@ export async function initializeHonoApi(
 
     // Set approval handler for initial agent if manual mode OR elicitation enabled (before start() for validation)
     const needsHandler =
-        activeAgent.config.toolConfirmation?.mode === 'manual' ||
-        activeAgent.config.elicitation.enabled;
+        activeAgent.config.permissions.mode === 'manual' || activeAgent.config.elicitation.enabled;
 
     if (needsHandler) {
         logger.debug('Setting up manual approval handler for initial agent...');

@@ -11,9 +11,9 @@ import { SystemPromptConfigSchema } from '../../systemPrompt/schemas.js';
 import { LLMConfigSchema } from '../schemas.js';
 import { LoggerConfigSchema } from '../../logger/v2/schemas.js';
 import { SessionConfigSchema } from '../../session/schemas.js';
-import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '../../tools/schemas.js';
+import { PermissionsConfigSchema, ElicitationConfigSchema } from '../../tools/schemas.js';
 import { ServersConfigSchema } from '../../mcp/schemas.js';
-import { InternalResourcesSchema } from '../../resources/schemas.js';
+import { ResourcesConfigSchema } from '../../resources/schemas.js';
 import { PromptsSchema } from '../../prompts/schemas.js';
 import { createLogger } from '../../logger/factory.js';
 import {
@@ -111,7 +111,7 @@ export const TestConfigs = {
                 maxSessions: 10,
                 sessionTTL: 60000, // 60s for tests
             }),
-            toolConfirmation: ToolConfirmationConfigSchema.parse({
+            permissions: PermissionsConfigSchema.parse({
                 mode: 'auto-approve', // Tests don't have interactive approval
                 timeout: 120000,
             }),
@@ -119,7 +119,7 @@ export const TestConfigs = {
                 enabled: false, // Tests don't handle elicitation
                 timeout: 120000,
             }),
-            internalResources: InternalResourcesSchema.parse([]),
+            resources: ResourcesConfigSchema.parse([]),
             prompts: PromptsSchema.parse([]),
         };
     },
@@ -154,7 +154,7 @@ export const TestConfigs = {
                 maxSessions: 10,
                 sessionTTL: 60000,
             }),
-            toolConfirmation: ToolConfirmationConfigSchema.parse({
+            permissions: PermissionsConfigSchema.parse({
                 mode: 'auto-approve', // Tests don't have interactive approval
                 timeout: 120000,
             }),
@@ -162,7 +162,7 @@ export const TestConfigs = {
                 enabled: false, // Tests don't handle elicitation
                 timeout: 120000,
             }),
-            internalResources: InternalResourcesSchema.parse([]),
+            resources: ResourcesConfigSchema.parse([]),
             prompts: PromptsSchema.parse([]),
         };
     },
@@ -218,7 +218,7 @@ export const TestConfigs = {
                 maxSessions: 10,
                 sessionTTL: 60000,
             }),
-            toolConfirmation: ToolConfirmationConfigSchema.parse({
+            permissions: PermissionsConfigSchema.parse({
                 mode: 'auto-approve', // Tests don't have interactive approval
                 timeout: 120000,
             }),
@@ -226,7 +226,7 @@ export const TestConfigs = {
                 enabled: false, // Tests don't handle elicitation
                 timeout: 120000,
             }),
-            internalResources: InternalResourcesSchema.parse([]),
+            resources: ResourcesConfigSchema.parse([]),
             prompts: PromptsSchema.parse([]),
         };
     },

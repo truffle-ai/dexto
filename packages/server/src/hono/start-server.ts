@@ -143,7 +143,7 @@ export async function startDextoServer(
 
     // Set approval handler if manual mode OR elicitation enabled
     const needsHandler =
-        agent.config.toolConfirmation?.mode === 'manual' || agent.config.elicitation.enabled;
+        agent.config.permissions.mode === 'manual' || agent.config.elicitation.enabled;
 
     if (needsHandler) {
         logger.debug('Setting up manual approval handler...');

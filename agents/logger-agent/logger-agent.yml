@@ -71,7 +71,7 @@ storage:
     cleanupAfterDays: 30
 
 # Tool confirmation settings
-toolConfirmation:
+permissions:
   mode: manual
   # timeout: omitted = infinite wait
   allowedToolsStorage: memory
@@ -87,17 +87,15 @@ tools:
     enabledTools:
       - ask_user
 
-# Internal resources configuration
-internalResources:
-  enabled: true
-  resources:
-    - type: filesystem
-      paths: ["."]
-      maxFiles: 50
-      maxDepth: 3
-      includeHidden: false
-      includeExtensions: [".txt", ".md", ".json", ".yaml", ".yml", ".js", ".ts", ".py", ".html", ".css"]
-    - type: blob
+# Resources configuration
+resources:
+  - type: filesystem
+    paths: ["."]
+    maxFiles: 50
+    maxDepth: 3
+    includeHidden: false
+    includeExtensions: [".txt", ".md", ".json", ".yaml", ".yml", ".js", ".ts", ".py", ".html", ".css"]
+  - type: blob
 
 # Hook system configuration
 hooks:

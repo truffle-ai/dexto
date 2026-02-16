@@ -15,13 +15,14 @@ import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { ApprovalError } from './errors.js';
 import { patternCovers } from '../tools/bash-pattern-utils.js';
+import type { PermissionsMode } from '../tools/schemas.js';
 
 /**
  * Configuration for the approval manager
  */
 export interface ApprovalManagerConfig {
-    toolConfirmation: {
-        mode: 'manual' | 'auto-approve' | 'auto-deny';
+    permissions: {
+        mode: PermissionsMode;
         timeout?: number; // Optional - no timeout if not specified
     };
     elicitation: {
@@ -47,7 +48,7 @@ export interface ApprovalManagerConfig {
  * @example
  * ```typescript
  * const manager = new ApprovalManager(
- *   { toolConfirmation: { mode: 'manual', timeout: 60000 }, elicitation: { enabled: true, timeout: 60000 } },
+ *   { permissions: { mode: 'manual', timeout: 60000 }, elicitation: { enabled: true, timeout: 60000 } },
  *   logger
  * );
  *
@@ -89,7 +90,7 @@ export class ApprovalManager {
         this.logger = logger.createChild(DextoLogComponent.APPROVAL);
 
         this.logger.debug(
-            `ApprovalManager initialized with toolConfirmation.mode: ${config.toolConfirmation.mode}, elicitation.enabled: ${config.elicitation.enabled}`
+            `ApprovalManager initialized with permissions.mode: ${config.permissions.mode}, elicitation.enabled: ${config.elicitation.enabled}`
         );
     }
 
@@ -304,7 +305,7 @@ export class ApprovalManager {
         const details: ApprovalRequestDetails = {
             type: ApprovalType.DIRECTORY_ACCESS,
             // Use provided timeout, fallback to config timeout, or undefined (no timeout)
-            timeout: timeout !== undefined ? timeout : this.config.toolConfirmation.timeout,
+            timeout: timeout !== undefined ? timeout : this.config.permissions.timeout,
             metadata: directoryMetadata,
         };
 
@@ -347,7 +348,7 @@ export class ApprovalManager {
         }
 
         // Tool/command/directory-access/custom confirmations respect the configured mode
-        const mode = this.config.toolConfirmation.mode;
+        const mode = this.config.permissions.mode;
 
         // Auto-approve mode
         if (mode === 'auto-approve') {
@@ -404,7 +405,7 @@ export class ApprovalManager {
         const details: ApprovalRequestDetails = {
             type: ApprovalType.TOOL_CONFIRMATION,
             // Use provided timeout, fallback to config timeout, or undefined (no timeout)
-            timeout: timeout !== undefined ? timeout : this.config.toolConfirmation.timeout,
+            timeout: timeout !== undefined ? timeout : this.config.permissions.timeout,
             metadata: toolMetadata,
         };
 
@@ -444,7 +445,7 @@ export class ApprovalManager {
         const details: ApprovalRequestDetails = {
             type: ApprovalType.COMMAND_CONFIRMATION,
             // Use provided timeout, fallback to config timeout, or undefined (no timeout)
-            timeout: timeout !== undefined ? timeout : this.config.toolConfirmation.timeout,
+            timeout: timeout !== undefined ? timeout : this.config.permissions.timeout,
             metadata: commandMetadata,
         };
 
@@ -605,11 +606,11 @@ export class ApprovalManager {
      * Set the approval handler for manual approval mode.
      *
      * The handler will be called for:
-     * - Tool confirmation requests when toolConfirmation.mode is 'manual'
-     * - All elicitation requests (when elicitation is enabled, regardless of toolConfirmation.mode)
+     * - Tool confirmation requests when permissions.mode is 'manual'
+     * - All elicitation requests (when elicitation is enabled, regardless of permissions.mode)
      *
      * A handler must be set before processing requests if:
-     * - toolConfirmation.mode is 'manual', or
+     * - permissions.mode is 'manual', or
      * - elicitation is enabled (elicitation.enabled is true)
      *
      * @param handler The approval handler function, or null to clear
@@ -651,7 +652,7 @@ export class ApprovalManager {
                     '  • manual tool confirmation mode\n' +
                     '  • all elicitation requests (when elicitation is enabled)\n' +
                     'Either:\n' +
-                    '  • set toolConfirmation.mode to "auto-approve" or "auto-deny", or\n' +
+                    '  • set permissions.mode to "auto-approve" or "auto-deny", or\n' +
                     '  • disable elicitation (set elicitation.enabled: false), or\n' +
                     '  • call agent.setApprovalHandler(...) before processing requests.'
             );

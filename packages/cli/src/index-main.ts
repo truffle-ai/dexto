@@ -766,11 +766,9 @@ async function bootstrapAgentFromGlobalOpts() {
 
     // Override approval config for read-only commands (never run conversations)
     // This avoids needing to set up unused approval handlers
-    enrichedConfig.toolConfirmation = {
+    enrichedConfig.permissions = {
+        ...(enrichedConfig.permissions ?? {}),
         mode: 'auto-approve',
-        ...(enrichedConfig.toolConfirmation?.timeout !== undefined && {
-            timeout: enrichedConfig.toolConfirmation.timeout,
-        }),
     };
     enrichedConfig.elicitation = {
         enabled: false,
@@ -1595,7 +1593,7 @@ program
                 // ——— VALIDATE APPROVAL MODE COMPATIBILITY ———
                 // Check if approval handler is needed (manual mode OR elicitation enabled)
                 const needsHandler =
-                    validatedConfig.toolConfirmation?.mode === 'manual' ||
+                    validatedConfig.permissions.mode === 'manual' ||
                     validatedConfig.elicitation.enabled;
 
                 if (needsHandler) {
@@ -1618,7 +1616,7 @@ program
                             '💡 Run `dexto --auto-approve` or configure your agent to skip approvals when running non-interactively.'
                         );
                         console.error(
-                            '   toolConfirmation.mode: auto-approve (or auto-deny if you want to deny certain tools)'
+                            '   permissions.mode: auto-approve (or auto-deny if you want to deny certain tools)'
                         );
                         console.error('   elicitation.enabled: false');
                         safeExit('main', 1, 'approval-unsupported-mode');
@@ -1695,7 +1693,7 @@ program
                     case 'cli': {
                         // Set up approval handler for interactive CLI if manual mode OR elicitation enabled
                         const needsHandler =
-                            validatedConfig.toolConfirmation?.mode === 'manual' ||
+                            validatedConfig.permissions.mode === 'manual' ||
                             validatedConfig.elicitation.enabled;
 
                         if (needsHandler) {

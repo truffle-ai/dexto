@@ -36,7 +36,7 @@ describe('AgentConfigSchema', () => {
             expect(result.storage.blob.type).toBe('in-memory');
 
             expect(result.sessions.maxSessions).toBe(100);
-            expect(result.toolConfirmation.mode).toBe('auto-approve');
+            expect(result.permissions.mode).toBe('auto-approve');
         });
 
         it('should preserve explicit values from composed schemas', () => {
@@ -80,7 +80,7 @@ describe('AgentConfigSchema', () => {
                     maxSessions: 5,
                     sessionTTL: 1_800_000,
                 },
-                toolConfirmation: {
+                permissions: {
                     mode: 'auto-approve',
                     timeout: 15_000,
                 },
@@ -95,7 +95,7 @@ describe('AgentConfigSchema', () => {
             expect(result.llm.provider).toBe('anthropic');
             expect(result.storage.cache.type).toBe('redis');
             expect(result.sessions.maxSessions).toBe(5);
-            expect(result.toolConfirmation.mode).toBe('auto-approve');
+            expect(result.permissions.mode).toBe('auto-approve');
         });
     });
 
@@ -227,7 +227,7 @@ describe('AgentConfigSchema', () => {
                     maxSessions: 100,
                     sessionTTL: 7_200_000,
                 },
-                toolConfirmation: {
+                permissions: {
                     mode: 'manual',
                     timeout: 45_000,
                     allowedToolsStorage: 'storage',
@@ -243,7 +243,7 @@ describe('AgentConfigSchema', () => {
             expect(result.llm.temperature).toBe(0.3);
             expect(result.storage.cache.type).toBe('redis');
             expect(result.sessions.maxSessions).toBe(100);
-            expect(result.toolConfirmation.timeout).toBe(45_000);
+            expect(result.permissions.timeout).toBe(45_000);
         });
     });
 });

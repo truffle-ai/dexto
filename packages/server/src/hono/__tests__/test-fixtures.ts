@@ -45,7 +45,7 @@ export function createTestAgentConfig(): AgentConfig {
         tools: [],
         hooks: [],
         compaction: { type: 'noop', enabled: false },
-        toolConfirmation: {
+        permissions: {
             mode: 'auto-approve',
             timeout: 120000,
         },

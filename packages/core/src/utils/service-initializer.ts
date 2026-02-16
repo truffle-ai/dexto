@@ -117,10 +117,10 @@ export async function createAgentServices(
     logger.debug('Initializing approval manager');
     const approvalManager = new ApprovalManager(
         {
-            toolConfirmation: {
-                mode: config.toolConfirmation.mode,
-                ...(config.toolConfirmation.timeout !== undefined && {
-                    timeout: config.toolConfirmation.timeout,
+            permissions: {
+                mode: config.permissions.mode,
+                ...(config.permissions.timeout !== undefined && {
+                    timeout: config.permissions.timeout,
                 }),
             },
             elicitation: {
@@ -172,7 +172,7 @@ export async function createAgentServices(
     const resourceManager = new ResourceManager(
         mcpManager,
         {
-            internalResourcesConfig: config.internalResources,
+            resourcesConfig: config.resources,
             blobStore: storageManager.getBlobStore(),
         },
         logger
@@ -183,7 +183,7 @@ export async function createAgentServices(
     // 8.1 - Create allowed tools provider based on configuration
     const allowedToolsProvider = createAllowedToolsProvider(
         {
-            type: config.toolConfirmation.allowedToolsStorage,
+            type: config.permissions.allowedToolsStorage,
             storageManager,
         },
         logger
@@ -195,9 +195,9 @@ export async function createAgentServices(
             mcpManager,
             approvalManager,
             allowedToolsProvider,
-            approvalMode: config.toolConfirmation.mode,
+            approvalMode: config.permissions.mode,
             agentEventBus,
-            toolPolicies: config.toolConfirmation.toolPolicies,
+            toolPolicies: config.permissions.toolPolicies,
             tools: [],
             logger,
         }) ??
@@ -205,9 +205,9 @@ export async function createAgentServices(
             mcpManager,
             approvalManager,
             allowedToolsProvider,
-            config.toolConfirmation.mode,
+            config.permissions.mode,
             agentEventBus,
-            config.toolConfirmation.toolPolicies,
+            config.permissions.toolPolicies,
             [],
             logger
         );

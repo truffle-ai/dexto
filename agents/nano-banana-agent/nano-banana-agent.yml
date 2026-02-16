@@ -54,7 +54,7 @@ mcpServers:
       GEMINI_API_KEY: $GOOGLE_GENERATIVE_AI_API_KEY
     timeout: 60000
 
-toolConfirmation:
+permissions:
   mode: "auto-approve"
   allowedToolsStorage: "memory"
 

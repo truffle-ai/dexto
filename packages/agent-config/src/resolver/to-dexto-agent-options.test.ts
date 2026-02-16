@@ -51,9 +51,9 @@ describe('toDextoAgentOptions', () => {
         expect(options.systemPrompt).toBe(validated.systemPrompt);
         expect(options.mcpServers).toBe(validated.mcpServers);
         expect(options.sessions).toBe(validated.sessions);
-        expect(options.toolConfirmation).toBe(validated.toolConfirmation);
+        expect(options.permissions).toBe(validated.permissions);
         expect(options.elicitation).toBe(validated.elicitation);
-        expect(options.internalResources).toBe(validated.internalResources);
+        expect(options.resources).toBe(validated.resources);
         expect(options.prompts).toBe(validated.prompts);
         expect(options.overrides).toEqual({});
 

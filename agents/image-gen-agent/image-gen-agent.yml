@@ -49,7 +49,7 @@ mcpServers:
       OPENAI_API_KEY: $OPENAI_API_KEY
     connectionMode: strict
 
-toolConfirmation:
+permissions:
   mode: "auto-approve"
   allowedToolsStorage: "memory"
 

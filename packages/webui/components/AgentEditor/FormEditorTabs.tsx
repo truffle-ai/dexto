@@ -54,8 +54,7 @@ export default function FormEditorTabs({ config, onChange, errors = {} }: FormEd
     ).length;
     const behaviorErrors = Object.keys(errors).filter((k) => k.startsWith('systemPrompt')).length;
     const toolsErrors = Object.keys(errors).filter(
-        (k) =>
-            k.startsWith('mcpServers') || k.startsWith('tools') || k.startsWith('toolConfirmation')
+        (k) => k.startsWith('mcpServers') || k.startsWith('tools') || k.startsWith('permissions')
     ).length;
 
     return (
@@ -438,7 +437,7 @@ function ToolsTab({ config, onChange, errors }: TabProps) {
         onChange({ ...config, tools: nextTools });
     };
 
-    const toolPolicies = config.toolConfirmation?.toolPolicies || {
+    const toolPolicies = config.permissions?.toolPolicies || {
         alwaysAllow: [],
         alwaysDeny: [],
     };
@@ -453,8 +452,8 @@ function ToolsTab({ config, onChange, errors }: TabProps) {
 
         onChange({
             ...config,
-            toolConfirmation: {
-                ...config.toolConfirmation,
+            permissions: {
+                ...config.permissions,
                 toolPolicies: {
                     ...toolPolicies,
                     alwaysAllow: newAlwaysAllow,

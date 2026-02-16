@@ -9,8 +9,8 @@ import {
     PromptsSchema,
     SessionConfigSchema,
     SystemPromptConfigSchema,
-    ToolConfirmationConfigSchema,
-    InternalResourcesSchema,
+    PermissionsConfigSchema,
+    ResourcesConfigSchema,
 } from '@dexto/core';
 import { StorageSchema } from '@dexto/storage/schemas';
 import { z } from 'zod';
@@ -140,16 +140,16 @@ export function createAgentConfigSchema() {
 
             sessions: SessionConfigSchema.describe('Session management configuration').default({}),
 
-            toolConfirmation: ToolConfirmationConfigSchema.describe(
-                'Tool confirmation and approval configuration'
+            permissions: PermissionsConfigSchema.describe(
+                'Tool permissions and approval configuration'
             ).default({}),
 
             elicitation: ElicitationConfigSchema.default({}).describe(
-                'Elicitation configuration for user input requests (ask_user tool and MCP server elicitations). Independent from toolConfirmation mode.'
+                'Elicitation configuration for user input requests (ask_user tool and MCP server elicitations). Independent from permissions mode.'
             ),
 
-            internalResources: InternalResourcesSchema.describe(
-                'Configuration for internal resources (filesystem, etc.)'
+            resources: ResourcesConfigSchema.describe(
+                'Agent-managed resource configuration'
             ).default([]),
 
             prompts: PromptsSchema.describe(

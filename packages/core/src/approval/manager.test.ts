@@ -18,7 +18,7 @@ describe('ApprovalManager', () => {
         it('should allow auto-approve for tools while elicitation is enabled', async () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-approve',
                         timeout: 120000,
                     },
@@ -43,7 +43,7 @@ describe('ApprovalManager', () => {
         it('should reject elicitation when disabled, even if tools are auto-approved', async () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-approve',
                         timeout: 120000,
                     },
@@ -86,7 +86,7 @@ describe('ApprovalManager', () => {
         it('should auto-deny tools while elicitation is enabled', async () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-deny',
                         timeout: 120000,
                     },
@@ -111,7 +111,7 @@ describe('ApprovalManager', () => {
         it('should use separate timeouts for tools and elicitation', () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'manual',
                         timeout: 60000,
                     },
@@ -124,7 +124,7 @@ describe('ApprovalManager', () => {
             );
 
             const config = manager.getConfig();
-            expect(config.toolConfirmation.timeout).toBe(60000);
+            expect(config.permissions.timeout).toBe(60000);
             expect(config.elicitation.timeout).toBe(180000);
         });
     });
@@ -133,7 +133,7 @@ describe('ApprovalManager', () => {
         it('should route tool confirmations to tool confirmation handler', async () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-approve',
                         timeout: 120000,
                     },
@@ -157,7 +157,7 @@ describe('ApprovalManager', () => {
         it('should route command confirmations to tool confirmation handler', async () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-approve',
                         timeout: 120000,
                     },
@@ -181,7 +181,7 @@ describe('ApprovalManager', () => {
         it('should route elicitation to elicitation provider when enabled', async () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-deny', // Different mode for tools
                         timeout: 120000,
                     },
@@ -215,7 +215,7 @@ describe('ApprovalManager', () => {
         it('should track pending approvals across both providers', () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'manual',
                         timeout: 120000,
                     },
@@ -237,7 +237,7 @@ describe('ApprovalManager', () => {
         it('should cancel approvals in both providers', () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'manual',
                         timeout: 120000,
                     },
@@ -259,7 +259,7 @@ describe('ApprovalManager', () => {
         it('should throw clear error when elicitation is disabled', async () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-approve',
                         timeout: 120000,
                     },
@@ -288,7 +288,7 @@ describe('ApprovalManager', () => {
         it('should provide helpful error message about enabling elicitation', async () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-approve',
                         timeout: 120000,
                     },
@@ -324,7 +324,7 @@ describe('ApprovalManager', () => {
         it('should allow undefined timeout (infinite wait) for tool confirmation', () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'manual',
                         // No timeout specified - should wait indefinitely
                     },
@@ -337,13 +337,13 @@ describe('ApprovalManager', () => {
             );
 
             const config = manager.getConfig();
-            expect(config.toolConfirmation.timeout).toBeUndefined();
+            expect(config.permissions.timeout).toBeUndefined();
         });
 
         it('should allow undefined timeout (infinite wait) for elicitation', () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'manual',
                         timeout: 60000,
                     },
@@ -362,7 +362,7 @@ describe('ApprovalManager', () => {
         it('should allow both timeouts to be undefined (infinite wait for all approvals)', () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'manual',
                         // No timeout
                     },
@@ -375,14 +375,14 @@ describe('ApprovalManager', () => {
             );
 
             const config = manager.getConfig();
-            expect(config.toolConfirmation.timeout).toBeUndefined();
+            expect(config.permissions.timeout).toBeUndefined();
             expect(config.elicitation.timeout).toBeUndefined();
         });
 
         it('should use per-request timeout override when provided', async () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-approve', // Auto-approve so we can test immediately
                         timeout: 60000,
                     },
@@ -409,7 +409,7 @@ describe('ApprovalManager', () => {
         it('should not timeout when timeout is undefined in auto-approve mode', async () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-approve',
                         // No timeout - should not cause any issues with auto-approve
                     },
@@ -432,7 +432,7 @@ describe('ApprovalManager', () => {
         it('should not timeout when timeout is undefined in auto-deny mode', async () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-deny',
                         // No timeout - should not cause any issues with auto-deny
                     },
@@ -458,7 +458,7 @@ describe('ApprovalManager', () => {
         it('should work with manual mode for both tools and elicitation', () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'manual',
                         timeout: 120000,
                     },
@@ -471,7 +471,7 @@ describe('ApprovalManager', () => {
             );
 
             expect(manager.getConfig()).toEqual({
-                toolConfirmation: {
+                permissions: {
                     mode: 'manual',
                     timeout: 120000,
                 },
@@ -485,7 +485,7 @@ describe('ApprovalManager', () => {
         it('should respect explicitly set elicitation enabled value', () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'manual',
                         timeout: 120000,
                     },
@@ -505,7 +505,7 @@ describe('ApprovalManager', () => {
         it('should include system_denied reason in auto-deny mode', async () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-deny',
                         timeout: 120000,
                     },
@@ -531,7 +531,7 @@ describe('ApprovalManager', () => {
         it('should throw error with specific reason when tool is denied', async () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-deny',
                         timeout: 120000,
                     },
@@ -563,7 +563,7 @@ describe('ApprovalManager', () => {
         it('should handle user_denied reason in error message', async () => {
             const _manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'manual',
                         timeout: 1, // Quick timeout for test
                     },
@@ -626,7 +626,7 @@ describe('ApprovalManager', () => {
         beforeEach(() => {
             manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'manual',
                         timeout: 120000,
                     },
@@ -762,7 +762,7 @@ describe('ApprovalManager', () => {
         beforeEach(() => {
             manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'manual',
                         timeout: 120000,
                     },

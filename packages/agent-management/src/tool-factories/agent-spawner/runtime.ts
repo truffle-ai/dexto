@@ -666,8 +666,8 @@ export class AgentSpawnerRuntime implements TaskForker {
                 return {
                     ...loadedConfig,
                     llm: llmConfig,
-                    toolConfirmation: {
-                        ...loadedConfig.toolConfirmation,
+                    permissions: {
+                        ...loadedConfig.permissions,
                         mode: toolConfirmationMode,
                     },
                     // Suppress sub-agent console logs entirely using silent transport
@@ -691,7 +691,7 @@ export class AgentSpawnerRuntime implements TaskForker {
             systemPrompt:
                 'You are a helpful sub-agent. Complete the task given to you efficiently and concisely.',
 
-            toolConfirmation: {
+            permissions: {
                 mode: toolConfirmationMode,
             },
 

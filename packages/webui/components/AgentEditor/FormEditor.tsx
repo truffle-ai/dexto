@@ -3,7 +3,7 @@ import { LLMConfigSection } from './form-sections/LLMConfigSection';
 import { SystemPromptSection } from './form-sections/SystemPromptSection';
 import { McpServersSection } from './form-sections/McpServersSection';
 import { StorageSection } from './form-sections/StorageSection';
-import { ToolConfirmationSection } from './form-sections/ToolConfirmationSection';
+import { PermissionsSection } from './form-sections/PermissionsSection';
 import { Collapsible } from '../ui/collapsible';
 import { Input } from '../ui/input';
 import { LabelWithTooltip } from '../ui/label-with-tooltip';
@@ -17,7 +17,7 @@ interface FormEditorProps {
     errors?: Record<string, string>;
 }
 
-type SectionKey = 'basic' | 'llm' | 'systemPrompt' | 'mcpServers' | 'storage' | 'toolConfirmation';
+type SectionKey = 'basic' | 'llm' | 'systemPrompt' | 'mcpServers' | 'storage' | 'permissions';
 
 export default function FormEditor({ config, onChange, errors = {} }: FormEditorProps) {
     // Convert systemPrompt to contributors format for the UI
@@ -52,7 +52,7 @@ export default function FormEditor({ config, onChange, errors = {} }: FormEditor
         systemPrompt: false,
         mcpServers: false,
         storage: false,
-        toolConfirmation: false,
+        permissions: false,
     });
 
     // Map errors to sections
@@ -101,8 +101,8 @@ export default function FormEditor({ config, onChange, errors = {} }: FormEditor
         onChange({ ...config, storage });
     };
 
-    const updateToolConfirmation = (toolConfirmation: AgentConfig['toolConfirmation']) => {
-        onChange({ ...config, toolConfirmation });
+    const updatePermissions = (permissions: AgentConfig['permissions']) => {
+        onChange({ ...config, permissions });
     };
 
     // Check if config has advanced features that aren't supported in form mode
@@ -208,15 +208,15 @@ export default function FormEditor({ config, onChange, errors = {} }: FormEditor
                     sectionErrors={sectionErrors.storage}
                 />
 
-                {/* Tool Confirmation */}
-                <ToolConfirmationSection
-                    value={config.toolConfirmation || {}}
-                    onChange={updateToolConfirmation}
+                {/* Permissions */}
+                <PermissionsSection
+                    value={config.permissions || {}}
+                    onChange={updatePermissions}
                     errors={errors}
-                    open={openSections.toolConfirmation}
-                    onOpenChange={() => toggleSection('toolConfirmation')}
-                    errorCount={sectionErrors.toolConfirmation.length}
-                    sectionErrors={sectionErrors.toolConfirmation}
+                    open={openSections.permissions}
+                    onOpenChange={() => toggleSection('permissions')}
+                    errorCount={sectionErrors.permissions.length}
+                    sectionErrors={sectionErrors.permissions}
                 />
             </div>
         </div>
@@ -252,7 +252,7 @@ function mapErrorsToSections(errors: Record<string, string>): Record<SectionKey,
         systemPrompt: [],
         mcpServers: [],
         storage: [],
-        toolConfirmation: [],
+        permissions: [],
     };
 
     Object.entries(errors).forEach(([path, message]) => {
@@ -266,8 +266,8 @@ function mapErrorsToSections(errors: Record<string, string>): Record<SectionKey,
             sectionErrors.mcpServers.push(message);
         } else if (path.startsWith('storage.')) {
             sectionErrors.storage.push(message);
-        } else if (path.startsWith('toolConfirmation.')) {
-            sectionErrors.toolConfirmation.push(message);
+        } else if (path.startsWith('permissions.')) {
+            sectionErrors.permissions.push(message);
         }
     });
 

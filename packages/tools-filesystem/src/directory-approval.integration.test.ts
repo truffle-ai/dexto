@@ -97,7 +97,7 @@ describe('Directory Approval Integration Tests', () => {
 
         approvalManager = new ApprovalManager(
             {
-                toolConfirmation: { mode: 'manual' },
+                permissions: { mode: 'manual' },
                 elicitation: { enabled: true },
             },
             mockLogger

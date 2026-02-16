@@ -275,7 +275,7 @@ export class ApprovalError {
                 message = customMessage ?? `Tool execution denied by system policy: ${toolName}`;
                 suggestions = [
                     'Tool is in the alwaysDeny list',
-                    'Check toolConfirmation.toolPolicies in agent configuration',
+                    'Check permissions.toolPolicies in agent configuration',
                 ];
                 break;
             case 'timeout':

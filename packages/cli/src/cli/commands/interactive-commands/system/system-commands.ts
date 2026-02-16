@@ -107,7 +107,7 @@ export const systemCommands: CommandDefinition[] = [
                     model: config.llm.model,
                     maxTokens: config.llm.maxOutputTokens ?? null,
                     temperature: config.llm.temperature ?? null,
-                    toolConfirmationMode: config.toolConfirmation?.mode || 'auto',
+                    permissionsMode: config.permissions.mode,
                     maxSessions: config.sessions?.maxSessions?.toString() || 'Default',
                     sessionTTL: config.sessions?.sessionTTL
                         ? `${config.sessions.sessionTTL / 1000}s`
@@ -122,7 +122,7 @@ export const systemCommands: CommandDefinition[] = [
                     'Configuration:',
                     configFilePath ? `  Config: ${configFilePath}` : '',
                     `  LLM: ${config.llm.provider} / ${config.llm.model}`,
-                    `  Tool Confirmation: ${styledData.toolConfirmationMode}`,
+                    `  Permissions: ${styledData.permissionsMode}`,
                     `  Sessions: max=${styledData.maxSessions}, ttl=${styledData.sessionTTL}`,
                     `  MCP Servers: ${servers.length > 0 ? servers.join(', ') : 'none'}`,
                     `  Prompts: ${styledData.promptsCount}`,

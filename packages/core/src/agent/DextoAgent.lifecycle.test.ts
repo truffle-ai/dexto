@@ -5,8 +5,8 @@ import { LLMConfigSchema } from '../llm/schemas.js';
 import { LoggerConfigSchema } from '../logger/index.js';
 import { SystemPromptConfigSchema } from '../systemPrompt/schemas.js';
 import { SessionConfigSchema } from '../session/schemas.js';
-import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '../tools/schemas.js';
-import { InternalResourcesSchema } from '../resources/schemas.js';
+import { PermissionsConfigSchema, ElicitationConfigSchema } from '../tools/schemas.js';
+import { ResourcesConfigSchema } from '../resources/schemas.js';
 import { PromptsSchema } from '../prompts/schemas.js';
 import { ServersConfigSchema } from '../mcp/schemas.js';
 import type { AgentServices } from '../utils/service-initializer.js';
@@ -69,7 +69,7 @@ describe('DextoAgent Lifecycle Management', () => {
                 maxSessions: 10,
                 sessionTTL: 3600,
             }),
-            toolConfirmation: ToolConfirmationConfigSchema.parse({
+            permissions: PermissionsConfigSchema.parse({
                 mode: 'auto-approve',
                 timeout: 120000,
             }),
@@ -77,7 +77,7 @@ describe('DextoAgent Lifecycle Management', () => {
                 enabled: false,
                 timeout: 120000,
             }),
-            internalResources: InternalResourcesSchema.parse([]),
+            resources: ResourcesConfigSchema.parse([]),
             prompts: PromptsSchema.parse([]),
         };
 

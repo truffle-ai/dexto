@@ -107,7 +107,7 @@ storage:
     maxTotalSize: 1073741824  # 1GB total storage
     cleanupAfterDays: 30
 
-toolConfirmation:
+permissions:
   mode: manual
   # timeout: omitted = infinite wait (no timeout for CLI)
   allowedToolsStorage: storage  # Persist allowed tools across sessions
@@ -173,69 +173,67 @@ tools:
     autoApproveAgents:
       - explore-agent
 
-# Internal resources configuration - expanded for coding projects
-internalResources:
-  enabled: true
-  resources:
-    # Filesystem resource - comprehensive file access for coding
-    - type: filesystem
-      paths: ["."]
-      maxFiles: 500              # Increased for larger codebases
-      maxDepth: 10               # Deeper traversal for nested projects
-      includeHidden: true        # Include hidden files (.env, .gitignore, etc.)
-      includeExtensions:
-        # Web development
-        - .js
-        - .jsx
-        - .ts
-        - .tsx
-        - .html
-        - .css
-        - .scss
-        - .sass
-        - .less
-        - .vue
-        - .svelte
-        # Backend languages
-        - .py
-        - .java
-        - .go
-        - .rs
-        - .rb
-        - .php
-        - .c
-        - .cpp
-        - .h
-        - .hpp
-        - .cs
-        - .swift
-        - .kt
-        # Shell and config
-        - .sh
-        - .bash
-        - .zsh
-        - .fish
-        # Config and data
-        - .json
-        - .yaml
-        - .yml
-        - .toml
-        - .xml
-        - .ini
-        - .env
-        # Documentation
-        - .md
-        - .mdx
-        - .txt
-        - .rst
-        # Build and package files
-        - .gradle
-        - .maven
-        - .dockerignore
-        - .gitignore
+# Resources configuration - expanded for coding projects
+resources:
+  # Filesystem resource - comprehensive file access for coding
+  - type: filesystem
+    paths: ["."]
+    maxFiles: 500              # Increased for larger codebases
+    maxDepth: 10               # Deeper traversal for nested projects
+    includeHidden: true        # Include hidden files (.env, .gitignore, etc.)
+    includeExtensions:
+      # Web development
+      - .js
+      - .jsx
+      - .ts
+      - .tsx
+      - .html
+      - .css
+      - .scss
+      - .sass
+      - .less
+      - .vue
+      - .svelte
+      # Backend languages
+      - .py
+      - .java
+      - .go
+      - .rs
+      - .rb
+      - .php
+      - .c
+      - .cpp
+      - .h
+      - .hpp
+      - .cs
+      - .swift
+      - .kt
+      # Shell and config
+      - .sh
+      - .bash
+      - .zsh
+      - .fish
+      # Config and data
+      - .json
+      - .yaml
+      - .yml
+      - .toml
+      - .xml
+      - .ini
+      - .env
+      # Documentation
+      - .md
+      - .mdx
+      - .txt
+      - .rst
+      # Build and package files
+      - .gradle
+      - .maven
+      - .dockerignore
+      - .gitignore
 
-    # Blob resource - for handling build artifacts, images, etc.
-    - type: blob
+  # Blob resource - for handling build artifacts, images, etc.
+  - type: blob
 
 # Prompts - coding-focused examples shown as clickable buttons in WebUI
 prompts:

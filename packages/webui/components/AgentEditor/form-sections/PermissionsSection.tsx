@@ -4,17 +4,17 @@ import { LabelWithTooltip } from '../../ui/label-with-tooltip';
 import { Collapsible } from '../../ui/collapsible';
 import type { AgentConfig } from '@dexto/agent-config';
 import {
-    TOOL_CONFIRMATION_MODES,
+    PERMISSIONS_MODES,
     ALLOWED_TOOLS_STORAGE_TYPES,
-    DEFAULT_TOOL_CONFIRMATION_MODE,
+    DEFAULT_PERMISSIONS_MODE,
     DEFAULT_ALLOWED_TOOLS_STORAGE,
 } from '@dexto/core';
 
-type ToolConfirmationConfig = NonNullable<AgentConfig['toolConfirmation']>;
+type PermissionsConfig = NonNullable<AgentConfig['permissions']>;
 
-interface ToolConfirmationSectionProps {
-    value: ToolConfirmationConfig;
-    onChange: (value: ToolConfirmationConfig) => void;
+interface PermissionsSectionProps {
+    value: PermissionsConfig;
+    onChange: (value: PermissionsConfig) => void;
     errors?: Record<string, string>;
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
@@ -22,7 +22,7 @@ interface ToolConfirmationSectionProps {
     sectionErrors?: string[];
 }
 
-export function ToolConfirmationSection({
+export function PermissionsSection({
     value,
     onChange,
     errors = {},
@@ -30,8 +30,8 @@ export function ToolConfirmationSection({
     onOpenChange,
     errorCount = 0,
     sectionErrors = [],
-}: ToolConfirmationSectionProps) {
-    const handleChange = (updates: Partial<ToolConfirmationConfig>) => {
+}: PermissionsSectionProps) {
+    const handleChange = (updates: Partial<PermissionsConfig>) => {
         onChange({ ...value, ...updates });
     };
 
@@ -44,7 +44,7 @@ export function ToolConfirmationSection({
 
     return (
         <Collapsible
-            title="Tool Confirmation"
+            title="Permissions"
             defaultOpen={false}
             open={open}
             onOpenChange={onOpenChange}
@@ -58,11 +58,11 @@ export function ToolConfirmationSection({
                         htmlFor="confirmation-mode"
                         tooltip="How the agent handles tool execution requests"
                     >
-                        Confirmation Mode
+                        Mode
                     </LabelWithTooltip>
                     <select
                         id="confirmation-mode"
-                        value={value.mode || DEFAULT_TOOL_CONFIRMATION_MODE}
+                        value={value.mode || DEFAULT_PERMISSIONS_MODE}
                         onChange={(e) =>
                             handleChange({
                                 mode: e.target.value as 'auto-approve' | 'manual' | 'auto-deny',
@@ -70,7 +70,7 @@ export function ToolConfirmationSection({
                         }
                         className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     >
-                        {TOOL_CONFIRMATION_MODES.map((mode) => (
+                        {PERMISSIONS_MODES.map((mode) => (
                             <option key={mode} value={mode}>
                                 {mode === 'auto-approve'
                                     ? 'Auto-approve'
@@ -111,11 +111,11 @@ export function ToolConfirmationSection({
                             }
                             min="1"
                             placeholder="e.g., 60"
-                            aria-invalid={!!errors['toolConfirmation.timeout']}
+                            aria-invalid={!!errors['permissions.timeout']}
                         />
-                        {errors['toolConfirmation.timeout'] && (
+                        {errors['permissions.timeout'] && (
                             <p className="text-xs text-destructive mt-1">
-                                {errors['toolConfirmation.timeout']}
+                                {errors['permissions.timeout']}
                             </p>
                         )}
                     </div>

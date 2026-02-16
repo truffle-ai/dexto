@@ -33,8 +33,8 @@ export function ConfigBox({ data }: ConfigBoxProps) {
                 )}
             </StyledSection>
 
-            <StyledSection title="Tool Confirmation">
-                <StyledRow label="Mode" value={data.toolConfirmationMode} />
+            <StyledSection title="Permissions">
+                <StyledRow label="Mode" value={data.permissionsMode} />
             </StyledSection>
 
             <StyledSection title="Sessions">
