@@ -3,7 +3,7 @@ import type { Cache } from '../storage/cache/types.js';
 import type { Database } from '../storage/database/types.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
 import type { Logger } from '../logger/v2/types.js';
-import type { Plugin } from '../plugins/types.js';
+import type { Hook } from '../hooks/types.js';
 import type { Tool } from '../tools/types.js';
 import type { InitializeServicesOptions } from '../utils/service-initializer.js';
 import type { DextoAgentConfigInput } from './runtime-config.js';
@@ -15,7 +15,7 @@ import type { DextoAgentConfigInput } from './runtime-config.js';
  * Product layers (CLI/server/platform) are responsible for:
  * - parsing/validating YAML into config sections
  * - applying image defaults
- * - resolving tool/storage/plugin/compaction/logger instances via image factories
+ * - resolving tool/storage/hook/compaction/logger instances via image factories
  *
  * Core normalizes + validates runtime settings (LLM/MCP/sessions/etc.) and receives concrete instances.
  */
@@ -50,8 +50,8 @@ export interface DextoAgentOptions {
     /** Concrete tool implementations (DI-first). */
     tools?: Tool[] | undefined;
 
-    /** Concrete plugins installed for the agent (DI-first). */
-    plugins?: Plugin[] | undefined;
+    /** Concrete hooks installed for the agent (DI-first). */
+    hooks?: Hook[] | undefined;
 
     /**
      * Context compaction controller (DI-first).

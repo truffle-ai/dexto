@@ -65,7 +65,7 @@ describe('Session Integration: Chat History Preservation', () => {
                 cache: createInMemoryCache(),
             },
             tools: [],
-            plugins: [],
+            hooks: [],
         });
         await agent.start();
     });
@@ -292,7 +292,7 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
                 cache: createInMemoryCache(),
             },
             tools: [],
-            plugins: [],
+            hooks: [],
         });
         await agent.start();
     });

@@ -745,7 +745,7 @@ export const factory: ToolFactory<${typeNameBase.charAt(0).toUpperCase() + typeN
 export function generateExampleHook(hookName: string = 'example-hook'): string {
     return `import { z } from 'zod';
 import type { HookFactory } from '@dexto/agent-config';
-import type { Plugin } from '@dexto/core';
+import type { Hook } from '@dexto/core';
 
 const ConfigSchema = z
     .object({
@@ -764,14 +764,14 @@ type ExampleHookConfig = z.output<typeof ConfigSchema>;
 export const factory: HookFactory<ExampleHookConfig> = {
     configSchema: ConfigSchema,
     create: (_config) => {
-        const plugin: Plugin = {
+        const hook: Hook = {
             beforeLLMRequest: async (payload, context) => {
                 context.logger.info(\`${hookName} saw input: \${payload.text}\`);
                 return { ok: true };
             },
         };
 
-        return plugin;
+        return hook;
     },
 };
 `;

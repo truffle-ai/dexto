@@ -81,7 +81,7 @@ export * from './approval/index.js';
 export * from './memory/index.js';
 
 // Plugins
-export * from './plugins/index.js';
+export * from './hooks/index.js';
 
 // Telemetry
 export * from './telemetry/index.js';

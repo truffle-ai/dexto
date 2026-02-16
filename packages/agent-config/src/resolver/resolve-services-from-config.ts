@@ -1,4 +1,4 @@
-import type { Plugin } from '@dexto/core';
+import type { Hook } from '@dexto/core';
 import type { ValidatedAgentConfig } from '../schemas/agent-config.js';
 import type { DextoImageModule } from '../image/types.js';
 import type { ResolvedServices } from './types.js';
@@ -15,7 +15,7 @@ function qualifyToolId(prefix: string, id: string): string {
     return `${prefix}${id}`;
 }
 
-// Tool/plugin factory entries share `enabled?: boolean`.
+// Tool/hook factory entries share `enabled?: boolean`.
 // Since many factory schemas are `.strict()`, strip `enabled` before validating the entry.
 function stripEnabled(entry: PlainObject): PlainObject {
     const obj = entry as PlainObject;
@@ -120,7 +120,7 @@ export async function resolveServicesFromConfig(
 
     // 4) Hooks
     const hookEntries = config.hooks ?? image.defaults?.hooks ?? [];
-    const hooks: Plugin[] = [];
+    const hooks: Hook[] = [];
     for (const entry of hookEntries) {
         if ((entry as { enabled?: boolean }).enabled === false) {
             continue;

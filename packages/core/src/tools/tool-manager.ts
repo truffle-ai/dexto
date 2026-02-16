@@ -13,10 +13,10 @@ import type { ApprovalManager } from '../approval/manager.js';
 import { ApprovalStatus, ApprovalType, DenialReason } from '../approval/types.js';
 import type { ApprovalRequest, ToolConfirmationMetadata } from '../approval/types.js';
 import type { AllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
-import type { PluginManager } from '../plugins/manager.js';
+import type { HookManager } from '../hooks/manager.js';
 import type { SessionManager } from '../session/index.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
-import type { BeforeToolCallPayload, AfterToolResultPayload } from '../plugins/types.js';
+import type { BeforeToolCallPayload, AfterToolResultPayload } from '../hooks/types.js';
 import { InstrumentClass } from '../telemetry/decorators.js';
 import { extractToolCallMeta, wrapToolParametersSchema } from './tool-call-metadata.js';
 import {
@@ -57,12 +57,7 @@ export type ToolExecutionContextFactory = (
  */
 @InstrumentClass({
     prefix: 'tool',
-    excludeMethods: [
-        'setPluginManager',
-        'setStateManager',
-        'getApprovalManager',
-        'getAllowedToolsProvider',
-    ],
+    excludeMethods: ['setHookSupport', 'getApprovalManager', 'getAllowedToolsProvider'],
 })
 export class ToolManager {
     private mcpManager: MCPManager;
@@ -74,8 +69,8 @@ export class ToolManager {
     private toolPolicies: ToolPolicies | undefined;
     private toolExecutionContextFactory: ToolExecutionContextFactory;
 
-    // Plugin support - set after construction to avoid circular dependencies
-    private pluginManager?: PluginManager;
+    // Hook support - set after construction to avoid circular dependencies
+    private hookManager?: HookManager;
     private sessionManager?: SessionManager;
     private stateManager?: AgentStateManager;
 
@@ -148,17 +143,17 @@ export class ToolManager {
     }
 
     /**
-     * Set plugin support services (called after construction to avoid circular dependencies)
+     * Set hook support services (called after construction to avoid circular dependencies)
      */
-    setPluginSupport(
-        pluginManager: PluginManager,
+    setHookSupport(
+        hookManager: HookManager,
         sessionManager: SessionManager,
         stateManager: AgentStateManager
     ): void {
-        this.pluginManager = pluginManager;
+        this.hookManager = hookManager;
         this.sessionManager = sessionManager;
         this.stateManager = stateManager;
-        this.logger.debug('Plugin support configured for ToolManager');
+        this.logger.debug('Hook support configured for ToolManager');
     }
 
     // ============= SESSION AUTO-APPROVE TOOLS =============
@@ -758,15 +753,15 @@ export class ToolManager {
 
         const startTime = Date.now();
 
-        // Execute beforeToolCall plugins if available
-        if (this.pluginManager && this.sessionManager && this.stateManager) {
+        // Execute beforeToolCall hooks if available
+        if (this.hookManager && this.sessionManager && this.stateManager) {
             const beforePayload: BeforeToolCallPayload = {
                 toolName,
                 args: toolArgs,
                 ...(sessionId !== undefined && { sessionId }),
             };
 
-            const modifiedPayload = await this.pluginManager.executePlugins(
+            const modifiedPayload = await this.hookManager.executeHooks(
                 'beforeToolCall',
                 beforePayload,
                 {
@@ -919,8 +914,8 @@ export class ToolManager {
                 `✅ Tool execution completed successfully for ${toolName} in ${duration}ms, sessionId: ${sessionId ?? 'global'}`
             );
 
-            // Execute afterToolResult plugins if available
-            if (this.pluginManager && this.sessionManager && this.stateManager) {
+            // Execute afterToolResult hooks if available
+            if (this.hookManager && this.sessionManager && this.stateManager) {
                 const afterPayload: AfterToolResultPayload = {
                     toolName,
                     result,
@@ -928,7 +923,7 @@ export class ToolManager {
                     ...(sessionId !== undefined && { sessionId }),
                 };
 
-                const modifiedPayload = await this.pluginManager.executePlugins(
+                const modifiedPayload = await this.hookManager.executeHooks(
                     'afterToolResult',
                     afterPayload,
                     {
@@ -954,8 +949,8 @@ export class ToolManager {
                 `❌ Tool execution failed for ${toolName} after ${duration}ms, sessionId: ${sessionId ?? 'global'}: ${error instanceof Error ? error.message : String(error)}`
             );
 
-            // Execute afterToolResult plugins for error case if available
-            if (this.pluginManager && this.sessionManager && this.stateManager) {
+            // Execute afterToolResult hooks for error case if available
+            if (this.hookManager && this.sessionManager && this.stateManager) {
                 const afterPayload: AfterToolResultPayload = {
                     toolName,
                     result: error instanceof Error ? error.message : String(error),
@@ -963,9 +958,9 @@ export class ToolManager {
                     ...(sessionId !== undefined && { sessionId }),
                 };
 
-                // Note: We still execute plugins even on error, but we don't use the modified result
-                // Plugins can log, track metrics, etc. but cannot suppress the error
-                await this.pluginManager.executePlugins('afterToolResult', afterPayload, {
+                // Note: We still execute hooks even on error, but we don't use the modified result.
+                // Hooks can log, track metrics, etc. but cannot suppress the error.
+                await this.hookManager.executeHooks('afterToolResult', afterPayload, {
                     sessionManager: this.sessionManager,
                     mcpManager: this.mcpManager,
                     toolManager: this,

@@ -119,7 +119,7 @@ export interface AgentEventSubscriber {
  *   logger,
  *   storage,
  *   tools,
- *   plugins,
+ *   hooks,
  * });
  * await agent.start();
  *
@@ -246,7 +246,7 @@ export class DextoAgent {
      *
      * Constructor options are DI-first:
      * - runtime settings (validated + defaulted by core)
-     * - concrete services (logger/tools/plugins/storage backends)
+     * - concrete services (logger/tools/hooks/storage backends)
      * - optional internal service overrides (session logging, auth factories, etc.)
      */
     constructor(options: DextoAgentOptions) {
@@ -254,14 +254,14 @@ export class DextoAgent {
             logger,
             storage,
             tools: toolsInput,
-            plugins: pluginsInput,
+            hooks: hooksInput,
             compaction,
             overrides: overridesInput,
             ...runtimeSettings
         } = options;
 
         const tools = toolsInput ?? [];
-        const plugins = pluginsInput ?? [];
+        const hooks = hooksInput ?? [];
 
         this.config = DextoAgent.validateConfig(runtimeSettings);
 
@@ -284,8 +284,8 @@ export class DextoAgent {
             );
         }
 
-        if (overrides.plugins === undefined) {
-            overrides.plugins = plugins;
+        if (overrides.hooks === undefined) {
+            overrides.hooks = hooks;
         }
 
         this.serviceOverrides = overrides;
@@ -489,16 +489,16 @@ export class DextoAgent {
                 shutdownErrors.push(new Error(`SessionManager cleanup failed: ${err.message}`));
             }
 
-            // 2. Clean up plugins (close file handles, connections, etc.)
-            // Do this before storage disconnect so plugins can flush state if needed
+            // 2. Clean up hooks (close file handles, connections, etc.)
+            // Do this before storage disconnect so hooks can flush state if needed
             try {
-                if (this.services?.pluginManager) {
-                    await this.services.pluginManager.cleanup();
-                    this.logger.debug('PluginManager cleaned up successfully');
+                if (this.services?.hookManager) {
+                    await this.services.hookManager.cleanup();
+                    this.logger.debug('HookManager cleaned up successfully');
                 }
             } catch (error) {
                 const err = error instanceof Error ? error : new Error(String(error));
-                shutdownErrors.push(new Error(`PluginManager cleanup failed: ${err.message}`));
+                shutdownErrors.push(new Error(`HookManager cleanup failed: ${err.message}`));
             }
 
             // 3. Disconnect all MCP clients

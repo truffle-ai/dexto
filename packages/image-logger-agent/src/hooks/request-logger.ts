@@ -1,11 +1,11 @@
 import type {
-    Plugin,
+    Hook,
     BeforeLLMRequestPayload,
     BeforeResponsePayload,
     BeforeToolCallPayload,
     AfterToolResultPayload,
-    PluginResult,
-    PluginExecutionContext,
+    HookResult,
+    HookExecutionContext,
 } from '@dexto/core';
 import { promises as fs } from 'node:fs';
 import { homedir } from 'node:os';
@@ -19,7 +19,7 @@ export type RequestLoggerPluginConfig = {
 /**
  * Logs user requests, tool calls/results, and assistant responses to a file.
  */
-export class RequestLoggerPlugin implements Plugin {
+export class RequestLoggerHook implements Hook {
     private logFilePath: string = '';
     private logFileHandle: fs.FileHandle | null = null;
     private requestCount: number = 0;
@@ -41,8 +41,8 @@ export class RequestLoggerPlugin implements Plugin {
 
     async beforeLLMRequest(
         payload: BeforeLLMRequestPayload,
-        context: PluginExecutionContext
-    ): Promise<PluginResult> {
+        context: HookExecutionContext
+    ): Promise<HookResult> {
         this.requestCount++;
 
         await this.writeLog('');
@@ -72,8 +72,8 @@ export class RequestLoggerPlugin implements Plugin {
 
     async beforeToolCall(
         payload: BeforeToolCallPayload,
-        _context: PluginExecutionContext
-    ): Promise<PluginResult> {
+        _context: HookExecutionContext
+    ): Promise<HookResult> {
         await this.writeLog('');
         await this.writeLog(`[${this.requestCount}] TOOL CALL at ${new Date().toISOString()}`);
         await this.writeLog(`Tool: ${payload.toolName}`);
@@ -85,8 +85,8 @@ export class RequestLoggerPlugin implements Plugin {
 
     async afterToolResult(
         payload: AfterToolResultPayload,
-        _context: PluginExecutionContext
-    ): Promise<PluginResult> {
+        _context: HookExecutionContext
+    ): Promise<HookResult> {
         await this.writeLog('');
         await this.writeLog(`[${this.requestCount}] TOOL RESULT at ${new Date().toISOString()}`);
         await this.writeLog(`Tool: ${payload.toolName}`);
@@ -105,8 +105,8 @@ export class RequestLoggerPlugin implements Plugin {
 
     async beforeResponse(
         payload: BeforeResponsePayload,
-        _context: PluginExecutionContext
-    ): Promise<PluginResult> {
+        _context: HookExecutionContext
+    ): Promise<HookResult> {
         await this.writeLog('');
         await this.writeLog(
             `[${this.requestCount}] ASSISTANT RESPONSE at ${new Date().toISOString()}`
@@ -153,4 +153,4 @@ export class RequestLoggerPlugin implements Plugin {
     }
 }
 
-export default RequestLoggerPlugin;
+export default RequestLoggerHook;

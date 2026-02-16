@@ -28,7 +28,7 @@ export enum DextoLogComponent {
     RESOURCE = 'resource',
     PROMPT = 'prompt',
     MEMORY = 'memory',
-    PLUGIN = 'plugin',
+    HOOK = 'hook',
     FILESYSTEM = 'filesystem',
     PROCESS = 'process',
     APPROVAL = 'approval',

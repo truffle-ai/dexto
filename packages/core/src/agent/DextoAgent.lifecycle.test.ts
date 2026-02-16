@@ -47,7 +47,7 @@ describe('DextoAgent Lifecycle Management', () => {
                 cache: createInMemoryCache(),
             },
             tools: [],
-            plugins: [],
+            hooks: [],
         });
     };
 

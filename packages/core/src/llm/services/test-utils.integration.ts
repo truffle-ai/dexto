@@ -57,7 +57,7 @@ export async function createTestEnvironment(
             cache: createInMemoryCache(),
         },
         tools: [],
-        plugins: [],
+        hooks: [],
     });
     await agent.start();
 

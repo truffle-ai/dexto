@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
-import type { Plugin } from '@dexto/core';
+import type { Hook } from '@dexto/core';
 import type { DextoImageModule } from '../image/types.js';
 import { AgentConfigSchema, type AgentConfig } from '../schemas/agent-config.js';
 import { resolveServicesFromConfig } from './resolve-services-from-config.js';
@@ -328,7 +328,7 @@ describe('resolveServicesFromConfig', () => {
     it('resolves hooks via image factories (list order) and runs initialize()', async () => {
         const initCalls: string[] = [];
 
-        const createPlugin = (name: string): Plugin => ({
+        const createHook = (name: string): Hook => ({
             initialize: async () => {
                 initCalls.push(name);
             },
@@ -339,11 +339,11 @@ describe('resolveServicesFromConfig', () => {
             hooks: {
                 'content-policy': {
                     configSchema: z.object({ type: z.literal('content-policy') }).strict(),
-                    create: () => createPlugin('content-policy'),
+                    create: () => createHook('content-policy'),
                 },
                 'response-sanitizer': {
                     configSchema: z.object({ type: z.literal('response-sanitizer') }).strict(),
-                    create: () => createPlugin('response-sanitizer'),
+                    create: () => createHook('response-sanitizer'),
                 },
             },
         });

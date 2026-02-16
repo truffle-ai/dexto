@@ -8,9 +8,9 @@ import type { ToolManager } from '../tools/tool-manager.js';
 import type { ValidatedLLMConfig } from '../llm/schemas.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { StorageManager } from '../storage/index.js';
-import type { PluginManager } from '../plugins/manager.js';
+import type { HookManager } from '../hooks/manager.js';
 import type { MCPManager } from '../mcp/manager.js';
-import type { BeforeLLMRequestPayload, BeforeResponsePayload } from '../plugins/types.js';
+import type { BeforeLLMRequestPayload, BeforeResponsePayload } from '../hooks/types.js';
 import {
     SessionEventBus,
     AgentEventBus,
@@ -21,7 +21,7 @@ import {
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
-import { PluginErrorCode } from '../plugins/error-codes.js';
+import { HookErrorCode } from '../hooks/error-codes.js';
 import type { InternalMessage, ContentPart } from '../context/types.js';
 import type { UserMessageInput } from './message-queue.js';
 import type { ContentInput } from '../agent/types.js';
@@ -140,7 +140,7 @@ export class ChatSession {
             agentEventBus: AgentEventBus;
             storageManager: StorageManager;
             resourceManager: import('../resources/index.js').ResourceManager;
-            pluginManager: PluginManager;
+            hookManager: HookManager;
             mcpManager: MCPManager;
             sessionManager: import('./session-manager.js').SessionManager;
             compactionStrategy: CompactionStrategy | null;
@@ -368,8 +368,8 @@ export class ChatSession {
             : this.currentRunController.signal;
 
         try {
-            // Execute beforeLLMRequest plugins
-            // For backward compatibility, extract first image/file for plugin payload
+            // Execute beforeLLMRequest hooks
+            // Extract first image/file for the hook payload.
             const textContent = textParts.map((p) => p.text).join('\n');
             const firstImage = imageParts[0] as
                 | { type: 'image'; image: string; mimeType?: string }
@@ -396,7 +396,7 @@ export class ChatSession {
                 sessionId: this.id,
             };
 
-            const modifiedBeforePayload = await this.services.pluginManager.executePlugins(
+            const modifiedBeforePayload = await this.services.hookManager.executeHooks(
                 'beforeLLMRequest',
                 beforeLLMPayload,
                 {
@@ -409,7 +409,7 @@ export class ChatSession {
                 }
             );
 
-            // Apply plugin text modifications to the first text part
+            // Apply hook text modifications to the first text part
             let modifiedParts = [...parts];
             if (modifiedBeforePayload.text !== textContent && textParts.length > 0) {
                 // Replace text parts with modified text
@@ -420,7 +420,7 @@ export class ChatSession {
             // Call LLM service stream
             const streamResult = await this.llmService.stream(modifiedParts, { signal });
 
-            // Execute beforeResponse plugins
+            // Execute beforeResponse hooks
             const llmConfig = this.services.stateManager.getLLMConfig(this.id);
             const beforeResponsePayload: BeforeResponsePayload = {
                 content: streamResult.text,
@@ -429,7 +429,7 @@ export class ChatSession {
                 sessionId: this.id,
             };
 
-            const modifiedResponsePayload = await this.services.pluginManager.executePlugins(
+            const modifiedResponsePayload = await this.services.hookManager.executeHooks(
                 'beforeResponse',
                 beforeResponsePayload,
                 {
@@ -485,11 +485,11 @@ export class ChatSession {
                 return { text: '' };
             }
 
-            // Check if this is a plugin blocking error
+            // Check if this is a hook blocking error
             if (
                 error instanceof DextoRuntimeError &&
-                error.code === PluginErrorCode.PLUGIN_BLOCKED_EXECUTION &&
-                error.scope === ErrorScope.PLUGIN &&
+                error.code === HookErrorCode.HOOK_BLOCKED_EXECUTION &&
+                error.scope === ErrorScope.HOOK &&
                 error.type === ErrorType.FORBIDDEN
             ) {
                 // Save the blocked interaction to history

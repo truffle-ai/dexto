@@ -2,7 +2,7 @@ import type {
     BlobStore,
     Cache,
     Database,
-    Plugin,
+    Hook,
     Logger,
     CompactionStrategy as CompactionStrategy,
     Tool,
@@ -73,7 +73,7 @@ export interface CacheFactory<TConfig = unknown> {
  */
 export interface HookFactory<TConfig = unknown> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
-    create(config: TConfig): Plugin;
+    create(config: TConfig): Hook;
     metadata?: Record<string, unknown> | undefined;
 }
 

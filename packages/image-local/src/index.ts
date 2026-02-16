@@ -10,8 +10,8 @@ import {
 import { createRequire } from 'module';
 import { z } from 'zod';
 import {
-    ContentPolicyPlugin,
-    ResponseSanitizerPlugin,
+    ContentPolicyHook,
+    ResponseSanitizerHook,
     defaultLoggerFactory,
     NoOpCompactionStrategy,
     ReactiveOverflowCompactionStrategy,
@@ -55,12 +55,12 @@ const responseSanitizerConfigSchema = z
 
 const contentPolicyFactory: HookFactory<z.output<typeof contentPolicyConfigSchema>> = {
     configSchema: contentPolicyConfigSchema,
-    create: (_config) => new ContentPolicyPlugin(),
+    create: (_config) => new ContentPolicyHook(),
 };
 
 const responseSanitizerFactory: HookFactory<z.output<typeof responseSanitizerConfigSchema>> = {
     configSchema: responseSanitizerConfigSchema,
-    create: (_config) => new ResponseSanitizerPlugin(),
+    create: (_config) => new ResponseSanitizerHook(),
 };
 
 const noopCompactionFactory: CompactionFactory<NoOpCompactionConfig> = {

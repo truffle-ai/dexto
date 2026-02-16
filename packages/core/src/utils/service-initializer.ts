@@ -24,8 +24,8 @@ import { AgentEventBus } from '../events/index.js';
 import { ResourceManager } from '../resources/manager.js';
 import { ApprovalManager } from '../approval/manager.js';
 import { MemoryManager } from '../memory/index.js';
-import { PluginManager } from '../plugins/manager.js';
-import type { Plugin } from '../plugins/types.js';
+import { HookManager } from '../hooks/manager.js';
+import type { Hook } from '../hooks/types.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
 
 /**
@@ -43,7 +43,7 @@ export type AgentServices = {
     resourceManager: ResourceManager;
     approvalManager: ApprovalManager;
     memoryManager: MemoryManager;
-    pluginManager: PluginManager;
+    hookManager: HookManager;
 };
 
 export type ToolManagerFactoryOptions = {
@@ -65,7 +65,7 @@ export type InitializeServicesOptions = {
     toolManager?: ToolManager;
     toolManagerFactory?: ToolManagerFactory;
     storageManager?: StorageManager;
-    plugins?: Plugin[] | undefined;
+    hooks?: Hook[] | undefined;
 };
 
 // High-level factory to load, validate, and wire up all agent services in one call
@@ -152,20 +152,20 @@ export async function createAgentServices(
     const memoryManager = new MemoryManager(storageManager.getDatabase(), logger);
     logger.debug('Memory manager initialized');
 
-    // 6.5 Initialize plugin manager
-    const plugins = overrides?.plugins ?? [];
-    const pluginManager = new PluginManager(
+    // 6.5 Initialize hook manager
+    const hooks = overrides?.hooks ?? [];
+    const hookManager = new HookManager(
         {
             agentEventBus,
             storageManager,
         },
-        plugins,
+        hooks,
         logger
     );
 
-    // Initialize plugin manager (registers pre-resolved plugins to extension points)
-    await pluginManager.initialize();
-    logger.info('Plugin manager initialized');
+    // Initialize hook manager (registers pre-resolved hooks to extension points)
+    await hookManager.initialize();
+    logger.info('Hook manager initialized');
 
     // 7. Initialize resource manager (MCP + internal resources)
     // Moved before tool manager so it can be passed to internal tools
@@ -241,7 +241,7 @@ export async function createAgentServices(
             agentEventBus,
             storageManager, // Add storage manager to session services
             resourceManager, // Add resource manager for blob storage
-            pluginManager, // Add plugin manager for plugin execution
+            hookManager, // Add hook manager for hook execution
             mcpManager, // Add MCP manager for ChatSession
             compactionStrategy: compactionStrategy ?? null,
         },
@@ -260,9 +260,9 @@ export async function createAgentServices(
 
     logger.debug('Session manager initialized with storage support');
 
-    // 12.5 Wire up plugin support to ToolManager (after SessionManager is created)
-    toolManager.setPluginSupport(pluginManager, sessionManager, stateManager);
-    logger.debug('Plugin support connected to ToolManager');
+    // 12.5 Wire up hook support to ToolManager (after SessionManager is created)
+    toolManager.setHookSupport(hookManager, sessionManager, stateManager);
+    logger.debug('Hook support connected to ToolManager');
 
     // 13. Return the core services
     return {
@@ -277,6 +277,6 @@ export async function createAgentServices(
         resourceManager,
         approvalManager,
         memoryManager,
-        pluginManager,
+        hookManager,
     };
 }

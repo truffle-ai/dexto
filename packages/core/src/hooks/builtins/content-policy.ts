@@ -1,9 +1,9 @@
 import type {
-    Plugin,
-    PluginResult,
-    PluginNotice,
+    Hook,
+    HookResult,
+    HookNotice,
     BeforeLLMRequestPayload,
-    PluginExecutionContext,
+    HookExecutionContext,
 } from '../types.js';
 
 /**
@@ -30,17 +30,15 @@ function containsAbusiveLanguage(text: string): boolean {
 }
 
 /**
- * ContentPolicy Plugin
+ * ContentPolicy built-in hook.
  *
  * Enforces content policies on LLM requests including:
  * - Abusive language detection (blocking)
  * - Input length limits
  * - Email address redaction
  * - API key redaction
- *
- * Ported from feat/hooks content-policy hook implementation
  */
-export class ContentPolicyPlugin implements Plugin {
+export class ContentPolicyHook implements Hook {
     private config: Required<ContentPolicyConfig> = DEFAULTS;
 
     async initialize(config: Record<string, unknown>): Promise<void> {
@@ -54,14 +52,14 @@ export class ContentPolicyPlugin implements Plugin {
 
     async beforeLLMRequest(
         payload: BeforeLLMRequestPayload,
-        _context: PluginExecutionContext
-    ): Promise<PluginResult> {
-        const notices: PluginNotice[] = [];
+        _context: HookExecutionContext
+    ): Promise<HookResult> {
+        const notices: HookNotice[] = [];
         const { text } = payload;
 
         // Check for abusive language (blocking)
         if (containsAbusiveLanguage(text)) {
-            const abusiveNotice: PluginNotice = {
+            const abusiveNotice: HookNotice = {
                 kind: 'block',
                 code: 'content_policy.abusive_language',
                 message: 'Input violates content policy due to abusive language.',
