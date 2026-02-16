@@ -36,6 +36,19 @@ import { hasActiveTelemetry, addBaggageAttributesToSpan } from '../telemetry/uti
 import { safeStringify } from '../utils/safe-stringify.js';
 
 // const DEFAULT_TIMEOUT = 60000; // Commented out or remove if not used elsewhere
+const UI_EXTENSION_NAME = 'io.modelcontextprotocol/ui';
+const UI_EXTENSION_MIME_TYPE = 'text/html;profile=mcp-app';
+
+function buildClientCapabilities(): any {
+    return {
+        elicitation: {}, // Enable elicitation capability
+        extensions: {
+            [UI_EXTENSION_NAME]: {
+                mimeTypes: [UI_EXTENSION_MIME_TYPE],
+            },
+        },
+    };
+}
 /**
  * Wrapper on top of Client class provided in model context protocol SDK, to add additional metadata about the server
  */
@@ -148,9 +161,7 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
                 version: '1.0.0',
             },
             {
-                capabilities: {
-                    elicitation: {}, // Enable elicitation capability
-                },
+                capabilities: buildClientCapabilities(),
             }
         );
 
@@ -214,9 +225,7 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
                 version: '1.0.0',
             },
             {
-                capabilities: {
-                    elicitation: {}, // Enable elicitation capability
-                },
+                capabilities: buildClientCapabilities(),
             }
         );
 
@@ -302,9 +311,7 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
         this.client = new Client(
             { name: 'Dexto-http-mcp-client', version: '1.0.0' },
             {
-                capabilities: {
-                    elicitation: {}, // Enable elicitation capability
-                },
+                capabilities: buildClientCapabilities(),
             }
         );
         try {
@@ -483,6 +490,7 @@ export class DextoMcpClient extends EventEmitter implements McpClient {
                     tools[tool.name] = {
                         description: tool.description ?? '',
                         parameters: tool.inputSchema,
+                        _meta: tool._meta,
                     };
                 });
             } else {

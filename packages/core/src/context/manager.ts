@@ -5,7 +5,6 @@ import type { InternalMessage, AssistantMessage, ToolCall } from './types.js';
 import { isSystemMessage, isUserMessage, isAssistantMessage, isToolMessage } from './types.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
-import { eventBus } from '../events/index.js';
 import {
     expandBlobReferences,
     isLikelyBase64String,
@@ -200,7 +199,7 @@ export class ContextManager<TMessage = unknown> {
                 );
 
                 // Emit event to invalidate resource cache so uploaded images appear in @ autocomplete
-                eventBus.emit('resource:cache-invalidated', {
+                this.resourceManager.emitCacheInvalidated({
                     resourceUri: blobRef.uri,
                     serverName: 'internal',
                     action: 'blob_stored',

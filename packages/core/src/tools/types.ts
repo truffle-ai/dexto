@@ -192,6 +192,7 @@ export interface ToolSet {
         name?: string;
         description?: string;
         parameters: JSONSchema7; // JSON Schema v7 specification
+        _meta?: Record<string, unknown>;
     };
 }
 

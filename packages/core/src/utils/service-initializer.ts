@@ -145,7 +145,7 @@ export async function createAgentServices(
     logger.debug('Approval system initialized');
 
     // 4. Initialize MCP manager
-    const mcpManager = new MCPManager(logger);
+    const mcpManager = new MCPManager(logger, agentEventBus);
     if (overrides?.mcpAuthProviderFactory) {
         mcpManager.setAuthProviderFactory(overrides.mcpAuthProviderFactory);
     }
@@ -185,6 +185,7 @@ export async function createAgentServices(
             internalResourcesConfig: config.internalResources,
             blobStore: storageManager.getBlobStore(),
         },
+        agentEventBus,
         logger
     );
     await resourceManager.initialize();

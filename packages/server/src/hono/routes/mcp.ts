@@ -15,6 +15,16 @@ const McpServerRequestSchema = z
     })
     .describe('Request body for adding or updating an MCP server');
 
+const McpServerUpdateSchema = z
+    .object({
+        config: McpServerConfigSchema.describe('The updated server configuration object'),
+        persistToAgent: z
+            .boolean()
+            .optional()
+            .describe('If true, saves the server to agent configuration file'),
+    })
+    .describe('Request body for updating an MCP server');
+
 const ExecuteToolBodySchema = z
     .record(z.unknown())
     .describe(
@@ -78,6 +88,10 @@ const ToolInfoSchema = z
         name: z.string().describe('Tool name'),
         description: z.string().describe('Tool description'),
         inputSchema: ToolInputSchema.optional().describe('JSON Schema for tool input parameters'),
+        _meta: z
+            .record(z.unknown())
+            .optional()
+            .describe('Optional tool metadata (e.g., MCP Apps UI resource info)'),
     })
     .strict()
     .describe('Tool information');
@@ -113,6 +127,14 @@ const ToolExecutionResponseSchema = z
     })
     .strict()
     .describe('Tool execution response');
+
+const ServerConfigResponseSchema = z
+    .object({
+        name: z.string().describe('Server name'),
+        config: McpServerConfigSchema.describe('Server configuration'),
+    })
+    .strict()
+    .describe('MCP server configuration response');
 
 const ResourcesListResponseSchema = z
     .object({
@@ -165,6 +187,43 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
                 description: 'Servers list',
                 content: { 'application/json': { schema: ServersListResponseSchema } },
             },
+        },
+    });
+
+    const getServerConfigRoute = createRoute({
+        method: 'get',
+        path: '/mcp/servers/{serverId}/config',
+        summary: 'Get MCP Server Config',
+        description: 'Retrieves the configuration for a specific MCP server',
+        tags: ['mcp'],
+        request: {
+            params: z.object({ serverId: z.string().describe('The ID of the MCP server') }),
+        },
+        responses: {
+            200: {
+                description: 'Server configuration',
+                content: { 'application/json': { schema: ServerConfigResponseSchema } },
+            },
+            404: { description: 'Not found' },
+        },
+    });
+
+    const updateServerRoute = createRoute({
+        method: 'put',
+        path: '/mcp/servers/{serverId}',
+        summary: 'Update MCP Server',
+        description: 'Updates configuration for an existing MCP server',
+        tags: ['mcp'],
+        request: {
+            params: z.object({ serverId: z.string().describe('The ID of the MCP server') }),
+            body: { content: { 'application/json': { schema: McpServerUpdateSchema } } },
+        },
+        responses: {
+            200: {
+                description: 'Server updated',
+                content: { 'application/json': { schema: ServerStatusResponseSchema } },
+            },
+            404: { description: 'Not found' },
         },
     });
 
@@ -355,6 +414,57 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
             }
             return ctx.json({ servers });
         })
+        .openapi(getServerConfigRoute, async (ctx) => {
+            const agent = await getAgent(ctx);
+            const { serverId } = ctx.req.valid('param');
+            const config = agent.getMcpServerConfig(serverId);
+            if (!config) {
+                return ctx.json({ error: `Server '${serverId}' not found.` }, 404);
+            }
+            return ctx.json({ name: serverId, config }, 200);
+        })
+        .openapi(updateServerRoute, async (ctx) => {
+            const agent = await getAgent(ctx);
+            const { serverId } = ctx.req.valid('param');
+            const { config, persistToAgent } = ctx.req.valid('json');
+
+            const existingConfig = agent.getMcpServerConfig(serverId);
+            if (!existingConfig) {
+                return ctx.json({ error: `Server '${serverId}' not found.` }, 404);
+            }
+
+            await agent.updateMcpServer(serverId, config);
+
+            if (persistToAgent === true) {
+                try {
+                    const agentPath = await getAgentConfigPath(ctx);
+                    if (!agentPath) {
+                        throw AgentError.noConfigPath();
+                    }
+
+                    const currentConfig = agent.getEffectiveConfig();
+                    const updates = {
+                        mcpServers: {
+                            ...(currentConfig.mcpServers || {}),
+                            [serverId]: config,
+                        },
+                    };
+
+                    await updateAgentConfigFile(agentPath, updates);
+                    logger.info(`Saved server '${serverId}' to agent configuration file`);
+                } catch (saveError) {
+                    const errorMessage =
+                        saveError instanceof Error ? saveError.message : String(saveError);
+                    logger.warn(
+                        `Failed to persist MCP server '${serverId}' update: ${errorMessage}`,
+                        { error: saveError }
+                    );
+                }
+            }
+
+            const status = config.enabled === false ? 'registered' : 'connected';
+            return ctx.json({ status, name: serverId }, 200);
+        })
         .openapi(toolsRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             const { serverId } = ctx.req.valid('param');
@@ -368,6 +478,7 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
                 name: toolName,
                 description: toolDef.description || '',
                 inputSchema: toolDef.parameters,
+                _meta: toolDef._meta,
             }));
             return ctx.json({ tools });
         })

@@ -517,6 +517,17 @@ export class DextoAgent {
                 shutdownErrors.push(new Error(`MCPManager disconnect failed: ${err.message}`));
             }
 
+            // 3.5 Clean up resource manager listeners
+            try {
+                if (this.resourceManager) {
+                    this.resourceManager.cleanup();
+                    this.logger.debug('ResourceManager cleaned up successfully');
+                }
+            } catch (error) {
+                const err = error instanceof Error ? error : new Error(String(error));
+                shutdownErrors.push(new Error(`ResourceManager cleanup failed: ${err.message}`));
+            }
+
             // 4. Close storage backends
             try {
                 if (this.services?.storageManager) {
@@ -2342,6 +2353,88 @@ export class DextoAgent {
     }
 
     /**
+     * Updates an existing MCP server configuration and reconnects if needed.
+     * This is used when editing server params (timeout, headers, env, etc.).
+     *
+     * @param name The name of the server to update.
+     * @param config The updated configuration object.
+     * @throws MCPError if validation fails or reconnect fails.
+     */
+    public async updateMcpServer(name: string, config: McpServerConfig): Promise<void> {
+        this.ensureStarted();
+
+        const currentConfig = this.stateManager.getRuntimeConfig().mcpServers[name];
+        if (!currentConfig) {
+            throw MCPError.serverNotFound(name);
+        }
+
+        const existingServerNames = Object.keys(this.stateManager.getRuntimeConfig().mcpServers);
+        const validation = resolveAndValidateMcpServerConfig(name, config, existingServerNames);
+        const validatedConfig = ensureOk(validation, this.logger);
+
+        // Update runtime state first so the latest config is visible
+        this.stateManager.setMcpServer(name, validatedConfig);
+
+        const shouldEnable = validatedConfig.enabled !== false;
+        const hasClient = this.mcpManager.getClients().has(name);
+
+        if (!shouldEnable) {
+            if (hasClient) {
+                await this.mcpManager.removeClient(name);
+                await this.toolManager.refresh();
+            }
+            this.logger.info(`MCP server '${name}' updated (disabled)`);
+            return;
+        }
+
+        try {
+            if (hasClient) {
+                await this.mcpManager.removeClient(name);
+            }
+
+            await this.mcpManager.connectServer(name, validatedConfig);
+            await this.toolManager.refresh();
+
+            this.agentEventBus.emit('mcp:server-connected', { name, success: true });
+            this.agentEventBus.emit('tools:available-updated', {
+                tools: Object.keys(await this.toolManager.getAllTools()),
+                source: 'mcp',
+            });
+
+            this.logger.info(`MCP server '${name}' updated and reconnected successfully`);
+
+            const warnings = validation.issues.filter((i) => i.severity === 'warning');
+            if (warnings.length > 0) {
+                this.logger.warn(
+                    `MCP server updated with warnings: ${warnings.map((w) => w.message).join(', ')}`
+                );
+            }
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger.error(`Failed to update MCP server '${name}': ${errorMessage}`);
+
+            // Best-effort revert to previous config
+            this.stateManager.setMcpServer(name, currentConfig);
+            if (currentConfig.enabled !== false) {
+                try {
+                    await this.mcpManager.connectServer(name, currentConfig);
+                    await this.toolManager.refresh();
+                } catch (reconnectError) {
+                    const reconnectMsg =
+                        reconnectError instanceof Error
+                            ? reconnectError.message
+                            : String(reconnectError);
+                    this.logger.error(
+                        `Failed to restore MCP server '${name}' after update error: ${reconnectMsg}`
+                    );
+                }
+            }
+
+            throw MCPError.connectionFailed(name, errorMessage);
+        }
+    }
+
+    /**
      * @deprecated Use `addMcpServer` instead. This method will be removed in a future version.
      */
     public async connectMcpServer(name: string, config: McpServerConfig): Promise<void> {
@@ -2959,6 +3052,13 @@ export class DextoAgent {
         return sessionId
             ? this.stateManager.getRuntimeConfig(sessionId)
             : this.stateManager.getRuntimeConfig();
+    }
+
+    public getMcpServerConfig(name: string): McpServerConfig | undefined {
+        this.ensureStarted();
+        const config = this.stateManager.getRuntimeConfig().mcpServers[name];
+        if (config) return config;
+        return this.mcpManager.getServerConfig(name);
     }
 
     // ============= APPROVAL HANDLER API =============

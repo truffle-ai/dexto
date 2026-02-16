@@ -7,7 +7,7 @@ import type { InternalResourceServices } from './handlers/types.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { ResourceError } from './errors.js';
-import { eventBus } from '../events/index.js';
+import type { AgentEventBus } from '../events/index.js';
 import type { BlobStore } from '../storage/blob/types.js';
 
 export interface ResourceManagerOptions {
@@ -20,10 +20,18 @@ export class ResourceManager {
     private internalResourcesProvider?: InternalResourcesProvider;
     private readonly blobStore: BlobStore;
     private logger: Logger;
+    private readonly eventBus: AgentEventBus;
+    private readonly listenerAbort = new AbortController();
 
-    constructor(mcpManager: MCPManager, options: ResourceManagerOptions, logger: Logger) {
+    constructor(
+        mcpManager: MCPManager,
+        options: ResourceManagerOptions,
+        eventBus: AgentEventBus,
+        logger: Logger
+    ) {
         this.mcpManager = mcpManager;
         this.blobStore = options.blobStore;
+        this.eventBus = eventBus;
         this.logger = logger.createChild(DextoLogComponent.RESOURCE);
 
         const services: InternalResourceServices = {
@@ -57,6 +65,13 @@ export class ResourceManager {
             await this.internalResourcesProvider.initialize();
         }
         this.logger.debug('ResourceManager initialization complete');
+    }
+
+    cleanup(): void {
+        if (!this.listenerAbort.signal.aborted) {
+            this.listenerAbort.abort();
+            this.logger.debug('ResourceManager event listeners cleaned up');
+        }
     }
 
     getBlobStore(): BlobStore {
@@ -206,43 +221,65 @@ export class ResourceManager {
         return this.internalResourcesProvider;
     }
 
+    emitCacheInvalidated(payload: {
+        resourceUri?: string;
+        serverName: string;
+        action: 'updated' | 'server_connected' | 'server_removed' | 'blob_stored';
+    }): void {
+        this.eventBus.emit('resource:cache-invalidated', payload);
+    }
+
     /**
      * Set up listeners for MCP resource notifications to enable real-time updates
      */
     private setupNotificationListeners(): void {
         // Listen for MCP resource updates
-        eventBus.on('mcp:resource-updated', async (payload) => {
-            this.logger.debug(
-                `🔄 Resource updated notification: ${payload.resourceUri} from server '${payload.serverName}'`
-            );
+        this.eventBus.on(
+            'mcp:resource-updated',
+            async (payload) => {
+                this.logger.debug(
+                    `🔄 Resource updated notification: ${payload.resourceUri} from server '${payload.serverName}'`
+                );
 
-            // Emit a more specific event for components that need to refresh resource lists
-            eventBus.emit('resource:cache-invalidated', {
-                resourceUri: payload.resourceUri,
-                serverName: payload.serverName,
-                action: 'updated',
-            });
-        });
+                // Emit a more specific event for components that need to refresh resource lists
+                this.emitCacheInvalidated({
+                    resourceUri: payload.resourceUri,
+                    serverName: payload.serverName,
+                    action: 'updated',
+                });
+            },
+            { signal: this.listenerAbort.signal }
+        );
 
         // Listen for MCP server connection changes that affect resources
-        eventBus.on('mcp:server-connected', async (payload) => {
-            if (payload.success) {
-                this.logger.debug(
-                    `🔄 Server connected, resources may have changed: ${payload.name}`
-                );
-                eventBus.emit('resource:cache-invalidated', {
-                    serverName: payload.name,
-                    action: 'server_connected',
-                });
-            }
-        });
+        this.eventBus.on(
+            'mcp:server-connected',
+            async (payload) => {
+                if (payload.success) {
+                    this.logger.debug(
+                        `🔄 Server connected, resources may have changed: ${payload.name}`
+                    );
+                    this.emitCacheInvalidated({
+                        serverName: payload.name,
+                        action: 'server_connected',
+                    });
+                }
+            },
+            { signal: this.listenerAbort.signal }
+        );
 
-        eventBus.on('mcp:server-removed', async (payload) => {
-            this.logger.debug(`🔄 Server removed, resources invalidated: ${payload.serverName}`);
-            eventBus.emit('resource:cache-invalidated', {
-                serverName: payload.serverName,
-                action: 'server_removed',
-            });
-        });
+        this.eventBus.on(
+            'mcp:server-removed',
+            async (payload) => {
+                this.logger.debug(
+                    `🔄 Server removed, resources invalidated: ${payload.serverName}`
+                );
+                this.emitCacheInvalidated({
+                    serverName: payload.serverName,
+                    action: 'server_removed',
+                });
+            },
+            { signal: this.listenerAbort.signal }
+        );
     }
 }
