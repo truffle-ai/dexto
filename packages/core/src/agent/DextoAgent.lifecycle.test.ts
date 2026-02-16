@@ -105,6 +105,11 @@ describe('DextoAgent Lifecycle Management', () => {
                 init: vi.fn().mockResolvedValue(undefined),
                 createSession: vi.fn().mockResolvedValue({ id: 'test-session' }),
             } as any,
+            workspaceManager: {
+                setWorkspace: vi.fn(),
+                getWorkspace: vi.fn(),
+                listWorkspaces: vi.fn(),
+            } as any,
             searchService: {} as any,
             storageManager: {
                 disconnect: vi.fn(),

@@ -294,6 +294,7 @@ export const SessionMetadataSchema = z
             .array(ModelStatisticsSchema)
             .optional()
             .describe('Per-model usage statistics (for multi-model sessions)'),
+        workspaceId: z.string().optional().nullable().describe('Associated workspace ID, if any'),
     })
     .strict()
     .describe('Session metadata');
@@ -301,6 +302,21 @@ export const SessionMetadataSchema = z
 export type SessionTokenUsage = z.output<typeof SessionTokenUsageSchema>;
 export type ModelStatistics = z.output<typeof ModelStatisticsSchema>;
 export type SessionMetadata = z.output<typeof SessionMetadataSchema>;
+
+// --- Workspace Schemas ---
+
+export const WorkspaceSchema = z
+    .object({
+        id: z.string().describe('Workspace identifier'),
+        path: z.string().describe('Workspace root path'),
+        name: z.string().optional().nullable().describe('Optional workspace display name'),
+        createdAt: z.number().int().positive().describe('Creation timestamp (Unix ms)'),
+        lastActiveAt: z.number().int().positive().describe('Last active timestamp (Unix ms)'),
+    })
+    .strict()
+    .describe('Workspace metadata');
+
+export type Workspace = z.output<typeof WorkspaceSchema>;
 
 // --- Search Schemas ---
 

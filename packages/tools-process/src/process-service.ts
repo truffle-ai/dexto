@@ -651,6 +651,17 @@ export class ProcessService {
     }
 
     /**
+     * Update the working directory at runtime (e.g., when workspace changes).
+     */
+    setWorkingDirectory(workingDirectory: string): void {
+        const normalized = workingDirectory?.trim();
+        if (!normalized) return;
+        if (this.config.workingDirectory === normalized) return;
+        this.config = { ...this.config, workingDirectory: normalized };
+        this.logger.info(`ProcessService working directory set to ${normalized}`);
+    }
+
+    /**
      * Resolve and confine cwd to the configured working directory
      */
     private resolveSafeCwd(cwd?: string): string {

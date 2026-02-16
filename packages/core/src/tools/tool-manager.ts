@@ -17,6 +17,8 @@ import type { PluginManager } from '../plugins/manager.js';
 import type { SessionManager } from '../session/index.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { BeforeToolCallPayload, AfterToolResultPayload } from '../plugins/types.js';
+import type { WorkspaceManager } from '../workspace/manager.js';
+import type { WorkspaceContext } from '../workspace/types.js';
 import { InstrumentClass } from '../telemetry/decorators.js';
 import { extractToolCallMeta, wrapToolParametersSchema } from './tool-call-metadata.js';
 import {
@@ -78,6 +80,10 @@ export class ToolManager {
     private pluginManager?: PluginManager;
     private sessionManager?: SessionManager;
     private stateManager?: AgentStateManager;
+    private workspaceManager?: WorkspaceManager;
+    private currentWorkspace: WorkspaceContext | undefined;
+    private workspaceListenerAttached = false;
+    private readonly workspaceListenerAbort = new AbortController();
 
     // Tool source prefixing - ALL tools get prefixed by source
     private static readonly MCP_TOOL_PREFIX = 'mcp--';
@@ -97,6 +103,8 @@ export class ToolManager {
     private sessionUserAutoApproveTools: Map<string, string[]> = new Map();
     private sessionDisabledTools: Map<string, string[]> = new Map();
     private globalDisabledTools: string[] = [];
+    private cleanupHandlers: Set<() => Promise<void> | void> = new Set();
+    private cleanupStarted = false;
 
     constructor(
         mcpManager: MCPManager,
@@ -147,6 +155,27 @@ export class ToolManager {
         this.toolExecutionContextFactory = factory;
     }
 
+    registerCleanup(handler: () => Promise<void> | void): void {
+        this.cleanupHandlers.add(handler);
+    }
+
+    async cleanup(): Promise<void> {
+        if (this.cleanupStarted) {
+            return;
+        }
+        this.cleanupStarted = true;
+        for (const handler of this.cleanupHandlers) {
+            try {
+                await handler();
+            } catch (error) {
+                const err = error instanceof Error ? error : new Error(String(error));
+                this.logger.warn(`ToolManager cleanup handler failed: ${err.message}`, {
+                    color: 'yellow',
+                });
+            }
+        }
+    }
+
     /**
      * Set plugin support services (called after construction to avoid circular dependencies)
      */
@@ -161,6 +190,45 @@ export class ToolManager {
         this.logger.debug('Plugin support configured for ToolManager');
     }
 
+    /**
+     * Set workspace manager for tool execution context propagation.
+     */
+    setWorkspaceManager(workspaceManager: WorkspaceManager): void {
+        this.workspaceManager = workspaceManager;
+        void this.refreshWorkspace();
+
+        if (!this.workspaceListenerAttached) {
+            this.workspaceListenerAttached = true;
+            this.agentEventBus.on(
+                'workspace:changed',
+                (payload) => {
+                    this.currentWorkspace = payload.workspace ?? undefined;
+                },
+                { signal: this.workspaceListenerAbort.signal }
+            );
+            this.registerCleanup(() => {
+                if (!this.workspaceListenerAbort.signal.aborted) {
+                    this.workspaceListenerAbort.abort();
+                }
+            });
+        }
+
+        this.logger.debug('WorkspaceManager reference configured for ToolManager');
+    }
+
+    private async refreshWorkspace(): Promise<void> {
+        if (!this.workspaceManager) {
+            return;
+        }
+
+        try {
+            this.currentWorkspace = await this.workspaceManager.getWorkspace();
+        } catch (error) {
+            this.logger.debug(
+                `Failed to refresh workspace context: ${error instanceof Error ? error.message : String(error)}`
+            );
+        }
+    }
     // ============= SESSION AUTO-APPROVE TOOLS =============
 
     /**
@@ -553,8 +621,11 @@ export class ToolManager {
         abortSignal?: AbortSignal | undefined;
         toolCallId?: string | undefined;
     }): ToolExecutionContext {
+        const workspace = this.currentWorkspace;
         const baseContext: ToolExecutionContextBase = {
             sessionId: options.sessionId,
+            workspaceId: workspace?.id,
+            workspace,
             abortSignal: options.abortSignal,
             toolCallId: options.toolCallId,
             logger: this.logger,

@@ -3,6 +3,7 @@ import type { LLMProvider } from '../llm/types.js';
 import type { AgentRuntimeSettings } from '../agent/runtime-config.js';
 import type { ApprovalRequest, ApprovalResponse } from '../approval/types.js';
 import type { SanitizedToolResult } from '../context/types.js';
+import type { WorkspaceContext } from '../workspace/types.js';
 
 /**
  * LLM finish reason - why the LLM stopped generating
@@ -31,6 +32,7 @@ export const AGENT_EVENT_NAMES = [
     'session:title-updated',
     'session:override-set',
     'session:override-cleared',
+    'workspace:changed',
     'mcp:server-connected',
     'mcp:server-added',
     'mcp:server-removed',
@@ -248,6 +250,11 @@ export interface AgentEventMap {
     /** Fired when session override is cleared */
     'session:override-cleared': {
         sessionId: string;
+    };
+
+    /** Fired when the active workspace changes */
+    'workspace:changed': {
+        workspace: WorkspaceContext | null;
     };
 
     // MCP events

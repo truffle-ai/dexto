@@ -67,6 +67,8 @@ import { safeStringify } from '../utils/safe-stringify.js';
 import { deriveHeuristicTitle, generateSessionTitle } from '../session/title-generator.js';
 import type { ApprovalHandler } from '../approval/types.js';
 import type { DextoAgentOptions } from './agent-options.js';
+import type { WorkspaceManager } from '../workspace/manager.js';
+import type { SetWorkspaceInput, WorkspaceContext } from '../workspace/types.js';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
@@ -75,6 +77,7 @@ const requiredServices: (keyof AgentServices)[] = [
     'agentEventBus',
     'stateManager',
     'sessionManager',
+    'workspaceManager',
     'searchService',
     'memoryManager',
 ];
@@ -171,6 +174,7 @@ export class DextoAgent {
     public readonly promptManager!: PromptManager;
     public readonly stateManager!: AgentStateManager;
     public readonly sessionManager!: SessionManager;
+    public readonly workspaceManager!: WorkspaceManager;
     public readonly toolManager!: ToolManager;
     public readonly resourceManager!: ResourceManager;
     public readonly memoryManager!: import('../memory/index.js').MemoryManager;
@@ -375,6 +379,7 @@ export class DextoAgent {
                 systemPromptManager: services.systemPromptManager,
                 stateManager: services.stateManager,
                 sessionManager: services.sessionManager,
+                workspaceManager: services.workspaceManager,
                 memoryManager: services.memoryManager,
                 services: services,
             });
@@ -1426,6 +1431,41 @@ export class DextoAgent {
         }
         // If no session found but stream was aborted, still return true
         return !!streamController;
+    }
+
+    // ============= WORKSPACE MANAGEMENT =============
+
+    /**
+     * Sets the active workspace for this runtime.
+     * The workspace context is persisted and emitted via the agent event bus.
+     */
+    public async setWorkspace(input: SetWorkspaceInput): Promise<WorkspaceContext> {
+        this.ensureStarted();
+        return await this.workspaceManager.setWorkspace(input);
+    }
+
+    /**
+     * Gets the currently active workspace, if any.
+     */
+    public async getWorkspace(): Promise<WorkspaceContext | undefined> {
+        this.ensureStarted();
+        return await this.workspaceManager.getWorkspace();
+    }
+
+    /**
+     * Clears the active workspace for this runtime.
+     */
+    public async clearWorkspace(): Promise<void> {
+        this.ensureStarted();
+        await this.workspaceManager.clearWorkspace();
+    }
+
+    /**
+     * Lists all known workspaces in storage.
+     */
+    public async listWorkspaces(): Promise<WorkspaceContext[]> {
+        this.ensureStarted();
+        return await this.workspaceManager.listWorkspaces();
     }
 
     // ============= SESSION MANAGEMENT =============

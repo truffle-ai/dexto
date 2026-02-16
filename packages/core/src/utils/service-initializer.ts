@@ -17,6 +17,7 @@ import { SessionManager } from '../session/index.js';
 import { SearchService } from '../search/index.js';
 import { StorageManager } from '../storage/index.js';
 import { AgentError } from '../agent/errors.js';
+import { WorkspaceManager } from '../workspace/index.js';
 import { createAllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/factory.js';
 import type { Logger } from '../logger/v2/types.js';
 import type { AgentRuntimeSettings } from '../agent/runtime-config.js';
@@ -38,6 +39,7 @@ export type AgentServices = {
     agentEventBus: AgentEventBus;
     stateManager: AgentStateManager;
     sessionManager: SessionManager;
+    workspaceManager: WorkspaceManager;
     searchService: SearchService;
     storageManager: StorageManager;
     resourceManager: ResourceManager;
@@ -111,6 +113,14 @@ export async function createAgentServices(
     }
 
     logger.debug('Storage manager initialized', await storageManager.getInfo());
+
+    // 2.5 Initialize workspace manager (uses persistent database)
+    const workspaceManager = new WorkspaceManager(
+        storageManager.getDatabase(),
+        agentEventBus,
+        logger
+    );
+    logger.debug('Workspace manager initialized');
 
     // 3. Initialize approval system (generalized user approval)
     // Created before MCP manager since MCP manager depends on it for elicitation support
@@ -211,6 +221,7 @@ export async function createAgentServices(
             [],
             logger
         );
+    toolManager.setWorkspaceManager(workspaceManager);
     // NOTE: local tools + ToolExecutionContext are wired in DextoAgent.start()
 
     const mcpServerCount = Object.keys(config.mcpServers).length;
@@ -244,6 +255,7 @@ export async function createAgentServices(
             pluginManager, // Add plugin manager for plugin execution
             mcpManager, // Add MCP manager for ChatSession
             compactionStrategy: compactionStrategy ?? null,
+            workspaceManager, // Workspace context propagation
         },
         {
             maxSessions: config.sessions?.maxSessions,
@@ -272,6 +284,7 @@ export async function createAgentServices(
         agentEventBus,
         stateManager,
         sessionManager,
+        workspaceManager,
         searchService,
         storageManager,
         resourceManager,
