@@ -63,6 +63,8 @@ interface InputContainerProps {
     setTodos: React.Dispatch<React.SetStateAction<TodoItem[]>>;
     agent: DextoAgent;
     inputService: InputService;
+    /** Source agent config file path (if available) */
+    configFilePath: string | null;
     /** Optional keyboard scroll handler (for alternate buffer mode) */
     onKeyboardScroll?: (direction: 'up' | 'down') => void;
     /** Whether to stream chunks or wait for complete response (default: true) */
@@ -94,6 +96,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             setTodos,
             agent,
             inputService,
+            configFilePath,
             onKeyboardScroll,
             useStreaming = true,
         },
@@ -464,7 +467,8 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                             parsed.command,
                             parsed.args || [],
                             agent,
-                            session.id || undefined
+                            session.id || undefined,
+                            configFilePath
                         );
 
                         if (result.type === 'output' && result.output) {
@@ -548,7 +552,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                                 {
                                     useStreaming,
                                     autoApproveEditsRef,
-                                    eventBus: agent.agentEventBus,
+                                    eventBus: agent,
                                     setTodos,
                                     ...(soundService && { soundService }),
                                 }
@@ -629,7 +633,10 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                         let messageText = trimmed;
                         if (ui.planModeActive && !ui.planModeInitialized) {
                             try {
-                                const planSkill = await agent.resolvePrompt('plan', {});
+                                const planSkill = await agent.resolvePrompt(
+                                    'config:dexto-plan-mode',
+                                    {}
+                                );
                                 if (planSkill.text) {
                                     messageText = `<plan-mode>\n${planSkill.text}\n</plan-mode>\n\n${trimmed}`;
                                     // Mark plan mode as initialized after injection
@@ -637,7 +644,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                                 }
                             } catch {
                                 // Plan skill not found - continue without injection
-                                // This can happen if the plan-tools plugin is not enabled
+                                // This can happen if the agent config/image doesn't include `config:dexto-plan-mode`.
                             }
                         }
 
@@ -693,7 +700,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                             {
                                 useStreaming,
                                 autoApproveEditsRef,
-                                eventBus: agent.agentEventBus,
+                                eventBus: agent,
                                 setTodos,
                                 ...(soundService && { soundService }),
                             }

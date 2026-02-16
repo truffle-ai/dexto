@@ -222,7 +222,7 @@ export const generalCommands: CommandDefinition[] = [
                 const newSessionId = newSession.id;
 
                 // Emit session:created to switch the CLI to the new session
-                agent.agentEventBus.emit('session:created', {
+                agent.emit('session:created', {
                     sessionId: newSessionId,
                     switchTo: true,
                 });

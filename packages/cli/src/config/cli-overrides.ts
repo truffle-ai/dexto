@@ -9,9 +9,9 @@
  *   2. preferences.yml llm section     → User's global default (CURRENT)
  *   3. agent.yml llm section           → Bundled fallback
  *
- * Note: Sub-agents spawned via RuntimeService have separate LLM resolution logic
+ * Note: Sub-agents spawned via AgentSpawnerRuntime have separate LLM resolution logic
  * that tries to preserve the sub-agent's intended model when possible.
- * See packages/agent-management/src/tool-provider/llm-resolution.ts
+ * See packages/agent-management/src/tool-factories/agent-spawner/llm-resolution.ts
  *
  * TODO: Future enhancements
  * - Per-agent local overrides (~/.dexto/agents/{id}/{id}.local.yml)
@@ -19,7 +19,8 @@
  * - Merge strategy configuration for non-LLM fields
  */
 
-import type { AgentConfig, LLMConfig, LLMProvider } from '@dexto/core';
+import type { AgentConfig } from '@dexto/agent-config';
+import type { LLMConfig, LLMProvider } from '@dexto/core';
 import type { GlobalPreferences } from '@dexto/agent-management';
 
 /**

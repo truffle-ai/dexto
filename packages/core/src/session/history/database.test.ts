@@ -1,9 +1,9 @@
 import { describe, test, expect, vi, beforeEach, type Mocked } from 'vitest';
 import { DatabaseHistoryProvider } from './database.js';
-import type { Database } from '@core/storage/types.js';
+import type { Database } from '../../storage/types.js';
 import { SessionErrorCode } from '../error-codes.js';
-import { ErrorScope, ErrorType } from '@core/errors/types.js';
-import { createMockLogger } from '@core/logger/v2/test-utils.js';
+import { ErrorScope, ErrorType } from '../../errors/types.js';
+import { createMockLogger } from '../../logger/v2/test-utils.js';
 
 describe('DatabaseHistoryProvider error mapping', () => {
     let db: Mocked<Database>;

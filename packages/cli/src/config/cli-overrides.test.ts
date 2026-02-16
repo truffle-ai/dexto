@@ -4,7 +4,7 @@ import {
     applyUserPreferences,
     type CLIConfigOverrides,
 } from './cli-overrides.js';
-import type { AgentConfig } from '@dexto/core';
+import type { AgentConfig } from '@dexto/agent-config';
 // Note: applyUserPreferences accepts Partial<GlobalPreferences> since it only uses the llm field
 
 function clone<T>(obj: T): T {

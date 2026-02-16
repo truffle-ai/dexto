@@ -24,6 +24,8 @@ export type CommandHandlerResult = boolean | string | StyledOutput | SendMessage
 export interface CommandContext {
     /** Current session ID, or null if no active session */
     sessionId: string | null;
+    /** Source config file path for persistence and display (if available) */
+    configFilePath: string | null;
 }
 
 export interface CommandDefinition {

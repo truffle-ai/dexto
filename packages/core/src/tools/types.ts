@@ -6,17 +6,86 @@ import type { JSONSchema7 } from 'json-schema';
 import type { ZodSchema } from 'zod';
 import type { ToolDisplayData } from './display-types.js';
 import type { ApprovalRequestDetails, ApprovalResponse } from '../approval/types.js';
+import type { ApprovalManager } from '../approval/manager.js';
+import type { DextoAgent } from '../agent/DextoAgent.js';
+import type { Cache } from '../storage/cache/types.js';
+import type { BlobStore } from '../storage/blob/types.js';
+import type { Database } from '../storage/database/types.js';
+import type { MCPManager } from '../mcp/manager.js';
+import type { PromptManager } from '../prompts/prompt-manager.js';
+import type { ResourceManager } from '../resources/manager.js';
+import type { SearchService } from '../search/search-service.js';
+import type { Logger } from '../logger/v2/types.js';
+
+/**
+ * Interface for forking execution to an isolated sub-agent context.
+ *
+ * Implemented by AgentSpawnerRuntime in `@dexto/agent-management` and surfaced to tools
+ * via {@link ToolExecutionContext.services}.
+ */
+export interface TaskForker {
+    fork(options: {
+        task: string;
+        instructions: string;
+        agentId?: string;
+        autoApprove?: boolean;
+        toolCallId?: string;
+        sessionId?: string;
+    }): Promise<{
+        success: boolean;
+        response?: string;
+        error?: string;
+    }>;
+}
+
+export interface ToolServices {
+    approval: ApprovalManager;
+    search: SearchService;
+    resources: ResourceManager;
+    prompts: PromptManager;
+    mcp: MCPManager;
+    taskForker: TaskForker | null;
+}
 
 /**
  * Context passed to tool execution
  */
-export interface ToolExecutionContext {
+export interface ToolExecutionContextBase {
     /** Session ID if available */
     sessionId?: string | undefined;
     /** Abort signal for cancellation support */
     abortSignal?: AbortSignal | undefined;
     /** Unique tool call ID for tracking parallel tool calls */
     toolCallId?: string | undefined;
+
+    /**
+     * Logger scoped to the tool execution.
+     */
+    logger: Logger;
+}
+
+export interface ToolExecutionContext extends ToolExecutionContextBase {
+    /**
+     * Runtime agent reference (DI refactor: provided by ToolManager on each execute()).
+     */
+    agent?: DextoAgent | undefined;
+
+    /**
+     * Concrete storage backends (DI-first).
+     */
+    storage?:
+        | {
+              blob: BlobStore;
+              database: Database;
+              cache: Cache;
+          }
+        | undefined;
+
+    /**
+     * Runtime services available to tools. These are injected at execution time (not factory time)
+     * to avoid init ordering cycles.
+     */
+    services?: ToolServices | undefined;
 }
 
 /**
@@ -36,9 +105,9 @@ export interface ToolExecutionResult {
 // ============================================================================
 
 /**
- * Internal tool interface - for tools implemented within Dexto
+ * Tool interface - for tools implemented within Dexto
  */
-export interface InternalTool {
+export interface Tool {
     /** Unique identifier for the tool */
     id: string;
 
@@ -49,7 +118,7 @@ export interface InternalTool {
     inputSchema: ZodSchema;
 
     /** The actual function that executes the tool - input is validated by Zod before execution */
-    execute: (input: unknown, context?: ToolExecutionContext) => Promise<unknown> | unknown;
+    execute: (input: unknown, context: ToolExecutionContext) => Promise<unknown> | unknown;
 
     /**
      * Optional preview generator for approval UI.
@@ -58,7 +127,7 @@ export interface InternalTool {
      */
     generatePreview?: (
         input: unknown,
-        context?: ToolExecutionContext
+        context: ToolExecutionContext
     ) => Promise<ToolDisplayData | null>;
 
     /**
@@ -86,7 +155,8 @@ export interface InternalTool {
      * ```
      */
     getApprovalOverride?: (
-        args: unknown
+        args: unknown,
+        context: ToolExecutionContext
     ) => Promise<ApprovalRequestDetails | null> | ApprovalRequestDetails | null;
 
     /**
@@ -105,7 +175,7 @@ export interface InternalTool {
      * }
      * ```
      */
-    onApprovalGranted?: (response: ApprovalResponse) => void;
+    onApprovalGranted?: (response: ApprovalResponse, context: ToolExecutionContext) => void;
 }
 
 /**
@@ -129,7 +199,7 @@ export interface ToolSet {
  */
 export interface ToolResult {
     success: boolean;
-    data?: any;
+    data?: unknown;
     error?: string;
 }
 

@@ -4,7 +4,7 @@ import type { ReadResourceCallback } from '@modelcontextprotocol/sdk/server/mcp.
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
-import type { AgentCard, IDextoLogger } from '@dexto/core';
+import type { AgentCard, Logger } from '@dexto/core';
 import { logger } from '@dexto/core';
 import { z } from 'zod';
 import type { DextoAgent } from '@dexto/core';
@@ -90,7 +90,7 @@ export async function initializeMcpServer(
 export async function initializeAgentCardResource(
     mcpServer: McpServer,
     agentCardData: AgentCard,
-    agentLogger: IDextoLogger
+    agentLogger: Logger
 ): Promise<void> {
     const agentCardResourceProgrammaticName = 'agentCard';
     const agentCardResourceUri = 'dexto://agent/card';

@@ -1,16 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AgentStateManager } from './state-manager.js';
 import { AgentEventBus } from '../events/index.js';
-import { AgentConfigSchema } from '@core/agent/schemas.js';
-import { LLMConfigSchema } from '@core/llm/schemas.js';
-import { McpServerConfigSchema } from '@core/mcp/schemas.js';
-import type { AgentConfig, ValidatedAgentConfig } from '@core/agent/schemas.js';
+import { LLMConfigSchema } from '../llm/schemas.js';
+import { McpServerConfigSchema, ServersConfigSchema } from '../mcp/schemas.js';
+import { SystemPromptConfigSchema } from '../systemPrompt/schemas.js';
+import { SessionConfigSchema } from '../session/schemas.js';
+import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '../tools/schemas.js';
+import { InternalResourcesSchema } from '../resources/schemas.js';
+import { PromptsSchema } from '../prompts/schemas.js';
+import type { AgentRuntimeSettings } from './runtime-config.js';
 
 describe('AgentStateManager Events', () => {
     let stateManager: AgentStateManager;
     let eventBus: AgentEventBus;
-    let mockConfig: AgentConfig;
-    let validatedConfig: ValidatedAgentConfig;
+    let validatedConfig: AgentRuntimeSettings;
     let mockLogger: any;
 
     beforeEach(() => {
@@ -26,37 +29,39 @@ describe('AgentStateManager Events', () => {
             }),
             destroy: vi.fn(),
         } as any;
-        mockConfig = {
-            systemPrompt: 'You are a helpful assistant',
-            mcpServers: {
-                test: {
-                    type: 'stdio',
-                    command: 'test',
-                    args: [],
-                    env: {},
-                    timeout: 30000,
-                    connectionMode: 'lenient',
-                },
-            },
-            llm: {
-                provider: 'openai',
-                model: 'gpt-5',
-                apiKey: 'test-key',
-                maxIterations: 50,
-            },
-            internalTools: [],
-            sessions: {
-                maxSessions: 100,
-                sessionTTL: 3600000,
-            },
-            toolConfirmation: {
+
+        const llm = LLMConfigSchema.parse({
+            provider: 'openai',
+            model: 'gpt-5',
+            apiKey: 'test-key',
+            maxIterations: 50,
+        });
+
+        const mcpServer = McpServerConfigSchema.parse({
+            type: 'stdio',
+            command: 'test',
+            args: [],
+            env: {},
+            timeout: 30000,
+            connectionMode: 'lenient',
+        });
+
+        validatedConfig = {
+            systemPrompt: SystemPromptConfigSchema.parse('You are a helpful assistant'),
+            llm,
+            agentId: 'test-agent',
+            mcpServers: ServersConfigSchema.parse({ test: mcpServer }),
+            sessions: SessionConfigSchema.parse({ maxSessions: 100, sessionTTL: 3600000 }),
+            toolConfirmation: ToolConfirmationConfigSchema.parse({
                 mode: 'manual',
                 timeout: 30000,
                 allowedToolsStorage: 'storage',
-            },
+            }),
+            elicitation: ElicitationConfigSchema.parse({ enabled: false }),
+            internalResources: InternalResourcesSchema.parse([]),
+            prompts: PromptsSchema.parse([]),
         };
-        // Parse through schema to validate and apply defaults, converting input to ValidatedAgentConfig
-        validatedConfig = AgentConfigSchema.parse(mockConfig);
+
         stateManager = new AgentStateManager(validatedConfig, eventBus, mockLogger);
     });
 
@@ -65,7 +70,7 @@ describe('AgentStateManager Events', () => {
         eventBus.on('state:changed', eventSpy);
 
         const updatedConfig = LLMConfigSchema.parse({
-            ...mockConfig.llm,
+            ...validatedConfig.llm,
             model: 'gpt-5-mini',
         });
         stateManager.updateLLM(updatedConfig);
@@ -115,7 +120,7 @@ describe('AgentStateManager Events', () => {
         eventBus.on('session:override-set', eventSpy);
 
         const sessionConfig = LLMConfigSchema.parse({
-            ...mockConfig.llm,
+            ...validatedConfig.llm,
             model: 'gpt-5',
         });
         stateManager.updateLLM(sessionConfig, 'session-123');
@@ -134,7 +139,7 @@ describe('AgentStateManager Events', () => {
 
         // First set an override
         const sessionConfig = LLMConfigSchema.parse({
-            ...mockConfig.llm,
+            ...validatedConfig.llm,
             model: 'gpt-5',
         });
         stateManager.updateLLM(sessionConfig, 'session-123');

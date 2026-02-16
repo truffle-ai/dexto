@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import { ConfigPromptProvider } from './config-prompt-provider.js';
-import type { ValidatedAgentConfig } from '../../agent/schemas.js';
+import type { AgentRuntimeSettings } from '../../agent/runtime-config.js';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { createSilentMockLogger } from '../../logger/v2/test-utils.js';
@@ -10,8 +10,8 @@ const FIXTURES_DIR = join(__dirname, '__fixtures__');
 
 const mockLogger = createSilentMockLogger();
 
-function makeAgentConfig(prompts: any[]): ValidatedAgentConfig {
-    return { prompts } as ValidatedAgentConfig;
+function makeAgentConfig(prompts: any[]): AgentRuntimeSettings {
+    return { prompts } as unknown as AgentRuntimeSettings;
 }
 
 describe('ConfigPromptProvider', () => {
@@ -407,6 +407,27 @@ describe('ConfigPromptProvider', () => {
                 // commandName (computed by PromptManager) handles collision resolution
                 displayName: 'test-skill',
                 description: 'A test skill using Claude Code SKILL.md format with name field.',
+                source: 'config',
+            });
+        });
+
+        test('does not treat argument name fields as prompt ids', async () => {
+            const config = makeAgentConfig([
+                {
+                    type: 'file',
+                    file: join(FIXTURES_DIR, 'arguments-frontmatter.md'),
+                    showInStarters: false,
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, mockLogger);
+            const result = await provider.listPrompts();
+
+            expect(result.prompts).toHaveLength(1);
+            expect(result.prompts[0]).toMatchObject({
+                name: 'config:arguments-frontmatter',
+                displayName: 'arguments-frontmatter',
+                title: 'Code Review',
                 source: 'config',
             });
         });

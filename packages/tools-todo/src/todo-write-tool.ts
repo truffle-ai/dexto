@@ -5,7 +5,7 @@
  */
 
 import { z } from 'zod';
-import type { InternalTool, ToolExecutionContext } from '@dexto/core';
+import type { Tool, ToolExecutionContext } from '@dexto/core';
 import type { TodoService } from './todo-service.js';
 import { TODO_STATUS_VALUES } from './types.js';
 
@@ -60,7 +60,9 @@ const TodoWriteInputSchema = z
 /**
  * Create todo_write internal tool
  */
-export function createTodoWriteTool(todoService: TodoService): InternalTool {
+export type TodoServiceGetter = (context: ToolExecutionContext) => Promise<TodoService>;
+
+export function createTodoWriteTool(getTodoService: TodoServiceGetter): Tool {
     return {
         id: 'todo_write',
         description: `Track progress on multi-step tasks. Use for:
@@ -73,15 +75,18 @@ Do NOT use for simple single-file edits, quick questions, or explanations.
 IMPORTANT: This replaces the entire todo list. Always include ALL tasks (pending, in_progress, completed). Only ONE task should be in_progress at a time. Update status as you work: pending → in_progress → completed.`,
         inputSchema: TodoWriteInputSchema,
 
-        execute: async (input: unknown, context?: ToolExecutionContext): Promise<unknown> => {
+        execute: async (input: unknown, context: ToolExecutionContext): Promise<unknown> => {
+            const resolvedTodoService = await getTodoService(context);
+
             // Validate input against schema
             const validatedInput = TodoWriteInputSchema.parse(input);
 
             // Use session_id from context, otherwise default
-            const sessionId = context?.sessionId ?? 'default';
+            const sessionId = context.sessionId ?? 'default';
 
             // Update todos in todo service
-            const result = await todoService.updateTodos(sessionId, validatedInput.todos);
+            await resolvedTodoService.initialize();
+            const result = await resolvedTodoService.updateTodos(sessionId, validatedInput.todos);
 
             // Count by status for summary
             const completed = result.todos.filter((t) => t.status === 'completed').length;

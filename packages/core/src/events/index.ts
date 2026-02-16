@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import type { LLMProvider } from '../llm/types.js';
-import { ValidatedAgentConfig } from '../agent/schemas.js';
+import type { AgentRuntimeSettings } from '../agent/runtime-config.js';
 import type { ApprovalRequest, ApprovalResponse } from '../approval/types.js';
 import type { SanitizedToolResult } from '../context/types.js';
 
@@ -503,7 +503,7 @@ export interface AgentEventMap {
 
     /** Fired when agent state is exported as config */
     'state:exported': {
-        config: ValidatedAgentConfig;
+        config: AgentRuntimeSettings;
     };
 
     /** Fired when agent state is reset to baseline */

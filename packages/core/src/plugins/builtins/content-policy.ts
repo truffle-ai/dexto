@@ -1,5 +1,5 @@
 import type {
-    DextoPlugin,
+    Plugin,
     PluginResult,
     PluginNotice,
     BeforeLLMRequestPayload,
@@ -40,14 +40,15 @@ function containsAbusiveLanguage(text: string): boolean {
  *
  * Ported from feat/hooks content-policy hook implementation
  */
-export class ContentPolicyPlugin implements DextoPlugin {
+export class ContentPolicyPlugin implements Plugin {
     private config: Required<ContentPolicyConfig> = DEFAULTS;
 
-    async initialize(config: Record<string, any>): Promise<void> {
+    async initialize(config: Record<string, unknown>): Promise<void> {
+        const pluginConfig = config as Partial<ContentPolicyConfig>;
         this.config = {
-            maxInputChars: config.maxInputChars ?? DEFAULTS.maxInputChars,
-            redactEmails: config.redactEmails ?? DEFAULTS.redactEmails,
-            redactApiKeys: config.redactApiKeys ?? DEFAULTS.redactApiKeys,
+            maxInputChars: pluginConfig.maxInputChars ?? DEFAULTS.maxInputChars,
+            redactEmails: pluginConfig.redactEmails ?? DEFAULTS.redactEmails,
+            redactApiKeys: pluginConfig.redactApiKeys ?? DEFAULTS.redactApiKeys,
         };
     }
 

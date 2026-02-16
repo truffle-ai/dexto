@@ -8,7 +8,8 @@ import { Collapsible } from '../ui/collapsible';
 import { Input } from '../ui/input';
 import { LabelWithTooltip } from '../ui/label-with-tooltip';
 import { AlertCircle } from 'lucide-react';
-import type { AgentConfig, ContributorConfig } from '@dexto/core';
+import type { AgentConfig } from '@dexto/agent-config';
+import type { ContributorConfig } from '@dexto/core';
 
 interface FormEditorProps {
     config: AgentConfig;
@@ -233,8 +234,8 @@ function checkForAdvancedFeatures(config: AgentConfig): boolean {
         return true;
     }
 
-    // Check for internal tools customization
-    if (config.internalTools) {
+    // Check for tools customization
+    if (config.tools && config.tools.length > 0) {
         return true;
     }
 

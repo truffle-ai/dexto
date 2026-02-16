@@ -1,6 +1,6 @@
 import { ResourceProvider, ResourceMetadata, ResourceSource } from './types.js';
 import { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { createInternalResourceHandler } from './handlers/factory.js';
 import type { InternalResourceHandler, InternalResourceServices } from './handlers/types.js';
@@ -15,12 +15,12 @@ export class InternalResourcesProvider implements ResourceProvider {
     private config: ValidatedInternalResourcesConfig;
     private handlers: Map<string, InternalResourceHandler> = new Map();
     private services: InternalResourceServices;
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     constructor(
         config: ValidatedInternalResourcesConfig,
         services: InternalResourceServices,
-        logger: IDextoLogger
+        logger: Logger
     ) {
         this.config = config;
         this.services = services;

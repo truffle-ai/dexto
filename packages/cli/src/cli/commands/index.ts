@@ -24,6 +24,17 @@ export {
     type SyncAgentsCommandOptions,
 } from './sync-agents.js';
 
+// Image commands
+export {
+    handleImageInstallCommand,
+    handleImageListCommand,
+    handleImageUseCommand,
+    handleImageRemoveCommand,
+    handleImageDoctorCommand,
+    type ImageInstallCommandOptions,
+    type ImageInstallCommandOptionsInput,
+} from './image.js';
+
 // Auth commands
 export { handleLoginCommand, handleLogoutCommand, handleStatusCommand } from './auth/index.js';
 

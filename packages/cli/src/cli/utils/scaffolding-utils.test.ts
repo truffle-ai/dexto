@@ -12,6 +12,7 @@ import {
     installDependencies,
     createEnvExample,
     ensureDirectory,
+    pinDextoPackageIfUnversioned,
 } from './scaffolding-utils.js';
 
 // Mock dependencies
@@ -52,6 +53,36 @@ const { getPackageManager, getPackageManagerInstallCommand } = await import('./p
 describe('scaffolding-utils', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+    });
+
+    describe('pinDextoPackageIfUnversioned', () => {
+        it('pins @dexto packages when unversioned', () => {
+            expect(pinDextoPackageIfUnversioned('@dexto/image-local', '^1.2.3')).toBe(
+                '@dexto/image-local@^1.2.3'
+            );
+        });
+
+        it('supports workspace protocol pinning', () => {
+            expect(pinDextoPackageIfUnversioned('@dexto/image-local', 'workspace:*')).toBe(
+                '@dexto/image-local@workspace:*'
+            );
+        });
+
+        it('does not pin when a version is already present', () => {
+            expect(pinDextoPackageIfUnversioned('@dexto/image-local@1.0.0', '^1.2.3')).toBe(
+                '@dexto/image-local@1.0.0'
+            );
+        });
+
+        it('does not pin non-@dexto packages', () => {
+            expect(pinDextoPackageIfUnversioned('@myorg/image-base', '^1.2.3')).toBe(
+                '@myorg/image-base'
+            );
+        });
+
+        it('does not pin local specifiers', () => {
+            expect(pinDextoPackageIfUnversioned('./local/path', '^1.2.3')).toBe('./local/path');
+        });
     });
 
     describe('validateProjectName', () => {
@@ -314,7 +345,10 @@ describe('scaffolding-utils', () => {
                     include: expect.arrayContaining([
                         'dexto.image.ts',
                         'tools/**/*',
-                        'blob-store/**/*',
+                        'storage/blob/**/*',
+                        'storage/database/**/*',
+                        'storage/cache/**/*',
+                        'compaction/**/*',
                     ]),
                 }),
                 { spaces: 2 }

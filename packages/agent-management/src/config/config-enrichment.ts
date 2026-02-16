@@ -14,7 +14,7 @@
  */
 
 import { getDextoPath } from '../utils/path.js';
-import type { AgentConfig } from '@dexto/core';
+import type { AgentConfig } from '@dexto/agent-config';
 import * as path from 'path';
 import { discoverCommandPrompts, discoverAgentInstructionFile } from './discover-prompts.js';
 import {
@@ -255,27 +255,6 @@ export function enrichAgentConfig(
                     ...enriched.mcpServers,
                     ...(loaded.mcpConfig.mcpServers as typeof enriched.mcpServers),
                 };
-            }
-
-            // Auto-add custom tool providers declared by Dexto-native plugins
-            // These are added to customTools config if not already explicitly configured
-            if (loaded.customToolProviders.length > 0) {
-                for (const providerType of loaded.customToolProviders) {
-                    // Check if already configured in customTools
-                    const alreadyConfigured = enriched.customTools?.some(
-                        (tool) =>
-                            typeof tool === 'object' && tool !== null && tool.type === providerType
-                    );
-
-                    if (!alreadyConfigured) {
-                        enriched.customTools = enriched.customTools ?? [];
-                        // Add with default config (just the type)
-                        enriched.customTools.push({ type: providerType } as Record<
-                            string,
-                            unknown
-                        >);
-                    }
-                }
             }
         }
 

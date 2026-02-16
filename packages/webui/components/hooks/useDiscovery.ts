@@ -3,8 +3,8 @@ import { client } from '@/lib/client';
 import { queryKeys } from '@/lib/queryKeys';
 
 /**
- * Hook to fetch available providers and capabilities.
- * Returns blob storage providers, compression strategies, custom tool providers, and internal tools.
+ * Hook to fetch available factories and capabilities.
+ * Returns storage factories, compaction strategy factories, custom tool factories, and internal tools.
  */
 export function useDiscovery(enabled: boolean = true) {
     return useQuery({
@@ -15,11 +15,11 @@ export function useDiscovery(enabled: boolean = true) {
             return await res.json();
         },
         enabled,
-        staleTime: 5 * 60 * 1000, // 5 minutes - providers don't change often
+        staleTime: 5 * 60 * 1000, // 5 minutes - factories don't change often
     });
 }
 
 // Export types using the standard inference pattern
 export type DiscoveryResponse = NonNullable<ReturnType<typeof useDiscovery>['data']>;
-export type DiscoveredProvider = DiscoveryResponse['blob'][number];
-export type InternalToolInfo = DiscoveryResponse['internalTools'][number];
+export type DiscoveredFactory = DiscoveryResponse['blob'][number];
+export type ToolInfo = DiscoveryResponse['internalTools'][number];

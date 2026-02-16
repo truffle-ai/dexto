@@ -7,8 +7,8 @@
 
 import { z } from 'zod';
 import { createPatch } from 'diff';
-import type { InternalTool, ToolExecutionContext, DiffDisplayData } from '@dexto/core';
-import type { PlanService } from '../plan-service.js';
+import type { Tool, ToolExecutionContext, DiffDisplayData } from '@dexto/core';
+import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
 
 const PlanUpdateInputSchema = z
@@ -45,7 +45,7 @@ function generateDiffPreview(
 /**
  * Creates the plan_update tool
  */
-export function createPlanUpdateTool(planService: PlanService): InternalTool {
+export function createPlanUpdateTool(getPlanService: PlanServiceGetter): Tool {
     return {
         id: 'plan_update',
         description:
@@ -57,34 +57,36 @@ export function createPlanUpdateTool(planService: PlanService): InternalTool {
          */
         generatePreview: async (
             input: unknown,
-            context?: ToolExecutionContext
+            context: ToolExecutionContext
         ): Promise<DiffDisplayData> => {
+            const resolvedPlanService = await getPlanService(context);
             const { content: newContent } = input as PlanUpdateInput;
 
-            if (!context?.sessionId) {
+            if (!context.sessionId) {
                 throw PlanError.sessionIdRequired();
             }
 
             // Read existing plan
-            const existing = await planService.read(context.sessionId);
+            const existing = await resolvedPlanService.read(context.sessionId);
             if (!existing) {
                 throw PlanError.planNotFound(context.sessionId);
             }
 
             // Generate diff preview
-            const planPath = planService.getPlanPath(context.sessionId);
+            const planPath = resolvedPlanService.getPlanPath(context.sessionId);
             return generateDiffPreview(planPath, existing.content, newContent);
         },
 
-        execute: async (input: unknown, context?: ToolExecutionContext) => {
+        execute: async (input: unknown, context: ToolExecutionContext) => {
+            const resolvedPlanService = await getPlanService(context);
             const { content } = input as PlanUpdateInput;
 
-            if (!context?.sessionId) {
+            if (!context.sessionId) {
                 throw PlanError.sessionIdRequired();
             }
 
-            const result = await planService.update(context.sessionId, content);
-            const planPath = planService.getPlanPath(context.sessionId);
+            const result = await resolvedPlanService.update(context.sessionId, content);
+            const planPath = resolvedPlanService.getPlanPath(context.sessionId);
 
             return {
                 success: true,

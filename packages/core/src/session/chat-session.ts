@@ -1,12 +1,11 @@
 import { createDatabaseHistoryProvider } from './history/factory.js';
-import { createLLMService, createVercelModel } from '../llm/services/factory.js';
-import { createCompactionStrategy } from '../context/compaction/index.js';
-import type { ContextManager } from '@core/context/index.js';
-import type { IConversationHistoryProvider } from './history/types.js';
+import { createLLMService } from '../llm/services/factory.js';
+import type { ContextManager } from '../context/index.js';
+import type { ConversationHistoryProvider } from './history/types.js';
 import type { VercelLLMService } from '../llm/services/vercel.js';
 import type { SystemPromptManager } from '../systemPrompt/manager.js';
 import type { ToolManager } from '../tools/tool-manager.js';
-import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
+import type { ValidatedLLMConfig } from '../llm/schemas.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { StorageManager } from '../storage/index.js';
 import type { PluginManager } from '../plugins/manager.js';
@@ -19,7 +18,7 @@ import {
     SessionEventName,
     SessionEventMap,
 } from '../events/index.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import { PluginErrorCode } from '../plugins/error-codes.js';
@@ -27,6 +26,7 @@ import type { InternalMessage, ContentPart } from '../context/types.js';
 import type { UserMessageInput } from './message-queue.js';
 import type { ContentInput } from '../agent/types.js';
 import { getModelPricing, calculateCost } from '../llm/registry/index.js';
+import type { CompactionStrategy } from '../context/compaction/types.js';
 
 /**
  * Represents an isolated conversation session within a Dexto agent.
@@ -90,7 +90,7 @@ export class ChatSession {
      * History provider that persists conversation messages.
      * Shared across LLM switches to maintain conversation continuity.
      */
-    private historyProvider!: IConversationHistoryProvider;
+    private historyProvider!: ConversationHistoryProvider;
 
     /**
      * Handles AI model interactions, tool execution, and response generation for this session.
@@ -118,7 +118,7 @@ export class ChatSession {
      */
     private currentRunController: AbortController | null = null;
 
-    public readonly logger: IDextoLogger;
+    public readonly logger: Logger;
 
     /**
      * Creates a new ChatSession instance.
@@ -143,9 +143,10 @@ export class ChatSession {
             pluginManager: PluginManager;
             mcpManager: MCPManager;
             sessionManager: import('./session-manager.js').SessionManager;
+            compactionStrategy: CompactionStrategy | null;
         },
         public readonly id: string,
-        logger: IDextoLogger
+        logger: Logger
     ) {
         this.logger = logger.createChild(DextoLogComponent.SESSION);
         // Create session-specific event bus
@@ -254,12 +255,7 @@ export class ChatSession {
             this.logger
         );
 
-        // Create model and compaction strategy from config
-        const model = createVercelModel(llmConfig);
-        const compactionStrategy = await createCompactionStrategy(runtimeConfig.compaction, {
-            logger: this.logger,
-            model,
-        });
+        const compactionStrategy = this.services.compactionStrategy;
 
         // Create session-specific LLM service
         // The service will create its own properly-typed ContextManager internally
@@ -272,8 +268,7 @@ export class ChatSession {
             this.id,
             this.services.resourceManager, // Pass ResourceManager for blob storage
             this.logger, // Pass logger for dependency injection
-            compactionStrategy, // Pass compaction strategy
-            runtimeConfig.compaction // Pass compaction config for threshold settings
+            compactionStrategy // Pass compaction strategy
         );
 
         this.logger.debug(`ChatSession ${this.id}: Services initialized with storage`);
@@ -639,15 +634,8 @@ export class ChatSession {
      */
     public async switchLLM(newLLMConfig: ValidatedLLMConfig): Promise<void> {
         try {
-            // Get compression config for this session
-            const runtimeConfig = this.services.stateManager.getRuntimeConfig(this.id);
-
-            // Create model and compaction strategy from config
-            const model = createVercelModel(newLLMConfig);
-            const compactionStrategy = await createCompactionStrategy(runtimeConfig.compaction, {
-                logger: this.logger,
-                model,
-            });
+            // Reuse the agent-provided compaction strategy (if any)
+            const compactionStrategy = this.services.compactionStrategy;
 
             // Create new LLM service with new config but SAME history provider
             // The service will create its own new ContextManager internally
@@ -660,8 +648,7 @@ export class ChatSession {
                 this.id,
                 this.services.resourceManager,
                 this.logger,
-                compactionStrategy, // Pass compaction strategy
-                runtimeConfig.compaction // Pass compaction config for threshold settings
+                compactionStrategy // Pass compaction strategy
             );
 
             // Replace the LLM service

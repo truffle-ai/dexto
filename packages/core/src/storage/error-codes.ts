@@ -23,6 +23,9 @@ export enum StorageErrorCode {
     MIGRATION_FAILED = 'storage_migration_failed',
     DATABASE_INVALID_CONFIG = 'storage_database_invalid_config',
 
+    // Cache specific
+    CACHE_INVALID_CONFIG = 'storage_cache_invalid_config',
+
     // Blob storage - Configuration errors
     BLOB_INVALID_CONFIG = 'BLOB_INVALID_CONFIG',
 
@@ -46,15 +49,5 @@ export enum StorageErrorCode {
     BLOB_CLEANUP_FAILED = 'BLOB_CLEANUP_FAILED',
     BLOB_OPERATION_FAILED = 'BLOB_OPERATION_FAILED',
 
-    // Blob storage - Provider registry errors
-    BLOB_PROVIDER_UNKNOWN = 'BLOB_PROVIDER_UNKNOWN',
-    BLOB_PROVIDER_ALREADY_REGISTERED = 'BLOB_PROVIDER_ALREADY_REGISTERED',
-
-    // Database - Provider registry errors
-    DATABASE_PROVIDER_UNKNOWN = 'DATABASE_PROVIDER_UNKNOWN',
-    DATABASE_PROVIDER_ALREADY_REGISTERED = 'DATABASE_PROVIDER_ALREADY_REGISTERED',
-
-    // Cache - Provider registry errors
-    CACHE_PROVIDER_UNKNOWN = 'CACHE_PROVIDER_UNKNOWN',
-    CACHE_PROVIDER_ALREADY_REGISTERED = 'CACHE_PROVIDER_ALREADY_REGISTERED',
+    // Note: Registry-era error codes were removed as part of the DI refactor.
 }

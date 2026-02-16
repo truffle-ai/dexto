@@ -11,7 +11,7 @@ import type {
     ApprovalResponse,
     ApprovalRequestDetails,
     ApprovalManager,
-    IDextoLogger,
+    Logger,
 } from '@dexto/core';
 
 /**
@@ -48,7 +48,7 @@ interface DelegatedMetadata {
 export function createDelegatingApprovalHandler(
     parentApprovalManager: ApprovalManager,
     subAgentId: string,
-    logger: IDextoLogger
+    logger: Logger
 ): ApprovalHandler {
     // Track pending approvals for this sub-agent (for cancellation)
     const pendingApprovalIds = new Set<string>();

@@ -12,29 +12,45 @@ import { createPlanUpdateTool } from './plan-update-tool.js';
 import { PlanService } from '../plan-service.js';
 import { PlanErrorCode } from '../errors.js';
 import { DextoRuntimeError } from '@dexto/core';
-import type { DiffDisplayData } from '@dexto/core';
+import type { DiffDisplayData, Logger, ToolExecutionContext } from '@dexto/core';
 
 // Create mock logger
-const createMockLogger = () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    createChild: vi.fn().mockReturnThis(),
-});
+const createMockLogger = (): Logger => {
+    const logger: Logger = {
+        debug: vi.fn(),
+        silly: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        trackException: vi.fn(),
+        createChild: vi.fn(() => logger),
+        setLevel: vi.fn(),
+        getLevel: vi.fn(() => 'debug' as const),
+        getLogFilePath: vi.fn(() => null),
+        destroy: vi.fn(async () => undefined),
+    };
+    return logger;
+};
+
+function createToolContext(
+    logger: Logger,
+    overrides: Partial<ToolExecutionContext> = {}
+): ToolExecutionContext {
+    return { logger, ...overrides };
+}
 
 describe('plan_update tool', () => {
-    let mockLogger: ReturnType<typeof createMockLogger>;
+    let logger: Logger;
     let tempDir: string;
     let planService: PlanService;
 
     beforeEach(async () => {
-        mockLogger = createMockLogger();
+        logger = createMockLogger();
 
         const rawTempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'dexto-plan-update-test-'));
         tempDir = await fs.realpath(rawTempDir);
 
-        planService = new PlanService({ basePath: tempDir }, mockLogger as any);
+        planService = new PlanService({ basePath: tempDir }, logger);
 
         vi.clearAllMocks();
     });
@@ -49,7 +65,7 @@ describe('plan_update tool', () => {
 
     describe('generatePreview', () => {
         it('should return DiffDisplayData with unified diff', async () => {
-            const tool = createPlanUpdateTool(planService);
+            const tool = createPlanUpdateTool(async () => planService);
             const sessionId = 'test-session';
             const originalContent = '# Plan\n\n## Steps\n1. First step';
             const newContent = '# Plan\n\n## Steps\n1. First step\n2. Second step';
@@ -58,7 +74,7 @@ describe('plan_update tool', () => {
 
             const preview = (await tool.generatePreview!(
                 { content: newContent },
-                { sessionId }
+                createToolContext(logger, { sessionId })
             )) as DiffDisplayData;
 
             expect(preview.type).toBe('diff');
@@ -72,11 +88,14 @@ describe('plan_update tool', () => {
         });
 
         it('should throw error when plan does not exist', async () => {
-            const tool = createPlanUpdateTool(planService);
+            const tool = createPlanUpdateTool(async () => planService);
             const sessionId = 'test-session';
 
             try {
-                await tool.generatePreview!({ content: '# New Content' }, { sessionId });
+                await tool.generatePreview!(
+                    { content: '# New Content' },
+                    createToolContext(logger, { sessionId })
+                );
                 expect.fail('Should have thrown an error');
             } catch (error) {
                 expect(error).toBeInstanceOf(DextoRuntimeError);
@@ -85,10 +104,10 @@ describe('plan_update tool', () => {
         });
 
         it('should throw error when sessionId is missing', async () => {
-            const tool = createPlanUpdateTool(planService);
+            const tool = createPlanUpdateTool(async () => planService);
 
             try {
-                await tool.generatePreview!({ content: '# Content' }, {});
+                await tool.generatePreview!({ content: '# Content' }, createToolContext(logger));
                 expect.fail('Should have thrown an error');
             } catch (error) {
                 expect(error).toBeInstanceOf(DextoRuntimeError);
@@ -97,7 +116,7 @@ describe('plan_update tool', () => {
         });
 
         it('should show deletions in diff', async () => {
-            const tool = createPlanUpdateTool(planService);
+            const tool = createPlanUpdateTool(async () => planService);
             const sessionId = 'test-session';
             const originalContent = '# Plan\n\nLine to remove\nKeep this';
             const newContent = '# Plan\n\nKeep this';
@@ -106,7 +125,7 @@ describe('plan_update tool', () => {
 
             const preview = (await tool.generatePreview!(
                 { content: newContent },
-                { sessionId }
+                createToolContext(logger, { sessionId })
             )) as DiffDisplayData;
 
             expect(preview.deletions).toBeGreaterThan(0);
@@ -116,14 +135,17 @@ describe('plan_update tool', () => {
 
     describe('execute', () => {
         it('should update plan content and return success', async () => {
-            const tool = createPlanUpdateTool(planService);
+            const tool = createPlanUpdateTool(async () => planService);
             const sessionId = 'test-session';
             const originalContent = '# Original Plan';
             const newContent = '# Updated Plan';
 
             await planService.create(sessionId, originalContent);
 
-            const result = (await tool.execute({ content: newContent }, { sessionId })) as {
+            const result = (await tool.execute(
+                { content: newContent },
+                createToolContext(logger, { sessionId })
+            )) as {
                 success: boolean;
                 path: string;
                 status: string;
@@ -140,12 +162,15 @@ describe('plan_update tool', () => {
         });
 
         it('should include _display data with diff', async () => {
-            const tool = createPlanUpdateTool(planService);
+            const tool = createPlanUpdateTool(async () => planService);
             const sessionId = 'test-session';
 
             await planService.create(sessionId, '# Original');
 
-            const result = (await tool.execute({ content: '# Updated' }, { sessionId })) as {
+            const result = (await tool.execute(
+                { content: '# Updated' },
+                createToolContext(logger, { sessionId })
+            )) as {
                 _display: DiffDisplayData;
             };
 
@@ -156,11 +181,14 @@ describe('plan_update tool', () => {
         });
 
         it('should throw error when plan does not exist', async () => {
-            const tool = createPlanUpdateTool(planService);
+            const tool = createPlanUpdateTool(async () => planService);
             const sessionId = 'non-existent';
 
             try {
-                await tool.execute({ content: '# Content' }, { sessionId });
+                await tool.execute(
+                    { content: '# Content' },
+                    createToolContext(logger, { sessionId })
+                );
                 expect.fail('Should have thrown an error');
             } catch (error) {
                 expect(error).toBeInstanceOf(DextoRuntimeError);
@@ -169,10 +197,10 @@ describe('plan_update tool', () => {
         });
 
         it('should throw error when sessionId is missing', async () => {
-            const tool = createPlanUpdateTool(planService);
+            const tool = createPlanUpdateTool(async () => planService);
 
             try {
-                await tool.execute({ content: '# Content' }, {});
+                await tool.execute({ content: '# Content' }, createToolContext(logger));
                 expect.fail('Should have thrown an error');
             } catch (error) {
                 expect(error).toBeInstanceOf(DextoRuntimeError);
@@ -181,13 +209,16 @@ describe('plan_update tool', () => {
         });
 
         it('should preserve plan status after update', async () => {
-            const tool = createPlanUpdateTool(planService);
+            const tool = createPlanUpdateTool(async () => planService);
             const sessionId = 'test-session';
 
             await planService.create(sessionId, '# Plan');
             await planService.updateMeta(sessionId, { status: 'approved' });
 
-            await tool.execute({ content: '# Updated Plan' }, { sessionId });
+            await tool.execute(
+                { content: '# Updated Plan' },
+                createToolContext(logger, { sessionId })
+            );
 
             const plan = await planService.read(sessionId);
             expect(plan!.meta.status).toBe('approved');

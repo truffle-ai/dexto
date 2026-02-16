@@ -3,7 +3,7 @@ import { MessageQueueService } from './message-queue.js';
 import type { SessionEventBus } from '../events/index.js';
 import type { ContentPart } from '../context/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 
 // Create a mock SessionEventBus
 function createMockEventBus(): SessionEventBus {
@@ -18,7 +18,7 @@ function createMockEventBus(): SessionEventBus {
 
 describe('MessageQueueService', () => {
     let eventBus: SessionEventBus;
-    let logger: IDextoLogger;
+    let logger: Logger;
     let queue: MessageQueueService;
 
     beforeEach(() => {

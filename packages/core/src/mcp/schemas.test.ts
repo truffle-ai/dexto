@@ -5,12 +5,12 @@ import {
     SseServerConfigSchema,
     HttpServerConfigSchema,
     McpServerConfigSchema,
-    ServerConfigsSchema,
+    ServersConfigSchema,
     type StdioServerConfig,
     type SseServerConfig,
     type HttpServerConfig,
     type McpServerConfig,
-    type ServerConfigs,
+    type ServersConfig,
 } from './schemas.js';
 import { MCPErrorCode } from './error-codes.js';
 
@@ -514,16 +514,16 @@ describe('MCP Schemas', () => {
         });
     });
 
-    describe('ServerConfigsSchema', () => {
+    describe('ServersConfigSchema', () => {
         describe('Basic Validation', () => {
             it('should accept empty server configs', () => {
-                const configs: ServerConfigs = {};
-                const result = ServerConfigsSchema.parse(configs);
+                const configs: ServersConfig = {};
+                const result = ServersConfigSchema.parse(configs);
                 expect(result).toEqual({});
             });
 
             it('should accept single server config', () => {
-                const configs: ServerConfigs = {
+                const configs: ServersConfig = {
                     myServer: {
                         type: 'stdio',
                         command: 'node',
@@ -531,13 +531,13 @@ describe('MCP Schemas', () => {
                     },
                 };
 
-                const result = ServerConfigsSchema.parse(configs);
+                const result = ServersConfigSchema.parse(configs);
                 expect(result.myServer!.type).toBe('stdio');
                 expect((result.myServer! as any).command).toBe('node');
             });
 
             it('should accept multiple mixed server configs', () => {
-                const configs: ServerConfigs = {
+                const configs: ServersConfig = {
                     stdioServer: {
                         type: 'stdio',
                         command: 'python',
@@ -556,7 +556,7 @@ describe('MCP Schemas', () => {
                     },
                 };
 
-                const result = ServerConfigsSchema.parse(configs);
+                const result = ServersConfigSchema.parse(configs);
                 expect(Object.keys(result)).toHaveLength(3);
                 expect(result.stdioServer!.type).toBe('stdio');
                 expect(result.sseServer!.type).toBe('sse');
@@ -579,7 +579,7 @@ describe('MCP Schemas', () => {
                     },
                 };
 
-                expect(() => ServerConfigsSchema.parse(configs)).toThrow();
+                expect(() => ServersConfigSchema.parse(configs)).toThrow();
             });
 
             it('should reject configs with invalid server types', () => {
@@ -594,7 +594,7 @@ describe('MCP Schemas', () => {
                     },
                 };
 
-                expect(() => ServerConfigsSchema.parse(configs)).toThrow();
+                expect(() => ServersConfigSchema.parse(configs)).toThrow();
             });
         });
 
@@ -616,7 +616,7 @@ describe('MCP Schemas', () => {
                     },
                 };
 
-                const result = ServerConfigsSchema.parse(devConfig);
+                const result = ServersConfigSchema.parse(devConfig);
                 expect(result.fileSystem!.type).toBe('stdio');
                 expect(result.database!.type).toBe('sse');
             });
@@ -641,7 +641,7 @@ describe('MCP Schemas', () => {
                     },
                 };
 
-                const result = ServerConfigsSchema.parse(prodConfig);
+                const result = ServersConfigSchema.parse(prodConfig);
                 expect(result.analytics!.connectionMode).toBe('strict');
                 expect(result.monitoring!.connectionMode).toBe('strict');
             });
@@ -677,7 +677,7 @@ describe('MCP Schemas', () => {
                 },
             };
 
-            const result = ServerConfigsSchema.parse(configs);
+            const result = ServersConfigSchema.parse(configs);
 
             // Should preserve discriminated union types
             expect(result.server1!.type).toBe('stdio');

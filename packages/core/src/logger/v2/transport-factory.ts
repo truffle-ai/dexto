@@ -5,7 +5,7 @@
  * Used by CLI enrichment layer to instantiate transports.
  */
 
-import type { ILoggerTransport } from './types.js';
+import type { LoggerTransport } from './types.js';
 import type { LoggerTransportConfig } from './schemas.js';
 import { SilentTransport } from './transports/silent-transport.js';
 import { ConsoleTransport } from './transports/console-transport.js';
@@ -17,7 +17,7 @@ import { LoggerError } from './errors.js';
  * @param config Transport configuration from schema
  * @returns Transport instance
  */
-export function createTransport(config: LoggerTransportConfig): ILoggerTransport {
+export function createTransport(config: LoggerTransportConfig): LoggerTransport {
     switch (config.type) {
         case 'silent':
             return new SilentTransport();
@@ -48,6 +48,6 @@ export function createTransport(config: LoggerTransportConfig): ILoggerTransport
  * @param configs Array of transport configurations
  * @returns Array of transport instances
  */
-export function createTransports(configs: LoggerTransportConfig[]): ILoggerTransport[] {
+export function createTransports(configs: LoggerTransportConfig[]): LoggerTransport[] {
     return configs.map(createTransport);
 }

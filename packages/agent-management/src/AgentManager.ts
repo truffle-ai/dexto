@@ -18,10 +18,12 @@
 
 import { promises as fs } from 'fs';
 import path from 'path';
-import { logger, DextoAgent, DextoValidationError, zodToIssues } from '@dexto/core';
-import { loadAgentConfig, enrichAgentConfig } from './config/index.js';
+import { logger, DextoValidationError, zodToIssues } from '@dexto/core';
+import type { DextoAgent } from '@dexto/core';
+import { loadAgentConfig } from './config/index.js';
 import { RegistryError } from './registry/errors.js';
 import { z, ZodError } from 'zod';
+import { createDextoAgentFromConfig } from './agent-creation.js';
 
 /**
  * Agent metadata - describes an agent in the registry
@@ -215,13 +217,11 @@ export class AgentManager {
         const configPath = path.resolve(this.basePath, entry.configPath);
 
         try {
-            // Load and enrich agent config
             const config = await loadAgentConfig(configPath);
-            const enrichedConfig = enrichAgentConfig(config, configPath);
 
             // Load agent instance
             logger.debug(`Loading agent: ${id} from ${configPath}`);
-            return new DextoAgent(enrichedConfig, configPath);
+            return await createDextoAgentFromConfig({ config, configPath });
         } catch (error) {
             // Convert ZodError to DextoValidationError for better error messages
             if (error instanceof ZodError) {

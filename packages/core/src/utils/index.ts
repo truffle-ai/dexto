@@ -1,6 +1,6 @@
 // TODO: (migration) path.js, execution-context.js, fs-walk.js, env-file.js
 // are duplicated in @dexto/agent-management for Node-specific environment management.
-// Core still needs these for FilePromptProvider, MCPClient, and FileContributor functionality.
+// Core still needs these for FilePromptProvider, DextoMcpClient, and FileContributor functionality.
 // These will remain in core until we refactor those features to be dependency-injected.
 
 export * from './path.js';

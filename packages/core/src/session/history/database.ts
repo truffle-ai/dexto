@@ -1,9 +1,9 @@
-import type { IDextoLogger } from '@core/logger/v2/types.js';
-import { DextoLogComponent } from '@core/logger/v2/types.js';
-import type { Database } from '@core/storage/types.js';
+import type { Logger } from '../../logger/v2/types.js';
+import { DextoLogComponent } from '../../logger/v2/types.js';
+import type { Database } from '../../storage/types.js';
 import { SessionError } from '../errors.js';
-import type { InternalMessage } from '@core/context/types.js';
-import type { IConversationHistoryProvider } from './types.js';
+import type { InternalMessage } from '../../context/types.js';
+import type { ConversationHistoryProvider } from './types.js';
 
 /**
  * History provider that works directly with DatabaseBackend.
@@ -21,8 +21,8 @@ import type { IConversationHistoryProvider } from './types.js';
  * - Updates (updateMessage) are durable within flush interval or on explicit flush()
  * - Worst case on crash: lose updates from last flush interval (typically <100ms)
  */
-export class DatabaseHistoryProvider implements IConversationHistoryProvider {
-    private logger: IDextoLogger;
+export class DatabaseHistoryProvider implements ConversationHistoryProvider {
+    private logger: Logger;
 
     // Cache state
     private cache: InternalMessage[] | null = null;
@@ -36,7 +36,7 @@ export class DatabaseHistoryProvider implements IConversationHistoryProvider {
     constructor(
         private sessionId: string,
         private database: Database,
-        logger: IDextoLogger
+        logger: Logger
     ) {
         this.logger = logger.createChild(DextoLogComponent.SESSION);
     }

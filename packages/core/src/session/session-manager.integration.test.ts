@@ -1,7 +1,21 @@
 import { describe, test, expect, beforeEach, afterEach } from 'vitest';
 import { DextoAgent } from '../agent/DextoAgent.js';
-import type { AgentConfig } from '@core/agent/schemas.js';
+import type { AgentRuntimeSettings } from '../agent/runtime-config.js';
+import { SystemPromptConfigSchema } from '../systemPrompt/schemas.js';
+import { LLMConfigSchema } from '../llm/schemas.js';
+import { LoggerConfigSchema } from '../logger/index.js';
+import { SessionConfigSchema } from './schemas.js';
+import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '../tools/schemas.js';
+import { InternalResourcesSchema } from '../resources/schemas.js';
+import { PromptsSchema } from '../prompts/schemas.js';
+import { createLogger } from '../logger/factory.js';
 import type { SessionData } from './session-manager.js';
+import { ServersConfigSchema } from '../mcp/schemas.js';
+import {
+    createInMemoryBlobStore,
+    createInMemoryCache,
+    createInMemoryDatabase,
+} from '../test-utils/in-memory-storage.js';
 
 /**
  * Full end-to-end integration tests for chat history preservation.
@@ -10,34 +24,49 @@ import type { SessionData } from './session-manager.js';
 describe('Session Integration: Chat History Preservation', () => {
     let agent: DextoAgent;
 
-    const testConfig: AgentConfig = {
-        systemPrompt: 'You are a helpful assistant.',
-        llm: {
+    const testSettings: AgentRuntimeSettings = {
+        systemPrompt: SystemPromptConfigSchema.parse('You are a helpful assistant.'),
+        llm: LLMConfigSchema.parse({
             provider: 'openai',
             model: 'gpt-5-mini',
             apiKey: 'test-key-123',
-        },
-        mcpServers: {},
-        sessions: {
+        }),
+        agentId: 'integration-test-agent',
+        mcpServers: ServersConfigSchema.parse({}),
+        sessions: SessionConfigSchema.parse({
             maxSessions: 10,
             sessionTTL: 100, // 100ms for fast testing
-        },
-        logger: {
-            level: 'warn',
-            transports: [{ type: 'console', colorize: false }],
-        },
-        toolConfirmation: {
+        }),
+        toolConfirmation: ToolConfirmationConfigSchema.parse({
             mode: 'auto-approve',
             timeout: 120000,
-        },
-        elicitation: {
+        }),
+        elicitation: ElicitationConfigSchema.parse({
             enabled: false,
             timeout: 120000,
-        },
+        }),
+        internalResources: InternalResourcesSchema.parse([]),
+        prompts: PromptsSchema.parse([]),
     };
 
     beforeEach(async () => {
-        agent = new DextoAgent(testConfig);
+        const loggerConfig = LoggerConfigSchema.parse({
+            level: 'warn',
+            transports: [{ type: 'console', colorize: false }],
+        });
+        const logger = createLogger({ config: loggerConfig, agentId: testSettings.agentId });
+
+        agent = new DextoAgent({
+            ...testSettings,
+            logger,
+            storage: {
+                blob: createInMemoryBlobStore(),
+                database: createInMemoryDatabase(),
+                cache: createInMemoryCache(),
+            },
+            tools: [],
+            plugins: [],
+        });
         await agent.start();
     });
 
@@ -225,30 +254,46 @@ describe('Session Integration: Chat History Preservation', () => {
 describe('Session Integration: Multi-Model Token Tracking', () => {
     let agent: DextoAgent;
 
-    const testConfig: AgentConfig = {
-        systemPrompt: 'You are a helpful assistant.',
-        llm: {
+    const testSettings: AgentRuntimeSettings = {
+        systemPrompt: SystemPromptConfigSchema.parse('You are a helpful assistant.'),
+        llm: LLMConfigSchema.parse({
             provider: 'openai',
             model: 'gpt-5-mini',
             apiKey: 'test-key-123',
-        },
-        mcpServers: {},
-        logger: {
-            level: 'warn',
-            transports: [{ type: 'console', colorize: false }],
-        },
-        toolConfirmation: {
+        }),
+        agentId: 'token-tracking-test-agent',
+        mcpServers: ServersConfigSchema.parse({}),
+        sessions: SessionConfigSchema.parse({}),
+        toolConfirmation: ToolConfirmationConfigSchema.parse({
             mode: 'auto-approve',
             timeout: 120000,
-        },
-        elicitation: {
+        }),
+        elicitation: ElicitationConfigSchema.parse({
             enabled: false,
             timeout: 120000,
-        },
+        }),
+        internalResources: InternalResourcesSchema.parse([]),
+        prompts: PromptsSchema.parse([]),
     };
 
     beforeEach(async () => {
-        agent = new DextoAgent(testConfig);
+        const loggerConfig = LoggerConfigSchema.parse({
+            level: 'warn',
+            transports: [{ type: 'console', colorize: false }],
+        });
+        const logger = createLogger({ config: loggerConfig, agentId: testSettings.agentId });
+
+        agent = new DextoAgent({
+            ...testSettings,
+            logger,
+            storage: {
+                blob: createInMemoryBlobStore(),
+                database: createInMemoryDatabase(),
+                cache: createInMemoryCache(),
+            },
+            tools: [],
+            plugins: [],
+        });
         await agent.start();
     });
 

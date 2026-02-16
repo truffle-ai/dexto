@@ -1,5 +1,5 @@
 import type { AgentCard } from './schemas.js';
-import { AgentCardSchema } from '@core/agent/schemas.js';
+import { AgentCardSchema } from './schemas.js';
 
 /**
  * Default agent description used when not provided

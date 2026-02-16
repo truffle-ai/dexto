@@ -4,7 +4,7 @@
  */
 
 import { safeStringify } from './safe-stringify.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 
 /**
  * Converts any error value to an Error instance with a meaningful message
@@ -12,7 +12,7 @@ import type { IDextoLogger } from '../logger/v2/types.js';
  * @param error - The error value to convert (can be Error, object, string, etc.)
  * @returns Error instance with extracted or serialized message
  */
-export function toError(error: unknown, logger: IDextoLogger): Error {
+export function toError(error: unknown, logger: Logger): Error {
     if (error instanceof Error) {
         logger.info(`error is already an Error: ${error.message}`);
         return error;

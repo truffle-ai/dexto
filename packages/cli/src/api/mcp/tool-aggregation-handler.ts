@@ -3,7 +3,7 @@ import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import {
     MCPManager,
     logger,
-    type ValidatedServerConfigs,
+    type ValidatedServersConfig,
     jsonSchemaToZodShape,
     createLogger,
     DextoLogComponent,
@@ -15,7 +15,7 @@ import { z } from 'zod';
  * Instead of exposing an AI agent, this directly exposes all tools from connected MCP servers.
  */
 export async function initializeMcpToolAggregationServer(
-    serverConfigs: ValidatedServerConfigs,
+    serverConfigs: ValidatedServersConfig,
     mcpTransport: Transport,
     serverName: string,
     serverVersion: string,

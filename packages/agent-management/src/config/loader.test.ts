@@ -213,7 +213,7 @@ mcpServers:
 llm:
   provider: 'test-provider'
   model: 'test-model'
-customTools:
+tools:
   - type: plan-tools
     basePath: '\${{dexto.project_dir}}/plans'
 `;
@@ -222,7 +222,7 @@ customTools:
         const config = await loadAgentConfig(tmpFile);
 
         // project_dir should be expanded to the context-aware .dexto path
-        const basePath = (config.customTools as any)?.[0]?.basePath as string;
+        const basePath = (config.tools as any)?.[0]?.basePath as string;
         expect(basePath).toBeDefined();
         expect(basePath).toContain('.dexto');
         expect(basePath).toContain('plans');
@@ -235,7 +235,7 @@ customTools:
 llm:
   provider: 'test-provider'
   model: 'test-model'
-customTools:
+tools:
   - type: plan-tools
     basePath: '\${{dexto.project_dir}}/../../../etc/passwd'
 `;

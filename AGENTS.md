@@ -218,7 +218,11 @@ Browser safety:
   - Prefer `unknown` + type guards.
   - If `any` is unavoidable (third-party typing gaps / boundary code), keep the usage local and justify it.
 - In tests, prefer `@ts-expect-error` over `as any` when intentionally testing invalid inputs.
-- Avoid introducing optional parameters unless necessary; prefer explicit overloads or separate functions if it improves call-site clarity.
+- Avoid optional parameters, overload signatures, and “fallback” union types (e.g. `Service | (() => Service)`) unless there is a strong, unavoidable reason.
+  - Prefer a single, required function signature.
+  - Prefer a single `options` object (with defaults applied internally) over constructor overloads.
+  - If runtime context is required, pass it explicitly rather than making it optional.
+- Avoid non-null assertions (`!`) in production code. It is acceptable in tests when it improves clarity and the value is provably present.
 
 ## Module Organization
 

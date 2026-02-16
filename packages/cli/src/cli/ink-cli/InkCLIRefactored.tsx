@@ -48,12 +48,19 @@ interface InkCLIProps {
     initialSessionId: string | null;
     startupInfo: StartupInfo;
     soundService: SoundNotificationService | null;
+    configFilePath: string | null;
 }
 
 /**
  * Inner component that wraps the mode-specific component with providers
  */
-function InkCLIInner({ agent, initialSessionId, startupInfo, soundService }: InkCLIProps) {
+function InkCLIInner({
+    agent,
+    initialSessionId,
+    startupInfo,
+    soundService,
+    configFilePath,
+}: InkCLIProps) {
     // Selection hint callback for alternate buffer mode
     const [, setSelectionHintShown] = useState(false);
 
@@ -74,6 +81,7 @@ function InkCLIInner({ agent, initialSessionId, startupInfo, soundService }: Ink
                         startupInfo={startupInfo}
                         onSelectionAttempt={handleSelectionAttempt}
                         useStreaming={streaming}
+                        configFilePath={configFilePath}
                     />
                 </ScrollProvider>
             </SoundProvider>
@@ -88,6 +96,7 @@ function InkCLIInner({ agent, initialSessionId, startupInfo, soundService }: Ink
                 initialSessionId={initialSessionId}
                 startupInfo={startupInfo}
                 useStreaming={streaming}
+                configFilePath={configFilePath}
             />
         </SoundProvider>
     );
@@ -106,6 +115,7 @@ export function InkCLIRefactored({
     initialSessionId,
     startupInfo,
     soundService,
+    configFilePath,
 }: InkCLIProps) {
     return (
         <ErrorBoundary>
@@ -117,6 +127,7 @@ export function InkCLIRefactored({
                         initialSessionId={initialSessionId}
                         startupInfo={startupInfo}
                         soundService={soundService}
+                        configFilePath={configFilePath}
                     />
                 </MouseProvider>
             </KeypressProvider>
@@ -132,6 +143,8 @@ export interface InkCLIOptions {
     updateInfo?: { current: string; latest: string; updateCommand: string } | undefined;
     /** True if installed agents differ from bundled and user should sync */
     needsAgentSync?: boolean | undefined;
+    /** Source agent config file path (if available) */
+    configFilePath?: string | null | undefined;
 }
 
 /**
@@ -213,6 +226,7 @@ export async function startInkCliRefactored(
             initialSessionId={initialSessionId}
             startupInfo={startupInfo}
             soundService={soundService}
+            configFilePath={options.configFilePath ?? null}
         />,
         {
             exitOnCtrlC: false,

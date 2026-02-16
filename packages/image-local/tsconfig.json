@@ -1,19 +1,26 @@
 {
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "lib": ["ES2022"],
-    "outDir": "./dist",
-    "rootDir": ".",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "allowImportingTsExtensions": true,
-    "noEmit": true
+    "baseUrl": ".",
+    "rootDir": "src",
+    "outDir": "dist",
+    "composite": true,
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "skipLibCheck": true
   },
-  "include": ["dexto.image.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*"],
+  "exclude": ["dist", "node_modules"],
+  "references": [
+    { "path": "../agent-config" },
+    { "path": "../agent-management" },
+    { "path": "../core" },
+    { "path": "../storage" },
+    { "path": "../tools-builtins" },
+    { "path": "../tools-filesystem" },
+    { "path": "../tools-plan" },
+    { "path": "../tools-process" },
+    { "path": "../tools-todo" }
+  ]
 }

@@ -7,7 +7,7 @@
 
 // Core types for plugin development
 export type {
-    DextoPlugin,
+    Plugin,
     PluginConfig,
     PluginExecutionContext,
     PluginResult,
@@ -23,27 +23,8 @@ export type {
 export { PluginManager } from './manager.js';
 export type { PluginManagerOptions, ExecutionContextOptions } from './manager.js';
 
-// Plugin configuration schemas
-export {
-    CustomPluginConfigSchema,
-    BuiltInPluginConfigSchema,
-    PluginsConfigSchema,
-    RegistryPluginConfigSchema,
-} from './schemas.js';
-export type { PluginsConfig, ValidatedPluginsConfig, RegistryPluginConfig } from './schemas.js';
-
-// Plugin registry for programmatic plugin registration
-export { PluginRegistry, pluginRegistry } from './registry.js';
-export type { PluginProvider, PluginCreationContext } from './registry.js';
-
 // Error codes
 export { PluginErrorCode } from './error-codes.js';
-
-// Plugin utilities for advanced use cases
-export { loadPluginModule, resolvePluginPath, validatePluginShape } from './loader.js';
-
-// Built-in plugin registry (for extending with custom built-ins)
-export { registerBuiltInPlugins } from './registrations/builtins.js';
 
 // Built-in plugins
 export { ContentPolicyPlugin } from './builtins/content-policy.js';

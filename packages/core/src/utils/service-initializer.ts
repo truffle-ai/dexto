@@ -1,46 +1,32 @@
 /*
- * Service Initializer: Centralized Wiring for Dexto Core Services
+ * Service initializer: internal wiring for the Dexto core runtime.
  *
- * This module is responsible for initializing and wiring together all core agent services (LLM, client manager, message manager, event bus, etc.)
- * for the Dexto application. It provides a single entry point for constructing the service graph, ensuring consistent dependency injection
- * and configuration across CLI, web, and test environments.
- *
- * **Configuration Pattern:**
- * - The primary source of configuration is the config file (e.g., `agent.yml`), which allows users to declaratively specify both high-level
- *   and low-level service options (such as compression strategies for ContextManager, LLM provider/model, etc.).
- * - For most use cases, the config file is sufficient and preferred, as it enables environment-specific, auditable, and user-friendly customization.
- *
- * **Service Architecture:**
- * - All services are initialized based on the provided configuration.
- * - For testing scenarios, mock the service dependencies directly using test frameworks rather than relying on service injection patterns.
- *
- * **Best Practice:**
- * - Use the config file for all user-facing and environment-specific configuration, including low-level service details.
- * - For testing, use proper mocking frameworks rather than service injection to ensure clean, maintainable tests.
- *
- * This pattern ensures a clean, scalable, and maintainable architecture, balancing flexibility with simplicity.
+ * NOTE: During the DI refactor, config→instance resolution is migrating out of core into
+ * `@dexto/agent-config`. This module should focus on orchestrating internal services and
+ * allow host overrides where needed (tests, servers, CLI).
  */
 
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
-import type { InternalToolsServices } from '../tools/internal-tools/registry.js';
-import type { InternalToolsConfig, CustomToolsConfig, ToolPolicies } from '../tools/schemas.js';
-import type { IAllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/types.js';
+import type { ToolPolicies } from '../tools/schemas.js';
+import type { Tool } from '../tools/types.js';
+import type { AllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/types.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { AgentStateManager } from '../agent/state-manager.js';
 import { SessionManager } from '../session/index.js';
 import { SearchService } from '../search/index.js';
-import { dirname, resolve } from 'path';
-import { createStorageManager, StorageManager } from '../storage/index.js';
+import { StorageManager } from '../storage/index.js';
+import { AgentError } from '../agent/errors.js';
 import { createAllowedToolsProvider } from '../tools/confirmation/allowed-tools-provider/factory.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
-import type { ValidatedAgentConfig } from '@core/agent/schemas.js';
+import type { Logger } from '../logger/v2/types.js';
+import type { AgentRuntimeSettings } from '../agent/runtime-config.js';
 import { AgentEventBus } from '../events/index.js';
 import { ResourceManager } from '../resources/manager.js';
 import { ApprovalManager } from '../approval/manager.js';
 import { MemoryManager } from '../memory/index.js';
 import { PluginManager } from '../plugins/manager.js';
-import { registerBuiltInPlugins } from '../plugins/registrations/builtins.js';
+import type { Plugin } from '../plugins/types.js';
+import type { CompactionStrategy } from '../context/compaction/types.js';
 
 /**
  * Type for the core agent services returned by createAgentServices
@@ -63,14 +49,12 @@ export type AgentServices = {
 export type ToolManagerFactoryOptions = {
     mcpManager: MCPManager;
     approvalManager: ApprovalManager;
-    allowedToolsProvider: IAllowedToolsProvider;
+    allowedToolsProvider: AllowedToolsProvider;
     approvalMode: 'manual' | 'auto-approve' | 'auto-deny';
     agentEventBus: AgentEventBus;
     toolPolicies: ToolPolicies;
-    internalToolsConfig: InternalToolsConfig;
-    customToolsConfig: CustomToolsConfig;
-    internalToolsServices: InternalToolsServices & Record<string, unknown>;
-    logger: IDextoLogger;
+    tools: Tool[];
+    logger: Logger;
 };
 
 export type ToolManagerFactory = (options: ToolManagerFactoryOptions) => ToolManager;
@@ -80,24 +64,25 @@ export type InitializeServicesOptions = {
     mcpAuthProviderFactory?: import('../mcp/types.js').McpAuthProviderFactory | null;
     toolManager?: ToolManager;
     toolManagerFactory?: ToolManagerFactory;
+    storageManager?: StorageManager;
+    plugins?: Plugin[] | undefined;
 };
 
 // High-level factory to load, validate, and wire up all agent services in one call
 /**
  * Initializes all agent services from a validated configuration.
  * @param config The validated agent configuration object
- * @param configPath Optional path to the config file (for relative path resolution)
  * @param logger Logger instance for this agent (dependency injection)
  * @param agentEventBus Pre-created event bus from DextoAgent constructor
  * @param overrides Optional service overrides for customization (e.g., sessionLoggerFactory)
  * @returns All the initialized services required for a Dexto agent
  */
 export async function createAgentServices(
-    config: ValidatedAgentConfig,
-    configPath: string | undefined,
-    logger: IDextoLogger,
+    config: AgentRuntimeSettings,
+    logger: Logger,
     agentEventBus: AgentEventBus,
-    overrides?: InitializeServicesOptions
+    overrides?: InitializeServicesOptions,
+    compactionStrategy?: CompactionStrategy | null | undefined
 ): Promise<AgentServices> {
     // 0. Initialize telemetry FIRST (before any decorated classes are instantiated)
     // This must happen before creating any services that use @InstrumentClass decorator
@@ -112,12 +97,20 @@ export async function createAgentServices(
 
     // 2. Initialize storage manager (schema provides in-memory defaults, CLI enrichment adds filesystem paths)
     logger.debug('Initializing storage manager');
-    const storageManager = await createStorageManager(config.storage, logger);
+    const storageManager =
+        overrides?.storageManager ??
+        (() => {
+            throw AgentError.initializationFailed(
+                'StorageManager must be provided via overrides.storageManager during the DI refactor'
+            );
+        })();
 
-    logger.debug('Storage manager initialized', {
-        cache: config.storage.cache.type,
-        database: config.storage.database.type,
-    });
+    if (!storageManager.isConnected()) {
+        await storageManager.initialize();
+        await storageManager.connect();
+    }
+
+    logger.debug('Storage manager initialized', await storageManager.getInfo());
 
     // 3. Initialize approval system (generalized user approval)
     // Created before MCP manager since MCP manager depends on it for elicitation support
@@ -160,22 +153,18 @@ export async function createAgentServices(
     logger.debug('Memory manager initialized');
 
     // 6.5 Initialize plugin manager
-    const configDir = configPath ? dirname(resolve(configPath)) : process.cwd();
+    const plugins = overrides?.plugins ?? [];
     const pluginManager = new PluginManager(
         {
             agentEventBus,
             storageManager,
-            configDir,
         },
+        plugins,
         logger
     );
 
-    // Register built-in plugins from registry
-    registerBuiltInPlugins({ pluginManager, config });
-    logger.debug('Built-in plugins registered');
-
-    // Initialize plugin manager (loads custom and registry plugins, validates, calls initialize())
-    await pluginManager.initialize(config.plugins.custom, config.plugins.registry);
+    // Initialize plugin manager (registers pre-resolved plugins to extension points)
+    await pluginManager.initialize();
     logger.info('Plugin manager initialized');
 
     // 7. Initialize resource manager (MCP + internal resources)
@@ -190,7 +179,7 @@ export async function createAgentServices(
     );
     await resourceManager.initialize();
 
-    // 8. Initialize tool manager with internal tools options
+    // 8. Initialize tool manager
     // 8.1 - Create allowed tools provider based on configuration
     const allowedToolsProvider = createAllowedToolsProvider(
         {
@@ -199,12 +188,6 @@ export async function createAgentServices(
         },
         logger
     );
-
-    // 8.2 - Initialize tool manager with direct ApprovalManager integration
-    const internalToolsServices: InternalToolsServices & Record<string, unknown> = {
-        searchService,
-        resourceManager,
-    };
 
     const toolManager =
         overrides?.toolManager ??
@@ -215,9 +198,7 @@ export async function createAgentServices(
             approvalMode: config.toolConfirmation.mode,
             agentEventBus,
             toolPolicies: config.toolConfirmation.toolPolicies,
-            internalToolsConfig: config.internalTools,
-            customToolsConfig: config.customTools,
-            internalToolsServices,
+            tools: [],
             logger,
         }) ??
         new ToolManager(
@@ -227,15 +208,10 @@ export async function createAgentServices(
             config.toolConfirmation.mode,
             agentEventBus,
             config.toolConfirmation.toolPolicies,
-            {
-                internalToolsServices,
-                internalToolsConfig: config.internalTools,
-                customToolsConfig: config.customTools,
-            },
+            [],
             logger
         );
-    // NOTE: toolManager.initialize() is called in DextoAgent.start() after agent reference is set
-    // This allows custom tools to access the agent for bidirectional communication
+    // NOTE: local tools + ToolExecutionContext are wired in DextoAgent.start()
 
     const mcpServerCount = Object.keys(config.mcpServers).length;
     if (mcpServerCount === 0) {
@@ -244,19 +220,9 @@ export async function createAgentServices(
         logger.debug(`MCPManager initialized with ${mcpServerCount} MCP server(s)`);
     }
 
-    if (config.internalTools.length === 0) {
-        logger.info('No internal tools enabled by configuration');
-    } else {
-        logger.info(`Internal tools enabled: ${config.internalTools.join(', ')}`);
-    }
-
     // 9. Initialize prompt manager
-    logger.debug(
-        `[ServiceInitializer] Creating SystemPromptManager with configPath: ${configPath} → configDir: ${configDir}`
-    );
     const systemPromptManager = new SystemPromptManager(
         config.systemPrompt,
-        configDir,
         memoryManager,
         config.memories,
         logger
@@ -277,6 +243,7 @@ export async function createAgentServices(
             resourceManager, // Add resource manager for blob storage
             pluginManager, // Add plugin manager for plugin execution
             mcpManager, // Add MCP manager for ChatSession
+            compactionStrategy: compactionStrategy ?? null,
         },
         {
             maxSessions: config.sessions?.maxSessions,

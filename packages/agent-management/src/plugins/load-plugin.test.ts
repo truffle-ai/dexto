@@ -34,7 +34,6 @@ describe('loadClaudeCodePlugin', () => {
         path: pluginPath,
         manifest: { name },
         source: 'project',
-        format: 'claude-code',
     });
 
     beforeEach(() => {

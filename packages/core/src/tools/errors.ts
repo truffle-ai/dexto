@@ -1,5 +1,5 @@
-import { DextoRuntimeError } from '@core/errors/DextoRuntimeError.js';
-import { ErrorScope, ErrorType } from '@core/errors/types.js';
+import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
+import { ErrorScope, ErrorType } from '../errors/types.js';
 import { ToolErrorCode } from './error-codes.js';
 
 /**
@@ -172,19 +172,6 @@ export class ToolError {
     }
 
     /**
-     * Internal tools provider not initialized
-     */
-    static internalToolsNotInitialized(toolName: string) {
-        return new DextoRuntimeError(
-            ToolErrorCode.EXECUTION_FAILED,
-            ErrorScope.TOOLS,
-            ErrorType.SYSTEM,
-            `Internal tools not initialized, cannot execute: ${toolName}`,
-            { toolName }
-        );
-    }
-
-    /**
      * Invalid tool configuration
      */
     static configInvalid(message: string) {
@@ -225,35 +212,35 @@ export class ToolError {
             message,
             { toolName, missingFeatures },
             [
-                `Remove '${toolName}' from internalTools in your agent config`,
+                `Remove '${toolName}' from tools[].enabledTools (builtin-tools) in your agent config`,
                 `Or enable required features: ${missingFeatures.map((f) => `${f}.enabled: true`).join(', ')}`,
             ]
         );
     }
 
     /**
-     * Unknown custom tool provider type
+     * Unknown custom tool factory type
      */
-    static unknownCustomToolProvider(type: string, availableTypes: string[]): DextoRuntimeError {
+    static unknownCustomToolFactory(type: string, availableTypes: string[]): DextoRuntimeError {
         return new DextoRuntimeError(
-            ToolErrorCode.CUSTOM_TOOL_PROVIDER_UNKNOWN,
+            ToolErrorCode.CUSTOM_TOOL_FACTORY_UNKNOWN,
             ErrorScope.TOOLS,
             ErrorType.USER,
-            `Unknown custom tool provider: '${type}'`,
+            `Unknown custom tool factory: '${type}'`,
             { type, availableTypes },
             `Available types: ${availableTypes.length > 0 ? availableTypes.join(', ') : 'none'}`
         );
     }
 
     /**
-     * Custom tool provider already registered
+     * Custom tool factory already registered
      */
-    static customToolProviderAlreadyRegistered(type: string): DextoRuntimeError {
+    static customToolFactoryAlreadyRegistered(type: string): DextoRuntimeError {
         return new DextoRuntimeError(
-            ToolErrorCode.CUSTOM_TOOL_PROVIDER_ALREADY_REGISTERED,
+            ToolErrorCode.CUSTOM_TOOL_FACTORY_ALREADY_REGISTERED,
             ErrorScope.TOOLS,
             ErrorType.USER,
-            `Custom tool provider '${type}' is already registered`,
+            `Custom tool factory '${type}' is already registered`,
             { type },
             `Use unregister() first if you want to replace it`
         );

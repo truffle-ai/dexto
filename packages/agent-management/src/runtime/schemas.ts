@@ -47,7 +47,7 @@ export type ValidatedAgentRuntimeConfig = z.output<typeof AgentRuntimeConfigSche
 
 /**
  * Schema for SpawnConfig
- * Note: agentConfig is not validated here as it uses the core AgentConfigSchema
+ * Note: agentConfig is not validated here as it uses the agent-config AgentConfigSchema
  */
 export const SpawnConfigSchema = z
     .object({

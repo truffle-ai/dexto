@@ -28,14 +28,14 @@ import {
 import { MODELS_BY_PROVIDER } from './models.generated.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { ErrorScope, ErrorType } from '../../errors/types.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 
 // Mock the OpenRouter model registry
 vi.mock('../providers/openrouter-model-registry.js', () => ({
     getOpenRouterModelContextLength: vi.fn(),
 }));
 
-const mockLogger: IDextoLogger = {
+const mockLogger: Logger = {
     debug: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),

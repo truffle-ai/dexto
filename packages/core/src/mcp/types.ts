@@ -1,9 +1,13 @@
-import { ValidatedMcpServerConfig } from './schemas.js';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import type { ValidatedMcpServerConfig } from './schemas.js';
+import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js';
 import type { ToolProvider } from '../tools/types.js';
-import { GetPromptResult, ReadResourceResult, Prompt } from '@modelcontextprotocol/sdk/types.js';
-import { EventEmitter } from 'events';
+import type {
+    GetPromptResult,
+    ReadResourceResult,
+    Prompt,
+} from '@modelcontextprotocol/sdk/types.js';
+import type { EventEmitter } from 'events';
 
 export interface McpAuthProvider extends OAuthClientProvider {
     waitForAuthorizationCode?: () => Promise<string>;
@@ -28,21 +32,22 @@ export interface MCPResolvedResource {
 }
 
 /**
- * Interface for MCP clients specifically, that can provide tools
+ * MCP client type.
  */
-export interface IMCPClient extends ToolProvider, EventEmitter {
-    // Connection Management
-    connect(config: ValidatedMcpServerConfig, serverName: string): Promise<Client>;
-    disconnect(): Promise<void>;
+export type McpClient = ToolProvider &
+    EventEmitter & {
+        // Connection Management
+        connect(config: ValidatedMcpServerConfig, serverName: string): Promise<Client>;
+        disconnect(): Promise<void>;
 
-    // Prompt Management
-    listPrompts(): Promise<Prompt[]>;
-    getPrompt(name: string, args?: Record<string, unknown>): Promise<GetPromptResult>;
+        // Prompt Management
+        listPrompts(): Promise<Prompt[]>;
+        getPrompt(name: string, args?: Record<string, unknown>): Promise<GetPromptResult>;
 
-    // Resource Management
-    listResources(): Promise<MCPResourceSummary[]>;
-    readResource(uri: string): Promise<ReadResourceResult>;
+        // Resource Management
+        listResources(): Promise<MCPResourceSummary[]>;
+        readResource(uri: string): Promise<ReadResourceResult>;
 
-    // MCP Client Management
-    getConnectedClient(): Promise<Client>;
-}
+        // MCP Client Management
+        getConnectedClient(): Promise<Client>;
+    };

@@ -6,7 +6,8 @@
 
 import { z } from 'zod';
 import type { TaskStatus } from '../types.js';
-import type { OrchestrationTool, OrchestrationToolContext } from './types.js';
+import type { Tool } from '@dexto/core';
+import type { TaskRegistry } from '../task-registry.js';
 
 /**
  * Input schema for list_tasks tool
@@ -61,17 +62,14 @@ export interface ListTasksOutput {
 /**
  * Create the list_tasks tool
  */
-export function createListTasksTool(): OrchestrationTool {
+export function createListTasksTool(taskRegistry: TaskRegistry): Tool {
     return {
         id: 'list_tasks',
         description:
             'List all background tasks with optional filtering by status or type. ' +
             'Returns task information and counts.',
         inputSchema: ListTasksInputSchema,
-        execute: async (
-            rawInput: unknown,
-            context: OrchestrationToolContext
-        ): Promise<ListTasksOutput> => {
+        execute: async (rawInput: unknown, _context): Promise<ListTasksOutput> => {
             const input = ListTasksInputSchema.parse(rawInput);
 
             // Build filter
@@ -89,10 +87,10 @@ export function createListTasksTool(): OrchestrationTool {
             }
 
             // Get filtered list
-            const tasks = context.taskRegistry.list(filter);
+            const tasks = taskRegistry.list(filter);
 
             // Get all tasks for counts
-            const allTasks = context.taskRegistry.list();
+            const allTasks = taskRegistry.list();
 
             // Calculate counts
             const counts = {

@@ -6,7 +6,7 @@
  */
 
 import type { LoggerConfig } from './v2/schemas.js';
-import type { IDextoLogger, LogLevel } from './v2/types.js';
+import type { Logger, LogLevel } from './v2/types.js';
 import { DextoLogComponent } from './v2/types.js';
 import { DextoLogger } from './v2/dexto-logger.js';
 import { createTransport } from './v2/transport-factory.js';
@@ -53,7 +53,7 @@ function getEffectiveLogLevel(configLevel: LogLevel): LogLevel {
  * logger.info('Agent started');
  * ```
  */
-export function createLogger(options: CreateLoggerOptions): IDextoLogger {
+export function createLogger(options: CreateLoggerOptions): Logger {
     const { config, agentId, component = DextoLogComponent.AGENT } = options;
 
     // Override log level with DEXTO_LOG_LEVEL environment variable if present

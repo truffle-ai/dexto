@@ -212,7 +212,7 @@ Agents can spawn specialized sub-agents to handle complex subtasks. The coding a
 
 ```yaml
 # In your agent config
-customTools:
+tools:
   - type: agent-spawner
     allowedAgents: ["explore-agent"]
     maxConcurrentAgents: 5

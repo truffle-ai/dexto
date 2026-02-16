@@ -5,34 +5,33 @@
  * event-driven completion handling, and async workflows.
  *
  * Key components:
- * - AgentController: Wraps DextoAgent with orchestration capabilities
  * - TaskRegistry: Tracks background tasks and their results
  * - SignalBus: Routes completion signals between components
  * - ConditionEngine: Evaluates composable wait conditions
  *
  * Example usage:
  * ```typescript
- * import { AgentController } from '@dexto/orchestration';
+ * import { ConditionEngine, SignalBus, TaskRegistry } from '@dexto/orchestration';
  *
- * const controller = new AgentController({ agent: myAgent });
- * await controller.start();
+ * const signalBus = new SignalBus();
+ * const taskRegistry = new TaskRegistry(signalBus);
+ * const conditionEngine = new ConditionEngine(taskRegistry, signalBus);
  *
  * // Start a background task
- * const taskId = controller.taskRegistry.registerGenericTask(
- *   'My task',
- *   someAsyncOperation()
- * );
+ * taskRegistry.register({
+ *   type: 'generic',
+ *   taskId: 'my-task',
+ *   description: 'My task',
+ *   promise: someAsyncOperation(),
+ * });
  *
  * // Wait for completion
- * const { signal } = await controller.conditionEngine.wait({
+ * const { signal } = await conditionEngine.wait({
  *   type: 'task',
- *   taskId,
+ *   taskId: 'my-task',
  * });
  * ```
  */
-
-// Main controller
-export { AgentController, type AgentControllerConfig } from './agent-controller.js';
 
 // Infrastructure
 export { SignalBus, type SignalHandler, type SignalPredicate } from './signal-bus.js';
@@ -57,20 +56,9 @@ export type {
 } from './types.js';
 
 // Tools
-export {
-    createStartTaskTool,
-    createWaitForTool,
-    createCheckTaskTool,
-    createListTasksTool,
-    createGenericTaskStarter,
-} from './tools/index.js';
+export { createWaitForTool, createCheckTaskTool, createListTasksTool } from './tools/index.js';
 
 export type {
-    OrchestrationTool,
-    OrchestrationToolContext,
-    TaskStarter,
-    StartTaskInput,
-    StartTaskOutput,
     WaitForInput,
     WaitForOutput,
     CheckTaskInput,
@@ -80,9 +68,4 @@ export type {
     TaskListItem,
 } from './tools/index.js';
 
-export {
-    StartTaskInputSchema,
-    WaitForInputSchema,
-    CheckTaskInputSchema,
-    ListTasksInputSchema,
-} from './tools/index.js';
+export { WaitForInputSchema, CheckTaskInputSchema, ListTasksInputSchema } from './tools/index.js';

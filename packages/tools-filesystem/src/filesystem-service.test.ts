@@ -22,6 +22,7 @@ const createMockLogger = () => ({
 describe('FileSystemService', () => {
     let mockLogger: ReturnType<typeof createMockLogger>;
     let tempDir: string;
+    let backupDir: string;
 
     beforeEach(async () => {
         mockLogger = createMockLogger();
@@ -29,6 +30,7 @@ describe('FileSystemService', () => {
         // Create temp directory for testing
         const rawTempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'dexto-fs-test-'));
         tempDir = await fs.realpath(rawTempDir);
+        backupDir = path.join(tempDir, '.dexto', 'backups');
 
         vi.clearAllMocks();
     });
@@ -53,6 +55,7 @@ describe('FileSystemService', () => {
                         maxFileSize: 10 * 1024 * 1024,
                         workingDirectory: tempDir,
                         enableBackups: false,
+                        backupPath: backupDir,
                         backupRetentionDays: 7,
                     },
                     mockLogger as any
@@ -70,7 +73,6 @@ describe('FileSystemService', () => {
                 expect(result.backupPath).toBeUndefined();
 
                 // Verify backup directory doesn't exist or is empty
-                const backupDir = path.join(tempDir, '.dexto-backups');
                 try {
                     const files = await fs.readdir(backupDir);
                     expect(files.length).toBe(0);
@@ -88,6 +90,7 @@ describe('FileSystemService', () => {
                         maxFileSize: 10 * 1024 * 1024,
                         workingDirectory: tempDir,
                         enableBackups: true,
+                        backupPath: backupDir,
                         backupRetentionDays: 7,
                     },
                     mockLogger as any
@@ -103,7 +106,7 @@ describe('FileSystemService', () => {
 
                 expect(result.success).toBe(true);
                 expect(result.backupPath).toBeDefined();
-                expect(result.backupPath).toContain('.dexto');
+                expect(result.backupPath).toContain(backupDir);
                 expect(result.backupPath).toContain('backup');
 
                 // Verify backup file exists and contains original content
@@ -124,6 +127,7 @@ describe('FileSystemService', () => {
                         maxFileSize: 10 * 1024 * 1024,
                         workingDirectory: tempDir,
                         enableBackups: true,
+                        backupPath: backupDir,
                         backupRetentionDays: 7,
                     },
                     mockLogger as any
@@ -149,6 +153,7 @@ describe('FileSystemService', () => {
                         maxFileSize: 10 * 1024 * 1024,
                         workingDirectory: tempDir,
                         enableBackups: false, // Config says no backups
+                        backupPath: backupDir,
                         backupRetentionDays: 7,
                     },
                     mockLogger as any
@@ -179,6 +184,7 @@ describe('FileSystemService', () => {
                         maxFileSize: 10 * 1024 * 1024,
                         workingDirectory: tempDir,
                         enableBackups: false,
+                        backupPath: backupDir,
                         backupRetentionDays: 7,
                     },
                     mockLogger as any
@@ -212,6 +218,7 @@ describe('FileSystemService', () => {
                         maxFileSize: 10 * 1024 * 1024,
                         workingDirectory: tempDir,
                         enableBackups: true,
+                        backupPath: backupDir,
                         backupRetentionDays: 7,
                     },
                     mockLogger as any
@@ -249,6 +256,7 @@ describe('FileSystemService', () => {
                         maxFileSize: 10 * 1024 * 1024,
                         workingDirectory: tempDir,
                         enableBackups: false, // Config says no backups
+                        backupPath: backupDir,
                         backupRetentionDays: 7,
                     },
                     mockLogger as any

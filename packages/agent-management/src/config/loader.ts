@@ -1,8 +1,8 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { parse as parseYaml } from 'yaml';
-import type { AgentConfig } from '@dexto/core';
-import type { IDextoLogger } from '@dexto/core';
+import type { AgentConfig } from '@dexto/agent-config';
+import type { Logger } from '@dexto/core';
 import { ConfigError } from './errors.js';
 import { getDextoPath } from '../utils/path.js';
 
@@ -118,10 +118,7 @@ function validateExpandedPath(
  * @throws {ConfigError} with FILE_READ_ERROR if file read fails (e.g., permissions issues)
  * @throws {ConfigError} with PARSE_ERROR if the content is not valid YAML or template expansion fails
  */
-export async function loadAgentConfig(
-    configPath: string,
-    logger?: IDextoLogger
-): Promise<AgentConfig> {
+export async function loadAgentConfig(configPath: string, logger?: Logger): Promise<AgentConfig> {
     const absolutePath = path.resolve(configPath);
 
     // --- Step 1: Verify the configuration file exists and is accessible ---

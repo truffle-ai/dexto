@@ -1,9 +1,9 @@
 import { validateModelFileSupport, getAllowedMimeTypes } from './registry/index.js';
 import type { LLMProvider } from './types.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import type { ImageData, FileData } from '../context/types.js';
 import { Result, ok, fail } from '../utils/result.js';
-import { Issue, ErrorScope, ErrorType } from '@core/errors/types.js';
+import { Issue, ErrorScope, ErrorType } from '../errors/types.js';
 import { LLMErrorCode } from './error-codes.js';
 
 // TOOD: Refactor/simplify this file
@@ -59,7 +59,7 @@ const MAX_IMAGE_SIZE = 20971520; // 20MB
 export function validateInputForLLM(
     input: ValidationInput,
     config: ValidationLLMConfig,
-    logger: IDextoLogger
+    logger: Logger
 ): Result<ValidationData, ValidationContext> {
     const issues: Issue<ValidationContext>[] = [];
     const validationData: ValidationData = {};
@@ -147,7 +147,7 @@ export function validateInputForLLM(
 function validateFileInput(
     fileData: FileData,
     config: ValidationLLMConfig,
-    logger: IDextoLogger
+    logger: Logger
 ): NonNullable<ValidationData['fileValidation']> {
     logger.info(`Validating file input: ${fileData.mimeType}`);
 
@@ -205,7 +205,7 @@ function validateFileInput(
 function validateImageInput(
     imageData: ImageData,
     config: ValidationLLMConfig,
-    logger: IDextoLogger
+    logger: Logger
 ): NonNullable<ValidationData['imageValidation']> {
     logger.info(`Validating image input: ${imageData.mimeType}`);
 
