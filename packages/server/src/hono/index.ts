@@ -17,6 +17,7 @@ import { createPromptsRouter } from './routes/prompts.js';
 import { createResourcesRouter } from './routes/resources.js';
 import { createMemoryRouter } from './routes/memory.js';
 import { createWorkspacesRouter } from './routes/workspaces.js';
+import { createSchedulesRouter } from './routes/schedules.js';
 import { createAgentsRouter, type AgentsRouterContext } from './routes/agents.js';
 import { createApprovalsRouter } from './routes/approvals.js';
 import { createQueueRouter } from './routes/queue.js';
@@ -171,6 +172,7 @@ export function createDextoApp(options: CreateDextoAppOptions) {
         .route(routePrefix, createResourcesRouter(getAgent))
         .route(routePrefix, createMemoryRouter(getAgent))
         .route(routePrefix, createWorkspacesRouter(getAgent))
+        .route(routePrefix, createSchedulesRouter(getAgent))
         .route(routePrefix, createApprovalsRouter(getAgent, approvalCoordinator))
         .route(
             routePrefix,
@@ -237,8 +239,8 @@ export function createDextoApp(options: CreateDextoAppOptions) {
                 description: 'Create and manage conversation sessions',
             },
             {
-                name: 'workspaces',
-                description: 'Manage and switch active workspaces',
+                name: 'schedules',
+                description: 'Create and manage automation schedules',
             },
             {
                 name: 'llm',

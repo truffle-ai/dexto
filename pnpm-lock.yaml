@@ -510,6 +510,9 @@ importers:
       '@dexto/tools-process':
         specifier: workspace:*
         version: link:../tools-process
+      '@dexto/tools-scheduler':
+        specifier: workspace:*
+        version: link:../tools-scheduler
       '@dexto/tools-todo':
         specifier: workspace:*
         version: link:../tools-todo
@@ -588,6 +591,9 @@ importers:
       '@dexto/storage':
         specifier: workspace:*
         version: link:../storage
+      '@dexto/tools-scheduler':
+        specifier: workspace:*
+        version: link:../tools-scheduler
       '@hono/node-server':
         specifier: 1.19.5
         version: 1.19.5(hono@4.10.4)
@@ -738,6 +744,31 @@ importers:
         specifier: ^3.25.0
         version: 3.25.76
     devDependencies:
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.0(jiti@2.5.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.2)(yaml@2.8.2)
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.2
+
+  packages/tools-scheduler:
+    dependencies:
+      '@dexto/agent-config':
+        specifier: workspace:*
+        version: link:../agent-config
+      '@dexto/core':
+        specifier: workspace:*
+        version: link:../core
+      node-cron:
+        specifier: ^4.2.1
+        version: 4.2.1
+      zod:
+        specifier: ^3.25.0
+        version: 3.25.76
+    devDependencies:
+      '@types/node-cron':
+        specifier: ^3.0.11
+        version: 3.0.11
       tsup:
         specifier: ^8.0.0
         version: 8.5.0(jiti@2.5.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.2)(yaml@2.8.2)
@@ -2901,6 +2932,9 @@ packages:
 
   '@types/ms@2.1.0':
     resolution: {integrity: sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==}
+
+  '@types/node-cron@3.0.11':
+    resolution: {integrity: sha512-0ikrnug3/IyneSHqCBeslAhlK2aBfYek1fGo4bP4QnZPmiqSGRK+Oy7ZMisLWkesffJvQ1cqAcBnJC+8+nxIAg==}
 
   '@types/node@12.20.55':
     resolution: {integrity: sha512-J8xLz7q2OFulZ2cyGTLE1TbbZcjpno7FaN6zdJNrgAdrJ+DZzh/uFR6YrTb4C+nXakvud8Q4+rbhoIWlYQbUFQ==}
@@ -5365,6 +5399,10 @@ packages:
   node-abi@3.75.0:
     resolution: {integrity: sha512-OhYaY5sDsIka7H7AtijtI9jwGYLyl29eQn/W623DiN/MIv5sUqc4g7BIDThX+gb7di9f6xK02nkp8sdfFWZLTg==}
     engines: {node: '>=10'}
+
+  node-cron@4.2.1:
+    resolution: {integrity: sha512-lgimEHPE/QDgFlywTd8yTR61ptugX3Qer29efeyWw2rv259HtGBNn1vZVmp8lB9uo9wC0t/AT4iGqXxia+CJFg==}
+    engines: {node: '>=6.0.0'}
 
   node-domexception@1.0.0:
     resolution: {integrity: sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==}
@@ -9070,6 +9108,8 @@ snapshots:
 
   '@types/ms@2.1.0': {}
 
+  '@types/node-cron@3.0.11': {}
+
   '@types/node@12.20.55': {}
 
   '@types/node@20.19.11':
@@ -11962,6 +12002,8 @@ snapshots:
   node-abi@3.75.0:
     dependencies:
       semver: 7.7.3
+
+  node-cron@4.2.1: {}
 
   node-domexception@1.0.0: {}
 

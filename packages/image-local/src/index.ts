@@ -30,6 +30,7 @@ import { fileSystemToolsFactory } from '@dexto/tools-filesystem';
 import { processToolsFactory } from '@dexto/tools-process';
 import { todoToolsFactory } from '@dexto/tools-todo';
 import { planToolsFactory } from '@dexto/tools-plan';
+import { schedulerToolsFactory } from '@dexto/tools-scheduler';
 import { agentSpawnerToolsFactory } from '@dexto/agent-management';
 
 const require = createRequire(import.meta.url);
@@ -108,6 +109,7 @@ const imageLocal: DextoImageModule = {
             { type: 'process-tools' },
             { type: 'todo-tools' },
             { type: 'plan-tools' },
+            { type: 'scheduler-tools' },
             { type: 'agent-spawner' },
         ],
         prompts: [
@@ -146,6 +148,7 @@ const imageLocal: DextoImageModule = {
         'process-tools': processToolsFactory,
         'todo-tools': todoToolsFactory,
         'plan-tools': planToolsFactory,
+        'scheduler-tools': schedulerToolsFactory,
         'agent-spawner': agentSpawnerToolsFactory,
     },
     storage: {

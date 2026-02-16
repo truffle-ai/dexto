@@ -318,6 +318,43 @@ export const WorkspaceSchema = z
 
 export type Workspace = z.output<typeof WorkspaceSchema>;
 
+// --- Schedule Schemas ---
+
+export const ScheduleTaskSchema = z
+    .object({
+        instruction: z.string().describe('Instruction to execute'),
+        metadata: z.record(z.unknown()).optional().describe('Optional task metadata'),
+    })
+    .strict()
+    .describe('Schedule task definition');
+
+export const ScheduleSchema = z
+    .object({
+        id: z.string().describe('Schedule ID'),
+        name: z.string().describe('Schedule name'),
+        cronExpression: z.string().describe('Cron expression'),
+        timezone: z.string().describe('Timezone for schedule'),
+        enabled: z.boolean().describe('Whether the schedule is enabled'),
+        task: ScheduleTaskSchema.describe('Schedule task configuration'),
+        sessionMode: z
+            .enum(['ephemeral', 'dedicated', 'inherit', 'fixed'])
+            .describe('Session context mode'),
+        sessionId: z.string().optional().describe('Session ID when using fixed/inherit mode'),
+        workspacePath: z.string().optional().describe('Workspace path override'),
+        createdAt: z.number().int().positive().describe('Creation timestamp (Unix ms)'),
+        updatedAt: z.number().int().positive().describe('Last update timestamp (Unix ms)'),
+        lastRunAt: z.number().int().positive().optional().describe('Last run timestamp (Unix ms)'),
+        nextRunAt: z.number().int().positive().optional().describe('Next run timestamp (Unix ms)'),
+        runCount: z.number().int().nonnegative().describe('Total executions'),
+        successCount: z.number().int().nonnegative().describe('Successful executions'),
+        failureCount: z.number().int().nonnegative().describe('Failed executions'),
+        lastError: z.string().optional().describe('Last execution error, if any'),
+    })
+    .strict()
+    .describe('Automation schedule');
+
+export type Schedule = z.output<typeof ScheduleSchema>;
+
 // --- Search Schemas ---
 
 export const SearchResultSchema = z

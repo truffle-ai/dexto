@@ -494,6 +494,17 @@ export class DextoAgent {
                 shutdownErrors.push(new Error(`SessionManager cleanup failed: ${err.message}`));
             }
 
+            // 1.5 Clean up tool-managed resources (custom tool providers, subagents, etc.)
+            try {
+                if (this.toolManager) {
+                    await this.toolManager.cleanup();
+                    this.logger.debug('ToolManager cleaned up successfully');
+                }
+            } catch (error) {
+                const err = error instanceof Error ? error : new Error(String(error));
+                shutdownErrors.push(new Error(`ToolManager cleanup failed: ${err.message}`));
+            }
+
             // 2. Clean up plugins (close file handles, connections, etc.)
             // Do this before storage disconnect so plugins can flush state if needed
             try {
