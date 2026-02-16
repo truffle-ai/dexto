@@ -921,7 +921,7 @@ export function createAgentsRouter(
             const agentPath = await resolveAgentConfigPath(ctx);
 
             // Start from file config (host concern) and overlay runtime-effective settings.
-            // This keeps DI surface fields (tools/storage/logger/plugins/image/agentFile) from the file,
+            // This keeps DI surface fields (tools/storage/logger/hooks/image/agentFile) from the file,
             // while reflecting session-specific changes like LLM model switches.
             const fileConfig = await reloadAgentConfigFromFile(agentPath);
             const enrichedConfig = enrichAgentConfig(fileConfig, agentPath);

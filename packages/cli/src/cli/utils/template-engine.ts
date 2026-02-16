@@ -577,7 +577,7 @@ ${extendsField}
     //   storage/blob/<type>/index.ts
     //   storage/database/<type>/index.ts
     //   storage/cache/<type>/index.ts
-    //   plugins/<type>/index.ts
+    //   hooks/<type>/index.ts
     //   compaction/<type>/index.ts
     //
     // Each factory module must export a factory constant (export const factory = ...).
@@ -643,7 +643,7 @@ Add your custom factories to convention-based folders:
 - \`storage/blob/<type>/\` - Blob storage factories
 - \`storage/database/<type>/\` - Database factories
 - \`storage/cache/<type>/\` - Cache factories
-- \`plugins/<type>/\` - Plugin factories
+- \`hooks/<type>/\` - Hook factories
 - \`compaction/<type>/\` - Compaction factories
 
 **Convention:** Each factory lives in its own folder with an \`index.ts\` file.
@@ -740,33 +740,33 @@ export const factory: ToolFactory<${typeNameBase.charAt(0).toUpperCase() + typeN
 }
 
 /**
- * Generates an example custom plugin factory
+ * Generates an example custom hook factory
  */
-export function generateExamplePlugin(pluginName: string = 'example-plugin'): string {
+export function generateExampleHook(hookName: string = 'example-hook'): string {
     return `import { z } from 'zod';
-import type { PluginFactory } from '@dexto/agent-config';
+import type { HookFactory } from '@dexto/agent-config';
 import type { Plugin } from '@dexto/core';
 
 const ConfigSchema = z
     .object({
-        type: z.literal('${pluginName}'),
+        type: z.literal('${hookName}'),
     })
     .strict();
 
-type ExamplePluginConfig = z.output<typeof ConfigSchema>;
+type ExampleHookConfig = z.output<typeof ConfigSchema>;
 
 /**
- * Example plugin factory
+ * Example hook factory
  *
- * Plugins are resolved from image factories, same as tools.
- * The bundler auto-discovers this module when placed in plugins/<type>/index.ts.
+ * Hooks are resolved from image factories, same as tools.
+ * The bundler auto-discovers this module when placed in hooks/<type>/index.ts.
  */
-export const factory: PluginFactory<ExamplePluginConfig> = {
+export const factory: HookFactory<ExampleHookConfig> = {
     configSchema: ConfigSchema,
     create: (_config) => {
         const plugin: Plugin = {
             beforeLLMRequest: async (payload, context) => {
-                context.logger.info(\`${pluginName} saw input: \${payload.text}\`);
+                context.logger.info(\`${hookName} saw input: \${payload.text}\`);
                 return { ok: true };
             },
         };

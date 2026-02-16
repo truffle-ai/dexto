@@ -36,7 +36,7 @@ describe('toDextoAgentOptions', () => {
                 cache: createMockCache('in-memory'),
             },
             tools: [createMockTool('foo')],
-            plugins: [],
+            hooks: [],
             compaction: null,
         };
 

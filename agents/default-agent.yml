@@ -134,8 +134,8 @@ internalResources:
     # Blob resource - enables large file upload/storage (settings in storage.blob section above)
     - type: blob
 
-# Plugin system - plugins are resolved via the selected image
-# plugins:
+# Hook system - hooks are resolved via the selected image
+# hooks:
 #   - type: content-policy
 #     maxInputChars: 50000      # Maximum input length (characters)
 #     redactEmails: true        # Redact email addresses from input

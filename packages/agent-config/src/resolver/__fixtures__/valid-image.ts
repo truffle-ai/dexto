@@ -32,7 +32,7 @@ export default {
             },
         },
     },
-    plugins: {
+    hooks: {
         noop: {
             configSchema: z.any(),
             create: () => ({}),

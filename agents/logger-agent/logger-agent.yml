@@ -99,8 +99,8 @@ internalResources:
       includeExtensions: [".txt", ".md", ".json", ".yaml", ".yml", ".js", ".ts", ".py", ".html", ".css"]
     - type: blob
 
-# Plugin system configuration
-plugins:
+# Hook system configuration
+hooks:
   - type: request-logger
     logFileName: request-logger.log
 

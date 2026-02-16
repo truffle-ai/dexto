@@ -97,7 +97,7 @@ function assertDextoImageModule(
     assertFactoryMap(storage.database, { imageName, field: 'storage.database' });
     assertFactoryMap(storage.cache, { imageName, field: 'storage.cache' });
 
-    assertFactoryMap(value.plugins, { imageName, field: 'plugins' });
+    assertFactoryMap(value.hooks, { imageName, field: 'hooks' });
     assertFactoryMap(value.compaction, { imageName, field: 'compaction' });
 
     const logger = value.logger;

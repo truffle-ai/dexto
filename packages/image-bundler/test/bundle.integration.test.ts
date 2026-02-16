@@ -96,7 +96,7 @@ export const factory = {
         }
     }, 20000);
 
-    it('bundles an image with tools/storage/plugins/compaction factories', async () => {
+    it('bundles an image with tools/storage/hooks/compaction factories', async () => {
         const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
@@ -125,7 +125,7 @@ export const factory = {
 const image = {
     name: 'test-image-full',
     version: '1.0.0',
-    description: 'Test image with tools/storage/plugins/compaction factories',
+    description: 'Test image with tools/storage/hooks/compaction factories',
     target: 'local-development',
 } satisfies ImageDefinition;
 
@@ -160,7 +160,7 @@ export const factory = {
             );
 
             await writeFileEnsuringDir(
-                path.join(tempDir, 'plugins', 'sample-plugin', 'index.ts'),
+                path.join(tempDir, 'hooks', 'sample-hook', 'index.ts'),
                 `const configSchema = {
     parse: (value: unknown) => value,
 };
@@ -238,7 +238,7 @@ export const factory = {
             expect(image.metadata.name).toBe('test-image-full');
 
             expect(image.tools['sample-tools']).toBeDefined();
-            expect(image.plugins['sample-plugin']).toBeDefined();
+            expect(image.hooks['sample-hook']).toBeDefined();
             expect(image.compaction['noop']).toBeDefined();
 
             expect(image.storage.blob['in-memory']).toBeDefined();

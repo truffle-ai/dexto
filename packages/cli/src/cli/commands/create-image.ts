@@ -18,7 +18,7 @@ import {
     generateDextoImageFile,
     generateImageReadme,
     generateExampleTool,
-    generateExamplePlugin,
+    generateExampleHook,
     generateExampleCompaction,
     generateExampleCacheFactory,
     generateExampleDatabaseFactory,
@@ -133,9 +133,9 @@ export async function createImage(name?: string): Promise<string> {
         const exampleToolCode = generateExampleTool('example-tool');
         await fs.writeFile('tools/example-tool/index.ts', exampleToolCode);
 
-        await ensureDirectory('plugins/example-plugin');
-        const examplePluginCode = generateExamplePlugin('example-plugin');
-        await fs.writeFile('plugins/example-plugin/index.ts', examplePluginCode);
+        await ensureDirectory('hooks/example-hook');
+        const exampleHookCode = generateExampleHook('example-hook');
+        await fs.writeFile('hooks/example-hook/index.ts', exampleHookCode);
 
         await ensureDirectory('compaction/example-compaction');
         const exampleCompactionCode = generateExampleCompaction('example-compaction');
@@ -252,7 +252,7 @@ export async function createImage(name?: string): Promise<string> {
         console.log(`  ${chalk.gray('storage/database/')} - Database factories`);
         console.log(`  ${chalk.gray('storage/cache/')}    - Cache factories`);
         console.log(`  ${chalk.gray('compaction/')}       - Compaction factories`);
-        console.log(`  ${chalk.gray('plugins/')}          - Plugin factories`);
+        console.log(`  ${chalk.gray('hooks/')}            - Hook factories`);
 
         console.log(`\n${chalk.gray('Install into the Dexto CLI:')}`);
         if (isDextoSource) {

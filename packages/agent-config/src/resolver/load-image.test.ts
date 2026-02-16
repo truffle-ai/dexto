@@ -37,7 +37,7 @@ function createValidImageCandidate(overrides?: Partial<PlainObject>): PlainObjec
                 },
             },
         },
-        plugins: {},
+        hooks: {},
         compaction: {},
         logger: {
             configSchema: z.object({}).passthrough(),

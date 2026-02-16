@@ -43,7 +43,7 @@ export function createTestAgentConfig(): AgentConfig {
             sessionTTL: 3600,
         },
         tools: [],
-        plugins: [],
+        hooks: [],
         compaction: { type: 'noop', enabled: false },
         toolConfirmation: {
             mode: 'auto-approve',

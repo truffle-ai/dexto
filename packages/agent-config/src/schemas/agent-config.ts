@@ -14,7 +14,7 @@ import {
 } from '@dexto/core';
 import { StorageSchema } from '@dexto/storage/schemas';
 import { z } from 'zod';
-import { PluginsConfigSchema } from './plugins.js';
+import { HooksConfigSchema } from './hooks.js';
 import { CompactionConfigSchema, DEFAULT_COMPACTION_CONFIG } from './compaction.js';
 
 // ========================================
@@ -156,8 +156,8 @@ export function createAgentConfigSchema() {
                 'Agent prompts configuration - sample prompts which can be defined inline or referenced from file'
             ).default([]),
 
-            plugins: PluginsConfigSchema.describe(
-                'Plugin configuration. Omit to use image defaults; provide to fully override.'
+            hooks: HooksConfigSchema.describe(
+                'Hook configuration. Omit to use image defaults; provide to fully override.'
             ).optional(),
 
             compaction: CompactionConfigSchema.describe('Context compaction configuration').default(

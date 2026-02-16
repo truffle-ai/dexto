@@ -69,9 +69,9 @@ export interface CacheFactory<TConfig = unknown> {
 }
 
 /**
- * Plugin factories are keyed by `type` in the agent config (`plugins: [{ type: "..." }]`).
+ * Hook factories are keyed by `type` in the agent config (`hooks: [{ type: "..." }]`).
  */
-export interface PluginFactory<TConfig = unknown> {
+export interface HookFactory<TConfig = unknown> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
     create(config: TConfig): Plugin;
     metadata?: Record<string, unknown> | undefined;
@@ -134,7 +134,7 @@ export interface DextoImageModule {
         database: Record<string, DatabaseFactory>;
         cache: Record<string, CacheFactory>;
     };
-    plugins: Record<string, PluginFactory>;
+    hooks: Record<string, HookFactory>;
     compaction: Record<string, CompactionFactory>;
     logger: LoggerFactory;
 }

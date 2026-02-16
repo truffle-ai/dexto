@@ -118,18 +118,18 @@ export async function resolveServicesFromConfig(
         }
     }
 
-    // 4) Plugins
-    const pluginEntries = config.plugins ?? image.defaults?.plugins ?? [];
-    const plugins: Plugin[] = [];
-    for (const entry of pluginEntries) {
+    // 4) Hooks
+    const hookEntries = config.hooks ?? image.defaults?.hooks ?? [];
+    const hooks: Plugin[] = [];
+    for (const entry of hookEntries) {
         if ((entry as { enabled?: boolean }).enabled === false) {
             continue;
         }
 
         const factory = resolveByType({
-            kind: 'plugin',
+            kind: 'hook',
             type: entry.type,
-            factories: image.plugins,
+            factories: image.hooks,
             imageName,
         });
 
@@ -142,7 +142,7 @@ export async function resolveServicesFromConfig(
             await plugin.initialize(parsedConfig);
         }
 
-        plugins.push(plugin);
+        hooks.push(plugin);
     }
 
     // 5) Compaction
@@ -159,5 +159,5 @@ export async function resolveServicesFromConfig(
         compaction = await factory.create(parsedConfig);
     }
 
-    return { logger, storage, tools, plugins, compaction };
+    return { logger, storage, tools, hooks, compaction };
 }

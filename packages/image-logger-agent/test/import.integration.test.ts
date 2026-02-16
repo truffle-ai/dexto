@@ -16,8 +16,8 @@ describe('Image Logger Agent - Import Integration', () => {
 
         expect(image.metadata.name).toBe('@dexto/image-logger-agent');
 
-        expect(image.plugins['request-logger']).toBeDefined();
-        expect(image.plugins['content-policy']).toBeDefined();
-        expect(image.plugins['response-sanitizer']).toBeDefined();
+        expect(image.hooks['request-logger']).toBeDefined();
+        expect(image.hooks['content-policy']).toBeDefined();
+        expect(image.hooks['response-sanitizer']).toBeDefined();
     }, 15_000);
 });

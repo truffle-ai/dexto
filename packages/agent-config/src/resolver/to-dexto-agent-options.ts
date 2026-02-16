@@ -28,7 +28,7 @@ export function toDextoAgentOptions(options: ToDextoAgentOptionsInput): DextoAge
         logger: services.logger,
         storage: services.storage,
         tools: services.tools,
-        plugins: services.plugins,
+        plugins: services.hooks,
         compaction: services.compaction,
         ...(overrides ? { overrides } : {}),
     };

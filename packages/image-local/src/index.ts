@@ -1,6 +1,6 @@
 import {
     type DextoImageModule,
-    type PluginFactory,
+    type HookFactory,
     type CompactionFactory,
     NoOpCompactionConfigSchema,
     type NoOpCompactionConfig,
@@ -53,12 +53,12 @@ const responseSanitizerConfigSchema = z
     })
     .strict();
 
-const contentPolicyFactory: PluginFactory<z.output<typeof contentPolicyConfigSchema>> = {
+const contentPolicyFactory: HookFactory<z.output<typeof contentPolicyConfigSchema>> = {
     configSchema: contentPolicyConfigSchema,
     create: (_config) => new ContentPolicyPlugin(),
 };
 
-const responseSanitizerFactory: PluginFactory<z.output<typeof responseSanitizerConfigSchema>> = {
+const responseSanitizerFactory: HookFactory<z.output<typeof responseSanitizerConfigSchema>> = {
     configSchema: responseSanitizerConfigSchema,
     create: (_config) => new ResponseSanitizerPlugin(),
 };
@@ -163,7 +163,7 @@ const imageLocal: DextoImageModule = {
             redis: redisCacheFactory,
         },
     },
-    plugins: {
+    hooks: {
         'content-policy': contentPolicyFactory,
         'response-sanitizer': responseSanitizerFactory,
     },

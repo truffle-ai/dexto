@@ -4,7 +4,7 @@ import {
     generateDextoImageFile,
     generateImageReadme,
     generateExampleTool,
-    generateExamplePlugin,
+    generateExampleHook,
     generateExampleCompaction,
     generateExampleCacheFactory,
     generateExampleDatabaseFactory,
@@ -73,7 +73,7 @@ describe('template-engine', () => {
             expect(result).toContain('//   storage/blob/<type>/index.ts');
             expect(result).toContain('//   storage/database/<type>/index.ts');
             expect(result).toContain('//   storage/cache/<type>/index.ts');
-            expect(result).toContain('//   plugins/<type>/index.ts');
+            expect(result).toContain('//   hooks/<type>/index.ts');
             expect(result).toContain('//   compaction/<type>/index.ts');
         });
 
@@ -277,7 +277,7 @@ describe('template-engine', () => {
 
     describe('example image factories', () => {
         it('should generate minimal factories that export a `factory` constant', () => {
-            expect(generateExamplePlugin('example-plugin')).toContain('export const factory');
+            expect(generateExampleHook('example-hook')).toContain('export const factory');
             expect(generateExampleCompaction('example-compaction')).toContain(
                 'export const factory'
             );

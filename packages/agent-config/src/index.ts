@@ -6,7 +6,7 @@ export type {
     DextoImageModule,
     ImageDefaults,
     LoggerFactory,
-    PluginFactory,
+    HookFactory,
     ToolFactory,
 } from './image/types.js';
 
@@ -22,13 +22,9 @@ export type {
     ToolFactoryEntry,
 } from './schemas/agent-config.js';
 
-export { PluginFactoryEntrySchema, PluginsConfigSchema } from './schemas/plugins.js';
+export type { HooksConfig, ValidatedHooksConfig, HookFactoryEntry } from './schemas/hooks.js';
 
-export type {
-    PluginsConfig,
-    ValidatedPluginsConfig,
-    PluginFactoryEntry,
-} from './schemas/plugins.js';
+export { HookFactoryEntrySchema, HooksConfigSchema } from './schemas/hooks.js';
 
 export {
     CompactionConfigSchema,

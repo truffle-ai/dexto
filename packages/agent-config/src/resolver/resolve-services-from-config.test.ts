@@ -62,7 +62,7 @@ describe('resolveServicesFromConfig', () => {
                     },
                 },
             },
-            plugins: {},
+            hooks: {},
             compaction: {},
             logger: loggerFactory,
             ...(overrides ?? {}),
@@ -283,9 +283,9 @@ describe('resolveServicesFromConfig', () => {
         );
     });
 
-    it('throws a clear error for unknown plugin types', async () => {
+    it('throws a clear error for unknown hook types', async () => {
         const image = createMockImage({
-            plugins: {
+            hooks: {
                 'content-policy': {
                     configSchema: z.object({ type: z.literal('content-policy') }).strict(),
                     create: () => ({ beforeResponse: async () => ({ ok: true }) }),
@@ -295,17 +295,17 @@ describe('resolveServicesFromConfig', () => {
 
         const validated = AgentConfigSchema.parse({
             ...baseConfig,
-            plugins: [{ type: 'content-policy' }, { type: 'response-sanitizer' }],
+            hooks: [{ type: 'content-policy' }, { type: 'response-sanitizer' }],
         } satisfies AgentConfig);
 
         await expect(resolveServicesFromConfig(validated, image)).rejects.toThrow(
-            /Unknown plugin type 'response-sanitizer'/
+            /Unknown hook type 'response-sanitizer'/
         );
     });
 
-    it('throws when plugin factory configSchema validation fails', async () => {
+    it('throws when hook factory configSchema validation fails', async () => {
         const image = createMockImage({
-            plugins: {
+            hooks: {
                 'content-policy': {
                     configSchema: z
                         .object({ type: z.literal('content-policy'), foo: z.number() })
@@ -317,7 +317,7 @@ describe('resolveServicesFromConfig', () => {
 
         const validated = AgentConfigSchema.parse({
             ...baseConfig,
-            plugins: [{ type: 'content-policy', foo: 'not-a-number' }],
+            hooks: [{ type: 'content-policy', foo: 'not-a-number' }],
         } satisfies AgentConfig);
 
         await expect(resolveServicesFromConfig(validated, image)).rejects.toThrow(
@@ -325,7 +325,7 @@ describe('resolveServicesFromConfig', () => {
         );
     });
 
-    it('resolves plugins via image factories (list order) and runs initialize()', async () => {
+    it('resolves hooks via image factories (list order) and runs initialize()', async () => {
         const initCalls: string[] = [];
 
         const createPlugin = (name: string): Plugin => ({
@@ -336,7 +336,7 @@ describe('resolveServicesFromConfig', () => {
         });
 
         const image = createMockImage({
-            plugins: {
+            hooks: {
                 'content-policy': {
                     configSchema: z.object({ type: z.literal('content-policy') }).strict(),
                     create: () => createPlugin('content-policy'),
@@ -350,11 +350,11 @@ describe('resolveServicesFromConfig', () => {
 
         const validated = AgentConfigSchema.parse({
             ...baseConfig,
-            plugins: [{ type: 'content-policy' }, { type: 'response-sanitizer' }],
+            hooks: [{ type: 'content-policy' }, { type: 'response-sanitizer' }],
         } satisfies AgentConfig);
 
         const services = await resolveServicesFromConfig(validated, image);
-        expect(services.plugins).toHaveLength(2);
+        expect(services.hooks).toHaveLength(2);
         expect(initCalls).toEqual(['content-policy', 'response-sanitizer']);
     });
 });

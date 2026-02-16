@@ -10,6 +10,6 @@ export interface ResolvedServices {
     logger: Logger;
     storage: { blob: BlobStore; database: Database; cache: Cache };
     tools: Tool[];
-    plugins: Plugin[];
+    hooks: Plugin[];
     compaction: CompactionStrategy | null;
 }

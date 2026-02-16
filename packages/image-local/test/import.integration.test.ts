@@ -43,8 +43,8 @@ describe('Image Local - Import Integration', () => {
         expect(image.storage.database['sqlite']).toBeDefined();
         expect(image.storage.cache['in-memory']).toBeDefined();
 
-        expect(image.plugins['content-policy']).toBeDefined();
-        expect(image.plugins['response-sanitizer']).toBeDefined();
+        expect(image.hooks['content-policy']).toBeDefined();
+        expect(image.hooks['response-sanitizer']).toBeDefined();
 
         expect(image.logger).toBeDefined();
     }, 15_000);

@@ -1,8 +1,8 @@
-import type { DextoImageModule, PluginFactory } from '@dexto/agent-config';
+import type { DextoImageModule, HookFactory } from '@dexto/agent-config';
 import imageLocal from '@dexto/image-local';
 import { z } from 'zod';
 import { createRequire } from 'node:module';
-import { RequestLoggerPlugin } from './plugins/request-logger.js';
+import { RequestLoggerPlugin } from './hooks/request-logger.js';
 
 const require = createRequire(import.meta.url);
 const packageJson = require('../package.json') as { name?: string; version?: string };
@@ -15,7 +15,7 @@ const requestLoggerConfigSchema = z
     })
     .strict();
 
-const requestLoggerFactory: PluginFactory<z.output<typeof requestLoggerConfigSchema>> = {
+const requestLoggerFactory: HookFactory<z.output<typeof requestLoggerConfigSchema>> = {
     configSchema: requestLoggerConfigSchema,
     create: (_config) => new RequestLoggerPlugin(),
 };
@@ -30,8 +30,8 @@ const imageLoggerAgent: DextoImageModule = {
         target: 'local-development',
         constraints: ['filesystem-required'],
     },
-    plugins: {
-        ...imageLocal.plugins,
+    hooks: {
+        ...imageLocal.hooks,
         'request-logger': requestLoggerFactory,
     },
 };

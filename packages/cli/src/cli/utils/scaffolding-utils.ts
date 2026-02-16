@@ -245,7 +245,7 @@ export async function createTsconfigForImage(projectPath: string): Promise<void>
             'storage/database/**/*',
             'storage/cache/**/*',
             'compaction/**/*',
-            'plugins/**/*',
+            'hooks/**/*',
         ],
         exclude: ['node_modules', 'dist'],
     };
@@ -280,7 +280,7 @@ export async function createTsconfigForProject(projectPath: string): Promise<voi
             'src/**/*',
             'storage/**/*',
             'tools/**/*',
-            'plugins/**/*',
+            'hooks/**/*',
             'shared/**/*',
             'dexto.config.ts',
         ],
