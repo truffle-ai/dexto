@@ -55,6 +55,7 @@ export interface SessionMetadata {
     tokenUsage?: SessionTokenUsage;
     estimatedCost?: number;
     modelStats?: ModelStatistics[];
+    workspaceId?: string;
 }
 
 export interface SessionManagerConfig {
@@ -76,6 +77,7 @@ export interface SessionData {
     tokenUsage?: SessionTokenUsage;
     estimatedCost?: number;
     modelStats?: ModelStatistics[];
+    workspaceId?: string;
     /** Persisted LLM config override for this session */
     llmOverride?: PersistedLLMConfig;
 }
@@ -122,6 +124,7 @@ export class SessionManager {
             pluginManager: PluginManager;
             mcpManager: import('../mcp/manager.js').MCPManager;
             compactionStrategy: CompactionStrategy | null;
+            workspaceManager?: import('../workspace/manager.js').WorkspaceManager;
         },
         config: SessionManagerConfig = {},
         logger: Logger
@@ -313,12 +316,15 @@ export class SessionManager {
             throw SessionError.maxSessionsExceeded(activeSessionKeys.length, this.maxSessions);
         }
 
+        const workspace = await this.services.workspaceManager?.getWorkspace();
+
         // Create new session metadata first to "reserve" the session slot
         const sessionData: SessionData = {
             id,
             createdAt: Date.now(),
             lastActivity: Date.now(),
             messageCount: 0,
+            ...(workspace?.id !== undefined && { workspaceId: workspace.id }),
         };
 
         // Store session metadata in persistent storage immediately to claim the session
@@ -566,6 +572,7 @@ export class SessionManager {
                 estimatedCost: sessionData.estimatedCost,
             }),
             ...(sessionData.modelStats && { modelStats: sessionData.modelStats }),
+            ...(sessionData.workspaceId && { workspaceId: sessionData.workspaceId }),
         };
     }
 

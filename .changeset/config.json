@@ -12,6 +12,7 @@
     "@dexto/analytics",
     "@dexto/registry",
     "@dexto/server",
+    "@dexto/chatapp",
     "@dexto/webui",
     "@dexto/image-bundler",
     "@dexto/image-local",
@@ -21,6 +22,7 @@
     "@dexto/tools-process",
     "@dexto/tools-todo",
     "@dexto/tools-plan",
+    "@dexto/tools-scheduler",
     "@dexto/orchestration"
   ]],
   "linked": [],

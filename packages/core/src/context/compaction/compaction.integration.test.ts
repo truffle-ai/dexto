@@ -12,6 +12,7 @@ import { MemoryManager } from '../../memory/index.js';
 import { StorageManager } from '../../storage/storage-manager.js';
 import { createInMemoryStorageManager } from '../../test-utils/in-memory-storage.js';
 import { createLogger } from '../../logger/factory.js';
+import { AgentEventBus } from '../../events/index.js';
 import type { ModelMessage } from 'ai';
 import type { LanguageModel } from 'ai';
 import type { ValidatedLLMConfig } from '../../llm/schemas.js';
@@ -75,13 +76,15 @@ describe('Context Compaction Integration Tests', () => {
         storageManager = await createInMemoryStorageManager(logger);
 
         // Create real MCP and resource managers
-        mcpManager = new MCPManager(logger);
+        const agentEventBus = new AgentEventBus();
+        mcpManager = new MCPManager(logger, agentEventBus);
         resourceManager = new ResourceManager(
             mcpManager,
             {
                 internalResourcesConfig: { enabled: false, resources: [] },
                 blobStore: storageManager.getBlobStore(),
             },
+            agentEventBus,
             logger
         );
         await resourceManager.initialize();

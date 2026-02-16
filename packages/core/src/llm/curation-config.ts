@@ -15,6 +15,7 @@ export const CURATED_MODEL_IDS_BY_PROVIDER: Partial<Record<LLMProvider, string[]
         'gpt-5.2',
         'gpt-5.2-chat-latest',
         'gpt-5.2-pro',
+        'gpt-5.3-codex',
         'gpt-5.2-codex',
         'gpt-5',
         'gpt-5-mini',
@@ -23,6 +24,7 @@ export const CURATED_MODEL_IDS_BY_PROVIDER: Partial<Record<LLMProvider, string[]
         'gpt-4o',
     ],
     anthropic: [
+        'claude-opus-4-6-20260205',
         'claude-opus-4-5-20251101',
         'claude-sonnet-4-5-20250929',
         'claude-sonnet-4-20250514',
