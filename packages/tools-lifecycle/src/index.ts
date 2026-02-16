@@ -13,6 +13,7 @@ export {
 } from './tool-factory-config.js';
 
 export { createViewLogsTool } from './view-logs-tool.js';
+export { createSearchHistoryTool } from './search-history-tool.js';
 export {
     createMemoryListTool,
     createMemoryGetTool,

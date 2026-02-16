@@ -8,6 +8,7 @@ inspect its own runtime state, including session logs and stored memories.
 ## Tools
 
 - `view_logs` — Tail the current session log file (if file logging is configured).
+- `search_history` — Search conversation history across sessions.
 - `memory_list` / `memory_get` / `memory_create` / `memory_update` / `memory_delete` — Manage agent memories.
 
 ## Usage (image)
@@ -26,4 +27,3 @@ export default {
   },
 };
 ```
-

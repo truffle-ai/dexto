@@ -64,7 +64,7 @@ describe('AgentConfigSchema', () => {
                         args: ['server.js'],
                     },
                 },
-                tools: [{ type: 'builtin-tools', enabledTools: ['search_history'] }],
+                tools: [{ type: 'lifecycle-tools', enabledTools: ['search_history'] }],
                 llm: {
                     provider: 'anthropic',
                     model: 'claude-haiku-4-5-20251001',
@@ -91,7 +91,7 @@ describe('AgentConfigSchema', () => {
             expect(result.agentCard?.name).toBe('TestAgent');
             expect(result.systemPrompt.contributors[0]!.id).toBe('custom');
             expect(result.mcpServers.testServer).toBeDefined();
-            expect(result.tools?.[0]?.type).toBe('builtin-tools');
+            expect(result.tools?.[0]?.type).toBe('lifecycle-tools');
             expect(result.llm.provider).toBe('anthropic');
             expect(result.storage.cache.type).toBe('redis');
             expect(result.sessions.maxSessions).toBe(5);
@@ -204,7 +204,7 @@ describe('AgentConfigSchema', () => {
                         env: { DB_URL: 'postgresql://prod:5432/db' },
                     },
                 },
-                tools: [{ type: 'builtin-tools', enabledTools: ['search_history'] }],
+                tools: [{ type: 'lifecycle-tools', enabledTools: ['search_history'] }],
                 llm: {
                     provider: 'openai',
                     model: 'gpt-4o-mini',
@@ -239,7 +239,7 @@ describe('AgentConfigSchema', () => {
             expect(result.agentCard?.name).toBe('Production Agent');
             expect(result.systemPrompt.contributors).toHaveLength(2);
             expect(Object.keys(result.mcpServers)).toHaveLength(1);
-            expect(result.tools?.[0]?.type).toBe('builtin-tools');
+            expect(result.tools?.[0]?.type).toBe('lifecycle-tools');
             expect(result.llm.temperature).toBe(0.3);
             expect(result.storage.cache.type).toBe('redis');
             expect(result.sessions.maxSessions).toBe(100);

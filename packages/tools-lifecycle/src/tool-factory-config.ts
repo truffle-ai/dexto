@@ -5,6 +5,7 @@ const DEFAULT_MAX_LOG_BYTES = 200_000;
 
 export const LIFECYCLE_TOOL_NAMES = [
     'view_logs',
+    'search_history',
     'memory_list',
     'memory_get',
     'memory_create',

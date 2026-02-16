@@ -6,7 +6,6 @@
  *
  * Tool IDs:
  * - ask_user
- * - search_history
  * - delegate_to_url
  * - list_resources
  * - get_resource

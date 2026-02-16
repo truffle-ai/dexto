@@ -6,11 +6,9 @@ import { createDelegateToUrlTool } from './implementations/delegate-to-url-tool.
 import { createGetResourceTool } from './implementations/get-resource-tool.js';
 import { createInvokeSkillTool } from './implementations/invoke-skill-tool.js';
 import { createListResourcesTool } from './implementations/list-resources-tool.js';
-import { createSearchHistoryTool } from './implementations/search-history-tool.js';
 
 export const BUILTIN_TOOL_NAMES = [
     'ask_user',
-    'search_history',
     'delegate_to_url',
     'list_resources',
     'get_resource',
@@ -34,8 +32,6 @@ function createToolByName(name: BuiltinToolName): Tool {
     switch (name) {
         case 'ask_user':
             return createAskUserTool();
-        case 'search_history':
-            return createSearchHistoryTool();
         case 'delegate_to_url':
             return createDelegateToUrlTool();
         case 'list_resources':

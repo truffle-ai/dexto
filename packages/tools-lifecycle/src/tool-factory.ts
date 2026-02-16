@@ -13,6 +13,7 @@ import {
     createMemoryUpdateTool,
     createMemoryDeleteTool,
 } from './memory-tools.js';
+import { createSearchHistoryTool } from './search-history-tool.js';
 
 type LifecycleToolName = (typeof LIFECYCLE_TOOL_NAMES)[number];
 
@@ -30,6 +31,7 @@ export const lifecycleToolsFactory: ToolFactory<LifecycleToolsConfig> = {
                     maxLogLines: config.maxLogLines,
                     maxLogBytes: config.maxLogBytes,
                 }),
+            search_history: () => createSearchHistoryTool(),
             memory_list: () => createMemoryListTool(),
             memory_get: () => createMemoryGetTool(),
             memory_create: () => createMemoryCreateTool(),

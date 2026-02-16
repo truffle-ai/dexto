@@ -59,6 +59,7 @@ describe('lifecycleToolsFactory', () => {
 
             const ids = tools.map((t) => t.id);
             expect(ids).toContain('view_logs');
+            expect(ids).toContain('search_history');
             expect(ids).toContain('memory_list');
             expect(ids).toContain('memory_get');
             expect(ids).toContain('memory_create');

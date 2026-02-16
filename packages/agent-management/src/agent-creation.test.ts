@@ -29,7 +29,7 @@ vi.mock('@dexto/core', () => {
 });
 
 vi.mock('@dexto/tools-builtins', () => ({
-    BUILTIN_TOOL_NAMES: ['ask_user', 'invoke_skill', 'search_history'],
+    BUILTIN_TOOL_NAMES: ['ask_user', 'invoke_skill', 'delegate_to_url'],
 }));
 
 vi.mock('./config/index.js', () => ({
@@ -66,7 +66,7 @@ describe('createDextoAgentFromConfig', () => {
             const builtinTools = enrichedConfig.tools?.find(
                 (entry) => entry.type === 'builtin-tools'
             );
-            expect(builtinTools?.enabledTools).toEqual(['search_history']);
+            expect(builtinTools?.enabledTools).toEqual(['delegate_to_url']);
 
             expect(agent).toBeDefined();
         } finally {
