@@ -128,21 +128,6 @@ export class StreamProcessor {
                 // Don't call throwIfAborted() here - let Vercel SDK handle abort gracefully
                 // and emit 'abort' event which we handle below in the switch
 
-                // Handle legacy streaming tool event names without breaking the typed switch below.
-                const legacyType = (event as { type?: string }).type;
-                if (legacyType === 'tool-call-streaming-start') {
-                    handleToolInputStart(event);
-                    continue;
-                }
-                if (legacyType === 'tool-call-delta') {
-                    handleToolInputDelta(event);
-                    continue;
-                }
-                if (legacyType === 'tool-call-streaming-end') {
-                    handleToolInputEnd(event);
-                    continue;
-                }
-
                 switch (event.type) {
                     case 'text-delta':
                         if (!this.assistantMessageId) {
