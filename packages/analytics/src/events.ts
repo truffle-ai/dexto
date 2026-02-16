@@ -2,7 +2,7 @@
  * Platform source for analytics events.
  * Used to distinguish which interface generated the event.
  */
-export type AnalyticsSource = 'cli' | 'webui' | 'desktop';
+export type AnalyticsSource = 'cli' | 'webui';
 
 /**
  * LLM token consumption event.
