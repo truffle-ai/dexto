@@ -88,8 +88,8 @@ permissions:
   mode: manual
   toolPolicies:
     alwaysAllow:
-      - internal--ask_user
-      - internal--read_file
+      - ask_user
+      - read_file
       - mcp--filesystem--read_file
     alwaysDeny:
       - mcp--filesystem--delete_file
@@ -97,8 +97,9 @@ permissions:
 ```
 
 **Tool name format:**
-- Internal tools: `internal--<tool_name>`
+- Local tools: `<tool_id>`
 - MCP tools: `mcp--<server_name>--<tool_name>`
+  - You can also use `mcp--<tool_name>` as a shorthand to match any MCP server that exposes that tool.
 
 **Precedence rules:**
 1. `alwaysDeny` takes precedence over `alwaysAllow`
@@ -151,7 +152,7 @@ permissions:
   allowedToolsStorage: memory
   toolPolicies:
     alwaysDeny:
-      - internal--bash_exec--rm -rf*
+      - bash_exec
 ```
 
 ### Production Environment
@@ -163,8 +164,8 @@ permissions:
   allowedToolsStorage: storage
   toolPolicies:
     alwaysAllow:
-      - internal--ask_user
-      - internal--read_file
+      - ask_user
+      - read_file
     alwaysDeny:
       - mcp--filesystem--delete_file
       - mcp--git--push
@@ -181,7 +182,7 @@ permissions:
     alwaysDeny:
       - mcp--filesystem--write_file
       - mcp--filesystem--delete_file
-      - internal--bash_exec
+      - bash_exec
 ```
 
 ## Manual Mode Requirements
@@ -262,7 +263,7 @@ agent.setApprovalHandler(async (request) => {
 
 ## See Also
 
-- [agent.yml Reference → Tool Confirmation](./agent-yml.md#tool-confirmation) - Complete field documentation
-- [Internal Tools](./internalTools.md) - Built-in Dexto tools
+- [agent.yml Reference → Permissions](./agent-yml.md#permissions) - Complete field documentation
+- [Tools](./internalTools.md) - Tool factory configuration
 - [MCP Configuration](./mcpConfiguration.md) - External MCP tools
 - [Storage Configuration](./storage.md) - Persistent approval storage

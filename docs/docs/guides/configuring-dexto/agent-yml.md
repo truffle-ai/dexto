@@ -21,7 +21,7 @@ Complete reference for all agent.yml configuration options.
 10. [Telemetry Configuration](#telemetry-configuration)
 11. [Logger Configuration](#logger-configuration)
 12. [Hooks](#hooks)
-13. [Internal Tools](#internal-tools)
+13. [Tools](#tools)
 14. [Resources](#resources)
 15. [Agent Identity / A2A](#agent-identity--a2a)
 16. [Agent ID](#agent-id)
@@ -84,7 +84,7 @@ permissions:
   allowedToolsStorage: storage
   toolPolicies:
     alwaysAllow:
-      - internal--ask_user
+      - ask_user
       - mcp--filesystem--read_file
 
 # Storage
@@ -132,15 +132,21 @@ hooks:
   - type: response-sanitizer
     enabled: true
 
-# Internal Tools
-internalTools:
-  - ask_user
-  - read_file
-  - write_file
-  - edit_file
-  - glob_files
-  - grep_content
-  - bash_exec
+# Tools
+tools:
+  - type: builtin-tools
+    enabledTools:
+      - ask_user
+      - invoke_skill
+      - delegate_to_url
+
+  - type: filesystem-tools
+    allowedPaths: ["."]
+    blockedPaths: [".git", "node_modules/.bin", ".env"]
+    enableBackups: false
+
+  - type: process-tools
+    securityLevel: moderate
 
 # Resources
 resources:
@@ -360,7 +366,7 @@ permissions:
 
 ### Tool Name Format
 
-- Internal: `internal--tool_name`
+- Local: `tool_name`
 - MCP: `mcp--server_name--tool_name`
 
 ### Example
@@ -370,7 +376,7 @@ permissions:
   mode: manual
   toolPolicies:
     alwaysAllow:
-      - internal--ask_user
+      - ask_user
       - mcp--filesystem--read_file
     alwaysDeny:
       - mcp--filesystem--delete_file
@@ -687,40 +693,22 @@ hooks:
     maxResponseLength: 100000
 ```
 
-## Internal Tools
+## Tools
 
 :::info Guide
-For tool descriptions and usage patterns, see **[Internal Tools Guide](./internalTools)**.
+For tool factory configuration examples, see **[Tools Guide](./internalTools)**.
 :::
 
-Built-in tools for file operations, code search, and command execution.
+Tools are configured via a list of tool factory entries. Omit `tools` to use image defaults.
 
 ### Schema
 
 ```yaml
-internalTools:
-  - ask_user
-  - read_file
-  - write_file
-  - edit_file
-  - glob_files
-  - grep_content
-  - bash_exec
-  - bash_output
-  - kill_process
+tools:
+  - type: string
+    enabled: boolean  # Optional
+    # Tool-factory-specific fields
 ```
-
-### Available Tools
-
-- `ask_user` - Ask questions and collect user input
-- `read_file` - Read file contents
-- `write_file` - Write content to files
-- `edit_file` - Edit files by replacing text
-- `glob_files` - Find files using glob patterns
-- `grep_content` - Search file contents with regex
-- `bash_exec` - Execute shell commands
-- `bash_output` - Get output from background processes
-- `kill_process` - Terminate background processes
 
 ## Resources
 

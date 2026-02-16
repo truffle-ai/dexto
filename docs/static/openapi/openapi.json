@@ -13570,11 +13570,10 @@
                           "source": {
                             "type": "string",
                             "enum": [
-                              "internal",
-                              "custom",
+                              "local",
                               "mcp"
                             ],
-                            "description": "Source of the tool (internal, custom, or mcp)"
+                            "description": "Source of the tool (local or mcp)"
                           },
                           "serverName": {
                             "type": "string",
@@ -13663,13 +13662,9 @@
                       "type": "number",
                       "description": "Total number of tools"
                     },
-                    "internalCount": {
+                    "localCount": {
                       "type": "number",
-                      "description": "Number of internal tools"
-                    },
-                    "customCount": {
-                      "type": "number",
-                      "description": "Number of custom tools"
+                      "description": "Number of local tools"
                     },
                     "mcpCount": {
                       "type": "number",
@@ -13679,8 +13674,7 @@
                   "required": [
                     "tools",
                     "totalCount",
-                    "internalCount",
-                    "customCount",
+                    "localCount",
                     "mcpCount"
                   ],
                   "additionalProperties": false,

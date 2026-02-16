@@ -115,16 +115,16 @@ llm:
 The agent is pre-configured with sensible defaults:
 
 **Always Allowed (No Approval Needed)**
-- Reading files (`internal--read_file`)
-- Searching files (`internal--glob_files`, `internal--grep_content`)
-- Checking process output (`internal--bash_output`)
-- Killing processes (`internal--kill_process`)
-- Asking questions (`internal--ask_user`)
+- Reading files (`read_file`)
+- Searching files (`glob_files`, `grep_content`)
+- Checking process output (`bash_output`)
+- Killing processes (`kill_process`)
+- Asking questions (`ask_user`)
 
 **Requires Approval**
-- Writing files (`internal--write_file`)
-- Editing files (`internal--edit_file`)
-- Executing commands (`internal--bash_exec`)
+- Writing files (`write_file`)
+- Editing files (`edit_file`)
+- Executing commands (`bash_exec`)
 
 You can customize these policies in the `permissions.toolPolicies` section of `coding-agent.yml`.
 

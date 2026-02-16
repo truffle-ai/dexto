@@ -108,8 +108,8 @@ storage:
   blob:
     type: in-memory
 
-# Tool confirmation
-toolConfirmation:
+# Permissions (tool approvals)
+permissions:
   mode: auto-approve
   timeout: 120000
 
