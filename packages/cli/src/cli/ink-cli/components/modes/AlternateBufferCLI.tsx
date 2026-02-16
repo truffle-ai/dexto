@@ -48,6 +48,7 @@ type ListItem = { type: 'header' } | { type: 'message'; message: Message };
 interface AlternateBufferCLIProps {
     agent: DextoAgent;
     initialSessionId: string | null;
+    initialPrompt?: string | undefined;
     startupInfo: StartupInfo;
     configFilePath: string | null;
     /** Callback when user attempts to select text (drag without Option key) */
@@ -59,6 +60,7 @@ interface AlternateBufferCLIProps {
 export function AlternateBufferCLI({
     agent,
     initialSessionId,
+    initialPrompt,
     startupInfo,
     configFilePath,
     onSelectionAttempt,
@@ -340,6 +342,7 @@ export function AlternateBufferCLI({
                     input={input}
                     ui={ui}
                     session={session}
+                    initialPrompt={initialPrompt}
                     approval={approval}
                     queuedMessages={queuedMessages}
                     setInput={setInput}

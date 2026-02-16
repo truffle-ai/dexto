@@ -46,6 +46,7 @@ import { OverlayContainer } from '../../containers/OverlayContainer.js';
 interface StaticCLIProps {
     agent: DextoAgent;
     initialSessionId: string | null;
+    initialPrompt?: string | undefined;
     startupInfo: StartupInfo;
     configFilePath: string | null;
     /** Whether to stream chunks or wait for complete response */
@@ -55,6 +56,7 @@ interface StaticCLIProps {
 export function StaticCLI({
     agent,
     initialSessionId,
+    initialPrompt,
     startupInfo,
     configFilePath,
     useStreaming = true,
@@ -233,6 +235,7 @@ export function StaticCLI({
                     input={input}
                     ui={ui}
                     session={session}
+                    initialPrompt={initialPrompt}
                     approval={approval}
                     queuedMessages={queuedMessages}
                     setInput={setInput}

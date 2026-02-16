@@ -46,6 +46,7 @@ const USE_ALTERNATE_BUFFER = false;
 interface InkCLIProps {
     agent: DextoAgent;
     initialSessionId: string | null;
+    initialPrompt?: string | undefined;
     startupInfo: StartupInfo;
     soundService: SoundNotificationService | null;
     configFilePath: string | null;
@@ -57,6 +58,7 @@ interface InkCLIProps {
 function InkCLIInner({
     agent,
     initialSessionId,
+    initialPrompt,
     startupInfo,
     soundService,
     configFilePath,
@@ -78,6 +80,7 @@ function InkCLIInner({
                     <AlternateBufferCLI
                         agent={agent}
                         initialSessionId={initialSessionId}
+                        initialPrompt={initialPrompt}
                         startupInfo={startupInfo}
                         onSelectionAttempt={handleSelectionAttempt}
                         useStreaming={streaming}
@@ -94,6 +97,7 @@ function InkCLIInner({
             <StaticCLI
                 agent={agent}
                 initialSessionId={initialSessionId}
+                initialPrompt={initialPrompt}
                 startupInfo={startupInfo}
                 useStreaming={streaming}
                 configFilePath={configFilePath}
@@ -113,6 +117,7 @@ function InkCLIInner({
 export function InkCLIRefactored({
     agent,
     initialSessionId,
+    initialPrompt,
     startupInfo,
     soundService,
     configFilePath,
@@ -125,6 +130,7 @@ export function InkCLIRefactored({
                     <InkCLIInner
                         agent={agent}
                         initialSessionId={initialSessionId}
+                        initialPrompt={initialPrompt}
                         startupInfo={startupInfo}
                         soundService={soundService}
                         configFilePath={configFilePath}
@@ -145,6 +151,8 @@ export interface InkCLIOptions {
     needsAgentSync?: boolean | undefined;
     /** Source agent config file path (if available) */
     configFilePath?: string | null | undefined;
+    /** If provided, auto-submits this prompt once the UI is ready */
+    initialPrompt?: string | undefined;
 }
 
 /**
@@ -224,6 +232,7 @@ export async function startInkCliRefactored(
         <InkCLIRefactored
             agent={agent}
             initialSessionId={initialSessionId}
+            initialPrompt={options.initialPrompt}
             startupInfo={startupInfo}
             soundService={soundService}
             configFilePath={options.configFilePath ?? null}
