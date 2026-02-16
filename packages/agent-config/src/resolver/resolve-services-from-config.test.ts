@@ -104,7 +104,7 @@ describe('resolveServicesFromConfig', () => {
         expect(services.storage.database.getStoreType()).toBe('in-memory');
         expect(services.storage.cache.getStoreType()).toBe('in-memory');
 
-        expect(services.tools.map((t) => t.id)).toEqual(['custom--foo']);
+        expect(services.tools.map((t) => t.id)).toEqual(['foo']);
         expect(fooFactoryCreate).toHaveBeenCalledTimes(1);
         expect(fooFactoryCreate).toHaveBeenCalledWith({ type: 'foo-tools', foo: 123 });
         expect(barFactoryCreate).not.toHaveBeenCalled();
@@ -131,7 +131,7 @@ describe('resolveServicesFromConfig', () => {
         expect(validated.tools).toBeUndefined();
 
         const services = await resolveServicesFromConfig(validated, image);
-        expect(services.tools.map((t) => t.id)).toEqual(['custom--foo']);
+        expect(services.tools.map((t) => t.id)).toEqual(['foo']);
     });
 
     it('throws a clear error for unknown tool types', async () => {
@@ -171,15 +171,12 @@ describe('resolveServicesFromConfig', () => {
         );
     });
 
-    it('prefixes builtin tool ids as internal-- and preserves already-qualified ids', async () => {
+    it('preserves tool ids returned by factories', async () => {
         const builtinFactoryCreate = vi.fn(() => [
             createMockTool('ask_user'),
-            createMockTool('internal--already-qualified'),
+            createMockTool('already-qualified'),
         ]);
-        const customFactoryCreate = vi.fn(() => [
-            createMockTool('custom--foo'),
-            createMockTool('bar'),
-        ]);
+        const customFactoryCreate = vi.fn(() => [createMockTool('foo'), createMockTool('bar')]);
 
         const image = createMockImage({
             tools: {
@@ -202,10 +199,10 @@ describe('resolveServicesFromConfig', () => {
         const services = await resolveServicesFromConfig(validated, image);
 
         expect(services.tools.map((t) => t.id)).toEqual([
-            'internal--ask_user',
-            'internal--already-qualified',
-            'custom--foo',
-            'custom--bar',
+            'ask_user',
+            'already-qualified',
+            'foo',
+            'bar',
         ]);
     });
 
@@ -230,9 +227,9 @@ describe('resolveServicesFromConfig', () => {
 
         const services = await resolveServicesFromConfig(validated, image);
 
-        expect(services.tools.map((t) => t.id)).toEqual(['custom--dup']);
+        expect(services.tools.map((t) => t.id)).toEqual(['dup']);
         expect(services.logger.warn).toHaveBeenCalledWith(
-            "Tool id conflict for 'custom--dup'. Skipping duplicate tool."
+            "Tool id conflict for 'dup'. Skipping duplicate tool."
         );
     });
 

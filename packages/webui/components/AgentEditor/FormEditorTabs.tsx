@@ -511,7 +511,7 @@ function ToolsTab({ config, onChange, errors }: TabProps) {
                     <div className="space-y-1">
                         {discovery!.internalTools.map((tool) => {
                             const isEnabled = enabledInternalTools.includes(tool.name);
-                            const qualifiedName = `internal--${tool.name}`;
+                            const qualifiedName = tool.name;
                             const isAutoApproved = isToolAutoApproved(qualifiedName);
 
                             return (
@@ -543,7 +543,7 @@ function ToolsTab({ config, onChange, errors }: TabProps) {
                     <div className="space-y-1">
                         {discovery!.customTools.map((tool) => {
                             const isEnabled = enabledCustomTools.includes(tool.type);
-                            const qualifiedName = `custom--${tool.type}`;
+                            const qualifiedName = tool.type;
                             const isAutoApproved = isToolAutoApproved(qualifiedName);
                             const displayName = tool.metadata?.displayName || tool.type;
                             const description = tool.metadata?.description;

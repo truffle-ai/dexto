@@ -620,14 +620,14 @@ describe('ConfigPromptProvider', () => {
             const def = await provider.getPromptDefinition('config:skill-with-tools');
 
             // Should normalize: bash, Read, WRITE, edit -> Dexto names
-            // Should preserve: custom--keep_as_is (already Dexto format)
+            // Should preserve: keep_as_is (already Dexto format)
             expect(def).not.toBeNull();
             expect(def!.allowedTools).toEqual([
-                'custom--bash_exec',
-                'custom--read_file',
-                'custom--write_file',
-                'custom--edit_file',
-                'custom--keep_as_is',
+                'bash_exec',
+                'read_file',
+                'write_file',
+                'edit_file',
+                'keep_as_is',
             ]);
         });
 
@@ -647,9 +647,9 @@ describe('ConfigPromptProvider', () => {
 
             expect(def).not.toBeNull();
             expect(def!.allowedTools).toEqual([
-                'custom--bash_exec',
-                'custom--grep_content',
-                'custom--glob_files',
+                'bash_exec',
+                'grep_content',
+                'glob_files',
                 'mcp--some_server', // MCP tools pass through unchanged
             ]);
         });
@@ -661,7 +661,7 @@ describe('ConfigPromptProvider', () => {
                     id: 'unknown-tools',
                     title: 'Unknown Tools',
                     prompt: 'Test prompt',
-                    'allowed-tools': ['unknown_tool', 'another-custom', 'internal--foo'],
+                    'allowed-tools': ['unknown_tool', 'another-custom', 'legacy--foo'],
                 },
             ]);
 
@@ -669,7 +669,7 @@ describe('ConfigPromptProvider', () => {
             const def = await provider.getPromptDefinition('config:unknown-tools');
 
             expect(def).not.toBeNull();
-            expect(def!.allowedTools).toEqual(['unknown_tool', 'another-custom', 'internal--foo']);
+            expect(def!.allowedTools).toEqual(['unknown_tool', 'another-custom', 'legacy--foo']);
         });
     });
 });

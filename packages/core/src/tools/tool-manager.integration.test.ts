@@ -71,7 +71,7 @@ describe('ToolManager Integration Tests', () => {
 
     function createSearchHistoryTool(searchService: SearchServiceLike) {
         return {
-            id: 'internal--search_history',
+            id: 'search_history',
             description:
                 'Search through conversation history across sessions. Use mode="messages" to search for specific messages, or mode="sessions" to find sessions containing the query.',
             inputSchema: SearchHistoryInputSchema,
@@ -189,8 +189,8 @@ describe('ToolManager Integration Tests', () => {
             expect(result).toEqual({ result: 'mcp tool result' });
         });
 
-        it('should execute internal tools through the complete pipeline', async () => {
-            // Create ToolManager with internal tools
+        it('should execute local tools through the complete pipeline', async () => {
+            // Create ToolManager with local tools
             const toolManager = new ToolManager(
                 mcpManager,
                 approvalManager,
@@ -205,9 +205,9 @@ describe('ToolManager Integration Tests', () => {
 
             await toolManager.initialize();
 
-            // Execute internal tool
+            // Execute local tool
             const result = await toolManager.executeTool(
-                'internal--search_history',
+                'search_history',
                 { query: 'test query', mode: 'messages' },
                 'test-call-id'
             );
@@ -224,7 +224,7 @@ describe('ToolManager Integration Tests', () => {
             });
         });
 
-        it('should work with both MCP and internal tools together', async () => {
+        it('should work with both MCP and local tools together', async () => {
             // Set up MCP tool
             const mockClient: McpClient = {
                 getTools: vi.fn().mockResolvedValue({
@@ -242,7 +242,7 @@ describe('ToolManager Integration Tests', () => {
             mcpManager.registerClient('file-server', mockClient);
             await (mcpManager as any).updateClientCache('file-server', mockClient);
 
-            // Create ToolManager with both MCP and internal tools
+            // Create ToolManager with both MCP and local tools
             const toolManager = new ToolManager(
                 mcpManager,
                 approvalManager,
@@ -257,13 +257,15 @@ describe('ToolManager Integration Tests', () => {
 
             await toolManager.initialize();
 
-            // Get all tools - should include both types with proper prefixing
+            // Get all tools - should include both MCP and local tools
             const allTools = await toolManager.getAllTools();
 
             expect(allTools['mcp--file_read']).toBeDefined();
-            expect(allTools['internal--search_history']).toBeDefined();
+            expect(allTools['search_history']).toBeDefined();
             expect(allTools['mcp--file_read']?.description).toContain('(via MCP servers)');
-            expect(allTools['internal--search_history']?.description).toContain('(internal tool)');
+            expect(allTools['search_history']?.description).toContain(
+                'Search through conversation'
+            );
 
             const mcpParams = allTools['mcp--file_read']?.parameters as {
                 properties?: Record<string, unknown>;
@@ -276,14 +278,14 @@ describe('ToolManager Integration Tests', () => {
                 { path: '/test' },
                 'test-call-id-1'
             );
-            const internalResult = await toolManager.executeTool(
-                'internal--search_history',
+            const localResult = await toolManager.executeTool(
+                'search_history',
                 { query: 'search test', mode: 'sessions' },
                 'test-call-id-2'
             );
 
             expect(mcpResult).toEqual({ result: 'file content' });
-            expect(internalResult).toEqual({
+            expect(localResult).toEqual({
                 result: [{ id: 'session1', title: 'Test Session' }],
             });
         });
@@ -417,7 +419,7 @@ describe('ToolManager Integration Tests', () => {
 
             // Should still return internal tools even if MCP fails
             const allTools = await toolManager.getAllTools();
-            expect(allTools['internal--search_history']).toBeDefined();
+            expect(allTools['search_history']).toBeDefined();
             expect(Object.keys(allTools).filter((name) => name.startsWith('mcp--'))).toHaveLength(
                 0
             );
@@ -456,7 +458,7 @@ describe('ToolManager Integration Tests', () => {
             ).rejects.toThrow(Error);
         });
 
-        it('should handle internal tool execution failures properly', async () => {
+        it('should handle local tool execution failures properly', async () => {
             // Mock SearchService to throw error
             const failingSearchService = {
                 searchMessages: vi.fn().mockRejectedValue(new Error('Search service failed')),
@@ -479,7 +481,7 @@ describe('ToolManager Integration Tests', () => {
 
             await expect(
                 toolManager.executeTool(
-                    'internal--search_history',
+                    'search_history',
                     { query: 'test', mode: 'messages' },
                     'test-call-id'
                 )
@@ -621,9 +623,9 @@ describe('ToolManager Integration Tests', () => {
                 sessionId
             );
 
-            // Execute internal tool with sessionId
+            // Execute local tool with sessionId
             await toolManager.executeTool(
-                'internal--search_history',
+                'search_history',
                 { query: 'test', mode: 'messages' },
                 'test-call-id-2',
                 sessionId
@@ -632,7 +634,7 @@ describe('ToolManager Integration Tests', () => {
             // Verify MCP tool received sessionId (note: MCPManager doesn't use sessionId in callTool currently)
             expect(mockClient.callTool).toHaveBeenCalledWith('test_tool', { param: 'value' });
 
-            // Verify internal tool was called with proper defaults
+            // Verify local tool was called with proper defaults
             expect(mockSearchService.searchMessages).toHaveBeenCalledWith(
                 'test',
                 expect.objectContaining({

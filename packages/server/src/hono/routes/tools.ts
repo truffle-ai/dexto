@@ -105,14 +105,8 @@ export function createToolsRouter(getAgent: GetAgentFn) {
                     source = 'mcp';
                     mcpCount++;
                 }
-            } else if (toolName.startsWith('internal--')) {
-                source = 'internal';
-                internalCount++;
-            } else if (toolName.startsWith('custom--')) {
-                source = 'custom';
-                customCount++;
             } else {
-                // Default to internal
+                // Local tools
                 source = 'internal';
                 internalCount++;
             }

@@ -5,15 +5,7 @@ import type { ResolvedServices } from './types.js';
 import type { PlainObject } from './utils.js';
 import { isPlainObject } from './utils.js';
 
-const INTERNAL_TOOL_PREFIX = 'internal--';
-const CUSTOM_TOOL_PREFIX = 'custom--';
-
-function qualifyToolId(prefix: string, id: string): string {
-    if (id.startsWith(INTERNAL_TOOL_PREFIX) || id.startsWith(CUSTOM_TOOL_PREFIX)) {
-        return id;
-    }
-    return `${prefix}${id}`;
-}
+const MCP_TOOL_PREFIX = 'mcp--';
 
 // Tool/hook factory entries share `enabled?: boolean`.
 // Since many factory schemas are `.strict()`, strip `enabled` before validating the entry.
@@ -106,15 +98,19 @@ export async function resolveServicesFromConfig(
         });
 
         const validatedConfig = factory.configSchema.parse(stripEnabled(entry));
-        const prefix = entry.type === 'builtin-tools' ? INTERNAL_TOOL_PREFIX : CUSTOM_TOOL_PREFIX;
         for (const tool of factory.create(validatedConfig)) {
-            const qualifiedId = qualifyToolId(prefix, tool.id);
-            if (toolIds.has(qualifiedId)) {
-                logger.warn(`Tool id conflict for '${qualifiedId}'. Skipping duplicate tool.`);
+            if (tool.id.startsWith(MCP_TOOL_PREFIX)) {
+                throw new Error(
+                    `Invalid local tool id '${tool.id}': '${MCP_TOOL_PREFIX}' prefix is reserved for MCP tools.`
+                );
+            }
+
+            if (toolIds.has(tool.id)) {
+                logger.warn(`Tool id conflict for '${tool.id}'. Skipping duplicate tool.`);
                 continue;
             }
-            toolIds.add(qualifiedId);
-            tools.push({ ...tool, id: qualifiedId });
+            toolIds.add(tool.id);
+            tools.push(tool);
         }
     }
 

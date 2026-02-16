@@ -82,10 +82,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         const toolArgs = (approval.metadata.args as Record<string, unknown>) || {};
 
         // Check if this is a plan_review tool (shows custom approval options)
-        const isPlanReview =
-            toolName === 'custom--plan_review' ||
-            toolName === 'internal--plan_review' ||
-            toolName === 'plan_review';
+        const isPlanReview = toolName === 'plan_review';
 
         // Extract suggested patterns for bash tools
         const suggestedPatterns =
@@ -298,10 +295,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
 
             switch (displayPreview.type) {
                 case 'diff': {
-                    const isOverwrite =
-                        toolName === 'custom--write_file' ||
-                        toolName === 'internal--write_file' ||
-                        toolName === 'write_file';
+                    const isOverwrite = toolName === 'write_file';
                     return (
                         <DiffPreview
                             data={displayPreview}

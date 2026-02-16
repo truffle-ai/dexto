@@ -41,7 +41,7 @@ export type ToolExecutionContextFactory = (
  * - Route tool execution to appropriate source (MCP vs local)
  * - Provide unified tool interface to LLM
  * - Manage tool confirmation and security via ApprovalManager
- * - Handle cross-source naming conflicts (internal tools have precedence)
+ * - Handle cross-source naming conflicts (MCP tools are prefixed with `mcp--`)
  *
  * Architecture:
  * LLMService → ToolManager → [MCPManager, local tools]
@@ -74,10 +74,10 @@ export class ToolManager {
     private sessionManager?: SessionManager;
     private stateManager?: AgentStateManager;
 
-    // Tool source prefixing - ALL tools get prefixed by source
+    // Tool naming:
+    // - MCP tools are prefixed with `mcp--` for disambiguation.
+    // - Local tools use their `Tool.id` as-is (no internal/custom prefixing).
     private static readonly MCP_TOOL_PREFIX = 'mcp--';
-    private static readonly INTERNAL_TOOL_PREFIX = 'internal--';
-    private static readonly CUSTOM_TOOL_PREFIX = 'custom--';
 
     // Tool caching for performance
     private toolsCache: ToolSet = {};
@@ -164,7 +164,7 @@ export class ToolManager {
      * This is ADDITIVE - other tools are NOT blocked, they just go through normal approval flow.
      *
      * @param sessionId The session ID
-     * @param autoApproveTools Array of tool names to auto-approve (e.g., ['custom--bash_exec', 'custom--read_file'])
+     * @param autoApproveTools Array of tool names to auto-approve (e.g., ['bash_exec', 'mcp--read_file'])
      */
     setSessionAutoApproveTools(sessionId: string, autoApproveTools: string[]): void {
         // Empty array = no auto-approvals, same as clearing
@@ -401,11 +401,7 @@ export class ToolManager {
      * Check if a tool name represents a bash execution tool
      */
     private isBashTool(toolName: string): boolean {
-        return (
-            toolName === 'bash_exec' ||
-            toolName === 'internal--bash_exec' ||
-            toolName === 'custom--bash_exec'
-        );
+        return toolName === 'bash_exec';
     }
 
     /**
@@ -598,10 +594,9 @@ export class ToolManager {
     }
 
     /**
-     * Build all tools from sources with universal prefixing
-     * ALL tools get prefixed by their source - no exceptions
+     * Build all tools from sources.
      *
-     * TODO: Rethink tool naming convention for more consistency
+     * TODO: Rethink MCP tool naming convention for more consistency.
      * Current issue: MCP tools have dynamic naming based on conflicts:
      * - No conflict: mcp--toolName
      * - With conflict: mcp--serverName--toolName
@@ -626,16 +621,11 @@ export class ToolManager {
             mcpTools = {};
         }
 
-        // Add local tools (already fully qualified)
-        for (const [qualifiedName, tool] of this.agentTools) {
-            const suffix = qualifiedName.startsWith(ToolManager.INTERNAL_TOOL_PREFIX)
-                ? ' (internal tool)'
-                : qualifiedName.startsWith(ToolManager.CUSTOM_TOOL_PREFIX)
-                  ? ' (custom tool)'
-                  : '';
-            allTools[qualifiedName] = {
-                name: qualifiedName,
-                description: `${tool.description || 'No description provided'}${suffix}`,
+        // Add local tools
+        for (const [toolName, tool] of this.agentTools) {
+            allTools[toolName] = {
+                name: toolName,
+                description: tool.description || 'No description provided',
                 parameters: wrapToolParametersSchema(
                     convertZodSchemaToJsonSchema(tool.inputSchema, this.logger)
                 ),
@@ -655,16 +645,10 @@ export class ToolManager {
 
         const totalTools = Object.keys(allTools).length;
         const mcpCount = Object.keys(mcpTools).length;
-        const agentTools = Array.from(this.agentTools.keys());
-        const internalCount = agentTools.filter((name) =>
-            name.startsWith(ToolManager.INTERNAL_TOOL_PREFIX)
-        ).length;
-        const customCount = agentTools.filter((name) =>
-            name.startsWith(ToolManager.CUSTOM_TOOL_PREFIX)
-        ).length;
+        const localCount = this.agentTools.size;
 
         this.logger.debug(
-            `🔧 Unified tool discovery: ${totalTools} total tools (${mcpCount} MCP, ${internalCount} internal, ${customCount} custom)`
+            `🔧 Unified tool discovery: ${totalTools} total tools (${mcpCount} MCP, ${localCount} local)`
         );
 
         return allTools;
@@ -686,10 +670,11 @@ export class ToolManager {
     }
 
     /**
-     * Execute a tool by routing based on universal prefix
-     * ALL tools must have source prefix - no exceptions
+     * Execute a tool by routing based on prefix:
+     * - MCP tools: `mcp--...`
+     * - Local tools: `Tool.id`
      *
-     * @param toolName The fully qualified tool name (e.g., "internal--edit_file")
+     * @param toolName Tool name (e.g., "edit_file", "mcp--filesystem--read_file")
      * @param args The arguments for the tool
      * @param toolCallId The unique tool call ID for tracking (from LLM or generated for direct calls)
      * @param sessionId Optional session ID for context
@@ -832,25 +817,8 @@ export class ToolManager {
                 } else {
                     result = await this.mcpManager.executeTool(actualToolName, toolArgs, sessionId);
                 }
-            }
-            // Route to local tools (internal + custom)
-            else if (
-                toolName.startsWith(ToolManager.INTERNAL_TOOL_PREFIX) ||
-                toolName.startsWith(ToolManager.CUSTOM_TOOL_PREFIX)
-            ) {
-                const prefix = toolName.startsWith(ToolManager.INTERNAL_TOOL_PREFIX)
-                    ? ToolManager.INTERNAL_TOOL_PREFIX
-                    : ToolManager.CUSTOM_TOOL_PREFIX;
-                const actualToolName = toolName.substring(prefix.length);
-                if (actualToolName.length === 0) {
-                    throw ToolError.invalidName(toolName, 'tool name cannot be empty after prefix');
-                }
-
-                const toolKind =
-                    prefix === ToolManager.INTERNAL_TOOL_PREFIX ? 'internal' : 'custom';
-                this.logger.debug(`🔧 Detected ${toolKind} tool: '${toolName}'`);
-                this.logger.debug(`🎯 ${toolKind} routing: '${toolName}' -> '${actualToolName}'`);
-
+            } else {
+                // Route to local tools
                 const runInBackground =
                     backgroundTasksEnabled &&
                     meta.runInBackground === true &&
@@ -861,6 +829,7 @@ export class ToolManager {
                         { toolName }
                     );
                 }
+
                 if (runInBackground) {
                     const backgroundSessionId = sessionId;
                     const { result: backgroundResult, promise } = registerBackgroundTask(
@@ -871,7 +840,7 @@ export class ToolManager {
                             abortSignal,
                             toolCallId
                         ),
-                        `${toolKind === 'internal' ? 'Internal' : 'Custom'} tool ${actualToolName}`
+                        `Tool ${toolName}`
                     );
                     this.agentEventBus.emit('tool:background', {
                         toolName,
@@ -894,18 +863,6 @@ export class ToolManager {
                         toolCallId
                     );
                 }
-            }
-            // Tool doesn't have proper prefix
-            else {
-                this.logger.debug(`🔧 Detected tool without proper prefix: '${toolName}'`);
-                const stats = await this.getToolStats();
-                this.logger.error(
-                    `❌ Tool missing source prefix: '${toolName}' (expected '${ToolManager.MCP_TOOL_PREFIX}*', '${ToolManager.INTERNAL_TOOL_PREFIX}*', or '${ToolManager.CUSTOM_TOOL_PREFIX}*')`
-                );
-                this.logger.debug(
-                    `Available: ${stats.mcp} MCP, ${stats.internal} internal, ${stats.custom} custom tools`
-                );
-                throw ToolError.notFound(toolName);
             }
 
             const duration = Date.now() - startTime;
@@ -974,7 +931,7 @@ export class ToolManager {
     }
 
     /**
-     * Check if a tool exists (must have proper source prefix)
+     * Check if a tool exists.
      */
     async hasTool(toolName: string): Promise<boolean> {
         // Check MCP tools
@@ -983,16 +940,8 @@ export class ToolManager {
             return this.mcpManager.getToolClient(actualToolName) !== undefined;
         }
 
-        // Check local tools (internal + custom)
-        if (
-            toolName.startsWith(ToolManager.INTERNAL_TOOL_PREFIX) ||
-            toolName.startsWith(ToolManager.CUSTOM_TOOL_PREFIX)
-        ) {
-            return this.agentTools.has(toolName);
-        }
-
-        // Tool without proper prefix doesn't exist
-        return false;
+        // Local tools use their ids as-is.
+        return this.agentTools.has(toolName);
     }
 
     /**
@@ -1001,8 +950,7 @@ export class ToolManager {
     async getToolStats(): Promise<{
         total: number;
         mcp: number;
-        internal: number;
-        custom: number;
+        local: number;
     }> {
         let mcpTools: ToolSet = {};
 
@@ -1016,46 +964,32 @@ export class ToolManager {
         }
 
         const mcpCount = Object.keys(mcpTools).length;
-        const agentTools = Array.from(this.agentTools.keys());
-        const internalCount = agentTools.filter((name) =>
-            name.startsWith(ToolManager.INTERNAL_TOOL_PREFIX)
-        ).length;
-        const customCount = agentTools.filter((name) =>
-            name.startsWith(ToolManager.CUSTOM_TOOL_PREFIX)
-        ).length;
+        const localCount = this.agentTools.size;
 
         return {
-            total: mcpCount + internalCount + customCount,
+            total: mcpCount + localCount,
             mcp: mcpCount,
-            internal: internalCount,
-            custom: customCount,
+            local: localCount,
         };
     }
 
     /**
-     * Get the source of a tool (mcp, internal, custom, or unknown)
+     * Get the source of a tool (mcp, local, or unknown).
      * @param toolName The name of the tool to check
      * @returns The source of the tool
      */
-    getToolSource(toolName: string): 'mcp' | 'internal' | 'custom' | 'unknown' {
+    getToolSource(toolName: string): 'mcp' | 'local' | 'unknown' {
         if (
             toolName.startsWith(ToolManager.MCP_TOOL_PREFIX) &&
             toolName.length > ToolManager.MCP_TOOL_PREFIX.length
         ) {
             return 'mcp';
         }
-        if (
-            toolName.startsWith(ToolManager.INTERNAL_TOOL_PREFIX) &&
-            toolName.length > ToolManager.INTERNAL_TOOL_PREFIX.length
-        ) {
-            return 'internal';
+
+        if (this.agentTools.has(toolName)) {
+            return 'local';
         }
-        if (
-            toolName.startsWith(ToolManager.CUSTOM_TOOL_PREFIX) &&
-            toolName.length > ToolManager.CUSTOM_TOOL_PREFIX.length
-        ) {
-            return 'custom';
-        }
+
         return 'unknown';
     }
 
@@ -1066,7 +1000,7 @@ export class ToolManager {
      * Examples:
      * - Policy "mcp--read_file" matches "mcp--read_file" (exact)
      * - Policy "mcp--read_file" matches "mcp--filesystem--read_file" (suffix)
-     * - Policy "internal--ask_user" matches "internal--ask_user" (exact only)
+     * - Policy "read_file" matches "read_file" (local tool exact only)
      *
      * @param toolName The fully qualified tool name (e.g., "mcp--filesystem--read_file")
      * @param policyPattern The policy pattern to match against (e.g., "mcp--read_file")
@@ -1133,7 +1067,7 @@ export class ToolManager {
      * Tools can implement getApprovalOverride() to request specialized approval flows
      * (e.g., directory access approval for file tools) instead of default tool confirmation.
      *
-     * @param toolName The fully qualified tool name
+     * @param toolName Tool name
      * @param args The tool arguments
      * @param sessionId Optional session ID
      * @returns { handled: true } if custom approval was processed, { handled: false } to continue normal flow
@@ -1143,10 +1077,7 @@ export class ToolManager {
         args: Record<string, unknown>,
         sessionId?: string
     ): Promise<{ handled: boolean }> {
-        if (
-            !toolName.startsWith(ToolManager.INTERNAL_TOOL_PREFIX) &&
-            !toolName.startsWith(ToolManager.CUSTOM_TOOL_PREFIX)
-        ) {
+        if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
             return { handled: false };
         }
 

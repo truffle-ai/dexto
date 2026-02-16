@@ -115,23 +115,22 @@ toolConfirmation:
   # Tool policies optimized for coding workflows
   toolPolicies:
     # Tools that never require approval (safe, read-only operations)
-    # Use qualified names: custom--{tool_id} for custom tools, internal--{tool_id} for internal tools
     alwaysAllow:
-      - internal--ask_user
-      - custom--read_file      # Read files without approval
-      - custom--glob_files     # Search for files without approval
-      - custom--grep_content   # Search within files without approval
-      - custom--bash_output    # Check background process output
-      - custom--kill_process   # Kill processes without approval (only processes started by agent)
-      - custom--todo_write     # Todo updates don't need approval
-      - custom--plan_read      # Read plan without approval
-      - custom--wait_for       # Wait for background tasks without approval
-      - custom--check_task     # Check background tasks without approval
+      - ask_user
+      - read_file      # Read files without approval
+      - glob_files     # Search for files without approval
+      - grep_content   # Search within files without approval
+      - bash_output    # Check background process output
+      - kill_process   # Kill processes without approval (only processes started by agent)
+      - todo_write     # Todo updates don't need approval
+      - plan_read      # Read plan without approval
+      - wait_for       # Wait for background tasks without approval
+      - check_task     # Check background tasks without approval
 
     # Tools that are always denied (dangerous operations)
     # Uncomment to restrict certain operations
     # alwaysDeny:
-    #   - custom--process-tools--bash_exec--rm -rf*  # Prevent recursive deletion
+    #   - bash_exec  # Require approval for all shell commands
 
 # Compaction configuration - automatically summarizes conversation when context is full
 compaction:

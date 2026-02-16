@@ -418,7 +418,7 @@ export class DextoAgent {
 
             // Add skills contributor to system prompt if invoke_skill is enabled.
             // This lists available skills so the LLM knows what it can invoke.
-            if (localTools.some((t) => t.id === 'internal--invoke_skill')) {
+            if (localTools.some((t) => t.id === 'invoke_skill')) {
                 const skillsContributor = new SkillsContributor(
                     'skills',
                     50, // Priority after memories (40) but before most other content

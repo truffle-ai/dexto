@@ -284,6 +284,23 @@ function getVideoInfo(
 }
 
 function ThinkingIndicator({ toolName }: { toolName?: string | null }) {
+    const displayToolName = (() => {
+        if (!toolName) {
+            return null;
+        }
+        if (toolName.startsWith('mcp--')) {
+            const trimmed = toolName.substring('mcp--'.length);
+            const parts = trimmed.split('--');
+            return parts.length >= 2 ? parts.slice(1).join('--') : trimmed;
+        }
+        if (toolName.startsWith('mcp__')) {
+            const trimmed = toolName.substring('mcp__'.length);
+            const parts = trimmed.split('__');
+            return parts.length >= 2 ? parts.slice(1).join('__') : trimmed;
+        }
+        return toolName;
+    })();
+
     return (
         <div
             className="flex items-center gap-2 py-1 pl-1 text-sm text-muted-foreground"
@@ -297,13 +314,11 @@ function ThinkingIndicator({ toolName }: { toolName?: string | null }) {
             </div>
 
             {/* Label */}
-            {toolName ? (
+            {displayToolName ? (
                 <span>
                     <span className="text-muted-foreground/70">Running</span>{' '}
                     <span className="font-mono text-blue-600 dark:text-blue-400">
-                        {toolName
-                            .replace(/^(internal--|custom--|mcp--[^-]+--|mcp__[^_]+__)/, '')
-                            .replace(/^(internal__|custom__)/, '')}
+                        {displayToolName}
                     </span>
                 </span>
             ) : (

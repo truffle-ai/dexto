@@ -92,7 +92,7 @@ toolConfirmation:
   toolPolicies:
     # Tools that never require approval (low-risk, common operations)
     alwaysAllow:
-      - internal--ask_user
+      - ask_user
       - mcp--read_file
       - mcp--list_directory
       - mcp--list_allowed_directories

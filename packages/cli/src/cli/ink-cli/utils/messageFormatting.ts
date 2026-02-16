@@ -11,9 +11,17 @@ import type { Message } from '../state/types.js';
 
 const HIDDEN_TOOL_NAMES = new Set(['wait_for']);
 const normalizeToolName = (toolName: string) => {
-    const stripped = toolName.replace(/^(?:internal--|internal__|custom--|custom__)/, '');
-    const delimiterSplit = stripped.split(/[:.]/);
-    return delimiterSplit[delimiterSplit.length - 1] ?? stripped;
+    if (toolName.startsWith('mcp--')) {
+        const trimmed = toolName.substring('mcp--'.length);
+        const parts = trimmed.split('--');
+        return parts.length >= 2 ? parts.slice(1).join('--') : trimmed;
+    }
+    if (toolName.startsWith('mcp__')) {
+        const trimmed = toolName.substring('mcp__'.length);
+        const parts = trimmed.split('__');
+        return parts.length >= 2 ? parts.slice(1).join('__') : trimmed;
+    }
+    return toolName;
 };
 const shouldHideTool = (toolName: string) => HIDDEN_TOOL_NAMES.has(normalizeToolName(toolName));
 
@@ -223,32 +231,19 @@ const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
 
 /**
  * Gets the display config for a tool.
- * Handles internal-- prefix by stripping it before lookup.
  */
 function getToolConfig(toolName: string): ToolDisplayConfig | undefined {
     // Try direct lookup first
     if (TOOL_CONFIGS[toolName]) {
         return TOOL_CONFIGS[toolName];
     }
-    // Strip internal-- prefix and try again
-    if (toolName.startsWith('internal--')) {
-        const baseName = toolName.replace('internal--', '');
-        return TOOL_CONFIGS[baseName];
-    }
-
-    // Strip "custom--" prefix and try again
-    if (toolName.startsWith('custom--')) {
-        const baseName = toolName.replace('custom--', '');
-        return TOOL_CONFIGS[baseName];
-    }
     return undefined;
 }
 
 /**
  * Gets a user-friendly display name for a tool.
- * Returns the friendly name if known, otherwise returns the original name
- * with any "internal--" prefix stripped.
- * MCP tools keep their server prefix for clarity (e.g., "mcp_server__tool").
+ * Returns the friendly name if known, otherwise returns a title-cased version.
+ * MCP tools keep their server prefix for clarity (e.g., "mcp--filesystem--read_file").
  */
 function toTitleCase(name: string): string {
     return name
@@ -263,14 +258,6 @@ export function getToolDisplayName(toolName: string): string {
     const config = getToolConfig(toolName);
     if (config) {
         return config.displayName;
-    }
-    // Strip "internal--" prefix for unknown internal tools
-    if (toolName.startsWith('internal--')) {
-        return toTitleCase(toolName.replace('internal--', ''));
-    }
-    // Strip "custom--" prefix for custom tools
-    if (toolName.startsWith('custom--')) {
-        return toTitleCase(toolName.replace('custom--', ''));
     }
     // MCP tools: strip mcp-- or mcp__ prefix and server name for clean display
     if (toolName.startsWith('mcp--')) {
@@ -292,14 +279,9 @@ export function getToolDisplayName(toolName: string): string {
 
 /**
  * Gets the tool type badge for display.
- * Returns: 'internal', MCP server name, or 'custom'
+ * Returns: 'local' or MCP server name.
  */
 export function getToolTypeBadge(toolName: string): string {
-    // Internal tools
-    if (toolName.startsWith('internal--') || toolName.startsWith('internal__')) {
-        return 'internal';
-    }
-
     // MCP tools with server name
     if (toolName.startsWith('mcp--')) {
         const parts = toolName.split('--');
@@ -317,13 +299,7 @@ export function getToolTypeBadge(toolName: string): string {
         return 'MCP';
     }
 
-    // Custom tools
-    if (toolName.startsWith('custom--')) {
-        return 'custom';
-    }
-
-    // Unknown - likely custom
-    return 'custom';
+    return 'local';
 }
 
 /**
@@ -346,7 +322,7 @@ export interface FormattedToolHeader {
  *
  * Handles special cases like spawn_agent (uses agentId as display name).
  *
- * @param toolName - Raw tool name (may include prefixes like "custom--")
+ * @param toolName - Tool name (local tool id or `mcp--...`)
  * @param args - Tool arguments object
  * @returns Formatted header components and full string
  */
@@ -358,11 +334,8 @@ export function formatToolHeader(
     const argsFormatted = formatToolArgsForDisplay(toolName, args);
     const badge = getToolTypeBadge(toolName);
 
-    // Normalize tool name to handle all prefixes (internal--, custom--)
-    const normalizedToolName = toolName.replace(/^(?:internal--|custom--)/, '');
-
     // Special handling for spawn_agent: use agentId as display name
-    const isSpawnAgent = normalizedToolName === 'spawn_agent';
+    const isSpawnAgent = toolName === 'spawn_agent';
     if (isSpawnAgent && args.agentId) {
         const agentId = String(args.agentId);
         const agentLabel = agentId.replace(/-agent$/, '');
@@ -370,7 +343,7 @@ export function formatToolHeader(
     }
 
     // Special handling for invoke_skill: show skill as /skill-name
-    const isInvokeSkill = normalizedToolName === 'invoke_skill';
+    const isInvokeSkill = toolName === 'invoke_skill';
     if (isInvokeSkill && args.skill) {
         const skillName = String(args.skill);
         // Extract display name from skill identifier (e.g., "config:test-fork" -> "test-fork")

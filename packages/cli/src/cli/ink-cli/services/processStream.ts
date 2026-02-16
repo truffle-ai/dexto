@@ -35,9 +35,17 @@ import chalk from 'chalk';
 
 const HIDDEN_TOOL_NAMES = new Set(['wait_for']);
 const normalizeToolName = (toolName: string) => {
-    const stripped = toolName.replace(/^(?:internal--|internal__|custom--|custom__)/, '');
-    const delimiterSplit = stripped.split(/[:.]/);
-    return delimiterSplit[delimiterSplit.length - 1] ?? stripped;
+    if (toolName.startsWith('mcp--')) {
+        const trimmed = toolName.substring('mcp--'.length);
+        const parts = trimmed.split('--');
+        return parts.length >= 2 ? parts.slice(1).join('--') : trimmed;
+    }
+    if (toolName.startsWith('mcp__')) {
+        const trimmed = toolName.substring('mcp__'.length);
+        const parts = trimmed.split('__');
+        return parts.length >= 2 ? parts.slice(1).join('__') : trimmed;
+    }
+    return toolName;
 };
 const shouldHideTool = (toolName?: string) =>
     toolName ? HIDDEN_TOOL_NAMES.has(normalizeToolName(toolName)) : false;
@@ -718,12 +726,7 @@ export async function processStream(
                     }
 
                     // Handle plan_review tool results - update UI state when plan is approved
-                    // Note: tool ids may be qualified (custom--/internal--) depending on image resolution.
-                    const isPlanReviewTool =
-                        event.toolName === 'plan_review' ||
-                        event.toolName === 'custom--plan_review' ||
-                        event.toolName === 'internal--plan_review';
-                    if (isPlanReviewTool && event.success !== false) {
+                    if (event.toolName === 'plan_review' && event.success !== false) {
                         try {
                             const planReviewResult = event.rawResult as {
                                 approved?: boolean;

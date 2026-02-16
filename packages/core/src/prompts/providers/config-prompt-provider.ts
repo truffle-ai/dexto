@@ -17,7 +17,7 @@ import { basename, dirname, relative, sep } from 'path';
  * Used for .claude/commands/ compatibility.
  *
  * Claude Code uses short names like "bash", "read", "write" in allowed-tools.
- * Dexto uses prefixed names like "custom--bash_exec", "custom--read_file".
+ * Dexto uses tool ids like "bash_exec", "read_file".
  *
  * Keys are lowercase for case-insensitive lookup.
  *
@@ -25,17 +25,17 @@ import { basename, dirname, relative, sep } from 'path';
  */
 const CLAUDE_CODE_TOOL_MAP: Record<string, string> = {
     // Bash/process tools
-    bash: 'custom--bash_exec',
+    bash: 'bash_exec',
 
     // Filesystem tools
-    read: 'custom--read_file',
-    write: 'custom--write_file',
-    edit: 'custom--edit_file',
-    glob: 'custom--glob_files',
-    grep: 'custom--grep_content',
+    read: 'read_file',
+    write: 'write_file',
+    edit: 'edit_file',
+    glob: 'glob_files',
+    grep: 'grep_content',
 
-    // Internal tools
-    task: 'internal--delegate_task',
+    // Sub-agent tools
+    task: 'spawn_agent',
 };
 
 /**

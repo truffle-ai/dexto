@@ -81,7 +81,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(toolManager.getToolSource('mcp--web_search')).toBe('mcp');
         });
 
-        it('should correctly identify internal tools', () => {
+        it('should correctly identify local tools', () => {
             const toolManager = new ToolManager(
                 mockMcpManager,
                 mockApprovalManager,
@@ -89,12 +89,25 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'manual',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                [],
+                [
+                    {
+                        id: 'search_history',
+                        description: 'Search history',
+                        inputSchema: z.object({}).strict(),
+                        execute: vi.fn(),
+                    },
+                    {
+                        id: 'config_manager',
+                        description: 'Config manager',
+                        inputSchema: z.object({}).strict(),
+                        execute: vi.fn(),
+                    },
+                ] as any,
                 mockLogger
             );
 
-            expect(toolManager.getToolSource('internal--search_history')).toBe('internal');
-            expect(toolManager.getToolSource('internal--config_manager')).toBe('internal');
+            expect(toolManager.getToolSource('search_history')).toBe('local');
+            expect(toolManager.getToolSource('config_manager')).toBe('local');
         });
 
         it('should identify unknown tools', () => {
@@ -127,7 +140,6 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
 
             expect(toolManager.getToolSource('mcp--')).toBe('unknown'); // Prefix but no name
-            expect(toolManager.getToolSource('internal--')).toBe('unknown'); // Prefix but no name
         });
     });
 
@@ -138,12 +150,6 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(actualName).toBe('file_read');
         });
 
-        it('should extract actual tool name from internal prefix', () => {
-            const prefixedName = 'internal--search_history';
-            const actualName = prefixedName.substring('internal--'.length);
-            expect(actualName).toBe('search_history');
-        });
-
         it('should handle complex tool names', () => {
             const complexName = 'mcp--complex_tool_name_with_underscores';
             const actualName = complexName.substring('mcp--'.length);
@@ -152,7 +158,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
     });
 
     describe('Tool Validation Logic', () => {
-        it('should reject tools without proper prefix', async () => {
+        it('should return not found for unknown tools', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
 
             const toolManager = new ToolManager(
@@ -175,7 +181,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(error.type).toBe(ErrorType.NOT_FOUND);
         });
 
-        it('should reject tools with prefix but no name', async () => {
+        it('should reject MCP tools with prefix but no name', async () => {
             const toolManager = new ToolManager(
                 mockMcpManager,
                 mockApprovalManager,
@@ -195,19 +201,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mcpError.scope).toBe(ErrorScope.TOOLS);
             expect(mcpError.type).toBe(ErrorType.USER);
 
-            const internalError = (await toolManager
-                .executeTool('internal--', {}, 'test-call-id')
-                .catch((e) => e)) as DextoRuntimeError;
-            expect(internalError).toBeInstanceOf(DextoRuntimeError);
-            expect(internalError.code).toBe(ToolErrorCode.TOOL_INVALID_ARGS);
-            expect(internalError.scope).toBe(ErrorScope.TOOLS);
-            expect(internalError.type).toBe(ErrorType.USER);
-
             // Should NOT call the underlying managers
             expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
         });
 
-        it('should reject internal tools when provider not initialized', async () => {
+        it('should return not found when local tool is not registered', async () => {
             const toolManager = new ToolManager(
                 mockMcpManager,
                 mockApprovalManager,
@@ -220,7 +218,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
 
             const error = (await toolManager
-                .executeTool('internal--search_history', {}, 'test-call-id')
+                .executeTool('search_history', {}, 'test-call-id')
                 .catch((e) => e)) as DextoRuntimeError;
             expect(error).toBeInstanceOf(DextoRuntimeError);
             expect(error.code).toBe(ToolErrorCode.TOOL_NOT_FOUND);
@@ -242,14 +240,15 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 { alwaysAllow: [], alwaysDeny: [] },
                 [
                     {
-                        id: 'custom--hello',
+                        id: 'hello',
                         description: 'Say hello',
                         inputSchema: z
                             .object({
                                 name: z.string(),
                             })
                             .strict(),
-                        execute: async (input: any) => `Hello, ${(input as any).name}`,
+                        execute: async (input: unknown) =>
+                            `Hello, ${(input as { name: string }).name}`,
                     },
                 ] as any,
                 mockLogger
@@ -257,13 +256,9 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
 
             const allTools = await toolManager.getAllTools();
-            expect(allTools['custom--hello']).toBeDefined();
+            expect(allTools['hello']).toBeDefined();
 
-            const result = await toolManager.executeTool(
-                'custom--hello',
-                { name: 'World' },
-                'call-1'
-            );
+            const result = await toolManager.executeTool('hello', { name: 'World' }, 'call-1');
             expect(result).toEqual({ result: 'Hello, World' });
         });
     });
@@ -642,8 +637,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(stats).toEqual({
                 total: 2,
                 mcp: 2,
-                internal: 0,
-                custom: 0,
+                local: 0,
             });
         });
 
@@ -666,8 +660,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(stats).toEqual({
                 total: 0,
                 mcp: 0,
-                internal: 0,
-                custom: 0,
+                local: 0,
             });
         });
 
@@ -690,8 +683,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(stats).toEqual({
                 total: 0,
                 mcp: 0,
-                internal: 0,
-                custom: 0,
+                local: 0,
             });
         });
     });
@@ -937,7 +929,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 });
 
                 const toolPolicies = {
-                    alwaysAllow: ['internal--ask_user'],
+                    alwaysAllow: ['ask_user'],
                     alwaysDeny: ['mcp--filesystem--delete_file'],
                 };
 
@@ -1152,10 +1144,10 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             });
         });
 
-        describe('Internal Tools with Policies', () => {
-            it('should respect policies for internal tools', async () => {
+        describe('Local Tools with Policies', () => {
+            it('should respect policies for local tools', async () => {
                 const toolPolicies = {
-                    alwaysAllow: ['internal--ask_user'],
+                    alwaysAllow: ['ask_user'],
                     alwaysDeny: [],
                 };
 
@@ -1168,7 +1160,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     toolPolicies,
                     [
                         {
-                            id: 'internal--ask_user',
+                            id: 'ask_user',
                             description: 'Ask user',
                             inputSchema: z.object({}).strict(),
                             execute: vi.fn().mockResolvedValue('ok'),
@@ -1178,11 +1170,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 );
                 toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
 
-                const result = await toolManager.executeTool(
-                    'internal--ask_user',
-                    {},
-                    'test-call-id'
-                );
+                const result = await toolManager.executeTool('ask_user', {}, 'test-call-id');
 
                 expect(result).toEqual({ result: 'ok' });
                 expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
@@ -1395,7 +1383,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 });
 
                 const toolPolicies = {
-                    alwaysAllow: ['mcp--read_file', 'mcp--list_directory', 'internal--ask_user'],
+                    alwaysAllow: ['mcp--read_file', 'mcp--list_directory', 'ask_user'],
                     alwaysDeny: ['mcp--delete_file', 'mcp--execute_script'],
                 };
 
@@ -1458,7 +1446,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 );
 
                 const sessionId = 'test-session-123';
-                const tools = ['internal--bash', 'mcp--read_file'];
+                const tools = ['bash_exec', 'mcp--read_file'];
 
                 toolManager.setSessionAutoApproveTools(sessionId, tools);
 
@@ -1495,7 +1483,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 );
 
                 const sessionId = 'test-session-123';
-                toolManager.setSessionAutoApproveTools(sessionId, ['internal--bash']);
+                toolManager.setSessionAutoApproveTools(sessionId, ['bash_exec']);
 
                 expect(toolManager.hasSessionAutoApproveTools(sessionId)).toBe(true);
 
@@ -1520,15 +1508,13 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 const session1 = 'session-1';
                 const session2 = 'session-2';
 
-                toolManager.setSessionAutoApproveTools(session1, ['internal--bash']);
+                toolManager.setSessionAutoApproveTools(session1, ['bash_exec']);
                 toolManager.setSessionAutoApproveTools(session2, [
                     'mcp--read_file',
                     'mcp--write_file',
                 ]);
 
-                expect(toolManager.getSessionAutoApproveTools(session1)).toEqual([
-                    'internal--bash',
-                ]);
+                expect(toolManager.getSessionAutoApproveTools(session1)).toEqual(['bash_exec']);
                 expect(toolManager.getSessionAutoApproveTools(session2)).toEqual([
                     'mcp--read_file',
                     'mcp--write_file',
@@ -1578,7 +1564,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 const sessionId = 'test-session';
 
                 // First set some tools
-                toolManager.setSessionAutoApproveTools(sessionId, ['internal--bash']);
+                toolManager.setSessionAutoApproveTools(sessionId, ['bash_exec']);
                 expect(toolManager.hasSessionAutoApproveTools(sessionId)).toBe(true);
 
                 // Setting empty array should clear auto-approvals

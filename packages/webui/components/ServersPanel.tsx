@@ -39,24 +39,17 @@ interface ServersPanelProps {
     refreshTrigger?: number; // Add a trigger to force refresh
 }
 
-// Utility function to strip tool name prefixes (internal--, custom--, mcp--serverName--)
+// Utility function to strip MCP server prefix from tool names (mcp--serverName--toolName -> toolName)
 function stripToolPrefix(toolName: string, source: 'internal' | 'custom' | 'mcp'): string {
-    if (source === 'internal' && toolName.startsWith('internal--')) {
-        return toolName.replace('internal--', '');
+    if (source !== 'mcp') {
+        return toolName;
     }
-    if (source === 'custom' && toolName.startsWith('custom--')) {
-        return toolName.replace('custom--', '');
+    if (!toolName.startsWith('mcp--')) {
+        return toolName;
     }
-    if (source === 'mcp' && toolName.startsWith('mcp--')) {
-        // Format: mcp--serverName--toolName -> extract toolName
-        const parts = toolName.split('--');
-        if (parts.length >= 3) {
-            return parts.slice(2).join('--'); // Join remaining parts in case tool name has '--'
-        }
-        // Fallback: if format is different, just remove 'mcp--'
-        return toolName.replace('mcp--', '');
-    }
-    return toolName;
+    const trimmed = toolName.substring('mcp--'.length);
+    const parts = trimmed.split('--');
+    return parts.length >= 2 ? parts.slice(1).join('--') : trimmed;
 }
 
 export default function ServersPanel({

@@ -259,18 +259,12 @@ export class AgentSpawnerRuntime implements TaskForker {
             sessionId: string;
         }) => {
             toolCount++;
-            // Strip prefixes from tool name for cleaner display
             let displayToolName = event.toolName;
-            if (displayToolName.startsWith('internal--')) {
-                displayToolName = displayToolName.replace('internal--', '');
-            } else if (displayToolName.startsWith('custom--')) {
-                displayToolName = displayToolName.replace('custom--', '');
-            } else if (displayToolName.startsWith('mcp--')) {
+            if (displayToolName.startsWith('mcp--')) {
                 // For MCP tools, extract just the tool name (skip server prefix)
-                const parts = displayToolName.split('--');
-                if (parts.length >= 3) {
-                    displayToolName = parts.slice(2).join('--');
-                }
+                const trimmed = displayToolName.substring('mcp--'.length);
+                const parts = trimmed.split('--');
+                displayToolName = parts.length >= 2 ? parts.slice(1).join('--') : trimmed;
             }
             currentTool = displayToolName;
             this.logger.debug(

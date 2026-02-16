@@ -49,12 +49,6 @@ export interface ToolCallTimelineProps {
 // =============================================================================
 
 function stripToolPrefix(toolName: string): { displayName: string; source: string } {
-    if (toolName.startsWith('internal--')) {
-        return { displayName: toolName.replace('internal--', ''), source: '' };
-    }
-    if (toolName.startsWith('custom--')) {
-        return { displayName: toolName.replace('custom--', ''), source: '' };
-    }
     if (toolName.startsWith('mcp--')) {
         const parts = toolName.split('--');
         if (parts.length >= 3) {
@@ -68,9 +62,6 @@ function stripToolPrefix(toolName: string): { displayName: string; source: strin
             return { displayName: parts.slice(1).join('__'), source: parts[0] ?? '' };
         }
         return { displayName: toolName.substring(5), source: 'mcp' };
-    }
-    if (toolName.startsWith('internal__')) {
-        return { displayName: toolName.substring(10), source: '' };
     }
     return { displayName: toolName, source: '' };
 }

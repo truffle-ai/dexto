@@ -181,7 +181,7 @@ describe('PromptManager resolvePrompt', () => {
                     type: 'inline',
                     id: 'dexto-plan-mode',
                     description: 'Internal plan-mode prompt',
-                    prompt: 'You are in PLAN MODE.\nUse `custom--plan_create`.',
+                    prompt: 'You are in PLAN MODE.\nUse `plan_create`.',
                     'user-invocable': false,
                     'disable-model-invocation': true,
                 },
@@ -206,6 +206,6 @@ describe('PromptManager resolvePrompt', () => {
 
         const result = await pm.resolvePrompt('config:dexto-plan-mode');
         expect(result.text).toContain('PLAN MODE');
-        expect(result.text).toContain('custom--plan_create');
+        expect(result.text).toContain('plan_create');
     });
 });

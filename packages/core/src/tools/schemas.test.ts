@@ -273,7 +273,7 @@ describe('ToolConfirmationConfigSchema', () => {
                 timeout: 30000,
                 allowedToolsStorage: 'storage' as const,
                 toolPolicies: {
-                    alwaysAllow: ['internal--ask_user', 'mcp--filesystem--read_file'],
+                    alwaysAllow: ['ask_user', 'mcp--filesystem--read_file'],
                     alwaysDeny: ['mcp--filesystem--delete_file'],
                 },
             };
@@ -301,13 +301,10 @@ describe('ToolPoliciesSchema', () => {
 
         it('should accept valid tool names in alwaysAllow', () => {
             const result = ToolPoliciesSchema.parse({
-                alwaysAllow: ['internal--ask_user', 'mcp--filesystem--read_file'],
+                alwaysAllow: ['ask_user', 'mcp--filesystem--read_file'],
                 alwaysDeny: [],
             });
-            expect(result.alwaysAllow).toEqual([
-                'internal--ask_user',
-                'mcp--filesystem--read_file',
-            ]);
+            expect(result.alwaysAllow).toEqual(['ask_user', 'mcp--filesystem--read_file']);
         });
 
         it('should accept valid tool names in alwaysDeny', () => {
@@ -323,7 +320,7 @@ describe('ToolPoliciesSchema', () => {
 
         it('should accept both lists populated', () => {
             const result = ToolPoliciesSchema.parse({
-                alwaysAllow: ['internal--ask_user'],
+                alwaysAllow: ['ask_user'],
                 alwaysDeny: ['mcp--filesystem--delete_file'],
             });
             expect(result.alwaysAllow).toHaveLength(1);
@@ -426,7 +423,7 @@ describe('ToolPoliciesSchema', () => {
         it('should handle safe development configuration', () => {
             const devPolicies = {
                 alwaysAllow: [
-                    'internal--ask_user',
+                    'ask_user',
                     'mcp--filesystem--read_file',
                     'mcp--filesystem--list_directory',
                 ],
@@ -439,7 +436,7 @@ describe('ToolPoliciesSchema', () => {
 
         it('should handle production security configuration', () => {
             const prodPolicies = {
-                alwaysAllow: ['internal--ask_user'],
+                alwaysAllow: ['ask_user'],
                 alwaysDeny: [
                     'mcp--filesystem--delete_file',
                     'mcp--playwright--execute_script',
@@ -453,7 +450,7 @@ describe('ToolPoliciesSchema', () => {
 
         it('should handle minimal allow-only policy', () => {
             const allowOnlyPolicy = {
-                alwaysAllow: ['internal--ask_user', 'mcp--filesystem--read_file'],
+                alwaysAllow: ['ask_user', 'mcp--filesystem--read_file'],
                 alwaysDeny: [],
             };
 

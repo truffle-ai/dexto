@@ -275,9 +275,6 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                     // These tools will skip confirmation prompts during skill execution
                     if (result.allowedTools && result.allowedTools.length > 0) {
                         const displayTools = result.allowedTools.map((tool) => {
-                            if (tool.startsWith('custom--')) {
-                                return tool.replace(/^custom--/, '');
-                            }
                             if (tool.startsWith('mcp--')) {
                                 const trimmed = tool.replace(/^mcp--/, '');
                                 const [server, ...rest] = trimmed.split('--');
@@ -292,14 +289,9 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                             chalk.gray(`🔓 Auto-approving tools: ${displayTools.join(', ')}`)
                         );
                         try {
-                            agent.toolManager.setSessionAutoApproveTools(
-                                ctx.sessionId,
-                                result.allowedTools.map((tool) =>
-                                    tool.startsWith('mcp--') && !tool.includes('--', 5)
-                                        ? `mcp--${tool}`
-                                        : tool
-                                )
-                            );
+                            agent.toolManager.setSessionAutoApproveTools(ctx.sessionId, [
+                                ...result.allowedTools,
+                            ]);
                         } catch (toolError) {
                             console.log(
                                 chalk.yellow(
@@ -323,7 +315,7 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
 Execute the fork skill: ${commandName}
 ${taskContext ? `Task context: ${taskContext}` : ''}
 
-Call the internal--invoke_skill tool immediately with:
+Call the invoke_skill tool immediately with:
 - skill: "${skillName}"
 ${taskContext ? `- taskContext: "${taskContext}"` : ''}
 </skill-invocation>`;

@@ -16,7 +16,7 @@ export const ToolPoliciesSchema = z
             .array(z.string())
             .default([])
             .describe(
-                'Tools that never require approval (low-risk). Use full qualified names (e.g., "internal--ask_user", "mcp--filesystem--read_file")'
+                'Tools that never require approval (low-risk). Use tool names (e.g., "ask_user", "mcp--filesystem--read_file")'
             ),
         alwaysDeny: z
             .array(z.string())

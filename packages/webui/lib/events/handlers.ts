@@ -68,6 +68,20 @@ function finalizeStreamingIfNeeded(sessionId: string): void {
     }
 }
 
+function stripToolNameForMatching(name: string): string {
+    if (name.startsWith('mcp--')) {
+        const trimmed = name.substring('mcp--'.length);
+        const parts = trimmed.split('--');
+        return parts.length >= 2 ? parts.slice(1).join('--') : trimmed;
+    }
+    if (name.startsWith('mcp__')) {
+        const trimmed = name.substring('mcp__'.length);
+        const parts = trimmed.split('__');
+        return parts.length >= 2 ? parts.slice(1).join('__') : trimmed;
+    }
+    return name;
+}
+
 // =============================================================================
 // Handler Implementations
 // =============================================================================
@@ -274,12 +288,8 @@ function handleToolCall(event: EventByName<'llm:tool-call'>): void {
     }
 
     // Check for pending approval messages that don't have a result yet
-    // Match by: 1) exact toolName, 2) toolName without prefix, 3) any pending approval
-    const stripPrefix = (name: string) =>
-        name
-            .replace(/^(internal--|custom--|mcp--[^-]+--|mcp__[^_]+__)/, '')
-            .replace(/^(internal__|custom__)/, '');
-    const cleanToolName = stripPrefix(toolName);
+    // Match by: 1) exact toolName, 2) toolName without MCP server prefix
+    const cleanToolName = stripToolNameForMatching(toolName);
 
     const pendingApprovalMessage = messages.find((m) => {
         if (m.role !== 'tool' || m.toolResult !== undefined) return false;
@@ -287,7 +297,7 @@ function handleToolCall(event: EventByName<'llm:tool-call'>): void {
 
         // Match by toolName (exact or stripped)
         if (m.toolName === toolName) return true;
-        if (m.toolName && stripPrefix(m.toolName) === cleanToolName) return true;
+        if (m.toolName && stripToolNameForMatching(m.toolName) === cleanToolName) return true;
 
         return false;
     });
@@ -420,11 +430,7 @@ function handleApprovalRequest(event: EventByName<'approval:request'>): void {
     const approvalType = (event as any).type;
 
     // Helper to strip prefixes for matching
-    const stripPrefix = (name: string) =>
-        name
-            .replace(/^(internal--|custom--|mcp--[^-]+--|mcp__[^_]+__)/, '')
-            .replace(/^(internal__|custom__)/, '');
-    const cleanToolName = stripPrefix(toolName);
+    const cleanToolName = stripToolNameForMatching(toolName);
 
     // Check if there's already a tool message for this approval
     const messages = chatStore.getMessages(sessionId);
@@ -434,7 +440,7 @@ function handleApprovalRequest(event: EventByName<'approval:request'>): void {
         if (m.requireApproval === true) return false;
         // Match by toolName (exact or stripped)
         if (m.toolName === toolName) return true;
-        if (m.toolName && stripPrefix(m.toolName) === cleanToolName) return true;
+        if (m.toolName && stripToolNameForMatching(m.toolName) === cleanToolName) return true;
         return false;
     });
 
@@ -457,7 +463,7 @@ function handleApprovalRequest(event: EventByName<'approval:request'>): void {
                 m.approvalStatus === 'pending' &&
                 m.toolResult === undefined &&
                 (m.toolName === toolName ||
-                    (m.toolName && stripPrefix(m.toolName) === cleanToolName))
+                    (m.toolName && stripToolNameForMatching(m.toolName) === cleanToolName))
         );
 
         if (existingApprovalMessage) {
