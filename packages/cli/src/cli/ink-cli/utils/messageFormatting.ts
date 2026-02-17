@@ -245,6 +245,8 @@ export function formatToolHeader(options: {
     const argsFormatted = formatToolArgsForDisplay(toolName, args);
     const badge = getToolTypeBadge(toolName);
 
+    // TODO: Move tool-specific header formatting into tool display metadata, so the CLI doesn't
+    // need to special-case tool IDs here.
     // Special handling for spawn_agent: use agentId as display name
     const isSpawnAgent = toolName === 'spawn_agent';
     if (isSpawnAgent && args.agentId) {
