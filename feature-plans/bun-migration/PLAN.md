@@ -201,7 +201,9 @@ This repo still contains **behavior and strings** that assume pnpm/npm in a few 
 - Local model setup installs `node-llama-cpp` via `npm install` into `~/.dexto/deps`.
 - Some scaffolding/templates/help text prints `pnpm …` / `npm …` instructions.
 - The “install-global-cli” dev script uses `npx`/`npm` to simulate user installs.
-- MCP preset registry data and docs frequently use `npx` as the default command (consider switching to `bunx` if we want “no npm” end-to-end).
+- MCP preset registry data and docs frequently use `npx` as the default command (switching defaults to `bunx` / `bun x` is required for “no npm” end-to-end).
+  - Bun nuance: `bunx` respects the package bin’s shebang; if it’s `node`, Bun will start a Node process by default (use `bunx --bun …` to force Bun runtime).
+  - If we choose `bunx --bun` defaults, we must validate MCP servers we ship by default (filesystem/playwright/etc.) run under Bun runtime without regressions.
 
 Acceptance:
 - Running normal CLI flows never requires pnpm.
@@ -255,6 +257,10 @@ Recommended resolution model under Bun:
    - `import(pathToFileURL(resolvedPath).href)`
 4. Merge/override rules:
    - Project root overrides global root (and repo dev root overrides both when in dev mode).
+
+Reference implementation to learn from:
+- `~/Projects/external/opencode` treats discovered `.opencode/` directories (including `~/.opencode`) as Bun package roots and ensures dependencies exist via `bun add` + `bun install`.
+- It configures local MCP servers as a single `command: string[]` (cmd + args) and spawns them via `StdioClientTransport`.
 
 Acceptance:
 - A TS image module located in `~/.dexto` can be imported and validated without a build step.

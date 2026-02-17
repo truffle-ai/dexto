@@ -38,6 +38,12 @@
   - `version-check` suggests `bun add -g dexto@latest` instead of `npm i -g dexto`
 - Remaining pnpm/npm touchpoints (non-exhaustive, likely PR 1 candidates):
   - CLI flow parity outside `dexto-source` depends on publishing `@dexto/*` packages (owner will publish before merge)
+  - Default MCP server templates/examples still use `npx` in some places (e.g. `agents/agent-template.yml`), which reintroduces an npm dependency.
+  - If we switch `npx` → `bunx`, note that `bunx` can still spawn **Node** by default for packages whose bin shebang is `node` (use `bunx --bun` if we want “Bun runtime only” end-to-end).
+  - Opencode reference for layered config + MCP:
+    - It treats each discovered `.opencode/` directory (including `~/.opencode`) as a Bun package root and runs `bun add`/`bun install` to ensure dependencies are present.
+    - It configures local MCP servers as a single `command: string[]` (cmd + args) and spawns them via `StdioClientTransport`.
+  - Bun CLI nuance found during testing: `bun --cwd <dir> run <script>` prints Bun help instead of running the script; use `bun run --cwd <dir> <script>` (or `cd <dir> && bun run <script>`). This affected root scripts like `start`, `dev:cli`, `build-webui`, and `link-cli` and has been fixed in root `package.json`.
 
 Recent updates (commit `ec3564ce`):
 - GitHub Actions workflows migrated from pnpm/npm to Bun (CI + sync jobs + changesets release workflow)
@@ -102,6 +108,7 @@ Merge blocker reminder:
 2. **Repo dev scripts:** decide whether to keep `scripts/install-global-cli.ts` as-is (dev-only) or migrate it to `bunx`/Bun-first equivalents as part of PR 1.
 3. **Image store future (PR 2):** keep and port to Bun, or replace with `~/.dexto` as a package root (preferred).
 4. **Scaffolding + registry:** running `dexto create-app` outside `dexto-source` currently fails if `@dexto/*` packages aren’t available in the configured registry (observed 404 for `@dexto/storage` from the public npm registry). This is likely pre-existing; PR 1 should avoid changing this behavior, but we should document expectations.
+5. **MCP “no npm” default:** should we update default agent templates to use Bun-first commands for MCP servers (`bunx …` or `bunx --bun …`)?
 
 ---
 
@@ -119,6 +126,7 @@ Merge blocker reminder:
 - 2026-02-17: CI + release workflows migrated to Bun; remove pnpm lock/workspace; add Bun-based publish script (commit `ec3564ce`).
 - 2026-02-17: Docs site migrated to Bun (`docs/bun.lock`, build workflow) (commit `c6b670f7`).
 - 2026-02-17: Synced `main` into this branch; conflicts resolved; quality checks green (commit `f235a56a`).
+- 2026-02-17: Fix root scripts to use correct Bun `--cwd` placement (`bun run --cwd …`, `bun link --cwd …`) and validate `bun run start -- --help` + `bun run link-cli-fast`.
 
 ---
 
