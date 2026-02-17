@@ -35,6 +35,7 @@ Success criteria:
 ## Phase 2 — Functionality parity audit (no feature changes)
 
 - [x] Confirm `bun install`, `bun run build`, `bun run typecheck`, `bun run test`
+- [x] Verify all root `package.json` scripts run under Bun (skip destructive/publishing scripts like `changeset:version` / `changeset:publish`)
 - [x] Migrate GitHub Actions workflows from pnpm/npm to Bun (CI + sync jobs)
 - [x] Migrate release workflow to Bun (Changesets versioning + Bun-based publish)
 - [x] Convert docs site (Docusaurus) to Bun (`docs/bun.lock`, workflow)

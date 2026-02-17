@@ -1,6 +1,6 @@
 # Bun Migration (Package Manager + Runtime) — Functionality Parity
 
-Last updated: 2026-02-17
+Last updated: 2026-02-18
 
 ## Goals (PR 1 scope: Bun migration with parity)
 
@@ -38,7 +38,7 @@ Bun is replacing **pnpm/npm** for installs + running scripts, but it does **not*
 
 ## Status (this worktree)
 
-As of 2026-02-17 in `~/Projects/dexto-bun-migration`:
+As of 2026-02-18 in `~/Projects/dexto-bun-migration`:
 
 - Root workspace is Bun-based (`packageManager: bun@1.2.9`) with `bun.lock`.
 - Docs site (`docs/`) is Bun-based (`docs/bun.lock`) and builds under Bun.
@@ -46,6 +46,7 @@ As of 2026-02-17 in `~/Projects/dexto-bun-migration`:
 - SQLite persistence under Bun uses **`bun:sqlite`** (no `better-sqlite3` ABI dependency for the Bun runtime path).
 - CI + release workflows have been migrated to Bun (GitHub Actions no longer run pnpm).
 - `bun run build`, `bun run typecheck`, and `bun run test` are green.
+- Root `package.json` scripts have been executed under Bun (excluding destructive Changesets scripts).
 
 Version note:
 - **Current pinned Bun:** `1.2.9` (known-good in this worktree)
@@ -178,7 +179,7 @@ Acceptance:
 - `bun install`
 - `bun run build`
 - `bun run typecheck`
-- `bun --cwd packages/cli run start -- --help`
+- `bun run start -- --help`
 
 ### Phase 1 — Replace SQLite native addon with Bun SQLite
 
@@ -219,7 +220,7 @@ Acceptance (examples; keep this list short and high-signal):
 - `bun run build`
 - `bun run typecheck`
 - `bun run test`
-- `bun --cwd packages/cli run start -- --help`
+- `bun run start -- --help`
 - CLI scaffolding flows still work and emit Bun-first instructions:
   - `dexto create-app`
   - `dexto create-image`

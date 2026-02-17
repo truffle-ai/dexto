@@ -126,7 +126,8 @@ Merge blocker reminder:
 - 2026-02-17: CI + release workflows migrated to Bun; remove pnpm lock/workspace; add Bun-based publish script (commit `ec3564ce`).
 - 2026-02-17: Docs site migrated to Bun (`docs/bun.lock`, build workflow) (commit `c6b670f7`).
 - 2026-02-17: Synced `main` into this branch; conflicts resolved; quality checks green (commit `f235a56a`).
-- 2026-02-17: Fix root scripts to use correct Bun `--cwd` placement (`bun run --cwd …`, `bun link --cwd …`) and validate `bun run start -- --help` + `bun run link-cli-fast`.
+- 2026-02-17: Fix root scripts to use correct Bun `--cwd` placement (`bun run --cwd …`) and `bun link` behavior (`cd … && bun link`) and validate `bun run start -- --help` + `bun run link-cli-fast`.
+- 2026-02-17: Executed all root `package.json` scripts under Bun (skipped destructive Changesets scripts); fixed `bun run repo:test` failure caused by `@dexto/client-sdk` having no tests by adding `vitest run --passWithNoTests` (commit `dc3b79c2`).
 
 ---
 
