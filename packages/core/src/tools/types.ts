@@ -39,6 +39,11 @@ export interface TaskForker {
     }>;
 }
 
+// TODO: Revisit where delegation ("task forking") belongs.
+// Today `TaskForker` is a core-owned capability exposed via ToolExecutionContext.services so tool
+// packs can delegate work without depending on `@dexto/agent-management` (which provides the impl).
+// Alternatives: move delegation-only tools to a host tool pack, or surface taskForker as a
+// first-class ToolExecutionContext field rather than inside `services`.
 export type TaskForkOptions = Parameters<TaskForker['fork']>[0];
 
 export interface ToolServices {
