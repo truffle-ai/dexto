@@ -61,7 +61,7 @@ describe('llm runtime auth resolver', () => {
         expect(runtime?.baseURL).toBe('https://api.minimaxi.com/anthropic/v1');
         expect(typeof runtime?.fetch).toBe('function');
 
-        const calls: Array<{ url: string; headers: Headers }> = [];
+        const calls: Array<{ url: string; headers: globalThis.Headers }> = [];
         globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
             const url =
                 input instanceof URL
@@ -69,7 +69,7 @@ describe('llm runtime auth resolver', () => {
                     : typeof input === 'string'
                       ? input
                       : input.url;
-            calls.push({ url, headers: new Headers(init?.headers) });
+            calls.push({ url, headers: new globalThis.Headers(init?.headers) });
             return new Response('ok', { status: 200 });
         }) satisfies typeof fetch;
 
@@ -110,7 +110,7 @@ describe('llm runtime auth resolver', () => {
         expect(runtime?.apiKey).toBe('dexto-oauth-dummy-key');
         expect(typeof runtime?.fetch).toBe('function');
 
-        const calls: Array<{ url: string; headers: Headers; body?: string }> = [];
+        const calls: Array<{ url: string; headers: globalThis.Headers; body?: string }> = [];
         globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
             const url =
                 input instanceof URL
@@ -118,7 +118,12 @@ describe('llm runtime auth resolver', () => {
                     : typeof input === 'string'
                       ? input
                       : input.url;
-            calls.push({ url, headers: new Headers(init?.headers), body: init?.body?.toString() });
+            const body = init?.body?.toString();
+            calls.push({
+                url,
+                headers: new globalThis.Headers(init?.headers),
+                ...(body !== undefined ? { body } : {}),
+            });
 
             if (url === 'https://api.minimax.io/oauth/token') {
                 return new Response(

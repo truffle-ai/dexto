@@ -33,35 +33,16 @@ function getLock(profileId: string): RefreshLock {
     return created;
 }
 
-function removeAuthHeader(headers: Headers): void {
+function removeAuthHeader(headers: globalThis.Headers): void {
     headers.delete('authorization');
-    headers.delete('Authorization');
 }
 
-function upsertAuthHeader(headers: Headers, value: string): void {
+function upsertAuthHeader(headers: globalThis.Headers, value: string): void {
     headers.set('authorization', value);
 }
 
-function mergeHeaders(initHeaders: RequestInit['headers']): Headers {
-    const headers = new Headers();
-    if (!initHeaders) return headers;
-
-    if (initHeaders instanceof Headers) {
-        initHeaders.forEach((value, key) => headers.set(key, value));
-        return headers;
-    }
-
-    if (Array.isArray(initHeaders)) {
-        for (const [key, value] of initHeaders) {
-            if (value !== undefined) headers.set(key, String(value));
-        }
-        return headers;
-    }
-
-    for (const [key, value] of Object.entries(initHeaders)) {
-        if (value !== undefined) headers.set(key, String(value));
-    }
-    return headers;
+function mergeHeaders(initHeaders: RequestInit['headers']): globalThis.Headers {
+    return new globalThis.Headers(initHeaders);
 }
 
 function isOauthCredential(
@@ -183,8 +164,8 @@ async function refreshOpenAiOauthTokens(refreshToken: string): Promise<{
     const expiresInSec =
         typeof data.expires_in === 'number' && data.expires_in > 0 ? data.expires_in : 3600;
     const accountId = extractChatGptAccountId({
-        id_token: data.id_token,
         access_token: data.access_token,
+        ...(data.id_token ? { id_token: data.id_token } : {}),
     });
 
     return {
@@ -367,7 +348,6 @@ function buildOAuthFetchWrapper(params: {
         // Remove any SDK-injected auth header (dummy key).
         removeAuthHeader(headers);
         headers.delete('x-api-key');
-        headers.delete('X-API-Key');
 
         const profile = getLlmAuthProfileSync(params.profileId);
         if (!profile || profile.credential.type !== 'oauth') {

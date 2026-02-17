@@ -17,20 +17,22 @@ function isCancel<T>(value: T | symbol): value is symbol {
     return p.isCancel(value);
 }
 
-function toProviderOption(provider: (typeof CONNECT_PROVIDERS)[number]) {
+function toProviderOption(provider: (typeof CONNECT_PROVIDERS)[number]): p.Option<string> {
+    const hint = provider.methods.length > 1 ? `${provider.methods.length} methods` : undefined;
     return {
         value: provider.providerId,
         label: provider.label,
-        hint: provider.methods.length > 1 ? `${provider.methods.length} methods` : undefined,
-    } as const;
+        ...(hint ? { hint } : {}),
+    };
 }
 
-function toMethodOption(method: ConnectMethod) {
+function toMethodOption(method: ConnectMethod): p.Option<string> {
+    const hint = method.hint?.trim();
     return {
         value: method.id,
         label: method.label,
-        hint: method.hint,
-    } as const;
+        ...(hint ? { hint } : {}),
+    };
 }
 
 function defaultProfileId(providerId: string, methodId: string): string {
@@ -231,8 +233,16 @@ export async function handleConnectCommand(options?: { interactive?: boolean }):
 
             const pollSpinner = p.spinner();
             pollSpinner.start('Waiting for approval…');
-            const tokens = await flow.callback((message) => pollSpinner.message(message));
-            pollSpinner.stop('Approved');
+            let tokens: Awaited<ReturnType<typeof flow.callback>>;
+            try {
+                tokens = await flow.callback((message) => pollSpinner.message(message));
+                pollSpinner.stop('Approved');
+            } catch (error) {
+                pollSpinner.stop('Failed');
+                const message = error instanceof Error ? error.message : String(error);
+                p.outro(chalk.red(`❌ MiniMax OAuth failed: ${message}`));
+                return;
+            }
 
             await upsertLlmAuthProfile({
                 profileId,

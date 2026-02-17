@@ -9,35 +9,41 @@ import {
 
 const ProfileRedactedSchema = z
     .object({
-        profileId: z.string(),
-        providerId: z.string(),
-        methodId: z.string(),
-        label: z.string().optional(),
-        credentialType: z.enum(['api_key', 'token', 'oauth']),
-        createdAt: z.number(),
-        updatedAt: z.number(),
-        expiresAt: z.number().optional(),
+        profileId: z.string().describe('Unique profile id'),
+        providerId: z.string().describe('LLM provider id'),
+        methodId: z.string().describe('Auth method id'),
+        label: z.string().optional().describe('Optional display label'),
+        credentialType: z
+            .enum(['api_key', 'token', 'oauth'])
+            .describe('Credential type (redacted)'),
+        createdAt: z.number().describe('Profile creation time (unix ms)'),
+        updatedAt: z.number().describe('Profile last update time (unix ms)'),
+        expiresAt: z.number().optional().describe('Token expiry time (unix ms)'),
     })
-    .strict();
+    .strict()
+    .describe('Redacted auth profile (no secrets)');
 
 const ProvidersResponseSchema = z
     .object({
         providers: z.array(ConnectProviderSchema).describe('Curated connect providers'),
     })
-    .strict();
+    .strict()
+    .describe('Connect providers response');
 
 const ProfilesResponseSchema = z
     .object({
         defaults: z.record(z.string(), z.string()).describe('providerId -> default profileId'),
         profiles: z.array(ProfileRedactedSchema).describe('Saved profiles (redacted)'),
     })
-    .strict();
+    .strict()
+    .describe('Connect profiles response');
 
 const DeleteProfileParamsSchema = z
     .object({
         profileId: z.string().describe('Profile id to delete'),
     })
-    .strict();
+    .strict()
+    .describe('Delete profile path params');
 
 const SetDefaultBodySchema = z
     .object({
@@ -47,7 +53,8 @@ const SetDefaultBodySchema = z
             .nullable()
             .describe('Profile id to set as default (null clears the default)'),
     })
-    .strict();
+    .strict()
+    .describe('Set default profile request body');
 
 export function createLlmConnectRouter() {
     const app = new OpenAPIHono();
@@ -93,7 +100,7 @@ export function createLlmConnectRouter() {
                 content: {
                     'application/json': {
                         schema: z
-                            .object({ ok: z.boolean() })
+                            .object({ ok: z.boolean().describe('Whether the profile was deleted') })
                             .strict()
                             .describe('Delete profile response'),
                     },
@@ -114,7 +121,10 @@ export function createLlmConnectRouter() {
                 description: 'Default updated',
                 content: {
                     'application/json': {
-                        schema: z.object({ ok: z.literal(true) }).strict(),
+                        schema: z
+                            .object({ ok: z.literal(true).describe('Request succeeded') })
+                            .strict()
+                            .describe('Set default profile response'),
                     },
                 },
             },

@@ -1,5 +1,3 @@
-import { randomBytes, createHash } from 'node:crypto';
-
 const OPENAI_AUTH_ISSUER = 'https://auth.openai.com';
 const DEVICE_CODE_URL = `${OPENAI_AUTH_ISSUER}/codex/device`;
 
@@ -189,46 +187,5 @@ export async function loginOpenAiCodexDeviceCode(options: {
             const { authorizationCode, codeVerifier } = await pollForAuthorizationCode();
             return await exchangeAuthorizationCode({ authorizationCode, codeVerifier });
         },
-    };
-}
-
-export type OpenAiBrowserOauthResult = {
-    url: string;
-    callback: () => Promise<OpenAiCodexTokens>;
-};
-
-function createPkceCodes(): { verifier: string; challenge: string } {
-    const verifier = randomBytes(32).toString('base64url');
-    const challenge = createHash('sha256').update(verifier).digest('base64url');
-    return { verifier, challenge };
-}
-
-function generateState(): string {
-    return randomBytes(16).toString('base64url');
-}
-
-export async function buildOpenAiCodexAuthorizeUrl(options: {
-    clientId: string;
-    redirectUri: string;
-    originator: string;
-}): Promise<{ url: string; verifier: string; state: string }> {
-    const pkce = createPkceCodes();
-    const state = generateState();
-    const params = new URLSearchParams({
-        response_type: 'code',
-        client_id: options.clientId,
-        redirect_uri: options.redirectUri,
-        scope: 'openid profile email offline_access',
-        code_challenge: pkce.challenge,
-        code_challenge_method: 'S256',
-        id_token_add_organizations: 'true',
-        codex_cli_simplified_flow: 'true',
-        state,
-        originator: options.originator,
-    });
-    return {
-        url: `${OPENAI_AUTH_ISSUER}/oauth/authorize?${params.toString()}`,
-        verifier: pkce.verifier,
-        state,
     };
 }
