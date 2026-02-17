@@ -6,9 +6,7 @@ import type { StorageManager, Logger } from '@dexto/core';
 import type { Schedule, ExecutionLog } from './types.js';
 import { SchedulerError } from './errors.js';
 
-const LEGACY_SCHEDULE_PREFIX = 'schedule:';
-const LEGACY_EXECUTION_LOG_PREFIX = 'execution:';
-const LEGACY_SCHEDULE_LIST_KEY = 'scheduler:schedules';
+const DEFAULT_SCHEDULER_NAMESPACE = 'default';
 
 /**
  * Storage layer for scheduler persistence
@@ -25,16 +23,13 @@ export class ScheduleStorage {
         private logger: Logger,
         namespace?: string
     ) {
-        if (namespace && namespace.trim().length > 0) {
-            const ns = namespace.trim();
-            this.schedulePrefix = `scheduler:${ns}:schedule:`;
-            this.executionLogPrefix = `scheduler:${ns}:execution:`;
-            this.scheduleListKey = `scheduler:${ns}:schedules`;
-        } else {
-            this.schedulePrefix = LEGACY_SCHEDULE_PREFIX;
-            this.executionLogPrefix = LEGACY_EXECUTION_LOG_PREFIX;
-            this.scheduleListKey = LEGACY_SCHEDULE_LIST_KEY;
-        }
+        const ns =
+            namespace && namespace.trim().length > 0
+                ? namespace.trim()
+                : DEFAULT_SCHEDULER_NAMESPACE;
+        this.schedulePrefix = `scheduler:${ns}:schedule:`;
+        this.executionLogPrefix = `scheduler:${ns}:execution:`;
+        this.scheduleListKey = `scheduler:${ns}:schedules`;
     }
 
     /**
