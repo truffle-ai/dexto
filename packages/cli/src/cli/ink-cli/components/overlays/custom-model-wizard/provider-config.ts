@@ -473,7 +473,7 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
             },
             { ...DISPLAY_NAME_STEP, placeholder: 'e.g., Claude 4.5 Sonnet via Dexto' },
             REASONING_EFFORT_STEP,
-            // No API key step - Dexto uses OAuth login (DEXTO_API_KEY from auth.json)
+            // No API key step - Dexto uses OAuth login (DEXTO_API_KEY from ~/.dexto/auth/dexto.json)
         ],
         buildModel: (values, provider) => {
             const model: CustomModel = {

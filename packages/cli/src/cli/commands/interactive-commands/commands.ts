@@ -36,6 +36,7 @@ import { toolCommands } from './tool-commands.js';
 import { promptCommands } from './prompt-commands.js';
 import { documentationCommands } from './documentation-commands.js';
 import { loginCommand } from './auth/index.js';
+import { connectCommand } from './connect/index.js';
 
 /**
  * Complete list of all available CLI commands.
@@ -89,6 +90,9 @@ const baseCommands: CommandDefinition[] = [
 
     // Auth commands (feature-flagged)
     ...(isDextoAuthEnabled() ? [loginCommand] : []),
+
+    // Provider connect
+    connectCommand,
 ];
 
 // Add help command that can see all commands

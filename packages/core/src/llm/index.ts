@@ -4,6 +4,7 @@ export * from './registry/index.js';
 export * from './curation.js';
 export * from './validation.js';
 export * from './types.js';
+export * from './auth/types.js';
 export * from './services/index.js';
 export * from './schemas.js';
 export {

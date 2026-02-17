@@ -22,6 +22,7 @@ import { createApprovalsRouter } from './routes/approvals.js';
 import { createQueueRouter } from './routes/queue.js';
 import { createOpenRouterRouter } from './routes/openrouter.js';
 import { createKeyRouter } from './routes/key.js';
+import { createLlmConnectRouter } from './routes/llm-connect.js';
 import { createToolsRouter } from './routes/tools.js';
 import { createDiscoveryRouter } from './routes/discovery.js';
 import { createModelsRouter } from './routes/models.js';
@@ -183,6 +184,7 @@ export function createDextoApp(options: CreateDextoAppOptions) {
         .route(routePrefix, createQueueRouter(getAgent))
         .route(routePrefix, createOpenRouterRouter())
         .route(routePrefix, createKeyRouter())
+        .route(routePrefix, createLlmConnectRouter())
         .route(routePrefix, createToolsRouter(getAgent))
         .route(routePrefix, createDiscoveryRouter(resolvedGetAgentConfigPath))
         .route(routePrefix, createModelsRouter())

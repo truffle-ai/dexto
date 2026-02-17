@@ -13,7 +13,7 @@ describe('Image Local - Import Integration', () => {
         const imageSpecifier = metaResolve
             ? metaResolve('@dexto/image-local')
             : pathToFileURL(
-                  path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'index.js')
+                  path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'index.ts')
               ).href;
 
         const image = await loadImage(imageSpecifier);
@@ -47,5 +47,5 @@ describe('Image Local - Import Integration', () => {
         expect(image.hooks['response-sanitizer']).toBeDefined();
 
         expect(image.logger).toBeDefined();
-    }, 15_000);
+    }, 60_000);
 });
