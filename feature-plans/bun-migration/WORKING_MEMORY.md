@@ -16,12 +16,13 @@
 
 ## Current Task
 
-**Task:** PR 1 / Phase 1.5 — remove pnpm/npm assumptions (image store + local models + scaffolding) with functionality parity
+**Task:** PR 1 / Phase 2 — functionality parity audit (and remaining cleanup)
 **Status:** In progress
 **Worktree:** `~/Projects/dexto-bun-migration`
 
 ### Plan
-- Triage remaining pnpm/npm touchpoints (installers, scaffolding, docs/UX strings) and convert them to Bun-first behavior.
+- Validate the repo is “Bun for everything” with no feature/functionality changes.
+- Triage any remaining pnpm/npm touchpoints (primarily dev scripts) and decide whether they belong in PR 1.
 - Validate parity with `bun run build`, `bun run typecheck`, `bun run test`.
 - Keep `TASKLIST.md` + this file updated after each meaningful change.
 
@@ -30,16 +31,14 @@
 - Plan artifacts committed to this worktree (commit `b40d68e2`).
 - Checkpoint commit for Phase 0 + Phase 1 completed: `5ea80491`.
 - Scope split (per discussion): **native TS `.dexto` layering** and **image-store redesign** are deferred to a follow-up PR (PR 2). PR 1 is Bun migration with **no feature/functionality changes**.
-- Scaffolding/template updates in progress:
-  - `create-app` scaffold now uses `bun src/index.ts` (no `tsx` dependency) and prints `bun run start`
+- Scaffolding/template updates completed (commit `15352f74`):
+  - `create-app` scaffold uses `bun src/index.ts` (no `tsx` dependency) and prints `bun run start`
   - `create-image` and generated READMEs print Bun commands (`bun run build`, `bun pm pack`, `bun publish`)
   - `init` prints `bun <path/to/file.ts>` instead of `npx tsx …`
   - `version-check` suggests `bun add -g dexto@latest` instead of `npm i -g dexto`
-- Remaining pnpm/npm touchpoints (non-exhaustive, starting points):
-  - `packages/cli/src/cli/utils/scaffolding-utils.ts` — remove `npm init -y`, ensure Bun installs use correct flags, and generated scripts avoid `tsx` where Bun can run TS directly
-  - `packages/cli/src/cli/utils/package-mgmt.ts` — prefer Bun by default and honor `package.json#packageManager`
+- Remaining pnpm/npm touchpoints (non-exhaustive, likely PR 1 candidates):
   - `scripts/install-global-cli.ts` — uses `npx verdaccio …` and `npm uninstall -g …` for a local install simulation
-  - `packages/registry/src/mcp/server-registry-data.json` + related docs — many MCP presets default to `npx` (consider `bunx` if we want “no npm” end-to-end)
+  - Root `package.json` `link-cli*`/`unlink-cli` scripts still call `npm uninstall -g …` as a fallback cleanup
 
 ---
 
@@ -101,6 +100,7 @@
 - 2026-02-17: Image store installer now uses Bun (`bun pm pack` + `bun add`) instead of npm (commit `5e36ff3b`).
 - 2026-02-17: Local model setup uses Bun to install `node-llama-cpp` into `~/.dexto/deps` (commit `ec32f68c`).
 - 2026-02-17: Validated `bun add --trust node-llama-cpp` + `import('node-llama-cpp')` works under Bun `1.2.9` (macOS).
+- 2026-02-17: Bun-first CLI scaffolding/templates + help text (commit `15352f74`).
 
 ---
 
@@ -110,3 +110,4 @@
 |------|------------|--------|------|
 | 2026-02-17 | Bun baseline | ✅ | build/typecheck/test green under Bun `1.2.9` |
 | 2026-02-17 | Phase 0 + 1 checkpoint | ✅ | Commit `5ea80491`; validated with `bun run build`, `bun run typecheck`, `bun run test` |
+| 2026-02-17 | Bun-first scaffolding/templates | ✅ | Commit `15352f74`; validated with `bun run build`, `bun run typecheck`, `bun run test` |

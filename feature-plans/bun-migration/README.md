@@ -12,4 +12,4 @@ Native TypeScript extension loading + layered `.dexto` / `~/.dexto` customizatio
 
 ## Editing scope (owner request)
 
-Until explicitly changed, only modify the files listed above while working on the Bun migration.
+Keep the plan artifacts above updated as work progresses, and avoid unrelated repo churn. Code changes are expected as part of PR 1 (Bun migration with parity).
