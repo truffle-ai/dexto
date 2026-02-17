@@ -16,13 +16,14 @@
 
 ## Current Task
 
-**Task:** Phase 1.5 planning — remove pnpm/npm assumptions
+**Task:** Checkpoint commit — Bun baseline + SQLite runtime fixes
 **Status:** In progress
 **Worktree:** `~/Projects/dexto-bun-migration`
 
 ### Plan
-- Enumerate remaining pnpm/npm touchpoints (code + UX + docs) and decide how they should behave under Bun runtime.
-- Keep `TASKLIST.md` and this file updated as tasks complete.
+- Commit the current Bun-working code changes as a checkpoint (Phase 0 + Phase 1 work completed so far).
+- Use explicit staging (no `git add .`), and include `bun.lock`.
+- After committing, update this file’s **Completed Tasks** + **Checkpoint Log** with the checkpoint commit hash.
 
 ### Notes
 - Repo is pinned to Bun `1.2.9` (intentionally; no need to bump during migration).

@@ -34,6 +34,30 @@ Version note:
 
 ---
 
+## Commit strategy (checkpoint-driven)
+
+We’ll keep the git history easy to bisect and easy to revert by using **checkpoint commits** after each migration milestone.
+
+Rules:
+- **No `git commit --amend`** for this workstream; always create a new commit.
+- **Stage explicit paths** (no `git add .` / `git add -A`).
+- Before every checkpoint commit, run:
+  - `bun run build`
+  - `bun run typecheck`
+  - `bun run test` (unless a commit is purely docs/plan files)
+- Update these files when progress changes:
+  - `feature-plans/bun-migration/TASKLIST.md` (checkboxes)
+  - `feature-plans/bun-migration/WORKING_MEMORY.md` (task + checkpoint notes)
+- Note: `feature-plans/` is gitignored; plan files are committed via `git add -f …`.
+
+Commit types (guideline, not dogma):
+- `chore(bun): …` — migration plumbing (scripts, runtime, lockfiles)
+- `fix(storage): …` — runtime correctness fixes needed for Bun
+- `refactor(…): …` — behavior-preserving migrations
+- `docs(bun): …` — plan/tasklist/memory updates
+
+---
+
 ## Why Bun runtime (not “package manager only”)
 
 ### If Bun is **package manager only** and Node remains the runtime
