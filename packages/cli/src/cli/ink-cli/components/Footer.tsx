@@ -3,7 +3,7 @@
  * Status line at the bottom showing CWD, branch, and model info.
  */
 
-import { memo, useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import path from 'node:path';
 import { Box, Text } from 'ink';
 import { getModelDisplayName, type DextoAgent } from '@dexto/core';
@@ -19,8 +19,6 @@ interface FooterProps {
     planModeActive?: boolean;
     /** Whether user is in shell command mode (input starts with !) */
     isShellMode?: boolean;
-    /** Render a compact single-line footer (reduces flicker while overlays are open) */
-    compact?: boolean;
 }
 
 function getDirectoryName(cwd: string): string {
@@ -31,7 +29,7 @@ function getDirectoryName(cwd: string): string {
 /**
  * Pure presentational component for footer status line
  */
-export const Footer = memo(function Footer({
+export function Footer({
     agent,
     sessionId,
     modelName,
@@ -40,7 +38,6 @@ export const Footer = memo(function Footer({
     autoApproveEdits,
     planModeActive,
     isShellMode,
-    compact = false,
 }: FooterProps) {
     const displayPath = cwd ? getDirectoryName(cwd) : '';
     const displayModelName = getModelDisplayName(modelName);
@@ -49,21 +46,17 @@ export const Footer = memo(function Footer({
     } | null>(null);
 
     // Provider is session-scoped because /model can switch LLM per session.
-    const providerLabel = useMemo(() => {
-        if (!sessionId) return null;
-        const provider = agent.getCurrentLLMConfig(sessionId).provider;
-        return provider ? getLLMProviderDisplayName(provider) : null;
-    }, [agent, sessionId]);
+    const provider = sessionId ? agent.getCurrentLLMConfig(sessionId).provider : null;
+    const providerLabel = provider ? getLLMProviderDisplayName(provider) : null;
 
     useEffect(() => {
-        if (!sessionId || compact) {
+        if (!sessionId) {
             setContextLeft(null);
             return;
         }
 
         let cancelled = false;
         let refreshId = 0;
-        let scheduledTimeout: NodeJS.Timeout | null = null;
 
         const refreshContext = async () => {
             const requestId = ++refreshId;
@@ -71,9 +64,9 @@ export const Footer = memo(function Footer({
                 const stats = await agent.getContextStats(sessionId);
                 if (cancelled || requestId !== refreshId) return;
                 const percentLeft = Math.max(0, Math.min(100, 100 - stats.usagePercent));
-                setContextLeft((prev) =>
-                    prev?.percentLeft === percentLeft ? prev : { percentLeft }
-                );
+                setContextLeft({
+                    percentLeft,
+                });
             } catch {
                 if (!cancelled) {
                     setContextLeft(null);
@@ -81,15 +74,7 @@ export const Footer = memo(function Footer({
             }
         };
 
-        const scheduleRefresh = () => {
-            if (scheduledTimeout) return;
-            scheduledTimeout = setTimeout(() => {
-                scheduledTimeout = null;
-                void refreshContext();
-            }, 250);
-        };
-
-        scheduleRefresh();
+        refreshContext();
 
         const controller = new AbortController();
         const { signal } = controller;
@@ -98,12 +83,13 @@ export const Footer = memo(function Footer({
             'context:compacted',
             'context:pruned',
             'context:cleared',
+            'message:dequeued',
             'session:reset',
         ] as const;
 
         const handleEvent = (payload: { sessionId?: string }) => {
             if (payload.sessionId && payload.sessionId !== sessionId) return;
-            scheduleRefresh();
+            refreshContext();
         };
 
         for (const eventName of sessionEvents) {
@@ -112,13 +98,9 @@ export const Footer = memo(function Footer({
 
         return () => {
             cancelled = true;
-            if (scheduledTimeout) {
-                clearTimeout(scheduledTimeout);
-                scheduledTimeout = null;
-            }
             controller.abort();
         };
-    }, [agent, sessionId, compact]);
+    }, [agent, sessionId]);
 
     // Shell mode changes the path color to yellow as indicator
     const pathColor = isShellMode ? 'yellow' : 'blue';
@@ -138,7 +120,7 @@ export const Footer = memo(function Footer({
             </Box>
 
             {/* Line 2: Context left */}
-            {!compact && contextLeft && (
+            {contextLeft && (
                 <Box>
                     <Text color="gray">{contextLeft.percentLeft}% context left</Text>
                 </Box>
@@ -146,7 +128,7 @@ export const Footer = memo(function Footer({
 
             {/* Line 3: Mode indicators (left) */}
             {/* Shift+Tab cycles: Normal → Plan Mode → Accept All Edits → Normal */}
-            {!compact && isShellMode && (
+            {isShellMode && (
                 <Box>
                     <Text color="yellow" bold>
                         !
@@ -154,13 +136,13 @@ export const Footer = memo(function Footer({
                     <Text color="gray"> for shell mode</Text>
                 </Box>
             )}
-            {!compact && planModeActive && !isShellMode && (
+            {planModeActive && !isShellMode && (
                 <Box>
                     <Text color="magentaBright">plan mode</Text>
                     <Text color="gray"> (shift + tab to cycle)</Text>
                 </Box>
             )}
-            {!compact && autoApproveEdits && !planModeActive && !isShellMode && (
+            {autoApproveEdits && !planModeActive && !isShellMode && (
                 <Box>
                     <Text color="yellowBright">accept edits</Text>
                     <Text color="gray"> (shift + tab to cycle)</Text>
@@ -168,4 +150,4 @@ export const Footer = memo(function Footer({
             )}
         </Box>
     );
-});
+}

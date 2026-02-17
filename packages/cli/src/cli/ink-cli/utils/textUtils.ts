@@ -131,35 +131,6 @@ export function clearStringWidthCache(): void {
     stringWidthCache.clear();
 }
 
-/**
- * Normalize whitespace and truncate to a single terminal line.
- *
- * - Collapses whitespace (including newlines) into single spaces
- * - Truncates by terminal width (not UTF-16 length) and appends an ellipsis
- */
-export function truncateSingleLine(text: string, maxWidth: number): string {
-    const singleLine = text.replace(/\s+/g, ' ').trim();
-    if (maxWidth <= 0) return '';
-
-    const width = getCachedStringWidth(singleLine);
-    if (width <= maxWidth) return singleLine;
-
-    const ellipsis = '…';
-    const ellipsisWidth = getCachedStringWidth(ellipsis);
-    const targetWidth = Math.max(0, maxWidth - ellipsisWidth);
-
-    let currentWidth = 0;
-    let result = '';
-    for (const char of toCodePoints(singleLine)) {
-        const charWidth = getCachedStringWidth(char);
-        if (currentWidth + charWidth > targetWidth) break;
-        result += char;
-        currentWidth += charWidth;
-    }
-
-    return result + ellipsis;
-}
-
 // Word character detection helpers
 // These accept string | undefined to safely handle array bounds access (chars[i] may be undefined)
 export const isWordCharStrict = (char: string | undefined): boolean =>
