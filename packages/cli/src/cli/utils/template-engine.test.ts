@@ -207,7 +207,7 @@ describe('template-engine', () => {
                 imageName: 'my-image',
             });
 
-            expect(result).toContain('pnpm run build');
+            expect(result).toContain('bun run build');
             expect(result).toContain('dexto-bundle build');
             expect(result).toContain('Discovers factories from convention-based folders');
         });
@@ -311,8 +311,8 @@ describe('template-engine', () => {
             });
 
             expect(result).toContain('## Quick Start');
-            expect(result).toContain('pnpm install');
-            expect(result).toContain('pnpm start');
+            expect(result).toContain('bun install');
+            expect(result).toContain('bun run start');
         });
 
         it('should include project structure', () => {

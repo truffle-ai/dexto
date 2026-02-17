@@ -128,7 +128,7 @@ import { importImageModule } from './cli/utils/image-store.js';
 
 const program = new Command();
 
-// Resolve images via the Dexto image store when installed; fall back to host imports (pnpm-safe).
+// Resolve images via the Dexto image store when installed; fall back to host imports (package-manager-safe).
 setImageImporter((specifier) => importImageModule(specifier));
 
 // Initialize analytics early (no-op if disabled)
@@ -1391,9 +1391,8 @@ program
                     // Now that preferences apply to ALL agents, we check for any agent
                     // Only run this check when Dexto auth feature is enabled
                     if (isDextoAuthEnabled()) {
-                        const { checkDextoAuthState } = await import(
-                            './cli/utils/dexto-auth-check.js'
-                        );
+                        const { checkDextoAuthState } =
+                            await import('./cli/utils/dexto-auth-check.js');
                         const authCheck = await checkDextoAuthState(
                             opts.interactive !== false,
                             agentId
@@ -1402,15 +1401,13 @@ program
                         if (!authCheck.shouldContinue) {
                             if (authCheck.action === 'login') {
                                 // User wants to log in - run login flow then restart
-                                const { handleLoginCommand } = await import(
-                                    './cli/commands/auth/login.js'
-                                );
+                                const { handleLoginCommand } =
+                                    await import('./cli/commands/auth/login.js');
                                 await handleLoginCommand({ interactive: true });
 
                                 // Verify key was actually provisioned (provisionKeys silently catches errors)
-                                const { canUseDextoProvider } = await import(
-                                    './cli/utils/dexto-setup.js'
-                                );
+                                const { canUseDextoProvider } =
+                                    await import('./cli/utils/dexto-setup.js');
                                 if (!(await canUseDextoProvider())) {
                                     console.error(
                                         '\n❌ API key provisioning failed. Please try again or run `dexto setup` to use a different provider.\n'
@@ -1420,9 +1417,8 @@ program
                                 // After login, continue with startup (preferences unchanged, now authenticated)
                             } else if (authCheck.action === 'setup') {
                                 // User wants to configure different provider - run setup
-                                const { handleSetupCommand } = await import(
-                                    './cli/commands/setup.js'
-                                );
+                                const { handleSetupCommand } =
+                                    await import('./cli/commands/setup.js');
                                 await handleSetupCommand({ interactive: true, force: true });
                                 // Reload preferences after setup
                                 preferences = await loadGlobalPreferences();
@@ -1439,12 +1435,10 @@ program
                         // Check if API key is still missing (user may have set it manually)
                         const configuredApiKey = resolveApiKeyForProvider(preferences.llm.provider);
                         if (!configuredApiKey) {
-                            const { promptForPendingApiKey } = await import(
-                                './cli/utils/api-key-setup.js'
-                            );
-                            const { updateGlobalPreferences } = await import(
-                                '@dexto/agent-management'
-                            );
+                            const { promptForPendingApiKey } =
+                                await import('./cli/utils/api-key-setup.js');
+                            const { updateGlobalPreferences } =
+                                await import('@dexto/agent-management');
 
                             const result = await promptForPendingApiKey(
                                 preferences.llm.provider,
@@ -1467,9 +1461,8 @@ program
                             // If 'skip', continue without API key (user chose to proceed)
                         } else {
                             // API key exists (user set it manually) - clear the pending flag
-                            const { updateGlobalPreferences } = await import(
-                                '@dexto/agent-management'
-                            );
+                            const { updateGlobalPreferences } =
+                                await import('@dexto/agent-management');
                             await updateGlobalPreferences({
                                 setup: { apiKeyPending: false },
                             });
@@ -1692,9 +1685,8 @@ program
                         if (needsHandler) {
                             // CLI uses its own approval handler that works directly with AgentEventBus
                             // This avoids the indirection of ApprovalCoordinator (designed for HTTP flows)
-                            const { createCLIApprovalHandler } = await import(
-                                './cli/approval/index.js'
-                            );
+                            const { createCLIApprovalHandler } =
+                                await import('./cli/approval/index.js');
                             const handler = createCLIApprovalHandler(agent);
                             agent.setApprovalHandler(handler);
 
@@ -1714,9 +1706,8 @@ program
                         const { requiresApiKey } = await import('@dexto/core');
                         if (requiresApiKey(llmConfig.provider) && !llmConfig.apiKey?.trim()) {
                             // Offer interactive API key setup instead of just exiting
-                            const { interactiveApiKeySetup } = await import(
-                                './cli/utils/api-key-setup.js'
-                            );
+                            const { interactiveApiKeySetup } =
+                                await import('./cli/utils/api-key-setup.js');
 
                             console.log(
                                 chalk.yellow(
@@ -1809,9 +1800,8 @@ program
 
                         let inkError: unknown = undefined;
                         try {
-                            const { startInkCliRefactored } = await import(
-                                './cli/ink-cli/InkCLIRefactored.js'
-                            );
+                            const { startInkCliRefactored } =
+                                await import('./cli/ink-cli/InkCLIRefactored.js');
                             await startInkCliRefactored(agent, cliSessionId, {
                                 updateInfo: cliUpdateInfo ?? undefined,
                                 configFilePath: resolvedPath,
@@ -1860,8 +1850,10 @@ program
                         const webRoot = resolveWebRoot();
                         if (!webRoot) {
                             console.warn(chalk.yellow('⚠️  WebUI not found in this build.'));
-                            console.info('For production: Run "pnpm build:all" to embed the WebUI');
-                            console.info('For development: Run "pnpm dev" for hot reload');
+                            console.info(
+                                'For production: Run "bun run build:all" to embed the WebUI'
+                            );
+                            console.info('For development: Run "bun run dev" for hot reload');
                         }
 
                         // Build WebUI runtime config (analytics, etc.) for injection into index.html
@@ -1984,8 +1976,8 @@ program
                             console.error('');
                             console.error(`To run it:`);
                             console.error(`  cd examples/${opts.mode}-bot`);
-                            console.error(`  pnpm install`);
-                            console.error(`  pnpm start`);
+                            console.error(`  bun install`);
+                            console.error(`  bun run start`);
                         } else {
                             console.error(
                                 `❌ Unknown mode '${opts.mode}'. Use web, cli, server, or mcp.`

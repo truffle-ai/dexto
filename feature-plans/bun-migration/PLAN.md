@@ -1,0 +1,299 @@
+# Bun Migration (Package Manager + Runtime) — Functionality Parity
+
+Last updated: 2026-02-17
+
+## Goals (PR 1 scope: Bun migration with parity)
+
+1. **Bun for everything** in this monorepo:
+   - **Package manager:** `bun install`, `bun add`, `bun run …`
+   - **Runtime:** `bun …` for the CLI/server/dev scripts (no `node`/`pnpm` required for day-to-day work)
+2. **No feature/functionality changes**:
+   - Preserve current behavior and outputs
+   - Avoid user-visible breaking changes while swapping the tooling/runtime under the hood
+3. Reduce/avoid native Node add-on pain:
+   - Prefer Bun built-ins (notably SQLite) over Node ABI-sensitive modules.
+
+## Split plan (PRs)
+
+- **PR 1 (this plan):** Bun migration (package manager + runtime) with functionality parity
+- **PR 2 (follow-up):** Native TypeScript extensions + layered `~/.dexto` package root (DEXTO_DOTDEXTO intent) and any image-store redesign that naturally falls out of that
+- **PR 3 (optional follow-up):** Docs cleanups
+
+## Non-goals (PR 1)
+
+- Rewriting every example app to Bun (but we should keep them runnable).
+- Switching the test framework from Vitest to `bun test` (we can run Vitest under Bun).
+- Changing what gets published (but we should keep packages publishable).
+- Implementing native TypeScript extension loading from layered `.dexto` roots (explicitly split to PR 2).
+- Redesigning/replacing the image store (explicitly split to PR 2).
+- Docs updates (DEVELOPMENT/CONTRIBUTING) (explicitly split to PR 3).
+
+## What stays the same (tooling)
+
+Bun is replacing **pnpm/npm** for installs + running scripts, but it does **not** replace the higher-level monorepo tooling we already use:
+
+- **Turborepo:** still the task runner/orchestrator (pipelines, caching). Bun can run it (`bun run …` / `bun x turbo …`), but Bun doesn’t provide a Turbo-equivalent feature set.
+- **Changesets:** still the versioning/release-plan system for this fixed-version monorepo. We run it via `bun x changeset …`.
+  - **Important:** `changeset publish` only supports npm/pnpm, so PR 1 uses a Bun-based publish script (`scripts/publish-packages.ts`) while keeping Changesets for versioning + changelogs.
+
+## Status (this worktree)
+
+As of 2026-02-17 in `~/Projects/dexto-bun-migration`:
+
+- Root workspace is Bun-based (`packageManager: bun@1.2.9`) with `bun.lock`.
+- Docs site (`docs/`) is Bun-based (`docs/bun.lock`) and builds under Bun.
+- Repo scripts and entrypoints have been moved off hard `node`/`pnpm` invocations where it mattered for runtime.
+- SQLite persistence under Bun uses **`bun:sqlite`** (no `better-sqlite3` ABI dependency for the Bun runtime path).
+- CI + release workflows have been migrated to Bun (GitHub Actions no longer run pnpm).
+- `bun run build`, `bun run typecheck`, and `bun run test` are green.
+
+Version note:
+- **Current pinned Bun:** `1.2.9` (known-good in this worktree)
+- We’re intentionally staying on `1.2.9` during this migration workstream.
+
+---
+
+## Commit strategy (checkpoint-driven)
+
+We’ll keep the git history easy to bisect and easy to revert by using **checkpoint commits** after each migration milestone.
+
+Rules:
+- **No `git commit --amend`** for this workstream; always create a new commit.
+- **Stage explicit paths** (no `git add .` / `git add -A`).
+- Before every checkpoint commit, run:
+  - `bun run build`
+  - `bun run typecheck`
+  - `bun run test` (unless a commit is purely docs/plan files)
+- Update these files when progress changes:
+  - `feature-plans/bun-migration/TASKLIST.md` (checkboxes)
+  - `feature-plans/bun-migration/WORKING_MEMORY.md` (task + checkpoint notes)
+- Note: `feature-plans/` is gitignored; plan files are committed via `git add -f …`.
+
+Commit types (guideline, not dogma):
+- `chore(bun): …` — migration plumbing (scripts, runtime, lockfiles)
+- `fix(storage): …` — runtime correctness fixes needed for Bun
+- `refactor(…): …` — behavior-preserving migrations
+- `docs(bun): …` — plan/tasklist/memory updates
+
+---
+
+## Why Bun runtime (not “package manager only”)
+
+### If Bun is **package manager only** and Node remains the runtime
+
+You *can* install dependencies into `~/.dexto/plugins`, `~/.dexto/images`, etc. and load **built JS** by:
+- importing via a **file URL** to the entry file, or
+- resolving the package entry via Node resolution helpers and then importing.
+
+But **native TypeScript at runtime is not solved**:
+- Node cannot execute `.ts`/`.tsx` without a loader (e.g. `tsx`, `ts-node`, custom `--loader`).
+- This leaks into every extension story (plugins/images/compaction/storage): either “compile first” or “bring a loader”.
+
+### If Bun is also the **runtime**
+
+- Bun can execute TypeScript directly (no `tsx` loader required).
+- Bun supports the NodeNext TypeScript convention of **using `.js` in TS import specifiers**; Bun resolves it to the `.ts` source at runtime. (Verified in this repo by importing `./packages/core/src/utils/path.js` successfully under Bun.)
+
+**Conclusion:** PR 1 targets **Bun runtime parity** (no feature changes). Native TS in layered `~/.dexto` roots is a **follow-up PR**.
+
+---
+
+## Repo-specific migration surface area
+
+### 1) Workspace + lockfiles
+
+- Root `package.json` must include `workspaces` (Bun uses this).
+- Bun lockfile (`bun.lock` text is fine for review/merge conflicts) is the source of truth.
+- Legacy pnpm files (`pnpm-lock.yaml`, `pnpm-workspace.yaml`) are deleted once CI flips to Bun.
+
+### 2) Scripts / entrypoints
+
+Targets:
+- No hard `node …` calls in `package.json` scripts or repo scripts.
+- Prefer `bun …` for running TS scripts (`scripts/*.ts`, `packages/*/scripts/*.ts`).
+- Prefer `bun x …` when executing package CLIs (e.g. `vite`, `turbo`, `tsup`, `tsc`) if you want to eliminate reliance on Node shebangs in `node_modules/.bin`.
+
+### 3) Native dependency audit (actual deps in this repo)
+
+Hard lessons / current reality:
+- **`better-sqlite3`** (Node native addon) is ABI-sensitive and fails under Bun unless compiled against Bun’s Node ABI compatibility (Bun v1.2.9 reports `NODE_MODULE_VERSION 127`).
+- Build tooling commonly includes native pieces:
+  - `esbuild`
+  - `@tailwindcss/oxide`
+
+Also relevant to *this repo’s* Bun runtime story:
+- **Local model support uses a native addon**: `node-llama-cpp` is installed on-demand into `~/.dexto/deps` via Bun (`bun add --trust node-llama-cpp`). If we want “Bun runtime, no Node required”, we need an explicit strategy for native addon compatibility across platforms.
+- Bun supports **Node-API** for many native addons, but this is not universal; ABI-sensitive addons are a recurring risk. Prefer Bun built-ins (like `bun:sqlite`) or pure JS when possible.
+
+Bun-specific knobs:
+- `trustedDependencies` in root `package.json` + `bun pm trust …`
+- `bun pm untrusted` to detect blocked lifecycle scripts
+
+Policy (PR 1):
+- Keep `trustedDependencies` minimal and intentional.
+- Prefer leaving dependency lifecycle scripts blocked unless a concrete breakage requires trusting them.
+- Be cautious trusting scripts that explicitly run `node` (they can reintroduce Node as a hidden dependency).
+
+Current repo state to plan around:
+- `bun pm untrusted` reports blocked postinstalls for:
+  - `core-js` (runs `node -e …`)
+  - `protobufjs` (runs `node scripts/postinstall`)
+  These are blocked by default. If we ever decide to trust them, note they call `node` explicitly.
+
+Implication:
+- If we trust packages whose scripts explicitly invoke `node`, then **Node becomes a hidden dependency** even if we run Dexto under Bun.
+- If we leave them blocked, we need to confirm nothing relies on their postinstall side effects (build/test currently succeeds with them blocked).
+
+### 4) Images + the “image store” vs `~/.dexto` as a Bun package
+
+Current implementation (today):
+- Image installation uses `npm pack` + `npm install` into a temp dir, then moves into the image store.
+- Image resolution imports the store’s **entry file URL** or falls back to `import('@scope/pkg')` (host resolution).
+
+Migration direction (what we want):
+- With Bun runtime, we can plausibly **de-emphasize or replace** the image store:
+  - Make `~/.dexto` a real Bun package (has `package.json`, `node_modules/`)
+  - Install images (and other extension packages) there via `bun add`
+  - Resolve and import images/extensions from that root deterministically
+
+Tradeoff:
+- The current image store supports “multiple installed versions + active version”.
+- A single Bun package root naturally supports “one resolved version at a time” via semver ranges in `package.json`.
+  - If we still need multi-version switching, we’d implement it via multiple roots (e.g. `~/.dexto/images/<id>@<ver>/package.json`) or by keeping a registry + reinstall step.
+
+---
+
+## Phased plan (PR 1 scope)
+
+### Phase 0 — Working Bun baseline (monorepo)
+
+- Set root `packageManager` to the Bun version we support (pin, and keep `engines.bun`).
+- Ensure workspaces are declared in root `package.json`.
+- Produce `bun.lock` and make `bun install` succeed from a clean checkout.
+- Convert repo scripts/entrypoints to Bun:
+  - Replace `node …` invocations with `bun …`
+  - Replace `pnpm …` invocations with `bun …` (even if Bun auto-rewrites, keep scripts explicit)
+
+Acceptance:
+- `bun install`
+- `bun run build`
+- `bun run typecheck`
+- `bun --cwd packages/cli run start -- --help`
+
+### Phase 1 — Replace SQLite native addon with Bun SQLite
+
+Why:
+- `better-sqlite3` is the primary “Bun runtime blocker” in this repo.
+
+Approach:
+- Use Bun’s built-in `bun:sqlite` for the SQLite database store.
+- Keep SQL schema + behavior the same.
+- Make TypeScript happy by providing a local module declaration for `bun:sqlite` (so DTS/typecheck works in the monorepo).
+
+Acceptance:
+- Storage opens/creates the SQLite file and performs CRUD/list operations under Bun.
+- CLI commands that touch persistence do not trigger any `better-sqlite3` ABI error under Bun.
+
+### Phase 1.5 — Remove remaining pnpm/npm assumptions (repo + CLI UX)
+
+This repo still contains **behavior and strings** that assume pnpm/npm in a few key places:
+- Image store installer uses `npm pack` + `npm install` (tests mock npm).
+- Local model setup installs `node-llama-cpp` via `npm install` into `~/.dexto/deps`.
+- Some scaffolding/templates/help text prints `pnpm …` / `npm …` instructions.
+- The “install-global-cli” dev script uses `npx`/`npm` to simulate user installs.
+- MCP preset registry data and docs frequently use `npx` as the default command (consider switching to `bunx` if we want “no npm” end-to-end).
+
+Acceptance:
+- Running normal CLI flows never requires pnpm.
+- Any remaining npm usage is either removed or explicitly documented as “requires Node/npm” (with a Bun-first alternative).
+
+### Phase 2 — Functionality parity audit (no feature changes)
+
+Goal:
+- Ensure the Bun migration does not change existing Dexto behavior or break core workflows.
+
+Acceptance (examples; keep this list short and high-signal):
+- `bun install`
+- `bun run build`
+- `bun run typecheck`
+- `bun run test`
+- `bun --cwd packages/cli run start -- --help`
+- CLI scaffolding flows still work and emit Bun-first instructions:
+  - `dexto create-app`
+  - `dexto create-image`
+  - `dexto init`
+- Image install flows work without npm/pnpm:
+  - linked install from a local directory
+  - tarball install produced via `bun pm pack`
+- Local model dependency install uses Bun (`node-llama-cpp`) and is still optional.
+
+---
+
+## Follow-up PRs (out of scope for PR 1)
+
+### PR 2 — Native TS extensions in layered `.dexto` roots
+
+Existing layering already in repo:
+- Project-local `.dexto/…` paths
+- Global `~/.dexto/…` paths
+
+What “native TS extensions” should mean:
+- A user can drop TS modules under `~/.dexto/…` (or install a package there) and Dexto can import them directly under Bun.
+- These extensions can define:
+  - images (today)
+  - future: tool providers, storage backends, compaction strategies, hooks
+
+Recommended resolution model under Bun:
+1. Define one or more **extension roots**:
+   - `~/.dexto` (global)
+   - `<project>/.dexto` (project)
+   - `<repo>/.dexto` (dev mode in-source)
+2. Each extension root may be a Bun package root (optional):
+   - `package.json` + `node_modules/`
+3. To resolve a specifier (image/plugin) from a root:
+   - Use `Bun.resolveSync(specifier, rootPackageJsonPath)` (or an equivalent Bun resolution strategy)
+   - `import(pathToFileURL(resolvedPath).href)`
+4. Merge/override rules:
+   - Project root overrides global root (and repo dev root overrides both when in dev mode).
+
+Acceptance:
+- A TS image module located in `~/.dexto` can be imported and validated without a build step.
+- No `tsx` loader dependency for this path when running under Bun.
+
+### PR 2 (optional) — Deprecate or redesign the image store (align with “DEXTO_DOTDEXTO” intent)
+
+Intent:
+- If `~/.dexto` becomes a Bun package root that can contain images, we likely don’t need:
+  - separate `~/.dexto/images/packages/...` staging
+  - `registry.json` tracking of active versions (or at least we can simplify it)
+
+Options:
+- **Option A (minimal change):** keep image store but replace `npm pack/install` with `bun pm pack` + `bun add`/`bun install` equivalents.
+- **Option B (preferred):** treat `~/.dexto` as the canonical package root:
+  - images become dependencies in `~/.dexto/package.json`
+  - “activate version” becomes updating a dependency range + reinstall
+  - “local image” becomes `file:` dependency or a linked workspace root
+
+Acceptance:
+- Installing/activating images uses Bun-native mechanisms.
+- TS image modules can live in the layered `.dexto` roots and load natively under Bun runtime.
+
+### PR 3 (optional) — CI + docs
+
+- Update docs that mention pnpm/npm for core workflows.
+- Document `trustedDependencies` and the `bun pm untrusted` workflow.
+
+---
+
+## Known risks / things to validate early
+
+- **Lifecycle scripts**: `core-js` and `protobufjs` postinstalls are blocked by default and call `node`.
+  - Prefer leaving them blocked unless/until a concrete breakage requires trusting them.
+- **TypeScript version drift** under Bun:
+  - Bun will respect `bun.lock`; ensure we commit it and keep dependency ranges intentional.
+- **“NodeNext + .js specifiers”**:
+  - Verified Bun resolves `.js` specifiers to `.ts` sources (good for running TS directly).
+  - Still validate this for extension packages in `~/.dexto` (same convention should work).
+- **Node native addons (esp. for local models):**
+  - Prefer Bun built-ins or pure JS where possible.
+  - If a feature requires a native addon, validate it under Bun specifically (Node ABI differences are common).

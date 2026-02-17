@@ -22,20 +22,16 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
 
-      - name: Enable corepack
-        run: corepack enable
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v1
         with:
-          node-version: 20
-          cache: 'pnpm'
+          bun-version: '1.2.9'
 
       - name: Install deps
-        run: pnpm install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Run sync script
-        run: pnpm -w tsx packages/cli/scripts/sync-cli-readme.ts
+        run: bun packages/cli/scripts/sync-cli-readme.ts
 
       - name: Commit changes (same-repo PRs)
         if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
@@ -55,9 +51,8 @@ jobs:
         run: |
           if ! git diff --quiet --exit-code packages/cli/README.md; then
             echo "CLI README is out of sync with root README." >&2
-            echo "Please run: pnpm -w tsx packages/cli/scripts/sync-cli-readme.ts and commit the updated packages/cli/README.md" >&2
+            echo "Please run: bun packages/cli/scripts/sync-cli-readme.ts and commit the updated packages/cli/README.md" >&2
             exit 1
           else
             echo "CLI README already in sync."
           fi
-

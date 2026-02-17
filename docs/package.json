@@ -46,8 +46,10 @@
     ]
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20.0.0",
+    "bun": ">=1.2.9"
   },
+  "packageManager": "bun@1.2.9",
   "overrides": {
     "webpack-dev-server": ">=5.2.1"
   }

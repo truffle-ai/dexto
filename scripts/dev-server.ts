@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env bun
 
 /**
  * Development server that:
@@ -10,10 +10,10 @@
  * Vite proxies /api/* requests to the API server (configured in vite.config.ts)
  *
  * Usage:
- *   pnpm dev                                    # Use default agent on port 3001
- *   pnpm dev -- --agent examples/resources-demo-server/agent.yml
- *   pnpm dev -- --port 6767                     # Custom API port
- *   pnpm dev -- --agent my-agent.yml --port 6767
+ *   bun dev                                    # Use default agent on port 3001
+ *   bun dev -- --agent examples/resources-demo-server/agent.yml
+ *   bun dev -- --port 6767                     # Custom API port
+ *   bun dev -- --agent my-agent.yml --port 6767
  */
 
 import { execSync, spawn, ChildProcess } from 'child_process';
@@ -64,7 +64,7 @@ console.log('🔨 Building packages...\n');
 try {
     // Build all packages (turbo handles dependency graph)
     // This ensures webui dependencies like client-sdk are built
-    execSync('pnpm run build:packages', {
+    execSync('bun run build:packages', {
         stdio: 'inherit',
         cwd: rootDir,
     });
@@ -85,7 +85,7 @@ if (agentPath) {
     console.log(`📡 Starting API server on port ${apiPort}...`);
 }
 
-apiProcess = spawn('node', cliArgs, {
+apiProcess = spawn('bun', cliArgs, {
     stdio: ['inherit', 'pipe', 'pipe'],
     cwd: rootDir,
     env: {
@@ -102,7 +102,7 @@ function startWebUI() {
 
     console.log('\n🎨 Starting WebUI dev server...');
 
-    webuiProcess = spawn('pnpm', ['exec', 'vite', '--port', webuiPort], {
+    webuiProcess = spawn('bun', ['x', 'vite', '--port', webuiPort], {
         cwd: join(rootDir, 'packages', 'webui'),
         stdio: ['inherit', 'pipe', 'pipe'],
         env: {

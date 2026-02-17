@@ -246,22 +246,11 @@ describe('scaffolding-utils', () => {
 
     describe('initPackageJson', () => {
         beforeEach(() => {
-            vi.mocked(executeWithTimeout).mockResolvedValue(undefined as any);
-            (vi.mocked(fs.readFile) as any).mockResolvedValue(
-                JSON.stringify({
-                    name: 'temp-name',
-                    version: '0.0.0',
-                })
-            );
             vi.mocked(fs.writeFile).mockResolvedValue(undefined);
         });
 
         it('should initialize package.json for app', async () => {
             await initPackageJson('/path/to/project', 'my-app', 'app');
-
-            expect(executeWithTimeout).toHaveBeenCalledWith('npm', ['init', '-y'], {
-                cwd: '/path/to/project',
-            });
 
             const writeCall = vi.mocked(fs.writeFile).mock.calls[0];
             if (!writeCall) {
@@ -382,7 +371,7 @@ describe('scaffolding-utils', () => {
 
     describe('installDependencies', () => {
         beforeEach(() => {
-            vi.mocked(getPackageManager).mockReturnValue('pnpm');
+            vi.mocked(getPackageManager).mockReturnValue('bun');
             vi.mocked(getPackageManagerInstallCommand).mockReturnValue('add');
             vi.mocked(executeWithTimeout).mockResolvedValue(undefined as any);
         });
@@ -392,9 +381,13 @@ describe('scaffolding-utils', () => {
                 dependencies: ['@dexto/core', 'zod'],
             });
 
-            expect(executeWithTimeout).toHaveBeenCalledWith('pnpm', ['add', '@dexto/core', 'zod'], {
-                cwd: '/path/to/project',
-            });
+            expect(executeWithTimeout).toHaveBeenCalledWith(
+                'bun',
+                ['add', '--save-text-lockfile', '@dexto/core', 'zod'],
+                {
+                    cwd: '/path/to/project',
+                }
+            );
         });
 
         it('should install dev dependencies', async () => {
@@ -403,8 +396,8 @@ describe('scaffolding-utils', () => {
             });
 
             expect(executeWithTimeout).toHaveBeenCalledWith(
-                'pnpm',
-                ['add', 'typescript', '@types/node', '--save-dev'],
+                'bun',
+                ['add', '--dev', '--save-text-lockfile', 'typescript', '@types/node'],
                 { cwd: '/path/to/project' }
             );
         });

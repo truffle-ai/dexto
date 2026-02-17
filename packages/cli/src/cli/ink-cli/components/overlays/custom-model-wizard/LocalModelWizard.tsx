@@ -439,10 +439,14 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
             }
 
             return new Promise((resolve) => {
-                const child = spawn('npm', ['install', 'node-llama-cpp'], {
-                    stdio: ['ignore', 'ignore', 'pipe'], // stdin ignored, stdout ignored (not needed), stderr piped for errors
-                    cwd: depsDir,
-                });
+                const child = spawn(
+                    'bun',
+                    ['add', '--trust', 'node-llama-cpp', '--save-text-lockfile'],
+                    {
+                        stdio: ['ignore', 'ignore', 'pipe'], // stdin ignored, stdout ignored (not needed), stderr piped for errors
+                        cwd: depsDir,
+                    }
+                );
 
                 let stderr = '';
                 child.stderr?.on('data', (data) => {
@@ -482,7 +486,7 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
             setIsInstallingNodeLlama(false);
 
             if (success) {
-                // Trust npm's exit code - set states and go directly to model selection
+                // Trust bun's exit code - set states and go directly to model selection
                 setNodeLlamaInstalled(true);
                 setNodeLlamaChecked(true);
                 setStep('select-model');

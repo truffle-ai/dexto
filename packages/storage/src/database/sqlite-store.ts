@@ -5,7 +5,8 @@ import type { Logger } from '@dexto/core';
 import { DextoLogComponent, StorageError } from '@dexto/core';
 import type { SqliteDatabaseConfig } from './schemas.js';
 
-// Dynamic import for better-sqlite3
+// Dynamic import for bun:sqlite / better-sqlite3 (Node fallback)
+let BunSqliteDatabase: any;
 let BetterSqlite3Database: any;
 
 /**
@@ -73,25 +74,6 @@ export class SQLiteStore implements Database {
 
     async connect(): Promise<void> {
         if (this.db) return;
-        // Dynamic import of better-sqlite3
-        if (!BetterSqlite3Database) {
-            try {
-                const module = await import('better-sqlite3');
-                BetterSqlite3Database = (module as any).default || module;
-            } catch (error: unknown) {
-                const err = error as NodeJS.ErrnoException;
-                if (err.code === 'ERR_MODULE_NOT_FOUND') {
-                    throw StorageError.dependencyNotInstalled(
-                        'SQLite',
-                        'better-sqlite3',
-                        'npm install better-sqlite3'
-                    );
-                }
-                throw StorageError.connectionFailed(
-                    `Failed to import better-sqlite3: ${error instanceof Error ? error.message : String(error)}`
-                );
-            }
-        }
 
         // Initialize database path from config (full path is provided via enrichment)
         this.dbPath = this.config.path;
@@ -108,36 +90,83 @@ export class SQLiteStore implements Database {
             this.logger.debug(`Directory creation result: ${error ? 'exists' : 'created'}`);
         }
 
-        // Initialize SQLite database
         const sqliteOptions = this.config.options || {};
+        const readonly = sqliteOptions['readonly'] === true;
+        const fileMustExist = sqliteOptions['fileMustExist'] === true;
+        const timeout =
+            typeof sqliteOptions['timeout'] === 'number' ? sqliteOptions['timeout'] : 5000;
+        const verbose = sqliteOptions['verbose'] === true;
+
+        const isBunRuntime = typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined';
+        const runtime = isBunRuntime ? 'bun' : 'node';
+
         this.logger.debug(`SQLite initializing database with config:`, {
-            readonly: sqliteOptions.readonly || false,
-            fileMustExist: sqliteOptions.fileMustExist || false,
-            timeout: sqliteOptions.timeout || 5000,
+            runtime,
+            readonly,
+            fileMustExist,
+            timeout,
+            verbose,
         });
 
-        this.db = new BetterSqlite3Database(this.dbPath, {
-            readonly: sqliteOptions.readonly || false,
-            fileMustExist: sqliteOptions.fileMustExist || false,
-            timeout: sqliteOptions.timeout || 5000,
-            verbose: sqliteOptions.verbose
-                ? (message?: unknown, ...additionalArgs: unknown[]) => {
-                      const messageStr =
-                          typeof message === 'string'
-                              ? message
-                              : typeof message === 'object' && message !== null
-                                ? JSON.stringify(message)
-                                : String(message);
-                      this.logger.debug(
-                          messageStr,
-                          additionalArgs.length > 0 ? { args: additionalArgs } : undefined
-                      );
-                  }
-                : undefined,
-        });
+        if (isBunRuntime) {
+            if (!BunSqliteDatabase) {
+                try {
+                    const module = await import('bun:sqlite');
+                    BunSqliteDatabase = (module as any).Database;
+                } catch (error: unknown) {
+                    throw StorageError.connectionFailed(
+                        `Failed to import bun:sqlite: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                }
+            }
 
-        // Enable WAL mode for better concurrency
-        this.db.pragma('journal_mode = WAL');
+            this.db = new BunSqliteDatabase(this.dbPath, {
+                readonly,
+                create: !fileMustExist,
+            });
+        } else {
+            if (!BetterSqlite3Database) {
+                try {
+                    const module = await import('better-sqlite3');
+                    BetterSqlite3Database = (module as any).default || module;
+                } catch (error: unknown) {
+                    const err = error as NodeJS.ErrnoException;
+                    if (err.code === 'ERR_MODULE_NOT_FOUND') {
+                        throw StorageError.dependencyNotInstalled(
+                            'SQLite',
+                            'better-sqlite3',
+                            'bun add better-sqlite3'
+                        );
+                    }
+                    throw StorageError.connectionFailed(
+                        `Failed to import better-sqlite3: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                }
+            }
+
+            this.db = new BetterSqlite3Database(this.dbPath, {
+                readonly,
+                fileMustExist,
+                timeout,
+                verbose: verbose
+                    ? (message?: unknown, ...additionalArgs: unknown[]) => {
+                          const messageStr =
+                              typeof message === 'string'
+                                  ? message
+                                  : typeof message === 'object' && message !== null
+                                    ? JSON.stringify(message)
+                                    : String(message);
+                          this.logger.debug(
+                              messageStr,
+                              additionalArgs.length > 0 ? { args: additionalArgs } : undefined
+                          );
+                      }
+                    : undefined,
+            });
+        }
+
+        // Enable WAL mode for better concurrency (works for both bun:sqlite and better-sqlite3)
+        this.db.exec('PRAGMA journal_mode = WAL');
         this.logger.debug('SQLite enabled WAL mode for better concurrency');
 
         // Create tables if they don't exist

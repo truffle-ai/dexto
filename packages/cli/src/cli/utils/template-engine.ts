@@ -625,10 +625,10 @@ This package contains:
 
 \`\`\`bash
 # Build the image
-pnpm run build
+bun run build
 
 # Install into the Dexto CLI (local)
-npm pack
+bun pm pack
 dexto image install ./<generated-file>.tgz
 \`\`\`
 
@@ -661,7 +661,7 @@ tools/
 ## Building
 
 \`\`\`bash
-pnpm run build
+bun run build
 \`\`\`
 
 This runs \`dexto-bundle build\`, which:
@@ -672,7 +672,7 @@ This runs \`dexto-bundle build\`, which:
 ## Publishing
 
 \`\`\`bash
-npm publish
+bun publish
 \`\`\`
 
 Users can then:
@@ -785,23 +785,23 @@ export function generateExampleCompaction(compactionType: string): string {
 import type { CompactionFactory } from '@dexto/agent-config';
 import type { CompactionStrategy } from '@dexto/core';
 
-	const ConfigSchema = z
-	    .object({
-	        type: z.literal('${compactionType}'),
-	        enabled: z.boolean().default(true).describe('Enable compaction strategy'),
-	        maxContextTokens: z
-	            .number()
-	            .positive()
-	            .optional()
-	            .describe('Max tokens before compaction'),
-	        thresholdPercent: z
-	            .number()
-	            .min(0.1)
-	            .max(1.0)
-	            .default(0.9)
-	            .describe('Trigger threshold (0–1)'),
-	    })
-	    .strict();
+const ConfigSchema = z
+    .object({
+        type: z.literal('${compactionType}'),
+        enabled: z.boolean().default(true).describe('Enable compaction strategy'),
+        maxContextTokens: z
+            .number()
+            .positive()
+            .optional()
+            .describe('Max tokens before compaction'),
+        thresholdPercent: z
+            .number()
+            .min(0.1)
+            .max(1.0)
+            .default(0.9)
+            .describe('Trigger threshold (0–1)'),
+    })
+    .strict();
 
 type ExampleCompactionConfig = z.output<typeof ConfigSchema>;
 
@@ -936,14 +936,14 @@ ${context.description}
 
 \`\`\`bash
 # Install dependencies
-pnpm install
+bun install
 
 # Set up environment
 cp .env.example .env
 # Edit .env with your API keys
 
 # Run
-pnpm start
+bun run start
 \`\`\`
 
 ## Project Structure

@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env bun
 
 /**
  * Clean build artifacts, temporary files, and caches across the monorepo
@@ -45,7 +45,7 @@ const CLEAN_EXTENSIONS = [
 const PROTECTED_DIRS = [
     '.git',
     '.github',
-    'node_modules', // Let pnpm handle these
+    'node_modules', // Let bun handle these
 ];
 
 async function cleanDirectory(dir: string, targetName: string): Promise<void> {
@@ -124,11 +124,11 @@ async function main(): Promise<void> {
         await cleanPackages();
         await cleanRoot();
         // NOTE: cleanStorage() is NOT called here to preserve conversation history
-        // Use `pnpm clean:storage` explicitly if you need to wipe .dexto
+        // Use `bun run clean:storage` explicitly if you need to wipe .dexto
 
         console.log('\n✨ Cleanup completed successfully!');
-        console.log('Run "pnpm install" if you need to reinstall dependencies.');
-        console.log('Note: .dexto storage was preserved. Use "pnpm clean:storage" to wipe it.');
+        console.log('Run "bun install" if you need to reinstall dependencies.');
+        console.log('Note: .dexto storage was preserved. Use "bun run clean:storage" to wipe it.');
     } catch (err) {
         console.error('\n❌ Cleanup failed:', err);
         process.exit(1);

@@ -46,7 +46,7 @@ describe('version-check', () => {
             expect(mockFetch).not.toHaveBeenCalled();
         });
 
-        it('returns update info when newer version available from npm', async () => {
+        it('returns update info when newer version available from registry', async () => {
             // No cache - force fetch
             vi.mocked(fs.readFile).mockRejectedValue(new Error('ENOENT'));
             vi.mocked(fs.writeFile).mockResolvedValue();
@@ -62,7 +62,7 @@ describe('version-check', () => {
             expect(result).toEqual({
                 current: '1.0.0',
                 latest: '2.0.0',
-                updateCommand: 'npm i -g dexto',
+                updateCommand: 'bun add -g dexto@latest',
             });
         });
 
@@ -110,7 +110,7 @@ describe('version-check', () => {
             expect(result).toEqual({
                 current: '1.0.0',
                 latest: '2.0.0',
-                updateCommand: 'npm i -g dexto',
+                updateCommand: 'bun add -g dexto@latest',
             });
             expect(mockFetch).not.toHaveBeenCalled();
         });
@@ -136,7 +136,7 @@ describe('version-check', () => {
             expect(result).toEqual({
                 current: '1.0.0',
                 latest: '2.0.0',
-                updateCommand: 'npm i -g dexto',
+                updateCommand: 'bun add -g dexto@latest',
             });
             expect(mockFetch).toHaveBeenCalled();
         });
@@ -220,7 +220,7 @@ describe('version-check', () => {
                 displayUpdateNotification({
                     current: '1.0.0',
                     latest: '2.0.0',
-                    updateCommand: 'npm i -g dexto',
+                    updateCommand: 'bun add -g dexto@latest',
                 })
             ).not.toThrow();
         });

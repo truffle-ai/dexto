@@ -1,10 +1,10 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env bun
 /**
  * Syncs OpenAPI specification from Hono server routes to docs
  *
  * Usage:
- *   pnpm run sync-openapi-docs        # Update the docs file
- *   pnpm run sync-openapi-docs:check  # Verify docs are up-to-date (CI)
+ *   bun run sync-openapi-docs        # Update the docs file
+ *   bun run sync-openapi-docs:check  # Verify docs are up-to-date (CI)
  *
  * This script creates a mock agent and Hono app instance to extract
  * the OpenAPI schema without needing a running server or real agent.
@@ -33,7 +33,7 @@ async function syncOpenAPISpec() {
         if (!fs.existsSync(SERVER_DIST_PATH)) {
             console.log('📦 Server package not built, building now...\n');
             try {
-                execSync('pnpm --filter @dexto/server... build', {
+                execSync('bun run build:server', {
                     stdio: 'inherit',
                     cwd: path.join(__dirname, '..'),
                 });
@@ -55,7 +55,7 @@ async function syncOpenAPISpec() {
             }
         } catch (err) {
             if (err instanceof Error && err.message.includes('Cannot find module')) {
-                throw new Error('Failed to import server package. Run: pnpm run build:server');
+                throw new Error('Failed to import server package. Run: bun run build:server');
             }
             throw err;
         }
@@ -150,7 +150,7 @@ async function syncOpenAPISpec() {
             if (!fs.existsSync(OUTPUT_PATH)) {
                 console.error(`\n❌ OpenAPI docs file not found`);
                 console.error(`   Expected: ${path.relative(process.cwd(), OUTPUT_PATH)}`);
-                console.error('   Run: pnpm run sync-openapi-docs\n');
+                console.error('   Run: bun run sync-openapi-docs\n');
                 process.exit(1);
             }
 
@@ -168,7 +168,7 @@ async function syncOpenAPISpec() {
             if (existingContent !== newContent) {
                 console.error('\n❌ OpenAPI docs are out of sync!');
                 console.error(`   File: ${path.relative(process.cwd(), OUTPUT_PATH)}`);
-                console.error('   Run: pnpm run sync-openapi-docs\n');
+                console.error('   Run: bun run sync-openapi-docs\n');
                 process.exit(1);
             }
 

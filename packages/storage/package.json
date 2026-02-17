@@ -29,14 +29,10 @@
     "zod": "^3.25.0"
   },
   "peerDependencies": {
-    "better-sqlite3": "^11.10.0",
     "ioredis": "^5.7.0",
     "pg": "^8.15.4"
   },
   "peerDependenciesMeta": {
-    "better-sqlite3": {
-      "optional": true
-    },
     "ioredis": {
       "optional": true
     },

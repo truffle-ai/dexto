@@ -62,7 +62,7 @@ image and validating against that factory’s `configSchema`.
 
 Some backends rely on optional peer dependencies:
 
-- SQLite: `better-sqlite3`
+- SQLite: built-in `bun:sqlite` (Bun runtime) or `better-sqlite3` (Node runtime fallback)
 - Postgres: `pg`
 - Redis: `ioredis`
 

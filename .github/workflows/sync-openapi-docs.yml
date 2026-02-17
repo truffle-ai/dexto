@@ -22,23 +22,19 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
 
-      - name: Enable corepack
-        run: corepack enable
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v1
         with:
-          node-version: 20
-          cache: 'pnpm'
+          bun-version: '1.2.9'
 
       - name: Install deps
-        run: pnpm install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Build server package with dependencies
-        run: pnpm --filter @dexto/server... build
+        run: bun run build:server
 
       - name: Run sync script
-        run: pnpm run sync-openapi-docs
+        run: bun run sync-openapi-docs
 
       - name: Commit changes (same-repo PRs)
         if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
@@ -58,7 +54,7 @@ jobs:
         run: |
           if ! git diff --quiet --exit-code docs/static/openapi/openapi.json; then
             echo "OpenAPI docs are out of sync with API routes." >&2
-            echo "Please run: pnpm --filter @dexto/server... build &&pnpm run sync-openapi-docs and commit the updated docs/static/openapi/openapi.json" >&2
+            echo "Please run: bun run build:server && bun run sync-openapi-docs and commit the updated docs/static/openapi/openapi.json" >&2
             exit 1
           else
             echo "OpenAPI docs already in sync."

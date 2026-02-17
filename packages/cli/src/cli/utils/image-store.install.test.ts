@@ -9,11 +9,11 @@ vi.mock('./execute.js', () => ({
         async (_command: string, args: string[], options: { cwd: string }) => {
             const cwd = options.cwd;
 
-            if (args[0] === 'pack') {
-                const destIndex = args.indexOf('--pack-destination');
+            if (_command === 'bun' && args[0] === 'pm' && args[1] === 'pack') {
+                const destIndex = args.indexOf('--destination');
                 const dest = destIndex >= 0 ? args[destIndex + 1] : undefined;
                 if (!dest) {
-                    throw new Error('Test mock expected npm pack to include --pack-destination');
+                    throw new Error('Test mock expected bun pm pack to include --destination');
                 }
 
                 await fs.mkdir(dest, { recursive: true });
@@ -21,8 +21,8 @@ vi.mock('./execute.js', () => ({
                 return;
             }
 
-            if (args[0] === 'install') {
-                // Simulate `npm install <specifier>` by:
+            if (_command === 'bun' && args[0] === 'add') {
+                // Simulate `bun add <specifier>` by:
                 // - writing the dependency into package.json
                 // - creating node_modules/@myorg/my-image with a valid package.json + dist entry
                 const pkgPath = path.join(cwd, 'package.json');
@@ -68,7 +68,7 @@ vi.mock('./execute.js', () => ({
                 return;
             }
 
-            throw new Error(`Unexpected npm args: ${args.join(' ')}`);
+            throw new Error(`Unexpected execute args: ${_command} ${args.join(' ')}`);
         }
     ),
 }));
@@ -82,7 +82,7 @@ describe('installImageToStore', () => {
         vi.clearAllMocks();
     });
 
-    it('installs into the store and writes registry entry (mocked npm)', async () => {
+    it('installs into the store and writes registry entry (mocked bun)', async () => {
         const storeDir = await makeTempDir('dexto-image-store-install-');
         const imageDir = await makeTempDir('dexto-image-store-image-src-');
         try {
@@ -203,7 +203,7 @@ describe('installImageToStore', () => {
             expect(thrown).toBeInstanceOf(Error);
             const message = (thrown as Error).message;
             expect(message).toMatch(/has not been built/);
-            expect(message).toMatch(/pnpm run build/);
+            expect(message).toMatch(/bun run build/);
 
             expect(vi.mocked(executeWithTimeout)).not.toHaveBeenCalled();
         } finally {

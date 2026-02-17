@@ -79,7 +79,7 @@ export async function createDextoProject(
 
         console.log(`\n${chalk.cyan('Next steps:')}`);
         console.log(`  ${chalk.gray('$')} cd ${projectName}`);
-        console.log(`  ${chalk.gray('$')} pnpm start`);
+        console.log(`  ${chalk.gray('$')} bun run start`);
         console.log(`\n${chalk.gray('Learn more:')} https://docs.dexto.ai\n`);
 
         return projectPath;
@@ -145,7 +145,7 @@ async function scaffoldCodeFirstDI(
     const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf8'));
 
     packageJson.scripts = {
-        start: 'tsx src/index.ts',
+        start: 'bun src/index.ts',
         build: 'tsc',
         ...packageJson.scripts,
     };
@@ -184,7 +184,6 @@ async function scaffoldCodeFirstDI(
         // Intentionally omit tool packs in the scaffold to keep the onboarding example minimal.
         // TODO: Revisit adding a default tool pack once tool IDs no longer require manual qualification.
         'dotenv',
-        'tsx',
     ];
 
     if (appType === 'webapp') {
@@ -197,6 +196,6 @@ async function scaffoldCodeFirstDI(
             dependencies,
             devDependencies: ['typescript@^5.0.0', '@types/node@^20.0.0'],
         },
-        isDextoSource ? 'pnpm' : undefined
+        isDextoSource ? 'bun' : undefined
     );
 }

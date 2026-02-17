@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /* eslint-env node */
 import console from 'node:console';
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
@@ -100,4 +100,3 @@ function main() {
 }
 
 main();
-
