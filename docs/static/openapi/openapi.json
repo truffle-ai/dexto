@@ -14467,7 +14467,7 @@
                               "blob",
                               "database",
                               "compaction",
-                              "customTools"
+                              "tools"
                             ],
                             "description": "Factory category"
                           },
@@ -14509,7 +14509,7 @@
                               "blob",
                               "database",
                               "compaction",
-                              "customTools"
+                              "tools"
                             ],
                             "description": "Factory category"
                           },
@@ -14551,7 +14551,7 @@
                               "blob",
                               "database",
                               "compaction",
-                              "customTools"
+                              "tools"
                             ],
                             "description": "Factory category"
                           },
@@ -14578,7 +14578,7 @@
                       },
                       "description": "Compaction strategy factories"
                     },
-                    "customTools": {
+                    "toolFactories": {
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -14593,7 +14593,7 @@
                               "blob",
                               "database",
                               "compaction",
-                              "customTools"
+                              "tools"
                             ],
                             "description": "Factory category"
                           },
@@ -14618,16 +14618,16 @@
                         ],
                         "description": "Information about a registered factory"
                       },
-                      "description": "Custom tool factories"
+                      "description": "Tool factories"
                     },
-                    "internalTools": {
+                    "builtinTools": {
                       "type": "array",
                       "items": {
                         "type": "object",
                         "properties": {
                           "name": {
                             "type": "string",
-                            "description": "Internal tool name identifier (e.g., \"search_history\", \"ask_user\")"
+                            "description": "Built-in tool name identifier (e.g., \"search_history\", \"ask_user\")"
                           },
                           "description": {
                             "type": "string",
@@ -14638,17 +14638,17 @@
                           "name",
                           "description"
                         ],
-                        "description": "Information about an internal tool"
+                        "description": "Information about a built-in tool"
                       },
-                      "description": "Internal tools available for configuration"
+                      "description": "Built-in tools available for configuration"
                     }
                   },
                   "required": [
                     "blob",
                     "database",
                     "compaction",
-                    "customTools",
-                    "internalTools"
+                    "toolFactories",
+                    "builtinTools"
                   ],
                   "description": "Discovery response with factories grouped by category"
                 }

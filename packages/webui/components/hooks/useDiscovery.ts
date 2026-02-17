@@ -4,7 +4,7 @@ import { queryKeys } from '@/lib/queryKeys';
 
 /**
  * Hook to fetch available factories and capabilities.
- * Returns storage factories, compaction strategy factories, custom tool factories, and internal tools.
+ * Returns storage factories, compaction strategy factories, tool factories, and built-in tools.
  */
 export function useDiscovery(enabled: boolean = true) {
     return useQuery({
@@ -22,4 +22,4 @@ export function useDiscovery(enabled: boolean = true) {
 // Export types using the standard inference pattern
 export type DiscoveryResponse = NonNullable<ReturnType<typeof useDiscovery>['data']>;
 export type DiscoveredFactory = DiscoveryResponse['blob'][number];
-export type ToolInfo = DiscoveryResponse['internalTools'][number];
+export type ToolInfo = DiscoveryResponse['builtinTools'][number];

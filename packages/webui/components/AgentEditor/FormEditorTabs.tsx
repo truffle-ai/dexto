@@ -390,7 +390,7 @@ function BehaviorTab({ config, onChange, errors }: TabProps) {
 }
 
 // ============================================================================
-// TOOLS TAB - Internal Tools, Custom Tools, MCP Servers
+// TOOLS TAB - Built-in Tools, Tool Factories, MCP Servers
 // ============================================================================
 
 function ToolsTab({ config, onChange, errors }: TabProps) {
@@ -400,7 +400,7 @@ function ToolsTab({ config, onChange, errors }: TabProps) {
     const toolEntries = config.tools ?? [];
     const builtinToolsEntry = toolEntries.find((t) => t.type === 'builtin-tools');
 
-    const enabledInternalTools = (() => {
+    const enabledBuiltinTools = (() => {
         const enabledTools = builtinToolsEntry?.enabledTools;
         if (
             Array.isArray(enabledTools) &&
@@ -408,13 +408,13 @@ function ToolsTab({ config, onChange, errors }: TabProps) {
         ) {
             return enabledTools;
         }
-        return discovery?.internalTools?.map((tool) => tool.name) ?? [];
+        return discovery?.builtinTools?.map((tool) => tool.name) ?? [];
     })();
 
-    const toggleInternalTool = (toolName: string) => {
-        const nextEnabledTools = enabledInternalTools.includes(toolName)
-            ? enabledInternalTools.filter((t) => t !== toolName)
-            : [...enabledInternalTools, toolName];
+    const toggleBuiltinTool = (toolName: string) => {
+        const nextEnabledTools = enabledBuiltinTools.includes(toolName)
+            ? enabledBuiltinTools.filter((t) => t !== toolName)
+            : [...enabledBuiltinTools, toolName];
 
         const otherEntries = toolEntries.filter((t) => t.type !== 'builtin-tools');
         const nextBuiltinToolsEntry = {
@@ -425,10 +425,10 @@ function ToolsTab({ config, onChange, errors }: TabProps) {
         onChange({ ...config, tools: [...otherEntries, nextBuiltinToolsEntry] });
     };
 
-    const enabledCustomTools = toolEntries
+    const enabledToolFactories = toolEntries
         .filter((t) => t.type !== 'builtin-tools')
         .map((t) => t.type);
-    const toggleCustomTool = (toolType: string) => {
+    const toggleToolFactory = (toolType: string) => {
         const isEnabled = toolEntries.some((t) => t.type === toolType);
         const nextTools = isEnabled
             ? toolEntries.filter((t) => t.type !== toolType)
@@ -494,22 +494,22 @@ function ToolsTab({ config, onChange, errors }: TabProps) {
         });
     };
 
-    const internalToolsCount = discovery?.internalTools?.length || 0;
-    const customToolsCount = discovery?.customTools?.length || 0;
+    const builtinToolsCount = discovery?.builtinTools?.length || 0;
+    const toolFactoriesCount = discovery?.toolFactories?.length || 0;
 
     return (
         <div className="p-5 space-y-8">
-            {/* Internal Tools */}
-            <Section title="Internal Tools" description="Built-in capabilities">
+            {/* Built-in Tools */}
+            <Section title="Built-in Tools" description="Core built-in tools shipped with Dexto">
                 {discoveryLoading ? (
                     <div className="flex items-center gap-2 py-6 justify-center text-sm text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         Loading tools...
                     </div>
-                ) : internalToolsCount > 0 ? (
+                ) : builtinToolsCount > 0 ? (
                     <div className="space-y-1">
-                        {discovery!.internalTools.map((tool) => {
-                            const isEnabled = enabledInternalTools.includes(tool.name);
+                        {discovery!.builtinTools.map((tool) => {
+                            const isEnabled = enabledBuiltinTools.includes(tool.name);
                             const qualifiedName = tool.name;
                             const isAutoApproved = isToolAutoApproved(qualifiedName);
 
@@ -520,30 +520,29 @@ function ToolsTab({ config, onChange, errors }: TabProps) {
                                     description={tool.description}
                                     isEnabled={isEnabled}
                                     isAutoApproved={isAutoApproved}
-                                    onToggleEnabled={() => toggleInternalTool(tool.name)}
+                                    showAutoApprove
+                                    onToggleEnabled={() => toggleBuiltinTool(tool.name)}
                                     onToggleAutoApprove={() => toggleToolAutoApprove(qualifiedName)}
                                 />
                             );
                         })}
                         <p className="text-xs text-muted-foreground/60 pt-3">
-                            {enabledInternalTools.length} of {internalToolsCount} enabled
+                            {enabledBuiltinTools.length} of {builtinToolsCount} enabled
                         </p>
                     </div>
                 ) : (
                     <p className="text-sm text-muted-foreground py-4 text-center">
-                        No internal tools available
+                        No built-in tools available
                     </p>
                 )}
             </Section>
 
-            {/* Custom Tools */}
-            {customToolsCount > 0 && (
-                <Section title="Custom Tools" description="Additional providers">
+            {/* Tool Factories */}
+            {toolFactoriesCount > 0 && (
+                <Section title="Tool Factories" description="Additional tool packs from the image">
                     <div className="space-y-1">
-                        {discovery!.customTools.map((tool) => {
-                            const isEnabled = enabledCustomTools.includes(tool.type);
-                            const qualifiedName = tool.type;
-                            const isAutoApproved = isToolAutoApproved(qualifiedName);
+                        {discovery!.toolFactories.map((tool) => {
+                            const isEnabled = enabledToolFactories.includes(tool.type);
                             const displayName = tool.metadata?.displayName || tool.type;
                             const description = tool.metadata?.description;
 
@@ -553,14 +552,15 @@ function ToolsTab({ config, onChange, errors }: TabProps) {
                                     name={displayName}
                                     description={description}
                                     isEnabled={isEnabled}
-                                    isAutoApproved={isAutoApproved}
-                                    onToggleEnabled={() => toggleCustomTool(tool.type)}
-                                    onToggleAutoApprove={() => toggleToolAutoApprove(qualifiedName)}
+                                    isAutoApproved={false}
+                                    showAutoApprove={false}
+                                    onToggleEnabled={() => toggleToolFactory(tool.type)}
+                                    onToggleAutoApprove={() => {}}
                                 />
                             );
                         })}
                         <p className="text-xs text-muted-foreground/60 pt-3">
-                            {enabledCustomTools.length} of {customToolsCount} enabled
+                            {enabledToolFactories.length} of {toolFactoriesCount} enabled
                         </p>
                     </div>
                 </Section>
@@ -605,6 +605,7 @@ function ToolRow({
     description,
     isEnabled,
     isAutoApproved,
+    showAutoApprove,
     onToggleEnabled,
     onToggleAutoApprove,
 }: {
@@ -612,6 +613,7 @@ function ToolRow({
     description?: string;
     isEnabled: boolean;
     isAutoApproved: boolean;
+    showAutoApprove: boolean;
     onToggleEnabled: () => void;
     onToggleAutoApprove: () => void;
 }) {
@@ -638,7 +640,7 @@ function ToolRow({
                     </p>
                 )}
             </div>
-            {isEnabled && (
+            {isEnabled && showAutoApprove && (
                 <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer shrink-0 px-2 py-1 rounded hover:bg-muted/50 transition-colors">
                     <input
                         type="checkbox"
