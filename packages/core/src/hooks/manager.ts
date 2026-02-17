@@ -388,9 +388,14 @@ export class HookManager {
     }
 
     /**
-     * List configured hook names in registration order.
+     * List hook display names in execution order.
+     *
+     * Names are derived from:
+     * - `hook.name` (if present)
+     * - constructor/class name (if available)
+     * - fallback `hook#N`
      */
-    listHookNames(): string[] {
+    getHookNames(): string[] {
         return this.hooks.map((hook, index) => {
             return this.hookNameByInstance.get(hook) ?? this.deriveHookName(hook, index);
         });

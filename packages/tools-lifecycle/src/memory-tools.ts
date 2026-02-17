@@ -25,6 +25,7 @@ const MemoryListInputSchema = z
             .describe('Optional: pagination offset'),
     })
     .strict();
+
 export function createMemoryListTool(): Tool {
     return defineTool({
         id: 'memory_list',
@@ -82,6 +83,7 @@ const MemoryCreateInputSchema = z
         pinned: z.boolean().optional().default(false).describe('Whether this memory is pinned'),
     })
     .strict();
+
 export function createMemoryCreateTool(): Tool {
     return defineTool({
         id: 'memory_create',
@@ -116,6 +118,7 @@ const MemoryUpdateInputSchema = z
         pinned: z.boolean().optional().describe('Updated pinned status (optional)'),
     })
     .strict();
+
 export function createMemoryUpdateTool(): Tool {
     return defineTool({
         id: 'memory_update',

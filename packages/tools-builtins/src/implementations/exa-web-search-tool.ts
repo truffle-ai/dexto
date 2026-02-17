@@ -34,7 +34,6 @@ const WebSearchInputSchema = z
             .describe('Maximum context length in characters (default: 10000)'),
     })
     .strict();
-
 /**
  * Create the `web_search` tool.
  *

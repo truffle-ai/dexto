@@ -21,7 +21,6 @@ const CodeSearchInputSchema = z
             .describe('Approximate token budget to return (1000–50000, default: 5000)'),
     })
     .strict();
-
 /**
  * Create the `code_search` tool.
  *

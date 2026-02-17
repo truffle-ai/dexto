@@ -33,6 +33,7 @@ const SearchHistoryInputSchema = z
             .describe('Optional: offset for pagination (default: 0, only for mode="messages")'),
     })
     .strict();
+
 /**
  * Create the `search_history` tool.
  *

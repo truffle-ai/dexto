@@ -97,7 +97,7 @@ export const systemCommands: CommandDefinition[] = [
             try {
                 const config = agent.getEffectiveConfig();
                 const servers = Object.keys(config.mcpServers || {});
-                const hooksEnabled = agent.services?.hookManager?.listHookNames() ?? [];
+                const hooksEnabled = agent.services.hookManager.getHookNames();
 
                 const configFilePath = ctx.configFilePath ?? null;
 
