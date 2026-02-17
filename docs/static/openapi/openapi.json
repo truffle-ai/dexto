@@ -12404,16 +12404,42 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
                     "error": {
-                      "type": "string",
-                      "description": "Error message"
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
                     }
                   },
                   "required": [
+                    "ok",
                     "error"
                   ],
                   "additionalProperties": false,
-                  "description": "Error response"
+                  "description": "Error API response"
                 }
               }
             }
@@ -12619,16 +12645,42 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
                     "error": {
-                      "type": "string",
-                      "description": "Error message"
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
                     }
                   },
                   "required": [
+                    "ok",
                     "error"
                   ],
                   "additionalProperties": false,
-                  "description": "Error response"
+                  "description": "Error API response"
                 }
               }
             }
@@ -12843,16 +12895,42 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
                     "error": {
-                      "type": "string",
-                      "description": "Error message"
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
                     }
                   },
                   "required": [
+                    "ok",
                     "error"
                   ],
                   "additionalProperties": false,
-                  "description": "Error response"
+                  "description": "Error API response"
                 }
               }
             }
@@ -12864,16 +12942,42 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
                     "error": {
-                      "type": "string",
-                      "description": "Error message"
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
                     }
                   },
                   "required": [
+                    "ok",
                     "error"
                   ],
                   "additionalProperties": false,
-                  "description": "Error response"
+                  "description": "Error API response"
                 }
               }
             }
@@ -12928,16 +13032,42 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
                     "error": {
-                      "type": "string",
-                      "description": "Error message"
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
                     }
                   },
                   "required": [
+                    "ok",
                     "error"
                   ],
                   "additionalProperties": false,
-                  "description": "Error response"
+                  "description": "Error API response"
                 }
               }
             }
@@ -12949,16 +13079,42 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
                     "error": {
-                      "type": "string",
-                      "description": "Error message"
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
                     }
                   },
                   "required": [
+                    "ok",
                     "error"
                   ],
                   "additionalProperties": false,
-                  "description": "Error response"
+                  "description": "Error API response"
                 }
               }
             }
@@ -12997,10 +13153,67 @@
                     "scheduled": {
                       "type": "boolean",
                       "description": "Whether the schedule was queued"
+                    },
+                    "execution": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Execution log ID"
+                        },
+                        "scheduleId": {
+                          "type": "string",
+                          "description": "Schedule ID"
+                        },
+                        "triggeredAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Trigger timestamp (Unix ms)"
+                        },
+                        "completedAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Completion timestamp (Unix ms)"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "success",
+                            "failed",
+                            "timeout"
+                          ],
+                          "description": "Execution status"
+                        },
+                        "duration": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Execution duration in ms"
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Execution error, if any"
+                        },
+                        "result": {
+                          "type": "string",
+                          "description": "Execution result, if any"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "scheduleId",
+                        "triggeredAt",
+                        "status"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Execution log"
                     }
                   },
                   "required": [
-                    "scheduled"
+                    "scheduled",
+                    "execution"
                   ],
                   "additionalProperties": false,
                   "description": "Trigger schedule response"
@@ -13015,16 +13228,42 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
                     "error": {
-                      "type": "string",
-                      "description": "Error message"
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
                     }
                   },
                   "required": [
+                    "ok",
                     "error"
                   ],
                   "additionalProperties": false,
-                  "description": "Error response"
+                  "description": "Error API response"
                 }
               }
             }
@@ -13036,16 +13275,42 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
                     "error": {
-                      "type": "string",
-                      "description": "Error message"
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
                     }
                   },
                   "required": [
+                    "ok",
                     "error"
                   ],
                   "additionalProperties": false,
-                  "description": "Error response"
+                  "description": "Error API response"
                 }
               }
             }

@@ -355,6 +355,27 @@ export const ScheduleSchema = z
 
 export type Schedule = z.output<typeof ScheduleSchema>;
 
+export const ExecutionLogSchema = z
+    .object({
+        id: z.string().describe('Execution log ID'),
+        scheduleId: z.string().describe('Schedule ID'),
+        triggeredAt: z.number().int().positive().describe('Trigger timestamp (Unix ms)'),
+        completedAt: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe('Completion timestamp (Unix ms)'),
+        status: z.enum(['pending', 'success', 'failed', 'timeout']).describe('Execution status'),
+        duration: z.number().int().nonnegative().optional().describe('Execution duration in ms'),
+        error: z.string().optional().describe('Execution error, if any'),
+        result: z.string().optional().describe('Execution result, if any'),
+    })
+    .strict()
+    .describe('Schedule execution log');
+
+export type ExecutionLog = z.output<typeof ExecutionLogSchema>;
+
 // --- Search Schemas ---
 
 export const SearchResultSchema = z

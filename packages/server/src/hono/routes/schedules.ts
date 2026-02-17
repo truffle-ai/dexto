@@ -1,19 +1,17 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { GetAgentFn } from '../index.js';
-import { ScheduleSchema } from '../schemas/responses.js';
+import {
+    ErrorResponseSchema,
+    ExecutionLogSchema,
+    ScheduleSchema,
+    type ErrorResponse,
+} from '../schemas/responses.js';
 import {
     getSchedulerManager,
     ensureSchedulerManagerForAgent,
     SchedulerErrorCode,
 } from '@dexto/tools-scheduler';
 import { DextoRuntimeError, ErrorType } from '@dexto/core';
-
-const ErrorSchema = z
-    .object({
-        error: z.string().describe('Error message'),
-    })
-    .strict()
-    .describe('Error response');
 
 const CreateScheduleSchema = z
     .object({
@@ -40,6 +38,14 @@ const isScheduleNotFoundError = (error: unknown): boolean =>
     error instanceof DextoRuntimeError &&
     error.type === ErrorType.NOT_FOUND &&
     error.code === SchedulerErrorCode.SCHEDULE_NOT_FOUND;
+
+const toErrorResponse = (message: string, code?: string): ErrorResponse => ({
+    ok: false,
+    error: {
+        message,
+        ...(code ? { code } : {}),
+    },
+});
 
 export function createSchedulesRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
@@ -77,7 +83,7 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                 description: 'Scheduler tools are not enabled',
                 content: {
                     'application/json': {
-                        schema: ErrorSchema,
+                        schema: ErrorResponseSchema,
                     },
                 },
             },
@@ -104,7 +110,7 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                 description: 'Scheduler tools are not enabled',
                 content: {
                     'application/json': {
-                        schema: ErrorSchema,
+                        schema: ErrorResponseSchema,
                     },
                 },
             },
@@ -139,7 +145,7 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                 description: 'Schedule not found',
                 content: {
                     'application/json': {
-                        schema: ErrorSchema,
+                        schema: ErrorResponseSchema,
                     },
                 },
             },
@@ -147,7 +153,7 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                 description: 'Scheduler tools are not enabled',
                 content: {
                     'application/json': {
-                        schema: ErrorSchema,
+                        schema: ErrorResponseSchema,
                     },
                 },
             },
@@ -186,7 +192,7 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                 description: 'Schedule not found',
                 content: {
                     'application/json': {
-                        schema: ErrorSchema,
+                        schema: ErrorResponseSchema,
                     },
                 },
             },
@@ -194,7 +200,7 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                 description: 'Scheduler tools are not enabled',
                 content: {
                     'application/json': {
-                        schema: ErrorSchema,
+                        schema: ErrorResponseSchema,
                     },
                 },
             },
@@ -223,6 +229,7 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                         schema: z
                             .object({
                                 scheduled: z.boolean().describe('Whether the schedule was queued'),
+                                execution: ExecutionLogSchema.describe('Execution log'),
                             })
                             .strict()
                             .describe('Trigger schedule response'),
@@ -233,7 +240,7 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                 description: 'Schedule not found',
                 content: {
                     'application/json': {
-                        schema: ErrorSchema,
+                        schema: ErrorResponseSchema,
                     },
                 },
             },
@@ -241,7 +248,7 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                 description: 'Scheduler tools are not enabled',
                 content: {
                     'application/json': {
-                        schema: ErrorSchema,
+                        schema: ErrorResponseSchema,
                     },
                 },
             },
@@ -252,7 +259,10 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
         .openapi(listRoute, async (ctx) => {
             const { scheduler } = await resolveScheduler(ctx);
             if (!scheduler) {
-                return ctx.json({ error: 'Scheduler tools are not enabled for this agent.' }, 503);
+                return ctx.json(
+                    toErrorResponse('Scheduler tools are not enabled for this agent.'),
+                    503
+                );
             }
             const schedules = await scheduler.listSchedules();
             return ctx.json({ schedules }, 200);
@@ -260,7 +270,10 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
         .openapi(createRouteDef, async (ctx) => {
             const { scheduler } = await resolveScheduler(ctx);
             if (!scheduler) {
-                return ctx.json({ error: 'Scheduler tools are not enabled for this agent.' }, 503);
+                return ctx.json(
+                    toErrorResponse('Scheduler tools are not enabled for this agent.'),
+                    503
+                );
             }
             const input = ctx.req.valid('json');
             const createPayload = {
@@ -280,7 +293,10 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
         .openapi(updateRoute, async (ctx) => {
             const { scheduler } = await resolveScheduler(ctx);
             if (!scheduler) {
-                return ctx.json({ error: 'Scheduler tools are not enabled for this agent.' }, 503);
+                return ctx.json(
+                    toErrorResponse('Scheduler tools are not enabled for this agent.'),
+                    503
+                );
             }
             const { scheduleId } = ctx.req.valid('param');
             const input = ctx.req.valid('json');
@@ -299,7 +315,13 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                 return ctx.json({ schedule }, 200);
             } catch (error) {
                 if (isScheduleNotFoundError(error)) {
-                    return ctx.json({ error: 'Schedule not found' }, 404);
+                    return ctx.json(
+                        toErrorResponse(
+                            'Schedule not found',
+                            SchedulerErrorCode.SCHEDULE_NOT_FOUND
+                        ),
+                        404
+                    );
                 }
                 throw error;
             }
@@ -307,7 +329,10 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
         .openapi(deleteRoute, async (ctx) => {
             const { scheduler } = await resolveScheduler(ctx);
             if (!scheduler) {
-                return ctx.json({ error: 'Scheduler tools are not enabled for this agent.' }, 503);
+                return ctx.json(
+                    toErrorResponse('Scheduler tools are not enabled for this agent.'),
+                    503
+                );
             }
             const { scheduleId } = ctx.req.valid('param');
             try {
@@ -315,7 +340,13 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                 return ctx.json({ deleted: true }, 200);
             } catch (error) {
                 if (isScheduleNotFoundError(error)) {
-                    return ctx.json({ error: 'Schedule not found' }, 404);
+                    return ctx.json(
+                        toErrorResponse(
+                            'Schedule not found',
+                            SchedulerErrorCode.SCHEDULE_NOT_FOUND
+                        ),
+                        404
+                    );
                 }
                 throw error;
             }
@@ -323,15 +354,24 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
         .openapi(triggerRoute, async (ctx) => {
             const { scheduler } = await resolveScheduler(ctx);
             if (!scheduler) {
-                return ctx.json({ error: 'Scheduler tools are not enabled for this agent.' }, 503);
+                return ctx.json(
+                    toErrorResponse('Scheduler tools are not enabled for this agent.'),
+                    503
+                );
             }
             const { scheduleId } = ctx.req.valid('param');
             try {
-                await scheduler.triggerScheduleNow(scheduleId);
-                return ctx.json({ scheduled: true }, 200);
+                const execution = await scheduler.triggerScheduleNow(scheduleId);
+                return ctx.json({ scheduled: true, execution }, 200);
             } catch (error) {
                 if (isScheduleNotFoundError(error)) {
-                    return ctx.json({ error: 'Schedule not found' }, 404);
+                    return ctx.json(
+                        toErrorResponse(
+                            'Schedule not found',
+                            SchedulerErrorCode.SCHEDULE_NOT_FOUND
+                        ),
+                        404
+                    );
                 }
                 throw error;
             }

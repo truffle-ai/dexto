@@ -76,8 +76,6 @@ export async function ensureSchedulerManagerForAgent(
         const logger = loggerOverride ?? agent.logger;
 
         const manager = new SchedulerManager(storageManager, resolvedConfig, logger);
-        schedulerManagerRegistry.set(agentId, manager);
-        schedulerConfigRegistry.set(agentId, resolvedConfig);
 
         const waitForAgentStart = async (): Promise<boolean> => {
             if (!agent || typeof agent.isStarted !== 'function') {
@@ -130,12 +128,21 @@ export async function ensureSchedulerManagerForAgent(
                 return await handler();
             } finally {
                 if (needsChange) {
-                    if (!previous) {
-                        await agent.clearWorkspace();
-                    } else {
-                        await agent.setWorkspace({
-                            path: previous.path,
-                            ...(previous.name ? { name: previous.name } : {}),
+                    try {
+                        if (!previous) {
+                            await agent.clearWorkspace();
+                        } else {
+                            await agent.setWorkspace({
+                                path: previous.path,
+                                ...(previous.name ? { name: previous.name } : {}),
+                            });
+                        }
+                    } catch (restoreError) {
+                        logger.error('Failed to restore workspace after scheduled execution', {
+                            error:
+                                restoreError instanceof Error
+                                    ? restoreError.message
+                                    : String(restoreError),
                         });
                     }
                 }
@@ -177,6 +184,9 @@ export async function ensureSchedulerManagerForAgent(
         } else {
             logger.warn('Scheduler start skipped because agent is not ready.');
         }
+
+        schedulerManagerRegistry.set(agentId, manager);
+        schedulerConfigRegistry.set(agentId, resolvedConfig);
 
         agent.services?.toolManager?.registerCleanup(async () => {
             await manager.stop();

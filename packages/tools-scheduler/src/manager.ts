@@ -512,8 +512,13 @@ export class SchedulerManager {
 
     private async executeScheduleInternal(schedule: Schedule): Promise<ExecutionLog> {
         try {
+            const current = await this.storage.loadSchedule(schedule.id);
+            if (!current) {
+                throw SchedulerError.notFound(schedule.id);
+            }
+
             // Execute via executor
-            const log = await this.executor.execute(schedule);
+            const log = await this.executor.execute(current);
 
             // Save execution log
             await this.storage.saveExecutionLog(log);
@@ -521,27 +526,27 @@ export class SchedulerManager {
             // Update schedule metadata
             const updates: Partial<Schedule> = {
                 lastRunAt: log.triggeredAt,
-                runCount: schedule.runCount + 1,
+                runCount: current.runCount + 1,
                 updatedAt: Date.now(),
             };
 
             if (log.status === 'success') {
-                updates.successCount = schedule.successCount + 1;
+                updates.successCount = current.successCount + 1;
             } else if (log.status === 'failed' || log.status === 'timeout') {
-                updates.failureCount = schedule.failureCount + 1;
+                updates.failureCount = current.failureCount + 1;
                 if (log.error) {
                     updates.lastError = log.error;
                 }
             }
 
             // Calculate next run
-            const nextRun = this.calculateNextRun(schedule);
+            const nextRun = this.calculateNextRun(current);
             if (nextRun !== undefined) {
                 updates.nextRunAt = nextRun;
             }
 
             // Update schedule
-            const updated = { ...schedule, ...updates };
+            const updated = { ...current, ...updates };
             await this.storage.saveSchedule(updated);
 
             return log;
