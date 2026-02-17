@@ -62,9 +62,15 @@ export async function ensureSchedulerManagerForAgent(
         return inflight;
     }
 
-    const resolvedConfig = config ?? schedulerConfigRegistry.get(agentId) ?? defaultSchedulerConfig;
+    const agentConfig = schedulerConfigRegistry.get(agentId);
+    const resolvedConfig = config ?? agentConfig ?? defaultSchedulerConfig;
     if (!resolvedConfig) {
         return null;
+    }
+
+    if (!config && !agentConfig && defaultSchedulerConfig) {
+        const logger = loggerOverride ?? agent.logger;
+        logger.debug('Using default scheduler config', { agentId });
     }
 
     const initPromise = (async () => {

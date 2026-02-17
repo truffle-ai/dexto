@@ -5,6 +5,7 @@
 import cron from 'node-cron';
 import * as cronParser from 'cron-parser';
 import { randomUUID } from 'crypto';
+import { DextoRuntimeError } from '@dexto/core';
 import type { StorageManager, Logger } from '@dexto/core';
 import type { SchedulerToolsConfig } from './schemas.js';
 import {
@@ -549,6 +550,9 @@ export class SchedulerManager {
 
             return log;
         } catch (error) {
+            if (error instanceof DextoRuntimeError) {
+                throw error;
+            }
             throw SchedulerError.executionFailed(
                 schedule.id,
                 error instanceof Error ? error.message : String(error)

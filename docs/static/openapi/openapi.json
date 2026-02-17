@@ -12732,6 +12732,100 @@
               }
             }
           },
+          "429": {
+            "description": "Schedule limit reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to create schedule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
           "503": {
             "description": "Scheduler tools are not enabled",
             "content": {
@@ -13077,6 +13171,53 @@
               }
             }
           },
+          "500": {
+            "description": "Failed to update schedule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
           "503": {
             "description": "Scheduler tools are not enabled",
             "content": {
@@ -13214,6 +13355,53 @@
               }
             }
           },
+          "500": {
+            "description": "Failed to delete schedule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
           "503": {
             "description": "Scheduler tools are not enabled",
             "content": {
@@ -13267,7 +13455,7 @@
     "/api/schedules/{scheduleId}/trigger": {
       "post": {
         "summary": "Trigger Schedule",
-        "description": "Runs a schedule immediately",
+        "description": "Runs a schedule immediately and waits for execution to complete (bounded by executionTimeout, default 5 minutes). Clients should set timeouts accordingly.",
         "tags": [
           "schedules"
         ],
@@ -13364,6 +13552,53 @@
           },
           "404": {
             "description": "Schedule not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to trigger schedule",
             "content": {
               "application/json": {
                 "schema": {

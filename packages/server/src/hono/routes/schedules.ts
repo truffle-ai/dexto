@@ -38,6 +38,23 @@ const isScheduleNotFoundError = (error: unknown): boolean =>
     error.type === ErrorType.NOT_FOUND &&
     error.code === SchedulerErrorCode.SCHEDULE_NOT_FOUND;
 
+const logSchedulerError = (
+    agent:
+        | { logger?: { error: (message: string, context?: Record<string, unknown>) => void } }
+        | undefined,
+    message: string,
+    error: unknown
+) => {
+    if (!agent?.logger) {
+        return;
+    }
+    agent.logger.error(message, {
+        error: error instanceof Error ? error.message : String(error ?? 'Unknown error'),
+        stack: error instanceof Error ? error.stack : undefined,
+        code: error instanceof DextoRuntimeError ? error.code : undefined,
+    });
+};
+
 const toErrorResponse = (message: string, code?: string): ErrorResponse => ({
     ok: false,
     error: {
@@ -121,6 +138,22 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            429: {
+                description: 'Schedule limit reached',
+                content: {
+                    'application/json': {
+                        schema: ErrorResponseSchema,
+                    },
+                },
+            },
+            500: {
+                description: 'Failed to create schedule',
+                content: {
+                    'application/json': {
+                        schema: ErrorResponseSchema,
+                    },
+                },
+            },
             503: {
                 description: 'Scheduler tools are not enabled',
                 content: {
@@ -166,6 +199,14 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
             },
             404: {
                 description: 'Schedule not found',
+                content: {
+                    'application/json': {
+                        schema: ErrorResponseSchema,
+                    },
+                },
+            },
+            500: {
+                description: 'Failed to update schedule',
                 content: {
                     'application/json': {
                         schema: ErrorResponseSchema,
@@ -219,6 +260,14 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            500: {
+                description: 'Failed to delete schedule',
+                content: {
+                    'application/json': {
+                        schema: ErrorResponseSchema,
+                    },
+                },
+            },
             503: {
                 description: 'Scheduler tools are not enabled',
                 content: {
@@ -234,7 +283,8 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
         method: 'post',
         path: '/schedules/{scheduleId}/trigger',
         summary: 'Trigger Schedule',
-        description: 'Runs a schedule immediately',
+        description:
+            'Runs a schedule immediately and waits for execution to complete (bounded by executionTimeout, default 5 minutes). Clients should set timeouts accordingly.',
         tags: ['schedules'],
         request: {
             params: z
@@ -273,6 +323,14 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            500: {
+                description: 'Failed to trigger schedule',
+                content: {
+                    'application/json': {
+                        schema: ErrorResponseSchema,
+                    },
+                },
+            },
             503: {
                 description: 'Scheduler tools are not enabled',
                 content: {
@@ -286,7 +344,7 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
 
     return app
         .openapi(listRoute, async (ctx) => {
-            const { scheduler } = await resolveScheduler(ctx);
+            const { scheduler, agent } = await resolveScheduler(ctx);
             if (!scheduler) {
                 return ctx.json(
                     toErrorResponse('Scheduler tools are not enabled for this agent.'),
@@ -299,11 +357,17 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
             } catch (error) {
                 const message =
                     error instanceof Error ? error.message : String(error ?? 'Unknown error');
-                return ctx.json(toErrorResponse(`Failed to list schedules: ${message}`), 500);
+                logSchedulerError(agent, 'Failed to list schedules', error);
+
+                if (error instanceof DextoRuntimeError) {
+                    return ctx.json(toErrorResponse(message, String(error.code)), 500);
+                }
+
+                return ctx.json(toErrorResponse('Failed to list schedules'), 500);
             }
         })
         .openapi(createRouteDef, async (ctx) => {
-            const { scheduler } = await resolveScheduler(ctx);
+            const { scheduler, agent } = await resolveScheduler(ctx);
             if (!scheduler) {
                 return ctx.json(
                     toErrorResponse('Scheduler tools are not enabled for this agent.'),
@@ -315,18 +379,43 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                 name: input.name,
                 instruction: input.instruction,
                 cronExpression: input.cronExpression,
-                ...(input.timezone ? { timezone: input.timezone } : {}),
+                ...(input.timezone !== undefined ? { timezone: input.timezone } : {}),
                 enabled: input.enabled ?? true,
                 ...(input.workspacePath !== undefined
                     ? { workspacePath: input.workspacePath }
                     : {}),
                 sessionMode: 'dedicated' as const,
             };
-            const schedule = await scheduler.createSchedule(createPayload);
-            return ctx.json({ schedule }, 201);
+            try {
+                const schedule = await scheduler.createSchedule(createPayload);
+                return ctx.json({ schedule }, 201);
+            } catch (error) {
+                if (
+                    error instanceof DextoRuntimeError &&
+                    error.code === SchedulerErrorCode.SCHEDULE_INVALID_CRON
+                ) {
+                    return ctx.json(toErrorResponse(error.message, String(error.code)), 400);
+                }
+                if (
+                    error instanceof DextoRuntimeError &&
+                    error.code === SchedulerErrorCode.SCHEDULE_INVALID_INPUT
+                ) {
+                    return ctx.json(toErrorResponse(error.message, String(error.code)), 400);
+                }
+                if (
+                    error instanceof DextoRuntimeError &&
+                    error.code === SchedulerErrorCode.SCHEDULE_LIMIT_REACHED
+                ) {
+                    return ctx.json(toErrorResponse(error.message, String(error.code)), 429);
+                }
+
+                logSchedulerError(agent, 'Failed to create schedule', error);
+
+                return ctx.json(toErrorResponse('Failed to create schedule'), 500);
+            }
         })
         .openapi(updateRoute, async (ctx) => {
-            const { scheduler } = await resolveScheduler(ctx);
+            const { scheduler, agent } = await resolveScheduler(ctx);
             if (!scheduler) {
                 return ctx.json(
                     toErrorResponse('Scheduler tools are not enabled for this agent.'),
@@ -360,11 +449,26 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                         404
                     );
                 }
-                throw error;
+                if (
+                    error instanceof DextoRuntimeError &&
+                    error.code === SchedulerErrorCode.SCHEDULE_INVALID_CRON
+                ) {
+                    return ctx.json(toErrorResponse(error.message, String(error.code)), 400);
+                }
+                if (
+                    error instanceof DextoRuntimeError &&
+                    error.code === SchedulerErrorCode.SCHEDULE_INVALID_INPUT
+                ) {
+                    return ctx.json(toErrorResponse(error.message, String(error.code)), 400);
+                }
+
+                logSchedulerError(agent, 'Failed to update schedule', error);
+
+                return ctx.json(toErrorResponse('Failed to update schedule'), 500);
             }
         })
         .openapi(deleteRoute, async (ctx) => {
-            const { scheduler } = await resolveScheduler(ctx);
+            const { scheduler, agent } = await resolveScheduler(ctx);
             if (!scheduler) {
                 return ctx.json(
                     toErrorResponse('Scheduler tools are not enabled for this agent.'),
@@ -385,11 +489,13 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                         404
                     );
                 }
-                throw error;
+                logSchedulerError(agent, 'Failed to delete schedule', error);
+
+                return ctx.json(toErrorResponse('Failed to delete schedule'), 500);
             }
         })
         .openapi(triggerRoute, async (ctx) => {
-            const { scheduler } = await resolveScheduler(ctx);
+            const { scheduler, agent } = await resolveScheduler(ctx);
             if (!scheduler) {
                 return ctx.json(
                     toErrorResponse('Scheduler tools are not enabled for this agent.'),
@@ -410,7 +516,9 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                         404
                     );
                 }
-                throw error;
+                logSchedulerError(agent, 'Failed to trigger schedule', error);
+
+                return ctx.json(toErrorResponse('Failed to trigger schedule'), 500);
             }
         });
 }
