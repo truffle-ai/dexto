@@ -33,6 +33,7 @@ _Log findings, issues, and progress here as you work._
 - Imported the OAuth provider plan into this worktree and refactored it to the `PLAN.md` + `WORKING_MEMORY.md` + `USER_VERIFICATION.md` paradigm.
 - Tasklist re-written with numbered tasks and explicit exit criteria.
 - Read through OpenCode/OpenClaw reference implementations and updated `PLAN.md` with concrete file-path pointers for OAuth flows, storage shapes, and two-phase authorize/callback APIs.
+- Pulled concrete models.dev provider metadata (provider IDs, base URLs, env vars, recommended SDKs) and updated `PLAN.md` to include an actionable diff for MiniMax / Z.AI / Zhipu / Moonshot / Kimi Code. Key finding: models.dev treats MiniMax + Kimi Code as **Anthropic-compatible**, while Dexto today assumes MiniMax is OpenAI-compatible.
 
 ---
 
@@ -68,10 +69,12 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 |-------|--------|-------|
 | Phase 0 — Decisions + interface design | Not started | — |
 | Phase 1 — Scaffolding + API surface | Not started | — |
-| Phase 2 — OpenAI ChatGPT OAuth (Codex) | Not started | — |
-| Phase 3 — Anthropic setup-token (if viable) | Not started | — |
-| Phase 4 — Bedrock + Vertex connect UX | Not started | — |
-| Phase 5 — WebUI parity | Not started | — |
+| Phase 2 — Provider presets + more providers | Not started | — |
+| Phase 3 — OpenAI ChatGPT OAuth (Codex) | Not started | — |
+| Phase 4 — MiniMax Portal OAuth | Not started | — |
+| Phase 5 — Anthropic setup-token (if viable) | Not started | — |
+| Phase 6 — Bedrock + Vertex connect UX | Not started | — |
+| Phase 7 — WebUI parity | Not started | — |
 
 ---
 
