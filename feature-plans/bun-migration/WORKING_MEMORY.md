@@ -48,6 +48,10 @@ Recent updates (commit `ec3564ce`):
 Docs updates (commit `c6b670f7`):
 - Docs site is Bun-based (`docs/bun.lock`) and `build-docs` workflow uses Bun.
 
+Main sync (commit `f235a56a`):
+- Merged refactor PR `#584` from `main` into this branch
+- Resolved merge conflicts and validated with `bash scripts/quality-checks.sh all`
+
 Merge blocker reminder:
 - Parity sign-off for `dexto create-app/create-image/init` outside `dexto-source` is blocked on publishing `@dexto/*` packages (owner will publish before merge).
 
@@ -114,6 +118,7 @@ Merge blocker reminder:
 - 2026-02-17: Bun-first CLI scaffolding/templates + help text (commit `15352f74`).
 - 2026-02-17: CI + release workflows migrated to Bun; remove pnpm lock/workspace; add Bun-based publish script (commit `ec3564ce`).
 - 2026-02-17: Docs site migrated to Bun (`docs/bun.lock`, build workflow) (commit `c6b670f7`).
+- 2026-02-17: Synced `main` into this branch; conflicts resolved; quality checks green (commit `f235a56a`).
 
 ---
 
@@ -126,3 +131,4 @@ Merge blocker reminder:
 | 2026-02-17 | Bun-first scaffolding/templates | ✅ | Commit `15352f74`; validated with `bun run build`, `bun run typecheck`, `bun run test` |
 | 2026-02-17 | CI + release on Bun | ✅ | Commit `ec3564ce`; workflows migrated; publish uses Bun script; pnpm files deleted |
 | 2026-02-17 | Docs on Bun | ✅ | Commit `c6b670f7`; `docs/` uses Bun; `build-docs` workflow updated |
+| 2026-02-17 | Main sync | ✅ | Commit `f235a56a`; conflicts resolved; `bash scripts/quality-checks.sh all` green |
