@@ -9249,6 +9249,7 @@
                   "name",
                   "config"
                 ],
+                "additionalProperties": false,
                 "description": "Request body for adding or updating an MCP server"
               }
             }
@@ -9727,6 +9728,7 @@
                 "required": [
                   "config"
                 ],
+                "additionalProperties": false,
                 "description": "Request body for updating an MCP server"
               }
             }
