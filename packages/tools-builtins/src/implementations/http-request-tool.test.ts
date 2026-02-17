@@ -6,6 +6,12 @@ import { createHttpRequestTool } from './http-request-tool.js';
 
 describe('http_request tool', () => {
     it('can fetch via SAFE_DISPATCHER when undici uses lookup({ all: true })', async () => {
+        type HttpResponsePayload = {
+            ok: boolean;
+            status: number;
+            body: string;
+        };
+
         // Regression coverage for a subtle bug:
         // undici can call our custom DNS lookup with options.all=true, in which case
         // the callback signature must be (err, addresses[]).
@@ -23,7 +29,7 @@ describe('http_request tool', () => {
         }) as never);
 
         const tool = createHttpRequestTool();
-        const result = await tool.execute(
+        const result = (await tool.execute(
             {
                 url: 'https://example.com',
                 method: 'GET',
@@ -31,7 +37,7 @@ describe('http_request tool', () => {
             },
             // ToolExecutionContext is not used by this tool.
             {} as never
-        );
+        )) as HttpResponsePayload;
 
         expect(lookupSpy).toHaveBeenCalled();
         expect(result).toMatchObject({
@@ -46,11 +52,14 @@ describe('http_request tool', () => {
         const tool = createHttpRequestTool();
 
         await expect(
-            tool.execute({
-                url: 'http://localhost:1234',
-                method: 'GET',
-                timeoutMs: 1000,
-            })
+            tool.execute(
+                {
+                    url: 'http://localhost:1234',
+                    method: 'GET',
+                    timeoutMs: 1000,
+                },
+                {} as never
+            )
         ).rejects.toMatchObject({
             name: 'DextoRuntimeError',
             code: 'HTTP_REQUEST_UNSAFE_TARGET',
