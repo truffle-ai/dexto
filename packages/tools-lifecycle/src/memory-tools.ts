@@ -25,7 +25,6 @@ const MemoryListInputSchema = z
             .describe('Optional: pagination offset'),
     })
     .strict();
-
 export function createMemoryListTool(): Tool {
     return defineTool({
         id: 'memory_list',
@@ -40,12 +39,13 @@ export function createMemoryListTool(): Tool {
 
             const { tags, source, pinned, limit, offset } = input;
 
-            const options: ListMemoriesOptions = {};
-            if (tags !== undefined) options.tags = tags;
-            if (source !== undefined) options.source = source;
-            if (pinned !== undefined) options.pinned = pinned;
-            if (limit !== undefined) options.limit = limit;
-            if (offset !== undefined) options.offset = offset;
+            const options: ListMemoriesOptions = {
+                limit,
+                offset,
+                ...(tags !== undefined && { tags }),
+                ...(source !== undefined && { source }),
+                ...(pinned !== undefined && { pinned }),
+            };
 
             return await agent.memoryManager.list(options);
         },
@@ -82,7 +82,6 @@ const MemoryCreateInputSchema = z
         pinned: z.boolean().optional().default(false).describe('Whether this memory is pinned'),
     })
     .strict();
-
 export function createMemoryCreateTool(): Tool {
     return defineTool({
         id: 'memory_create',
@@ -96,14 +95,13 @@ export function createMemoryCreateTool(): Tool {
             }
 
             const { content, tags, source, pinned } = input;
-            const metadata: { source?: MemorySource; pinned?: boolean } = {};
-            if (source !== undefined) metadata.source = source;
-            if (pinned !== undefined) metadata.pinned = pinned;
+            const metadata: { source: MemorySource; pinned?: boolean } = { source };
+            if (pinned) metadata.pinned = true;
 
             return await agent.memoryManager.create({
                 content,
                 ...(tags !== undefined && { tags }),
-                ...(Object.keys(metadata).length > 0 && { metadata }),
+                metadata,
             });
         },
     });
@@ -118,7 +116,6 @@ const MemoryUpdateInputSchema = z
         pinned: z.boolean().optional().describe('Updated pinned status (optional)'),
     })
     .strict();
-
 export function createMemoryUpdateTool(): Tool {
     return defineTool({
         id: 'memory_update',

@@ -215,7 +215,11 @@ export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
      * }
      * ```
      */
-    onApprovalGranted?(response: ApprovalResponse, context: ToolExecutionContext): void;
+    onApprovalGranted?(
+        response: ApprovalResponse,
+        context: ToolExecutionContext,
+        approvalRequest: ApprovalRequestDetails
+    ): void;
 }
 
 /**

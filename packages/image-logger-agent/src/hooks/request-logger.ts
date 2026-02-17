@@ -11,7 +11,7 @@ import { promises as fs } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-export type RequestLoggerPluginConfig = {
+export type RequestLoggerHookConfig = {
     logDir?: string | undefined;
     logFileName?: string | undefined;
 };
@@ -25,7 +25,7 @@ export class RequestLoggerHook implements Hook {
     private requestCount: number = 0;
 
     async initialize(config: Record<string, unknown>): Promise<void> {
-        const typed = config as RequestLoggerPluginConfig;
+        const typed = config as RequestLoggerHookConfig;
         const logDir = typed.logDir || join(homedir(), '.dexto', 'logs');
         const logFileName = typed.logFileName || 'request-logger.log';
         this.logFilePath = join(logDir, logFileName);

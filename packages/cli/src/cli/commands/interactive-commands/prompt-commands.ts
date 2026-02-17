@@ -289,9 +289,10 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                             chalk.gray(`🔓 Auto-approving tools: ${displayTools.join(', ')}`)
                         );
                         try {
-                            agent.toolManager.setSessionAutoApproveTools(ctx.sessionId, [
-                                ...result.allowedTools,
-                            ]);
+                            agent.toolManager.setSessionAutoApproveTools(
+                                ctx.sessionId,
+                                result.allowedTools
+                            );
                         } catch (toolError) {
                             console.log(
                                 chalk.yellow(

@@ -34,9 +34,6 @@ const GlobFilesInputSchema = z
  * Create the glob_files internal tool with directory approval support
  */
 export function createGlobFilesTool(getFileSystemService: FileSystemServiceGetter): Tool {
-    // Store search directory for use in onApprovalGranted callback
-    let pendingApprovalSearchDir: string | undefined;
-
     return defineTool({
         id: 'glob_files',
         displayName: 'Find Files',
@@ -80,14 +77,12 @@ export function createGlobFilesTool(getFileSystemService: FileSystemServiceGette
             }
 
             // Need directory access approval
-            pendingApprovalSearchDir = searchDir;
-
             return {
                 type: ApprovalType.DIRECTORY_ACCESS,
                 metadata: {
                     path: searchDir,
                     parentDir: searchDir,
-                    operation: 'search',
+                    operation: 'read',
                     toolName: 'glob_files',
                 },
             };
@@ -96,8 +91,20 @@ export function createGlobFilesTool(getFileSystemService: FileSystemServiceGette
         /**
          * Handle approved directory access - remember the directory for session
          */
-        onApprovalGranted(response: ApprovalResponse, context: ToolExecutionContext): void {
-            if (!pendingApprovalSearchDir) return;
+        onApprovalGranted(
+            response: ApprovalResponse,
+            context: ToolExecutionContext,
+            approvalRequest: ApprovalRequestDetails
+        ): void {
+            if (approvalRequest.type !== ApprovalType.DIRECTORY_ACCESS) {
+                return;
+            }
+
+            const metadata = approvalRequest.metadata as { parentDir?: unknown } | undefined;
+            const parentDir = typeof metadata?.parentDir === 'string' ? metadata.parentDir : null;
+            if (!parentDir) {
+                return;
+            }
 
             // Check if user wants to remember the directory
             const data = response.data as { rememberDirectory?: boolean } | undefined;
@@ -109,13 +116,7 @@ export function createGlobFilesTool(getFileSystemService: FileSystemServiceGette
                     'glob_files requires ToolExecutionContext.services.approval'
                 );
             }
-            approvalManager.addApprovedDirectory(
-                pendingApprovalSearchDir,
-                rememberDirectory ? 'session' : 'once'
-            );
-
-            // Clear pending state
-            pendingApprovalSearchDir = undefined;
+            approvalManager.addApprovedDirectory(parentDir, rememberDirectory ? 'session' : 'once');
         },
 
         async execute(input, context: ToolExecutionContext) {

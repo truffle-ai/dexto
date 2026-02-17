@@ -141,7 +141,7 @@ export class HookManager {
      * @param payload - Payload for this extension point (must be an object)
      * @param options - Options for building execution context
      * @returns Modified payload after all hooks execute
-     * @throws {DextoRuntimeError} If a blocking hook cancels execution or payload is not an object
+     * @throws {DextoRuntimeError} If a hook cancels execution or payload is not an object
      */
     async executeHooks<T extends object>(
         extensionPoint: ExtensionPoint,
@@ -385,6 +385,15 @@ export class HookManager {
             enabled: this.hooks.length,
             byExtensionPoint: byExtensionPoint as Record<ExtensionPoint, number>,
         };
+    }
+
+    /**
+     * List configured hook names in registration order.
+     */
+    listHookNames(): string[] {
+        return this.hooks.map((hook, index) => {
+            return this.hookNameByInstance.get(hook) ?? this.deriveHookName(hook, index);
+        });
     }
 
     private deriveHookName(hook: Hook, index: number): string {

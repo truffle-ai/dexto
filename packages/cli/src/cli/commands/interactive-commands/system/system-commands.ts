@@ -97,6 +97,7 @@ export const systemCommands: CommandDefinition[] = [
             try {
                 const config = agent.getEffectiveConfig();
                 const servers = Object.keys(config.mcpServers || {});
+                const hooksEnabled = agent.services?.hookManager?.listHookNames() ?? [];
 
                 const configFilePath = ctx.configFilePath ?? null;
 
@@ -114,7 +115,7 @@ export const systemCommands: CommandDefinition[] = [
                         : 'Default',
                     mcpServers: servers,
                     promptsCount: config.prompts?.length || 0,
-                    pluginsEnabled: [],
+                    hooksEnabled,
                 };
 
                 // Build fallback text (no console.log - interferes with Ink rendering)

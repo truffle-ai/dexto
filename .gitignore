@@ -70,6 +70,7 @@ packages/*/src/**/*.d.ts.map
 
 # Test temporary files
 test-temp/
+packages/image-bundler/.tmp-bundle-test-*/
 
 # temporary storage
 .dexto/

@@ -33,7 +33,6 @@ const SearchHistoryInputSchema = z
             .describe('Optional: offset for pagination (default: 0, only for mode="messages")'),
     })
     .strict();
-
 /**
  * Create the `search_history` tool.
  *
@@ -58,11 +57,12 @@ export function createSearchHistoryTool(): Tool {
             }
 
             if (mode === 'messages') {
-                const searchOptions: SearchOptions = {};
-                if (sessionId !== undefined) searchOptions.sessionId = sessionId;
-                if (role !== undefined) searchOptions.role = role;
-                if (limit !== undefined) searchOptions.limit = limit;
-                if (offset !== undefined) searchOptions.offset = offset;
+                const searchOptions: SearchOptions = {
+                    limit,
+                    offset,
+                    ...(sessionId !== undefined && { sessionId }),
+                    ...(role !== undefined && { role }),
+                };
 
                 return await searchService.searchMessages(query, searchOptions);
             }

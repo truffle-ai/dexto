@@ -767,9 +767,10 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             didAutoSubmitInitialPromptRef.current = true;
 
             handleSubmit(initialPrompt, true).catch((error) => {
-                agent.logger.error(
-                    `InputContainer initial prompt submission failed: ${error instanceof Error ? error.message : String(error)}`
-                );
+                agent.logger.error('InputContainer initial prompt submission failed', {
+                    error,
+                    initialPrompt,
+                });
                 setMessages((prev) => [
                     ...prev,
                     {

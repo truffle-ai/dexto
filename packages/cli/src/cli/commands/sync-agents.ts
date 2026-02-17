@@ -213,72 +213,16 @@ async function getAgentStatus(agentId: string, agentEntry: AgentRegistryEntry): 
     }
 }
 
-// Store sync dismissed state in cache directory
-const SYNC_DISMISSED_PATH = getDextoGlobalPath('cache', 'sync-dismissed.json');
-
-/**
- * Check if sync was dismissed for current version
- */
-async function wasSyncDismissed(currentVersion: string): Promise<boolean> {
-    try {
-        const content = await fs.readFile(SYNC_DISMISSED_PATH, 'utf-8');
-        const data = JSON.parse(content) as { version: string };
-        return data.version === currentVersion;
-    } catch (error) {
-        logger.debug(
-            `Could not read sync dismissed state: ${error instanceof Error ? error.message : String(error)}`
-        );
-        return false;
-    }
-}
-
-/**
- * Mark sync as dismissed for current version
- */
-export async function markSyncDismissed(currentVersion: string): Promise<void> {
-    try {
-        await fs.mkdir(path.dirname(SYNC_DISMISSED_PATH), { recursive: true });
-        await fs.writeFile(SYNC_DISMISSED_PATH, JSON.stringify({ version: currentVersion }));
-    } catch (error) {
-        logger.debug(
-            `Could not save sync dismissed state: ${error instanceof Error ? error.message : String(error)}`
-        );
-    }
-}
-
-/**
- * Clear sync dismissed state (called after successful sync)
- */
-export async function clearSyncDismissed(): Promise<void> {
-    try {
-        await fs.unlink(SYNC_DISMISSED_PATH);
-    } catch (error) {
-        // File might not exist - only log if it's a different error
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-            logger.debug(
-                `Could not clear sync dismissed state: ${error instanceof Error ? error.message : String(error)}`
-            );
-        }
-    }
-}
-
 /**
  * Quick check if any installed agents have updates available
  *
  * Used at CLI startup to prompt for sync without full command output.
- * Returns true if at least one installed agent differs from bundled
- * AND the user hasn't dismissed the prompt for this version.
+ * Returns true if at least one installed agent differs from bundled.
  *
- * @param currentVersion Current CLI version to check dismissal state
  * @returns true if should prompt for sync
  */
-export async function shouldPromptForSync(currentVersion: string): Promise<boolean> {
+export async function shouldPromptForSync(): Promise<boolean> {
     try {
-        // Check if user already dismissed for this version
-        if (await wasSyncDismissed(currentVersion)) {
-            return false;
-        }
-
         const bundledAgents = loadBundledRegistryAgents();
         const installedAgentIds = await getInstalledAgentIds();
 

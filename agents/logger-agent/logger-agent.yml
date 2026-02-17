@@ -1,7 +1,7 @@
 # Request Logger Agent Configuration
 # Logs all user requests, tool calls, and assistant responses to ~/.dexto/logs/request-logger.log
 #
-# Uses `@dexto/image-logger-agent`, which provides the `request-logger` plugin via image factories.
+# Uses `@dexto/image-logger-agent`, which provides the `request-logger` hook via image factories.
 
 # MCP Servers - basic filesystem and browser tools
 mcpServers:
@@ -49,7 +49,7 @@ memories:
 # Optional greeting shown at chat start
 greeting: "Hi! I'm the Logger Agent — all interactions are being logged for analysis. How can I help?"
 
-# Image provides custom plugin(s) and DI providers
+# Image provides custom hook(s) and DI providers
 image: "@dexto/image-logger-agent"
 
 # LLM configuration

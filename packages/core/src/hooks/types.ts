@@ -27,7 +27,7 @@ export interface HookResult {
     /** Partial modifications to apply to payload */
     modify?: Record<string, unknown>;
 
-    /** Should execution stop? (Only respected if the hook is blocking). */
+    /** Should execution stop? When true, HookManager blocks execution. */
     cancel?: boolean;
 
     /** User-facing message (shown when cancelled) */
