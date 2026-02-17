@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { z } from 'zod';
 import { ToolManager } from './tool-manager.js';
+import { defineTool } from './define-tool.js';
 import { MCPManager } from '../mcp/manager.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { ToolErrorCode } from './error-codes.js';
@@ -264,6 +265,57 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
     });
 
     describe('Confirmation Flow Logic', () => {
+        it('should validate local tool args before custom approvals and previews', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+
+            const approvalOverrideSpy = vi.fn().mockResolvedValue(null);
+            const previewSpy = vi.fn().mockResolvedValue(null);
+
+            const tool = defineTool({
+                id: 'typed',
+                description: 'Typed tool',
+                inputSchema: z
+                    .object({
+                        count: z.coerce.number().int().default(0),
+                    })
+                    .strict(),
+                getApprovalOverride: approvalOverrideSpy,
+                generatePreview: previewSpy,
+                execute: vi.fn().mockResolvedValue('ok'),
+            });
+
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [tool],
+                mockLogger
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+
+            await toolManager.executeTool('typed', { count: '5' }, 'call-1', 'session-1');
+
+            expect(approvalOverrideSpy).toHaveBeenCalledWith(
+                { count: 5 },
+                expect.objectContaining({ sessionId: 'session-1' })
+            );
+            expect(previewSpy).toHaveBeenCalledWith(
+                { count: 5 },
+                expect.objectContaining({ toolCallId: 'call-1', sessionId: 'session-1' })
+            );
+            expect(mockApprovalManager.requestToolApproval).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    toolName: 'typed',
+                    toolCallId: 'call-1',
+                    args: { count: 5 },
+                    sessionId: 'session-1',
+                })
+            );
+        });
+
         it('should request approval via ApprovalManager with correct parameters', async () => {
             mockMcpManager.executeTool = vi.fn().mockResolvedValue('result');
 

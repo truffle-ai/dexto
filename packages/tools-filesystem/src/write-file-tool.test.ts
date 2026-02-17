@@ -88,10 +88,11 @@ describe('write_file tool', () => {
                 file_path: testFile,
                 content: 'new content',
             };
+            const parsedInput = tool.inputSchema.parse(input);
 
             // Generate preview (stores hash)
             const preview = await tool.generatePreview!(
-                input,
+                parsedInput,
                 createToolContext(mockLogger, { toolCallId })
             );
             expect(preview).toBeDefined();
@@ -99,7 +100,7 @@ describe('write_file tool', () => {
 
             // Execute without modifying file (should succeed)
             const result = (await tool.execute(
-                input,
+                parsedInput,
                 createToolContext(mockLogger, { toolCallId })
             )) as {
                 success: boolean;
@@ -124,16 +125,17 @@ describe('write_file tool', () => {
                 file_path: testFile,
                 content: 'new content',
             };
+            const parsedInput = tool.inputSchema.parse(input);
 
             // Generate preview (stores hash)
-            await tool.generatePreview!(input, createToolContext(mockLogger, { toolCallId }));
+            await tool.generatePreview!(parsedInput, createToolContext(mockLogger, { toolCallId }));
 
             // Simulate user modifying the file externally
             await fs.writeFile(testFile, 'user modified this');
 
             // Execute should fail because file was modified
             try {
-                await tool.execute(input, createToolContext(mockLogger, { toolCallId }));
+                await tool.execute(parsedInput, createToolContext(mockLogger, { toolCallId }));
                 expect.fail('Should have thrown an error');
             } catch (error) {
                 expect(error).toBeInstanceOf(DextoRuntimeError);
@@ -157,16 +159,17 @@ describe('write_file tool', () => {
                 file_path: testFile,
                 content: 'new content',
             };
+            const parsedInput = tool.inputSchema.parse(input);
 
             // Generate preview (stores hash of existing file)
-            await tool.generatePreview!(input, createToolContext(mockLogger, { toolCallId }));
+            await tool.generatePreview!(parsedInput, createToolContext(mockLogger, { toolCallId }));
 
             // Simulate user deleting the file
             await fs.unlink(testFile);
 
             // Execute should fail because file was deleted
             try {
-                await tool.execute(input, createToolContext(mockLogger, { toolCallId }));
+                await tool.execute(parsedInput, createToolContext(mockLogger, { toolCallId }));
                 expect.fail('Should have thrown an error');
             } catch (error) {
                 expect(error).toBeInstanceOf(DextoRuntimeError);
@@ -187,10 +190,11 @@ describe('write_file tool', () => {
                 file_path: testFile,
                 content: 'brand new content',
             };
+            const parsedInput = tool.inputSchema.parse(input);
 
             // Generate preview (stores marker that file doesn't exist)
             const preview = await tool.generatePreview!(
-                input,
+                parsedInput,
                 createToolContext(mockLogger, { toolCallId })
             );
             expect(preview).toBeDefined();
@@ -199,7 +203,7 @@ describe('write_file tool', () => {
 
             // Execute (file still doesn't exist - should succeed)
             const result = (await tool.execute(
-                input,
+                parsedInput,
                 createToolContext(mockLogger, { toolCallId })
             )) as { success: boolean };
 
@@ -219,10 +223,11 @@ describe('write_file tool', () => {
                 file_path: testFile,
                 content: 'agent content',
             };
+            const parsedInput = tool.inputSchema.parse(input);
 
             // Generate preview (file doesn't exist)
             const preview = await tool.generatePreview!(
-                input,
+                parsedInput,
                 createToolContext(mockLogger, { toolCallId })
             );
             expect(preview?.type).toBe('file');
@@ -232,7 +237,7 @@ describe('write_file tool', () => {
 
             // Execute should fail because file now exists
             try {
-                await tool.execute(input, createToolContext(mockLogger, { toolCallId }));
+                await tool.execute(parsedInput, createToolContext(mockLogger, { toolCallId }));
                 expect.fail('Should have thrown an error');
             } catch (error) {
                 expect(error).toBeInstanceOf(DextoRuntimeError);
@@ -258,19 +263,24 @@ describe('write_file tool', () => {
                 file_path: testFile,
                 content: 'first write',
             };
+            const parsedInput = tool.inputSchema.parse(input);
 
             // First write
-            await tool.generatePreview!(input, createToolContext(mockLogger, { toolCallId }));
-            await tool.execute(input, createToolContext(mockLogger, { toolCallId }));
+            await tool.generatePreview!(parsedInput, createToolContext(mockLogger, { toolCallId }));
+            await tool.execute(parsedInput, createToolContext(mockLogger, { toolCallId }));
 
             // Second write with same toolCallId should work
             const input2 = {
                 file_path: testFile,
                 content: 'second write',
             };
-            await tool.generatePreview!(input2, createToolContext(mockLogger, { toolCallId }));
+            const parsedInput2 = tool.inputSchema.parse(input2);
+            await tool.generatePreview!(
+                parsedInput2,
+                createToolContext(mockLogger, { toolCallId })
+            );
             const result = (await tool.execute(
-                input2,
+                parsedInput2,
                 createToolContext(mockLogger, { toolCallId })
             )) as { success: boolean };
 
@@ -289,16 +299,17 @@ describe('write_file tool', () => {
                 file_path: testFile,
                 content: 'new content',
             };
+            const parsedInput = tool.inputSchema.parse(input);
 
             // Preview
-            await tool.generatePreview!(input, createToolContext(mockLogger, { toolCallId }));
+            await tool.generatePreview!(parsedInput, createToolContext(mockLogger, { toolCallId }));
 
             // Modify to cause failure
             await fs.writeFile(testFile, 'modified');
 
             // Execute fails
             try {
-                await tool.execute(input, createToolContext(mockLogger, { toolCallId }));
+                await tool.execute(parsedInput, createToolContext(mockLogger, { toolCallId }));
             } catch {
                 // Expected
             }
@@ -307,9 +318,9 @@ describe('write_file tool', () => {
             await fs.writeFile(testFile, 'reset content');
 
             // Next execution with same toolCallId should work
-            await tool.generatePreview!(input, createToolContext(mockLogger, { toolCallId }));
+            await tool.generatePreview!(parsedInput, createToolContext(mockLogger, { toolCallId }));
             const result = (await tool.execute(
-                input,
+                parsedInput,
                 createToolContext(mockLogger, { toolCallId })
             )) as { success: boolean };
 

@@ -144,6 +144,24 @@ describe('plan_create tool', () => {
             expect(result.title).toBe(title);
         });
 
+        it('should throw error when plan already exists', async () => {
+            const tool = createPlanCreateTool(async () => planService);
+            const sessionId = 'test-session';
+
+            await planService.create(sessionId, '# Existing Plan');
+
+            try {
+                await tool.execute(
+                    { title: 'New Plan', content: '# New content' },
+                    createToolContext(logger, { sessionId })
+                );
+                expect.fail('Should have thrown an error');
+            } catch (error) {
+                expect(error).toBeInstanceOf(DextoRuntimeError);
+                expect((error as DextoRuntimeError).code).toBe(PlanErrorCode.PLAN_ALREADY_EXISTS);
+            }
+        });
+
         it('should throw error when sessionId is missing', async () => {
             const tool = createPlanCreateTool(async () => planService);
 

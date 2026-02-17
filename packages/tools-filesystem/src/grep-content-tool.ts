@@ -6,9 +6,11 @@
 
 import * as path from 'node:path';
 import { z } from 'zod';
-import { Tool, ToolExecutionContext, ApprovalType, ToolError } from '@dexto/core';
-import type { SearchDisplayData, ApprovalRequestDetails, ApprovalResponse } from '@dexto/core';
+import { defineTool } from '@dexto/core';
+import type { SearchDisplayData } from '@dexto/core';
+import type { Tool, ToolExecutionContext } from '@dexto/core';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
+import { createDirectoryAccessApprovalHandlers } from './directory-approval.js';
 
 const GrepContentInputSchema = z
     .object({
@@ -45,13 +47,13 @@ const GrepContentInputSchema = z
     })
     .strict();
 
-type GrepContentInput = z.input<typeof GrepContentInputSchema>;
-
 /**
  * Create the grep_content internal tool with directory approval support
  */
-export function createGrepContentTool(getFileSystemService: FileSystemServiceGetter): Tool {
-    return {
+export function createGrepContentTool(
+    getFileSystemService: FileSystemServiceGetter
+): Tool<typeof GrepContentInputSchema> {
+    return defineTool({
         id: 'grep_content',
         displayName: 'Search Files',
         aliases: ['grep'],
@@ -59,91 +61,35 @@ export function createGrepContentTool(getFileSystemService: FileSystemServiceGet
             'Search for text patterns in files using regular expressions. Returns matching lines with file path, line number, and optional context lines. Use glob parameter to filter specific file types (e.g., "*.ts"). Supports case-insensitive search. Great for finding code patterns, function definitions, or specific text across multiple files.',
         inputSchema: GrepContentInputSchema,
 
-        /**
-         * Check if this grep operation needs directory access approval.
-         * Returns custom approval request if the search directory is outside allowed paths.
-         */
-        getApprovalOverride: async (
-            args: unknown,
-            context: ToolExecutionContext
-        ): Promise<ApprovalRequestDetails | null> => {
-            const { path: searchPath } = args as GrepContentInput;
+        ...createDirectoryAccessApprovalHandlers({
+            toolName: 'grep_content',
+            operation: 'read',
+            getFileSystemService,
+            resolvePaths: (input, fileSystemService) => {
+                const baseDir = fileSystemService.getWorkingDirectory();
+                const searchDir = path.resolve(baseDir, input.path || '.');
+                return { path: searchDir, parentDir: searchDir };
+            },
+        }),
 
-            // Resolve the search directory (use cwd if not specified)
-            const searchDir = path.resolve(searchPath || process.cwd());
-
-            const resolvedFileSystemService = await getFileSystemService(context);
-
-            // Check if path is within config-allowed paths
-            const isAllowed = await resolvedFileSystemService.isPathWithinConfigAllowed(searchDir);
-            if (isAllowed) {
-                return null; // Use normal tool confirmation
-            }
-
-            // Check if directory is already session-approved (prompting decision)
-            const approvalManager = context.services?.approval;
-            if (!approvalManager) {
-                throw ToolError.configInvalid(
-                    'grep_content requires ToolExecutionContext.services.approval'
-                );
-            }
-            if (approvalManager.isDirectorySessionApproved(searchDir)) {
-                return null; // Already approved, use normal flow
-            }
-
-            // Need directory access approval
-            return {
-                type: ApprovalType.DIRECTORY_ACCESS,
-                metadata: {
-                    path: searchDir,
-                    parentDir: searchDir,
-                    operation: 'read',
-                    toolName: 'grep_content',
-                },
-            };
-        },
-
-        /**
-         * Handle approved directory access - remember the directory for session
-         */
-        onApprovalGranted: (
-            response: ApprovalResponse,
-            context: ToolExecutionContext,
-            approvalRequest: ApprovalRequestDetails
-        ): void => {
-            if (approvalRequest.type !== ApprovalType.DIRECTORY_ACCESS) {
-                return;
-            }
-
-            const metadata = approvalRequest.metadata as { parentDir?: unknown } | undefined;
-            const parentDir = typeof metadata?.parentDir === 'string' ? metadata.parentDir : null;
-            if (!parentDir) {
-                return;
-            }
-
-            // Check if user wants to remember the directory
-            const data = response.data as { rememberDirectory?: boolean } | undefined;
-            const rememberDirectory = data?.rememberDirectory ?? false;
-
-            const approvalManager = context.services?.approval;
-            if (!approvalManager) {
-                throw ToolError.configInvalid(
-                    'grep_content requires ToolExecutionContext.services.approval'
-                );
-            }
-            approvalManager.addApprovedDirectory(parentDir, rememberDirectory ? 'session' : 'once');
-        },
-
-        execute: async (input: unknown, context: ToolExecutionContext) => {
+        async execute(input, context: ToolExecutionContext) {
             const resolvedFileSystemService = await getFileSystemService(context);
 
             // Input is validated by provider before reaching here
-            const { pattern, path, glob, context_lines, case_insensitive, max_results } =
-                input as GrepContentInput;
+            const {
+                pattern,
+                path: searchPath,
+                glob,
+                context_lines,
+                case_insensitive,
+                max_results,
+            } = input;
+            const baseDir = resolvedFileSystemService.getWorkingDirectory();
+            const resolvedSearchPath = path.resolve(baseDir, searchPath || '.');
 
             // Search for content using FileSystemService
             const result = await resolvedFileSystemService.searchContent(pattern, {
-                path,
+                path: resolvedSearchPath,
                 glob,
                 contextLines: context_lines,
                 caseInsensitive: case_insensitive,
@@ -184,5 +130,5 @@ export function createGrepContentTool(getFileSystemService: FileSystemServiceGet
                 _display,
             };
         },
-    };
+    });
 }

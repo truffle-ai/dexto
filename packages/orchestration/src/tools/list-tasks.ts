@@ -62,7 +62,7 @@ export interface ListTasksOutput {
 /**
  * Create the list_tasks tool
  */
-export function createListTasksTool(taskRegistry: TaskRegistry): Tool {
+export function createListTasksTool(taskRegistry: TaskRegistry): Tool<typeof ListTasksInputSchema> {
     return {
         id: 'list_tasks',
         displayName: 'List Tasks',
@@ -70,9 +70,7 @@ export function createListTasksTool(taskRegistry: TaskRegistry): Tool {
             'List all background tasks with optional filtering by status or type. ' +
             'Returns task information and counts.',
         inputSchema: ListTasksInputSchema,
-        execute: async (rawInput: unknown, _context): Promise<ListTasksOutput> => {
-            const input = ListTasksInputSchema.parse(rawInput);
-
+        execute: async (input, _context): Promise<ListTasksOutput> => {
             // Build filter
             const filter: {
                 status?: TaskStatus | TaskStatus[];
@@ -80,7 +78,7 @@ export function createListTasksTool(taskRegistry: TaskRegistry): Tool {
             } = {};
 
             if (input.status && input.status !== 'all') {
-                filter.status = input.status as TaskStatus;
+                filter.status = input.status;
             }
 
             if (input.type) {
