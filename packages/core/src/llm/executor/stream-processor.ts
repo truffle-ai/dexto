@@ -778,6 +778,9 @@ function tryParsePartialJson(input: string): Record<string, unknown> | null {
     }
 
     if (inString) {
+        if (isEscaped) {
+            repaired = repaired.slice(0, -1);
+        }
         repaired += '"';
     }
     if (openBrackets > 0) {
