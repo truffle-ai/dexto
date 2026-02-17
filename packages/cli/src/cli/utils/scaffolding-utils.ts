@@ -156,16 +156,14 @@ export async function initPackageJson(
     projectName: string,
     type: 'app' | 'image' | 'project'
 ): Promise<void> {
-    // Initialize with npm (it creates package.json regardless of package manager)
-    await executeWithTimeout('npm', ['init', '-y'], { cwd: projectPath });
-
-    // Read and customize package.json
     const packageJsonPath = path.join(projectPath, 'package.json');
-    const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf8'));
-
-    packageJson.name = projectName;
-    packageJson.version = '1.0.0';
-    packageJson.type = 'module';
+    const bunVersion = process.versions.bun;
+    const packageJson: Record<string, unknown> = {
+        name: projectName,
+        version: '1.0.0',
+        type: 'module',
+        ...(bunVersion ? { packageManager: `bun@${bunVersion}` } : {}),
+    };
 
     // Customize based on type
     if (type === 'app') {
@@ -187,7 +185,7 @@ export async function initPackageJson(
         };
     }
 
-    await fs.writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2));
+    await fs.writeFile(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
 }
 
 /**
@@ -307,13 +305,31 @@ export async function installDependencies(
     const installCommand = getPackageManagerInstallCommand(pm);
 
     if (deps.dependencies && deps.dependencies.length > 0) {
-        await executeWithTimeout(pm, [installCommand, ...deps.dependencies], {
+        const args = [installCommand];
+        if (pm === 'bun') {
+            args.push('--save-text-lockfile');
+        }
+        args.push(...deps.dependencies);
+
+        await executeWithTimeout(pm, args, {
             cwd: projectPath,
         });
     }
 
     if (deps.devDependencies && deps.devDependencies.length > 0) {
-        await executeWithTimeout(pm, [installCommand, ...deps.devDependencies, '--save-dev'], {
+        const args = [installCommand];
+
+        if (pm === 'bun') {
+            args.push('--dev', '--save-text-lockfile');
+        } else if (pm === 'pnpm' || pm === 'yarn') {
+            args.push('-D');
+        } else if (pm === 'npm') {
+            args.push('--save-dev');
+        }
+
+        args.push(...deps.devDependencies);
+
+        await executeWithTimeout(pm, args, {
             cwd: projectPath,
         });
     }

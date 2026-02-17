@@ -87,7 +87,7 @@ async function installNodeLlamaCpp(): Promise<boolean> {
         fs.mkdirSync(depsDir, { recursive: true });
     }
 
-    // Initialize package.json if it doesn't exist (required for npm install)
+    // Initialize package.json if it doesn't exist (required for bun add)
     const packageJsonPath = path.join(depsDir, 'package.json');
     if (!fs.existsSync(packageJsonPath)) {
         fs.writeFileSync(

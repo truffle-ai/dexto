@@ -16,24 +16,28 @@
 
 ## Current Task
 
-**Task:** Phase 1.5 — remove pnpm/npm assumptions (image store + local models + scaffolding)
+**Task:** PR 1 / Phase 1.5 — remove pnpm/npm assumptions (image store + local models + scaffolding) with functionality parity
 **Status:** In progress
 **Worktree:** `~/Projects/dexto-bun-migration`
 
 ### Plan
 - Triage remaining pnpm/npm touchpoints (installers, scaffolding, docs/UX strings) and convert them to Bun-first behavior.
+- Validate parity with `bun run build`, `bun run typecheck`, `bun run test`.
 - Keep `TASKLIST.md` + this file updated after each meaningful change.
 
 ### Notes
 - Repo is pinned to Bun `1.2.9` (intentionally; no need to bump during migration).
 - Plan artifacts committed to this worktree (commit `b40d68e2`).
 - Checkpoint commit for Phase 0 + Phase 1 completed: `5ea80491`.
+- Scope split (per discussion): **native TS `.dexto` layering** and **image-store redesign** are deferred to a follow-up PR (PR 2). PR 1 is Bun migration with **no feature/functionality changes**.
+- Scaffolding/template updates in progress:
+  - `create-app` scaffold now uses `bun src/index.ts` (no `tsx` dependency) and prints `bun run start`
+  - `create-image` and generated READMEs print Bun commands (`bun run build`, `bun pm pack`, `bun publish`)
+  - `init` prints `bun <path/to/file.ts>` instead of `npx tsx …`
+  - `version-check` suggests `bun add -g dexto@latest` instead of `npm i -g dexto`
 - Remaining pnpm/npm touchpoints (non-exhaustive, starting points):
-  - `packages/cli/src/cli/utils/image-store.ts` — migrated to Bun (`bun pm pack` + `bun add`), but still needs broader image-store vs `~/.dexto` layering decision
-  - `packages/cli/src/cli/utils/local-model-setup.ts` — migrated to `bun add --trust node-llama-cpp` (install+import validated under Bun `1.2.9`; still needs E2E GGUF execution validation)
-  - `packages/cli/src/cli/ink-cli/components/overlays/custom-model-wizard/LocalModelWizard.tsx` — migrated to Bun (still needs E2E GGUF execution validation)
-  - `packages/cli/src/cli/utils/scaffolding-utils.ts` — uses `npm init -y`, then chooses `pnpm`/`npm` for deps
-  - `packages/cli/src/cli/utils/package-mgmt.ts` — detects `pnpm-lock.yaml` and defaults to `npm` (needs `bun` support)
+  - `packages/cli/src/cli/utils/scaffolding-utils.ts` — remove `npm init -y`, ensure Bun installs use correct flags, and generated scripts avoid `tsx` where Bun can run TS directly
+  - `packages/cli/src/cli/utils/package-mgmt.ts` — prefer Bun by default and honor `package.json#packageManager`
   - `scripts/install-global-cli.ts` — uses `npx verdaccio …` and `npm uninstall -g …` for a local install simulation
   - `packages/registry/src/mcp/server-registry-data.json` + related docs — many MCP presets default to `npx` (consider `bunx` if we want “no npm” end-to-end)
 
@@ -45,6 +49,7 @@
 
 - Bun version in use: `1.2.9`
 - Green commands:
+  - `bun install --frozen-lockfile`
   - `bun install --save-text-lockfile`
   - `bun run build`
   - `bun run typecheck`
@@ -69,16 +74,20 @@
 
 ## Key Decisions
 
-- **Bun runtime is required** (not just Bun-as-package-manager) to support “native TS in `~/.dexto`” without a loader.
+- Split into PRs:
+  - **PR 1:** Bun migration with functionality parity (this workstream)
+  - **PR 2:** Native TS `.dexto` layering + extension loading and any image-store redesign
+- Bun runtime is part of PR 1 (“Bun for everything”), but must preserve behavior.
 - Prefer Bun built-ins over Node native add-ons where possible (e.g. SQLite via `bun:sqlite`).
-- Treat `~/.dexto` layering as the long-term replacement for the current “image store” shape (aligns with DEXTO_DOTDEXTO intent).
 
 ---
 
 ## Open Questions / Blockers
 
 1. **Local models:** `node-llama-cpp` installs and imports successfully under Bun `1.2.9` (validated in a temp project on macOS). Next validation is end-to-end local model execution (GGUF load + prompt).
-2. **Image store future:** keep and port to Bun, or replace with `~/.dexto` as a package root (preferred).
+2. **Repo dev scripts:** decide whether to keep `scripts/install-global-cli.ts` as-is (dev-only) or migrate it to `bunx`/Bun-first equivalents as part of PR 1.
+3. **Image store future (PR 2):** keep and port to Bun, or replace with `~/.dexto` as a package root (preferred).
+4. **Scaffolding + registry:** running `dexto create-app` outside `dexto-source` currently fails if `@dexto/*` packages aren’t available in the configured registry (observed 404 for `@dexto/storage` from the public npm registry). This is likely pre-existing; PR 1 should avoid changing this behavior, but we should document expectations.
 
 ---
 

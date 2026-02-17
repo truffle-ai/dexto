@@ -2,6 +2,12 @@
 
 Update this checklist as work completes. Keep tasks concrete and verifiable.
 
+## PR 1 — Bun migration (functionality parity)
+
+Success criteria:
+- Replace pnpm with Bun (package manager + runtime) without feature/functionality changes.
+- Keep native TS `.dexto` layering work as a separate PR.
+
 ## Phase 0 — Working Bun baseline (monorepo)
 
 - [x] Add Bun lockfile (`bun.lock`) and make `bun install` succeed from clean checkout
@@ -17,8 +23,8 @@ Update this checklist as work completes. Keep tasks concrete and verifiable.
 - [x] Remove the primary Bun runtime blocker (`better-sqlite3`) from runtime dependency paths
 - [x] Implement Bun-native SQLite store path using `bun:sqlite`
 - [x] Decide Bun version policy: keep pin at `1.2.9` (don’t chase latest during migration)
-- [ ] Remove/replace remaining hardcoded `pnpm`/`npm` usage in CLI output/help text
-- [ ] Update CLI scaffolding and templates to prefer `bun` (install/run/build instructions)
+- [x] Remove/replace remaining hardcoded `pnpm`/`npm` usage in CLI output/help text
+- [x] Update CLI scaffolding and templates to prefer `bun` (install/run/build instructions)
 - [ ] Replace `npx`/`npm` usage in repo dev scripts with `bunx`/`bun` where possible (e.g. `scripts/install-global-cli.ts`)
 - [x] Migrate image-store installer off `npm pack` + `npm install` to Bun equivalents
 - [x] Switch local model dependency install to Bun (`node-llama-cpp` via `bun add --trust`)
@@ -26,7 +32,19 @@ Update this checklist as work completes. Keep tasks concrete and verifiable.
 - [ ] Decide what to do with legacy pnpm files (`pnpm-lock.yaml`, `pnpm-workspace.yaml`) once CI flips
 - [x] Checkpoint commit: Phase 1 SQLite + runtime blockers removed
 
-## Phase 2 — Native TS extensions in layered `.dexto` roots (DEXTO_DOTDEXTO intent)
+## Phase 2 — Functionality parity audit (no feature changes)
+
+- [x] Confirm `bun install`, `bun run build`, `bun run typecheck`, `bun run test`
+- [ ] Confirm CLI flows work and print Bun-first instructions (note: app/image scaffolds may require access to the `@dexto/*` registry when run outside `dexto-source`):
+  - `dexto create-app`
+  - `dexto create-image`
+  - `dexto init`
+- [ ] Confirm image install flows work without npm/pnpm:
+  - linked install from a local directory
+  - tarball install produced via `bun pm pack`
+- [ ] Checkpoint commit: PR 1 parity working state
+
+## PR 2 (deferred) — Native TS `.dexto` layering + extension system
 
 - [ ] Define extension roots (`~/.dexto`, `<project>/.dexto`, repo dev root) + precedence rules
 - [ ] Make `~/.dexto` a Bun package root (`package.json` + `node_modules`)
@@ -34,13 +52,13 @@ Update this checklist as work completes. Keep tasks concrete and verifiable.
 - [ ] Validate “drop-in TS module” import under Bun runtime (no build step)
 - [ ] Define stable TS extension interfaces for: images, plugins, storage, compaction, hooks
 
-## Phase 3 — Deprecate/redesign the image store
+## PR 2 (deferred) — Deprecate/redesign the image store
 
 - [ ] Decide: keep image store (Bun-based) vs replace with `~/.dexto` package-root installs
 - [ ] If replacing: design migration path from existing `~/.dexto/images` registry to `~/.dexto/package.json` deps
 - [ ] If keeping: implement Bun-native pack/install strategy and confirm multi-version support story
 
-## Phase 4 — CI + docs
+## PR 3 (deferred) — CI + docs
 
 - [ ] Update CI to use Bun for install/build/typecheck/test
 - [ ] Update docs (DEVELOPMENT/CONTRIBUTING) from pnpm/npm to Bun commands

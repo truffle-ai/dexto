@@ -625,10 +625,10 @@ This package contains:
 
 \`\`\`bash
 # Build the image
-pnpm run build
+bun run build
 
 # Install into the Dexto CLI (local)
-npm pack
+bun pm pack
 dexto image install ./<generated-file>.tgz
 \`\`\`
 
@@ -661,7 +661,7 @@ tools/
 ## Building
 
 \`\`\`bash
-pnpm run build
+bun run build
 \`\`\`
 
 This runs \`dexto-bundle build\`, which:
@@ -672,7 +672,7 @@ This runs \`dexto-bundle build\`, which:
 ## Publishing
 
 \`\`\`bash
-npm publish
+bun publish
 \`\`\`
 
 Users can then:
@@ -927,14 +927,14 @@ ${context.description}
 
 \`\`\`bash
 # Install dependencies
-pnpm install
+bun install
 
 # Set up environment
 cp .env.example .env
 # Edit .env with your API keys
 
 # Run
-pnpm start
+bun run start
 \`\`\`
 
 ## Project Structure

@@ -28,6 +28,7 @@ export interface UpdateInfo {
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const NPM_REGISTRY_URL = 'https://registry.npmjs.org/dexto/latest';
 const CACHE_FILE_PATH = getDextoGlobalPath('cache', 'version-check.json');
+const UPDATE_COMMAND = 'bun add -g dexto@latest';
 
 /**
  * Compare two semver versions.
@@ -167,7 +168,7 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateInf
                     return {
                         current: currentVersion,
                         latest: cache.latestVersion,
-                        updateCommand: 'npm i -g dexto',
+                        updateCommand: UPDATE_COMMAND,
                     };
                 }
                 return null;
@@ -195,7 +196,7 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateInf
             return {
                 current: currentVersion,
                 latest: latestVersion,
-                updateCommand: 'npm i -g dexto',
+                updateCommand: UPDATE_COMMAND,
             };
         }
 
@@ -219,7 +220,7 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateInf
  * displayUpdateNotification({
  *   current: '1.5.4',
  *   latest: '1.6.0',
- *   updateCommand: 'npm i -g dexto'
+ *   updateCommand: 'bun add -g dexto@latest'
  * });
  * ```
  */

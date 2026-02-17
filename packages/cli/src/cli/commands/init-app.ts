@@ -140,29 +140,15 @@ export async function initDexto(
                     // Intentionally omit tool packs to keep the example minimal.
                     // TODO: Revisit adding a default tool pack once tool IDs no longer require manual qualification.
                     'dotenv',
-                    'tsx',
                 ],
                 { cwd: process.cwd() }
             );
         } catch (installError) {
-            // Handle pnpm workspace root add error specifically
             console.error(
                 `Install error: ${
                     installError instanceof Error ? installError.message : String(installError)
                 }`
             );
-            if (
-                packageManager === 'pnpm' &&
-                installError instanceof Error &&
-                /\bERR_PNPM_ADDING_TO_ROOT\b/.test(installError.message)
-            ) {
-                spinner.stop(chalk.red('Error: Cannot install in pnpm workspace root'));
-                p.note(
-                    'You are initializing dexto in a pnpm workspace root. Go to a specific workspace package and run "pnpm add @dexto/core" there.',
-                    chalk.rgb(255, 165, 0)('Workspace Error')
-                );
-                process.exit(1);
-            }
             throw installError; // Re-throw other errors
         }
 
@@ -216,7 +202,7 @@ export async function initDexto(
 /** Adds notes for users to get started with their new initialized Dexto project */
 export async function postInitDexto(directory: string) {
     const nextSteps = [
-        `1. Run the example: ${chalk.cyan(`npx tsx ${path.join(directory, 'dexto', 'dexto-example.ts')}`)}`,
+        `1. Run the example: ${chalk.cyan(`bun ${path.join(directory, 'dexto', 'dexto-example.ts')}`)}`,
         `2. Add/update your API key(s) in ${chalk.cyan('.env')}`,
         `3. Customize the agent in ${chalk.cyan(path.join(directory, 'dexto', 'dexto-example.ts'))}`,
         `4. Read more about Dexto: ${chalk.cyan('https://github.com/truffle-ai/dexto')}`,

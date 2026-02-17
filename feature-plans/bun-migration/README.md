@@ -1,6 +1,8 @@
-# Bun Migration (Package Manager + Runtime) + Native TypeScript
+# Bun Migration (Package Manager + Runtime) — Functionality Parity
 
-This folder tracks the plan and progress for migrating Dexto from pnpm/npm + Node to **Bun** (package manager **and** runtime), with a focus on **native TypeScript at runtime** for layered `.dexto` / `~/.dexto` customization.
+This folder tracks the plan and progress for migrating Dexto from pnpm/npm + Node to **Bun** (package manager **and** runtime) with **no feature/functionality changes** (PR 1).
+
+Native TypeScript extension loading + layered `.dexto` / `~/.dexto` customization is explicitly split into a follow-up PR (see `PLAN.md`).
 
 ## Files
 
@@ -11,4 +13,3 @@ This folder tracks the plan and progress for migrating Dexto from pnpm/npm + Nod
 ## Editing scope (owner request)
 
 Until explicitly changed, only modify the files listed above while working on the Bun migration.
-

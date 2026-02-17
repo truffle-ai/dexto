@@ -74,7 +74,7 @@ export async function createImage(name?: string): Promise<string> {
                         value: '@dexto/image-local',
                         label: '@dexto/image-local (local development)',
                     },
-                    { value: 'custom', label: 'Custom npm package...' },
+                    { value: 'custom', label: 'Custom package...' },
                 ],
             },
             'Image creation cancelled'
@@ -83,7 +83,7 @@ export async function createImage(name?: string): Promise<string> {
         if (baseImageChoice === 'custom') {
             const customBase = await textOrExit(
                 {
-                    message: 'Enter the npm package name:',
+                    message: 'Enter the package name:',
                     placeholder: '@myorg/image-base',
                     validate: (value) => {
                         if (!value || value.trim() === '') {
@@ -229,21 +229,21 @@ export async function createImage(name?: string): Promise<string> {
             dependencies.push(baseImageDependency);
         }
 
-        // Install dependencies (use pnpm in dexto source for workspace protocol support)
+        // Install dependencies (use Bun in dexto source for workspace protocol support)
         await installDependencies(
             projectPath,
             {
                 dependencies,
                 devDependencies,
             },
-            isDextoSource ? 'pnpm' : undefined
+            isDextoSource ? 'bun' : undefined
         );
 
         spinner.stop(chalk.green(`✓ Successfully created image: ${projectName}`));
 
         console.log(`\n${chalk.cyan('Next steps:')}`);
         console.log(`  ${chalk.gray('$')} cd ${projectName}`);
-        console.log(`  ${chalk.gray('$')} pnpm run build`);
+        console.log(`  ${chalk.gray('$')} bun run build`);
         console.log(
             `\n${chalk.gray('Add your custom providers to the convention-based folders:')}`
         );
@@ -263,7 +263,7 @@ export async function createImage(name?: string): Promise<string> {
                 )
             );
         } else {
-            console.log(`  ${chalk.gray('$')} npm pack`);
+            console.log(`  ${chalk.gray('$')} bun pm pack`);
             console.log(`  ${chalk.gray('$')} dexto image install ./<generated-file>.tgz`);
         }
         console.log(`\n${chalk.gray('Use it in an agent YAML:')}`);

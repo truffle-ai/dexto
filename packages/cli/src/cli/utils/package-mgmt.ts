@@ -30,23 +30,44 @@ export function getPackageManagerInstallCommand(pm: string): string {
 export function getPackageManager(): string {
     const projectRoot = findPackageRoot(process.cwd());
     if (!projectRoot) {
-        return 'npm'; // Default to npm if no project root is found
+        return 'bun'; // Default to bun if no project root is found
     }
+
+    // Prefer `package.json#packageManager` when available.
+    // This is the most direct signal of intent and is commonly used for Bun/Corepack.
+    try {
+        const pkgJsonPath = path.join(projectRoot, 'package.json');
+        const content = fsExtra.readJSONSync(pkgJsonPath) as PackageJson;
+        const packageManager = content.packageManager;
+        if (typeof packageManager === 'string') {
+            if (packageManager.startsWith('bun@')) return 'bun';
+            if (packageManager.startsWith('pnpm@')) return 'pnpm';
+            if (packageManager.startsWith('yarn@')) return 'yarn';
+            if (packageManager.startsWith('npm@')) return 'npm';
+        }
+    } catch {
+        // ignore
+    }
+
     // Check for specific lock files in this project
-    if (fsExtra.existsSync(path.join(projectRoot, 'pnpm-lock.yaml'))) {
-        return 'pnpm';
-    }
-    if (fsExtra.existsSync(path.join(projectRoot, 'yarn.lock'))) {
-        return 'yarn';
-    }
     if (
         fsExtra.existsSync(path.join(projectRoot, 'bun.lockb')) ||
         fsExtra.existsSync(path.join(projectRoot, 'bun.lock'))
     ) {
         return 'bun';
     }
-    // Default to npm if no other lock file is found
-    return 'npm';
+    if (fsExtra.existsSync(path.join(projectRoot, 'pnpm-lock.yaml'))) {
+        return 'pnpm';
+    }
+    if (fsExtra.existsSync(path.join(projectRoot, 'yarn.lock'))) {
+        return 'yarn';
+    }
+    if (fsExtra.existsSync(path.join(projectRoot, 'package-lock.json'))) {
+        return 'npm';
+    }
+
+    // Default to bun if no other signal is found
+    return 'bun';
 }
 
 /**
