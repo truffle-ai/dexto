@@ -15,7 +15,7 @@ Update this checklist as work completes. Keep tasks concrete and verifiable.
 
 - [x] Remove the primary Bun runtime blocker (`better-sqlite3`) from runtime dependency paths
 - [x] Implement Bun-native SQLite store path using `bun:sqlite`
-- [ ] Decide Bun version policy: keep pin at `1.2.9` vs bump to latest stable (currently `1.3.9`)
+- [x] Decide Bun version policy: keep pin at `1.2.9` (don’t chase latest during migration)
 - [ ] Remove/replace remaining hardcoded `pnpm`/`npm` usage in CLI output/help text
 - [ ] Update CLI scaffolding and templates to prefer `bun` (install/run/build instructions)
 - [ ] Migrate image-store installer off `npm pack` + `npm install` to Bun equivalents
@@ -41,4 +41,3 @@ Update this checklist as work completes. Keep tasks concrete and verifiable.
 - [ ] Update CI to use Bun for install/build/typecheck/test
 - [ ] Update docs (DEVELOPMENT/CONTRIBUTING) from pnpm/npm to Bun commands
 - [ ] Document Bun lifecycle scripts policy (`trustedDependencies`, `bun pm untrusted`, `bun pm trust`)
-

@@ -16,16 +16,17 @@
 
 ## Current Task
 
-**Task:** Commit plan artifacts to this worktree
+**Task:** Phase 1.5 planning — remove pnpm/npm assumptions
 **Status:** In progress
 **Worktree:** `~/Projects/dexto-bun-migration`
 
 ### Plan
-- Backfill plan/tasklist/memory with what’s already completed in the worktree.
-- Commit the plan artifacts (they live under `feature-plans/`, which is gitignored for new files).
+- Enumerate remaining pnpm/npm touchpoints (code + UX + docs) and decide how they should behave under Bun runtime.
+- Keep `TASKLIST.md` and this file updated as tasks complete.
 
 ### Notes
-- Repo is currently pinned to Bun `1.2.9` and is building/typechecking/testing successfully under Bun.
+- Repo is pinned to Bun `1.2.9` (intentionally; no need to bump during migration).
+- Plan artifacts committed to this worktree (commit `b40d68e2`).
 
 ---
 
@@ -67,12 +68,11 @@
 
 ## Open Questions / Blockers
 
-1. **Bun version policy:** repo is pinned to `1.2.9`, but latest stable is newer (see PLAN). When do we bump?
-2. **Local models:** `node-llama-cpp` is installed via `npm` into `~/.dexto/deps`. Under Bun runtime, native add-ons may be ABI-sensitive. Decide whether to:
+1. **Local models:** `node-llama-cpp` is installed via `npm` into `~/.dexto/deps`. Under Bun runtime, native add-ons may be ABI-sensitive. Decide whether to:
    - keep Node for this feature only,
    - switch to an alternative runtime strategy (ollama / external process),
    - or ensure Bun-compatible Node-API builds.
-3. **Image store future:** keep and port to Bun, or replace with `~/.dexto` as a package root (preferred).
+2. **Image store future:** keep and port to Bun, or replace with `~/.dexto` as a package root (preferred).
 
 ---
 
@@ -81,6 +81,7 @@
 - 2026-02-17: Bun baseline working (`bun install`, build, typecheck, tests).
 - 2026-02-17: Removed Bun runtime blocker `better-sqlite3` and implemented `bun:sqlite` path.
 - 2026-02-17: Converted key repo scripts/entrypoints to use Bun.
+- 2026-02-17: Added Bun migration plan artifacts under `feature-plans/bun-migration/` (commit `b40d68e2`).
 
 ---
 
@@ -89,4 +90,3 @@
 | Date | Checkpoint | Result | Notes |
 |------|------------|--------|------|
 | 2026-02-17 | Bun baseline | ✅ | build/typecheck/test green under Bun `1.2.9` |
-

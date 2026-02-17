@@ -30,7 +30,7 @@ As of 2026-02-17 in `~/Projects/dexto-bun-migration`:
 
 Version note:
 - **Current pinned Bun:** `1.2.9` (known-good in this worktree)
-- **Latest Bun (upstream):** `1.3.9` (release 2026-02-08) — evaluate bump once Phase 1 is stable.
+- **Latest Bun (upstream):** `1.3.9` (release 2026-02-08) — we’re intentionally staying on `1.2.9` during migration.
 
 ---
 
