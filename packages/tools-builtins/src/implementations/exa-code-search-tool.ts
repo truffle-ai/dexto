@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { defineTool } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 import { callExaTool } from './exa-mcp.js';
 
@@ -20,23 +21,20 @@ const CodeSearchInputSchema = z
             .describe('Approximate token budget to return (1000–50000, default: 5000)'),
     })
     .strict();
-
-type CodeSearchInput = z.output<typeof CodeSearchInputSchema>;
-
 /**
  * Create the `code_search` tool.
  *
  * Finds relevant code snippets and documentation by calling Exa's MCP endpoint via the MCP SDK.
  */
-export function createCodeSearchTool(): Tool {
-    return {
+export function createCodeSearchTool(): Tool<typeof CodeSearchInputSchema> {
+    return defineTool({
         id: 'code_search',
         displayName: 'Code Search',
         description:
             'Search for code examples and documentation across sources like official docs, GitHub, and Stack Overflow. Returns formatted text context.',
         inputSchema: CodeSearchInputSchema,
-        execute: async (input: unknown, context: ToolExecutionContext) => {
-            const { query, tokensNum } = input as CodeSearchInput;
+        async execute(input, context: ToolExecutionContext) {
+            const { query, tokensNum } = input;
 
             return await callExaTool({
                 logger: context.logger,
@@ -49,5 +47,5 @@ export function createCodeSearchTool(): Tool {
                 timeoutMs: 30000,
             });
         },
-    };
+    });
 }

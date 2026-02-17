@@ -7,6 +7,7 @@ import type { ToolExecutionContext } from '@dexto/core';
 
 function createTestContext(logFilePath: string | null): ToolExecutionContext {
     return {
+        sessionId: 'test-session',
         logger: {
             debug: () => {},
             silly: () => {},
@@ -52,7 +53,10 @@ describe('createViewLogsTool', () => {
     it('should return message when no log file is configured', async () => {
         const tool = createViewLogsTool({ maxLogLines: 50, maxLogBytes: 10_000 });
 
-        const result = await tool.execute({ lines: 10 }, createTestContext(null));
+        const result = await tool.execute(
+            tool.inputSchema.parse({ lines: 10 }),
+            createTestContext(null)
+        );
 
         expect(result).toEqual({
             logFilePath: null,
@@ -71,7 +75,10 @@ describe('createViewLogsTool', () => {
             await fs.writeFile(filePath, content, 'utf8');
 
             const tool = createViewLogsTool({ maxLogLines: 50, maxLogBytes: 10_000 });
-            const result = (await tool.execute({ lines: 2 }, createTestContext(filePath))) as {
+            const result = (await tool.execute(
+                tool.inputSchema.parse({ lines: 2 }),
+                createTestContext(filePath)
+            )) as {
                 logFilePath: string;
                 lines: number;
                 content: string;
@@ -94,7 +101,10 @@ describe('createViewLogsTool', () => {
             await fs.writeFile(filePath, content, 'utf8');
 
             const tool = createViewLogsTool({ maxLogLines: 3, maxLogBytes: 10_000 });
-            const result = (await tool.execute({ lines: 9 }, createTestContext(filePath))) as {
+            const result = (await tool.execute(
+                tool.inputSchema.parse({ lines: 9 }),
+                createTestContext(filePath)
+            )) as {
                 lines: number;
                 content: string;
             };
@@ -135,7 +145,7 @@ describe('createViewLogsTool', () => {
 
             const tool = createViewLogsTool({ maxLogLines: 50, maxLogBytes: 10_000 });
             const result = (await tool.execute(
-                { lines: 50, query: 'connect', includeContext: true },
+                tool.inputSchema.parse({ lines: 50, query: 'connect', includeContext: true }),
                 createTestContext(filePath)
             )) as {
                 lines: number;
@@ -177,7 +187,7 @@ describe('createViewLogsTool', () => {
 
             const tool = createViewLogsTool({ maxLogLines: 50, maxLogBytes: 10_000 });
             const result = (await tool.execute(
-                { lines: 10, level: 'error' },
+                tool.inputSchema.parse({ lines: 10, level: 'error' }),
                 createTestContext(filePath)
             )) as {
                 entries: Array<{ level: string; message: string; context?: unknown }>;
