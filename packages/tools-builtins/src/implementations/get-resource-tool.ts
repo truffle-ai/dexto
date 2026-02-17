@@ -31,6 +31,7 @@ type GetResourceInput = z.output<typeof GetResourceInputSchema>;
 export function createGetResourceTool(): Tool {
     return {
         id: 'get_resource',
+        displayName: 'Get Resource',
         description:
             'Access a stored resource. Use format "url" to get a shareable URL for other agents ' +
             'or external systems (requires remote storage like Supabase). Use format "metadata" ' +

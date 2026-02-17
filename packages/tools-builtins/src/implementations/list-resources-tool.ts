@@ -46,6 +46,7 @@ interface ResourceInfo {
 export function createListResourcesTool(): Tool {
     return {
         id: 'list_resources',
+        displayName: 'List Resources',
         description:
             'List available resources (images, files, etc.). Returns resource references ' +
             'that can be used with get_resource to obtain shareable URLs or metadata. ' +

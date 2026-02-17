@@ -45,6 +45,7 @@ type SearchHistoryInput = z.input<typeof SearchHistoryInputSchema>;
 export function createSearchHistoryTool(): Tool {
     return {
         id: 'search_history',
+        displayName: 'Search History',
         description:
             'Search through conversation history across sessions. Use mode="messages" to search for specific messages, or mode="sessions" to find sessions containing the query. For message search, you can filter by sessionId (specific session), role (user/assistant/system/tool), limit results, and set pagination offset.',
         inputSchema: SearchHistoryInputSchema,

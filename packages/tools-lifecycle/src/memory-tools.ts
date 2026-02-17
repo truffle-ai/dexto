@@ -33,6 +33,7 @@ type MemoryListInput = z.input<typeof MemoryListInputSchema>;
 export function createMemoryListTool(): Tool {
     return {
         id: 'memory_list',
+        displayName: 'List Memories',
         description: 'List stored memories for this agent, with optional filtering.',
         inputSchema: MemoryListInputSchema,
         execute: async (input: unknown, context: ToolExecutionContext) => {
@@ -61,6 +62,7 @@ type MemoryGetInput = z.input<typeof MemoryGetInputSchema>;
 export function createMemoryGetTool(): Tool {
     return {
         id: 'memory_get',
+        displayName: 'Get Memory',
         description: 'Get a memory by ID.',
         inputSchema: MemoryGetInputSchema,
         execute: async (input: unknown, context: ToolExecutionContext) => {
@@ -91,6 +93,7 @@ type MemoryCreateInput = z.input<typeof MemoryCreateInputSchema>;
 export function createMemoryCreateTool(): Tool {
     return {
         id: 'memory_create',
+        displayName: 'Create Memory',
         description: 'Create a new memory.',
         inputSchema: MemoryCreateInputSchema,
         execute: async (input: unknown, context: ToolExecutionContext) => {
@@ -128,6 +131,7 @@ type MemoryUpdateInput = z.input<typeof MemoryUpdateInputSchema>;
 export function createMemoryUpdateTool(): Tool {
     return {
         id: 'memory_update',
+        displayName: 'Update Memory',
         description: 'Update an existing memory.',
         inputSchema: MemoryUpdateInputSchema,
         execute: async (input: unknown, context: ToolExecutionContext) => {
@@ -156,6 +160,7 @@ type MemoryDeleteInput = z.input<typeof MemoryDeleteInputSchema>;
 export function createMemoryDeleteTool(): Tool {
     return {
         id: 'memory_delete',
+        displayName: 'Delete Memory',
         description: 'Delete a memory by ID.',
         inputSchema: MemoryDeleteInputSchema,
         execute: async (input: unknown, context: ToolExecutionContext) => {
