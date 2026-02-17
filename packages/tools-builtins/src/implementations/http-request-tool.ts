@@ -3,6 +3,7 @@ import type { Tool, ToolExecutionContext } from '@dexto/core';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
 import { promises as dns } from 'node:dns';
 import { isIP } from 'node:net';
+import { TextDecoder } from 'node:util';
 
 const HttpRequestInputSchema = z
     .object({
@@ -87,7 +88,7 @@ function isPrivateIpv4(ip: string): boolean {
 function isPrivateIpv6(ip: string): boolean {
     const normalized = ip.toLowerCase();
     if (normalized === '::' || normalized === '::1') return true;
-    if (normalized.startsWith('fe80:') || normalized.startsWith('fe80::')) return true;
+    if (normalized.startsWith('fe80:')) return true;
     if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true;
     if (normalized.startsWith('::ffff:')) {
         const ipv4Part = normalized.slice('::ffff:'.length);
@@ -285,6 +286,9 @@ export function createHttpRequestTool(): Tool {
 
                 return payload;
             } catch (error) {
+                if (error instanceof DextoRuntimeError) {
+                    throw error;
+                }
                 if (error instanceof Error && error.name === 'AbortError') {
                     throw new DextoRuntimeError(
                         'HTTP_REQUEST_TIMEOUT',

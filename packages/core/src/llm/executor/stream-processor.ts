@@ -28,6 +28,7 @@ type FullStreamPart =
         ? Part
         : never;
 
+// Defensive widenings: SDK v5 fields may drift between releases, so keep optional fallbacks.
 type ToolInputStartEvent = Extract<FullStreamPart, { type: 'tool-input-start' }> & {
     toolCallId?: string;
     toolName?: string;
@@ -742,7 +743,7 @@ export class StreamProcessor {
 function tryParsePartialJson(input: string): Record<string, unknown> | null {
     const trimmed = input.trim();
     if (!trimmed) return null;
-    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return null;
+    if (!trimmed.startsWith('{')) return null;
 
     // Remove trailing commas before attempting repair.
     let repaired = trimmed.replace(/,\s*$/, '');

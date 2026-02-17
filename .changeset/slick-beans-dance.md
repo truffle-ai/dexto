@@ -6,4 +6,4 @@
 '@dexto/core': patch
 ---
 
-Add workspace management across core and server, improve MCP server configuration handling, and expand tool behavior (streaming tool-input events, new builtin http_request/sleep with safer request handling, and workspace-aware filesystem/process tools).
+Add workspace management across core and server, improve MCP server configuration handling, and expand tool behavior (streaming tool-input events, new built-in http_request/sleep with safer request handling, and workspace-aware filesystem/process tools).
