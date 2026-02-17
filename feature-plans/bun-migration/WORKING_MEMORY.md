@@ -45,6 +45,12 @@ Recent updates (commit `ec3564ce`):
 - Legacy pnpm files deleted (`pnpm-lock.yaml`, `pnpm-workspace.yaml`)
 - Dev-only global install/link scripts moved off `npx`/`npm` fallbacks
 
+Docs updates (commit `c6b670f7`):
+- Docs site is Bun-based (`docs/bun.lock`) and `build-docs` workflow uses Bun.
+
+Merge blocker reminder:
+- Parity sign-off for `dexto create-app/create-image/init` outside `dexto-source` is blocked on publishing `@dexto/*` packages (owner will publish before merge).
+
 ---
 
 ## Current State (as of 2026-02-17)
@@ -107,6 +113,7 @@ Recent updates (commit `ec3564ce`):
 - 2026-02-17: Validated `bun add --trust node-llama-cpp` + `import('node-llama-cpp')` works under Bun `1.2.9` (macOS).
 - 2026-02-17: Bun-first CLI scaffolding/templates + help text (commit `15352f74`).
 - 2026-02-17: CI + release workflows migrated to Bun; remove pnpm lock/workspace; add Bun-based publish script (commit `ec3564ce`).
+- 2026-02-17: Docs site migrated to Bun (`docs/bun.lock`, build workflow) (commit `c6b670f7`).
 
 ---
 
@@ -118,3 +125,4 @@ Recent updates (commit `ec3564ce`):
 | 2026-02-17 | Phase 0 + 1 checkpoint | ✅ | Commit `5ea80491`; validated with `bun run build`, `bun run typecheck`, `bun run test` |
 | 2026-02-17 | Bun-first scaffolding/templates | ✅ | Commit `15352f74`; validated with `bun run build`, `bun run typecheck`, `bun run test` |
 | 2026-02-17 | CI + release on Bun | ✅ | Commit `ec3564ce`; workflows migrated; publish uses Bun script; pnpm files deleted |
+| 2026-02-17 | Docs on Bun | ✅ | Commit `c6b670f7`; `docs/` uses Bun; `build-docs` workflow updated |
