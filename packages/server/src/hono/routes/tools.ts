@@ -39,6 +39,10 @@ const ToolInfoSchema = z
             .describe('Source of the tool (internal, custom, or mcp)'),
         serverName: z.string().optional().describe('MCP server name (if source is mcp)'),
         inputSchema: ToolInputSchema.optional().describe('JSON Schema for tool input parameters'),
+        _meta: z
+            .record(z.unknown())
+            .optional()
+            .describe('Optional tool metadata (e.g., MCP Apps UI resource info)'),
     })
     .strict()
     .describe('Tool information');
@@ -124,6 +128,7 @@ export function createToolsRouter(getAgent: GetAgentFn) {
                 source,
                 serverName,
                 inputSchema: toolInfo.parameters as z.output<typeof ToolInputSchema> | undefined,
+                _meta: toolInfo._meta as Record<string, unknown> | undefined,
             });
         }
 

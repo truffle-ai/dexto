@@ -7,6 +7,8 @@ import { createGetResourceTool } from './implementations/get-resource-tool.js';
 import { createInvokeSkillTool } from './implementations/invoke-skill-tool.js';
 import { createListResourcesTool } from './implementations/list-resources-tool.js';
 import { createSearchHistoryTool } from './implementations/search-history-tool.js';
+import { createHttpRequestTool } from './implementations/http-request-tool.js';
+import { createSleepTool } from './implementations/sleep-tool.js';
 
 export const BUILTIN_TOOL_NAMES = [
     'ask_user',
@@ -15,6 +17,8 @@ export const BUILTIN_TOOL_NAMES = [
     'list_resources',
     'get_resource',
     'invoke_skill',
+    'http_request',
+    'sleep',
 ] as const;
 
 export type BuiltinToolName = (typeof BUILTIN_TOOL_NAMES)[number];
@@ -44,6 +48,10 @@ function createToolByName(name: BuiltinToolName): Tool {
             return createGetResourceTool();
         case 'invoke_skill':
             return createInvokeSkillTool();
+        case 'http_request':
+            return createHttpRequestTool();
+        case 'sleep':
+            return createSleepTool();
         default: {
             const exhaustive: never = name;
             throw new Error(`Unknown builtin tool: ${exhaustive}`);

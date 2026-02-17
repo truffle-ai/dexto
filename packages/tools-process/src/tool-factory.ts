@@ -28,16 +28,26 @@ export const processToolsFactory: ToolFactory<ProcessToolsConfig> = {
 
         let processService: ProcessService | undefined;
 
+        const resolveWorkingDirectory = (context: ToolExecutionContext): string =>
+            context.workspace?.path ?? processConfig.workingDirectory ?? process.cwd();
+
+        const applyWorkspace = (context: ToolExecutionContext, service: ProcessService) => {
+            const workingDirectory = resolveWorkingDirectory(context);
+            service.setWorkingDirectory(workingDirectory);
+        };
+
         const getProcessService = async (
             context: ToolExecutionContext
         ): Promise<ProcessService> => {
             if (processService) {
+                applyWorkspace(context, processService);
                 return processService;
             }
 
             const logger = context.logger;
 
             processService = new ProcessService(processConfig, logger);
+            applyWorkspace(context, processService);
             processService.initialize().catch((error) => {
                 const message = error instanceof Error ? error.message : String(error);
                 logger.error(`Failed to initialize ProcessService: ${message}`);

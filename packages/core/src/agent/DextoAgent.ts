@@ -67,6 +67,8 @@ import { safeStringify } from '../utils/safe-stringify.js';
 import { deriveHeuristicTitle, generateSessionTitle } from '../session/title-generator.js';
 import type { ApprovalHandler } from '../approval/types.js';
 import type { DextoAgentOptions } from './agent-options.js';
+import type { WorkspaceManager } from '../workspace/manager.js';
+import type { SetWorkspaceInput, WorkspaceContext } from '../workspace/types.js';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
@@ -75,6 +77,7 @@ const requiredServices: (keyof AgentServices)[] = [
     'agentEventBus',
     'stateManager',
     'sessionManager',
+    'workspaceManager',
     'searchService',
     'memoryManager',
 ];
@@ -171,6 +174,7 @@ export class DextoAgent {
     public readonly promptManager!: PromptManager;
     public readonly stateManager!: AgentStateManager;
     public readonly sessionManager!: SessionManager;
+    public readonly workspaceManager!: WorkspaceManager;
     public readonly toolManager!: ToolManager;
     public readonly resourceManager!: ResourceManager;
     public readonly memoryManager!: import('../memory/index.js').MemoryManager;
@@ -375,6 +379,7 @@ export class DextoAgent {
                 systemPromptManager: services.systemPromptManager,
                 stateManager: services.stateManager,
                 sessionManager: services.sessionManager,
+                workspaceManager: services.workspaceManager,
                 memoryManager: services.memoryManager,
                 services: services,
             });
@@ -510,6 +515,17 @@ export class DextoAgent {
             } catch (error) {
                 const err = error instanceof Error ? error : new Error(String(error));
                 shutdownErrors.push(new Error(`MCPManager disconnect failed: ${err.message}`));
+            }
+
+            // 3.5 Clean up resource manager listeners
+            try {
+                if (this.resourceManager) {
+                    this.resourceManager.cleanup();
+                    this.logger.debug('ResourceManager cleaned up successfully');
+                }
+            } catch (error) {
+                const err = error instanceof Error ? error : new Error(String(error));
+                shutdownErrors.push(new Error(`ResourceManager cleanup failed: ${err.message}`));
             }
 
             // 4. Close storage backends
@@ -940,6 +956,15 @@ export class DextoAgent {
         };
         this.agentEventBus.on('llm:tool-call', toolCallListener, { signal: cleanupSignal });
         listeners.push({ event: 'llm:tool-call', listener: toolCallListener });
+
+        const toolCallPartialListener = (data: AgentEventMap['llm:tool-call-partial']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'llm:tool-call-partial', ...data });
+        };
+        this.agentEventBus.on('llm:tool-call-partial', toolCallPartialListener, {
+            signal: cleanupSignal,
+        });
+        listeners.push({ event: 'llm:tool-call-partial', listener: toolCallPartialListener });
 
         const toolResultListener = (data: AgentEventMap['llm:tool-result']) => {
             if (data.sessionId !== sessionId) return;
@@ -1426,6 +1451,41 @@ export class DextoAgent {
         }
         // If no session found but stream was aborted, still return true
         return !!streamController;
+    }
+
+    // ============= WORKSPACE MANAGEMENT =============
+
+    /**
+     * Sets the active workspace for this runtime.
+     * The workspace context is persisted and emitted via the agent event bus.
+     */
+    public async setWorkspace(input: SetWorkspaceInput): Promise<WorkspaceContext> {
+        this.ensureStarted();
+        return await this.workspaceManager.setWorkspace(input);
+    }
+
+    /**
+     * Gets the currently active workspace, if any.
+     */
+    public async getWorkspace(): Promise<WorkspaceContext | undefined> {
+        this.ensureStarted();
+        return await this.workspaceManager.getWorkspace();
+    }
+
+    /**
+     * Clears the active workspace for this runtime.
+     */
+    public async clearWorkspace(): Promise<void> {
+        this.ensureStarted();
+        await this.workspaceManager.clearWorkspace();
+    }
+
+    /**
+     * Lists all known workspaces in storage.
+     */
+    public async listWorkspaces(): Promise<WorkspaceContext[]> {
+        this.ensureStarted();
+        return await this.workspaceManager.listWorkspaces();
     }
 
     // ============= SESSION MANAGEMENT =============
@@ -2302,6 +2362,88 @@ export class DextoAgent {
     }
 
     /**
+     * Updates an existing MCP server configuration and reconnects if needed.
+     * This is used when editing server params (timeout, headers, env, etc.).
+     *
+     * @param name The name of the server to update.
+     * @param config The updated configuration object.
+     * @throws MCPError if validation fails or reconnect fails.
+     */
+    public async updateMcpServer(name: string, config: McpServerConfig): Promise<void> {
+        this.ensureStarted();
+
+        const currentConfig = this.stateManager.getRuntimeConfig().mcpServers[name];
+        if (!currentConfig) {
+            throw MCPError.serverNotFound(name);
+        }
+
+        const existingServerNames = Object.keys(this.stateManager.getRuntimeConfig().mcpServers);
+        const validation = resolveAndValidateMcpServerConfig(name, config, existingServerNames);
+        const validatedConfig = ensureOk(validation, this.logger);
+
+        // Update runtime state first so the latest config is visible
+        this.stateManager.setMcpServer(name, validatedConfig);
+
+        const shouldEnable = validatedConfig.enabled !== false;
+        const hasClient = this.mcpManager.getClients().has(name);
+
+        if (!shouldEnable) {
+            if (hasClient) {
+                await this.mcpManager.removeClient(name);
+                await this.toolManager.refresh();
+            }
+            this.logger.info(`MCP server '${name}' updated (disabled)`);
+            return;
+        }
+
+        try {
+            if (hasClient) {
+                await this.mcpManager.removeClient(name);
+            }
+
+            await this.mcpManager.connectServer(name, validatedConfig);
+            await this.toolManager.refresh();
+
+            this.agentEventBus.emit('mcp:server-connected', { name, success: true });
+            this.agentEventBus.emit('tools:available-updated', {
+                tools: Object.keys(await this.toolManager.getAllTools()),
+                source: 'mcp',
+            });
+
+            this.logger.info(`MCP server '${name}' updated and reconnected successfully`);
+
+            const warnings = validation.issues.filter((i) => i.severity === 'warning');
+            if (warnings.length > 0) {
+                this.logger.warn(
+                    `MCP server updated with warnings: ${warnings.map((w) => w.message).join(', ')}`
+                );
+            }
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger.error(`Failed to update MCP server '${name}': ${errorMessage}`);
+
+            // Best-effort revert to previous config
+            this.stateManager.setMcpServer(name, currentConfig);
+            if (currentConfig.enabled !== false) {
+                try {
+                    await this.mcpManager.connectServer(name, currentConfig);
+                    await this.toolManager.refresh();
+                } catch (reconnectError) {
+                    const reconnectMsg =
+                        reconnectError instanceof Error
+                            ? reconnectError.message
+                            : String(reconnectError);
+                    this.logger.error(
+                        `Failed to restore MCP server '${name}' after update error: ${reconnectMsg}`
+                    );
+                }
+            }
+
+            throw MCPError.connectionFailed(name, errorMessage);
+        }
+    }
+
+    /**
      * @deprecated Use `addMcpServer` instead. This method will be removed in a future version.
      */
     public async connectMcpServer(name: string, config: McpServerConfig): Promise<void> {
@@ -2919,6 +3061,13 @@ export class DextoAgent {
         return sessionId
             ? this.stateManager.getRuntimeConfig(sessionId)
             : this.stateManager.getRuntimeConfig();
+    }
+
+    public getMcpServerConfig(name: string): McpServerConfig | undefined {
+        this.ensureStarted();
+        const config = this.stateManager.getRuntimeConfig().mcpServers[name];
+        if (config) return config;
+        return this.mcpManager.getServerConfig(name);
     }
 
     // ============= APPROVAL HANDLER API =============

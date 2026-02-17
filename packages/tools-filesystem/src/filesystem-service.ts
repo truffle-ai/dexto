@@ -48,6 +48,7 @@ export class FileSystemService {
     private initialized: boolean = false;
     private initPromise: Promise<void> | null = null;
     private logger: Logger;
+    private directoryApprovalChecker?: (filePath: string) => boolean;
 
     /**
      * Create a new FileSystemService with validated configuration.
@@ -139,7 +140,25 @@ export class FileSystemService {
      * @param checker Function that returns true if path is in an approved directory
      */
     setDirectoryApprovalChecker(checker: (filePath: string) => boolean): void {
+        this.directoryApprovalChecker = checker;
         this.pathValidator.setDirectoryApprovalChecker(checker);
+    }
+
+    /**
+     * Update the working directory at runtime (e.g., when workspace changes).
+     * Rebuilds the PathValidator so allowed/blocked path roots are recalculated.
+     */
+    setWorkingDirectory(workingDirectory: string): void {
+        const normalized = workingDirectory?.trim();
+        if (!normalized) return;
+        if (this.config.workingDirectory === normalized) return;
+
+        this.config = { ...this.config, workingDirectory: normalized };
+        this.pathValidator = new PathValidator(this.config, this.logger);
+        if (this.directoryApprovalChecker) {
+            this.pathValidator.setDirectoryApprovalChecker(this.directoryApprovalChecker);
+        }
+        this.logger.info(`FileSystemService working directory set to ${normalized}`);
     }
 
     /**

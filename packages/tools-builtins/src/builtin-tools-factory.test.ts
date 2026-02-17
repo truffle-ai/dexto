@@ -12,6 +12,8 @@ describe('builtinToolsFactory', () => {
             'list_resources',
             'get_resource',
             'invoke_skill',
+            'http_request',
+            'sleep',
         ]);
     });
 

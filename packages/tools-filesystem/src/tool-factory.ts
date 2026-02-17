@@ -37,6 +37,14 @@ export const fileSystemToolsFactory: ToolFactory<FileSystemToolsConfig> = {
 
         let fileSystemService: FileSystemService | undefined;
 
+        const resolveWorkingDirectory = (context: ToolExecutionContext): string =>
+            context.workspace?.path ?? fileSystemConfig.workingDirectory ?? process.cwd();
+
+        const applyWorkspace = (context: ToolExecutionContext, service: FileSystemService) => {
+            const workingDirectory = resolveWorkingDirectory(context);
+            service.setWorkingDirectory(workingDirectory);
+        };
+
         const getFileSystemService = async (
             context: ToolExecutionContext
         ): Promise<FileSystemService> => {
@@ -50,6 +58,7 @@ export const fileSystemToolsFactory: ToolFactory<FileSystemToolsConfig> = {
                 fileSystemService.setDirectoryApprovalChecker((filePath: string) =>
                     approvalManager.isDirectoryApproved(filePath)
                 );
+                applyWorkspace(context, fileSystemService);
                 return fileSystemService;
             }
 
@@ -66,6 +75,7 @@ export const fileSystemToolsFactory: ToolFactory<FileSystemToolsConfig> = {
             fileSystemService.setDirectoryApprovalChecker((filePath: string) =>
                 approvalManager.isDirectoryApproved(filePath)
             );
+            applyWorkspace(context, fileSystemService);
 
             fileSystemService.initialize().catch((error) => {
                 const message = error instanceof Error ? error.message : String(error);
