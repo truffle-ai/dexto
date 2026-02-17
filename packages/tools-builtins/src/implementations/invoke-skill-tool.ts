@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { ToolError, defineTool, flattenPromptResult } from '@dexto/core';
-import type { Tool, ToolExecutionContext } from '@dexto/core';
+import type { TaskForkOptions, Tool, ToolExecutionContext } from '@dexto/core';
 
 const InvokeSkillInputSchema = z
     .object({
@@ -86,14 +86,7 @@ export function createInvokeSkillTool(): Tool<typeof InvokeSkillInputSchema> {
                     ? `## Task Context\n${taskContext}\n\n## Skill Instructions\n${content}`
                     : content;
 
-                const forkOptions: {
-                    task: string;
-                    instructions: string;
-                    agentId?: string;
-                    autoApprove?: boolean;
-                    toolCallId?: string;
-                    sessionId?: string;
-                } = {
+                const forkOptions: TaskForkOptions = {
                     task: `Skill: ${skill}`,
                     instructions,
                     autoApprove: true,

@@ -746,6 +746,8 @@ export class ToolManager {
         }
 
         const validated = validationResult.data;
+        // Most tools use z.object(...) schemas, so a successful parse should always yield an object.
+        // Keep this guard defensively in case a tool uses a non-object schema.
         if (typeof validated !== 'object' || validated === null || Array.isArray(validated)) {
             throw ToolError.validationFailed(toolName, 'Invalid arguments: expected an object');
         }
@@ -958,7 +960,14 @@ export class ToolManager {
 
             // Hooks may modify tool args (including in-place). Re-validate before execution so tools
             // always receive schema-validated args and defaults/coercions are re-applied after hook mutation.
-            toolArgs = this.validateLocalToolArgsOrThrow(toolName, toolArgs);
+            try {
+                toolArgs = this.validateLocalToolArgsOrThrow(toolName, toolArgs);
+            } catch (error) {
+                this.logger.error(
+                    `Post-hook validation failed for tool '${toolName}': a beforeToolCall hook may have set invalid args`
+                );
+                throw error;
+            }
         }
 
         try {

@@ -19,7 +19,7 @@ import {
 
 const BashExecInputSchema = z
     .object({
-        command: z.string().describe('Shell command to execute'),
+        command: z.string().min(1).describe('Shell command to execute'),
         description: z
             .string()
             .optional()
@@ -103,13 +103,11 @@ Security: Dangerous commands are blocked. Injection attempts are detected. Requi
         inputSchema: BashExecInputSchema,
 
         getApprovalPatternKey(input): string | null {
-            if (!input.command) return null;
             const command = input.command;
             return generateCommandPatternKey(command);
         },
 
         suggestApprovalPatterns(input): string[] {
-            if (!input.command) return [];
             const command = input.command;
             return generateCommandPatternSuggestions(command);
         },

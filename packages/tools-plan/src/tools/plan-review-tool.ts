@@ -30,7 +30,7 @@ const PlanReviewInputSchema = z
 /**
  * Creates the plan_review tool
  *
- * @param planService - Service for plan operations
+ * @param getPlanService - Getter for the plan service
  */
 export function createPlanReviewTool(
     getPlanService: PlanServiceGetter

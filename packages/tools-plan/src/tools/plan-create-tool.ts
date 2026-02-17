@@ -39,12 +39,13 @@ export function createPlanCreateTool(
          * Generate preview for approval UI
          */
         generatePreview: async (input, context: ToolExecutionContext): Promise<FileDisplayData> => {
-            const resolvedPlanService = await getPlanService(context);
             const { content } = input;
 
             if (!context.sessionId) {
                 throw PlanError.sessionIdRequired();
             }
+
+            const resolvedPlanService = await getPlanService(context);
 
             // Check if plan already exists
             const exists = await resolvedPlanService.exists(context.sessionId);
@@ -66,12 +67,13 @@ export function createPlanCreateTool(
         },
 
         async execute(input, context: ToolExecutionContext) {
-            const resolvedPlanService = await getPlanService(context);
             const { title, content } = input;
 
             if (!context.sessionId) {
                 throw PlanError.sessionIdRequired();
             }
+
+            const resolvedPlanService = await getPlanService(context);
 
             // Keep consistent with generatePreview: fail early if plan already exists.
             // (PlanService.create also guards this, but this keeps the control flow obvious.)

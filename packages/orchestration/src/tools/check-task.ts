@@ -58,8 +58,7 @@ export function createCheckTaskTool(taskRegistry: TaskRegistry): Tool<typeof Che
             'Returns immediately without waiting. ' +
             'Use this to poll task status or check if a task is done.',
         inputSchema: CheckTaskInputSchema,
-        execute: async (rawInput: unknown, _context): Promise<CheckTaskOutput> => {
-            const input = CheckTaskInputSchema.parse(rawInput);
+        execute: async (input, _context): Promise<CheckTaskOutput> => {
             const info = taskRegistry.getInfo(input.taskId);
 
             if (!info) {

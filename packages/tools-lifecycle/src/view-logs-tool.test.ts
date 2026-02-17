@@ -7,6 +7,7 @@ import type { ToolExecutionContext } from '@dexto/core';
 
 function createTestContext(logFilePath: string | null): ToolExecutionContext {
     return {
+        sessionId: 'test-session',
         logger: {
             debug: () => {},
             silly: () => {},

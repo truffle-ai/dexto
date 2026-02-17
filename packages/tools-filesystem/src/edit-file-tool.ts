@@ -8,11 +8,12 @@ import * as path from 'node:path';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { createPatch } from 'diff';
-import { ApprovalType, DextoRuntimeError, ToolError, ToolErrorCode, defineTool } from '@dexto/core';
+import { DextoRuntimeError, ToolError, ToolErrorCode, defineTool } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
-import type { DiffDisplayData, ApprovalRequestDetails, ApprovalResponse } from '@dexto/core';
+import type { DiffDisplayData } from '@dexto/core';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
 import { FileSystemErrorCode } from './error-codes.js';
+import { createDirectoryAccessApprovalHandlers } from './directory-approval.js';
 
 /**
  * Cache for content hashes between preview and execute phases.
@@ -30,7 +31,7 @@ function computeContentHash(content: string): string {
 
 const EditFileInputSchema = z
     .object({
-        file_path: z.string().describe('Absolute path to the file to edit'),
+        file_path: z.string().min(1).describe('Absolute path to the file to edit'),
         old_string: z
             .string()
             .describe('Text to replace (must be unique unless replace_all is true)'),
@@ -80,82 +81,18 @@ export function createEditFileTool(
             'Edit a file by replacing text. By default, old_string must be unique in the file (will error if found multiple times). Set replace_all=true to replace all occurrences. Automatically creates backup before editing. Requires approval. Returns success status, path, number of changes made, and backup path.',
         inputSchema: EditFileInputSchema,
 
-        /**
-         * Check if this edit operation needs directory access approval.
-         * Returns custom approval request if the file is outside allowed paths.
-         */
-        async getApprovalOverride(
-            input,
-            context: ToolExecutionContext
-        ): Promise<ApprovalRequestDetails | null> {
-            const { file_path } = input;
-            if (!file_path) return null;
-
-            const resolvedFileSystemService = await getFileSystemService(context);
-
-            // Check if path is within config-allowed paths (async for non-blocking symlink resolution)
-            const isAllowed = await resolvedFileSystemService.isPathWithinConfigAllowed(file_path);
-            if (isAllowed) {
-                return null; // Use normal tool confirmation
-            }
-
-            // Check if directory is already session-approved (prompting decision)
-            const approvalManager = context.services?.approval;
-            if (!approvalManager) {
-                throw ToolError.configInvalid(
-                    'edit_file requires ToolExecutionContext.services.approval'
-                );
-            }
-            if (approvalManager.isDirectorySessionApproved(file_path)) {
-                return null; // Already approved, use normal flow
-            }
-
-            // Need directory access approval
-            const absolutePath = path.resolve(file_path);
-            const parentDir = path.dirname(absolutePath);
-
-            return {
-                type: ApprovalType.DIRECTORY_ACCESS,
-                metadata: {
-                    path: absolutePath,
-                    parentDir,
-                    operation: 'edit',
-                    toolName: 'edit_file',
-                },
-            };
-        },
-
-        /**
-         * Handle approved directory access - remember the directory for session
-         */
-        onApprovalGranted(
-            response: ApprovalResponse,
-            context: ToolExecutionContext,
-            approvalRequest: ApprovalRequestDetails
-        ): void {
-            if (approvalRequest.type !== ApprovalType.DIRECTORY_ACCESS) {
-                return;
-            }
-
-            const metadata = approvalRequest.metadata as { parentDir?: unknown } | undefined;
-            const parentDir = typeof metadata?.parentDir === 'string' ? metadata.parentDir : null;
-            if (!parentDir) {
-                return;
-            }
-
-            // Check if user wants to remember the directory
-            // Use type assertion to access rememberDirectory since response.data is a union type
-            const data = response.data as { rememberDirectory?: boolean } | undefined;
-            const rememberDirectory = data?.rememberDirectory ?? false;
-
-            const approvalManager = context.services?.approval;
-            if (!approvalManager) {
-                throw ToolError.configInvalid(
-                    'edit_file requires ToolExecutionContext.services.approval'
-                );
-            }
-            approvalManager.addApprovedDirectory(parentDir, rememberDirectory ? 'session' : 'once');
-        },
+        ...createDirectoryAccessApprovalHandlers({
+            toolName: 'edit_file',
+            operation: 'edit',
+            getFileSystemService,
+            resolvePaths: (input, fileSystemService) => {
+                const baseDir = fileSystemService.getWorkingDirectory();
+                const absolutePath = path.isAbsolute(input.file_path)
+                    ? path.resolve(input.file_path)
+                    : path.resolve(baseDir, input.file_path);
+                return { path: absolutePath, parentDir: path.dirname(absolutePath) };
+            },
+        }),
 
         /**
          * Generate preview for approval UI - shows diff without modifying file

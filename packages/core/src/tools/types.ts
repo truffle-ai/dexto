@@ -39,6 +39,8 @@ export interface TaskForker {
     }>;
 }
 
+export type TaskForkOptions = Parameters<TaskForker['fork']>[0];
+
 export interface ToolServices {
     approval: ApprovalManager;
     search: SearchService;
@@ -159,16 +161,16 @@ export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
      * - Skip confirmation when the pattern key is covered by previously approved patterns.
      * - Offer suggested patterns (if {@link suggestApprovalPatterns} is provided) in the approval UI.
      *
-     * Return null to disable pattern approvals for the given args (e.g. dangerous commands).
+     * Return null to disable pattern approvals for the given input (e.g. dangerous commands).
      */
-    getApprovalPatternKey?(args: z.output<TSchema>): string | null;
+    getApprovalPatternKey?(input: z.output<TSchema>): string | null;
 
     /**
      * Optional pattern suggestions for the approval UI.
      *
      * Returned patterns are shown as quick "remember pattern" options.
      */
-    suggestApprovalPatterns?(args: z.output<TSchema>): string[];
+    suggestApprovalPatterns?(input: z.output<TSchema>): string[];
 
     /**
      * Optional custom approval override.
@@ -176,14 +178,14 @@ export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
      * the default tool confirmation. Allows tools to request specialized approval
      * flows (e.g., directory access approval for file tools).
      *
-     * @param args The validated input arguments for the tool
+     * @param input The validated input arguments for the tool
      * @returns ApprovalRequestDetails for custom approval, or null to use default tool confirmation
      *
      * @example
      * ```typescript
      * // File tool requesting directory access approval for external paths
-     * getApprovalOverride: async (args) => {
-     *   const filePath = (args as {file_path: string}).file_path;
+     * getApprovalOverride: async (input) => {
+     *   const filePath = (input as {file_path: string}).file_path;
      *   if (!await isPathWithinAllowed(filePath)) {
      *     return {
      *       type: ApprovalType.DIRECTORY_ACCESS,
@@ -195,7 +197,7 @@ export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
      * ```
      */
     getApprovalOverride?(
-        args: z.output<TSchema>,
+        input: z.output<TSchema>,
         context: ToolExecutionContext
     ): Promise<ApprovalRequestDetails | null> | ApprovalRequestDetails | null;
 
