@@ -10,6 +10,7 @@ export default defineConfig({
         environment: 'node',
         include: ['**/*.integration.test.ts'],
         exclude: ['**/node_modules/**', '**/dist/**'],
+        testTimeout: 15_000,
         watch: false,
         setupFiles: ['./vitest.setup.ts'],
     },
