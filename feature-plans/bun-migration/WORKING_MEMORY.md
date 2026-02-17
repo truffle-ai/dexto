@@ -39,7 +39,7 @@
 - Remaining pnpm/npm touchpoints (non-exhaustive, likely PR 1 candidates):
   - CLI flow parity outside `dexto-source` depends on publishing `@dexto/*` packages (owner will publish before merge)
 
-Recent updates (commit pending at time of writing):
+Recent updates (commit `ec3564ce`):
 - GitHub Actions workflows migrated from pnpm/npm to Bun (CI + sync jobs + changesets release workflow)
 - `changeset publish` replaced with Bun-based publishing (`scripts/publish-packages.ts`) because Changesets only supports npm/pnpm for publish
 - Legacy pnpm files deleted (`pnpm-lock.yaml`, `pnpm-workspace.yaml`)
@@ -106,7 +106,7 @@ Recent updates (commit pending at time of writing):
 - 2026-02-17: Local model setup uses Bun to install `node-llama-cpp` into `~/.dexto/deps` (commit `ec32f68c`).
 - 2026-02-17: Validated `bun add --trust node-llama-cpp` + `import('node-llama-cpp')` works under Bun `1.2.9` (macOS).
 - 2026-02-17: Bun-first CLI scaffolding/templates + help text (commit `15352f74`).
-- 2026-02-17: CI + release workflows migrated to Bun; remove pnpm lock/workspace; add Bun-based publish script (commit pending).
+- 2026-02-17: CI + release workflows migrated to Bun; remove pnpm lock/workspace; add Bun-based publish script (commit `ec3564ce`).
 
 ---
 
@@ -117,3 +117,4 @@ Recent updates (commit pending at time of writing):
 | 2026-02-17 | Bun baseline | ✅ | build/typecheck/test green under Bun `1.2.9` |
 | 2026-02-17 | Phase 0 + 1 checkpoint | ✅ | Commit `5ea80491`; validated with `bun run build`, `bun run typecheck`, `bun run test` |
 | 2026-02-17 | Bun-first scaffolding/templates | ✅ | Commit `15352f74`; validated with `bun run build`, `bun run typecheck`, `bun run test` |
+| 2026-02-17 | CI + release on Bun | ✅ | Commit `ec3564ce`; workflows migrated; publish uses Bun script; pnpm files deleted |
