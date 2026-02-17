@@ -30,8 +30,8 @@
 - Checkpoint commit for Phase 0 + Phase 1 completed: `5ea80491`.
 - Remaining pnpm/npm touchpoints (non-exhaustive, starting points):
   - `packages/cli/src/cli/utils/image-store.ts` — migrated to Bun (`bun pm pack` + `bun add`), but still needs broader image-store vs `~/.dexto` layering decision
-  - `packages/cli/src/cli/utils/local-model-setup.ts` — installs `node-llama-cpp` via `npm install` into `~/.dexto/deps`
-  - `packages/cli/src/cli/ink-cli/components/overlays/custom-model-wizard/LocalModelWizard.tsx` — also runs `npm install node-llama-cpp`
+  - `packages/cli/src/cli/utils/local-model-setup.ts` — migrated to `bun add --trust node-llama-cpp`, but still needs validation under Bun runtime
+  - `packages/cli/src/cli/ink-cli/components/overlays/custom-model-wizard/LocalModelWizard.tsx` — migrated to Bun, but still needs validation under Bun runtime
   - `packages/cli/src/cli/utils/scaffolding-utils.ts` — uses `npm init -y`, then chooses `pnpm`/`npm` for deps
   - `packages/cli/src/cli/utils/package-mgmt.ts` — detects `pnpm-lock.yaml` and defaults to `npm` (needs `bun` support)
   - `scripts/install-global-cli.ts` — uses `npx verdaccio …` and `npm uninstall -g …` for a local install simulation
@@ -77,7 +77,7 @@
 
 ## Open Questions / Blockers
 
-1. **Local models:** `node-llama-cpp` is installed via `npm` into `~/.dexto/deps`. Under Bun runtime, native add-ons may be ABI-sensitive. Decide whether to:
+1. **Local models:** `node-llama-cpp` is installed via **Bun** into `~/.dexto/deps` now, but under Bun runtime native add-ons may still be ABI-sensitive. Decide whether to:
    - keep Node for this feature only,
    - switch to an alternative runtime strategy (ollama / external process),
    - or ensure Bun-compatible Node-API builds.
@@ -93,6 +93,7 @@
 - 2026-02-17: Added Bun migration plan artifacts under `feature-plans/bun-migration/` (commit `b40d68e2`).
 - 2026-02-17: Checkpoint commit `5ea80491` (Bun runtime baseline + `bun.lock` + `bun:sqlite` + scripts/entrypoints).
 - 2026-02-17: Image store installer now uses Bun (`bun pm pack` + `bun add`) instead of npm (commit `5e36ff3b`).
+- 2026-02-17: Local model setup uses Bun to install `node-llama-cpp` into `~/.dexto/deps` (commit `ec32f68c`).
 
 ---
 

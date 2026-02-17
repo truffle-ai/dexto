@@ -21,7 +21,8 @@ Update this checklist as work completes. Keep tasks concrete and verifiable.
 - [ ] Update CLI scaffolding and templates to prefer `bun` (install/run/build instructions)
 - [ ] Replace `npx`/`npm` usage in repo dev scripts with `bunx`/`bun` where possible (e.g. `scripts/install-global-cli.ts`)
 - [x] Migrate image-store installer off `npm pack` + `npm install` to Bun equivalents
-- [ ] Revisit “local model” dependency install (`node-llama-cpp` currently installed via `npm`)
+- [x] Switch local model dependency install to Bun (`node-llama-cpp` via `bun add --trust`)
+- [ ] Validate `node-llama-cpp` installs + imports under Bun runtime (no Node required)
 - [ ] Decide what to do with legacy pnpm files (`pnpm-lock.yaml`, `pnpm-workspace.yaml`) once CI flips
 - [x] Checkpoint commit: Phase 1 SQLite + runtime blockers removed
 
