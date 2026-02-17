@@ -4,7 +4,7 @@ Concrete storage backends (blob store, database, cache) and their config schemas
 
 Core (`@dexto/core`) owns the **interfaces** (`BlobStore`, `Database`, `Cache`) and `StorageManager`.
 Product layers (CLI/server/apps) choose which concrete backends are available by including factories
-in an image (`DextoImageModule.storage.*`) and resolving config via `@dexto/agent-config`.
+in an image (`DextoImage.storage.*`) and resolving config via `@dexto/agent-config`.
 
 ## What this package exports
 
@@ -20,15 +20,15 @@ in an image (`DextoImageModule.storage.*`) and resolving config via `@dexto/agen
 ## Using factories in an image
 
 ```ts
-import type { DextoImageModule } from '@dexto/agent-config';
+import type { DextoImage } from '@dexto/agent-config';
 import {
   localBlobStoreFactory,
   sqliteDatabaseFactory,
   inMemoryCacheFactory,
 } from '@dexto/storage';
 
-export const myImage: DextoImageModule = {
-  /* metadata/defaults/tools/plugins/compaction/logger ... */
+export const myImage: DextoImage = {
+  /* metadata/defaults/tools/hooks/compaction/logger ... */
   storage: {
     blob: { local: localBlobStoreFactory },
     database: { sqlite: sqliteDatabaseFactory },

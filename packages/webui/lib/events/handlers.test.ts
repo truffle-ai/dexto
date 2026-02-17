@@ -312,7 +312,7 @@ describe('Event Handler Registry', () => {
                 name: 'approval:request',
                 sessionId: TEST_SESSION_ID,
                 approvalId: 'approval-1',
-                type: ApprovalType.TOOL_CONFIRMATION,
+                type: ApprovalType.TOOL_APPROVAL,
                 metadata: {
                     toolName: 'dangerous-tool',
                     toolCallId: 'call-dangerous-1',

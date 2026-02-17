@@ -33,6 +33,7 @@ export interface SubAgentProgress {
 
 export interface ToolCallTimelineProps {
     toolName: string;
+    toolDisplayName?: string;
     toolArgs?: Record<string, unknown>;
     toolResult?: unknown;
     success?: boolean;
@@ -49,28 +50,12 @@ export interface ToolCallTimelineProps {
 // =============================================================================
 
 function stripToolPrefix(toolName: string): { displayName: string; source: string } {
-    if (toolName.startsWith('internal--')) {
-        return { displayName: toolName.replace('internal--', ''), source: '' };
-    }
-    if (toolName.startsWith('custom--')) {
-        return { displayName: toolName.replace('custom--', ''), source: '' };
-    }
     if (toolName.startsWith('mcp--')) {
         const parts = toolName.split('--');
         if (parts.length >= 3) {
             return { displayName: parts.slice(2).join('--'), source: parts[1] ?? '' };
         }
         return { displayName: toolName.replace('mcp--', ''), source: 'mcp' };
-    }
-    if (toolName.startsWith('mcp__')) {
-        const parts = toolName.substring(5).split('__');
-        if (parts.length >= 2) {
-            return { displayName: parts.slice(1).join('__'), source: parts[0] ?? '' };
-        }
-        return { displayName: toolName.substring(5), source: 'mcp' };
-    }
-    if (toolName.startsWith('internal__')) {
-        return { displayName: toolName.substring(10), source: '' };
     }
     return { displayName: toolName, source: '' };
 }
@@ -113,6 +98,7 @@ function getSummary(
 
 export function ToolCallTimeline({
     toolName,
+    toolDisplayName,
     toolArgs,
     toolResult,
     success,
@@ -165,7 +151,8 @@ export function ToolCallTimeline({
         }
     }, [requireApproval, approvalStatus, hasRichUI, isRejected]);
 
-    const { displayName, source } = stripToolPrefix(toolName);
+    const { displayName: fallbackDisplayName, source } = stripToolPrefix(toolName);
+    const displayName = toolDisplayName ?? fallbackDisplayName;
     const summary = getSummary(displayName, toolArgs);
 
     // For sub-agent progress, format the agent name nicely

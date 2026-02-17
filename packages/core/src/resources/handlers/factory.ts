@@ -2,14 +2,14 @@ import { ResourceError } from '../errors.js';
 import { FileSystemResourceHandler } from './filesystem-handler.js';
 import { BlobResourceHandler } from './blob-handler.js';
 import type { InternalResourceServices, InternalResourceHandler } from './types.js';
-import type { ValidatedInternalResourceConfig } from '../schemas.js';
+import type { ValidatedResourceConfig } from '../schemas.js';
 import type { Logger } from '../../logger/v2/types.js';
 
 /**
  * Factory function for creating internal resource handlers
  */
 export function createInternalResourceHandler(
-    config: ValidatedInternalResourceConfig,
+    config: ValidatedResourceConfig,
     services: InternalResourceServices,
     logger: Logger
 ): InternalResourceHandler {

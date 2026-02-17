@@ -2,7 +2,7 @@
  * Image Definition Types (bundler-only)
  *
  * The bundler consumes a `dexto.image.ts` file that declares metadata and defaults.
- * Concrete tools/storage/plugins/compaction factories are discovered from convention folders
+ * Concrete tools/storage/hooks/compaction factories are discovered from convention folders
  * and must `export const factory = ...` from their `index.ts`.
  */
 

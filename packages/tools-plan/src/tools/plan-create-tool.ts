@@ -29,6 +29,7 @@ type PlanCreateInput = z.input<typeof PlanCreateInputSchema>;
 export function createPlanCreateTool(getPlanService: PlanServiceGetter): Tool {
     return {
         id: 'plan_create',
+        displayName: 'Plan',
         description:
             'Create a new implementation plan for the current session. Shows the plan for approval before saving. Use markdown format for the plan content with clear steps and file references.',
         inputSchema: PlanCreateInputSchema,

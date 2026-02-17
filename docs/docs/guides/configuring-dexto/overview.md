@@ -129,16 +129,16 @@ mcpServers:
 Dexto supports path variables for portable configuration:
 
 **`${{dexto.agent_dir}}`** - Resolves to the directory containing your agent's YAML file
-- Use this for agent-relative paths in plugins, file contributors, and custom resources
+- Use this for agent-relative paths in hooks, file contributors, and custom resources
 - Makes your configuration portable when sharing or moving agents
 
 **Example:**
 ```yaml
-# Plugin with agent-relative path
-plugins:
+# Hook with agent-relative path
+hooks:
   custom:
     - name: my-plugin
-      module: "${{dexto.agent_dir}}/plugins/auth.ts"
+      module: "${{dexto.agent_dir}}/hooks/auth.ts"
 
 # System prompt file contributors with mixed paths
 systemPrompt:

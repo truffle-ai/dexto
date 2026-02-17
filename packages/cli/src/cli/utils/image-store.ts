@@ -190,7 +190,7 @@ async function validateInstalledImageModule(
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         throw new Error(
-            `Installed image '${imageId}@${version}' did not export a valid DextoImageModule.\n` +
+            `Installed image '${imageId}@${version}' did not export a valid DextoImage.\n` +
                 `Entry file: ${entryFile}\n` +
                 message
         );

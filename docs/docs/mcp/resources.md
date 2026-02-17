@@ -70,6 +70,6 @@ Based on Dexto's agent registry:
 
 ## See Also
 
-- [Internal Resources](../guides/configuring-dexto/internalResources) - Agent-managed filesystem/blob resources
+- [Resources](../guides/configuring-dexto/resources) - Agent-managed filesystem/blob resources
 - [MCP Prompts](./prompts) - Templated prompts from servers
 - [MCP Overview](./overview) - Introduction to MCP

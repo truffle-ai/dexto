@@ -41,7 +41,7 @@ mcpServers:
     # Note: Linear MCP requires authentication through your Linear workspace
     # You'll need to authenticate when first connecting
 
-toolConfirmation:
+permissions:
   mode: auto-approve
   allowedToolsStorage: memory
 

@@ -81,7 +81,7 @@ describe('Context Compaction Integration Tests', () => {
         resourceManager = new ResourceManager(
             mcpManager,
             {
-                internalResourcesConfig: { enabled: false, resources: [] },
+                resourcesConfig: [],
                 blobStore: storageManager.getBlobStore(),
             },
             agentEventBus,

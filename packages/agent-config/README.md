@@ -41,6 +41,6 @@ await agent.start();
 
 ## Images (no registries)
 
-Images are typed modules (`DextoImageModule`) that export plain `Record<string, Factory>` maps.
+Images are typed modules (`DextoImage`) that export plain `Record<string, Factory>` maps.
 Resolver logic does property access by config `type` (e.g., `image.tools[entry.type]`) — there are no
 global registries or side effects.

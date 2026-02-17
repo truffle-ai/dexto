@@ -43,7 +43,7 @@ export function TodoPanel({ sessionId }: TodoPanelProps) {
                 {/* Header with progress */}
                 <div className="flex items-center justify-between border-b border-amber-200 dark:border-amber-900/50 pb-2">
                     <span className="text-sm font-semibold text-foreground tracking-tight">
-                        Tasks in Progress
+                        Todo
                     </span>
                     <div className="flex items-center gap-1.5">
                         <div className="h-1.5 w-16 bg-muted rounded-full overflow-hidden">
@@ -97,7 +97,7 @@ export function TodoPanel({ sessionId }: TodoPanelProps) {
                 {hasMore && (
                     <div className="pt-1 border-t border-border/50">
                         <span className="text-xs text-muted-foreground/70 italic">
-                            +{todos.length - 10} more tasks...
+                            +{todos.length - 10} more todos...
                         </span>
                     </div>
                 )}

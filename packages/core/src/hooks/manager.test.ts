@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { PluginManager } from './manager.js';
-import type { Plugin, PluginExecutionContext, PluginResult } from './types.js';
-import type { ExecutionContextOptions } from './manager.js';
+import { HookManager } from './manager.js';
+import type { Hook, HookExecutionContext, HookResult } from './types.js';
+import type { HookExecutionContextOptions } from './manager.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 import { LLMConfigSchema } from '../llm/schemas.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
-import { PluginErrorCode } from './error-codes.js';
+import { HookErrorCode } from './error-codes.js';
 
-function createExecutionContextOptions(): ExecutionContextOptions {
+function createExecutionContextOptions(): HookExecutionContextOptions {
     const llmConfig = LLMConfigSchema.parse({
         provider: 'openai',
         model: 'gpt-4o-mini',
@@ -17,60 +17,60 @@ function createExecutionContextOptions(): ExecutionContextOptions {
     });
 
     return {
-        sessionManager: {} as unknown as ExecutionContextOptions['sessionManager'],
-        mcpManager: {} as unknown as ExecutionContextOptions['mcpManager'],
-        toolManager: {} as unknown as ExecutionContextOptions['toolManager'],
+        sessionManager: {} as unknown as HookExecutionContextOptions['sessionManager'],
+        mcpManager: {} as unknown as HookExecutionContextOptions['mcpManager'],
+        toolManager: {} as unknown as HookExecutionContextOptions['toolManager'],
         stateManager: {
             getLLMConfig: () => llmConfig,
-        } as unknown as ExecutionContextOptions['stateManager'],
+        } as unknown as HookExecutionContextOptions['stateManager'],
         sessionId: 'session-1',
     };
 }
 
-describe('PluginManager', () => {
-    it('throws when a plugin implements no extension points', async () => {
+describe('HookManager', () => {
+    it('throws when a hook implements no extension points', async () => {
         const logger = createMockLogger();
-        const pluginManager = new PluginManager(
+        const hookManager = new HookManager(
             {
                 agentEventBus: {} as unknown as import('../events/index.js').AgentEventBus,
                 storageManager: {} as unknown as import('../storage/index.js').StorageManager,
             },
-            [{} satisfies Plugin],
+            [{} satisfies Hook],
             logger
         );
 
-        await expect(pluginManager.initialize()).rejects.toMatchObject({
-            code: PluginErrorCode.PLUGIN_INVALID_SHAPE,
+        await expect(hookManager.initialize()).rejects.toMatchObject({
+            code: HookErrorCode.HOOK_INVALID_SHAPE,
         });
     });
 
     it('applies modifications in order', async () => {
         const logger = createMockLogger();
 
-        const pluginA: Plugin = {
-            async beforeResponse(payload, _context): Promise<PluginResult> {
+        const hookA: Hook = {
+            async beforeResponse(payload, _context): Promise<HookResult> {
                 return { ok: true, modify: { ...payload, content: 'A' } };
             },
         };
 
-        const pluginB: Plugin = {
-            async beforeResponse(payload, _context): Promise<PluginResult> {
+        const hookB: Hook = {
+            async beforeResponse(payload, _context): Promise<HookResult> {
                 return { ok: true, modify: { ...payload, model: 'B' } };
             },
         };
 
-        const pluginManager = new PluginManager(
+        const hookManager = new HookManager(
             {
                 agentEventBus: {} as unknown as import('../events/index.js').AgentEventBus,
                 storageManager: {} as unknown as import('../storage/index.js').StorageManager,
             },
-            [pluginA, pluginB],
+            [hookA, hookB],
             logger
         );
-        await pluginManager.initialize();
+        await hookManager.initialize();
 
         const options = createExecutionContextOptions();
-        const result = await pluginManager.executePlugins(
+        const result = await hookManager.executeHooks(
             'beforeResponse',
             { content: 'orig', provider: 'openai' },
             options
@@ -86,61 +86,58 @@ describe('PluginManager', () => {
     it('throws on cancellation', async () => {
         const logger = createMockLogger();
 
-        const plugin: Plugin = {
-            async beforeResponse(
-                _payload,
-                _context: PluginExecutionContext
-            ): Promise<PluginResult> {
+        const hook: Hook = {
+            async beforeResponse(_payload, _context: HookExecutionContext): Promise<HookResult> {
                 return { ok: false, cancel: true, message: 'blocked' };
             },
         };
 
-        const pluginManager = new PluginManager(
+        const hookManager = new HookManager(
             {
                 agentEventBus: {} as unknown as import('../events/index.js').AgentEventBus,
                 storageManager: {} as unknown as import('../storage/index.js').StorageManager,
             },
-            [plugin],
+            [hook],
             logger
         );
-        await pluginManager.initialize();
+        await hookManager.initialize();
 
         const options = createExecutionContextOptions();
         await expect(
-            pluginManager.executePlugins(
+            hookManager.executeHooks(
                 'beforeResponse',
                 { content: 'orig', provider: 'openai' },
                 options
             )
         ).rejects.toMatchObject({
-            code: PluginErrorCode.PLUGIN_BLOCKED_EXECUTION,
+            code: HookErrorCode.HOOK_BLOCKED_EXECUTION,
         });
     });
 
-    it('wraps thrown errors as PLUGIN_EXECUTION_FAILED', async () => {
+    it('wraps thrown errors as HOOK_EXECUTION_FAILED', async () => {
         const logger = createMockLogger();
 
-        const plugin: Plugin = {
-            async beforeResponse(): Promise<PluginResult> {
+        const hook: Hook = {
+            async beforeResponse(): Promise<HookResult> {
                 throw new Error('boom');
             },
         };
 
-        const pluginManager = new PluginManager(
+        const hookManager = new HookManager(
             {
                 agentEventBus: {} as unknown as import('../events/index.js').AgentEventBus,
                 storageManager: {} as unknown as import('../storage/index.js').StorageManager,
             },
-            [plugin],
+            [hook],
             logger
         );
-        await pluginManager.initialize();
+        await hookManager.initialize();
 
         const options = createExecutionContextOptions();
 
         let thrown: unknown;
         try {
-            await pluginManager.executePlugins(
+            await hookManager.executeHooks(
                 'beforeResponse',
                 { content: 'orig', provider: 'openai' },
                 options
@@ -150,6 +147,6 @@ describe('PluginManager', () => {
         }
 
         expect(thrown).toBeInstanceOf(DextoRuntimeError);
-        expect(thrown).toMatchObject({ code: PluginErrorCode.PLUGIN_EXECUTION_FAILED });
+        expect(thrown).toMatchObject({ code: HookErrorCode.HOOK_EXECUTION_FAILED });
     });
 });

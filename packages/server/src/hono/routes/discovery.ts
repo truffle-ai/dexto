@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { Context } from 'hono';
-import type { DextoImageModule } from '@dexto/agent-config';
+import type { DextoImage } from '@dexto/agent-config';
 import { loadImage } from '@dexto/agent-config';
 import { loadAgentConfig } from '@dexto/agent-management';
 import imageLocal from '@dexto/image-local';
@@ -12,9 +12,7 @@ export type GetAgentConfigPathFn = (
 const DiscoveredFactorySchema = z
     .object({
         type: z.string().describe('Factory type identifier'),
-        category: z
-            .enum(['blob', 'database', 'compaction', 'customTools'])
-            .describe('Factory category'),
+        category: z.enum(['blob', 'database', 'compaction', 'tools']).describe('Factory category'),
         metadata: z
             .object({
                 displayName: z.string().optional().describe('Human-readable display name'),
@@ -30,18 +28,18 @@ const ToolSchema = z
     .object({
         name: z
             .string()
-            .describe('Internal tool name identifier (e.g., "search_history", "ask_user")'),
+            .describe('Built-in tool name identifier (e.g., "search_history", "ask_user")'),
         description: z.string().describe('Human-readable description of what the tool does'),
     })
-    .describe('Information about an internal tool');
+    .describe('Information about a built-in tool');
 
 const DiscoveryResponseSchema = z
     .object({
         blob: z.array(DiscoveredFactorySchema).describe('Blob storage factories'),
         database: z.array(DiscoveredFactorySchema).describe('Database factories'),
         compaction: z.array(DiscoveredFactorySchema).describe('Compaction strategy factories'),
-        customTools: z.array(DiscoveredFactorySchema).describe('Custom tool factories'),
-        internalTools: z.array(ToolSchema).describe('Internal tools available for configuration'),
+        toolFactories: z.array(DiscoveredFactorySchema).describe('Tool factories'),
+        builtinTools: z.array(ToolSchema).describe('Built-in tools available for configuration'),
     })
     .describe('Discovery response with factories grouped by category');
 
@@ -73,10 +71,10 @@ function toMetadata(metadata: unknown): DiscoveryMetadata | undefined {
     return Object.keys(result).length > 0 ? result : undefined;
 }
 
-async function resolveImageModule(options: {
+async function resolveImage(options: {
     ctx: Context;
     getAgentConfigPath: GetAgentConfigPathFn;
-}): Promise<DextoImageModule> {
+}): Promise<DextoImage> {
     const { ctx, getAgentConfigPath } = options;
 
     const configPath = await getAgentConfigPath(ctx);
@@ -110,7 +108,7 @@ async function listDiscoveryFactories(options: {
     ctx: Context;
     getAgentConfigPath: GetAgentConfigPathFn;
 }) {
-    const image = await resolveImageModule(options);
+    const image = await resolveImage(options);
 
     const blob = Object.entries(image.storage.blob).map(([type, factory]) => ({
         type,
@@ -133,7 +131,7 @@ async function listDiscoveryFactories(options: {
     const toolFactories = Object.entries(image.tools);
     const builtinFactory = toolFactories.find(([type]) => type === 'builtin-tools')?.[1];
 
-    const internalTools = builtinFactory
+    const builtinTools = builtinFactory
         ? builtinFactory
               .create(builtinFactory.configSchema.parse({ type: 'builtin-tools' }))
               .map((tool) => ({
@@ -142,15 +140,15 @@ async function listDiscoveryFactories(options: {
               }))
         : [];
 
-    const customTools = toolFactories
+    const toolFactoriesList = toolFactories
         .filter(([type]) => type !== 'builtin-tools')
         .map(([type, factory]) => ({
             type,
-            category: 'customTools' as const,
+            category: 'tools' as const,
             metadata: toMetadata(factory.metadata),
         }));
 
-    return { blob, database, compaction, customTools, internalTools };
+    return { blob, database, compaction, toolFactories: toolFactoriesList, builtinTools };
 }
 
 export function createDiscoveryRouter(getAgentConfigPath: GetAgentConfigPathFn) {

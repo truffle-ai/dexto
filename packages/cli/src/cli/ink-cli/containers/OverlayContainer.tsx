@@ -367,12 +367,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 // Auto-disable plan mode when plan_create or plan_review is approved
                 // This signals the transition from planning phase to execution phase
                 const toolName = approval.metadata.toolName as string | undefined;
-                const isPlanTool =
-                    toolName === 'plan_create' ||
-                    toolName === 'plan_review' ||
-                    toolName === 'custom--plan_create' ||
-                    toolName === 'custom--plan_review';
-                if (isPlanTool) {
+                if (toolName === 'plan_create' || toolName === 'plan_review') {
                     setUi((prev) => ({
                         ...prev,
                         planModeActive: false,

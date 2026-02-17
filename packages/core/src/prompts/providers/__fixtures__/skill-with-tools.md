@@ -1,7 +1,7 @@
 ---
 name: skill-with-tools
 description: A skill with allowed-tools for testing Claude Code tool name normalization.
-allowed-tools: [bash, Read, WRITE, edit, custom--keep_as_is]
+allowed-tools: [bash, Read, WRITE, edit, keep_as_is]
 ---
 
 # Skill With Tools

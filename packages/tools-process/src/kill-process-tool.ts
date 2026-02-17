@@ -22,6 +22,7 @@ type KillProcessInput = z.input<typeof KillProcessInputSchema>;
 export function createKillProcessTool(getProcessService: ProcessServiceGetter): Tool {
     return {
         id: 'kill_process',
+        displayName: 'Kill',
         description:
             "Terminate a background process started with bash_exec. Sends SIGTERM signal first, then SIGKILL if process doesn't terminate within 5 seconds. Only works on processes started by this agent. Returns success status and whether the process was running. Does not require additional approval (process was already approved when started).",
         inputSchema: KillProcessInputSchema,

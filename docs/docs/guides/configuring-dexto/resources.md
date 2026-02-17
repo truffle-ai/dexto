@@ -2,14 +2,14 @@
 sidebar_position: 12
 ---
 
-# Internal Resources
+# Resources
 
-## What are Internal Resources?
+## What are Resources?
 
-Internal resources let your Dexto agent expose local files and blob storage directly to the LLM as context. Unlike MCP resources (from external servers), these are managed by your agent.
+Resources let your Dexto agent expose local files and blob storage directly to the LLM as context. Unlike MCP resources (from external servers), these are managed by your agent.
 
 :::tip Quick Reference
-For complete field documentation, see **[agent.yml → Internal Resources](./agent-yml#internal-resources)**.
+For complete field documentation, see **[agent.yml → Resources](./agent-yml#resources)**.
 :::
 
 ## Resource Types
@@ -19,7 +19,7 @@ For complete field documentation, see **[agent.yml → Internal Resources](./age
 Expose local files and directories to your agent:
 
 ```yaml
-internalResources:
+resources:
   - type: filesystem
     paths: ["./docs", "./src"]
     maxDepth: 3
@@ -44,7 +44,7 @@ storage:
     type: local
     maxBlobSize: 52428800  # 50MB
 
-internalResources:
+resources:
   - type: blob
 ```
 
@@ -73,7 +73,7 @@ const content = await agent.resourceManager.read('file:///path/to/file');
 
 **Documentation bot:**
 ```yaml
-internalResources:
+resources:
   - type: filesystem
     paths: ["./documentation"]
     maxDepth: 5
@@ -82,7 +82,7 @@ internalResources:
 
 **Project context:**
 ```yaml
-internalResources:
+resources:
   - type: filesystem
     paths: ["./src", "./tests", "./README.md"]
     includeExtensions: [".ts", ".tsx", ".js", ".json", ".md"]
@@ -91,7 +91,7 @@ internalResources:
 
 **Config files only:**
 ```yaml
-internalResources:
+resources:
   - type: filesystem
     paths: ["."]
     maxDepth: 2
@@ -108,6 +108,6 @@ internalResources:
 
 ## See Also
 
-- [agent.yml → Internal Resources](./agent-yml#internal-resources) - Complete field reference
+- [agent.yml → Resources](./agent-yml#resources) - Complete field reference
 - [Storage Configuration](./storage) - Blob storage backend settings
 - [MCP Resources](../../mcp/resources) - External MCP server resources

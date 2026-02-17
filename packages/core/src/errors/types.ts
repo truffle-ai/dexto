@@ -12,7 +12,7 @@ import type { ResourceErrorCode } from '../resources/error-codes.js';
 import type { PromptErrorCode } from '../prompts/error-codes.js';
 import type { ApprovalErrorCode } from '../approval/error-codes.js';
 import type { MemoryErrorCode } from '../memory/error-codes.js';
-import type { PluginErrorCode } from '../plugins/error-codes.js';
+import type { HookErrorCode } from '../hooks/error-codes.js';
 import type { TelemetryErrorCode } from '../telemetry/error-codes.js';
 
 /**
@@ -33,7 +33,7 @@ export enum ErrorScope {
     RESOURCE = 'resource', // Resource management (MCP/internal) discovery and access
     PROMPT = 'prompt', // Prompt management, resolution, and providers
     MEMORY = 'memory', // Memory management and storage
-    PLUGIN = 'plugin', // Plugin loading, validation, and execution
+    HOOK = 'hook', // Hook loading, validation, and execution
     TELEMETRY = 'telemetry', // Telemetry initialization and export operations
 }
 
@@ -72,7 +72,7 @@ export type DextoErrorCode =
     | PromptErrorCode
     | ApprovalErrorCode
     | MemoryErrorCode
-    | PluginErrorCode
+    | HookErrorCode
     | TelemetryErrorCode;
 
 /** Severity of an issue */

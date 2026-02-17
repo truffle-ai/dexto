@@ -9,12 +9,12 @@ import {
     PromptsSchema,
     SessionConfigSchema,
     SystemPromptConfigSchema,
-    ToolConfirmationConfigSchema,
-    InternalResourcesSchema,
+    PermissionsConfigSchema,
+    ResourcesConfigSchema,
 } from '@dexto/core';
 import { StorageSchema } from '@dexto/storage/schemas';
 import { z } from 'zod';
-import { PluginsConfigSchema } from './plugins.js';
+import { HooksConfigSchema } from './hooks.js';
 import { CompactionConfigSchema, DEFAULT_COMPACTION_CONFIG } from './compaction.js';
 
 // ========================================
@@ -140,24 +140,24 @@ export function createAgentConfigSchema() {
 
             sessions: SessionConfigSchema.describe('Session management configuration').default({}),
 
-            toolConfirmation: ToolConfirmationConfigSchema.describe(
-                'Tool confirmation and approval configuration'
+            permissions: PermissionsConfigSchema.describe(
+                'Tool permissions and approval configuration'
             ).default({}),
 
             elicitation: ElicitationConfigSchema.default({}).describe(
-                'Elicitation configuration for user input requests (ask_user tool and MCP server elicitations). Independent from toolConfirmation mode.'
+                'Elicitation configuration for user input requests (ask_user tool and MCP server elicitations). Independent from permissions mode.'
             ),
 
-            internalResources: InternalResourcesSchema.describe(
-                'Configuration for internal resources (filesystem, etc.)'
+            resources: ResourcesConfigSchema.describe(
+                'Agent-managed resource configuration'
             ).default([]),
 
             prompts: PromptsSchema.describe(
                 'Agent prompts configuration - sample prompts which can be defined inline or referenced from file'
             ).default([]),
 
-            plugins: PluginsConfigSchema.describe(
-                'Plugin configuration. Omit to use image defaults; provide to fully override.'
+            hooks: HooksConfigSchema.describe(
+                'Hook configuration. Omit to use image defaults; provide to fully override.'
             ).optional(),
 
             compaction: CompactionConfigSchema.describe('Context compaction configuration').default(

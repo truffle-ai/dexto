@@ -34,9 +34,7 @@ const ToolInfoSchema = z
         id: z.string().describe('Tool identifier'),
         name: z.string().describe('Tool name'),
         description: z.string().describe('Tool description'),
-        source: z
-            .enum(['internal', 'custom', 'mcp'])
-            .describe('Source of the tool (internal, custom, or mcp)'),
+        source: z.enum(['local', 'mcp']).describe('Source of the tool (local or mcp)'),
         serverName: z.string().optional().describe('MCP server name (if source is mcp)'),
         inputSchema: ToolInputSchema.optional().describe('JSON Schema for tool input parameters'),
         _meta: z
@@ -51,8 +49,7 @@ const AllToolsResponseSchema = z
     .object({
         tools: z.array(ToolInfoSchema).describe('Array of all available tools'),
         totalCount: z.number().describe('Total number of tools'),
-        internalCount: z.number().describe('Number of internal tools'),
-        customCount: z.number().describe('Number of custom tools'),
+        localCount: z.number().describe('Number of local tools'),
         mcpCount: z.number().describe('Number of MCP tools'),
     })
     .strict()
@@ -65,8 +62,7 @@ export function createToolsRouter(getAgent: GetAgentFn) {
         method: 'get',
         path: '/tools',
         summary: 'List All Tools',
-        description:
-            'Retrieves all available tools from all sources (internal, custom, and MCP servers)',
+        description: 'Retrieves all available tools from all sources (local and MCP)',
         tags: ['tools'],
         responses: {
             200: {
@@ -87,13 +83,12 @@ export function createToolsRouter(getAgent: GetAgentFn) {
 
         const toolList: z.output<typeof ToolInfoSchema>[] = [];
 
-        let internalCount = 0;
-        let customCount = 0;
+        let localCount = 0;
         let mcpCount = 0;
 
         for (const [toolName, toolInfo] of Object.entries(allTools)) {
             // Determine source and extract server name
-            let source: 'internal' | 'custom' | 'mcp';
+            let source: 'local' | 'mcp';
             let serverName: string | undefined;
 
             if (toolName.startsWith('mcp--')) {
@@ -109,16 +104,10 @@ export function createToolsRouter(getAgent: GetAgentFn) {
                     source = 'mcp';
                     mcpCount++;
                 }
-            } else if (toolName.startsWith('internal--')) {
-                source = 'internal';
-                internalCount++;
-            } else if (toolName.startsWith('custom--')) {
-                source = 'custom';
-                customCount++;
             } else {
-                // Default to internal
-                source = 'internal';
-                internalCount++;
+                // Local tools
+                source = 'local';
+                localCount++;
             }
 
             toolList.push({
@@ -132,9 +121,9 @@ export function createToolsRouter(getAgent: GetAgentFn) {
             });
         }
 
-        // Sort: internal first, then custom, then MCP
+        // Sort: local first, then MCP
         toolList.sort((a, b) => {
-            const sourceOrder = { internal: 0, custom: 1, mcp: 2 };
+            const sourceOrder = { local: 0, mcp: 1 };
             if (a.source !== b.source) {
                 return sourceOrder[a.source] - sourceOrder[b.source];
             }
@@ -144,8 +133,7 @@ export function createToolsRouter(getAgent: GetAgentFn) {
         return ctx.json({
             tools: toolList,
             totalCount: toolList.length,
-            internalCount,
-            customCount,
+            localCount,
             mcpCount,
         });
     });

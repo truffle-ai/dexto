@@ -107,7 +107,7 @@ storage:
     maxTotalSize: 1073741824  # 1GB total storage
     cleanupAfterDays: 30
 
-toolConfirmation:
+permissions:
   mode: manual
   # timeout: omitted = infinite wait (no timeout for CLI)
   allowedToolsStorage: storage  # Persist allowed tools across sessions
@@ -115,23 +115,22 @@ toolConfirmation:
   # Tool policies optimized for coding workflows
   toolPolicies:
     # Tools that never require approval (safe, read-only operations)
-    # Use qualified names: custom--{tool_id} for custom tools, internal--{tool_id} for internal tools
     alwaysAllow:
-      - internal--ask_user
-      - custom--read_file      # Read files without approval
-      - custom--glob_files     # Search for files without approval
-      - custom--grep_content   # Search within files without approval
-      - custom--bash_output    # Check background process output
-      - custom--kill_process   # Kill processes without approval (only processes started by agent)
-      - custom--todo_write     # Todo updates don't need approval
-      - custom--plan_read      # Read plan without approval
-      - custom--wait_for       # Wait for background tasks without approval
-      - custom--check_task     # Check background tasks without approval
+      - ask_user
+      - read_file      # Read files without approval
+      - glob_files     # Search for files without approval
+      - grep_content   # Search within files without approval
+      - bash_output    # Check background process output
+      - kill_process   # Kill processes without approval (only processes started by agent)
+      - todo_write     # Todo updates don't need approval
+      - plan_read      # Read plan without approval
+      - wait_for       # Wait for background tasks without approval
+      - check_task     # Check background tasks without approval
 
     # Tools that are always denied (dangerous operations)
     # Uncomment to restrict certain operations
     # alwaysDeny:
-    #   - custom--process-tools--bash_exec--rm -rf*  # Prevent recursive deletion
+    #   - bash_exec  # Require approval for all shell commands
 
 # Compaction configuration - automatically summarizes conversation when context is full
 compaction:
@@ -152,6 +151,9 @@ tools:
     enabledTools:
       - ask_user       # Ask questions and collect input
       - invoke_skill   # Invoke skills/prompts during execution
+      - http_request   # Fetch web pages and APIs
+      - web_search     # Web search via Exa MCP (internal tool)
+      - code_search    # Code/context search via Exa MCP (internal tool)
   - type: filesystem-tools
     allowedPaths: ["."]
     blockedPaths: [".git", "node_modules/.bin", ".env"]
@@ -174,69 +176,67 @@ tools:
     autoApproveAgents:
       - explore-agent
 
-# Internal resources configuration - expanded for coding projects
-internalResources:
-  enabled: true
-  resources:
-    # Filesystem resource - comprehensive file access for coding
-    - type: filesystem
-      paths: ["."]
-      maxFiles: 500              # Increased for larger codebases
-      maxDepth: 10               # Deeper traversal for nested projects
-      includeHidden: true        # Include hidden files (.env, .gitignore, etc.)
-      includeExtensions:
-        # Web development
-        - .js
-        - .jsx
-        - .ts
-        - .tsx
-        - .html
-        - .css
-        - .scss
-        - .sass
-        - .less
-        - .vue
-        - .svelte
-        # Backend languages
-        - .py
-        - .java
-        - .go
-        - .rs
-        - .rb
-        - .php
-        - .c
-        - .cpp
-        - .h
-        - .hpp
-        - .cs
-        - .swift
-        - .kt
-        # Shell and config
-        - .sh
-        - .bash
-        - .zsh
-        - .fish
-        # Config and data
-        - .json
-        - .yaml
-        - .yml
-        - .toml
-        - .xml
-        - .ini
-        - .env
-        # Documentation
-        - .md
-        - .mdx
-        - .txt
-        - .rst
-        # Build and package files
-        - .gradle
-        - .maven
-        - .dockerignore
-        - .gitignore
+# Resources configuration - expanded for coding projects
+resources:
+  # Filesystem resource - comprehensive file access for coding
+  - type: filesystem
+    paths: ["."]
+    maxFiles: 500              # Increased for larger codebases
+    maxDepth: 10               # Deeper traversal for nested projects
+    includeHidden: true        # Include hidden files (.env, .gitignore, etc.)
+    includeExtensions:
+      # Web development
+      - .js
+      - .jsx
+      - .ts
+      - .tsx
+      - .html
+      - .css
+      - .scss
+      - .sass
+      - .less
+      - .vue
+      - .svelte
+      # Backend languages
+      - .py
+      - .java
+      - .go
+      - .rs
+      - .rb
+      - .php
+      - .c
+      - .cpp
+      - .h
+      - .hpp
+      - .cs
+      - .swift
+      - .kt
+      # Shell and config
+      - .sh
+      - .bash
+      - .zsh
+      - .fish
+      # Config and data
+      - .json
+      - .yaml
+      - .yml
+      - .toml
+      - .xml
+      - .ini
+      - .env
+      # Documentation
+      - .md
+      - .mdx
+      - .txt
+      - .rst
+      # Build and package files
+      - .gradle
+      - .maven
+      - .dockerignore
+      - .gitignore
 
-    # Blob resource - for handling build artifacts, images, etc.
-    - type: blob
+  # Blob resource - for handling build artifacts, images, etc.
+  - type: blob
 
 # Prompts - coding-focused examples shown as clickable buttons in WebUI
 prompts:

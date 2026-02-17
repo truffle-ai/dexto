@@ -1,21 +1,13 @@
-import type { Plugin } from '@dexto/core';
+import type { Hook } from '@dexto/core';
 import type { ValidatedAgentConfig } from '../schemas/agent-config.js';
-import type { DextoImageModule } from '../image/types.js';
+import type { DextoImage } from '../image/types.js';
 import type { ResolvedServices } from './types.js';
 import type { PlainObject } from './utils.js';
 import { isPlainObject } from './utils.js';
 
-const INTERNAL_TOOL_PREFIX = 'internal--';
-const CUSTOM_TOOL_PREFIX = 'custom--';
+const MCP_TOOL_PREFIX = 'mcp--';
 
-function qualifyToolId(prefix: string, id: string): string {
-    if (id.startsWith(INTERNAL_TOOL_PREFIX) || id.startsWith(CUSTOM_TOOL_PREFIX)) {
-        return id;
-    }
-    return `${prefix}${id}`;
-}
-
-// Tool/plugin factory entries share `enabled?: boolean`.
+// Tool/hook factory entries share `enabled?: boolean`.
 // Since many factory schemas are `.strict()`, strip `enabled` before validating the entry.
 function stripEnabled(entry: PlainObject): PlainObject {
     const obj = entry as PlainObject;
@@ -46,7 +38,7 @@ function resolveByType<TFactory>(options: {
 
 export async function resolveServicesFromConfig(
     config: ValidatedAgentConfig,
-    image: DextoImageModule
+    image: DextoImage
 ): Promise<ResolvedServices> {
     const imageName = image.metadata.name;
 
@@ -106,43 +98,47 @@ export async function resolveServicesFromConfig(
         });
 
         const validatedConfig = factory.configSchema.parse(stripEnabled(entry));
-        const prefix = entry.type === 'builtin-tools' ? INTERNAL_TOOL_PREFIX : CUSTOM_TOOL_PREFIX;
         for (const tool of factory.create(validatedConfig)) {
-            const qualifiedId = qualifyToolId(prefix, tool.id);
-            if (toolIds.has(qualifiedId)) {
-                logger.warn(`Tool id conflict for '${qualifiedId}'. Skipping duplicate tool.`);
+            if (tool.id.startsWith(MCP_TOOL_PREFIX)) {
+                throw new Error(
+                    `Invalid local tool id '${tool.id}': '${MCP_TOOL_PREFIX}' prefix is reserved for MCP tools.`
+                );
+            }
+
+            if (toolIds.has(tool.id)) {
+                logger.warn(`Tool id conflict for '${tool.id}'. Skipping duplicate tool.`);
                 continue;
             }
-            toolIds.add(qualifiedId);
-            tools.push({ ...tool, id: qualifiedId });
+            toolIds.add(tool.id);
+            tools.push(tool);
         }
     }
 
-    // 4) Plugins
-    const pluginEntries = config.plugins ?? image.defaults?.plugins ?? [];
-    const plugins: Plugin[] = [];
-    for (const entry of pluginEntries) {
+    // 4) Hooks
+    const hookEntries = config.hooks ?? image.defaults?.hooks ?? [];
+    const hooks: Hook[] = [];
+    for (const entry of hookEntries) {
         if ((entry as { enabled?: boolean }).enabled === false) {
             continue;
         }
 
         const factory = resolveByType({
-            kind: 'plugin',
+            kind: 'hook',
             type: entry.type,
-            factories: image.plugins,
+            factories: image.hooks,
             imageName,
         });
 
         const parsedConfig = factory.configSchema.parse(stripEnabled(entry as PlainObject));
-        const plugin = factory.create(parsedConfig);
-        if (plugin.initialize) {
+        const hook = factory.create(parsedConfig);
+        if (hook.initialize) {
             if (!isPlainObject(parsedConfig)) {
-                throw new Error(`Invalid plugin config for '${entry.type}': expected an object`);
+                throw new Error(`Invalid hook config for '${entry.type}': expected an object`);
             }
-            await plugin.initialize(parsedConfig);
+            await hook.initialize(parsedConfig);
         }
 
-        plugins.push(plugin);
+        hooks.push(hook);
     }
 
     // 5) Compaction
@@ -159,5 +155,5 @@ export async function resolveServicesFromConfig(
         compaction = await factory.create(parsedConfig);
     }
 
-    return { logger, storage, tools, plugins, compaction };
+    return { logger, storage, tools, hooks, compaction };
 }

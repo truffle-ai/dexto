@@ -40,9 +40,9 @@ systemPrompt: |
 
   Always provide helpful, accurate, and friendly responses in plain text format.
 
-# Tool Confirmation Configuration
-# Telegram bots auto-approve tool calls, so we disable confirmation
-toolConfirmation:
+# Permissions Configuration
+# Telegram bots auto-approve tool calls, so we disable approvals
+permissions:
   mode: auto-approve
   allowedToolsStorage: memory
 

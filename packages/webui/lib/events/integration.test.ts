@@ -266,7 +266,7 @@ describe('EventBus Integration', () => {
             bus.dispatch({
                 name: 'approval:request',
                 sessionId: 'test-session',
-                type: ApprovalType.TOOL_CONFIRMATION,
+                type: ApprovalType.TOOL_APPROVAL,
                 approvalId: 'approval-123',
                 timeout: 30000,
                 timestamp: new Date(),
@@ -286,7 +286,7 @@ describe('EventBus Integration', () => {
             bus.dispatch({
                 name: 'approval:request',
                 sessionId: 'test-session',
-                type: ApprovalType.TOOL_CONFIRMATION,
+                type: ApprovalType.TOOL_APPROVAL,
                 approvalId: 'approval-123',
                 timeout: 30000,
                 timestamp: new Date(),
@@ -314,7 +314,7 @@ describe('EventBus Integration', () => {
             bus.dispatch({
                 name: 'approval:request',
                 sessionId: 'test-session',
-                type: ApprovalType.TOOL_CONFIRMATION,
+                type: ApprovalType.TOOL_APPROVAL,
                 approvalId: 'approval-456',
                 timeout: 30000,
                 timestamp: new Date(),

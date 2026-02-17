@@ -4,7 +4,7 @@
  * Features:
  * - Search/filter tools by name
  * - View tool details (description, schema)
- * - Shows source (MCP server or Internal)
+ * - Shows source (MCP server or Local)
  */
 
 import React, {
@@ -35,7 +35,7 @@ export interface ToolBrowserHandle {
 interface ToolInfo {
     name: string;
     description: string;
-    source: 'internal' | 'mcp';
+    source: 'local' | 'mcp';
     serverName: string | undefined;
     inputSchema: Record<string, unknown> | undefined;
     isEnabled: boolean;
@@ -140,7 +140,7 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
                     toolList.push({
                         name: toolName,
                         description: toolInfo.description || 'No description available',
-                        source: isMcpTool ? 'mcp' : 'internal',
+                        source: isMcpTool ? 'mcp' : 'local',
                         serverName,
                         inputSchema: toolInfo.parameters as Record<string, unknown> | undefined,
                         isEnabled: enabledToolNames.has(toolName),
@@ -148,10 +148,10 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
                     });
                 }
 
-                // Sort: internal tools first, then MCP tools
+                // Sort: local tools first, then MCP tools
                 toolList.sort((a, b) => {
                     if (a.source !== b.source) {
-                        return a.source === 'internal' ? -1 : 1;
+                        return a.source === 'local' ? -1 : 1;
                     }
                     return a.name.localeCompare(b.name);
                 });
@@ -623,7 +623,7 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
 
     // List view
     const visibleTools = filteredTools.slice(scrollOffset, scrollOffset + MAX_VISIBLE_ITEMS);
-    const filteredInternalCount = filteredTools.filter((t) => t.source === 'internal').length;
+    const filteredLocalCount = filteredTools.filter((t) => t.source === 'local').length;
     const filteredMcpCount = filteredTools.filter((t) => t.source === 'mcp').length;
 
     return (
@@ -635,8 +635,8 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
                 </Text>
                 <Text color="gray">
                     {' '}
-                    ({filteredTools.length} tools: {filteredInternalCount} internal,{' '}
-                    {filteredMcpCount} MCP)
+                    ({filteredTools.length} tools: {filteredLocalCount} local, {filteredMcpCount}{' '}
+                    MCP)
                 </Text>
             </Box>
             <Box paddingX={0} paddingY={0}>
@@ -683,9 +683,9 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
                             <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected}>
                                 {truncateText(tool.name, 35)}
                             </Text>
-                            <Text color={tool.source === 'internal' ? 'magenta' : 'blue'}>
+                            <Text color={tool.source === 'local' ? 'magenta' : 'blue'}>
                                 {' '}
-                                [{tool.source === 'internal' ? 'Internal' : 'MCP'}]
+                                [{tool.source === 'local' ? 'Local' : 'MCP'}]
                             </Text>
                             {tool.serverName && <Text color="gray"> ({tool.serverName})</Text>}
                             <Text color={tool.isEnabled ? 'green' : 'red'}>
@@ -721,7 +721,7 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
  */
 type DetailLineType =
     | { type: 'title'; text: string }
-    | { type: 'source'; source: 'internal' | 'mcp'; serverName: string | undefined }
+    | { type: 'source'; source: 'local' | 'mcp'; serverName: string | undefined }
     | { type: 'empty' }
     | { type: 'header'; text: string }
     | { type: 'description'; text: string }
@@ -814,8 +814,8 @@ function renderDetailLine(line: DetailLineType, _index: number): React.ReactElem
             );
         case 'source':
             return (
-                <Text color={line.source === 'internal' ? 'magenta' : 'blue'}>
-                    {line.source === 'internal' ? 'Internal Tool' : 'MCP Tool'}
+                <Text color={line.source === 'local' ? 'magenta' : 'blue'}>
+                    {line.source === 'local' ? 'Local Tool' : 'MCP Tool'}
                     {line.serverName ? ` (${line.serverName})` : ''}
                 </Text>
             );

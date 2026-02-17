@@ -18,6 +18,11 @@ import {
     generateDextoImageFile,
     generateImageReadme,
     generateExampleTool,
+    generateExampleHook,
+    generateExampleCompaction,
+    generateExampleCacheFactory,
+    generateExampleDatabaseFactory,
+    generateExampleBlobStoreFactory,
 } from '../utils/template-engine.js';
 import fs from 'fs-extra';
 import { getExecutionContext } from '@dexto/agent-management';
@@ -124,24 +129,29 @@ export async function createImage(name?: string): Promise<string> {
         spinner.start('Setting up project structure...');
 
         // Create convention-based folders
-        await ensureDirectory('tools');
-        await ensureDirectory('storage/blob');
-        await ensureDirectory('storage/database');
-        await ensureDirectory('storage/cache');
-        await ensureDirectory('compaction');
-        await ensureDirectory('plugins');
-
-        // Create .gitkeep files for empty directories
-        await fs.writeFile('storage/blob/.gitkeep', '');
-        await fs.writeFile('storage/database/.gitkeep', '');
-        await fs.writeFile('storage/cache/.gitkeep', '');
-        await fs.writeFile('compaction/.gitkeep', '');
-        await fs.writeFile('plugins/.gitkeep', '');
-
-        // Create an example tool factory (gives the bundler something real to discover).
         await ensureDirectory('tools/example-tool');
         const exampleToolCode = generateExampleTool('example-tool');
         await fs.writeFile('tools/example-tool/index.ts', exampleToolCode);
+
+        await ensureDirectory('hooks/example-hook');
+        const exampleHookCode = generateExampleHook('example-hook');
+        await fs.writeFile('hooks/example-hook/index.ts', exampleHookCode);
+
+        await ensureDirectory('compaction/example-compaction');
+        const exampleCompactionCode = generateExampleCompaction('example-compaction');
+        await fs.writeFile('compaction/example-compaction/index.ts', exampleCompactionCode);
+
+        await ensureDirectory('storage/cache/example-cache');
+        const exampleCacheCode = generateExampleCacheFactory('example-cache');
+        await fs.writeFile('storage/cache/example-cache/index.ts', exampleCacheCode);
+
+        await ensureDirectory('storage/database/example-database');
+        const exampleDatabaseCode = generateExampleDatabaseFactory('example-database');
+        await fs.writeFile('storage/database/example-database/index.ts', exampleDatabaseCode);
+
+        await ensureDirectory('storage/blob/example-blob');
+        const exampleBlobCode = generateExampleBlobStoreFactory('example-blob');
+        await fs.writeFile('storage/blob/example-blob/index.ts', exampleBlobCode);
 
         spinner.message('Generating configuration files...');
 
@@ -202,7 +212,8 @@ export async function createImage(name?: string): Promise<string> {
         const dependencies: string[] = [
             `@dexto/core@${dextoDependencyVersion}`,
             `@dexto/agent-config@${dextoDependencyVersion}`,
-            'zod',
+            `@dexto/storage@${dextoDependencyVersion}`,
+            'zod@^3.25.0',
         ];
         const devDependencies = [
             'typescript@^5.0.0',
@@ -241,7 +252,7 @@ export async function createImage(name?: string): Promise<string> {
         console.log(`  ${chalk.gray('storage/database/')} - Database factories`);
         console.log(`  ${chalk.gray('storage/cache/')}    - Cache factories`);
         console.log(`  ${chalk.gray('compaction/')}       - Compaction factories`);
-        console.log(`  ${chalk.gray('plugins/')}          - Plugin factories`);
+        console.log(`  ${chalk.gray('hooks/')}            - Hook factories`);
 
         console.log(`\n${chalk.gray('Install into the Dexto CLI:')}`);
         if (isDextoSource) {

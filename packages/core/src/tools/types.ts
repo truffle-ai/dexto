@@ -99,6 +99,8 @@ export interface ToolExecutionContext extends ToolExecutionContextBase {
 export interface ToolExecutionResult {
     /** The actual result data from tool execution */
     result: unknown;
+    /** Optional display name for the tool (UI convenience) */
+    toolDisplayName?: string;
     /** Whether this tool required user approval before execution */
     requireApproval?: boolean;
     /** The approval status (only present if requireApproval is true) */
@@ -115,6 +117,12 @@ export interface ToolExecutionResult {
 export interface Tool {
     /** Unique identifier for the tool */
     id: string;
+
+    /**
+     * Short, user-facing name for this tool (UI convenience).
+     * Defaults to a title-cased version of {@link id} when omitted.
+     */
+    displayName?: string | undefined;
 
     /** Human-readable description of what the tool does */
     description: string;
@@ -134,6 +142,33 @@ export interface Tool {
         input: unknown,
         context: ToolExecutionContext
     ) => Promise<ToolDisplayData | null>;
+
+    /**
+     * Optional aliases for this tool id.
+     *
+     * Used to support external prompt/skill ecosystems that refer to tools by short names
+     * (e.g. Claude Code "bash", "read", "grep" in allowed-tools). Aliases are resolved
+     * by {@link ToolManager} when applying session auto-approve lists.
+     */
+    aliases?: string[] | undefined;
+
+    /**
+     * Optional pattern key generator for approval memory.
+     *
+     * If provided, ToolManager will:
+     * - Skip confirmation when the pattern key is covered by previously approved patterns.
+     * - Offer suggested patterns (if {@link suggestApprovalPatterns} is provided) in the approval UI.
+     *
+     * Return null to disable pattern approvals for the given args (e.g. dangerous commands).
+     */
+    getApprovalPatternKey?: ((args: Record<string, unknown>) => string | null) | undefined;
+
+    /**
+     * Optional pattern suggestions for the approval UI.
+     *
+     * Returned patterns are shown as quick "remember pattern" options.
+     */
+    suggestApprovalPatterns?: ((args: Record<string, unknown>) => string[]) | undefined;
 
     /**
      * Optional custom approval override.
@@ -180,7 +215,11 @@ export interface Tool {
      * }
      * ```
      */
-    onApprovalGranted?: (response: ApprovalResponse, context: ToolExecutionContext) => void;
+    onApprovalGranted?: (
+        response: ApprovalResponse,
+        context: ToolExecutionContext,
+        approvalRequest: ApprovalRequestDetails
+    ) => void;
 }
 
 /**

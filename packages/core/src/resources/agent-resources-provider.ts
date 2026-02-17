@@ -4,41 +4,38 @@ import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { createInternalResourceHandler } from './handlers/factory.js';
 import type { InternalResourceHandler, InternalResourceServices } from './handlers/types.js';
-import type {
-    ValidatedInternalResourcesConfig,
-    ValidatedInternalResourceConfig,
-} from './schemas.js';
-import { InternalResourceConfigSchema } from './schemas.js';
+import type { ValidatedResourcesConfig, ValidatedResourceConfig } from './schemas.js';
+import { ResourceConfigSchema } from './schemas.js';
 import { ResourceError } from './errors.js';
 
-export class InternalResourcesProvider implements ResourceProvider {
-    private config: ValidatedInternalResourcesConfig;
+export class AgentResourcesProvider implements ResourceProvider {
+    private config: ValidatedResourcesConfig;
     private handlers: Map<string, InternalResourceHandler> = new Map();
     private services: InternalResourceServices;
     private logger: Logger;
 
     constructor(
-        config: ValidatedInternalResourcesConfig,
+        config: ValidatedResourcesConfig,
         services: InternalResourceServices,
         logger: Logger
     ) {
-        this.config = config;
+        this.config = [...config];
         this.services = services;
         this.logger = logger.createChild(DextoLogComponent.RESOURCE);
         this.logger.debug(
-            `InternalResourcesProvider initialized with config: ${JSON.stringify(config)}`
+            `AgentResourcesProvider initialized with config: ${JSON.stringify(config)}`
         );
     }
 
     async initialize(): Promise<void> {
-        if (!this.config.enabled || this.config.resources.length === 0) {
-            this.logger.debug('Internal resources disabled or no resources configured');
+        if (this.config.length === 0) {
+            this.logger.debug('No resources configured');
             return;
         }
 
-        for (const resourceConfig of this.config.resources) {
+        for (const resourceConfig of this.config) {
             try {
-                const parsedConfig = InternalResourceConfigSchema.parse(resourceConfig);
+                const parsedConfig = ResourceConfigSchema.parse(resourceConfig);
                 const handler = createInternalResourceHandler(
                     parsedConfig,
                     this.services,
@@ -55,7 +52,7 @@ export class InternalResourcesProvider implements ResourceProvider {
         }
 
         this.logger.debug(
-            `InternalResourcesProvider initialized with ${this.handlers.size} resource handlers`
+            `AgentResourcesProvider initialized with ${this.handlers.size} resource handlers`
         );
     }
 
@@ -119,13 +116,13 @@ export class InternalResourcesProvider implements ResourceProvider {
         }
     }
 
-    async addResourceConfig(config: ValidatedInternalResourceConfig): Promise<void> {
+    async addResourceConfig(config: ValidatedResourceConfig): Promise<void> {
         try {
-            const parsedConfig = InternalResourceConfigSchema.parse(config);
+            const parsedConfig = ResourceConfigSchema.parse(config);
             const handler = createInternalResourceHandler(parsedConfig, this.services, this.logger);
             await handler.initialize(this.services);
             this.handlers.set(config.type, handler);
-            this.config.resources.push(parsedConfig);
+            this.config.push(parsedConfig);
             this.logger.info(`Added new ${config.type} resource handler`);
         } catch (error) {
             this.logger.error(
@@ -139,7 +136,7 @@ export class InternalResourcesProvider implements ResourceProvider {
     async removeResourceHandler(type: string): Promise<void> {
         if (this.handlers.has(type)) {
             this.handlers.delete(type);
-            this.config.resources = this.config.resources.filter((r) => r.type !== type);
+            this.config = this.config.filter((r) => r.type !== type);
             this.logger.info(`Removed ${type} resource handler`);
         }
     }

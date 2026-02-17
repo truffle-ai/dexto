@@ -9,7 +9,7 @@ import type { StorageManager } from '../storage/index.js';
 
 /**
  * Extension point names - fixed for MVP
- * These are the 4 hook sites from PR #385 converted to generic plugin extension points
+ * These are the 4 hook sites from PR #385 converted to generic hook extension points.
  */
 export type ExtensionPoint =
     | 'beforeLLMRequest'
@@ -18,29 +18,29 @@ export type ExtensionPoint =
     | 'beforeResponse';
 
 /**
- * Plugin result - what plugins return from extension point methods
+ * Hook result - what hooks return from extension point methods.
  */
-export interface PluginResult {
-    /** Did plugin execute successfully? */
+export interface HookResult {
+    /** Did hook execute successfully? */
     ok: boolean;
 
     /** Partial modifications to apply to payload */
     modify?: Record<string, unknown>;
 
-    /** Should execution stop? (Only respected if plugin is blocking) */
+    /** Should execution stop? When true, HookManager blocks execution. */
     cancel?: boolean;
 
     /** User-facing message (shown when cancelled) */
     message?: string;
 
     /** Notices for logging/events */
-    notices?: PluginNotice[];
+    notices?: HookNotice[];
 }
 
 /**
- * Plugin notice - for logging and user feedback
+ * Hook notice - for logging and user feedback.
  */
-export interface PluginNotice {
+export interface HookNotice {
     kind: 'allow' | 'block' | 'warn' | 'info';
     code?: string;
     message: string;
@@ -48,10 +48,10 @@ export interface PluginNotice {
 }
 
 /**
- * Execution context passed to every plugin method
+ * Execution context passed to every hook method.
  * Contains runtime state and read-only access to agent services
  */
-export interface PluginExecutionContext {
+export interface HookExecutionContext {
     /** Current session ID */
     sessionId?: string | undefined;
 
@@ -64,7 +64,7 @@ export interface PluginExecutionContext {
     /** Current LLM configuration */
     llmConfig: ValidatedLLMConfig;
 
-    /** Logger scoped to this plugin execution */
+    /** Logger scoped to this hook execution */
     logger: Logger;
 
     /** Abort signal for cancellation */
@@ -125,45 +125,47 @@ export interface BeforeResponsePayload {
 }
 
 /**
- * Main plugin type - implement any subset of these methods
- * All methods are optional - plugin must implement at least one extension point
+ * Main hook type - implement any subset of these methods.
+ * All methods are optional - a hook must implement at least one extension point.
  */
-export type Plugin = {
-    /** Called once at plugin initialization (before agent starts) */
+export type Hook = {
+    /** Called once at hook initialization (before agent starts). */
     initialize?(config: Record<string, unknown>): Promise<void>;
 
     /** Extension point: before LLM request */
     beforeLLMRequest?(
         payload: BeforeLLMRequestPayload,
-        context: PluginExecutionContext
-    ): Promise<PluginResult>;
+        context: HookExecutionContext
+    ): Promise<HookResult>;
 
     /** Extension point: before tool call */
     beforeToolCall?(
         payload: BeforeToolCallPayload,
-        context: PluginExecutionContext
-    ): Promise<PluginResult>;
+        context: HookExecutionContext
+    ): Promise<HookResult>;
 
     /** Extension point: after tool result */
     afterToolResult?(
         payload: AfterToolResultPayload,
-        context: PluginExecutionContext
-    ): Promise<PluginResult>;
+        context: HookExecutionContext
+    ): Promise<HookResult>;
 
     /** Extension point: before response */
     beforeResponse?(
         payload: BeforeResponsePayload,
-        context: PluginExecutionContext
-    ): Promise<PluginResult>;
+        context: HookExecutionContext
+    ): Promise<HookResult>;
 
     /** Called when agent shuts down (cleanup) */
     cleanup?(): Promise<void>;
 };
 
 /**
- * Plugin configuration from YAML (custom plugins)
+ * Hook configuration from YAML (custom hooks).
+ *
+ * Note: core is DI-first; most hosts should resolve hooks outside core.
  */
-export interface PluginConfig {
+export interface HookConfig {
     name: string;
     module: string;
     enabled: boolean;
@@ -173,10 +175,10 @@ export interface PluginConfig {
 }
 
 /**
- * Loaded plugin with its configuration
- * Internal type used by PluginManager
+ * Loaded hook with its configuration.
+ * Internal type used by HookManager.
  */
-export interface LoadedPlugin {
-    plugin: Plugin;
-    config: PluginConfig;
+export interface LoadedHook {
+    hook: Hook;
+    config: HookConfig;
 }

@@ -80,8 +80,8 @@ export * from './approval/index.js';
 // Memory
 export * from './memory/index.js';
 
-// Plugins
-export * from './plugins/index.js';
+// Hooks
+export * from './hooks/index.js';
 
 // Workspace
 export * from './workspace/index.js';

@@ -20,6 +20,7 @@ type SleepInput = z.output<typeof SleepInputSchema>;
 export function createSleepTool(): Tool {
     return {
         id: 'sleep',
+        displayName: 'Sleep',
         description: 'Pause execution for a specified number of milliseconds.',
         inputSchema: SleepInputSchema,
         execute: async (input: unknown, _context: ToolExecutionContext) => {

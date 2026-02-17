@@ -126,8 +126,8 @@ describe('SessionManager', () => {
             toolManager: {
                 getAllTools: vi.fn().mockReturnValue([]),
             },
-            pluginManager: {
-                executePlugins: vi.fn().mockImplementation(async (_point, payload) => payload),
+            hookManager: {
+                executeHooks: vi.fn().mockImplementation(async (_point, payload) => payload),
                 cleanup: vi.fn(),
             },
         };

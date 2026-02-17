@@ -18,6 +18,7 @@ const PlanReadInputSchema = z.object({}).strict();
 export function createPlanReadTool(getPlanService: PlanServiceGetter): Tool {
     return {
         id: 'plan_read',
+        displayName: 'Read Plan',
         description:
             'Read the current implementation plan for this session. Returns the plan content and metadata including status. Use markdown checkboxes (- [ ] and - [x]) in the content to track progress.',
         inputSchema: PlanReadInputSchema,

@@ -33,8 +33,8 @@ export function ConfigBox({ data }: ConfigBoxProps) {
                 )}
             </StyledSection>
 
-            <StyledSection title="Tool Confirmation">
-                <StyledRow label="Mode" value={data.toolConfirmationMode} />
+            <StyledSection title="Permissions">
+                <StyledRow label="Mode" value={data.permissionsMode} />
             </StyledSection>
 
             <StyledSection title="Sessions">
@@ -60,11 +60,11 @@ export function ConfigBox({ data }: ConfigBoxProps) {
                 </StyledSection>
             )}
 
-            {data.pluginsEnabled.length > 0 && (
-                <StyledSection title="Plugins">
-                    {data.pluginsEnabled.map((plugin) => (
-                        <Box key={plugin}>
-                            <Text color="green">{plugin}</Text>
+            {data.hooksEnabled.length > 0 && (
+                <StyledSection title="Hooks">
+                    {data.hooksEnabled.map((hook) => (
+                        <Box key={hook}>
+                            <Text color="green">{hook}</Text>
                         </Box>
                     ))}
                 </StyledSection>

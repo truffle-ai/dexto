@@ -7,13 +7,14 @@ describe('builtinToolsFactory', () => {
         const tools: Tool[] = builtinToolsFactory.create({ type: 'builtin-tools' });
         expect(tools.map((t) => t.id)).toEqual([
             'ask_user',
-            'search_history',
             'delegate_to_url',
             'list_resources',
             'get_resource',
             'invoke_skill',
             'http_request',
             'sleep',
+            'web_search',
+            'code_search',
         ]);
     });
 

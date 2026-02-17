@@ -34,11 +34,10 @@ type ReadFileInput = z.input<typeof ReadFileInputSchema>;
  * Create the read_file internal tool with directory approval support
  */
 export function createReadFileTool(getFileSystemService: FileSystemServiceGetter): Tool {
-    // Store parent directory for use in onApprovalGranted callback
-    let pendingApprovalParentDir: string | undefined;
-
     return {
         id: 'read_file',
+        displayName: 'Read',
+        aliases: ['read'],
         description:
             'Read the contents of a file with optional pagination. Returns file content, line count, encoding, and whether the output was truncated. Use limit and offset parameters for large files to read specific sections. This tool is for reading files within allowed paths only.',
         inputSchema: ReadFileInputSchema,
@@ -76,7 +75,6 @@ export function createReadFileTool(getFileSystemService: FileSystemServiceGetter
             // Need directory access approval
             const absolutePath = path.resolve(file_path);
             const parentDir = path.dirname(absolutePath);
-            pendingApprovalParentDir = parentDir;
 
             return {
                 type: ApprovalType.DIRECTORY_ACCESS,
@@ -92,8 +90,20 @@ export function createReadFileTool(getFileSystemService: FileSystemServiceGetter
         /**
          * Handle approved directory access - remember the directory for session
          */
-        onApprovalGranted: (response: ApprovalResponse, context: ToolExecutionContext): void => {
-            if (!pendingApprovalParentDir) return;
+        onApprovalGranted: (
+            response: ApprovalResponse,
+            context: ToolExecutionContext,
+            approvalRequest: ApprovalRequestDetails
+        ): void => {
+            if (approvalRequest.type !== ApprovalType.DIRECTORY_ACCESS) {
+                return;
+            }
+
+            const metadata = approvalRequest.metadata as { parentDir?: unknown } | undefined;
+            const parentDir = typeof metadata?.parentDir === 'string' ? metadata.parentDir : null;
+            if (!parentDir) {
+                return;
+            }
 
             // Check if user wants to remember the directory
             // Use type assertion to access rememberDirectory since response.data is a union type
@@ -106,13 +116,7 @@ export function createReadFileTool(getFileSystemService: FileSystemServiceGetter
                     'read_file requires ToolExecutionContext.services.approval'
                 );
             }
-            approvalManager.addApprovedDirectory(
-                pendingApprovalParentDir,
-                rememberDirectory ? 'session' : 'once'
-            );
-
-            // Clear pending state
-            pendingApprovalParentDir = undefined;
+            approvalManager.addApprovedDirectory(parentDir, rememberDirectory ? 'session' : 'once');
         },
 
         execute: async (input: unknown, context: ToolExecutionContext) => {

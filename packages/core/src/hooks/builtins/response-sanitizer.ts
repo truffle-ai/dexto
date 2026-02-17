@@ -1,9 +1,9 @@
 import type {
-    Plugin,
+    Hook,
     BeforeResponsePayload,
-    PluginExecutionContext,
-    PluginResult,
-    PluginNotice,
+    HookExecutionContext,
+    HookResult,
+    HookNotice,
 } from '../types.js';
 
 export interface ResponseSanitizerConfig {
@@ -19,17 +19,14 @@ const DEFAULTS: Required<ResponseSanitizerConfig> = {
 };
 
 /**
- * Response sanitizer built-in plugin
+ * Response sanitizer built-in hook.
  *
- * This plugin redacts sensitive information from LLM responses to prevent accidental leakage:
+ * This hook redacts sensitive information from LLM responses to prevent accidental leakage:
  * - Email addresses
  * - API keys and tokens
  * - Optional: Truncates responses that exceed length limits
- *
- * This demonstrates how plugins can modify response content before it's sent to users,
- * using the beforeResponse extension point.
  */
-export class ResponseSanitizerPlugin implements Plugin {
+export class ResponseSanitizerHook implements Hook {
     private redactEmails: boolean = DEFAULTS.redactEmails;
     private redactApiKeys: boolean = DEFAULTS.redactApiKeys;
     private maxResponseLength: number = DEFAULTS.maxResponseLength;
@@ -43,9 +40,9 @@ export class ResponseSanitizerPlugin implements Plugin {
 
     async beforeResponse(
         payload: BeforeResponsePayload,
-        _context: PluginExecutionContext
-    ): Promise<PluginResult> {
-        const notices: PluginNotice[] = [];
+        _context: HookExecutionContext
+    ): Promise<HookResult> {
+        const notices: HookNotice[] = [];
         let modified = payload.content;
 
         // Redact email addresses
@@ -105,7 +102,7 @@ export class ResponseSanitizerPlugin implements Plugin {
 
         // Return modifications if any were made
         if (modified !== payload.content) {
-            const result: PluginResult = {
+            const result: HookResult = {
                 ok: true,
                 modify: { content: modified },
             };

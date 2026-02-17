@@ -62,12 +62,12 @@ export interface ConfigStyledData {
     model: string;
     maxTokens: number | null;
     temperature: number | null;
-    toolConfirmationMode: string;
+    permissionsMode: string;
     maxSessions: string;
     sessionTTL: string;
     mcpServers: string[];
     promptsCount: number;
-    pluginsEnabled: string[];
+    hooksEnabled: string[];
 }
 
 export interface StatsStyledData {

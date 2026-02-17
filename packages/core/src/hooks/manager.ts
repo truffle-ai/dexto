@@ -1,7 +1,7 @@
 import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
-import { PluginErrorCode } from './error-codes.js';
+import { HookErrorCode } from './error-codes.js';
 import { getContext } from '../utils/async-context.js';
-import type { ExtensionPoint, PluginExecutionContext, Plugin, PluginResult } from './types.js';
+import type { ExtensionPoint, HookExecutionContext, Hook, HookResult } from './types.js';
 import type { AgentEventBus } from '../events/index.js';
 import type { StorageManager } from '../storage/index.js';
 import type { SessionManager } from '../session/index.js';
@@ -12,18 +12,18 @@ import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 
 /**
- * Options for PluginManager construction
+ * Options for HookManager construction.
  */
-export interface PluginManagerOptions {
+export interface HookManagerOptions {
     agentEventBus: AgentEventBus;
     storageManager: StorageManager;
 }
 
 /**
- * Options for building ExecutionContext
- * Used when calling executePlugins
+ * Options for building hook execution context.
+ * Used when calling `executeHooks()`.
  */
-export interface ExecutionContextOptions {
+export interface HookExecutionContextOptions {
     sessionManager: SessionManager;
     mcpManager: MCPManager;
     toolManager: ToolManager;
@@ -33,89 +33,89 @@ export interface ExecutionContextOptions {
 }
 
 /**
- * Plugin Manager - Orchestrates plugin loading and execution
+ * Hook Manager - Orchestrates hook execution.
  *
  * Responsibilities:
- * - Validate plugin shape
- * - Manage plugin lifecycle (initialize, execute, cleanup)
- * - Execute plugins sequentially at extension points
+ * - Validate hook shape
+ * - Manage hook lifecycle (initialize, execute, cleanup)
+ * - Execute hooks sequentially at extension points
  * - Handle timeouts and errors with fail-fast policy
  */
-export class PluginManager {
-    private plugins: Plugin[] = [];
-    private pluginsByExtensionPoint: Map<ExtensionPoint, Plugin[]> = new Map();
-    private pluginNameByInstance: WeakMap<Plugin, string> = new WeakMap();
-    private options: PluginManagerOptions;
+export class HookManager {
+    private hooks: Hook[] = [];
+    private hooksByExtensionPoint: Map<ExtensionPoint, Hook[]> = new Map();
+    private hookNameByInstance: WeakMap<Hook, string> = new WeakMap();
+    private options: HookManagerOptions;
     private initialized: boolean = false;
     private logger: Logger;
 
-    /** Default timeout for plugin execution (milliseconds) */
+    /** Default timeout for hook execution (milliseconds) */
     private static readonly DEFAULT_TIMEOUT = 5000;
 
-    constructor(options: PluginManagerOptions, plugins: Plugin[], logger: Logger) {
+    constructor(options: HookManagerOptions, hooks: Hook[], logger: Logger) {
         this.options = options;
-        this.logger = logger.createChild(DextoLogComponent.PLUGIN);
-        this.setPlugins(plugins);
-        this.logger.debug('PluginManager created');
+        this.logger = logger.createChild(DextoLogComponent.HOOK);
+        this.setHooks(hooks);
+        this.logger.debug('HookManager created');
     }
 
     /**
-     * Provide the concrete plugins this manager should orchestrate.
-     * Plugins must be fully resolved and initialized before calling `initialize()`.
+     * Provide the concrete hooks this manager should orchestrate.
+     * Hooks must be fully resolved and initialized before calling `initialize()`.
      */
-    setPlugins(plugins: Plugin[]): void {
+    setHooks(hooks: Hook[]): void {
         if (this.initialized) {
             throw new DextoRuntimeError(
-                PluginErrorCode.PLUGIN_CONFIGURATION_INVALID,
-                ErrorScope.PLUGIN,
+                HookErrorCode.HOOK_CONFIGURATION_INVALID,
+                ErrorScope.HOOK,
                 ErrorType.SYSTEM,
-                'Cannot set plugins after initialization'
+                'Cannot set hooks after initialization'
             );
         }
 
-        this.plugins = [...plugins];
-        this.pluginsByExtensionPoint.clear();
-        this.pluginNameByInstance = new WeakMap();
-        for (const [index, plugin] of this.plugins.entries()) {
-            this.pluginNameByInstance.set(plugin, this.derivePluginName(plugin, index));
+        this.hooks = [...hooks];
+        this.hooksByExtensionPoint.clear();
+        this.hookNameByInstance = new WeakMap();
+        for (const [index, hook] of this.hooks.entries()) {
+            this.hookNameByInstance.set(hook, this.deriveHookName(hook, index));
         }
     }
 
     /**
-     * Initialize plugin orchestration.
-     * Validates plugin shapes and registers them to extension points.
-     * @throws {DextoRuntimeError} If any plugin fails validation (fail-fast)
+     * Initialize hook orchestration.
+     * Validates hook shapes and registers them to extension points.
+     * @throws {DextoRuntimeError} If any hook fails validation (fail-fast)
      */
     async initialize(): Promise<void> {
         if (this.initialized) {
             throw new DextoRuntimeError(
-                PluginErrorCode.PLUGIN_CONFIGURATION_INVALID,
-                ErrorScope.PLUGIN,
+                HookErrorCode.HOOK_CONFIGURATION_INVALID,
+                ErrorScope.HOOK,
                 ErrorType.SYSTEM,
-                'PluginManager already initialized'
+                'HookManager already initialized'
             );
         }
 
-        // Validate plugin shapes and register to extension points
-        for (const [index, plugin] of this.plugins.entries()) {
-            this.assertValidPluginShape(plugin, index);
-            this.registerToExtensionPoints(plugin);
+        // Validate hook shapes and register to extension points
+        for (const [index, hook] of this.hooks.entries()) {
+            this.assertValidHookShape(hook, index);
+            this.registerToExtensionPoints(hook);
         }
 
-        for (const [extensionPoint, plugins] of this.pluginsByExtensionPoint.entries()) {
+        for (const [extensionPoint, hooks] of this.hooksByExtensionPoint.entries()) {
             this.logger.debug(
-                `Extension point '${extensionPoint}': ${plugins.length} plugin(s) registered`
+                `Extension point '${extensionPoint}': ${hooks.length} hook(s) registered`
             );
         }
 
         this.initialized = true;
-        this.logger.info(`PluginManager initialized with ${this.plugins.length} plugin(s)`);
+        this.logger.info(`HookManager initialized with ${this.hooks.length} hook(s)`);
     }
 
     /**
-     * Register a plugin to the extension points it implements
+     * Register a hook to the extension points it implements.
      */
-    private registerToExtensionPoints(plugin: Plugin): void {
+    private registerToExtensionPoints(hook: Hook): void {
         const extensionPoints: ExtensionPoint[] = [
             'beforeLLMRequest',
             'beforeToolCall',
@@ -124,40 +124,40 @@ export class PluginManager {
         ];
 
         for (const point of extensionPoints) {
-            if (typeof plugin[point] === 'function') {
-                if (!this.pluginsByExtensionPoint.has(point)) {
-                    this.pluginsByExtensionPoint.set(point, []);
+            if (typeof hook[point] === 'function') {
+                if (!this.hooksByExtensionPoint.has(point)) {
+                    this.hooksByExtensionPoint.set(point, []);
                 }
-                this.pluginsByExtensionPoint.get(point)!.push(plugin);
+                this.hooksByExtensionPoint.get(point)!.push(hook);
             }
         }
     }
 
     /**
-     * Execute all plugins at a specific extension point
-     * Plugins execute sequentially in priority order
+     * Execute all hooks at a specific extension point.
+     * Hooks execute sequentially in the order they were provided.
      *
      * @param extensionPoint - Which extension point to execute
      * @param payload - Payload for this extension point (must be an object)
      * @param options - Options for building execution context
-     * @returns Modified payload after all plugins execute
-     * @throws {DextoRuntimeError} If a blocking plugin cancels execution or payload is not an object
+     * @returns Modified payload after all hooks execute
+     * @throws {DextoRuntimeError} If a hook cancels execution or payload is not an object
      */
-    async executePlugins<T extends object>(
+    async executeHooks<T extends object>(
         extensionPoint: ExtensionPoint,
         payload: T,
-        options: ExecutionContextOptions
+        options: HookExecutionContextOptions
     ): Promise<T> {
-        const plugins = this.pluginsByExtensionPoint.get(extensionPoint) || [];
-        if (plugins.length === 0) {
-            return payload; // No plugins for this extension point
+        const hooks = this.hooksByExtensionPoint.get(extensionPoint) || [];
+        if (hooks.length === 0) {
+            return payload; // No hooks for this extension point
         }
 
         // Defensive runtime check: payload must be an object for spread operator
         if (payload === null || typeof payload !== 'object') {
             throw new DextoRuntimeError(
-                PluginErrorCode.PLUGIN_INVALID_SHAPE,
-                ErrorScope.PLUGIN,
+                HookErrorCode.HOOK_INVALID_SHAPE,
+                ErrorScope.HOOK,
                 ErrorType.USER,
                 `Payload for ${extensionPoint} must be an object (got ${payload === null ? 'null' : typeof payload})`,
                 { extensionPoint, payloadType: typeof payload }
@@ -170,7 +170,7 @@ export class PluginManager {
         const asyncCtx = getContext();
         const llmConfig = options.stateManager.getLLMConfig(options.sessionId);
 
-        const context: PluginExecutionContext = {
+        const context: HookExecutionContext = {
             sessionId: options.sessionId ?? undefined,
             userId: asyncCtx?.userId ?? undefined,
             tenantId: asyncCtx?.tenantId ?? undefined,
@@ -187,33 +187,32 @@ export class PluginManager {
             },
         };
 
-        // Execute plugins sequentially
-        for (const [index, plugin] of plugins.entries()) {
-            const method = plugin[extensionPoint];
+        // Execute hooks sequentially
+        for (const [index, hook] of hooks.entries()) {
+            const method = hook[extensionPoint];
             if (!method) continue; // Shouldn't happen, but be safe
 
-            const pluginName =
-                this.pluginNameByInstance.get(plugin) ?? this.derivePluginName(plugin, index);
+            const hookName = this.hookNameByInstance.get(hook) ?? this.deriveHookName(hook, index);
             const startTime = Date.now();
 
             try {
                 // Execute with timeout
                 // Use type assertion since we validated the method exists and has correct signature
-                const result = await this.executeWithTimeout<PluginResult>(
+                const result = await this.executeWithTimeout<HookResult>(
                     (
                         method as unknown as (
                             payload: T,
-                            context: PluginExecutionContext
-                        ) => Promise<PluginResult>
-                    ).call(plugin, currentPayload, context),
-                    pluginName,
-                    PluginManager.DEFAULT_TIMEOUT
+                            context: HookExecutionContext
+                        ) => Promise<HookResult>
+                    ).call(hook, currentPayload, context),
+                    hookName,
+                    HookManager.DEFAULT_TIMEOUT
                 );
 
                 const duration = Date.now() - startTime;
 
                 // Log execution
-                this.logger.debug(`Plugin '${pluginName}' executed at ${extensionPoint}`, {
+                this.logger.debug(`Hook '${hookName}' executed at ${extensionPoint}`, {
                     ok: result.ok,
                     cancelled: result.cancel,
                     duration,
@@ -225,8 +224,8 @@ export class PluginManager {
                     for (const notice of result.notices) {
                         const level =
                             notice.kind === 'block' || notice.kind === 'warn' ? 'warn' : 'info';
-                        this.logger[level](`Plugin notice (${notice.kind}): ${notice.message}`, {
-                            plugin: pluginName,
+                        this.logger[level](`Hook notice (${notice.kind}): ${notice.message}`, {
+                            hook: hookName,
                             code: notice.code,
                             details: notice.details,
                         });
@@ -235,18 +234,18 @@ export class PluginManager {
 
                 // Handle failure
                 if (!result.ok) {
-                    this.logger.warn(`Plugin '${pluginName}' returned error`, {
+                    this.logger.warn(`Hook '${hookName}' returned error`, {
                         message: result.message,
                     });
 
                     if (result.cancel) {
                         throw new DextoRuntimeError(
-                            PluginErrorCode.PLUGIN_BLOCKED_EXECUTION,
-                            ErrorScope.PLUGIN,
+                            HookErrorCode.HOOK_BLOCKED_EXECUTION,
+                            ErrorScope.HOOK,
                             ErrorType.FORBIDDEN,
-                            result.message || `Operation blocked by plugin '${pluginName}'`,
+                            result.message || `Operation blocked by hook '${hookName}'`,
                             {
-                                plugin: pluginName,
+                                hook: hookName,
                                 extensionPoint,
                                 notices: result.notices,
                             }
@@ -262,7 +261,7 @@ export class PluginManager {
                         ...(currentPayload as Record<string, unknown>),
                         ...result.modify,
                     } as T;
-                    this.logger.debug(`Plugin '${pluginName}' modified payload`, {
+                    this.logger.debug(`Hook '${hookName}' modified payload`, {
                         keys: Object.keys(result.modify),
                     });
                 }
@@ -270,12 +269,12 @@ export class PluginManager {
                 // Check cancellation
                 if (result.cancel) {
                     throw new DextoRuntimeError(
-                        PluginErrorCode.PLUGIN_BLOCKED_EXECUTION,
-                        ErrorScope.PLUGIN,
+                        HookErrorCode.HOOK_BLOCKED_EXECUTION,
+                        ErrorScope.HOOK,
                         ErrorType.FORBIDDEN,
-                        result.message || `Operation cancelled by plugin '${pluginName}'`,
+                        result.message || `Operation cancelled by hook '${hookName}'`,
                         {
-                            plugin: pluginName,
+                            hook: hookName,
                             extensionPoint,
                             notices: result.notices,
                         }
@@ -289,21 +288,21 @@ export class PluginManager {
                     throw error;
                 }
 
-                // Plugin threw exception
-                this.logger.error(`Plugin '${pluginName}' threw error`, {
+                // Hook threw exception
+                this.logger.error(`Hook '${hookName}' threw error`, {
                     error: error instanceof Error ? error.message : String(error),
                     duration,
                 });
 
                 throw new DextoRuntimeError(
-                    PluginErrorCode.PLUGIN_EXECUTION_FAILED,
-                    ErrorScope.PLUGIN,
+                    HookErrorCode.HOOK_EXECUTION_FAILED,
+                    ErrorScope.HOOK,
                     ErrorType.SYSTEM,
-                    `Plugin '${pluginName}' failed: ${
+                    `Hook '${hookName}' failed: ${
                         error instanceof Error ? error.message : String(error)
                     }`,
                     {
-                        plugin: pluginName,
+                        hook: hookName,
                         extensionPoint,
                     }
                 );
@@ -319,7 +318,7 @@ export class PluginManager {
      */
     private async executeWithTimeout<T>(
         promise: Promise<T>,
-        pluginName: string,
+        hookName: string,
         ms: number
     ): Promise<T> {
         let timer: NodeJS.Timeout | undefined;
@@ -327,10 +326,10 @@ export class PluginManager {
             timer = setTimeout(() => {
                 reject(
                     new DextoRuntimeError(
-                        PluginErrorCode.PLUGIN_EXECUTION_TIMEOUT,
-                        ErrorScope.PLUGIN,
+                        HookErrorCode.HOOK_EXECUTION_TIMEOUT,
+                        ErrorScope.HOOK,
                         ErrorType.TIMEOUT,
-                        `Plugin '${pluginName}' execution timed out after ${ms}ms`
+                        `Hook '${hookName}' execution timed out after ${ms}ms`
                     )
                 );
             }, ms);
@@ -348,29 +347,28 @@ export class PluginManager {
     }
 
     /**
-     * Cleanup all plugins
+     * Cleanup all hooks.
      * Called when agent shuts down
      */
     async cleanup(): Promise<void> {
-        for (const [index, plugin] of this.plugins.entries()) {
-            const pluginName =
-                this.pluginNameByInstance.get(plugin) ?? this.derivePluginName(plugin, index);
-            if (plugin.cleanup) {
+        for (const [index, hook] of this.hooks.entries()) {
+            const hookName = this.hookNameByInstance.get(hook) ?? this.deriveHookName(hook, index);
+            if (hook.cleanup) {
                 try {
-                    await plugin.cleanup();
-                    this.logger.debug(`Plugin cleaned up: ${pluginName}`);
+                    await hook.cleanup();
+                    this.logger.debug(`Hook cleaned up: ${hookName}`);
                 } catch (error) {
-                    this.logger.error(`Plugin cleanup failed: ${pluginName}`, {
+                    this.logger.error(`Hook cleanup failed: ${hookName}`, {
                         error: error instanceof Error ? error.message : String(error),
                     });
                 }
             }
         }
-        this.logger.info('PluginManager cleanup complete');
+        this.logger.info('HookManager cleanup complete');
     }
 
     /**
-     * Get plugin statistics
+     * Get hook statistics.
      */
     getStats(): {
         total: number;
@@ -378,32 +376,46 @@ export class PluginManager {
         byExtensionPoint: Record<ExtensionPoint, number>;
     } {
         const byExtensionPoint: Record<string, number> = {};
-        for (const [point, plugins] of this.pluginsByExtensionPoint.entries()) {
-            byExtensionPoint[point] = plugins.length;
+        for (const [point, hooks] of this.hooksByExtensionPoint.entries()) {
+            byExtensionPoint[point] = hooks.length;
         }
 
         return {
-            total: this.plugins.length,
-            enabled: this.plugins.length,
+            total: this.hooks.length,
+            enabled: this.hooks.length,
             byExtensionPoint: byExtensionPoint as Record<ExtensionPoint, number>,
         };
     }
 
-    private derivePluginName(plugin: Plugin, index: number): string {
-        const maybeNamed = plugin as unknown as { name?: unknown };
+    /**
+     * List hook display names in execution order.
+     *
+     * Names are derived from:
+     * - `hook.name` (if present)
+     * - constructor/class name (if available)
+     * - fallback `hook#N`
+     */
+    getHookNames(): string[] {
+        return this.hooks.map((hook, index) => {
+            return this.hookNameByInstance.get(hook) ?? this.deriveHookName(hook, index);
+        });
+    }
+
+    private deriveHookName(hook: Hook, index: number): string {
+        const maybeNamed = hook as unknown as { name?: unknown };
         if (typeof maybeNamed.name === 'string' && maybeNamed.name.trim().length > 0) {
             return maybeNamed.name;
         }
 
-        const ctorName = (plugin as { constructor?: { name?: unknown } }).constructor?.name;
+        const ctorName = (hook as { constructor?: { name?: unknown } }).constructor?.name;
         if (typeof ctorName === 'string' && ctorName !== 'Object' && ctorName.trim().length > 0) {
             return ctorName;
         }
 
-        return `plugin#${index + 1}`;
+        return `hook#${index + 1}`;
     }
 
-    private assertValidPluginShape(plugin: Plugin, index: number): void {
+    private assertValidHookShape(hook: Hook, index: number): void {
         const extensionPoints: ExtensionPoint[] = [
             'beforeLLMRequest',
             'beforeToolCall',
@@ -412,15 +424,15 @@ export class PluginManager {
         ];
 
         const hasExtensionPoint = extensionPoints.some(
-            (point) => typeof plugin[point] === 'function'
+            (point) => typeof hook[point] === 'function'
         );
 
         if (!hasExtensionPoint) {
             throw new DextoRuntimeError(
-                PluginErrorCode.PLUGIN_INVALID_SHAPE,
-                ErrorScope.PLUGIN,
+                HookErrorCode.HOOK_INVALID_SHAPE,
+                ErrorScope.HOOK,
                 ErrorType.USER,
-                `Plugin '${this.derivePluginName(plugin, index)}' must implement at least one extension point method`,
+                `Hook '${this.deriveHookName(hook, index)}' must implement at least one extension point method`,
                 { availableExtensionPoints: extensionPoints }
             );
         }

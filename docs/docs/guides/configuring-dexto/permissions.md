@@ -1,19 +1,19 @@
 ---
 sidebar_position: 6
-sidebar_label: "Tool Confirmation"
+sidebar_label: "Permissions"
 ---
 
-# Tool Confirmation Configuration
+# Permissions Configuration
 
 Control how and when users are prompted to approve tool execution through Dexto's flexible confirmation system.
 
 :::tip Complete Reference
-For complete field documentation, event specifications, and UI integration details, see **[agent.yml → Tool Confirmation](./agent-yml.md#tool-confirmation)**.
+For complete field documentation, event specifications, and UI integration details, see **[agent.yml → Permissions](./agent-yml.md#permissions)**.
 :::
 
 ## Overview
 
-The tool confirmation system provides security and oversight by controlling which tools your agent can execute and when. It supports multiple modes and fine-grained policies for different environments and use cases.
+The permissions system provides security and oversight by controlling which tools your agent can execute and when. It supports multiple modes and fine-grained policies for different environments and use cases.
 
 **Configuration controls:**
 - **Confirmation mode** - How tools are approved (interactive, auto-approve, auto-deny)
@@ -21,8 +21,8 @@ The tool confirmation system provides security and oversight by controlling whic
 - **Storage type** - Where to remember approvals (persistent vs session-only)
 - **Tool policies** - Fine-grained allow/deny lists
 
-:::note Elicitation vs Tool Confirmation
-**Tool confirmation** controls whether tools require approval before execution. **Elicitation** is a separate feature that controls whether MCP servers can request user input during interactions. These are independent settings - see [Elicitation Configuration](./agent-yml.md#elicitation-configuration) for details.
+:::note Elicitation vs Permissions
+**Permissions** control whether tools require approval before execution. **Elicitation** is a separate feature that controls whether MCP servers can request user input during interactions. These are independent settings - see [Elicitation Configuration](./agent-yml.md#elicitation-configuration) for details.
 :::
 
 ## Confirmation Modes
@@ -38,7 +38,7 @@ The tool confirmation system provides security and oversight by controlling whic
 Interactive confirmation via CLI prompts or WebUI dialogs:
 
 ```yaml
-toolConfirmation:
+permissions:
   mode: manual
   timeout: 30000               # 30 seconds
   allowedToolsStorage: storage # Persist across sessions
@@ -54,7 +54,7 @@ toolConfirmation:
 Automatically approve all tools without prompting:
 
 ```yaml
-toolConfirmation:
+permissions:
   mode: auto-approve
 ```
 
@@ -70,7 +70,7 @@ CLI shortcut: `dexto --auto-approve`
 Block all tool execution:
 
 ```yaml
-toolConfirmation:
+permissions:
   mode: auto-deny
 ```
 
@@ -84,12 +84,12 @@ toolConfirmation:
 Fine-grained control over specific tools:
 
 ```yaml
-toolConfirmation:
+permissions:
   mode: manual
   toolPolicies:
     alwaysAllow:
-      - internal--ask_user
-      - internal--read_file
+      - ask_user
+      - read_file
       - mcp--filesystem--read_file
     alwaysDeny:
       - mcp--filesystem--delete_file
@@ -97,8 +97,9 @@ toolConfirmation:
 ```
 
 **Tool name format:**
-- Internal tools: `internal--<tool_name>`
+- Local tools: `<tool_id>`
 - MCP tools: `mcp--<server_name>--<tool_name>`
+  - You can also use `mcp--<tool_name>` as a shorthand to match any MCP server that exposes that tool.
 
 **Precedence rules:**
 1. `alwaysDeny` takes precedence over `alwaysAllow`
@@ -111,7 +112,7 @@ toolConfirmation:
 Approvals persisted across sessions:
 
 ```yaml
-toolConfirmation:
+permissions:
   allowedToolsStorage: storage
 ```
 
@@ -123,7 +124,7 @@ toolConfirmation:
 Approvals cleared when session ends:
 
 ```yaml
-toolConfirmation:
+permissions:
   allowedToolsStorage: memory
 ```
 
@@ -146,25 +147,25 @@ The system checks: session-specific → global → deny
 ### Development Environment
 
 ```yaml
-toolConfirmation:
+permissions:
   mode: auto-approve
   allowedToolsStorage: memory
   toolPolicies:
     alwaysDeny:
-      - internal--bash_exec--rm -rf*
+      - bash_exec
 ```
 
 ### Production Environment
 
 ```yaml
-toolConfirmation:
+permissions:
   mode: manual
   timeout: 60000
   allowedToolsStorage: storage
   toolPolicies:
     alwaysAllow:
-      - internal--ask_user
-      - internal--read_file
+      - ask_user
+      - read_file
     alwaysDeny:
       - mcp--filesystem--delete_file
       - mcp--git--push
@@ -173,7 +174,7 @@ toolConfirmation:
 ### High-Security Environment
 
 ```yaml
-toolConfirmation:
+permissions:
   mode: manual
   allowedToolsStorage: memory
   toolPolicies:
@@ -181,7 +182,7 @@ toolConfirmation:
     alwaysDeny:
       - mcp--filesystem--write_file
       - mcp--filesystem--delete_file
-      - internal--bash_exec
+      - bash_exec
 ```
 
 ## Manual Mode Requirements
@@ -262,7 +263,7 @@ agent.setApprovalHandler(async (request) => {
 
 ## See Also
 
-- [agent.yml Reference → Tool Confirmation](./agent-yml.md#tool-confirmation) - Complete field documentation
-- [Internal Tools](./internalTools.md) - Built-in Dexto tools
+- [agent.yml Reference → Permissions](./agent-yml.md#permissions) - Complete field documentation
+- [Tools](./tools.md) - Tool factory configuration
 - [MCP Configuration](./mcpConfiguration.md) - External MCP tools
 - [Storage Configuration](./storage.md) - Persistent approval storage

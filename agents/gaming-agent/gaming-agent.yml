@@ -70,7 +70,7 @@ llm:
   model: claude-haiku-4-5-20251001
   apiKey: $ANTHROPIC_API_KEY
 
-toolConfirmation:
+permissions:
   mode: auto-approve
   allowedToolsStorage: memory
 

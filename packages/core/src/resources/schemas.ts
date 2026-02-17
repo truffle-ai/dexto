@@ -99,7 +99,7 @@ export type ValidatedBlobResourceConfig = z.output<typeof BlobResourceSchema>;
 /**
  * Union schema for all internal resource types (composed from individual schemas)
  */
-export const InternalResourceConfigSchema = z.discriminatedUnion('type', [
+export const ResourceConfigSchema = z.discriminatedUnion('type', [
     FileSystemResourceSchema,
     BlobResourceSchema,
 ]);
@@ -107,48 +107,17 @@ export const InternalResourceConfigSchema = z.discriminatedUnion('type', [
 /**
  * Validated union type for all internal resource configurations
  */
-export type ValidatedInternalResourceConfig = z.output<typeof InternalResourceConfigSchema>;
+export type ValidatedResourceConfig = z.output<typeof ResourceConfigSchema>;
 
 /**
- * Schema for internal resources configuration with smart auto-enable logic
+ * Schema for agent-managed resources (filesystem, blob, etc.).
  *
- * Design principles:
- * - Clean input format: just specify resources array or object
- * - Auto-enable when resources are specified
- * - Backward compatibility with explicit enabled field
- * - Empty/omitted = disabled
+ * Omit or set to [] to disable agent-managed resources.
  */
-export const InternalResourcesSchema = z
-    .union([
-        z.array(InternalResourceConfigSchema), // array-only form
-        z
-            .object({
-                enabled: z
-                    .boolean()
-                    .optional()
-                    .describe('Explicit toggle; auto-enabled when resources are non-empty'),
-                resources: z
-                    .array(InternalResourceConfigSchema)
-                    .default([])
-                    .describe('List of internal resource configurations'),
-            })
-            .strict(),
-    ])
+export const ResourcesConfigSchema = z
+    .array(ResourceConfigSchema)
     .default([])
-    .describe(
-        'Internal resource configuration. Can be an array of resources (auto-enabled) or object with enabled field'
-    )
-    .transform((input) => {
-        if (Array.isArray(input)) {
-            return { enabled: input.length > 0, resources: input };
-        }
-        const enabled = input.enabled !== undefined ? input.enabled : input.resources.length > 0;
-        return { enabled, resources: input.resources };
-    });
+    .describe('Agent-managed resource configuration');
 
-export type InternalResourcesConfig = z.input<typeof InternalResourcesSchema>;
-export type ValidatedInternalResourcesConfig = z.output<typeof InternalResourcesSchema>;
-
-export function isInternalResourcesEnabled(config: ValidatedInternalResourcesConfig): boolean {
-    return config.enabled && config.resources.length > 0;
-}
+export type ResourcesConfig = z.input<typeof ResourcesConfigSchema>;
+export type ValidatedResourcesConfig = z.output<typeof ResourcesConfigSchema>;

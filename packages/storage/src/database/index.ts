@@ -11,7 +11,7 @@
  *
  * ## Custom Factories
  * Product layers (CLI/server/platform) decide which factories are available by including them
- * in images (`DextoImageModule.storage.database`).
+ * in images (`DextoImage.storage.database`).
  *
  * ## Usage
  * Database backends are typically constructed by the product-layer resolver (`@dexto/agent-config`)

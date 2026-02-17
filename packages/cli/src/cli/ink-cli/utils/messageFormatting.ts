@@ -10,12 +10,23 @@ import { isTextPart, isAssistantMessage, isToolMessage } from '@dexto/core';
 import type { Message } from '../state/types.js';
 
 const HIDDEN_TOOL_NAMES = new Set(['wait_for']);
-const normalizeToolName = (toolName: string) => {
-    const stripped = toolName.replace(/^(?:internal--|internal__|custom--|custom__)/, '');
-    const delimiterSplit = stripped.split(/[:.]/);
-    return delimiterSplit[delimiterSplit.length - 1] ?? stripped;
-};
-const shouldHideTool = (toolName: string) => HIDDEN_TOOL_NAMES.has(normalizeToolName(toolName));
+
+export function normalizeToolName(toolName: string): string {
+    if (toolName.startsWith('mcp--')) {
+        const trimmed = toolName.substring('mcp--'.length);
+        const parts = trimmed.split('--');
+        return parts.length >= 2 ? parts.slice(1).join('--') : trimmed;
+    }
+    return toolName;
+}
+
+export function shouldHideTool(toolName: string | undefined): boolean {
+    if (!toolName) {
+        return false;
+    }
+
+    return HIDDEN_TOOL_NAMES.has(normalizeToolName(toolName));
+}
 
 const backgroundCompletionRegex =
     /<background-task-completion>[\s\S]*?<\/background-task-completion>/g;
@@ -157,98 +168,9 @@ export function centerTruncatePath(filePath: string, maxWidth: number): string {
 }
 
 /**
- * Tool-specific display configuration.
- * Controls how each tool is displayed in the UI - name, which args to show, etc.
- */
-interface ToolDisplayConfig {
-    /** User-friendly display name */
-    displayName: string;
-    /** Which args to display, in order */
-    argsToShow: string[];
-    /** Primary arg shown without key name (first in argsToShow) */
-    primaryArg?: string;
-}
-
-/**
- * Per-tool display configurations.
- * Each tool specifies exactly which arguments to show and how.
- */
-const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
-    // File tools - show file_path as primary
-    read_file: { displayName: 'Read', argsToShow: ['file_path'], primaryArg: 'file_path' },
-    write_file: { displayName: 'Write', argsToShow: ['file_path'], primaryArg: 'file_path' },
-    edit_file: { displayName: 'Update', argsToShow: ['file_path'], primaryArg: 'file_path' },
-
-    // Search tools - show pattern as primary, path as secondary
-    glob_files: {
-        displayName: 'Find files',
-        argsToShow: ['pattern', 'path'],
-        primaryArg: 'pattern',
-    },
-    grep_content: {
-        displayName: 'Search files',
-        argsToShow: ['pattern', 'path'],
-        primaryArg: 'pattern',
-    },
-
-    // Bash - show command only, skip description
-    bash_exec: { displayName: 'Bash', argsToShow: ['command'], primaryArg: 'command' },
-    bash_output: {
-        displayName: 'BashOutput',
-        argsToShow: ['process_id'],
-        primaryArg: 'process_id',
-    },
-    kill_process: { displayName: 'Kill', argsToShow: ['process_id'], primaryArg: 'process_id' },
-
-    // User interaction
-    ask_user: { displayName: 'Ask', argsToShow: ['question'], primaryArg: 'question' },
-
-    // Agent spawning - handled specially in formatToolHeader for dynamic agentId
-    spawn_agent: { displayName: 'Agent', argsToShow: ['task'], primaryArg: 'task' },
-
-    // Skill invocation - handled specially in formatToolHeader to show clean skill name
-    invoke_skill: { displayName: 'Skill', argsToShow: ['skill'], primaryArg: 'skill' },
-
-    plan_create: { displayName: 'Plan', argsToShow: [] },
-    plan_read: { displayName: 'Plan', argsToShow: [] },
-    plan_update: { displayName: 'Plan', argsToShow: [] },
-    plan_review: { displayName: 'Plan', argsToShow: [] },
-
-    wait_for: { displayName: 'Wait', argsToShow: ['taskId', 'taskIds', 'mode'] },
-    check_task: { displayName: 'CheckTask', argsToShow: ['taskId'] },
-    list_tasks: { displayName: 'ListTasks', argsToShow: ['status', 'type'] },
-
-    todo_write: { displayName: 'UpdateTasks', argsToShow: [] },
-};
-
-/**
- * Gets the display config for a tool.
- * Handles internal-- prefix by stripping it before lookup.
- */
-function getToolConfig(toolName: string): ToolDisplayConfig | undefined {
-    // Try direct lookup first
-    if (TOOL_CONFIGS[toolName]) {
-        return TOOL_CONFIGS[toolName];
-    }
-    // Strip internal-- prefix and try again
-    if (toolName.startsWith('internal--')) {
-        const baseName = toolName.replace('internal--', '');
-        return TOOL_CONFIGS[baseName];
-    }
-
-    // Strip "custom--" prefix and try again
-    if (toolName.startsWith('custom--')) {
-        const baseName = toolName.replace('custom--', '');
-        return TOOL_CONFIGS[baseName];
-    }
-    return undefined;
-}
-
-/**
  * Gets a user-friendly display name for a tool.
- * Returns the friendly name if known, otherwise returns the original name
- * with any "internal--" prefix stripped.
- * MCP tools keep their server prefix for clarity (e.g., "mcp_server__tool").
+ * Returns the friendly name if known, otherwise returns a title-cased version.
+ * MCP tools keep their server prefix for clarity (e.g., "mcp--filesystem--read_file").
  */
 function toTitleCase(name: string): string {
     return name
@@ -260,30 +182,11 @@ function toTitleCase(name: string): string {
 }
 
 export function getToolDisplayName(toolName: string): string {
-    const config = getToolConfig(toolName);
-    if (config) {
-        return config.displayName;
-    }
-    // Strip "internal--" prefix for unknown internal tools
-    if (toolName.startsWith('internal--')) {
-        return toTitleCase(toolName.replace('internal--', ''));
-    }
-    // Strip "custom--" prefix for custom tools
-    if (toolName.startsWith('custom--')) {
-        return toTitleCase(toolName.replace('custom--', ''));
-    }
-    // MCP tools: strip mcp-- or mcp__ prefix and server name for clean display
+    // MCP tools: strip `mcp--` prefix and server name for clean display
     if (toolName.startsWith('mcp--')) {
         const parts = toolName.split('--');
         if (parts.length >= 3) {
             return toTitleCase(parts.slice(2).join('--'));
-        }
-        return toTitleCase(toolName.substring(5));
-    }
-    if (toolName.startsWith('mcp__')) {
-        const parts = toolName.substring(5).split('__');
-        if (parts.length >= 2) {
-            return toTitleCase(parts.slice(1).join('__'));
         }
         return toTitleCase(toolName.substring(5));
     }
@@ -292,14 +195,9 @@ export function getToolDisplayName(toolName: string): string {
 
 /**
  * Gets the tool type badge for display.
- * Returns: 'internal', MCP server name, or 'custom'
+ * Returns: 'local' or MCP server name.
  */
 export function getToolTypeBadge(toolName: string): string {
-    // Internal tools
-    if (toolName.startsWith('internal--') || toolName.startsWith('internal__')) {
-        return 'internal';
-    }
-
     // MCP tools with server name
     if (toolName.startsWith('mcp--')) {
         const parts = toolName.split('--');
@@ -309,21 +207,7 @@ export function getToolTypeBadge(toolName: string): string {
         return 'MCP';
     }
 
-    if (toolName.startsWith('mcp__')) {
-        const parts = toolName.substring(5).split('__');
-        if (parts.length >= 2 && parts[0]) {
-            return `MCP: ${parts[0]}`; // Format: 'MCP: servername'
-        }
-        return 'MCP';
-    }
-
-    // Custom tools
-    if (toolName.startsWith('custom--')) {
-        return 'custom';
-    }
-
-    // Unknown - likely custom
-    return 'custom';
+    return 'local';
 }
 
 /**
@@ -346,23 +230,25 @@ export interface FormattedToolHeader {
  *
  * Handles special cases like spawn_agent (uses agentId as display name).
  *
- * @param toolName - Raw tool name (may include prefixes like "custom--")
+ * @param toolName - Tool name (local tool id or `mcp--...`)
  * @param args - Tool arguments object
  * @returns Formatted header components and full string
  */
-export function formatToolHeader(
-    toolName: string,
-    args: Record<string, unknown> = {}
-): FormattedToolHeader {
-    let displayName = getToolDisplayName(toolName);
+export function formatToolHeader(options: {
+    toolName: string;
+    args: Record<string, unknown>;
+    toolDisplayName?: string;
+}): FormattedToolHeader {
+    const { toolName, args, toolDisplayName } = options;
+
+    let displayName = toolDisplayName ?? getToolDisplayName(toolName);
     const argsFormatted = formatToolArgsForDisplay(toolName, args);
     const badge = getToolTypeBadge(toolName);
 
-    // Normalize tool name to handle all prefixes (internal--, custom--)
-    const normalizedToolName = toolName.replace(/^(?:internal--|custom--)/, '');
-
+    // TODO: Move tool-specific header formatting into tool display metadata, so the CLI doesn't
+    // need to special-case tool IDs here.
     // Special handling for spawn_agent: use agentId as display name
-    const isSpawnAgent = normalizedToolName === 'spawn_agent';
+    const isSpawnAgent = toolName === 'spawn_agent';
     if (isSpawnAgent && args.agentId) {
         const agentId = String(args.agentId);
         const agentLabel = agentId.replace(/-agent$/, '');
@@ -370,7 +256,7 @@ export function formatToolHeader(
     }
 
     // Special handling for invoke_skill: show skill as /skill-name
-    const isInvokeSkill = normalizedToolName === 'invoke_skill';
+    const isInvokeSkill = toolName === 'invoke_skill';
     if (isInvokeSkill && args.skill) {
         const skillName = String(args.skill);
         // Extract display name from skill identifier (e.g., "config:test-fork" -> "test-fork")
@@ -443,7 +329,6 @@ export function formatToolArgsForDisplay(toolName: string, args: Record<string, 
     const entries = Object.entries(args);
     if (entries.length === 0) return '';
 
-    const config = getToolConfig(toolName);
     const parts: string[] = [];
 
     /**
@@ -477,38 +362,20 @@ export function formatToolArgsForDisplay(toolName: string, args: Record<string, 
         return strValue.length > 40 ? strValue.slice(0, 37) + '...' : strValue;
     };
 
-    if (config) {
-        // Use tool-specific config
-        for (const argName of config.argsToShow) {
-            if (!(argName in args)) continue;
-            if (argName === 'description') continue; // Skip description field
-            if (parts.length >= 3) break;
+    // Generic formatting for all tools:
+    // - Prefer common "primary" args (path/command/pattern/question/etc.)
+    // - Show up to 3 args total
+    // - Skip description (it's shown separately in the UI when present)
+    for (const [key, value] of entries) {
+        if (key === 'description') continue;
+        if (parts.length >= 3) break;
 
-            const formattedValue = formatArgValue(argName, args[argName]);
+        const formattedValue = formatArgValue(key, value);
 
-            if (argName === config.primaryArg) {
-                // Primary arg without key name
-                parts.unshift(formattedValue);
-            } else {
-                // Secondary args with key name
-                parts.push(`${argName}: ${formattedValue}`);
-            }
-        }
-    } else {
-        // Fallback for unknown tools (MCP, etc.)
-        for (const [key, value] of entries) {
-            if (key === 'description') continue; // Skip description field
-            if (parts.length >= 3) break;
-
-            const formattedValue = formatArgValue(key, value);
-
-            if (FALLBACK_PRIMARY_ARGS.has(key) || PATH_ARGS.has(key)) {
-                // Primary arg without key name
-                parts.unshift(formattedValue);
-            } else {
-                // Other args with key name
-                parts.push(`${key}: ${formattedValue}`);
-            }
+        if (FALLBACK_PRIMARY_ARGS.has(key) || PATH_ARGS.has(key)) {
+            parts.unshift(formattedValue);
+        } else {
+            parts.push(`${key}: ${formattedValue}`);
         }
     }
 
@@ -745,7 +612,7 @@ export function convertHistoryToUIMessages(
             const toolCall = toolCallMap.get(msg.toolCallId);
 
             // Format tool name
-            const displayName = getToolDisplayName(msg.name);
+            const displayName = msg.toolDisplayName ?? getToolDisplayName(msg.name);
 
             // Format args if we have them
             let toolContent = displayName;

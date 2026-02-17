@@ -54,6 +54,8 @@ ${agentsList}
 export function createSpawnAgentTool(service: AgentSpawnerRuntime): Tool {
     return {
         id: 'spawn_agent',
+        displayName: 'Agent',
+        aliases: ['task'],
         description: buildDescription(service),
 
         inputSchema: SpawnAgentInputSchema,

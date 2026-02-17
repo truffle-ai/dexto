@@ -1,12 +1,12 @@
 import { z } from 'zod';
 
-export const TOOL_CONFIRMATION_MODES = ['manual', 'auto-approve', 'auto-deny'] as const;
-export type ToolConfirmationMode = (typeof TOOL_CONFIRMATION_MODES)[number];
+export const PERMISSIONS_MODES = ['manual', 'auto-approve', 'auto-deny'] as const;
+export type PermissionsMode = (typeof PERMISSIONS_MODES)[number];
 
 export const ALLOWED_TOOLS_STORAGE_TYPES = ['memory', 'storage'] as const;
 export type AllowedToolsStorageType = (typeof ALLOWED_TOOLS_STORAGE_TYPES)[number];
 
-export const DEFAULT_TOOL_CONFIRMATION_MODE: ToolConfirmationMode = 'auto-approve';
+export const DEFAULT_PERMISSIONS_MODE: PermissionsMode = 'auto-approve';
 export const DEFAULT_ALLOWED_TOOLS_STORAGE: AllowedToolsStorageType = 'storage';
 
 // Tool policies schema - static allow/deny lists for fine-grained control
@@ -16,7 +16,7 @@ export const ToolPoliciesSchema = z
             .array(z.string())
             .default([])
             .describe(
-                'Tools that never require approval (low-risk). Use full qualified names (e.g., "internal--ask_user", "mcp--filesystem--read_file")'
+                'Tools that never require approval (low-risk). Use tool names (e.g., "ask_user", "mcp--filesystem--read_file")'
             ),
         alwaysDeny: z
             .array(z.string())
@@ -31,13 +31,13 @@ export const ToolPoliciesSchema = z
 
 export type ToolPolicies = z.output<typeof ToolPoliciesSchema>;
 
-export const ToolConfirmationConfigSchema = z
+export const PermissionsConfigSchema = z
     .object({
         mode: z
-            .enum(TOOL_CONFIRMATION_MODES)
-            .default(DEFAULT_TOOL_CONFIRMATION_MODE)
+            .enum(PERMISSIONS_MODES)
+            .default(DEFAULT_PERMISSIONS_MODE)
             .describe(
-                'Tool confirmation mode: manual (interactive), auto-approve (all tools), auto-deny (no tools)'
+                'Tool permissions mode: manual (interactive), auto-approve (all tools), auto-deny (no tools)'
             ),
         timeout: z
             .number()
@@ -58,12 +58,12 @@ export const ToolConfirmationConfigSchema = z
         ),
     })
     .strict()
-    .describe('Tool confirmation and approval configuration');
+    .describe('Tool permissions and approval configuration');
 
-export type ToolConfirmationConfig = z.input<typeof ToolConfirmationConfigSchema>;
-export type ValidatedToolConfirmationConfig = z.output<typeof ToolConfirmationConfigSchema>;
+export type PermissionsConfig = z.input<typeof PermissionsConfigSchema>;
+export type ValidatedPermissionsConfig = z.output<typeof PermissionsConfigSchema>;
 
-// Elicitation configuration schema - independent from tool confirmation
+// Elicitation configuration schema - independent from tool permissions
 export const ElicitationConfigSchema = z
     .object({
         enabled: z
@@ -83,7 +83,7 @@ export const ElicitationConfigSchema = z
     })
     .strict()
     .describe(
-        'Elicitation configuration for user input requests. Independent from tool confirmation mode, allowing auto-approve for tools while still supporting elicitation.'
+        'Elicitation configuration for user input requests. Independent from tool permissions mode, allowing auto-approve for tools while still supporting elicitation.'
     );
 
 export type ElicitationConfig = z.input<typeof ElicitationConfigSchema>;
