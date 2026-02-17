@@ -83,6 +83,9 @@ export * from './memory/index.js';
 // Hooks
 export * from './hooks/index.js';
 
+// Workspace
+export * from './workspace/index.js';
+
 // Telemetry
 export * from './telemetry/index.js';
 

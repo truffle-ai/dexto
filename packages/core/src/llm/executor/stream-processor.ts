@@ -23,6 +23,35 @@ type UsageLike = {
     };
 };
 
+type FullStreamPart =
+    StreamTextResult<VercelToolSet, unknown>['fullStream'] extends AsyncIterable<infer Part>
+        ? Part
+        : never;
+
+// Defensive widenings: SDK v5 fields may drift between releases, so keep optional fallbacks.
+type ToolInputStartEvent = Extract<FullStreamPart, { type: 'tool-input-start' }> & {
+    toolCallId?: string;
+    toolName?: string;
+    id?: string;
+    name?: string;
+};
+
+type ToolInputDeltaEvent = Extract<FullStreamPart, { type: 'tool-input-delta' }> & {
+    toolCallId?: string;
+    toolName?: string;
+    inputTextDelta?: string;
+    argsTextDelta?: string;
+    delta?: string;
+    textDelta?: string;
+    id?: string;
+    name?: string;
+};
+
+type ToolInputEndEvent = Extract<FullStreamPart, { type: 'tool-input-end' }> & {
+    toolCallId?: string;
+    id?: string;
+};
+
 export interface StreamProcessorConfig {
     provider: LLMProvider;
     model: string;
@@ -44,6 +73,7 @@ export class StreamProcessor {
      * On cancel/abort, we add synthetic "cancelled" results to maintain tool_use/tool_result pairing.
      */
     private pendingToolCalls: Map<string, { toolName: string }> = new Map();
+    private partialToolCalls: Map<string, { toolName: string; argsText: string }> = new Map();
 
     /**
      * @param contextManager Context manager for message persistence
@@ -75,6 +105,52 @@ export class StreamProcessor {
         streamFn: () => StreamTextResult<VercelToolSet, unknown>
     ): Promise<StreamProcessorResult> {
         const stream = streamFn();
+
+        const handleToolInputStart = (evt: ToolInputStartEvent) => {
+            const toolCallId = evt.toolCallId ?? evt.id ?? undefined;
+            const toolName = evt.toolName ?? evt.name ?? 'unknown';
+            if (toolCallId) {
+                this.partialToolCalls.set(toolCallId, { toolName, argsText: '' });
+            }
+        };
+
+        const handleToolInputDelta = (evt: ToolInputDeltaEvent) => {
+            const toolCallId = evt.toolCallId ?? evt.id ?? undefined;
+            const toolName = evt.toolName ?? evt.name ?? 'unknown';
+            if (!toolCallId) return;
+            const entry = this.partialToolCalls.get(toolCallId) ?? { toolName, argsText: '' };
+            const deltaText =
+                evt.argsTextDelta ?? evt.inputTextDelta ?? evt.delta ?? evt.textDelta ?? '';
+            if (typeof deltaText === 'string' && deltaText.length > 0) {
+                entry.argsText += deltaText;
+                this.partialToolCalls.set(toolCallId, entry);
+                const parsed = tryParsePartialJson(entry.argsText);
+                if (parsed) {
+                    this.eventBus.emit('llm:tool-call-partial', {
+                        toolName: entry.toolName,
+                        args: parsed,
+                        callId: toolCallId,
+                    });
+                }
+            }
+        };
+
+        const handleToolInputEnd = (evt: ToolInputEndEvent) => {
+            const toolCallId = evt.toolCallId ?? evt.id ?? undefined;
+            const entry = toolCallId ? this.partialToolCalls.get(toolCallId) : undefined;
+            if (toolCallId && entry) {
+                const parsed = tryParsePartialJson(entry.argsText);
+                if (parsed) {
+                    this.eventBus.emit('llm:tool-call-partial', {
+                        toolName: entry.toolName,
+                        args: parsed,
+                        callId: toolCallId,
+                        isComplete: true,
+                    });
+                }
+                this.partialToolCalls.delete(toolCallId);
+            }
+        };
 
         try {
             for await (const event of stream.fullStream) {
@@ -128,6 +204,21 @@ export class StreamProcessor {
                         }
                         break;
 
+                    case 'tool-input-start': {
+                        handleToolInputStart(event);
+                        break;
+                    }
+
+                    case 'tool-input-delta': {
+                        handleToolInputDelta(event);
+                        break;
+                    }
+
+                    case 'tool-input-end': {
+                        handleToolInputEnd(event);
+                        break;
+                    }
+
                     case 'tool-call': {
                         // Create tool call record
                         if (!this.assistantMessageId) {
@@ -163,6 +254,7 @@ export class StreamProcessor {
                         this.pendingToolCalls.set(event.toolCallId, {
                             toolName: event.toolName,
                         });
+                        this.partialToolCalls.delete(event.toolCallId);
 
                         // NOTE: llm:tool-call is now emitted from ToolManager.executeTool() instead.
                         // This ensures correct event ordering - llm:tool-call arrives before approval:request.
@@ -225,6 +317,7 @@ export class StreamProcessor {
                         this.approvalMetadata?.delete(event.toolCallId);
                         // Remove from pending (tool completed successfully)
                         this.pendingToolCalls.delete(event.toolCallId);
+                        this.partialToolCalls.delete(event.toolCallId);
                         break;
                     }
 
@@ -420,6 +513,7 @@ export class StreamProcessor {
                         });
                         // Remove from pending (tool failed but result was persisted)
                         this.pendingToolCalls.delete(event.toolCallId);
+                        this.partialToolCalls.delete(event.toolCallId);
                         break;
                     }
 
@@ -644,4 +738,71 @@ export class StreamProcessor {
 
         this.pendingToolCalls.clear();
     }
+}
+
+function tryParsePartialJson(input: string): Record<string, unknown> | null {
+    const trimmed = input.trim();
+    if (!trimmed) return null;
+    if (!trimmed.startsWith('{')) return null;
+
+    let repaired = trimmed;
+
+    let openBraces = 0;
+    let openBrackets = 0;
+    let inString = false;
+    let isEscaped = false;
+
+    for (let i = 0; i < repaired.length; i += 1) {
+        const char = repaired[i];
+        if (inString) {
+            if (isEscaped) {
+                isEscaped = false;
+                continue;
+            }
+            if (char === '\\') {
+                isEscaped = true;
+                continue;
+            }
+            if (char === '"') {
+                inString = false;
+            }
+            continue;
+        }
+
+        if (char === '"') {
+            inString = true;
+            continue;
+        }
+        if (char === '{') openBraces += 1;
+        if (char === '}') openBraces = Math.max(0, openBraces - 1);
+        if (char === '[') openBrackets += 1;
+        if (char === ']') openBrackets = Math.max(0, openBrackets - 1);
+    }
+
+    if (!inString) {
+        repaired = repaired.replace(/,\s*$/, '');
+    }
+    if (inString) {
+        if (isEscaped) {
+            repaired = repaired.slice(0, -1);
+        }
+        repaired += '"';
+    }
+    if (openBrackets > 0) {
+        repaired += ']'.repeat(openBrackets);
+    }
+    if (openBraces > 0) {
+        repaired += '}'.repeat(openBraces);
+    }
+
+    try {
+        const parsed = JSON.parse(repaired) as unknown;
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            return parsed as Record<string, unknown>;
+        }
+    } catch {
+        return null;
+    }
+
+    return null;
 }

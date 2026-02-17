@@ -149,7 +149,7 @@ describe('TurnExecutor Integration Tests', () => {
         storageManager = await createInMemoryStorageManager(logger);
 
         // Create real MCP manager
-        mcpManager = new MCPManager(logger);
+        mcpManager = new MCPManager(logger, agentEventBus);
 
         // Create real resource manager with proper wiring
         resourceManager = new ResourceManager(
@@ -158,6 +158,7 @@ describe('TurnExecutor Integration Tests', () => {
                 resourcesConfig: [],
                 blobStore: storageManager.getBlobStore(),
             },
+            agentEventBus,
             logger
         );
         await resourceManager.initialize();

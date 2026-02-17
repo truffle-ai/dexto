@@ -5,6 +5,7 @@
 import type { JSONSchema7 } from 'json-schema';
 import type { ZodSchema } from 'zod';
 import type { ToolDisplayData } from './display-types.js';
+import type { WorkspaceContext } from '../workspace/types.js';
 import type { ApprovalRequestDetails, ApprovalResponse } from '../approval/types.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import type { DextoAgent } from '../agent/DextoAgent.js';
@@ -53,6 +54,10 @@ export interface ToolServices {
 export interface ToolExecutionContextBase {
     /** Session ID if available */
     sessionId?: string | undefined;
+    /** Workspace ID if available */
+    workspaceId?: string | undefined;
+    /** Workspace context if available */
+    workspace?: WorkspaceContext | undefined;
     /** Abort signal for cancellation support */
     abortSignal?: AbortSignal | undefined;
     /** Unique tool call ID for tracking parallel tool calls */
@@ -214,6 +219,7 @@ export interface ToolSet {
         name?: string;
         description?: string;
         parameters: JSONSchema7; // JSON Schema v7 specification
+        _meta?: Record<string, unknown>;
     };
 }
 

@@ -1,0 +1,380 @@
+import { z } from 'zod';
+import type { Tool, ToolExecutionContext } from '@dexto/core';
+import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
+import { promises as dns, type LookupAddress, type LookupOptions } from 'node:dns';
+import { isIP } from 'node:net';
+import { TextDecoder } from 'node:util';
+import { Agent, type Dispatcher } from 'undici';
+
+const HttpRequestInputSchema = z
+    .object({
+        url: z.string().url().describe('Absolute URL to request'),
+        method: z
+            .enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])
+            .default('GET')
+            .describe('HTTP method to use'),
+        headers: z
+            .record(z.string())
+            .optional()
+            .describe('Optional request headers (string values only)'),
+        query: z
+            .record(z.string())
+            .optional()
+            .describe('Optional query parameters to append to the URL'),
+        body: z
+            .union([z.string(), z.record(z.unknown()), z.array(z.unknown())])
+            .optional()
+            .describe('Optional request body (string or JSON-serializable value)'),
+        timeoutMs: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .default(30000)
+            .describe('Request timeout in milliseconds (default: 30000)'),
+    })
+    .strict();
+
+type HttpRequestInput = z.output<typeof HttpRequestInputSchema>;
+
+type HttpResponsePayload = {
+    ok: boolean;
+    status: number;
+    statusText: string;
+    headers: Record<string, string>;
+    body: string;
+    json?: unknown;
+};
+
+function isJsonContentType(contentType: string | null): boolean {
+    return Boolean(contentType && contentType.toLowerCase().includes('application/json'));
+}
+
+function safeJsonParse(text: string): unknown | undefined {
+    if (!text.trim()) {
+        return undefined;
+    }
+    try {
+        return JSON.parse(text);
+    } catch {
+        return undefined;
+    }
+}
+
+const BLOCKED_HOSTNAMES = new Set(['localhost']);
+const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
+const SAFE_DISPATCHER = createSafeDispatcher();
+
+function isPrivateIpv4(ip: string): boolean {
+    const parts = ip.split('.').map((part) => Number(part));
+    if (parts.length !== 4 || parts.some((part) => Number.isNaN(part))) {
+        return false;
+    }
+
+    const a = parts[0];
+    const b = parts[1];
+    const c = parts[2];
+    const d = parts[3];
+    if (a === undefined || b === undefined || c === undefined || d === undefined) {
+        return false;
+    }
+    if (a === 0) return true;
+    if (a === 10) return true;
+    if (a === 127) return true;
+    if (a === 169 && b === 254) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 100 && b >= 64 && b <= 127) return true;
+    if (a === 192 && b === 0 && c === 0) return true;
+    if (a === 192 && b === 0 && c === 2) return true;
+    if (a === 198 && b === 51 && c === 100) return true;
+    if (a === 203 && b === 0 && c === 113) return true;
+    if (a === 198 && (b === 18 || b === 19)) return true;
+    if (a >= 224 && a <= 239) return true;
+    if (a >= 240) return true;
+
+    return false;
+}
+
+function isPrivateIpv6(ip: string): boolean {
+    const normalized = ip.toLowerCase();
+    if (normalized === '::' || normalized === '::1') return true;
+    if (normalized.startsWith('fe80:')) return true;
+    if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true;
+    if (normalized.startsWith('::ffff:')) {
+        const ipv4Part = normalized.slice('::ffff:'.length);
+        return isPrivateIpv4(ipv4Part);
+    }
+    return false;
+}
+
+function isPrivateAddress(ip: string): boolean {
+    const version = isIP(ip);
+    if (version === 4) return isPrivateIpv4(ip);
+    if (version === 6) return isPrivateIpv6(ip);
+    return false;
+}
+
+function createSafeDispatcher(): Dispatcher {
+    const lookup = (
+        hostname: string,
+        _options: LookupOptions,
+        callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void
+    ) => {
+        void (async () => {
+            try {
+                if (BLOCKED_HOSTNAMES.has(hostname) || hostname.endsWith('.localhost')) {
+                    callback(
+                        new DextoRuntimeError(
+                            'HTTP_REQUEST_UNSAFE_TARGET',
+                            ErrorScope.TOOLS,
+                            ErrorType.FORBIDDEN,
+                            `Blocked request to local hostname: ${hostname}`
+                        ),
+                        '',
+                        0
+                    );
+                    return;
+                }
+
+                const records = (await dns.lookup(hostname, {
+                    all: true,
+                    verbatim: true,
+                })) as LookupAddress[];
+                if (!records.length) {
+                    callback(
+                        new DextoRuntimeError(
+                            'HTTP_REQUEST_DNS_FAILED',
+                            ErrorScope.TOOLS,
+                            ErrorType.THIRD_PARTY,
+                            `Failed to resolve hostname: ${hostname}`
+                        ),
+                        '',
+                        0
+                    );
+                    return;
+                }
+
+                for (const record of records) {
+                    if (isPrivateAddress(record.address)) {
+                        callback(
+                            new DextoRuntimeError(
+                                'HTTP_REQUEST_UNSAFE_TARGET',
+                                ErrorScope.TOOLS,
+                                ErrorType.FORBIDDEN,
+                                `Blocked request to private address: ${record.address}`
+                            ),
+                            '',
+                            0
+                        );
+                        return;
+                    }
+                }
+
+                const selected = records[0]!;
+                callback(
+                    null,
+                    selected.address,
+                    selected.family ?? (isIP(selected.address) === 6 ? 6 : 4)
+                );
+            } catch (error) {
+                const err =
+                    error instanceof DextoRuntimeError
+                        ? error
+                        : new DextoRuntimeError(
+                              'HTTP_REQUEST_DNS_FAILED',
+                              ErrorScope.TOOLS,
+                              ErrorType.THIRD_PARTY,
+                              `Failed to resolve hostname: ${hostname}`
+                          );
+                callback(err, '', 0);
+            }
+        })();
+    };
+
+    return new Agent({ connect: { lookup } });
+}
+
+async function assertSafeUrl(requestUrl: URL): Promise<void> {
+    if (!['http:', 'https:'].includes(requestUrl.protocol)) {
+        throw new DextoRuntimeError(
+            'HTTP_REQUEST_UNSUPPORTED_PROTOCOL',
+            ErrorScope.TOOLS,
+            ErrorType.USER,
+            `Unsupported URL protocol: ${requestUrl.protocol}`
+        );
+    }
+
+    const hostname = requestUrl.hostname.trim();
+    if (!hostname) {
+        throw new DextoRuntimeError(
+            'HTTP_REQUEST_INVALID_TARGET',
+            ErrorScope.TOOLS,
+            ErrorType.USER,
+            'Request URL hostname is required'
+        );
+    }
+
+    if (BLOCKED_HOSTNAMES.has(hostname) || hostname.endsWith('.localhost')) {
+        throw new DextoRuntimeError(
+            'HTTP_REQUEST_UNSAFE_TARGET',
+            ErrorScope.TOOLS,
+            ErrorType.FORBIDDEN,
+            `Blocked request to local hostname: ${hostname}`
+        );
+    }
+
+    if (isPrivateAddress(hostname)) {
+        throw new DextoRuntimeError(
+            'HTTP_REQUEST_UNSAFE_TARGET',
+            ErrorScope.TOOLS,
+            ErrorType.FORBIDDEN,
+            `Blocked request to private address: ${hostname}`
+        );
+    }
+}
+
+async function readResponseTextWithLimit(response: Response): Promise<string> {
+    const contentLength = response.headers.get('content-length');
+    if (contentLength) {
+        const parsed = Number.parseInt(contentLength, 10);
+        if (!Number.isNaN(parsed) && parsed > MAX_RESPONSE_BYTES) {
+            throw new DextoRuntimeError(
+                'HTTP_REQUEST_RESPONSE_TOO_LARGE',
+                ErrorScope.TOOLS,
+                ErrorType.THIRD_PARTY,
+                `Response too large: ${parsed} bytes exceeds ${MAX_RESPONSE_BYTES} byte limit`
+            );
+        }
+    }
+
+    if (!response.body) {
+        return '';
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let total = 0;
+    let result = '';
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!value) continue;
+        total += value.length;
+        if (total > MAX_RESPONSE_BYTES) {
+            await reader.cancel();
+            throw new DextoRuntimeError(
+                'HTTP_REQUEST_RESPONSE_TOO_LARGE',
+                ErrorScope.TOOLS,
+                ErrorType.THIRD_PARTY,
+                `Response too large: exceeded ${MAX_RESPONSE_BYTES} byte limit`
+            );
+        }
+        result += decoder.decode(value, { stream: true });
+    }
+
+    result += decoder.decode();
+    return result;
+}
+
+/**
+ * Internal tool for basic HTTP requests.
+ */
+export function createHttpRequestTool(): Tool {
+    return {
+        id: 'http_request',
+        description:
+            'Make a direct HTTP request using fetch. Supports method, headers, query params, JSON bodies, and timeouts. Returns status, headers, raw body text, and parsed JSON when available.',
+        inputSchema: HttpRequestInputSchema,
+        execute: async (input: unknown, _context: ToolExecutionContext) => {
+            const { url, method, headers, query, body, timeoutMs } = input as HttpRequestInput;
+
+            const requestUrl = new URL(url);
+            if (query) {
+                for (const [key, value] of Object.entries(query)) {
+                    requestUrl.searchParams.set(key, value);
+                }
+            }
+
+            await assertSafeUrl(requestUrl);
+
+            const requestHeaders: Record<string, string> = headers ? { ...headers } : {};
+            let requestBody: string | undefined;
+
+            if (body !== undefined) {
+                if (typeof body === 'string') {
+                    requestBody = body;
+                } else {
+                    requestBody = JSON.stringify(body);
+                    const hasContentType = Object.keys(requestHeaders).some(
+                        (key) => key.toLowerCase() === 'content-type'
+                    );
+                    if (!hasContentType) {
+                        requestHeaders['Content-Type'] = 'application/json';
+                    }
+                }
+            }
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+            try {
+                const requestInit: RequestInit & { dispatcher?: Dispatcher } = {
+                    method,
+                    headers: requestHeaders,
+                    signal: controller.signal,
+                };
+                requestInit.dispatcher = SAFE_DISPATCHER;
+                if (requestBody !== undefined) {
+                    requestInit.body = requestBody;
+                }
+
+                const response = await fetch(requestUrl.toString(), requestInit);
+
+                const responseText = await readResponseTextWithLimit(response);
+                const contentType = response.headers.get('content-type');
+                const json = isJsonContentType(contentType)
+                    ? safeJsonParse(responseText)
+                    : undefined;
+
+                const responseHeaders: Record<string, string> = {};
+                response.headers.forEach((value, key) => {
+                    responseHeaders[key] = value;
+                });
+
+                const payload: HttpResponsePayload = {
+                    ok: response.ok,
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: responseHeaders,
+                    body: responseText,
+                    ...(json !== undefined ? { json } : {}),
+                };
+
+                return payload;
+            } catch (error) {
+                if (error instanceof DextoRuntimeError) {
+                    throw error;
+                }
+                if (error instanceof Error && error.name === 'AbortError') {
+                    throw new DextoRuntimeError(
+                        'HTTP_REQUEST_TIMEOUT',
+                        ErrorScope.TOOLS,
+                        ErrorType.TIMEOUT,
+                        `HTTP request timed out after ${timeoutMs}ms`
+                    );
+                }
+
+                throw new DextoRuntimeError(
+                    'HTTP_REQUEST_FAILED',
+                    ErrorScope.TOOLS,
+                    ErrorType.THIRD_PARTY,
+                    `HTTP request failed: ${error instanceof Error ? error.message : String(error)}`
+                );
+            } finally {
+                clearTimeout(timeoutId);
+            }
+        },
+    };
+}

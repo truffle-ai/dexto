@@ -74,6 +74,9 @@ export type { ApprovalRequest, ApprovalResponse } from './approval/types.js';
 // Session types (used by CLI package)
 export type { SessionMetadata } from './session/session-manager.js';
 
+// Workspace types (used by client-sdk/webui)
+export type { WorkspaceContext, SetWorkspaceInput } from './workspace/types.js';
+
 // System prompt types and constants (used by webui)
 export { PROMPT_GENERATOR_SOURCES } from './systemPrompt/registry.js';
 export type { ContributorConfig, SystemPromptConfig } from './systemPrompt/schemas.js';

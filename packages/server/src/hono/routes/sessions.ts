@@ -331,6 +331,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                             lastActivity: metadata?.lastActivity || null,
                             messageCount: metadata?.messageCount || 0,
                             title: metadata?.title || null,
+                            workspaceId: metadata?.workspaceId || null,
                         };
                     } catch {
                         // Skip sessions that no longer exist
@@ -340,6 +341,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                             lastActivity: null,
                             messageCount: 0,
                             title: null,
+                            workspaceId: null,
                         };
                     }
                 })
@@ -359,6 +361,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                         lastActivity: metadata?.lastActivity || Date.now(),
                         messageCount: metadata?.messageCount || 0,
                         title: metadata?.title || null,
+                        workspaceId: metadata?.workspaceId || null,
                     },
                 },
                 201
@@ -376,6 +379,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                     lastActivity: metadata?.lastActivity || null,
                     messageCount: metadata?.messageCount || 0,
                     title: metadata?.title || null,
+                    workspaceId: metadata?.workspaceId || null,
                     history: history.length,
                 },
             });
@@ -461,6 +465,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                         lastActivity: metadata?.lastActivity || null,
                         messageCount: metadata?.messageCount || 0,
                         title: metadata?.title || null,
+                        workspaceId: metadata?.workspaceId || null,
                         isBusy,
                     },
                 },
@@ -480,6 +485,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                     lastActivity: metadata?.lastActivity || null,
                     messageCount: metadata?.messageCount || 0,
                     title: metadata?.title || title,
+                    workspaceId: metadata?.workspaceId || null,
                 },
             });
         })

@@ -273,30 +273,30 @@ export class TurnExecutor {
                     reasoningEffort: this.config.reasoningEffort,
                 });
 
-                const result = await streamProcessor.process(() =>
-                    streamText({
-                        model: this.model,
-                        stopWhen: stepCountIs(1),
-                        tools,
-                        abortSignal: this.stepAbortController.signal,
-                        messages: prepared.formattedMessages,
-                        ...(this.config.maxOutputTokens !== undefined && {
-                            maxOutputTokens: this.config.maxOutputTokens,
-                        }),
-                        ...(this.config.temperature !== undefined && {
-                            temperature: this.config.temperature,
-                        }),
-                        // Provider-specific options (caching, reasoning, etc.)
-                        ...(providerOptions !== undefined && {
-                            providerOptions:
-                                providerOptions as import('@ai-sdk/provider').SharedV2ProviderOptions,
-                        }),
-                        // Log stream-level errors (tool errors, API errors during streaming)
-                        onError: (error) => {
-                            this.logger.error('Stream error', { error });
-                        },
-                    })
-                );
+                const streamOptions: Parameters<typeof streamText>[0] = {
+                    model: this.model,
+                    stopWhen: stepCountIs(1),
+                    tools,
+                    abortSignal: this.stepAbortController.signal,
+                    messages: prepared.formattedMessages,
+                    ...(this.config.maxOutputTokens !== undefined && {
+                        maxOutputTokens: this.config.maxOutputTokens,
+                    }),
+                    ...(this.config.temperature !== undefined && {
+                        temperature: this.config.temperature,
+                    }),
+                    // Provider-specific options (caching, reasoning, etc.)
+                    ...(providerOptions !== undefined && {
+                        providerOptions:
+                            providerOptions as import('@ai-sdk/provider').SharedV2ProviderOptions,
+                    }),
+                    // Log stream-level errors (tool errors, API errors during streaming)
+                    onError: (error) => {
+                        this.logger.error('Stream error', { error });
+                    },
+                };
+
+                const result = await streamProcessor.process(() => streamText(streamOptions));
 
                 // 7. Capture results for tracking and overflow check
                 lastStepTokens = result.usage;

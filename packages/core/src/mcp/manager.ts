@@ -15,7 +15,7 @@ import type {
 } from './types.js';
 import type { ToolSet } from '../tools/types.js';
 import { MCPError } from './errors.js';
-import { eventBus } from '../events/index.js';
+import { eventBus, type AgentEventBus } from '../events/index.js';
 import type { PromptDefinition } from '../prompts/types.js';
 import type { JSONSchema7 } from 'json-schema';
 import type { ApprovalManager } from '../approval/manager.js';
@@ -85,13 +85,15 @@ export class MCPManager {
     private approvalManager: ApprovalManager | null = null; // Will be set by service initializer
     private authProviderFactory: McpAuthProviderFactory | null = null;
     private logger: Logger;
+    private eventBus: AgentEventBus;
 
     // Use a distinctive delimiter that won't appear in normal server/tool names
     // Using double hyphen as it's allowed in LLM tool name patterns (^[a-zA-Z0-9_-]+$)
     private static readonly SERVER_DELIMITER = '--';
 
-    constructor(logger: Logger) {
+    constructor(logger: Logger, eventBusOverride?: AgentEventBus) {
         this.logger = logger.createChild(DextoLogComponent.MCP);
+        this.eventBus = eventBusOverride ?? eventBus;
     }
 
     setAuthProviderFactory(factory: McpAuthProviderFactory | null): void {
@@ -809,6 +811,10 @@ export class MCPManager {
         return null;
     }
 
+    getServerConfig(name: string): ValidatedMcpServerConfig | undefined {
+        return this.configCache.get(name);
+    }
+
     /**
      * Refresh all client caches by re-fetching capabilities from servers
      * Useful when you want to force a full refresh of tools, prompts, and resources
@@ -917,7 +923,7 @@ export class MCPManager {
             this.logger.info(`Successfully restarted server '${name}'`);
 
             // Emit event for restart
-            eventBus.emit('mcp:server-restarted', { serverName: name });
+            this.eventBus.emit('mcp:server-restarted', { serverName: name });
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
             const errorCode =
@@ -1026,7 +1032,7 @@ export class MCPManager {
             }
 
             // Emit event to notify other parts of the system
-            eventBus.emit('mcp:resource-updated', {
+            this.eventBus.emit('mcp:resource-updated', {
                 serverName,
                 resourceUri: params.uri,
             });
@@ -1076,7 +1082,7 @@ export class MCPManager {
                 );
 
                 // Emit event to notify other parts of the system
-                eventBus.emit('mcp:prompts-list-changed', {
+                this.eventBus.emit('mcp:prompts-list-changed', {
                     serverName,
                     prompts: promptNames,
                 });
@@ -1204,7 +1210,7 @@ export class MCPManager {
                 );
 
                 // Emit event to notify other parts of the system
-                eventBus.emit('mcp:tools-list-changed', {
+                this.eventBus.emit('mcp:tools-list-changed', {
                     serverName,
                     tools: toolNames,
                 });
