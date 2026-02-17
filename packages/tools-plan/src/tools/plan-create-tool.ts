@@ -73,21 +73,29 @@ export function createPlanCreateTool(
                 throw PlanError.sessionIdRequired();
             }
 
+            // Keep consistent with generatePreview: fail early if plan already exists.
+            // (PlanService.create also guards this, but this keeps the control flow obvious.)
+            const exists = await resolvedPlanService.exists(context.sessionId);
+            if (exists) {
+                throw PlanError.planAlreadyExists(context.sessionId);
+            }
+
             const plan = await resolvedPlanService.create(context.sessionId, content, { title });
             const planPath = resolvedPlanService.getPlanPath(context.sessionId);
+            const _display: FileDisplayData = {
+                type: 'file',
+                path: planPath,
+                operation: 'create',
+                size: Buffer.byteLength(content, 'utf8'),
+                lineCount: content.split('\n').length,
+            };
 
             return {
                 success: true,
                 path: planPath,
                 status: plan.meta.status,
                 title: plan.meta.title,
-                _display: {
-                    type: 'file',
-                    path: planPath,
-                    operation: 'create',
-                    size: Buffer.byteLength(content, 'utf8'),
-                    lineCount: content.split('\n').length,
-                } as FileDisplayData,
+                _display,
             };
         },
     });
