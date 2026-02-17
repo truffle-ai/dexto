@@ -4,6 +4,7 @@ import type { AgentEventBus } from '../events/index.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import type { SetWorkspaceInput, WorkspaceContext } from './types.js';
+import { WorkspaceError } from './errors.js';
 
 const WORKSPACE_KEY_PREFIX = 'workspace:item:';
 const WORKSPACE_CURRENT_KEY = 'workspace:current';
@@ -24,7 +25,7 @@ export class WorkspaceManager {
     async setWorkspace(input: SetWorkspaceInput): Promise<WorkspaceContext> {
         const path = (input.path || '').trim();
         if (!path) {
-            throw new Error('Workspace path is required');
+            throw WorkspaceError.pathRequired();
         }
 
         const now = Date.now();

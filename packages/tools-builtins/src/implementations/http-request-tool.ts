@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
+import { promises as dns } from 'node:dns';
+import { isIP } from 'node:net';
 
 const HttpRequestInputSchema = z
     .object({
@@ -57,6 +59,108 @@ function safeJsonParse(text: string): unknown | undefined {
     }
 }
 
+const BLOCKED_HOSTNAMES = new Set(['localhost']);
+
+function isPrivateIpv4(ip: string): boolean {
+    const parts = ip.split('.').map((part) => Number(part));
+    if (parts.length !== 4 || parts.some((part) => Number.isNaN(part))) {
+        return false;
+    }
+
+    const [a, b] = parts;
+    if (a === 0) return true;
+    if (a === 10) return true;
+    if (a === 127) return true;
+    if (a === 169 && b === 254) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 100 && b >= 64 && b <= 127) return true;
+
+    return false;
+}
+
+function isPrivateIpv6(ip: string): boolean {
+    const normalized = ip.toLowerCase();
+    if (normalized === '::' || normalized === '::1') return true;
+    if (normalized.startsWith('fe80:') || normalized.startsWith('fe80::')) return true;
+    if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true;
+    if (normalized.startsWith('::ffff:')) {
+        const ipv4Part = normalized.slice('::ffff:'.length);
+        return isPrivateIpv4(ipv4Part);
+    }
+    return false;
+}
+
+function isPrivateAddress(ip: string): boolean {
+    const version = isIP(ip);
+    if (version === 4) return isPrivateIpv4(ip);
+    if (version === 6) return isPrivateIpv6(ip);
+    return false;
+}
+
+async function assertSafeUrl(requestUrl: URL): Promise<void> {
+    if (!['http:', 'https:'].includes(requestUrl.protocol)) {
+        throw new DextoRuntimeError(
+            'HTTP_REQUEST_UNSUPPORTED_PROTOCOL',
+            ErrorScope.TOOLS,
+            ErrorType.USER,
+            `Unsupported URL protocol: ${requestUrl.protocol}`
+        );
+    }
+
+    const hostname = requestUrl.hostname.trim();
+    if (!hostname) {
+        throw new DextoRuntimeError(
+            'HTTP_REQUEST_INVALID_TARGET',
+            ErrorScope.TOOLS,
+            ErrorType.USER,
+            'Request URL hostname is required'
+        );
+    }
+
+    if (BLOCKED_HOSTNAMES.has(hostname) || hostname.endsWith('.localhost')) {
+        throw new DextoRuntimeError(
+            'HTTP_REQUEST_UNSAFE_TARGET',
+            ErrorScope.TOOLS,
+            ErrorType.FORBIDDEN,
+            `Blocked request to local hostname: ${hostname}`
+        );
+    }
+
+    if (isPrivateAddress(hostname)) {
+        throw new DextoRuntimeError(
+            'HTTP_REQUEST_UNSAFE_TARGET',
+            ErrorScope.TOOLS,
+            ErrorType.FORBIDDEN,
+            `Blocked request to private address: ${hostname}`
+        );
+    }
+
+    try {
+        const records = await dns.lookup(hostname, { all: true });
+        for (const record of records) {
+            if (isPrivateAddress(record.address)) {
+                throw new DextoRuntimeError(
+                    'HTTP_REQUEST_UNSAFE_TARGET',
+                    ErrorScope.TOOLS,
+                    ErrorType.FORBIDDEN,
+                    `Blocked request to private address: ${record.address}`
+                );
+            }
+        }
+    } catch (error) {
+        if (error instanceof DextoRuntimeError) {
+            throw error;
+        }
+        throw new DextoRuntimeError(
+            'HTTP_REQUEST_DNS_FAILED',
+            ErrorScope.TOOLS,
+            ErrorType.THIRD_PARTY,
+            `Failed to resolve hostname: ${hostname}`
+        );
+    }
+}
+
 /**
  * Internal tool for basic HTTP requests.
  */
@@ -76,6 +180,8 @@ export function createHttpRequestTool(): Tool {
                 }
             }
 
+            await assertSafeUrl(requestUrl);
+
             const requestHeaders: Record<string, string> = headers ? { ...headers } : {};
             let requestBody: string | undefined;
 
@@ -84,7 +190,10 @@ export function createHttpRequestTool(): Tool {
                     requestBody = body;
                 } else {
                     requestBody = JSON.stringify(body);
-                    if (!requestHeaders['Content-Type']) {
+                    const hasContentType = Object.keys(requestHeaders).some(
+                        (key) => key.toLowerCase() === 'content-type'
+                    );
+                    if (!hasContentType) {
                         requestHeaders['Content-Type'] = 'application/json';
                     }
                 }

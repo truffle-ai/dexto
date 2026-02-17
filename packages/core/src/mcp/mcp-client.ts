@@ -39,7 +39,12 @@ import { safeStringify } from '../utils/safe-stringify.js';
 const UI_EXTENSION_NAME = 'io.modelcontextprotocol/ui';
 const UI_EXTENSION_MIME_TYPE = 'text/html;profile=mcp-app';
 
-function buildClientCapabilities(): any {
+type McpClientCapabilities = {
+    elicitation?: Record<string, unknown>;
+    extensions?: Record<string, { mimeTypes: string[] }>;
+};
+
+function buildClientCapabilities(): McpClientCapabilities {
     return {
         elicitation: {}, // Enable elicitation capability
         extensions: {

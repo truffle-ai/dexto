@@ -13,6 +13,7 @@ const McpServerRequestSchema = z
             .optional()
             .describe('If true, saves the server to agent configuration file'),
     })
+    .strict()
     .describe('Request body for adding or updating an MCP server');
 
 const McpServerUpdateSchema = z
@@ -23,6 +24,7 @@ const McpServerUpdateSchema = z
             .optional()
             .describe('If true, saves the server to agent configuration file'),
     })
+    .strict()
     .describe('Request body for updating an MCP server');
 
 const ExecuteToolBodySchema = z

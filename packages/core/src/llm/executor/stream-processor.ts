@@ -711,7 +711,7 @@ export class StreamProcessor {
     }
 }
 
-function tryParsePartialJson(input: string): Record<string, any> | null {
+function tryParsePartialJson(input: string): Record<string, unknown> | null {
     const trimmed = input.trim();
     if (!trimmed) return null;
     if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return null;
@@ -722,17 +722,17 @@ function tryParsePartialJson(input: string): Record<string, any> | null {
     let openBraces = 0;
     let openBrackets = 0;
     let inString = false;
-    let escape = false;
+    let isEscaped = false;
 
     for (let i = 0; i < repaired.length; i += 1) {
         const char = repaired[i];
         if (inString) {
-            if (escape) {
-                escape = false;
+            if (isEscaped) {
+                isEscaped = false;
                 continue;
             }
             if (char === '\\') {
-                escape = true;
+                isEscaped = true;
                 continue;
             }
             if (char === '"') {
@@ -762,9 +762,9 @@ function tryParsePartialJson(input: string): Record<string, any> | null {
     }
 
     try {
-        const parsed = JSON.parse(repaired);
-        if (parsed && typeof parsed === 'object') {
-            return parsed as Record<string, any>;
+        const parsed = JSON.parse(repaired) as unknown;
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            return parsed as Record<string, unknown>;
         }
     } catch {
         return null;
