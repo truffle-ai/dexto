@@ -37,6 +37,7 @@ Success criteria:
 - [x] Confirm `bun install`, `bun run build`, `bun run typecheck`, `bun run test`
 - [x] Migrate GitHub Actions workflows from pnpm/npm to Bun (CI + sync jobs)
 - [x] Migrate release workflow to Bun (Changesets versioning + Bun-based publish)
+- [x] Convert docs site (Docusaurus) to Bun (`docs/bun.lock`, workflow)
 - [ ] Confirm CLI flows work and print Bun-first instructions (note: app/image scaffolds may require access to the `@dexto/*` registry when run outside `dexto-source`):
   - `dexto create-app`
   - `dexto create-image`

@@ -26,18 +26,16 @@ jobs:
         with:
           fetch-depth: 0 # Needed for last updated dates
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v1
         with:
-          node-version: '20'
-          cache: npm
-          cache-dependency-path: ./docs/package-lock.json
+          bun-version: '1.2.9'
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Build documentation
-        run: npm run build
+        run: bun run build
         
       - name: Test that built files exist
         run: |
@@ -54,7 +52,7 @@ jobs:
       # Optional: You could also add a step to test the built site
       - name: Test serve (optional)
         run: |
-          npm run serve &
+          bun run serve &
           sleep 5
           curl -f http://localhost:3000 || exit 1
           echo "✅ Documentation serves successfully" 

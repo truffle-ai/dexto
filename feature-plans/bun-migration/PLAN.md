@@ -41,6 +41,7 @@ Bun is replacing **pnpm/npm** for installs + running scripts, but it does **not*
 As of 2026-02-17 in `~/Projects/dexto-bun-migration`:
 
 - Root workspace is Bun-based (`packageManager: bun@1.2.9`) with `bun.lock`.
+- Docs site (`docs/`) is Bun-based (`docs/bun.lock`) and builds under Bun.
 - Repo scripts and entrypoints have been moved off hard `node`/`pnpm` invocations where it mattered for runtime.
 - SQLite persistence under Bun uses **`bun:sqlite`** (no `better-sqlite3` ABI dependency for the Bun runtime path).
 - CI + release workflows have been migrated to Bun (GitHub Actions no longer run pnpm).
