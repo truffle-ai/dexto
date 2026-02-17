@@ -100,18 +100,36 @@ export class ScheduleStorage {
      * Delete a schedule from storage
      */
     async deleteSchedule(scheduleId: string): Promise<void> {
+        let removedFromList = false;
+        let deletedSchedule = false;
         try {
             const key = `${SCHEDULE_PREFIX}${scheduleId}`;
-            await this.storageManager.getDatabase().delete(key);
 
             // Remove from schedule list
             await this.removeScheduleFromList(scheduleId);
+            removedFromList = true;
+
+            await this.storageManager.getDatabase().delete(key);
+            deletedSchedule = true;
 
             // Clean up execution logs for this schedule
             await this.deleteExecutionLogs(scheduleId);
 
             this.logger.debug(`Schedule ${scheduleId} deleted from storage`);
         } catch (error) {
+            if (removedFromList && !deletedSchedule) {
+                try {
+                    await this.addScheduleToList(scheduleId);
+                } catch (restoreError) {
+                    this.logger.error(
+                        `Failed to restore schedule ${scheduleId} to list after delete failure: ${
+                            restoreError instanceof Error
+                                ? restoreError.message
+                                : String(restoreError)
+                        }`
+                    );
+                }
+            }
             throw SchedulerError.storageWriteFailed(
                 'delete schedule',
                 error instanceof Error ? error.message : String(error)

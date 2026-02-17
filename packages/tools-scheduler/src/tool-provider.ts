@@ -179,8 +179,13 @@ export async function ensureSchedulerManagerForAgent(
         await manager.init();
         const ready = await waitForAgentStart();
         if (ready) {
-            await manager.start();
-            logger.info('Scheduler started successfully');
+            try {
+                await manager.start();
+                logger.info('Scheduler started successfully');
+            } catch (error) {
+                await manager.stop().catch(() => undefined);
+                throw error;
+            }
         } else {
             logger.warn('Scheduler start skipped because agent is not ready.');
         }

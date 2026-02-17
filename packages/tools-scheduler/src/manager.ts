@@ -38,6 +38,7 @@ export class SchedulerManager {
     private executionChain: Promise<void> = Promise.resolve();
     private initialized = false;
     private started = false;
+    private cachedSchedules: Schedule[] | undefined;
 
     constructor(
         storageManager: StorageManager,
@@ -66,6 +67,7 @@ export class SchedulerManager {
         try {
             // Load schedules from storage
             const storedSchedules = await this.storage.listSchedules();
+            this.cachedSchedules = storedSchedules;
             this.logger.info(`Loaded ${storedSchedules.length} schedules from storage`);
 
             this.initialized = true;
@@ -90,7 +92,8 @@ export class SchedulerManager {
 
         try {
             // Load all schedules
-            const schedules = await this.storage.listSchedules();
+            const schedules = this.cachedSchedules ?? (await this.storage.listSchedules());
+            this.cachedSchedules = undefined;
 
             // Schedule all enabled tasks
             for (const schedule of schedules) {
@@ -276,29 +279,24 @@ export class SchedulerManager {
         }
 
         // Handle targetAgentId update (stored in task.metadata)
-        let updatedTaskMetadata = { ...existing.task.metadata };
+        const existingTaskMetadata = existing.task.metadata ?? {};
+        const updatedTaskMetadata: Record<string, unknown> =
+            validated.metadata !== undefined
+                ? { ...validated.metadata }
+                : { ...existingTaskMetadata };
+
+        for (const [key, value] of Object.entries(existingTaskMetadata)) {
+            if (key.startsWith('__os_')) {
+                updatedTaskMetadata[key] = value;
+            }
+        }
+
         if (validated.targetAgentId !== undefined) {
             if (validated.targetAgentId) {
                 updatedTaskMetadata.__os_targetAgentId = validated.targetAgentId;
             } else {
                 // Empty string or null means clear the target agent
                 delete updatedTaskMetadata.__os_targetAgentId;
-            }
-        }
-        if (validated.metadata !== undefined) {
-            // Merge user metadata while preserving __os_ prefixed keys
-            const osKeys = Object.keys(updatedTaskMetadata).filter((k) => k.startsWith('__os_'));
-            updatedTaskMetadata = {
-                ...validated.metadata,
-            };
-            for (const key of osKeys) {
-                if (existing.task.metadata?.[key] !== undefined || key === '__os_targetAgentId') {
-                    updatedTaskMetadata[key] = existing.task.metadata?.[key];
-                }
-            }
-            // Re-apply targetAgentId if it was updated
-            if (validated.targetAgentId) {
-                updatedTaskMetadata.__os_targetAgentId = validated.targetAgentId;
             }
         }
 
@@ -576,8 +574,7 @@ export class SchedulerManager {
                 tz: schedule.timezone,
             });
             const next = interval.next();
-            const nextDate = next instanceof Date ? next : next.toDate();
-            return nextDate.getTime();
+            return next.toDate().getTime();
         } catch (error) {
             this.logger.error(
                 `Failed to calculate next run: ${error instanceof Error ? error.message : String(error)}`

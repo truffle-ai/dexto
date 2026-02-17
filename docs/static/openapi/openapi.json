@@ -12397,6 +12397,53 @@
               }
             }
           },
+          "500": {
+            "description": "Failed to list schedules",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
           "503": {
             "description": "Scheduler tools are not enabled",
             "content": {
@@ -12638,6 +12685,53 @@
               }
             }
           },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
           "503": {
             "description": "Scheduler tools are not enabled",
             "content": {
@@ -12734,7 +12828,8 @@
                     "description": "Timezone for schedule"
                   },
                   "enabled": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "description": "Whether the schedule is enabled"
                   },
                   "workspacePath": {
                     "type": "string",
@@ -12884,6 +12979,53 @@
                     "schedule"
                   ],
                   "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
                 }
               }
             }
@@ -13152,7 +13294,7 @@
                   "properties": {
                     "scheduled": {
                       "type": "boolean",
-                      "description": "Whether the schedule was queued"
+                      "description": "Whether the schedule was queued. Execution is omitted when false."
                     },
                     "execution": {
                       "type": "object",
@@ -13208,12 +13350,11 @@
                         "status"
                       ],
                       "additionalProperties": false,
-                      "description": "Execution log"
+                      "description": "Execution log (present when scheduled is true)"
                     }
                   },
                   "required": [
-                    "scheduled",
-                    "execution"
+                    "scheduled"
                   ],
                   "additionalProperties": false,
                   "description": "Trigger schedule response"

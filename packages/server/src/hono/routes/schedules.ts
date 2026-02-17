@@ -30,7 +30,6 @@ const CreateScheduleSchema = z
     .describe('Request body for creating a schedule');
 
 const UpdateScheduleSchema = CreateScheduleSchema.partial()
-    .extend({ enabled: z.boolean().optional() })
     .strict()
     .describe('Request body for updating a schedule');
 
@@ -79,6 +78,14 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            500: {
+                description: 'Failed to list schedules',
+                content: {
+                    'application/json': {
+                        schema: ErrorResponseSchema,
+                    },
+                },
+            },
             503: {
                 description: 'Scheduler tools are not enabled',
                 content: {
@@ -103,6 +110,14 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                 content: {
                     'application/json': {
                         schema: z.object({ schedule: ScheduleSchema }).strict(),
+                    },
+                },
+            },
+            400: {
+                description: 'Validation error',
+                content: {
+                    'application/json': {
+                        schema: ErrorResponseSchema,
                     },
                 },
             },
@@ -138,6 +153,14 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                 content: {
                     'application/json': {
                         schema: z.object({ schedule: ScheduleSchema }).strict(),
+                    },
+                },
+            },
+            400: {
+                description: 'Validation error',
+                content: {
+                    'application/json': {
+                        schema: ErrorResponseSchema,
                     },
                 },
             },
@@ -228,8 +251,14 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                     'application/json': {
                         schema: z
                             .object({
-                                scheduled: z.boolean().describe('Whether the schedule was queued'),
-                                execution: ExecutionLogSchema.describe('Execution log'),
+                                scheduled: z
+                                    .boolean()
+                                    .describe(
+                                        'Whether the schedule was queued. Execution is omitted when false.'
+                                    ),
+                                execution: ExecutionLogSchema.optional().describe(
+                                    'Execution log (present when scheduled is true)'
+                                ),
                             })
                             .strict()
                             .describe('Trigger schedule response'),
@@ -264,8 +293,14 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                     503
                 );
             }
-            const schedules = await scheduler.listSchedules();
-            return ctx.json({ schedules }, 200);
+            try {
+                const schedules = await scheduler.listSchedules();
+                return ctx.json({ schedules }, 200);
+            } catch (error) {
+                const message =
+                    error instanceof Error ? error.message : String(error ?? 'Unknown error');
+                return ctx.json(toErrorResponse(`Failed to list schedules: ${message}`), 500);
+            }
         })
         .openapi(createRouteDef, async (ctx) => {
             const { scheduler } = await resolveScheduler(ctx);
@@ -301,10 +336,12 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
             const { scheduleId } = ctx.req.valid('param');
             const input = ctx.req.valid('json');
             const updatePayload = {
-                ...(input.name ? { name: input.name } : {}),
-                ...(input.instruction ? { instruction: input.instruction } : {}),
-                ...(input.cronExpression ? { cronExpression: input.cronExpression } : {}),
-                ...(input.timezone ? { timezone: input.timezone } : {}),
+                ...(input.name !== undefined ? { name: input.name } : {}),
+                ...(input.instruction !== undefined ? { instruction: input.instruction } : {}),
+                ...(input.cronExpression !== undefined
+                    ? { cronExpression: input.cronExpression }
+                    : {}),
+                ...(input.timezone !== undefined ? { timezone: input.timezone } : {}),
                 ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
                 ...(input.workspacePath !== undefined
                     ? { workspacePath: input.workspacePath }
