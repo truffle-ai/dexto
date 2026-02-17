@@ -20,7 +20,7 @@ export interface InstallImageOptions {
     force?: boolean;
     activate?: boolean;
     storeDir?: string;
-    npmTimeoutMs?: number;
+    installTimeoutMs?: number;
 }
 
 export interface InstallImageResult {
@@ -237,7 +237,7 @@ async function installImageDirectoryByReference(options: {
             throw new Error(
                 `Local image '${imageId}@${version}' has not been built.\n` +
                     `${message}\n` +
-                    `Run: pnpm run build (or npm run build) in ${packageDir}, then re-run: dexto image install ${packageDir}`
+                    `Run: bun run build in ${packageDir}, then re-run: dexto image install ${packageDir}`
             );
         }
         throw error;
@@ -258,7 +258,7 @@ export async function installImageToStore(
         force = false,
         activate = true,
         storeDir = getDefaultImageStoreDir(),
-        npmTimeoutMs,
+        installTimeoutMs,
     } = options;
 
     await fs.mkdir(storeDir, { recursive: true });
@@ -302,27 +302,25 @@ export async function installImageToStore(
             ? resolveFileLikeImageSpecifierToPath(specifier)
             : specifier;
 
-        // `npm install <directory>` often installs as a relative link, which can break when
+        // `bun add <directory>` can install as a relative link, which can break when
         // the temp install directory is moved into the image store. Avoid this by packing
         // directories into a tarball and installing from the tarball instead.
         if (isFileLikeImageSpecifier(specifier) && (await isDirectory(installSpecifier))) {
             packDir = path.join(tmpDir, '.dexto-pack');
             await fs.mkdir(packDir, { recursive: true });
 
-            await executeWithTimeout(
-                'npm',
-                ['pack', installSpecifier, '--pack-destination', packDir],
-                { cwd: tmpDir, ...(npmTimeoutMs !== undefined && { timeoutMs: npmTimeoutMs }) }
-            );
+            await executeWithTimeout('bun', ['pm', 'pack', '--destination', packDir], {
+                cwd: installSpecifier,
+                ...(installTimeoutMs !== undefined && { timeoutMs: installTimeoutMs }),
+            });
 
             installSpecifier = await findSingleTgzFile(packDir);
         }
 
-        await executeWithTimeout(
-            'npm',
-            ['install', installSpecifier, '--no-audit', '--no-fund', '--no-package-lock'],
-            { cwd: tmpDir, ...(npmTimeoutMs !== undefined && { timeoutMs: npmTimeoutMs }) }
-        );
+        await executeWithTimeout('bun', ['add', installSpecifier, '--save-text-lockfile'], {
+            cwd: tmpDir,
+            ...(installTimeoutMs !== undefined && { timeoutMs: installTimeoutMs }),
+        });
 
         if (packDir) {
             await fs.rm(packDir, { recursive: true, force: true }).catch(() => {});
