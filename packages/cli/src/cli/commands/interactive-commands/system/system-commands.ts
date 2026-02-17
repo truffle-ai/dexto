@@ -114,10 +114,7 @@ export const systemCommands: CommandDefinition[] = [
                         : 'Default',
                     mcpServers: servers,
                     promptsCount: config.prompts?.length || 0,
-                    hooksEnabled:
-                        config.hooks
-                            ?.filter((entry) => entry.enabled !== false)
-                            .map((e) => e.type) ?? [],
+                    hooksEnabled: agent.services.hookManager.getHookNames(),
                 };
 
                 // Build fallback text (no console.log - interferes with Ink rendering)

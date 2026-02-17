@@ -387,6 +387,20 @@ export class HookManager {
         };
     }
 
+    /**
+     * List hook display names in execution order.
+     *
+     * Names are derived from:
+     * - `hook.name` (if present)
+     * - constructor/class name (if available)
+     * - fallback `hook#N`
+     */
+    getHookNames(): string[] {
+        return this.hooks.map((hook, index) => {
+            return this.hookNameByInstance.get(hook) ?? this.deriveHookName(hook, index);
+        });
+    }
+
     private deriveHookName(hook: Hook, index: number): string {
         const maybeNamed = hook as unknown as { name?: unknown };
         if (typeof maybeNamed.name === 'string' && maybeNamed.name.trim().length > 0) {
