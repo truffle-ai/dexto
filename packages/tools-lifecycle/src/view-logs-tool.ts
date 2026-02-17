@@ -108,6 +108,7 @@ async function readTailBytes(filePath: string, maxBytes: number): Promise<string
 export function createViewLogsTool(options: { maxLogLines: number; maxLogBytes: number }): Tool {
     return {
         id: 'view_logs',
+        displayName: 'View Logs',
         description:
             'View this session log file (tail). Returns the most recent log lines for debugging. If file logging is not configured, returns a message instead.',
         inputSchema: ViewLogsInputSchema,

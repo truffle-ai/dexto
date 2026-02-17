@@ -89,8 +89,6 @@ import {
     handleWhichCommand,
     handleSyncAgentsCommand,
     shouldPromptForSync,
-    markSyncDismissed,
-    clearSyncDismissed,
     type SyncAgentsCommandOptions,
     handleLoginCommand,
     handleLogoutCommand,
@@ -1774,18 +1772,15 @@ program
                         const cliUpdateInfo = await versionCheckPromise;
 
                         // Check if installed agents differ from bundled and prompt to sync
-                        const needsSync = await shouldPromptForSync(pkg.version);
+                        const needsSync = await shouldPromptForSync();
                         if (needsSync) {
                             const shouldSync = await p.confirm({
                                 message: 'Agent config updates available. Sync now?',
                                 initialValue: true,
                             });
 
-                            if (p.isCancel(shouldSync) || !shouldSync) {
-                                await markSyncDismissed(pkg.version);
-                            } else {
+                            if (!p.isCancel(shouldSync) && shouldSync) {
                                 await handleSyncAgentsCommand({ force: true, quiet: true });
-                                await clearSyncDismissed();
                             }
                         }
 

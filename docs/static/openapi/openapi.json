@@ -92,7 +92,7 @@
     },
     {
       "name": "tools",
-      "description": "List and inspect available tools from internal, custom, and MCP sources"
+      "description": "List and inspect available tools from local and MCP sources"
     },
     {
       "name": "models",
@@ -14282,7 +14282,7 @@
     "/api/tools": {
       "get": {
         "summary": "List All Tools",
-        "description": "Retrieves all available tools from all sources (internal, custom, and MCP servers)",
+        "description": "Retrieves all available tools from all sources (local and MCP)",
         "tags": [
           "tools"
         ],

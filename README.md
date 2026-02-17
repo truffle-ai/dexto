@@ -178,7 +178,7 @@ Browse and add servers from the MCP Store in the Web UI or via `/mcp` commands i
 Fine-grained control over what your agent can do:
 
 ```yaml
-toolConfirmation:
+permissions:
   mode: manual           # Require approval for each tool
   # mode: auto-approve   # Trust mode for local development
   toolPolicies:
@@ -474,7 +474,7 @@ storage:
     type: postgres
     connectionString: $POSTGRES_CONNECTION_STRING
 
-toolConfirmation:
+permissions:
   mode: manual
 ```
 

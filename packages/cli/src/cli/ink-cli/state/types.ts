@@ -67,7 +67,7 @@ export interface ConfigStyledData {
     sessionTTL: string;
     mcpServers: string[];
     promptsCount: number;
-    pluginsEnabled: string[];
+    hooksEnabled: string[];
 }
 
 export interface StatsStyledData {

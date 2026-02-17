@@ -9,7 +9,7 @@ export const todoToolsFactory: ToolFactory<TodoToolsConfig> = {
     configSchema: TodoToolsConfigSchema,
     metadata: {
         displayName: 'Todo Tools',
-        description: 'Task tracking and workflow management (todo_write)',
+        description: 'Todo tracking and workflow management (todo_write)',
         category: 'workflow',
     },
     create: (config) => {

@@ -22,7 +22,7 @@ type BashOutputInput = z.input<typeof BashOutputInputSchema>;
 export function createBashOutputTool(getProcessService: ProcessServiceGetter): Tool {
     return {
         id: 'bash_output',
-        displayName: 'BashOutput',
+        displayName: 'Bash Output',
         description:
             'Retrieve output from a background process started with bash_exec. Returns stdout, stderr, status (running/completed/failed), exit code, and duration. Each call returns only new output since last read. The output buffer is cleared after reading. Use this tool to monitor long-running commands.',
         inputSchema: BashOutputInputSchema,

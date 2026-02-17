@@ -30,8 +30,8 @@ describe('ApprovalManager', () => {
                 mockLogger
             );
 
-            // Tool confirmation should be auto-approved
-            const toolResponse = await manager.requestToolConfirmation({
+            // Tool approval should be auto-approved
+            const toolResponse = await manager.requestToolApproval({
                 toolName: 'test_tool',
                 toolCallId: 'test-call-id',
                 args: { foo: 'bar' },
@@ -98,8 +98,8 @@ describe('ApprovalManager', () => {
                 mockLogger
             );
 
-            // Tool confirmation should be auto-denied
-            const toolResponse = await manager.requestToolConfirmation({
+            // Tool approval should be auto-denied
+            const toolResponse = await manager.requestToolApproval({
                 toolName: 'test_tool',
                 toolCallId: 'test-call-id',
                 args: { foo: 'bar' },
@@ -130,7 +130,7 @@ describe('ApprovalManager', () => {
     });
 
     describe('Approval routing by type', () => {
-        it('should route tool confirmations to tool confirmation handler', async () => {
+        it('should route tool approvals to tool approval handler', async () => {
             const manager = new ApprovalManager(
                 {
                     permissions: {
@@ -145,7 +145,7 @@ describe('ApprovalManager', () => {
                 mockLogger
             );
 
-            const response = await manager.requestToolConfirmation({
+            const response = await manager.requestToolApproval({
                 toolName: 'test_tool',
                 toolCallId: 'test-call-id',
                 args: {},
@@ -396,7 +396,7 @@ describe('ApprovalManager', () => {
 
             // The per-request timeout should override the config timeout
             // This is tested implicitly through the factory flow
-            const response = await manager.requestToolConfirmation({
+            const response = await manager.requestToolApproval({
                 toolName: 'test_tool',
                 toolCallId: 'test-call-id',
                 args: { foo: 'bar' },
@@ -420,7 +420,7 @@ describe('ApprovalManager', () => {
                 mockLogger
             );
 
-            const response = await manager.requestToolConfirmation({
+            const response = await manager.requestToolApproval({
                 toolName: 'test_tool',
                 toolCallId: 'test-call-id',
                 args: {},
@@ -443,7 +443,7 @@ describe('ApprovalManager', () => {
                 mockLogger
             );
 
-            const response = await manager.requestToolConfirmation({
+            const response = await manager.requestToolApproval({
                 toolName: 'test_tool',
                 toolCallId: 'test-call-id',
                 args: {},
@@ -517,7 +517,7 @@ describe('ApprovalManager', () => {
                 mockLogger
             );
 
-            const response = await manager.requestToolConfirmation({
+            const response = await manager.requestToolApproval({
                 toolName: 'test_tool',
                 toolCallId: 'test-call-id',
                 args: {},
@@ -544,7 +544,7 @@ describe('ApprovalManager', () => {
             );
 
             try {
-                await manager.checkToolConfirmation({
+                await manager.checkToolApproval({
                     toolName: 'test_tool',
                     toolCallId: 'test-call-id',
                     args: {},
@@ -553,7 +553,7 @@ describe('ApprovalManager', () => {
             } catch (error) {
                 expect(error).toBeInstanceOf(DextoRuntimeError);
                 expect((error as DextoRuntimeError).code).toBe(
-                    ApprovalErrorCode.APPROVAL_TOOL_CONFIRMATION_DENIED
+                    ApprovalErrorCode.APPROVAL_TOOL_APPROVAL_DENIED
                 );
                 expect((error as DextoRuntimeError).message).toContain('system policy');
                 expect((error as any).context.reason).toBe(DenialReason.SYSTEM_DENIED);

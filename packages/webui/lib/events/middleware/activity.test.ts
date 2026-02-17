@@ -200,7 +200,7 @@ describe('activityMiddleware', () => {
             const next = vi.fn();
             const event: ClientEvent = {
                 name: 'approval:request',
-                type: ApprovalType.TOOL_CONFIRMATION,
+                type: ApprovalType.TOOL_APPROVAL,
                 approvalId: '123',
                 timeout: 30000,
                 timestamp: new Date(),

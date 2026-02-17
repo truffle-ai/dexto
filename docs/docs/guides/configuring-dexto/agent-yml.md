@@ -696,7 +696,7 @@ hooks:
 ## Tools
 
 :::info Guide
-For tool factory configuration examples, see **[Tools Guide](./internalTools)**.
+For tool factory configuration examples, see **[Tools Guide](./tools)**.
 :::
 
 Tools are configured via a list of tool factory entries. Omit `tools` to use image defaults.

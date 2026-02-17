@@ -911,8 +911,8 @@ export async function processStream(
                     const autoApproveEdits = options.autoApproveEditsRef.current;
                     const { eventBus } = options;
 
-                    if (autoApproveEdits && event.type === ApprovalTypeEnum.TOOL_CONFIRMATION) {
-                        // Type is narrowed - metadata is now ToolConfirmationMetadata
+                    if (autoApproveEdits && event.type === ApprovalTypeEnum.TOOL_APPROVAL) {
+                        // Type is narrowed - metadata is now ToolApprovalMetadata
                         const { toolName } = event.metadata;
 
                         if (isAutoApprovableInEditMode(toolName)) {
@@ -930,7 +930,7 @@ export async function processStream(
                     // Manual approval needed - update tool status to 'pending_approval'
                     // Extract toolCallId based on approval type
                     const toolCallId =
-                        event.type === ApprovalTypeEnum.TOOL_CONFIRMATION
+                        event.type === ApprovalTypeEnum.TOOL_APPROVAL
                             ? event.metadata.toolCallId
                             : undefined;
                     if (toolCallId) {
@@ -940,7 +940,7 @@ export async function processStream(
 
                     // Show approval UI (moved from useAgentEvents for ordering)
                     if (
-                        event.type === ApprovalTypeEnum.TOOL_CONFIRMATION ||
+                        event.type === ApprovalTypeEnum.TOOL_APPROVAL ||
                         event.type === ApprovalTypeEnum.COMMAND_CONFIRMATION ||
                         event.type === ApprovalTypeEnum.ELICITATION ||
                         event.type === ApprovalTypeEnum.DIRECTORY_ACCESS

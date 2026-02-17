@@ -74,9 +74,6 @@ function generateDiffPreview(
  * Create the edit_file internal tool with directory approval support
  */
 export function createEditFileTool(getFileSystemService: FileSystemServiceGetter): Tool {
-    // Store parent directory for use in onApprovalGranted callback
-    let pendingApprovalParentDir: string | undefined;
-
     return {
         id: 'edit_file',
         displayName: 'Update',
@@ -118,7 +115,6 @@ export function createEditFileTool(getFileSystemService: FileSystemServiceGetter
             // Need directory access approval
             const absolutePath = path.resolve(file_path);
             const parentDir = path.dirname(absolutePath);
-            pendingApprovalParentDir = parentDir;
 
             return {
                 type: ApprovalType.DIRECTORY_ACCESS,
@@ -134,8 +130,20 @@ export function createEditFileTool(getFileSystemService: FileSystemServiceGetter
         /**
          * Handle approved directory access - remember the directory for session
          */
-        onApprovalGranted: (response: ApprovalResponse, context: ToolExecutionContext): void => {
-            if (!pendingApprovalParentDir) return;
+        onApprovalGranted: (
+            response: ApprovalResponse,
+            context: ToolExecutionContext,
+            approvalRequest: ApprovalRequestDetails
+        ): void => {
+            if (approvalRequest.type !== ApprovalType.DIRECTORY_ACCESS) {
+                return;
+            }
+
+            const metadata = approvalRequest.metadata as { parentDir?: unknown } | undefined;
+            const parentDir = typeof metadata?.parentDir === 'string' ? metadata.parentDir : null;
+            if (!parentDir) {
+                return;
+            }
 
             // Check if user wants to remember the directory
             // Use type assertion to access rememberDirectory since response.data is a union type
@@ -148,13 +156,7 @@ export function createEditFileTool(getFileSystemService: FileSystemServiceGetter
                     'edit_file requires ToolExecutionContext.services.approval'
                 );
             }
-            approvalManager.addApprovedDirectory(
-                pendingApprovalParentDir,
-                rememberDirectory ? 'session' : 'once'
-            );
-
-            // Clear pending state
-            pendingApprovalParentDir = undefined;
+            approvalManager.addApprovedDirectory(parentDir, rememberDirectory ? 'session' : 'once');
         },
 
         /**

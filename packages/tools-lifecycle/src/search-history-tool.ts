@@ -34,7 +34,7 @@ const SearchHistoryInputSchema = z
     })
     .strict();
 
-type SearchHistoryInput = z.input<typeof SearchHistoryInputSchema>;
+type SearchHistoryInput = z.output<typeof SearchHistoryInputSchema>;
 
 /**
  * Create the `search_history` tool.
@@ -45,6 +45,7 @@ type SearchHistoryInput = z.input<typeof SearchHistoryInputSchema>;
 export function createSearchHistoryTool(): Tool {
     return {
         id: 'search_history',
+        displayName: 'Search History',
         description:
             'Search through conversation history across sessions. Use mode="messages" to search for specific messages, or mode="sessions" to find sessions containing the query. For message search, you can filter by sessionId (specific session), role (user/assistant/system/tool), limit results, and set pagination offset.',
         inputSchema: SearchHistoryInputSchema,
@@ -59,11 +60,12 @@ export function createSearchHistoryTool(): Tool {
             }
 
             if (mode === 'messages') {
-                const searchOptions: SearchOptions = {};
-                if (sessionId !== undefined) searchOptions.sessionId = sessionId;
-                if (role !== undefined) searchOptions.role = role;
-                if (limit !== undefined) searchOptions.limit = limit;
-                if (offset !== undefined) searchOptions.offset = offset;
+                const searchOptions: SearchOptions = {
+                    limit,
+                    offset,
+                    ...(sessionId !== undefined && { sessionId }),
+                    ...(role !== undefined && { role }),
+                };
 
                 return await searchService.searchMessages(query, searchOptions);
             }

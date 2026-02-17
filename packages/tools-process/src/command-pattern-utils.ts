@@ -48,14 +48,14 @@ export function generateCommandPatternKey(command: string): string | null {
     const tokens = command.trim().split(/\s+/);
     if (!tokens[0]) return null;
 
-    const head = tokens[0];
+    const head = tokens[0].toLowerCase();
 
     if (isDangerousCommand(command)) {
         return null;
     }
 
     const subcommand = tokens.slice(1).find((arg) => !arg.startsWith('-'));
-    return subcommand ? `${head} ${subcommand} *` : `${head} *`;
+    return subcommand ? `${head} ${subcommand.toLowerCase()} *` : `${head} *`;
 }
 
 /**
@@ -65,7 +65,7 @@ export function generateCommandPatternKey(command: string): string | null {
  * Example: "git push origin main" → ["git push *", "git *"]
  */
 export function generateCommandPatternSuggestions(command: string): string[] {
-    const tokens = command.trim().split(/\s+/);
+    const tokens = command.trim().toLowerCase().split(/\s+/);
     if (!tokens[0]) return [];
 
     const head = tokens[0];

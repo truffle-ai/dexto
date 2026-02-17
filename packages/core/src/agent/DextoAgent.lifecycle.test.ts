@@ -119,7 +119,7 @@ describe('DextoAgent Lifecycle Management', () => {
             } as any,
             resourceManager: {} as any,
             approvalManager: {
-                requestToolConfirmation: vi.fn(),
+                requestToolApproval: vi.fn(),
                 requestElicitation: vi.fn(),
                 cancelApproval: vi.fn(),
                 cancelAllApprovals: vi.fn(),

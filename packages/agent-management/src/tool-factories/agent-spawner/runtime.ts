@@ -611,8 +611,8 @@ export class AgentSpawnerRuntime implements TaskForker {
                 (sessionId ? ` (sessionId: ${sessionId})` : ' (no sessionId)')
         );
 
-        // Determine tool confirmation mode
-        const toolConfirmationMode = autoApprove ? ('auto-approve' as const) : ('manual' as const);
+        // Determine permissions mode (auto-approve vs manual)
+        const permissionsMode = autoApprove ? ('auto-approve' as const) : ('manual' as const);
 
         // If agentId is provided, resolve from registry
         if (agentId) {
@@ -668,7 +668,7 @@ export class AgentSpawnerRuntime implements TaskForker {
                     llm: llmConfig,
                     permissions: {
                         ...loadedConfig.permissions,
-                        mode: toolConfirmationMode,
+                        mode: permissionsMode,
                     },
                     // Suppress sub-agent console logs entirely using silent transport
                     logger: {
@@ -692,7 +692,7 @@ export class AgentSpawnerRuntime implements TaskForker {
                 'You are a helpful sub-agent. Complete the task given to you efficiently and concisely.',
 
             permissions: {
-                mode: toolConfirmationMode,
+                mode: permissionsMode,
             },
 
             // Inherit MCP servers from parent so subagent has tool access

@@ -8,6 +8,8 @@ import { createInvokeSkillTool } from './implementations/invoke-skill-tool.js';
 import { createListResourcesTool } from './implementations/list-resources-tool.js';
 import { createHttpRequestTool } from './implementations/http-request-tool.js';
 import { createSleepTool } from './implementations/sleep-tool.js';
+import { createWebSearchTool } from './implementations/exa-web-search-tool.js';
+import { createCodeSearchTool } from './implementations/exa-code-search-tool.js';
 
 export const BUILTIN_TOOL_NAMES = [
     'ask_user',
@@ -17,6 +19,8 @@ export const BUILTIN_TOOL_NAMES = [
     'invoke_skill',
     'http_request',
     'sleep',
+    'web_search',
+    'code_search',
 ] as const;
 
 export type BuiltinToolName = (typeof BUILTIN_TOOL_NAMES)[number];
@@ -48,6 +52,10 @@ function createToolByName(name: BuiltinToolName): Tool {
             return createHttpRequestTool();
         case 'sleep':
             return createSleepTool();
+        case 'web_search':
+            return createWebSearchTool();
+        case 'code_search':
+            return createCodeSearchTool();
         default: {
             const exhaustive: never = name;
             throw new Error(`Unknown builtin tool: ${exhaustive}`);
@@ -58,7 +66,7 @@ function createToolByName(name: BuiltinToolName): Tool {
 export const builtinToolsFactory: ToolFactory<BuiltinToolsConfig> = {
     configSchema: BuiltinToolsConfigSchema,
     metadata: {
-        displayName: 'Built-in tools',
+        displayName: 'Built-in Tools',
         description: 'Core built-in tools shipped with Dexto',
         category: 'core',
     },

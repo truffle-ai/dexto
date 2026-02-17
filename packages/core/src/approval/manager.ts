@@ -4,7 +4,7 @@ import type {
     ApprovalRequest,
     ApprovalResponse,
     ApprovalRequestDetails,
-    ToolConfirmationMetadata,
+    ToolApprovalMetadata,
     CommandConfirmationMetadata,
     ElicitationMetadata,
     DirectoryAccessMetadata,
@@ -35,7 +35,7 @@ export interface ApprovalManagerConfig {
  * ApprovalManager orchestrates all user approval flows in Dexto.
  *
  * It provides a unified interface for requesting user approvals across different
- * types (tool confirmation, MCP elicitation, custom approvals) and manages the
+ * types (tool approval, MCP elicitation, custom approvals) and manages the
  * underlying approval provider based on configuration.
  *
  * Key responsibilities:
@@ -52,8 +52,8 @@ export interface ApprovalManagerConfig {
  *   logger
  * );
  *
- * // Request tool confirmation
- * const response = await manager.requestToolConfirmation({
+ * // Request tool approval
+ * const response = await manager.requestToolApproval({
  *   toolName: 'git_commit',
  *   args: { message: 'feat: add feature' },
  *   sessionId: 'session-123'
@@ -358,7 +358,7 @@ export class ApprovalManager {
     }
 
     /**
-     * Handle approval requests (tool confirmation, elicitation, command confirmation, directory access, custom)
+     * Handle approval requests (tool approval, elicitation, command confirmation, directory access, custom)
      * @private
      */
     private async handleApproval(request: ApprovalRequest): Promise<ApprovalResponse> {
@@ -415,19 +415,19 @@ export class ApprovalManager {
     }
 
     /**
-     * Request tool confirmation approval
-     * Convenience method for tool execution confirmation
+     * Request tool approval
+     * Convenience method for tool execution approval
      *
      * TODO: Make sessionId required once all callers are updated to pass it
      * Tool confirmations always happen in session context during LLM execution
      */
-    async requestToolConfirmation(
-        metadata: ToolConfirmationMetadata & { sessionId?: string; timeout?: number }
+    async requestToolApproval(
+        metadata: ToolApprovalMetadata & { sessionId?: string; timeout?: number }
     ): Promise<ApprovalResponse> {
         const { sessionId, timeout, ...toolMetadata } = metadata;
 
         const details: ApprovalRequestDetails = {
-            type: ApprovalType.TOOL_CONFIRMATION,
+            type: ApprovalType.TOOL_APPROVAL,
             // Use provided timeout, fallback to config timeout, or undefined (no timeout)
             timeout: timeout !== undefined ? timeout : this.config.permissions.timeout,
             metadata: toolMetadata,
@@ -444,7 +444,7 @@ export class ApprovalManager {
      * Request command confirmation approval
      * Convenience method for dangerous command execution within an already-approved tool
      *
-     * This is different from tool confirmation - it's for per-command approval
+     * This is different from tool approval - it's for per-command approval
      * of dangerous operations (like rm, git push) within tools that are already approved.
      *
      * TODO: Make sessionId required once all callers are updated to pass it
@@ -507,18 +507,18 @@ export class ApprovalManager {
     }
 
     /**
-     * Check if tool confirmation was approved
+     * Check if tool approval was approved
      * Throws appropriate error if denied
      */
-    async checkToolConfirmation(
-        metadata: ToolConfirmationMetadata & { sessionId?: string; timeout?: number }
+    async checkToolApproval(
+        metadata: ToolApprovalMetadata & { sessionId?: string; timeout?: number }
     ): Promise<boolean> {
-        const response = await this.requestToolConfirmation(metadata);
+        const response = await this.requestToolApproval(metadata);
 
         if (response.status === ApprovalStatus.APPROVED) {
             return true;
         } else if (response.status === ApprovalStatus.DENIED) {
-            throw ApprovalError.toolConfirmationDenied(
+            throw ApprovalError.toolApprovalDenied(
                 metadata.toolName,
                 response.reason,
                 response.message,
@@ -527,7 +527,7 @@ export class ApprovalManager {
         } else {
             throw ApprovalError.cancelled(
                 response.approvalId,
-                ApprovalType.TOOL_CONFIRMATION,
+                ApprovalType.TOOL_APPROVAL,
                 response.message ?? response.reason
             );
         }
@@ -673,7 +673,7 @@ export class ApprovalManager {
             throw ApprovalError.invalidConfig(
                 'An approval handler is required but not configured.\n' +
                     'Handlers are required for:\n' +
-                    '  • manual tool confirmation mode\n' +
+                    '  • manual tool approval mode\n' +
                     '  • all elicitation requests (when elicitation is enabled)\n' +
                     'Either:\n' +
                     '  • set permissions.mode to "auto-approve" or "auto-deny", or\n' +

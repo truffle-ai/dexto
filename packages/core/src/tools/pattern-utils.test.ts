@@ -45,5 +45,13 @@ describe('pattern-utils', () => {
             expect(patternCovers('git *', 'git')).toBe(false);
             expect(patternCovers('git', 'git *')).toBe(false);
         });
+
+        it('should handle edge cases', () => {
+            expect(patternCovers('', '')).toBe(true);
+            expect(patternCovers('', 'git')).toBe(false);
+            expect(patternCovers('git', '')).toBe(false);
+            expect(patternCovers(' ', ' ')).toBe(true);
+            expect(patternCovers(' git', 'git')).toBe(false);
+        });
     });
 });

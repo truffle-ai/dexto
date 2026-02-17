@@ -37,7 +37,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         } as any;
 
         mockApprovalManager = {
-            requestToolConfirmation: vi.fn().mockResolvedValue({
+            requestToolApproval: vi.fn().mockResolvedValue({
                 approvalId: 'test-approval-id',
                 status: ApprovalStatus.APPROVED,
                 data: { rememberChoice: false },
@@ -290,7 +290,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'session123'
             );
 
-            expect(mockApprovalManager.requestToolConfirmation).toHaveBeenCalledWith({
+            expect(mockApprovalManager.requestToolApproval).toHaveBeenCalledWith({
                 toolName: 'mcp--file_read',
                 toolCallId: 'call-123',
                 args: { path: '/test' },
@@ -412,7 +412,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
             await toolManager.executeTool('mcp--file_read', { path: '/test' }, 'call-456');
 
-            expect(mockApprovalManager.requestToolConfirmation).toHaveBeenCalledWith({
+            expect(mockApprovalManager.requestToolApproval).toHaveBeenCalledWith({
                 toolName: 'mcp--file_read',
                 toolCallId: 'call-456',
                 args: { path: '/test' },
@@ -420,7 +420,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         });
 
         it('should throw execution denied error when approval denied', async () => {
-            mockApprovalManager.requestToolConfirmation = vi.fn().mockResolvedValue({
+            mockApprovalManager.requestToolApproval = vi.fn().mockResolvedValue({
                 approvalId: 'test-approval-id',
                 status: ApprovalStatus.DENIED,
             });
@@ -504,7 +504,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'mcp--file_read',
                 undefined
             );
-            expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
+            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
             expect(result).toEqual({ result: 'success' });
         });
 
@@ -528,7 +528,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'test-call-id'
             );
 
-            expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
+            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
             expect(mockMcpManager.executeTool).toHaveBeenCalled();
             expect(result).toEqual({ result: 'success' });
         });
@@ -551,7 +551,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
             expect(error).toBeInstanceOf(DextoRuntimeError);
             expect(error.code).toBe(ToolErrorCode.EXECUTION_DENIED);
-            expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
+            expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
             expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
         });
     });
@@ -769,7 +769,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
         it('should propagate approval manager errors', async () => {
             const approvalError = new Error('Approval request failed');
-            mockApprovalManager.requestToolConfirmation = vi.fn().mockRejectedValue(approvalError);
+            mockApprovalManager.requestToolApproval = vi.fn().mockRejectedValue(approvalError);
 
             const toolManager = new ToolManager(
                 mockMcpManager,
@@ -822,7 +822,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 ).rejects.toThrow();
 
                 // Should not reach approval manager or execution
-                expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
+                expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
                 expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
             });
 
@@ -878,7 +878,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 );
 
                 expect(result).toEqual({ result: 'success' });
-                expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
+                expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
                 expect(mockMcpManager.executeTool).toHaveBeenCalledWith(
                     'filesystem--read_file',
                     {
@@ -918,11 +918,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'mcp--filesystem--read_file',
                     undefined
                 );
-                expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
+                expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
             });
 
             it('should fall back to approval mode when no policies match', async () => {
-                mockApprovalManager.requestToolConfirmation = vi.fn().mockResolvedValue({
+                mockApprovalManager.requestToolApproval = vi.fn().mockResolvedValue({
                     approvalId: 'test-approval',
                     status: 'approved',
                     data: {},
@@ -955,7 +955,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     requireApproval: true,
                     approvalStatus: 'approved',
                 });
-                expect(mockApprovalManager.requestToolConfirmation).toHaveBeenCalled();
+                expect(mockApprovalManager.requestToolApproval).toHaveBeenCalled();
             });
         });
 
@@ -1075,7 +1075,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
         describe('No Policies Configured', () => {
             it('should work normally when no policies are provided', async () => {
-                mockApprovalManager.requestToolConfirmation = vi.fn().mockResolvedValue({
+                mockApprovalManager.requestToolApproval = vi.fn().mockResolvedValue({
                     approvalId: 'test-approval',
                     status: 'approved',
                     data: {},
@@ -1103,11 +1103,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     requireApproval: true,
                     approvalStatus: 'approved',
                 });
-                expect(mockApprovalManager.requestToolConfirmation).toHaveBeenCalled();
+                expect(mockApprovalManager.requestToolApproval).toHaveBeenCalled();
             });
 
             it('should work normally when empty policies are provided', async () => {
-                mockApprovalManager.requestToolConfirmation = vi.fn().mockResolvedValue({
+                mockApprovalManager.requestToolApproval = vi.fn().mockResolvedValue({
                     approvalId: 'test-approval',
                     status: 'approved',
                     data: {},
@@ -1140,7 +1140,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     requireApproval: true,
                     approvalStatus: 'approved',
                 });
-                expect(mockApprovalManager.requestToolConfirmation).toHaveBeenCalled();
+                expect(mockApprovalManager.requestToolApproval).toHaveBeenCalled();
             });
         });
 
@@ -1173,7 +1173,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 const result = await toolManager.executeTool('ask_user', {}, 'test-call-id');
 
                 expect(result).toEqual({ result: 'ok' });
-                expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
+                expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
             });
         });
 
@@ -1207,7 +1207,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 );
 
                 expect(result).toEqual({ result: 'success' });
-                expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
+                expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
             });
 
             it('should match qualified names with suffix matching in allow list', async () => {
@@ -1235,7 +1235,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 );
 
                 expect(result).toEqual({ result: 'success' });
-                expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
+                expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
                 expect(mockMcpManager.executeTool).toHaveBeenCalledWith(
                     'filesystem--read_file',
                     {
@@ -1299,7 +1299,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             });
 
             it('should not match unrelated tools with similar names', async () => {
-                mockApprovalManager.requestToolConfirmation = vi.fn().mockResolvedValue({
+                mockApprovalManager.requestToolApproval = vi.fn().mockResolvedValue({
                     approvalId: 'test-approval',
                     status: 'approved',
                     data: {},
@@ -1334,11 +1334,11 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     approvalStatus: 'approved',
                 });
                 // Should require approval since it doesn't match the policy
-                expect(mockApprovalManager.requestToolConfirmation).toHaveBeenCalled();
+                expect(mockApprovalManager.requestToolApproval).toHaveBeenCalled();
             });
 
             it('should only apply suffix matching to MCP tools, not internal tools', async () => {
-                mockApprovalManager.requestToolConfirmation = vi.fn().mockResolvedValue({
+                mockApprovalManager.requestToolApproval = vi.fn().mockResolvedValue({
                     approvalId: 'test-approval',
                     status: 'approved',
                     data: {},
@@ -1368,7 +1368,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     {},
                     undefined
                 );
-                expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
+                expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
 
                 // But if an internal tool had a similar pattern, it shouldn't match via suffix
                 // (This is conceptual - internal tools don't have server prefixes in practice)
@@ -1376,7 +1376,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             });
 
             it('should handle multiple policies with mixed matching', async () => {
-                mockApprovalManager.requestToolConfirmation = vi.fn().mockResolvedValue({
+                mockApprovalManager.requestToolApproval = vi.fn().mockResolvedValue({
                     approvalId: 'test-approval',
                     status: 'approved',
                     data: {},
@@ -1426,7 +1426,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 ).rejects.toThrow();
 
                 // None of these should have triggered approval
-                expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
+                expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
             });
         });
     });
@@ -1632,7 +1632,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 await toolManager.executeTool('mcp--test_tool', {}, 'call-1', sessionId);
 
                 // Should NOT have requested approval (auto-approved by session config)
-                expect(mockApprovalManager.requestToolConfirmation).not.toHaveBeenCalled();
+                expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
                 expect(mockMcpManager.executeTool).toHaveBeenCalledWith('test_tool', {}, sessionId);
             });
 
@@ -1671,7 +1671,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 await toolManager.executeTool('mcp--other_tool', {}, 'call-1', sessionId);
 
                 // Should have requested approval
-                expect(mockApprovalManager.requestToolConfirmation).toHaveBeenCalled();
+                expect(mockApprovalManager.requestToolApproval).toHaveBeenCalled();
             });
 
             it('should respect alwaysDeny even if tool is in session auto-approve', async () => {
@@ -1735,7 +1735,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 await toolManager.executeTool('mcp--test_tool', {}, 'call-1', 'session-2');
 
                 // Should have requested approval (different session)
-                expect(mockApprovalManager.requestToolConfirmation).toHaveBeenCalled();
+                expect(mockApprovalManager.requestToolApproval).toHaveBeenCalled();
             });
 
             it('should not auto-approve when no sessionId provided', async () => {
@@ -1767,7 +1767,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 await toolManager.executeTool('mcp--test_tool', {}, 'call-1');
 
                 // Should have requested approval (no sessionId means no session auto-approve)
-                expect(mockApprovalManager.requestToolConfirmation).toHaveBeenCalled();
+                expect(mockApprovalManager.requestToolApproval).toHaveBeenCalled();
             });
         });
     });

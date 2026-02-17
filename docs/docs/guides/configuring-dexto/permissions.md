@@ -264,6 +264,6 @@ agent.setApprovalHandler(async (request) => {
 ## See Also
 
 - [agent.yml Reference → Permissions](./agent-yml.md#permissions) - Complete field documentation
-- [Tools](./internalTools.md) - Tool factory configuration
+- [Tools](./tools.md) - Tool factory configuration
 - [MCP Configuration](./mcpConfiguration.md) - External MCP tools
 - [Storage Configuration](./storage.md) - Persistent approval storage

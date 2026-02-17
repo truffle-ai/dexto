@@ -52,7 +52,7 @@ export interface CheckTaskOutput {
 export function createCheckTaskTool(taskRegistry: TaskRegistry): Tool {
     return {
         id: 'check_task',
-        displayName: 'CheckTask',
+        displayName: 'Check Task',
         description:
             'Check the status of a background task. ' +
             'Returns immediately without waiting. ' +

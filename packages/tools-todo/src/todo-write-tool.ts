@@ -1,7 +1,7 @@
 /**
  * Todo Write Tool
  *
- * Manages task lists for tracking agent progress and workflow organization
+ * Manages todo lists for tracking agent progress and workflow organization
  */
 
 import { z } from 'zod';
@@ -54,7 +54,7 @@ const TodoWriteInputSchema = z
         }
     })
     .describe(
-        'Manage task list for current session. Replaces the entire todo list with the provided tasks.'
+        'Manage todo list for current session. Replaces the entire todo list with the provided items.'
     );
 
 /**
@@ -65,7 +65,7 @@ export type TodoServiceGetter = (context: ToolExecutionContext) => Promise<TodoS
 export function createTodoWriteTool(getTodoService: TodoServiceGetter): Tool {
     return {
         id: 'todo_write',
-        displayName: 'UpdateTasks',
+        displayName: 'Update Todos',
         description: `Track progress on multi-step tasks. Use for:
 - Implementation tasks with 3+ steps (features, refactors, bug fixes)
 - Tasks where the user asks for a plan or breakdown
@@ -95,7 +95,7 @@ IMPORTANT: This replaces the entire todo list. Always include ALL tasks (pending
             const pending = result.todos.filter((t) => t.status === 'pending').length;
 
             // Return simple summary - TodoPanel shows full state
-            return `Updated tasks: ${completed}/${result.todos.length} completed${inProgress > 0 ? `, 1 in progress` : ''}${pending > 0 ? `, ${pending} pending` : ''}`;
+            return `Updated todos: ${completed}/${result.todos.length} completed${inProgress > 0 ? `, 1 in progress` : ''}${pending > 0 ? `, ${pending} pending` : ''}`;
         },
     };
 }

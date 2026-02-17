@@ -323,7 +323,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
             },
             {
                 id: 'check_task',
-                displayName: 'CheckTask',
+                displayName: 'Check Task',
                 description: 'Check the status of a background task.',
                 inputSchema: CheckTaskInputSchema,
                 execute: (input, context) =>
@@ -338,7 +338,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
             },
             {
                 id: 'list_tasks',
-                displayName: 'ListTasks',
+                displayName: 'List Tasks',
                 description: 'List background tasks and their statuses.',
                 inputSchema: ListTasksInputSchema,
                 execute: (input, context) =>

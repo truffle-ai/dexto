@@ -151,6 +151,9 @@ tools:
     enabledTools:
       - ask_user       # Ask questions and collect input
       - invoke_skill   # Invoke skills/prompts during execution
+      - http_request   # Fetch web pages and APIs
+      - web_search     # Web search via Exa MCP (internal tool)
+      - code_search    # Code/context search via Exa MCP (internal tool)
   - type: filesystem-tools
     allowedPaths: ["."]
     blockedPaths: [".git", "node_modules/.bin", ".env"]

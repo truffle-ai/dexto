@@ -62,8 +62,7 @@ export function createToolsRouter(getAgent: GetAgentFn) {
         method: 'get',
         path: '/tools',
         summary: 'List All Tools',
-        description:
-            'Retrieves all available tools from all sources (internal, custom, and MCP servers)',
+        description: 'Retrieves all available tools from all sources (local and MCP)',
         tags: ['tools'],
         responses: {
             200: {

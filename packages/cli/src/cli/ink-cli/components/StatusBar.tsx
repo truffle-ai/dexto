@@ -58,12 +58,17 @@ export function StatusBar({
     autoApproveEdits = false,
     backgroundTasksRunning = 0,
 }: StatusBarProps) {
+    const animationsActive = isProcessing && !isAwaitingApproval && !copyModeEnabled;
+
     // Cycle through witty phrases while processing (not during compacting)
-    const { phrase } = usePhraseCycler({ isActive: isProcessing && !isCompacting });
+    const { phrase } = usePhraseCycler({ isActive: animationsActive && !isCompacting });
     // Track elapsed time during processing
-    const { formatted: elapsedTime, elapsedMs } = useElapsedTime({ isActive: isProcessing });
+    const { formatted: elapsedTime, elapsedMs } = useElapsedTime({
+        isActive: animationsActive,
+        intervalMs: 1000,
+    });
     // Track token usage during processing
-    const { formatted: tokenCount } = useTokenCounter({ agent, isActive: isProcessing });
+    const { formatted: tokenCount } = useTokenCounter({ agent, isActive: animationsActive });
     // Only show time after 30 seconds
     const showTime = elapsedMs >= 30000;
 

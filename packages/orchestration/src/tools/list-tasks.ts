@@ -65,7 +65,7 @@ export interface ListTasksOutput {
 export function createListTasksTool(taskRegistry: TaskRegistry): Tool {
     return {
         id: 'list_tasks',
-        displayName: 'ListTasks',
+        displayName: 'List Tasks',
         description:
             'List all background tasks with optional filtering by status or type. ' +
             'Returns task information and counts.',

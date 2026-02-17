@@ -207,7 +207,7 @@ const handleClick = useCallback(async () => {
 }, [addServer]); // ✅ Safe - mutateAsync function is stable
 ```
 
-**Reference:** See `ToolConfirmationHandler.tsx` lines 36, 220 for the pattern in action.
+**Reference:** See `ApprovalRequestHandler.tsx` for the pattern in action.
 
 ## State Management
 
