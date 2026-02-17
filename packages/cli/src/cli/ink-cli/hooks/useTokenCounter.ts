@@ -102,7 +102,11 @@ export function useTokenCounter({ agent, isActive }: TokenCounterOptions): Token
             (payload) => {
                 if (payload.chunkType === 'text') {
                     currentCharCountRef.current += payload.content.length;
-                    setCurrentSegmentEstimate(estimateTokens(currentCharCountRef.current));
+                    const estimate = estimateTokens(currentCharCountRef.current);
+                    // Avoid frequent re-renders for short responses where we don't show tokens anyway.
+                    if (estimate >= 1000) {
+                        setCurrentSegmentEstimate(estimate);
+                    }
                 }
             },
             { signal }
