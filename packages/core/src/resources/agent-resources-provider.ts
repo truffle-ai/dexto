@@ -29,7 +29,7 @@ export class AgentResourcesProvider implements ResourceProvider {
 
     async initialize(): Promise<void> {
         if (this.config.length === 0) {
-            this.logger.debug('No internal resources configured');
+            this.logger.debug('No resources configured');
             return;
         }
 

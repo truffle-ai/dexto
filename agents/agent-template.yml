@@ -74,7 +74,7 @@ storage:
   blob:
     type: in-memory
 
-# Tool confirmation configuration - auto-approve for better development experience
+# Permissions configuration - auto-approve for better development experience
 permissions:
   mode: auto-approve
   # timeout: omitted = infinite wait

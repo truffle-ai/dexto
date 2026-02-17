@@ -82,42 +82,31 @@ Hooks execute in the order they are provided in the `hooks:` array.
 
 ```yaml
 hooks:
-    contentPolicy:
-        priority: 10
-        blocking: true
-        enabled: true
-        maxInputChars: 50000
-        redactEmails: true
-        redactApiKeys: true
+  - type: content-policy
+    enabled: true
+    maxInputChars: 50000
+    redactEmails: true
+    redactApiKeys: true
 
-    responseSanitizer:
-        priority: 900
-        blocking: false
-        enabled: true
-        redactEmails: true
-        redactApiKeys: true
+  - type: response-sanitizer
+    enabled: true
+    redactEmails: true
+    redactApiKeys: true
 ```
 
 ### With Custom Logging
 
 ```yaml
 hooks:
-    custom:
-        - name: request-logger
-          module: '${{dexto.agent_dir}}/hooks/request-logger.ts'
-          blocking: false
-          priority: 5
-          config:
-              logDir: ~/.dexto/logs
-              logFileName: request-logger.log
+  - type: request-logger
+    enabled: true
+    logDir: ~/.dexto/logs
+    logFileName: request-logger.log
 
-        - name: analytics
-          module: '${{dexto.agent_dir}}/hooks/analytics.ts'
-          blocking: false
-          priority: 100
-          config:
-              endpoint: https://analytics.example.com
-              apiKey: $ANALYTICS_API_KEY
+  - type: analytics
+    enabled: true
+    endpoint: https://analytics.example.com
+    apiKey: $ANALYTICS_API_KEY
 ```
 
 ## Custom Hook Implementation
@@ -209,7 +198,7 @@ If your hook needs **runtime imports** from `@dexto/core` (not just types), ensu
 
 ```bash
 # In your agent directory, pin to match CLI version
-npm install --save-exact @dexto/core@<cli-version>
+pnpm add --save-exact @dexto/core@<cli-version>
 ```
 
 Most hooks only need type-only imports and the execution context provided at runtime.
@@ -227,7 +216,7 @@ return {
     notices: [{ kind: 'info', code: 'modified', message: 'Input modified' }],
 };
 
-// Failure (blocks if hook is blocking)
+// Failure (blocks execution)
 return {
     ok: false,
     cancel: true,
@@ -237,13 +226,12 @@ return {
 
 ## Best Practices
 
-1. **Use appropriate priorities** - Validators before processors, sanitizers last
-2. **Make logging non-blocking** - Don't halt on logging failures
-3. **Use blocking for security** - Content policy should be blocking
+1. **Order hooks intentionally** - Validators before processors, sanitizers last
+2. **Keep logging non-blocking** - Don't halt on logging failures
+3. **Use cancel for security** - Content policy hooks should cancel on violations
 4. **Keep hooks focused** - Single responsibility per hook
 5. **Handle errors gracefully** - Return appropriate results
-6. **Use agent-relative paths** - `${{dexto.agent_dir}}` for portability
-7. **Clean up resources** - Implement cleanup() properly
+6. **Clean up resources** - Implement cleanup() properly
 
 ## Hook Examples
 

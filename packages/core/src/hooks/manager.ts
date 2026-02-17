@@ -141,7 +141,7 @@ export class HookManager {
      * @param payload - Payload for this extension point (must be an object)
      * @param options - Options for building execution context
      * @returns Modified payload after all hooks execute
-     * @throws {DextoRuntimeError} If a blocking hook cancels execution or payload is not an object
+     * @throws {DextoRuntimeError} If a hook cancels execution or payload is not an object
      */
     async executeHooks<T extends object>(
         extensionPoint: ExtensionPoint,

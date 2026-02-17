@@ -114,7 +114,10 @@ export const systemCommands: CommandDefinition[] = [
                         : 'Default',
                     mcpServers: servers,
                     promptsCount: config.prompts?.length || 0,
-                    pluginsEnabled: [],
+                    hooksEnabled:
+                        config.hooks
+                            ?.filter((entry) => entry.enabled !== false)
+                            .map((e) => e.type) ?? [],
                 };
 
                 // Build fallback text (no console.log - interferes with Ink rendering)

@@ -742,7 +742,7 @@ export const factory: ToolFactory<${typeNameBase.charAt(0).toUpperCase() + typeN
 /**
  * Generates an example custom hook factory
  */
-export function generateExampleHook(hookName: string = 'example-hook'): string {
+export function generateExampleHook(hookName: string): string {
     return `import { z } from 'zod';
 import type { HookFactory } from '@dexto/agent-config';
 import type { Hook } from '@dexto/core';
@@ -780,19 +780,28 @@ export const factory: HookFactory<ExampleHookConfig> = {
 /**
  * Generates an example custom compaction factory
  */
-export function generateExampleCompaction(compactionType: string = 'example-compaction'): string {
+export function generateExampleCompaction(compactionType: string): string {
     return `import { z } from 'zod';
 import type { CompactionFactory } from '@dexto/agent-config';
 import type { CompactionStrategy } from '@dexto/core';
 
-const ConfigSchema = z
-    .object({
-        type: z.literal('${compactionType}'),
-        enabled: z.boolean().default(true),
-        maxContextTokens: z.number().positive().optional(),
-        thresholdPercent: z.number().min(0.1).max(1.0).default(0.9),
-    })
-    .strict();
+	const ConfigSchema = z
+	    .object({
+	        type: z.literal('${compactionType}'),
+	        enabled: z.boolean().default(true).describe('Enable compaction strategy'),
+	        maxContextTokens: z
+	            .number()
+	            .positive()
+	            .optional()
+	            .describe('Max tokens before compaction'),
+	        thresholdPercent: z
+	            .number()
+	            .min(0.1)
+	            .max(1.0)
+	            .default(0.9)
+	            .describe('Trigger threshold (0–1)'),
+	    })
+	    .strict();
 
 type ExampleCompactionConfig = z.output<typeof ConfigSchema>;
 
@@ -830,7 +839,7 @@ export const factory: CompactionFactory<ExampleCompactionConfig> = {
 /**
  * Generates an example in-memory cache factory
  */
-export function generateExampleCacheFactory(cacheType: string = 'example-cache'): string {
+export function generateExampleCacheFactory(cacheType: string): string {
     return `import { z } from 'zod';
 import type { CacheFactory } from '@dexto/agent-config';
 import { MemoryCacheStore } from '@dexto/storage';
@@ -859,7 +868,7 @@ export const factory: CacheFactory<ExampleCacheConfig> = {
 /**
  * Generates an example in-memory database factory
  */
-export function generateExampleDatabaseFactory(databaseType: string = 'example-database'): string {
+export function generateExampleDatabaseFactory(databaseType: string): string {
     return `import { z } from 'zod';
 import type { DatabaseFactory } from '@dexto/agent-config';
 import { MemoryDatabaseStore } from '@dexto/storage';
@@ -888,7 +897,7 @@ export const factory: DatabaseFactory<ExampleDatabaseConfig> = {
 /**
  * Generates an example in-memory blob store factory
  */
-export function generateExampleBlobStoreFactory(blobType: string = 'example-blob'): string {
+export function generateExampleBlobStoreFactory(blobType: string): string {
     return `import { z } from 'zod';
 import type { BlobStoreFactory } from '@dexto/agent-config';
 import { InMemoryBlobStoreSchema, MemoryBlobStore } from '@dexto/storage';
