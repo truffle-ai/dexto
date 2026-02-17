@@ -797,7 +797,7 @@ async function bootstrapAgentFromGlobalOpts() {
     return agent;
 }
 
-// Helper to find the most recent session (skips ephemeral sessions created by older headless modes)
+// Helper to find the most recent session
 async function getMostRecentSessionId(agent: DextoAgent): Promise<string | null> {
     const sessionIds = await agent.listSessions();
     if (sessionIds.length === 0) {
@@ -809,11 +809,6 @@ async function getMostRecentSessionId(agent: DextoAgent): Promise<string | null>
     let mostRecentActivity = 0;
 
     for (const sessionId of sessionIds) {
-        // Skip ephemeral headless sessions created by older versions.
-        if (sessionId.startsWith('headless-')) {
-            continue;
-        }
-
         const metadata = await agent.getSessionMetadata(sessionId);
         if (metadata && metadata.lastActivity > mostRecentActivity) {
             mostRecentActivity = metadata.lastActivity;

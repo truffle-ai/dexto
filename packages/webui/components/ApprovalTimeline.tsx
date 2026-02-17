@@ -67,7 +67,7 @@ export function ApprovalTimeline({ approval, onApprove, onDeny }: ApprovalTimeli
             source = 'system';
         } else if (approval.type === ApprovalType.TOOL_CONFIRMATION) {
             const toolName = approval.metadata.toolName;
-            if (toolName.startsWith('mcp__')) {
+            if (toolName.startsWith('mcp--')) {
                 displayName = toolName.substring(5);
                 source = 'mcp';
             } else {

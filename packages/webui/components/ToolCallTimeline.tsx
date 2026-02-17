@@ -56,13 +56,6 @@ function stripToolPrefix(toolName: string): { displayName: string; source: strin
         }
         return { displayName: toolName.replace('mcp--', ''), source: 'mcp' };
     }
-    if (toolName.startsWith('mcp__')) {
-        const parts = toolName.substring(5).split('__');
-        if (parts.length >= 2) {
-            return { displayName: parts.slice(1).join('__'), source: parts[0] ?? '' };
-        }
-        return { displayName: toolName.substring(5), source: 'mcp' };
-    }
     return { displayName: toolName, source: '' };
 }
 

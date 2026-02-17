@@ -293,11 +293,6 @@ function ThinkingIndicator({ toolName }: { toolName?: string | null }) {
             const parts = trimmed.split('--');
             return parts.length >= 2 ? parts.slice(1).join('--') : trimmed;
         }
-        if (toolName.startsWith('mcp__')) {
-            const trimmed = toolName.substring('mcp__'.length);
-            const parts = trimmed.split('__');
-            return parts.length >= 2 ? parts.slice(1).join('__') : trimmed;
-        }
         return toolName;
     })();
 

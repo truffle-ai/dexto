@@ -17,11 +17,6 @@ export function normalizeToolName(toolName: string): string {
         const parts = trimmed.split('--');
         return parts.length >= 2 ? parts.slice(1).join('--') : trimmed;
     }
-    if (toolName.startsWith('mcp__')) {
-        const trimmed = toolName.substring('mcp__'.length);
-        const parts = trimmed.split('__');
-        return parts.length >= 2 ? parts.slice(1).join('__') : trimmed;
-    }
     return toolName;
 }
 
@@ -187,18 +182,11 @@ function toTitleCase(name: string): string {
 }
 
 export function getToolDisplayName(toolName: string): string {
-    // MCP tools: strip mcp-- or mcp__ prefix and server name for clean display
+    // MCP tools: strip `mcp--` prefix and server name for clean display
     if (toolName.startsWith('mcp--')) {
         const parts = toolName.split('--');
         if (parts.length >= 3) {
             return toTitleCase(parts.slice(2).join('--'));
-        }
-        return toTitleCase(toolName.substring(5));
-    }
-    if (toolName.startsWith('mcp__')) {
-        const parts = toolName.substring(5).split('__');
-        if (parts.length >= 2) {
-            return toTitleCase(parts.slice(1).join('__'));
         }
         return toTitleCase(toolName.substring(5));
     }
@@ -215,14 +203,6 @@ export function getToolTypeBadge(toolName: string): string {
         const parts = toolName.split('--');
         if (parts.length >= 3 && parts[1]) {
             return `MCP: ${parts[1]}`; // Format: 'MCP: github', 'MCP: postgres'
-        }
-        return 'MCP';
-    }
-
-    if (toolName.startsWith('mcp__')) {
-        const parts = toolName.substring(5).split('__');
-        if (parts.length >= 2 && parts[0]) {
-            return `MCP: ${parts[0]}`; // Format: 'MCP: servername'
         }
         return 'MCP';
     }
