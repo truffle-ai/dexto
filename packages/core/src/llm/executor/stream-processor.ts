@@ -745,8 +745,7 @@ function tryParsePartialJson(input: string): Record<string, unknown> | null {
     if (!trimmed) return null;
     if (!trimmed.startsWith('{')) return null;
 
-    // Remove trailing commas before attempting repair.
-    let repaired = trimmed.replace(/,\s*$/, '');
+    let repaired = trimmed;
 
     let openBraces = 0;
     let openBrackets = 0;
@@ -780,6 +779,9 @@ function tryParsePartialJson(input: string): Record<string, unknown> | null {
         if (char === ']') openBrackets = Math.max(0, openBrackets - 1);
     }
 
+    if (!inString) {
+        repaired = repaired.replace(/,\s*$/, '');
+    }
     if (inString) {
         if (isEscaped) {
             repaired = repaired.slice(0, -1);

@@ -1,9 +1,10 @@
 import { z } from 'zod';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
-import { promises as dns } from 'node:dns';
+import { promises as dns, type LookupAddress, type LookupOptions } from 'node:dns';
 import { isIP } from 'node:net';
 import { TextDecoder } from 'node:util';
+import { Agent, type Dispatcher } from 'undici';
 
 const HttpRequestInputSchema = z
     .object({
@@ -62,6 +63,7 @@ function safeJsonParse(text: string): unknown | undefined {
 
 const BLOCKED_HOSTNAMES = new Set(['localhost']);
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
+const SAFE_DISPATCHER = createSafeDispatcher();
 
 function isPrivateIpv4(ip: string): boolean {
     const parts = ip.split('.').map((part) => Number(part));
@@ -71,7 +73,9 @@ function isPrivateIpv4(ip: string): boolean {
 
     const a = parts[0];
     const b = parts[1];
-    if (a === undefined || b === undefined) {
+    const c = parts[2];
+    const d = parts[3];
+    if (a === undefined || b === undefined || c === undefined || d === undefined) {
         return false;
     }
     if (a === 0) return true;
@@ -81,6 +85,13 @@ function isPrivateIpv4(ip: string): boolean {
     if (a === 172 && b >= 16 && b <= 31) return true;
     if (a === 192 && b === 168) return true;
     if (a === 100 && b >= 64 && b <= 127) return true;
+    if (a === 192 && b === 0 && c === 0) return true;
+    if (a === 192 && b === 0 && c === 2) return true;
+    if (a === 198 && b === 51 && c === 100) return true;
+    if (a === 203 && b === 0 && c === 113) return true;
+    if (a === 198 && (b === 18 || b === 19)) return true;
+    if (a >= 224 && a <= 239) return true;
+    if (a >= 240) return true;
 
     return false;
 }
@@ -102,6 +113,86 @@ function isPrivateAddress(ip: string): boolean {
     if (version === 4) return isPrivateIpv4(ip);
     if (version === 6) return isPrivateIpv6(ip);
     return false;
+}
+
+function createSafeDispatcher(): Dispatcher {
+    const lookup = (
+        hostname: string,
+        _options: LookupOptions,
+        callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void
+    ) => {
+        void (async () => {
+            try {
+                if (BLOCKED_HOSTNAMES.has(hostname) || hostname.endsWith('.localhost')) {
+                    callback(
+                        new DextoRuntimeError(
+                            'HTTP_REQUEST_UNSAFE_TARGET',
+                            ErrorScope.TOOLS,
+                            ErrorType.FORBIDDEN,
+                            `Blocked request to local hostname: ${hostname}`
+                        ),
+                        '',
+                        0
+                    );
+                    return;
+                }
+
+                const records = (await dns.lookup(hostname, {
+                    all: true,
+                    verbatim: true,
+                })) as LookupAddress[];
+                if (!records.length) {
+                    callback(
+                        new DextoRuntimeError(
+                            'HTTP_REQUEST_DNS_FAILED',
+                            ErrorScope.TOOLS,
+                            ErrorType.THIRD_PARTY,
+                            `Failed to resolve hostname: ${hostname}`
+                        ),
+                        '',
+                        0
+                    );
+                    return;
+                }
+
+                for (const record of records) {
+                    if (isPrivateAddress(record.address)) {
+                        callback(
+                            new DextoRuntimeError(
+                                'HTTP_REQUEST_UNSAFE_TARGET',
+                                ErrorScope.TOOLS,
+                                ErrorType.FORBIDDEN,
+                                `Blocked request to private address: ${record.address}`
+                            ),
+                            '',
+                            0
+                        );
+                        return;
+                    }
+                }
+
+                const selected = records[0]!;
+                callback(
+                    null,
+                    selected.address,
+                    selected.family ?? (isIP(selected.address) === 6 ? 6 : 4)
+                );
+            } catch (error) {
+                const err =
+                    error instanceof DextoRuntimeError
+                        ? error
+                        : new DextoRuntimeError(
+                              'HTTP_REQUEST_DNS_FAILED',
+                              ErrorScope.TOOLS,
+                              ErrorType.THIRD_PARTY,
+                              `Failed to resolve hostname: ${hostname}`
+                          );
+                callback(err, '', 0);
+            }
+        })();
+    };
+
+    return new Agent({ connect: { lookup } });
 }
 
 async function assertSafeUrl(requestUrl: URL): Promise<void> {
@@ -139,30 +230,6 @@ async function assertSafeUrl(requestUrl: URL): Promise<void> {
             ErrorScope.TOOLS,
             ErrorType.FORBIDDEN,
             `Blocked request to private address: ${hostname}`
-        );
-    }
-
-    try {
-        const records = await dns.lookup(hostname, { all: true });
-        for (const record of records) {
-            if (isPrivateAddress(record.address)) {
-                throw new DextoRuntimeError(
-                    'HTTP_REQUEST_UNSAFE_TARGET',
-                    ErrorScope.TOOLS,
-                    ErrorType.FORBIDDEN,
-                    `Blocked request to private address: ${record.address}`
-                );
-            }
-        }
-    } catch (error) {
-        if (error instanceof DextoRuntimeError) {
-            throw error;
-        }
-        throw new DextoRuntimeError(
-            'HTTP_REQUEST_DNS_FAILED',
-            ErrorScope.TOOLS,
-            ErrorType.THIRD_PARTY,
-            `Failed to resolve hostname: ${hostname}`
         );
     }
 }
@@ -253,11 +320,12 @@ export function createHttpRequestTool(): Tool {
             const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
             try {
-                const requestInit: RequestInit = {
+                const requestInit: RequestInit & { dispatcher?: Dispatcher } = {
                     method,
                     headers: requestHeaders,
                     signal: controller.signal,
                 };
+                requestInit.dispatcher = SAFE_DISPATCHER;
                 if (requestBody !== undefined) {
                     requestInit.body = requestBody;
                 }
