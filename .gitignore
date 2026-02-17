@@ -55,6 +55,7 @@ tsup.config.bundled_*.mjs
 
 # Transient TypeScript emits inside source folders (should only be in dist/)
 packages/*/src/**/*.js
+packages/*/src/**/*.js.map
 packages/*/src/**/*.d.ts
 packages/*/src/**/*.d.ts.map
 

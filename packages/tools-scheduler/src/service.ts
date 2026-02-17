@@ -17,9 +17,12 @@ export async function createSchedulerService(
 ): Promise<SchedulerManager> {
     const resolvedConfig =
         options.config ?? SchedulerToolsConfigSchema.parse({ type: 'scheduler-tools' });
-    const manager = new SchedulerManager(options.storageManager, resolvedConfig, options.logger, {
-        storageNamespace: options.storageNamespace,
-    });
+    const manager = new SchedulerManager(
+        options.storageManager,
+        resolvedConfig,
+        options.logger,
+        options.storageNamespace ? { storageNamespace: options.storageNamespace } : undefined
+    );
 
     if (options.executor) {
         manager.setExecutor(options.executor);

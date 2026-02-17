@@ -45,9 +45,37 @@ export const fileSystemToolsFactory: ToolFactory<FileSystemToolsConfig> = {
             service.setWorkingDirectory(workingDirectory);
         };
 
+        const resolveInjectedService = (
+            context: ToolExecutionContext
+        ): FileSystemService | null => {
+            const candidate = (context.services as unknown as { filesystemService?: unknown })
+                ?.filesystemService as FileSystemService | undefined;
+            if (!candidate) return null;
+            if (candidate instanceof FileSystemService) return candidate;
+            const hasMethods =
+                typeof (candidate as FileSystemService).readFile === 'function' &&
+                typeof (candidate as FileSystemService).writeFile === 'function';
+            return hasMethods ? (candidate as FileSystemService) : null;
+        };
+
         const getFileSystemService = async (
             context: ToolExecutionContext
         ): Promise<FileSystemService> => {
+            const injectedService = resolveInjectedService(context);
+            if (injectedService) {
+                const approvalManager = context.services?.approval;
+                if (!approvalManager) {
+                    throw ToolError.configInvalid(
+                        'filesystem-tools requires ToolExecutionContext.services.approval'
+                    );
+                }
+                injectedService.setDirectoryApprovalChecker((filePath: string) =>
+                    approvalManager.isDirectoryApproved(filePath)
+                );
+                applyWorkspace(context, injectedService);
+                return injectedService;
+            }
+
             if (fileSystemService) {
                 const approvalManager = context.services?.approval;
                 if (!approvalManager) {

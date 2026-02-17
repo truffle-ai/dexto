@@ -3,7 +3,7 @@
  */
 
 import cron from 'node-cron';
-import * as cronParser from 'cron-parser';
+import cronParser from 'cron-parser';
 import { randomUUID } from 'crypto';
 import { DextoRuntimeError } from '@dexto/core';
 import type { StorageManager, Logger } from '@dexto/core';
