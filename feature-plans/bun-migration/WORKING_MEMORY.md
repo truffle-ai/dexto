@@ -29,7 +29,7 @@
 - Plan artifacts committed to this worktree (commit `b40d68e2`).
 - Checkpoint commit for Phase 0 + Phase 1 completed: `5ea80491`.
 - Remaining pnpm/npm touchpoints (non-exhaustive, starting points):
-  - `packages/cli/src/cli/utils/image-store.ts` — installer uses `npm pack` + `npm install`
+  - `packages/cli/src/cli/utils/image-store.ts` — migrated to Bun (`bun pm pack` + `bun add`), but still needs broader image-store vs `~/.dexto` layering decision
   - `packages/cli/src/cli/utils/local-model-setup.ts` — installs `node-llama-cpp` via `npm install` into `~/.dexto/deps`
   - `packages/cli/src/cli/ink-cli/components/overlays/custom-model-wizard/LocalModelWizard.tsx` — also runs `npm install node-llama-cpp`
   - `packages/cli/src/cli/utils/scaffolding-utils.ts` — uses `npm init -y`, then chooses `pnpm`/`npm` for deps
@@ -92,6 +92,7 @@
 - 2026-02-17: Converted key repo scripts/entrypoints to use Bun.
 - 2026-02-17: Added Bun migration plan artifacts under `feature-plans/bun-migration/` (commit `b40d68e2`).
 - 2026-02-17: Checkpoint commit `5ea80491` (Bun runtime baseline + `bun.lock` + `bun:sqlite` + scripts/entrypoints).
+- 2026-02-17: Image store installer now uses Bun (`bun pm pack` + `bun add`) instead of npm (commit `5e36ff3b`).
 
 ---
 
