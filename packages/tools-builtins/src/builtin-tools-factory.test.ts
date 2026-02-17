@@ -13,6 +13,8 @@ describe('builtinToolsFactory', () => {
             'invoke_skill',
             'http_request',
             'sleep',
+            'web_search',
+            'code_search',
         ]);
     });
 
