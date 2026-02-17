@@ -40,7 +40,7 @@ import {
 import { useResources } from './hooks/useResources';
 import type { ResourceMetadata } from '@dexto/core';
 import { parseResourceReferences, resolveResourceReferences } from '@dexto/core';
-import { type ApprovalEvent } from './ToolConfirmationHandler';
+import { type ApprovalEvent } from './ApprovalRequestHandler';
 import { ToolCallTimeline } from './ToolCallTimeline';
 import { TodoPanel } from './TodoPanel';
 

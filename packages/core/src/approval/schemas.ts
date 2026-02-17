@@ -32,9 +32,9 @@ const ToolDisplayDataSchema = z.custom<ToolDisplayData>((val) => isValidDisplayD
 });
 
 /**
- * Tool confirmation metadata schema
+ * Tool approval metadata schema
  */
-export const ToolConfirmationMetadataSchema = z
+export const ToolApprovalMetadataSchema = z
     .object({
         toolName: z.string().describe('Name of the tool to confirm'),
         toolDisplayName: z
@@ -56,7 +56,7 @@ export const ToolConfirmationMetadataSchema = z
             ),
     })
     .strict()
-    .describe('Tool confirmation metadata');
+    .describe('Tool approval metadata');
 
 /**
  * Command confirmation metadata schema
@@ -125,11 +125,11 @@ export const BaseApprovalRequestSchema = z
     .describe('Base approval request');
 
 /**
- * Tool confirmation request schema
+ * Tool approval request schema
  */
-export const ToolConfirmationRequestSchema = BaseApprovalRequestSchema.extend({
-    type: z.literal(ApprovalType.TOOL_CONFIRMATION),
-    metadata: ToolConfirmationMetadataSchema,
+export const ToolApprovalRequestSchema = BaseApprovalRequestSchema.extend({
+    type: z.literal(ApprovalType.TOOL_APPROVAL),
+    metadata: ToolApprovalMetadataSchema,
 }).strict();
 
 /**
@@ -168,7 +168,7 @@ export const DirectoryAccessRequestSchema = BaseApprovalRequestSchema.extend({
  * Discriminated union for all approval requests
  */
 export const ApprovalRequestSchema = z.discriminatedUnion('type', [
-    ToolConfirmationRequestSchema,
+    ToolApprovalRequestSchema,
     CommandConfirmationRequestSchema,
     ElicitationRequestSchema,
     CustomApprovalRequestSchema,
@@ -176,9 +176,9 @@ export const ApprovalRequestSchema = z.discriminatedUnion('type', [
 ]);
 
 /**
- * Tool confirmation response data schema
+ * Tool approval response data schema
  */
-export const ToolConfirmationResponseDataSchema = z
+export const ToolApprovalResponseDataSchema = z
     .object({
         rememberChoice: z
             .boolean()
@@ -193,7 +193,7 @@ export const ToolConfirmationResponseDataSchema = z
             ),
     })
     .strict()
-    .describe('Tool confirmation response data');
+    .describe('Tool approval response data');
 
 /**
  * Command confirmation response data schema
@@ -261,10 +261,10 @@ export const BaseApprovalResponseSchema = z
     .describe('Base approval response');
 
 /**
- * Tool confirmation response schema
+ * Tool approval response schema
  */
-export const ToolConfirmationResponseSchema = BaseApprovalResponseSchema.extend({
-    data: ToolConfirmationResponseDataSchema.optional(),
+export const ToolApprovalResponseSchema = BaseApprovalResponseSchema.extend({
+    data: ToolApprovalResponseDataSchema.optional(),
 }).strict();
 
 /**
@@ -299,7 +299,7 @@ export const DirectoryAccessResponseSchema = BaseApprovalResponseSchema.extend({
  * Union of all approval responses
  */
 export const ApprovalResponseSchema = z.union([
-    ToolConfirmationResponseSchema,
+    ToolApprovalResponseSchema,
     CommandConfirmationResponseSchema,
     ElicitationResponseSchema,
     CustomApprovalResponseSchema,
@@ -320,7 +320,7 @@ export const ApprovalRequestDetailsSchema = z
             .optional()
             .describe('Timeout in milliseconds (optional - no timeout if not specified)'),
         metadata: z.union([
-            ToolConfirmationMetadataSchema,
+            ToolApprovalMetadataSchema,
             CommandConfirmationMetadataSchema,
             ElicitationMetadataSchema,
             CustomApprovalMetadataSchema,
@@ -329,13 +329,13 @@ export const ApprovalRequestDetailsSchema = z
     })
     .superRefine((data, ctx) => {
         // Validate metadata matches type
-        if (data.type === ApprovalType.TOOL_CONFIRMATION) {
-            const result = ToolConfirmationMetadataSchema.safeParse(data.metadata);
+        if (data.type === ApprovalType.TOOL_APPROVAL) {
+            const result = ToolApprovalMetadataSchema.safeParse(data.metadata);
             if (!result.success) {
                 ctx.addIssue({
                     code: z.ZodIssueCode.custom,
                     message:
-                        'Metadata must match ToolConfirmationMetadataSchema for TOOL_CONFIRMATION type',
+                        'Metadata must match ToolApprovalMetadataSchema for TOOL_APPROVAL type',
                     path: ['metadata'],
                 });
             }
@@ -385,6 +385,6 @@ export const ApprovalRequestDetailsSchema = z
  */
 export type ValidatedApprovalRequest = z.output<typeof ApprovalRequestSchema>;
 export type ValidatedApprovalResponse = z.output<typeof ApprovalResponseSchema>;
-export type ValidatedToolConfirmationRequest = z.output<typeof ToolConfirmationRequestSchema>;
+export type ValidatedToolApprovalRequest = z.output<typeof ToolApprovalRequestSchema>;
 export type ValidatedElicitationRequest = z.output<typeof ElicitationRequestSchema>;
 export type ValidatedCustomApprovalRequest = z.output<typeof CustomApprovalRequestSchema>;

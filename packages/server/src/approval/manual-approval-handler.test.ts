@@ -35,7 +35,7 @@ describe('createManualApprovalHandler', () => {
 
             const request: ApprovalRequest = {
                 approvalId: 'test-infinite-1',
-                type: ApprovalType.TOOL_CONFIRMATION,
+                type: ApprovalType.TOOL_APPROVAL,
                 timestamp: new Date(),
                 // No timeout - should wait indefinitely
                 metadata: {
@@ -72,7 +72,7 @@ describe('createManualApprovalHandler', () => {
 
             const request: ApprovalRequest = {
                 approvalId: 'test-timeout-1',
-                type: ApprovalType.TOOL_CONFIRMATION,
+                type: ApprovalType.TOOL_APPROVAL,
                 timestamp: new Date(),
                 timeout: 50, // 50ms timeout
                 metadata: {
@@ -95,7 +95,7 @@ describe('createManualApprovalHandler', () => {
 
             const request: ApprovalRequest = {
                 approvalId: 'test-timeout-emit',
-                type: ApprovalType.TOOL_CONFIRMATION,
+                type: ApprovalType.TOOL_APPROVAL,
                 timestamp: new Date(),
                 timeout: 50,
                 metadata: {
@@ -123,7 +123,7 @@ describe('createManualApprovalHandler', () => {
 
             const request: ApprovalRequest = {
                 approvalId: 'test-clear-timeout',
-                type: ApprovalType.TOOL_CONFIRMATION,
+                type: ApprovalType.TOOL_APPROVAL,
                 timestamp: new Date(),
                 timeout: 5000, // 5 second timeout
                 metadata: {
@@ -194,7 +194,7 @@ describe('createManualApprovalHandler', () => {
 
             const request: ApprovalRequest = {
                 approvalId: 'test-cancel-1',
-                type: ApprovalType.TOOL_CONFIRMATION,
+                type: ApprovalType.TOOL_APPROVAL,
                 timestamp: new Date(),
                 metadata: {
                     toolName: 'test_tool',
@@ -218,14 +218,14 @@ describe('createManualApprovalHandler', () => {
 
             const request1: ApprovalRequest = {
                 approvalId: 'pending-1',
-                type: ApprovalType.TOOL_CONFIRMATION,
+                type: ApprovalType.TOOL_APPROVAL,
                 timestamp: new Date(),
                 metadata: { toolName: 'tool1', toolCallId: 'test-call-id-1', args: {} },
             };
 
             const request2: ApprovalRequest = {
                 approvalId: 'pending-2',
-                type: ApprovalType.TOOL_CONFIRMATION,
+                type: ApprovalType.TOOL_APPROVAL,
                 timestamp: new Date(),
                 metadata: { toolName: 'tool2', toolCallId: 'test-call-id-2', args: {} },
             };
@@ -244,14 +244,14 @@ describe('createManualApprovalHandler', () => {
 
             const request1: ApprovalRequest = {
                 approvalId: 'cancel-all-1',
-                type: ApprovalType.TOOL_CONFIRMATION,
+                type: ApprovalType.TOOL_APPROVAL,
                 timestamp: new Date(),
                 metadata: { toolName: 'tool1', toolCallId: 'test-call-id-1', args: {} },
             };
 
             const request2: ApprovalRequest = {
                 approvalId: 'cancel-all-2',
-                type: ApprovalType.TOOL_CONFIRMATION,
+                type: ApprovalType.TOOL_APPROVAL,
                 timestamp: new Date(),
                 metadata: { toolName: 'tool2', toolCallId: 'test-call-id-2', args: {} },
             };
@@ -275,7 +275,7 @@ describe('createManualApprovalHandler', () => {
 
             const request: ApprovalRequest = {
                 approvalId: 'test-match-1',
-                type: ApprovalType.TOOL_CONFIRMATION,
+                type: ApprovalType.TOOL_APPROVAL,
                 timestamp: new Date(),
                 metadata: { toolName: 'test_tool', toolCallId: 'test-call-id', args: {} },
             };

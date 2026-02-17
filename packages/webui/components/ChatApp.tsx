@@ -25,7 +25,7 @@ import ServerRegistryModal from './ServerRegistryModal';
 import ServersPanel from './ServersPanel';
 import SessionPanel from './SessionPanel';
 import MemoryPanel from './MemoryPanel';
-import { ToolConfirmationHandler, type ApprovalEvent } from './ToolConfirmationHandler';
+import { ApprovalRequestHandler, type ApprovalEvent } from './ApprovalRequestHandler';
 import GlobalSearchModal from './GlobalSearchModal';
 import CustomizePanel from './AgentEditor/CustomizePanel';
 import { Button } from './ui/button';
@@ -1519,8 +1519,8 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                 }}
             />
 
-            {/* Tool Confirmation Handler */}
-            <ToolConfirmationHandler
+            {/* Approval Handler */}
+            <ApprovalRequestHandler
                 onApprovalRequest={setPendingApproval}
                 onHandlersReady={setApprovalHandlers}
             />

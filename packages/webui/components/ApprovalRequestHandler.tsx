@@ -8,7 +8,7 @@ import { useApprovalStore } from '@/lib/stores/approvalStore';
 // Re-export ApprovalRequest as ApprovalEvent for consumers (e.g., InlineApprovalCard, MessageList)
 export type ApprovalEvent = ApprovalRequest;
 
-interface ToolConfirmationHandlerProps {
+interface ApprovalRequestHandlerProps {
     onApprovalRequest?: (approval: ApprovalEvent | null) => void;
     onApprove?: (formData?: Record<string, unknown>, rememberChoice?: boolean) => void;
     onDeny?: () => void;
@@ -25,12 +25,12 @@ export interface ApprovalHandlers {
  * Uses approvalStore for state management (no DOM events)
  * Sends responses back through API via useSubmitApproval
  */
-export function ToolConfirmationHandler({
+export function ApprovalRequestHandler({
     onApprovalRequest,
     onApprove: externalOnApprove,
     onDeny: externalOnDeny,
     onHandlersReady,
-}: ToolConfirmationHandlerProps) {
+}: ApprovalRequestHandlerProps) {
     const currentSessionId = useSessionStore((s) => s.currentSessionId);
     const pendingApproval = useApprovalStore((s) => s.pendingApproval);
     const clearApproval = useApprovalStore((s) => s.clearApproval);
@@ -50,7 +50,7 @@ export function ToolConfirmationHandler({
         onApprovalRequest?.(currentApproval);
     }, [currentApproval, onApprovalRequest]);
 
-    // Send confirmation response via API
+    // Send approval response via API
     const sendResponse = useCallback(
         async (approved: boolean, formData?: Record<string, unknown>, rememberChoice?: boolean) => {
             if (!currentApproval) return;

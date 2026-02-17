@@ -21,7 +21,7 @@ export type {
 } from './types.js';
 
 // Internal types - not exported to avoid naming conflicts with tools module
-// ToolConfirmationMetadata, ToolConfirmationRequest, ToolConfirmationResponse, ToolConfirmationResponseData
+// ToolApprovalMetadata, ToolApprovalRequest, ToolApprovalResponse, ToolApprovalResponseData
 
 export { ApprovalType, ApprovalStatus, DenialReason } from './types.js';
 
@@ -30,19 +30,19 @@ export {
     ApprovalTypeSchema,
     ApprovalStatusSchema,
     DenialReasonSchema,
-    ToolConfirmationMetadataSchema,
+    ToolApprovalMetadataSchema,
     ElicitationMetadataSchema,
     CustomApprovalMetadataSchema,
     BaseApprovalRequestSchema,
-    ToolConfirmationRequestSchema,
+    ToolApprovalRequestSchema,
     ElicitationRequestSchema,
     CustomApprovalRequestSchema,
     ApprovalRequestSchema,
-    ToolConfirmationResponseDataSchema,
+    ToolApprovalResponseDataSchema,
     ElicitationResponseDataSchema,
     CustomApprovalResponseDataSchema,
     BaseApprovalResponseSchema,
-    ToolConfirmationResponseSchema,
+    ToolApprovalResponseSchema,
     ElicitationResponseSchema,
     CustomApprovalResponseSchema,
     ApprovalResponseSchema,
@@ -52,7 +52,7 @@ export {
 export type {
     ValidatedApprovalRequest,
     ValidatedApprovalResponse,
-    ValidatedToolConfirmationRequest,
+    ValidatedToolApprovalRequest,
     ValidatedElicitationRequest,
     ValidatedCustomApprovalRequest,
 } from './schemas.js';

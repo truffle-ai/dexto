@@ -11,7 +11,7 @@ import { convertZodSchemaToJsonSchema } from '../utils/schema.js';
 import type { AgentEventBus } from '../events/index.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import { ApprovalStatus, ApprovalType, DenialReason } from '../approval/types.js';
-import type { ApprovalRequest, ToolConfirmationMetadata } from '../approval/types.js';
+import type { ApprovalRequest, ToolApprovalMetadata } from '../approval/types.js';
 import type { AllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
 import type { HookManager } from '../hooks/manager.js';
 import type { SessionManager } from '../session/index.js';
@@ -37,13 +37,13 @@ export type ToolExecutionContextFactory = (
  * - Aggregate tools from MCP servers and local tools with conflict resolution
  * - Route tool execution to appropriate source (MCP vs local)
  * - Provide unified tool interface to LLM
- * - Manage tool confirmation and security via ApprovalManager
+ * - Manage tool approvals and security via ApprovalManager
  * - Handle cross-source naming conflicts (MCP tools are prefixed with `mcp--`)
  *
  * Architecture:
  * LLMService → ToolManager → [MCPManager, local tools]
  *                ↓
- *          ApprovalManager (for confirmations)
+ *          ApprovalManager (for approvals)
  *
  * TODO (Telemetry): Add OpenTelemetry metrics collection
  *   - Tool execution counters (by tool name, source: MCP/internal)
@@ -536,7 +536,7 @@ export class ToolManager {
     }
 
     /**
-     * Auto-approve pending tool confirmation requests for the same tool.
+     * Auto-approve pending tool approval requests for the same tool.
      * Called after a user selects "remember choice" for a tool.
      * This handles the case where parallel tool calls come in before the first one is approved.
      *
@@ -546,8 +546,8 @@ export class ToolManager {
     private autoApprovePendingToolRequests(toolName: string, sessionId?: string): void {
         const count = this.approvalManager.autoApprovePendingRequests(
             (request: ApprovalRequest) => {
-                // Only match tool confirmation requests
-                if (request.type !== ApprovalType.TOOL_CONFIRMATION) {
+                // Only match tool approval requests
+                if (request.type !== ApprovalType.TOOL_APPROVAL) {
                     return false;
                 }
 
@@ -557,7 +557,7 @@ export class ToolManager {
                 }
 
                 // Check if it's the same tool
-                const metadata = request.metadata as ToolConfirmationMetadata;
+                const metadata = request.metadata as ToolApprovalMetadata;
                 return metadata.toolName === toolName;
             },
             { rememberChoice: false } // Don't propagate remember choice to auto-approved requests
@@ -571,7 +571,7 @@ export class ToolManager {
     }
 
     /**
-     * Auto-approve pending tool confirmation requests that are now covered by a remembered pattern.
+     * Auto-approve pending tool approval requests that are now covered by a remembered pattern.
      * Called after a user selects "remember pattern" for a tool.
      */
     private autoApprovePendingPatternRequests(toolName: string, sessionId?: string): void {
@@ -587,8 +587,8 @@ export class ToolManager {
 
         const count = this.approvalManager.autoApprovePendingRequests(
             (request: ApprovalRequest) => {
-                // Only match tool confirmation requests
-                if (request.type !== ApprovalType.TOOL_CONFIRMATION) {
+                // Only match tool approval requests
+                if (request.type !== ApprovalType.TOOL_APPROVAL) {
                     return false;
                 }
 
@@ -597,7 +597,7 @@ export class ToolManager {
                     return false;
                 }
 
-                const metadata = request.metadata as ToolConfirmationMetadata;
+                const metadata = request.metadata as ToolApprovalMetadata;
                 if (metadata.toolName !== toolName) {
                     return false;
                 }
@@ -1356,7 +1356,7 @@ export class ToolManager {
         callDescription?: string
     ): Promise<{ requireApproval: boolean; approvalStatus: 'approved' | 'rejected' }> {
         this.logger.info(
-            `Tool confirmation requested for ${toolName}, sessionId: ${sessionId ?? 'global'}`
+            `Tool approval requested for ${toolName}, sessionId: ${sessionId ?? 'global'}`
         );
 
         try {
@@ -1373,7 +1373,7 @@ export class ToolManager {
             const suggestedPatterns = this.getToolSuggestedPatterns(toolName, args);
 
             // Build and send approval request
-            const response = await this.approvalManager.requestToolConfirmation({
+            const response = await this.approvalManager.requestToolApproval({
                 toolName,
                 ...(toolDisplayName !== undefined && { toolDisplayName }),
                 toolCallId,
@@ -1395,12 +1395,12 @@ export class ToolManager {
             }
 
             this.logger.info(
-                `Tool confirmation approved for ${toolName}, sessionId: ${sessionId ?? 'global'}`
+                `Tool approval approved for ${toolName}, sessionId: ${sessionId ?? 'global'}`
             );
             return { requireApproval: true, approvalStatus: 'approved' };
         } catch (error) {
             this.logger.error(
-                `Tool confirmation error for ${toolName}: ${error instanceof Error ? error.message : String(error)}`
+                `Tool approval error for ${toolName}: ${error instanceof Error ? error.message : String(error)}`
             );
             throw error;
         }
