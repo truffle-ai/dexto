@@ -44,7 +44,7 @@ type WebSearchInput = z.output<typeof WebSearchInputSchema>;
 export function createWebSearchTool(): Tool {
     return {
         id: 'web_search',
-        displayName: 'WebSearch',
+        displayName: 'Web Search',
         description:
             'Search the web for current information and return clean, ready-to-use text. Use for news, facts, and up-to-date context.',
         inputSchema: WebSearchInputSchema,

@@ -66,7 +66,7 @@ function createToolByName(name: BuiltinToolName): Tool {
 export const builtinToolsFactory: ToolFactory<BuiltinToolsConfig> = {
     configSchema: BuiltinToolsConfigSchema,
     metadata: {
-        displayName: 'Built-in tools',
+        displayName: 'Built-in Tools',
         description: 'Core built-in tools shipped with Dexto',
         category: 'core',
     },
