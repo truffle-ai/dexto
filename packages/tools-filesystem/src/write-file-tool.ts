@@ -4,7 +4,6 @@
  * Internal tool for writing content to files (requires approval)
  */
 
-import * as path from 'node:path';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { createPatch } from 'diff';
@@ -14,7 +13,7 @@ import type { Tool, ToolExecutionContext } from '@dexto/core';
 import { FileSystemErrorCode } from './error-codes.js';
 import { BufferEncoding } from './types.js';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
-import { createDirectoryAccessApprovalHandlers } from './directory-approval.js';
+import { createDirectoryAccessApprovalHandlers, resolveFilePath } from './directory-approval.js';
 
 /**
  * Cache for content hashes between preview and execute phases.
@@ -94,13 +93,8 @@ export function createWriteFileTool(
             toolName: 'write_file',
             operation: 'write',
             getFileSystemService,
-            resolvePaths: (input, fileSystemService) => {
-                const baseDir = fileSystemService.getWorkingDirectory();
-                const absolutePath = path.isAbsolute(input.file_path)
-                    ? path.resolve(input.file_path)
-                    : path.resolve(baseDir, input.file_path);
-                return { path: absolutePath, parentDir: path.dirname(absolutePath) };
-            },
+            resolvePaths: (input, fileSystemService) =>
+                resolveFilePath(fileSystemService.getWorkingDirectory(), input.file_path),
         }),
 
         /**
@@ -111,10 +105,14 @@ export function createWriteFileTool(
             const { file_path, content } = input;
 
             const resolvedFileSystemService = await getFileSystemService(context);
+            const { path: resolvedPath } = resolveFilePath(
+                resolvedFileSystemService.getWorkingDirectory(),
+                file_path
+            );
 
             try {
                 // Try to read existing file
-                const originalFile = await resolvedFileSystemService.readFile(file_path);
+                const originalFile = await resolvedFileSystemService.readFile(resolvedPath);
                 const originalContent = originalFile.content;
 
                 // Store content hash for change detection in execute phase
@@ -126,7 +124,7 @@ export function createWriteFileTool(
                 }
 
                 // File exists - show diff preview
-                return generateDiffPreview(file_path, originalContent, content);
+                return generateDiffPreview(resolvedPath, originalContent, content);
             } catch (error) {
                 // Only treat FILE_NOT_FOUND as "create new file", rethrow other errors
                 if (
@@ -142,9 +140,9 @@ export function createWriteFileTool(
                     const lineCount = content.split('\n').length;
                     const preview: FileDisplayData = {
                         type: 'file',
-                        path: file_path,
+                        path: resolvedPath,
                         operation: 'create',
-                        size: content.length,
+                        size: Buffer.byteLength(content, 'utf8'),
                         lineCount,
                         content, // Include content for approval preview
                     };
@@ -160,6 +158,10 @@ export function createWriteFileTool(
 
             // Input is validated by provider before reaching here
             const { file_path, content, create_dirs, encoding } = input;
+            const { path: resolvedPath } = resolveFilePath(
+                resolvedFileSystemService.getWorkingDirectory(),
+                file_path
+            );
 
             // Check if file was modified since preview (safety check)
             // This prevents corrupting user edits made between preview approval and execution
@@ -167,7 +169,7 @@ export function createWriteFileTool(
             let fileExistsNow = false;
 
             try {
-                const originalFile = await resolvedFileSystemService.readFile(file_path);
+                const originalFile = await resolvedFileSystemService.readFile(resolvedPath);
                 originalContent = originalFile.content;
                 fileExistsNow = true;
             } catch (error) {
@@ -193,13 +195,13 @@ export function createWriteFileTool(
                 if (expectedHash === FILE_NOT_EXISTS_MARKER) {
                     // File didn't exist at preview time - verify it still doesn't exist
                     if (fileExistsNow) {
-                        throw ToolError.fileModifiedSincePreview('write_file', file_path);
+                        throw ToolError.fileModifiedSincePreview('write_file', resolvedPath);
                     }
                 } else if (expectedHash !== null) {
                     // File existed at preview time - verify content hasn't changed
                     if (!fileExistsNow) {
                         // File was deleted between preview and execute
-                        throw ToolError.fileModifiedSincePreview('write_file', file_path);
+                        throw ToolError.fileModifiedSincePreview('write_file', resolvedPath);
                     }
                     if (originalContent === null) {
                         throw ToolError.executionFailed(
@@ -209,14 +211,14 @@ export function createWriteFileTool(
                     }
                     const currentHash = computeContentHash(originalContent);
                     if (expectedHash !== currentHash) {
-                        throw ToolError.fileModifiedSincePreview('write_file', file_path);
+                        throw ToolError.fileModifiedSincePreview('write_file', resolvedPath);
                     }
                 }
             }
 
             // Write file using FileSystemService
             // Backup behavior is controlled by config.enableBackups (default: false)
-            const result = await resolvedFileSystemService.writeFile(file_path, content, {
+            const result = await resolvedFileSystemService.writeFile(resolvedPath, content, {
                 createDirs: create_dirs,
                 encoding: encoding as BufferEncoding,
             });
@@ -229,14 +231,14 @@ export function createWriteFileTool(
                 const lineCount = content.split('\n').length;
                 _display = {
                     type: 'file',
-                    path: file_path,
+                    path: resolvedPath,
                     operation: 'create',
                     size: result.bytesWritten,
                     lineCount,
                 };
             } else {
                 // File overwrite - generate diff using shared helper
-                _display = generateDiffPreview(file_path, originalContent, content);
+                _display = generateDiffPreview(resolvedPath, originalContent, content);
             }
 
             return {

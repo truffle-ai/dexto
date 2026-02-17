@@ -4,12 +4,11 @@
  * Internal tool for reading file contents with size limits and pagination
  */
 
-import * as path from 'node:path';
 import { z } from 'zod';
 import { defineTool } from '@dexto/core';
 import type { FileDisplayData, Tool, ToolExecutionContext } from '@dexto/core';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
-import { createDirectoryAccessApprovalHandlers } from './directory-approval.js';
+import { createDirectoryAccessApprovalHandlers, resolveFilePath } from './directory-approval.js';
 
 const ReadFileInputSchema = z
     .object({
@@ -47,13 +46,8 @@ export function createReadFileTool(
             toolName: 'read_file',
             operation: 'read',
             getFileSystemService,
-            resolvePaths: (input, fileSystemService) => {
-                const baseDir = fileSystemService.getWorkingDirectory();
-                const absolutePath = path.isAbsolute(input.file_path)
-                    ? path.resolve(input.file_path)
-                    : path.resolve(baseDir, input.file_path);
-                return { path: absolutePath, parentDir: path.dirname(absolutePath) };
-            },
+            resolvePaths: (input, fileSystemService) =>
+                resolveFilePath(fileSystemService.getWorkingDirectory(), input.file_path),
         }),
 
         async execute(input, context: ToolExecutionContext) {
@@ -61,9 +55,13 @@ export function createReadFileTool(
 
             // Input is validated by provider before reaching here
             const { file_path, limit, offset } = input;
+            const { path: resolvedPath } = resolveFilePath(
+                resolvedFileSystemService.getWorkingDirectory(),
+                file_path
+            );
 
             // Read file using FileSystemService
-            const result = await resolvedFileSystemService.readFile(file_path, {
+            const result = await resolvedFileSystemService.readFile(resolvedPath, {
                 limit,
                 offset,
             });
@@ -71,7 +69,7 @@ export function createReadFileTool(
             // Build display data
             const _display: FileDisplayData = {
                 type: 'file',
-                path: file_path,
+                path: resolvedPath,
                 operation: 'read',
                 size: result.size,
                 lineCount: result.lines,

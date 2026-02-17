@@ -1,3 +1,4 @@
+import * as path from 'node:path';
 import { ApprovalType, ToolError } from '@dexto/core';
 import type { ApprovalRequestDetails, ApprovalResponse, ToolExecutionContext } from '@dexto/core';
 import type { FileSystemService } from './filesystem-service.js';
@@ -9,6 +10,16 @@ type DirectoryApprovalPaths = {
     path: string;
     parentDir: string;
 };
+
+export function resolveFilePath(
+    workingDirectory: string,
+    filePath: string
+): DirectoryApprovalPaths {
+    const resolvedPath = path.isAbsolute(filePath)
+        ? path.resolve(filePath)
+        : path.resolve(workingDirectory, filePath);
+    return { path: resolvedPath, parentDir: path.dirname(resolvedPath) };
+}
 
 export function createDirectoryAccessApprovalHandlers<TInput>(options: {
     toolName: string;

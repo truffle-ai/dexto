@@ -4,7 +4,6 @@
  * Internal tool for editing files by replacing text (requires approval)
  */
 
-import * as path from 'node:path';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { createPatch } from 'diff';
@@ -13,7 +12,7 @@ import type { Tool, ToolExecutionContext } from '@dexto/core';
 import type { DiffDisplayData } from '@dexto/core';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
 import { FileSystemErrorCode } from './error-codes.js';
-import { createDirectoryAccessApprovalHandlers } from './directory-approval.js';
+import { createDirectoryAccessApprovalHandlers, resolveFilePath } from './directory-approval.js';
 
 /**
  * Cache for content hashes between preview and execute phases.
@@ -85,13 +84,8 @@ export function createEditFileTool(
             toolName: 'edit_file',
             operation: 'edit',
             getFileSystemService,
-            resolvePaths: (input, fileSystemService) => {
-                const baseDir = fileSystemService.getWorkingDirectory();
-                const absolutePath = path.isAbsolute(input.file_path)
-                    ? path.resolve(input.file_path)
-                    : path.resolve(baseDir, input.file_path);
-                return { path: absolutePath, parentDir: path.dirname(absolutePath) };
-            },
+            resolvePaths: (input, fileSystemService) =>
+                resolveFilePath(fileSystemService.getWorkingDirectory(), input.file_path),
         }),
 
         /**
@@ -103,10 +97,14 @@ export function createEditFileTool(
             const { file_path, old_string, new_string, replace_all } = input;
 
             const resolvedFileSystemService = await getFileSystemService(context);
+            const { path: resolvedPath } = resolveFilePath(
+                resolvedFileSystemService.getWorkingDirectory(),
+                file_path
+            );
 
             try {
                 // Read current file content
-                const originalFile = await resolvedFileSystemService.readFile(file_path);
+                const originalFile = await resolvedFileSystemService.readFile(resolvedPath);
                 const originalContent = originalFile.content;
 
                 // Store content hash for change detection in execute phase
@@ -124,7 +122,7 @@ export function createEditFileTool(
                         throw ToolError.validationFailed(
                             'edit_file',
                             `String found ${occurrences} times in file. Set replace_all=true to replace all, or provide more context to make old_string unique.`,
-                            { file_path, occurrences }
+                            { file_path: resolvedPath, occurrences }
                         );
                     }
                 }
@@ -139,11 +137,11 @@ export function createEditFileTool(
                     throw ToolError.validationFailed(
                         'edit_file',
                         `String not found in file: "${old_string.slice(0, 50)}${old_string.length > 50 ? '...' : ''}"`,
-                        { file_path, old_string_preview: old_string.slice(0, 100) }
+                        { file_path: resolvedPath, old_string_preview: old_string.slice(0, 100) }
                     );
                 }
 
-                return generateDiffPreview(file_path, originalContent, newContent);
+                return generateDiffPreview(resolvedPath, originalContent, newContent);
             } catch (error) {
                 // Re-throw validation errors as-is
                 if (
@@ -155,7 +153,7 @@ export function createEditFileTool(
                 // Convert filesystem errors (file not found, etc.) to validation errors
                 if (error instanceof DextoRuntimeError) {
                     throw ToolError.validationFailed('edit_file', error.message, {
-                        file_path,
+                        file_path: resolvedPath,
                         originalErrorCode: error.code,
                     });
                 }
@@ -169,6 +167,10 @@ export function createEditFileTool(
 
             // Input is validated by provider before reaching here
             const { file_path, old_string, new_string, replace_all } = input;
+            const { path: resolvedPath } = resolveFilePath(
+                resolvedFileSystemService.getWorkingDirectory(),
+                file_path
+            );
 
             // Check if file was modified since preview (safety check)
             // This prevents corrupting user edits made between preview approval and execution
@@ -184,7 +186,7 @@ export function createEditFileTool(
                     // Read current content to verify it hasn't changed
                     let currentContent: string;
                     try {
-                        const currentFile = await resolvedFileSystemService.readFile(file_path);
+                        const currentFile = await resolvedFileSystemService.readFile(resolvedPath);
                         currentContent = currentFile.content;
                     } catch (error) {
                         // File was deleted between preview and execute - treat as modified
@@ -192,14 +194,14 @@ export function createEditFileTool(
                             error instanceof DextoRuntimeError &&
                             error.code === FileSystemErrorCode.FILE_NOT_FOUND
                         ) {
-                            throw ToolError.fileModifiedSincePreview('edit_file', file_path);
+                            throw ToolError.fileModifiedSincePreview('edit_file', resolvedPath);
                         }
                         throw error;
                     }
                     const currentHash = computeContentHash(currentContent);
 
                     if (expectedHash !== currentHash) {
-                        throw ToolError.fileModifiedSincePreview('edit_file', file_path);
+                        throw ToolError.fileModifiedSincePreview('edit_file', resolvedPath);
                     }
                 }
             }
@@ -207,7 +209,7 @@ export function createEditFileTool(
             // Edit file using FileSystemService
             // Backup behavior is controlled by config.enableBackups (default: false)
             // editFile returns originalContent and newContent, eliminating extra file reads
-            const result = await resolvedFileSystemService.editFile(file_path, {
+            const result = await resolvedFileSystemService.editFile(resolvedPath, {
                 oldString: old_string,
                 newString: new_string,
                 replaceAll: replace_all,
@@ -215,7 +217,7 @@ export function createEditFileTool(
 
             // Generate display data using content returned from editFile
             const _display = generateDiffPreview(
-                file_path,
+                resolvedPath,
                 result.originalContent,
                 result.newContent
             );
