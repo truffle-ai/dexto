@@ -27,6 +27,8 @@ Refactors
 - Tool surface refactor: removes `custom`/`internal` tool ID prefixes; MCP tools remain namespaced.
 - New and updated tools:
   - Adds built-in Exa `web_search` + `code_search` tools.
+  - Enables built-in `http_request` (“Fetch”) in the default and coding agents.
+  - Refines tool display names for readability (e.g. “Update Todos”, “Web Search”, “Code Search”, “Check Task”, “List Tasks”).
   - Adds `@dexto/tools-lifecycle` (view logs + memory management) and moves session search into lifecycle tools.
 - UI terminology: “task list” → “todo list”.
 - Images:
