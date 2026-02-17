@@ -26,7 +26,9 @@ Refactors
 - CLI UX: removes headless/positional prompt mode; `--prompt` now starts the interactive CLI with an initial prompt.
 - CLI UX: the “Agent config updates available” sync prompt reappears on subsequent runs until agents are synced (no per-version dismissal).
 - Tool surface refactor: removes `custom`/`internal` tool ID prefixes; MCP tools remain namespaced.
-- Approval UX: directory access prompts now auto-approve parallel pending requests after the first approval (reduces repetitive prompts during multi-tool flows).
+- Approval UX:
+  - Directory access prompts now auto-approve parallel pending requests after the first approval (reduces repetitive prompts during multi-tool flows).
+  - Remembering a tool for the session now auto-approves parallel pending tool approvals for that tool.
 - New and updated tools:
   - Adds built-in Exa `web_search` + `code_search` tools.
   - Enables built-in `http_request` (“Fetch”) in the default and coding agents.
