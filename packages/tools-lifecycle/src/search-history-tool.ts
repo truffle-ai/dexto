@@ -34,7 +34,7 @@ const SearchHistoryInputSchema = z
     })
     .strict();
 
-type SearchHistoryInput = z.input<typeof SearchHistoryInputSchema>;
+type SearchHistoryInput = z.output<typeof SearchHistoryInputSchema>;
 
 /**
  * Create the `search_history` tool.
@@ -60,11 +60,12 @@ export function createSearchHistoryTool(): Tool {
             }
 
             if (mode === 'messages') {
-                const searchOptions: SearchOptions = {};
-                if (sessionId !== undefined) searchOptions.sessionId = sessionId;
-                if (role !== undefined) searchOptions.role = role;
-                if (limit !== undefined) searchOptions.limit = limit;
-                if (offset !== undefined) searchOptions.offset = offset;
+                const searchOptions: SearchOptions = {
+                    limit,
+                    offset,
+                    ...(sessionId !== undefined && { sessionId }),
+                    ...(role !== undefined && { role }),
+                };
 
                 return await searchService.searchMessages(query, searchOptions);
             }

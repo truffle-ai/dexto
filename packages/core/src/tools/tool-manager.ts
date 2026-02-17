@@ -607,7 +607,17 @@ export class ToolManager {
                     return false;
                 }
 
-                const patternKey = getPatternKey(args as Record<string, unknown>);
+                let patternKey: string | null;
+                try {
+                    patternKey = getPatternKey(args as Record<string, unknown>);
+                } catch (error) {
+                    this.logger.debug(
+                        `Pattern key generation failed for '${toolName}': ${
+                            error instanceof Error ? error.message : String(error)
+                        }`
+                    );
+                    return false;
+                }
                 if (!patternKey) return false;
 
                 return this.approvalManager.matchesPattern(toolName, patternKey);
@@ -618,6 +628,66 @@ export class ToolManager {
         if (count > 0) {
             this.logger.info(
                 `Auto-approved ${count} parallel request(s) for tool '${toolName}' after user selected "remember pattern"`
+            );
+        }
+    }
+
+    /**
+     * Auto-approve pending directory access requests that match a newly approved directory access request.
+     *
+     * This handles the case where parallel file operations request directory approval concurrently.
+     */
+    private autoApprovePendingDirectoryAccessRequests(options: {
+        parentDir: string;
+        operation: string;
+        toolName: string;
+        rememberDirectory: boolean;
+        sessionId: string | undefined;
+    }): void {
+        const count = this.approvalManager.autoApprovePendingRequests(
+            (request: ApprovalRequest) => {
+                if (request.type !== ApprovalType.DIRECTORY_ACCESS) {
+                    return false;
+                }
+
+                if (request.sessionId !== options.sessionId) {
+                    return false;
+                }
+
+                const metadata = request.metadata as
+                    | { parentDir?: unknown; operation?: unknown; toolName?: unknown }
+                    | undefined;
+
+                if (
+                    typeof metadata?.parentDir !== 'string' ||
+                    metadata.parentDir !== options.parentDir
+                ) {
+                    return false;
+                }
+
+                // If the user remembered the directory for the session, treat it as a broad approval.
+                if (options.rememberDirectory) {
+                    return true;
+                }
+
+                // Otherwise, only auto-approve parallel requests for the same operation and tool.
+                if (
+                    typeof metadata?.operation !== 'string' ||
+                    typeof metadata?.toolName !== 'string'
+                ) {
+                    return false;
+                }
+                return (
+                    metadata.operation === options.operation &&
+                    metadata.toolName === options.toolName
+                );
+            },
+            { rememberDirectory: false }
+        );
+
+        if (count > 0) {
+            this.logger.info(
+                `Auto-approved ${count} parallel request(s) for directory '${options.parentDir}' after directory access was approved`
             );
         }
     }
@@ -1176,6 +1246,7 @@ export class ToolManager {
     private async checkCustomApprovalOverride(
         toolName: string,
         args: Record<string, unknown>,
+        toolCallId: string,
         sessionId?: string
     ): Promise<{ handled: boolean }> {
         if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
@@ -1188,7 +1259,7 @@ export class ToolManager {
             return { handled: false };
         }
 
-        const context = this.buildToolExecutionContext({ sessionId });
+        const context = this.buildToolExecutionContext({ sessionId, toolCallId });
 
         // Get the custom approval request from the tool (may be async)
         const approvalRequest = await tool.getApprovalOverride(args, context);
@@ -1212,7 +1283,30 @@ export class ToolManager {
         if (response.status === ApprovalStatus.APPROVED) {
             // Let the tool handle the approved response (e.g., remember directory)
             if (tool.onApprovalGranted) {
-                tool.onApprovalGranted(response, context);
+                tool.onApprovalGranted(response, context, approvalRequest);
+            }
+
+            // If this was a directory access approval, auto-approve other pending requests as appropriate.
+            if (approvalRequest.type === ApprovalType.DIRECTORY_ACCESS) {
+                const metadata = approvalRequest.metadata as
+                    | { parentDir?: unknown; operation?: unknown }
+                    | undefined;
+                const parentDir =
+                    typeof metadata?.parentDir === 'string' ? metadata.parentDir : null;
+                const operation =
+                    typeof metadata?.operation === 'string' ? metadata.operation : null;
+
+                if (parentDir && operation) {
+                    const data = response.data as { rememberDirectory?: boolean } | undefined;
+                    const rememberDirectory = data?.rememberDirectory ?? false;
+                    this.autoApprovePendingDirectoryAccessRequests({
+                        parentDir,
+                        operation,
+                        sessionId,
+                        toolName,
+                        rememberDirectory,
+                    });
+                }
             }
 
             this.logger.info(
@@ -1251,7 +1345,12 @@ export class ToolManager {
         callDescription?: string
     ): Promise<{ requireApproval: boolean; approvalStatus?: 'approved' | 'rejected' }> {
         // Try quick resolution first (auto-approve/deny based on policies)
-        const quickResult = await this.tryQuickApprovalResolution(toolName, args, sessionId);
+        const quickResult = await this.tryQuickApprovalResolution(
+            toolName,
+            args,
+            toolCallId,
+            sessionId
+        );
         if (quickResult !== null) {
             return quickResult;
         }
@@ -1276,6 +1375,7 @@ export class ToolManager {
     private async tryQuickApprovalResolution(
         toolName: string,
         args: Record<string, unknown>,
+        toolCallId: string,
         sessionId?: string
     ): Promise<{ requireApproval: boolean; approvalStatus?: 'approved' } | null> {
         // 1. Check static alwaysDeny list (highest priority - security-first)
@@ -1290,6 +1390,7 @@ export class ToolManager {
         const customApprovalResult = await this.checkCustomApprovalOverride(
             toolName,
             args,
+            toolCallId,
             sessionId
         );
         if (customApprovalResult.handled) {

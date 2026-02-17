@@ -28,7 +28,7 @@ const MemoryListInputSchema = z
     })
     .strict();
 
-type MemoryListInput = z.input<typeof MemoryListInputSchema>;
+type MemoryListInput = z.output<typeof MemoryListInputSchema>;
 
 export function createMemoryListTool(): Tool {
     return {
@@ -44,12 +44,13 @@ export function createMemoryListTool(): Tool {
 
             const { tags, source, pinned, limit, offset } = input as MemoryListInput;
 
-            const options: ListMemoriesOptions = {};
-            if (tags !== undefined) options.tags = tags;
-            if (source !== undefined) options.source = source as MemorySource;
-            if (pinned !== undefined) options.pinned = pinned;
-            if (limit !== undefined) options.limit = limit;
-            if (offset !== undefined) options.offset = offset;
+            const options: ListMemoriesOptions = {
+                limit,
+                offset,
+                ...(tags !== undefined && { tags }),
+                ...(source !== undefined && { source }),
+                ...(pinned !== undefined && { pinned }),
+            };
 
             return await agent.memoryManager.list(options);
         },
@@ -57,7 +58,7 @@ export function createMemoryListTool(): Tool {
 }
 
 const MemoryGetInputSchema = z.object({ id: z.string().describe('Memory ID') }).strict();
-type MemoryGetInput = z.input<typeof MemoryGetInputSchema>;
+type MemoryGetInput = z.output<typeof MemoryGetInputSchema>;
 
 export function createMemoryGetTool(): Tool {
     return {
@@ -88,7 +89,7 @@ const MemoryCreateInputSchema = z
     })
     .strict();
 
-type MemoryCreateInput = z.input<typeof MemoryCreateInputSchema>;
+type MemoryCreateInput = z.output<typeof MemoryCreateInputSchema>;
 
 export function createMemoryCreateTool(): Tool {
     return {
@@ -103,14 +104,15 @@ export function createMemoryCreateTool(): Tool {
             }
 
             const { content, tags, source, pinned } = input as MemoryCreateInput;
-            const metadata: { source?: MemorySource; pinned?: boolean } = {};
-            if (source !== undefined) metadata.source = source as MemorySource;
-            if (pinned !== undefined) metadata.pinned = pinned;
+            const metadata: { source: MemorySource; pinned?: boolean } = { source };
+            if (pinned) {
+                metadata.pinned = true;
+            }
 
             return await agent.memoryManager.create({
                 content,
                 ...(tags !== undefined && { tags }),
-                ...(Object.keys(metadata).length > 0 && { metadata }),
+                metadata,
             });
         },
     };
@@ -126,7 +128,7 @@ const MemoryUpdateInputSchema = z
     })
     .strict();
 
-type MemoryUpdateInput = z.input<typeof MemoryUpdateInputSchema>;
+type MemoryUpdateInput = z.output<typeof MemoryUpdateInputSchema>;
 
 export function createMemoryUpdateTool(): Tool {
     return {
@@ -142,7 +144,7 @@ export function createMemoryUpdateTool(): Tool {
 
             const { id, content, tags, source, pinned } = input as MemoryUpdateInput;
             const metadataUpdate: { source?: MemorySource; pinned?: boolean } = {};
-            if (source !== undefined) metadataUpdate.source = source as MemorySource;
+            if (source !== undefined) metadataUpdate.source = source;
             if (pinned !== undefined) metadataUpdate.pinned = pinned;
 
             return await agent.memoryManager.update(id, {
@@ -155,7 +157,7 @@ export function createMemoryUpdateTool(): Tool {
 }
 
 const MemoryDeleteInputSchema = z.object({ id: z.string().describe('Memory ID') }).strict();
-type MemoryDeleteInput = z.input<typeof MemoryDeleteInputSchema>;
+type MemoryDeleteInput = z.output<typeof MemoryDeleteInputSchema>;
 
 export function createMemoryDeleteTool(): Tool {
     return {
