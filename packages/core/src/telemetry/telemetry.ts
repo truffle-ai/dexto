@@ -144,19 +144,16 @@ export class Telemetry {
 
                             // Import specific instrumentations instead of auto-instrumentations-node
                             // This reduces install size by ~130MB while maintaining HTTP tracing for LLM API calls
-                            const httpInstModule = await import(
-                                '@opentelemetry/instrumentation-http'
-                            );
+                            const httpInstModule =
+                                await import('@opentelemetry/instrumentation-http');
                             HttpInstrumentation = httpInstModule.HttpInstrumentation;
 
-                            const undiciInstModule = await import(
-                                '@opentelemetry/instrumentation-undici'
-                            );
+                            const undiciInstModule =
+                                await import('@opentelemetry/instrumentation-undici');
                             UndiciInstrumentation = undiciInstModule.UndiciInstrumentation;
 
-                            const semanticModule = await import(
-                                '@opentelemetry/semantic-conventions'
-                            );
+                            const semanticModule =
+                                await import('@opentelemetry/semantic-conventions');
                             ATTR_SERVICE_NAME = semanticModule.ATTR_SERVICE_NAME;
                         } catch (importError) {
                             const err = importError as NodeJS.ErrnoException;

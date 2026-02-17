@@ -1438,9 +1438,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                     try {
                         // Import persistence utilities
-                        const { removeMcpServerFromConfig } = await import(
-                            '@dexto/agent-management'
-                        );
+                        const { removeMcpServerFromConfig } =
+                            await import('@dexto/agent-management');
 
                         // Persist to config file using surgical removal
                         const agentPath = getConfigFilePathOrWarn('persist MCP server deletion');
@@ -1775,9 +1774,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                     // Refresh prompts to include new plugin skills
                     try {
-                        const { reloadAgentConfigFromFile, enrichAgentConfig } = await import(
-                            '@dexto/agent-management'
-                        );
+                        const { reloadAgentConfigFromFile, enrichAgentConfig } =
+                            await import('@dexto/agent-management');
                         const agentPath = getConfigFilePathOrWarn(
                             'refresh prompts after plugin install'
                         );
@@ -2050,9 +2048,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         await writeFile(filePath, fileContent, 'utf-8');
 
                         // Re-discover commands and refresh with enriched prompts
-                        const { reloadAgentConfigFromFile, enrichAgentConfig } = await import(
-                            '@dexto/agent-management'
-                        );
+                        const { reloadAgentConfigFromFile, enrichAgentConfig } =
+                            await import('@dexto/agent-management');
                         const agentPath = getConfigFilePathOrWarn(
                             'refresh prompts after creating shared prompt'
                         );

@@ -27,8 +27,9 @@ import type { GlobalPreferences } from '@dexto/agent-management';
  * CLI config override type for fields that can be overridden via CLI
  * Uses input type (LLMConfig) since these represent user-provided CLI arguments
  */
-export interface CLIConfigOverrides
-    extends Partial<Pick<LLMConfig, 'provider' | 'model' | 'apiKey'>> {
+export interface CLIConfigOverrides extends Partial<
+    Pick<LLMConfig, 'provider' | 'model' | 'apiKey'>
+> {
     autoApprove?: boolean;
     /** When false (via --no-elicitation), disables elicitation */
     elicitation?: boolean;

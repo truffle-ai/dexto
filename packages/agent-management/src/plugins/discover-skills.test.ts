@@ -14,20 +14,19 @@ vi.mock('fs', async () => {
 import { discoverStandaloneSkills, getSkillSearchPaths } from './discover-skills.js';
 
 // Mock Dirent type that matches fs.Dirent interface
-interface MockDirent
-    extends Pick<
-        fs.Dirent,
-        | 'name'
-        | 'isFile'
-        | 'isDirectory'
-        | 'isBlockDevice'
-        | 'isCharacterDevice'
-        | 'isSymbolicLink'
-        | 'isFIFO'
-        | 'isSocket'
-        | 'path'
-        | 'parentPath'
-    > {}
+interface MockDirent extends Pick<
+    fs.Dirent,
+    | 'name'
+    | 'isFile'
+    | 'isDirectory'
+    | 'isBlockDevice'
+    | 'isCharacterDevice'
+    | 'isSymbolicLink'
+    | 'isFIFO'
+    | 'isSocket'
+    | 'path'
+    | 'parentPath'
+> {}
 
 describe('discoverStandaloneSkills', () => {
     const originalCwd = process.cwd;

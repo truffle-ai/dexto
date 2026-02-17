@@ -418,9 +418,8 @@ export class SessionManager {
                 // Restore LLM override BEFORE session init so the service is created with correct config
                 // SECURITY: Re-resolve API key from environment when restoring (never persisted)
                 if (sessionData.llmOverride) {
-                    const { resolveApiKeyForProvider } = await import(
-                        '../utils/api-key-resolver.js'
-                    );
+                    const { resolveApiKeyForProvider } =
+                        await import('../utils/api-key-resolver.js');
                     const apiKey = resolveApiKeyForProvider(sessionData.llmOverride.provider);
                     if (!apiKey) {
                         this.logger.warn(

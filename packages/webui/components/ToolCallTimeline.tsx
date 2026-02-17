@@ -121,9 +121,9 @@ export function ToolCallTimeline({
     // Determine if there's meaningful content to show
     const hasExpandableContent = Boolean(
         displayData ||
-            toolArgs?.content ||
-            (toolArgs?.old_string && toolArgs?.new_string) ||
-            (toolArgs?.command && hasResult)
+        toolArgs?.content ||
+        (toolArgs?.old_string && toolArgs?.new_string) ||
+        (toolArgs?.command && hasResult)
     );
 
     // Determine if this tool has rich UI that should be shown by default
