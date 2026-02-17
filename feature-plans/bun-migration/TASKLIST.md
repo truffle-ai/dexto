@@ -10,7 +10,7 @@ Update this checklist as work completes. Keep tasks concrete and verifiable.
 - [x] Convert repo scripts to Bun (`bun run …`, `bun x …`) for day-to-day workflows
 - [x] Convert CLI + bundler entrypoints to Bun runtime (shebangs / start scripts)
 - [x] Confirm `bun run build`, `bun run typecheck`, `bun run test` are green
-- [ ] Checkpoint commit: Phase 0 baseline (Bun scripts + lockfile)
+- [x] Checkpoint commit: Phase 0 baseline (Bun scripts + lockfile)
 
 ## Phase 1 — Native dependencies + “no pnpm/npm” cleanup
 
@@ -23,7 +23,7 @@ Update this checklist as work completes. Keep tasks concrete and verifiable.
 - [ ] Migrate image-store installer off `npm pack` + `npm install` to Bun equivalents
 - [ ] Revisit “local model” dependency install (`node-llama-cpp` currently installed via `npm`)
 - [ ] Decide what to do with legacy pnpm files (`pnpm-lock.yaml`, `pnpm-workspace.yaml`) once CI flips
-- [ ] Checkpoint commit: Phase 1 SQLite + runtime blockers removed
+- [x] Checkpoint commit: Phase 1 SQLite + runtime blockers removed
 
 ## Phase 2 — Native TS extensions in layered `.dexto` roots (DEXTO_DOTDEXTO intent)
 

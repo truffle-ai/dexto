@@ -16,18 +16,18 @@
 
 ## Current Task
 
-**Task:** Checkpoint commit — Bun baseline + SQLite runtime fixes
+**Task:** Phase 1.5 — remove pnpm/npm assumptions (image store + local models + scaffolding)
 **Status:** In progress
 **Worktree:** `~/Projects/dexto-bun-migration`
 
 ### Plan
-- Commit the current Bun-working code changes as a checkpoint (Phase 0 + Phase 1 work completed so far).
-- Use explicit staging (no `git add .`), and include `bun.lock`.
-- After committing, update this file’s **Completed Tasks** + **Checkpoint Log** with the checkpoint commit hash.
+- Triage remaining pnpm/npm touchpoints (installers, scaffolding, docs/UX strings) and convert them to Bun-first behavior.
+- Keep `TASKLIST.md` + this file updated after each meaningful change.
 
 ### Notes
 - Repo is pinned to Bun `1.2.9` (intentionally; no need to bump during migration).
 - Plan artifacts committed to this worktree (commit `b40d68e2`).
+- Checkpoint commit for Phase 0 + Phase 1 completed: `5ea80491`.
 - Remaining pnpm/npm touchpoints (non-exhaustive, starting points):
   - `packages/cli/src/cli/utils/image-store.ts` — installer uses `npm pack` + `npm install`
   - `packages/cli/src/cli/utils/local-model-setup.ts` — installs `node-llama-cpp` via `npm install` into `~/.dexto/deps`
@@ -91,6 +91,7 @@
 - 2026-02-17: Removed Bun runtime blocker `better-sqlite3` and implemented `bun:sqlite` path.
 - 2026-02-17: Converted key repo scripts/entrypoints to use Bun.
 - 2026-02-17: Added Bun migration plan artifacts under `feature-plans/bun-migration/` (commit `b40d68e2`).
+- 2026-02-17: Checkpoint commit `5ea80491` (Bun runtime baseline + `bun.lock` + `bun:sqlite` + scripts/entrypoints).
 
 ---
 
@@ -99,3 +100,4 @@
 | Date | Checkpoint | Result | Notes |
 |------|------------|--------|------|
 | 2026-02-17 | Bun baseline | ✅ | build/typecheck/test green under Bun `1.2.9` |
+| 2026-02-17 | Phase 0 + 1 checkpoint | ✅ | Commit `5ea80491`; validated with `bun run build`, `bun run typecheck`, `bun run test` |
