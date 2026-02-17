@@ -6,27 +6,42 @@ import type { StorageManager, Logger } from '@dexto/core';
 import type { Schedule, ExecutionLog } from './types.js';
 import { SchedulerError } from './errors.js';
 
-const SCHEDULE_PREFIX = 'schedule:';
-const EXECUTION_LOG_PREFIX = 'execution:';
-const SCHEDULE_LIST_KEY = 'scheduler:schedules';
+const LEGACY_SCHEDULE_PREFIX = 'schedule:';
+const LEGACY_EXECUTION_LOG_PREFIX = 'execution:';
+const LEGACY_SCHEDULE_LIST_KEY = 'scheduler:schedules';
 
 /**
  * Storage layer for scheduler persistence
  */
 export class ScheduleStorage {
     private listLock: Promise<void> = Promise.resolve();
+    private schedulePrefix: string;
+    private executionLogPrefix: string;
+    private scheduleListKey: string;
 
     constructor(
         private storageManager: StorageManager,
         private maxExecutionHistory: number,
-        private logger: Logger
-    ) {}
+        private logger: Logger,
+        namespace?: string
+    ) {
+        if (namespace && namespace.trim().length > 0) {
+            const ns = namespace.trim();
+            this.schedulePrefix = `scheduler:${ns}:schedule:`;
+            this.executionLogPrefix = `scheduler:${ns}:execution:`;
+            this.scheduleListKey = `scheduler:${ns}:schedules`;
+        } else {
+            this.schedulePrefix = LEGACY_SCHEDULE_PREFIX;
+            this.executionLogPrefix = LEGACY_EXECUTION_LOG_PREFIX;
+            this.scheduleListKey = LEGACY_SCHEDULE_LIST_KEY;
+        }
+    }
 
     /**
      * Save a schedule to persistent storage
      */
     async saveSchedule(schedule: Schedule): Promise<void> {
-        const key = `${SCHEDULE_PREFIX}${schedule.id}`;
+        const key = `${this.schedulePrefix}${schedule.id}`;
         let persisted = false;
         try {
             await this.storageManager.getDatabase().set(key, schedule);
@@ -58,7 +73,7 @@ export class ScheduleStorage {
      */
     async loadSchedule(scheduleId: string): Promise<Schedule | null> {
         try {
-            const key = `${SCHEDULE_PREFIX}${scheduleId}`;
+            const key = `${this.schedulePrefix}${scheduleId}`;
             const schedule = await this.storageManager.getDatabase().get<Schedule>(key);
             return schedule || null;
         } catch (error) {
@@ -76,7 +91,7 @@ export class ScheduleStorage {
         try {
             // Get list of schedule IDs
             const scheduleIds =
-                (await this.storageManager.getDatabase().get<string[]>(SCHEDULE_LIST_KEY)) || [];
+                (await this.storageManager.getDatabase().get<string[]>(this.scheduleListKey)) || [];
 
             // Load all schedules
             const schedules: Schedule[] = [];
@@ -103,7 +118,7 @@ export class ScheduleStorage {
         let removedFromList = false;
         let deletedSchedule = false;
         try {
-            const key = `${SCHEDULE_PREFIX}${scheduleId}`;
+            const key = `${this.schedulePrefix}${scheduleId}`;
 
             // Remove from schedule list
             await this.removeScheduleFromList(scheduleId);
@@ -142,7 +157,7 @@ export class ScheduleStorage {
      */
     async saveExecutionLog(log: ExecutionLog): Promise<void> {
         try {
-            const key = `${EXECUTION_LOG_PREFIX}${log.scheduleId}:${log.id}`;
+            const key = `${this.executionLogPrefix}${log.scheduleId}:${log.id}`;
             await this.storageManager.getDatabase().set(key, log);
 
             // Maintain execution history limit
@@ -164,7 +179,7 @@ export class ScheduleStorage {
      */
     async getExecutionLogs(scheduleId: string, limit?: number): Promise<ExecutionLog[]> {
         try {
-            const prefix = `${EXECUTION_LOG_PREFIX}${scheduleId}:`;
+            const prefix = `${this.executionLogPrefix}${scheduleId}:`;
             const keys = await this.storageManager.getDatabase().list(prefix);
 
             // Load all logs
@@ -194,7 +209,7 @@ export class ScheduleStorage {
      */
     private async deleteExecutionLogs(scheduleId: string): Promise<void> {
         try {
-            const prefix = `${EXECUTION_LOG_PREFIX}${scheduleId}:`;
+            const prefix = `${this.executionLogPrefix}${scheduleId}:`;
             const keys = await this.storageManager.getDatabase().list(prefix);
 
             for (const key of keys) {
@@ -222,7 +237,7 @@ export class ScheduleStorage {
                 const logsToDelete = logs.slice(this.maxExecutionHistory);
 
                 for (const log of logsToDelete) {
-                    const key = `${EXECUTION_LOG_PREFIX}${scheduleId}:${log.id}`;
+                    const key = `${this.executionLogPrefix}${scheduleId}:${log.id}`;
                     await this.storageManager.getDatabase().delete(key);
                 }
 
@@ -244,11 +259,11 @@ export class ScheduleStorage {
     private async addScheduleToList(scheduleId: string): Promise<void> {
         await this.withListLock(async () => {
             const scheduleIds =
-                (await this.storageManager.getDatabase().get<string[]>(SCHEDULE_LIST_KEY)) || [];
+                (await this.storageManager.getDatabase().get<string[]>(this.scheduleListKey)) || [];
 
             if (!scheduleIds.includes(scheduleId)) {
                 scheduleIds.push(scheduleId);
-                await this.storageManager.getDatabase().set(SCHEDULE_LIST_KEY, scheduleIds);
+                await this.storageManager.getDatabase().set(this.scheduleListKey, scheduleIds);
             }
         });
     }
@@ -259,11 +274,11 @@ export class ScheduleStorage {
     private async removeScheduleFromList(scheduleId: string): Promise<void> {
         await this.withListLock(async () => {
             const scheduleIds =
-                (await this.storageManager.getDatabase().get<string[]>(SCHEDULE_LIST_KEY)) || [];
+                (await this.storageManager.getDatabase().get<string[]>(this.scheduleListKey)) || [];
 
             const filtered = scheduleIds.filter((id) => id !== scheduleId);
 
-            await this.storageManager.getDatabase().set(SCHEDULE_LIST_KEY, filtered);
+            await this.storageManager.getDatabase().set(this.scheduleListKey, filtered);
         });
     }
 

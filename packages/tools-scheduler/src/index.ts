@@ -10,6 +10,8 @@ export {
     schedulerToolsFactory,
     getSchedulerManager,
     ensureSchedulerManagerForAgent,
+    registerSchedulerManager,
+    unregisterSchedulerManager,
     createSchedulerTools,
 } from './tool-provider.js';
 
@@ -46,6 +48,7 @@ export { SchedulerErrorCode } from './error-codes.js';
 export { SchedulerManager } from './manager.js';
 export { ScheduleStorage } from './storage.js';
 export { ScheduleExecutor } from './executor.js';
+export { createSchedulerService, type SchedulerServiceOptions } from './service.js';
 
 // Tool factory types
 export type { SchedulerManagerGetter } from './tool-types.js';

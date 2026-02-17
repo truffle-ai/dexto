@@ -44,9 +44,15 @@ export class SchedulerManager {
     constructor(
         storageManager: StorageManager,
         private config: SchedulerToolsConfig,
-        private logger: Logger
+        private logger: Logger,
+        options?: { storageNamespace?: string }
     ) {
-        this.storage = new ScheduleStorage(storageManager, config.maxExecutionHistory, logger);
+        this.storage = new ScheduleStorage(
+            storageManager,
+            config.maxExecutionHistory,
+            logger,
+            options?.storageNamespace
+        );
         this.executor = new ScheduleExecutor(config.executionTimeout, logger);
     }
 
