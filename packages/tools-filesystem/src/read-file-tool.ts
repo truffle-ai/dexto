@@ -29,8 +29,6 @@ const ReadFileInputSchema = z
     })
     .strict();
 
-type ReadFileInput = z.input<typeof ReadFileInputSchema>;
-
 /**
  * Create the read_file internal tool with directory approval support
  */

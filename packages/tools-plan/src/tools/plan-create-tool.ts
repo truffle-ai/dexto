@@ -58,7 +58,7 @@ export function createPlanCreateTool(getPlanService: PlanServiceGetter): Tool {
                 path: planPath,
                 operation: 'create',
                 content,
-                size: content.length,
+                size: Buffer.byteLength(content, 'utf8'),
                 lineCount,
             };
         },
@@ -83,7 +83,7 @@ export function createPlanCreateTool(getPlanService: PlanServiceGetter): Tool {
                     type: 'file',
                     path: planPath,
                     operation: 'create',
-                    size: content.length,
+                    size: Buffer.byteLength(content, 'utf8'),
                     lineCount: content.split('\n').length,
                 } as FileDisplayData,
             };

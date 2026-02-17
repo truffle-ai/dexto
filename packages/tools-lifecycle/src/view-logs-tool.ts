@@ -131,9 +131,9 @@ export function createViewLogsTool(options: { maxLogLines: number; maxLogBytes: 
             const levelsInput = parsed.level;
             const levels =
                 typeof levelsInput === 'string'
-                    ? new Set<LogLevel>([levelsInput as LogLevel])
+                    ? new Set<LogLevel>([levelsInput])
                     : Array.isArray(levelsInput)
-                      ? new Set<LogLevel>(levelsInput as LogLevel[])
+                      ? new Set<LogLevel>(levelsInput)
                       : null;
 
             let tailContent: string;

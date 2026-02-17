@@ -739,7 +739,7 @@ export class ToolManager {
             this.logger.error(
                 `❌ Invalid arguments for tool ${toolName}: ${validationResult.error.message}`
             );
-            throw ToolError.invalidName(
+            throw ToolError.validationFailed(
                 toolName,
                 `Invalid arguments: ${validationResult.error.message}`
             );
@@ -747,7 +747,7 @@ export class ToolManager {
 
         const validated = validationResult.data;
         if (typeof validated !== 'object' || validated === null || Array.isArray(validated)) {
-            throw ToolError.invalidName(toolName, 'Invalid arguments: expected an object');
+            throw ToolError.validationFailed(toolName, 'Invalid arguments: expected an object');
         }
 
         return validated as Record<string, unknown>;

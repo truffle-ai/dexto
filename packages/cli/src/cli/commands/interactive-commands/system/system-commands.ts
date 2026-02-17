@@ -127,6 +127,7 @@ export const systemCommands: CommandDefinition[] = [
                     `  Sessions: max=${styledData.maxSessions}, ttl=${styledData.sessionTTL}`,
                     `  MCP Servers: ${servers.length > 0 ? servers.join(', ') : 'none'}`,
                     `  Prompts: ${styledData.promptsCount}`,
+                    `  Hooks: ${hooksEnabled.length > 0 ? hooksEnabled.join(', ') : 'none'}`,
                 ].filter(Boolean);
 
                 return CommandOutputHelper.styled('config', styledData, fallbackLines.join('\n'));

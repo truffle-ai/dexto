@@ -123,11 +123,11 @@ export function createGlobFilesTool(getFileSystemService: FileSystemServiceGette
             const resolvedFileSystemService = await getFileSystemService(context);
 
             // Input is validated by provider before reaching here
-            const { pattern, path, max_results } = input;
+            const { pattern, path: searchPath, max_results } = input;
 
             // Search for files using FileSystemService
             const result = await resolvedFileSystemService.globFiles(pattern, {
-                cwd: path,
+                cwd: searchPath,
                 maxResults: max_results,
                 includeMetadata: true,
             });

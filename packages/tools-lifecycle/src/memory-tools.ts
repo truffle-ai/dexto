@@ -97,8 +97,7 @@ export function createMemoryCreateTool(): Tool {
             }
 
             const { content, tags, source, pinned } = input;
-            const metadata: { source: MemorySource; pinned?: boolean } = { source };
-            if (pinned) metadata.pinned = true;
+            const metadata: { source: MemorySource; pinned: boolean } = { source, pinned };
 
             return await agent.memoryManager.create({
                 content,
