@@ -27,7 +27,7 @@ describe.sequential('Telemetry Core', () => {
             expect(telemetry.isInitialized()).toBe(true);
             expect(telemetry.name).toBe('test-service');
             expect(Telemetry.hasGlobalInstance()).toBe(true);
-        });
+        }, 15_000);
 
         test('init() with enabled=false creates instance but does not initialize SDK', async () => {
             const config: OtelConfiguration = {

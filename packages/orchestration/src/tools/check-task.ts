@@ -49,7 +49,7 @@ export interface CheckTaskOutput {
 /**
  * Create the check_task tool
  */
-export function createCheckTaskTool(taskRegistry: TaskRegistry): Tool {
+export function createCheckTaskTool(taskRegistry: TaskRegistry): Tool<typeof CheckTaskInputSchema> {
     return {
         id: 'check_task',
         displayName: 'Check Task',
@@ -58,8 +58,7 @@ export function createCheckTaskTool(taskRegistry: TaskRegistry): Tool {
             'Returns immediately without waiting. ' +
             'Use this to poll task status or check if a task is done.',
         inputSchema: CheckTaskInputSchema,
-        execute: async (rawInput: unknown, _context): Promise<CheckTaskOutput> => {
-            const input = CheckTaskInputSchema.parse(rawInput);
+        execute: async (input, _context): Promise<CheckTaskOutput> => {
             const info = taskRegistry.getInfo(input.taskId);
 
             if (!info) {

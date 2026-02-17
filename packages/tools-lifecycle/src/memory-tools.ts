@@ -1,8 +1,6 @@
 import { z } from 'zod';
-import type { Tool, ToolExecutionContext } from '@dexto/core';
-import { ToolError } from '@dexto/core';
-import type { ListMemoriesOptions } from '@dexto/core';
-import type { MemorySource } from '@dexto/core';
+import { ToolError, defineTool } from '@dexto/core';
+import type { ListMemoriesOptions, MemorySource, Tool, ToolExecutionContext } from '@dexto/core';
 
 const MemorySourceSchema = z.enum(['user', 'system']);
 
@@ -28,21 +26,19 @@ const MemoryListInputSchema = z
     })
     .strict();
 
-type MemoryListInput = z.output<typeof MemoryListInputSchema>;
-
-export function createMemoryListTool(): Tool {
-    return {
+export function createMemoryListTool(): Tool<typeof MemoryListInputSchema> {
+    return defineTool({
         id: 'memory_list',
         displayName: 'List Memories',
         description: 'List stored memories for this agent, with optional filtering.',
         inputSchema: MemoryListInputSchema,
-        execute: async (input: unknown, context: ToolExecutionContext) => {
+        async execute(input, context: ToolExecutionContext) {
             const agent = context.agent;
             if (!agent) {
                 throw ToolError.configInvalid('memory_list requires ToolExecutionContext.agent');
             }
 
-            const { tags, source, pinned, limit, offset } = input as MemoryListInput;
+            const { tags, source, pinned, limit, offset } = input;
 
             const options: ListMemoriesOptions = {
                 limit,
@@ -54,28 +50,27 @@ export function createMemoryListTool(): Tool {
 
             return await agent.memoryManager.list(options);
         },
-    };
+    });
 }
 
 const MemoryGetInputSchema = z.object({ id: z.string().describe('Memory ID') }).strict();
-type MemoryGetInput = z.output<typeof MemoryGetInputSchema>;
 
-export function createMemoryGetTool(): Tool {
-    return {
+export function createMemoryGetTool(): Tool<typeof MemoryGetInputSchema> {
+    return defineTool({
         id: 'memory_get',
         displayName: 'Get Memory',
         description: 'Get a memory by ID.',
         inputSchema: MemoryGetInputSchema,
-        execute: async (input: unknown, context: ToolExecutionContext) => {
+        async execute(input, context: ToolExecutionContext) {
             const agent = context.agent;
             if (!agent) {
                 throw ToolError.configInvalid('memory_get requires ToolExecutionContext.agent');
             }
 
-            const { id } = input as MemoryGetInput;
+            const { id } = input;
             return await agent.memoryManager.get(id);
         },
-    };
+    });
 }
 
 const MemoryCreateInputSchema = z
@@ -89,25 +84,20 @@ const MemoryCreateInputSchema = z
     })
     .strict();
 
-type MemoryCreateInput = z.output<typeof MemoryCreateInputSchema>;
-
-export function createMemoryCreateTool(): Tool {
-    return {
+export function createMemoryCreateTool(): Tool<typeof MemoryCreateInputSchema> {
+    return defineTool({
         id: 'memory_create',
         displayName: 'Create Memory',
         description: 'Create a new memory.',
         inputSchema: MemoryCreateInputSchema,
-        execute: async (input: unknown, context: ToolExecutionContext) => {
+        async execute(input, context: ToolExecutionContext) {
             const agent = context.agent;
             if (!agent) {
                 throw ToolError.configInvalid('memory_create requires ToolExecutionContext.agent');
             }
 
-            const { content, tags, source, pinned } = input as MemoryCreateInput;
-            const metadata: { source: MemorySource; pinned?: boolean } = { source };
-            if (pinned) {
-                metadata.pinned = true;
-            }
+            const { content, tags, source, pinned } = input;
+            const metadata: { source: MemorySource; pinned: boolean } = { source, pinned };
 
             return await agent.memoryManager.create({
                 content,
@@ -115,7 +105,7 @@ export function createMemoryCreateTool(): Tool {
                 metadata,
             });
         },
-    };
+    });
 }
 
 const MemoryUpdateInputSchema = z
@@ -128,21 +118,19 @@ const MemoryUpdateInputSchema = z
     })
     .strict();
 
-type MemoryUpdateInput = z.output<typeof MemoryUpdateInputSchema>;
-
-export function createMemoryUpdateTool(): Tool {
-    return {
+export function createMemoryUpdateTool(): Tool<typeof MemoryUpdateInputSchema> {
+    return defineTool({
         id: 'memory_update',
         displayName: 'Update Memory',
         description: 'Update an existing memory.',
         inputSchema: MemoryUpdateInputSchema,
-        execute: async (input: unknown, context: ToolExecutionContext) => {
+        async execute(input, context: ToolExecutionContext) {
             const agent = context.agent;
             if (!agent) {
                 throw ToolError.configInvalid('memory_update requires ToolExecutionContext.agent');
             }
 
-            const { id, content, tags, source, pinned } = input as MemoryUpdateInput;
+            const { id, content, tags, source, pinned } = input;
             const metadataUpdate: { source?: MemorySource; pinned?: boolean } = {};
             if (source !== undefined) metadataUpdate.source = source;
             if (pinned !== undefined) metadataUpdate.pinned = pinned;
@@ -153,27 +141,26 @@ export function createMemoryUpdateTool(): Tool {
                 ...(Object.keys(metadataUpdate).length > 0 && { metadata: metadataUpdate }),
             });
         },
-    };
+    });
 }
 
 const MemoryDeleteInputSchema = z.object({ id: z.string().describe('Memory ID') }).strict();
-type MemoryDeleteInput = z.output<typeof MemoryDeleteInputSchema>;
 
-export function createMemoryDeleteTool(): Tool {
-    return {
+export function createMemoryDeleteTool(): Tool<typeof MemoryDeleteInputSchema> {
+    return defineTool({
         id: 'memory_delete',
         displayName: 'Delete Memory',
         description: 'Delete a memory by ID.',
         inputSchema: MemoryDeleteInputSchema,
-        execute: async (input: unknown, context: ToolExecutionContext) => {
+        async execute(input, context: ToolExecutionContext) {
             const agent = context.agent;
             if (!agent) {
                 throw ToolError.configInvalid('memory_delete requires ToolExecutionContext.agent');
             }
 
-            const { id } = input as MemoryDeleteInput;
+            const { id } = input;
             await agent.memoryManager.delete(id);
             return { ok: true };
         },
-    };
+    });
 }

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { defineTool } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 
 const SleepInputSchema = z
@@ -12,21 +13,19 @@ const SleepInputSchema = z
     })
     .strict();
 
-type SleepInput = z.output<typeof SleepInputSchema>;
-
 /**
  * Internal tool for sleeping/delaying execution.
  */
-export function createSleepTool(): Tool {
-    return {
+export function createSleepTool(): Tool<typeof SleepInputSchema> {
+    return defineTool({
         id: 'sleep',
         displayName: 'Sleep',
         description: 'Pause execution for a specified number of milliseconds.',
         inputSchema: SleepInputSchema,
-        execute: async (input: unknown, _context: ToolExecutionContext) => {
-            const { ms } = input as SleepInput;
+        async execute(input, _context: ToolExecutionContext) {
+            const { ms } = input;
             await new Promise((resolve) => setTimeout(resolve, ms));
             return { sleptMs: ms };
         },
-    };
+    });
 }
