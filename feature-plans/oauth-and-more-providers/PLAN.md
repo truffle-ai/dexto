@@ -18,6 +18,9 @@ Today Dexto largely treats provider auth as “do you have an API key env var?�
 
 Ground truth in the repo today:
 - **Provider API keys** are resolved from env vars (`packages/core/src/utils/api-key-resolver.ts`) and can be written via server routes (`packages/server/src/hono/routes/key.ts` → `@dexto/agent-management` writes to a context-aware `.env`).
+- **Provider key storage helpers** live in `@dexto/agent-management`:
+  - `packages/agent-management/src/utils/api-key-store.ts` (`saveProviderApiKey()`, `getProviderKeyStatus()`, Bedrock special-casing)
+  - `packages/agent-management/src/utils/api-key-resolver.ts` (env var resolution mirror)
 - **Dexto account login** state lives in `~/.dexto/auth.json` (see `packages/cli/src/cli/auth/service.ts` and `packages/agent-management/src/utils/dexto-auth.ts`). The CLI loads `DEXTO_API_KEY` from this file early (`packages/cli/src/index-main.ts`) for `dexto-nova` routing.
 
 We want:
@@ -59,14 +62,15 @@ We want:
 ### 4.2 Auth profiles (multiple credentials per provider)
 - Credentials are stored as **profiles** (e.g. `anthropic:default`, `openai-codex:default`) and config references a profile ID.
 - Profiles support multiple credential modes (`api_key`, `token`, `oauth`) and include usage stats + cooldowns.
-  - Entry: `~/Projects/external/openclaw/src/agents/auth-profiles/*`
-  - Key resolver (including OAuth refresh): `~/Projects/external/openclaw/src/agents/auth-profiles/oauth.ts`
+  - Credential + store types: `~/Projects/external/openclaw/src/agents/auth-profiles/types.ts`
+  - Store persistence + locking + legacy coercion: `~/Projects/external/openclaw/src/agents/auth-profiles/store.ts`
+  - Key resolver (including OAuth refresh + fallback behaviors): `~/Projects/external/openclaw/src/agents/auth-profiles/oauth.ts`
 
 ### 4.3 OAuth flows with “VPS-aware” UX
 - Shared helper supports:
   - local browser open + localhost callback, OR
   - remote/VPS mode that prints a URL and asks user to paste redirect/code.
-  - Source: `~/Projects/external/openclaw/src/commands/oauth-flow.ts`
+  - Source: `~/Projects/external/openclaw/src/commands/oauth-flow.ts` (`createVpsAwareOAuthHandlers()`)
 
 ### 4.4 Provider auth plugins return “config patch + credentials”
 - Provider plugins return:
@@ -97,6 +101,7 @@ Key takeaways to borrow:
   3) complete OAuth (device-code auto polling or code entry) or paste API key
   - UI: `~/Projects/external/opencode/packages/app/src/components/dialog-select-provider.tsx`
   - UI: `~/Projects/external/opencode/packages/app/src/components/dialog-connect-provider.tsx`
+  - TUI (terminal) equivalent: `~/Projects/external/opencode/packages/opencode/src/cli/cmd/tui/component/dialog-provider.tsx`
 - CLI equivalent: `opencode auth login`
   - Source: `~/Projects/external/opencode/packages/opencode/src/cli/cmd/auth.ts`
 
@@ -106,6 +111,7 @@ Key takeaways to borrow:
 - Provider registry merges:
   - models.dev → config overrides → env vars → stored keys → plugin OAuth → custom loaders
   - Source: `~/Projects/external/opencode/packages/opencode/src/provider/provider.ts`
+  - Stored credential file shape + permissions: `~/Projects/external/opencode/packages/opencode/src/auth/index.ts` (writes `auth.json` with `0o600`)
 
 ### 5.3 Plugin auth methods for “OAuth vs API key” per provider
 - Auth methods are per provider and can include multiple methods.
@@ -113,6 +119,9 @@ Key takeaways to borrow:
   - Source: `~/Projects/external/opencode/packages/opencode/src/plugin/codex.ts`
 - GitHub Copilot uses device-code and supports enterprise variant selection.
   - Source: `~/Projects/external/opencode/packages/opencode/src/plugin/copilot.ts`
+ - Server-side two-phase OAuth orchestration (authorize → callback) and pending-state handling:
+   - `~/Projects/external/opencode/packages/opencode/src/provider/auth.ts`
+   - `~/Projects/external/opencode/packages/opencode/src/server/routes/provider.ts`
 
 ### 5.4 OAuth is *runtime-affecting*, not just “store a token”
 - For ChatGPT OAuth, the plugin:
@@ -120,6 +129,12 @@ Key takeaways to borrow:
   - rewrites requests to `https://chatgpt.com/backend-api/codex/responses`
   - refreshes the access token when expired
   - Source: `~/Projects/external/opencode/packages/opencode/src/plugin/codex.ts`
+   - Key implementation details worth copying (see `CodexAuthPlugin()`):
+     - Localhost PKCE callback server (default port `1455`) + `state` verification
+     - Headless device-code flow (`/api/accounts/deviceauth/usercode` → poll `/api/accounts/deviceauth/token`)
+     - Token exchange/refresh against `${ISSUER}/oauth/token`
+     - Request rewrite triggers on `/v1/responses` and `/chat/completions`
+     - Optional `ChatGPT-Account-Id` header derived from JWT claims (`id_token` / `access_token`)
 
 Key takeaways to borrow:
 - A first-class **/connect** UX.
@@ -145,6 +160,13 @@ Add a module (location TBD; see `USER_VERIFICATION.md`) that defines:
   - `notes?: string[]`
 
 Important: for OpenAI “ChatGPT OAuth/Codex”, runtime behavior is different (bearer token + URL rewrite). This must be modeled as runtime overrides, not just “we got a key”.
+
+Reference shapes worth copying:
+- OpenCode provider auth types + server orchestration:
+  - `~/Projects/external/opencode/packages/opencode/src/provider/auth.ts` (`ProviderAuth.Method`, `ProviderAuth.Authorization`, `authorize()`, `callback()`)
+  - `~/Projects/external/opencode/packages/opencode/src/server/routes/provider.ts` (`/:providerID/oauth/authorize` and `/:providerID/oauth/callback`)
+- OpenClaw provider auth plugin types (profiles + config patch concept):
+  - `~/Projects/external/openclaw/src/plugins/types.ts` (`ProviderAuthMethod`, `ProviderAuthResult`, `ProviderAuthContext`)
 
 ### 6.2 Credential storage: provider credentials + active method
 
@@ -173,6 +195,11 @@ Resolution precedence (v1, proposed):
 3) default profile for `llm.provider` from `llm-profiles.json`
 4) env var fallback (existing behavior)
 
+Reference implementations:
+- OpenCode auth storage (single auth entry per provider): `~/Projects/external/opencode/packages/opencode/src/auth/index.ts`
+- OpenClaw auth profile store (multiple profiles + refresh + file locking): `~/Projects/external/openclaw/src/agents/auth-profiles/store.ts`, `~/Projects/external/openclaw/src/agents/auth-profiles/types.ts`, `~/Projects/external/openclaw/src/agents/auth-profiles/oauth.ts`
+- Dexto current Dexto-account auth file (legacy): `packages/cli/src/cli/auth/service.ts`, `packages/agent-management/src/utils/dexto-auth.ts`
+
 ### 6.3 Server API (for WebUI + future remote clients)
 
 Add Hono routes in `packages/server/src/hono/routes/` analogous to the existing `/llm/key` surface:
@@ -187,6 +214,11 @@ Add Hono routes in `packages/server/src/hono/routes/` analogous to the existing 
 
 Implementation note:
 - Even for CLI-only first pass, designing the API as a **two-phase authorize/callback** flow reduces later churn.
+
+Reference server API:
+- OpenCode routes: `~/Projects/external/opencode/packages/opencode/src/server/routes/provider.ts` (GET `/providers/auth`, POST `/:providerID/oauth/authorize`, POST `/:providerID/oauth/callback`)
+- OpenCode orchestration + pending-state: `~/Projects/external/opencode/packages/opencode/src/provider/auth.ts`
+- Dexto existing API-key route: `packages/server/src/hono/routes/key.ts`
 
 ### 6.4 CLI UX
 
@@ -206,6 +238,11 @@ Implementation note:
   5) prompt: “Set as default for `${providerId}`?” (writes `defaults[providerId]`)
   6) optional: prompt to set default model (or defer to `/model`)
 
+Reference UX flows:
+- OpenCode CLI flow (method selection + auto/code handling + extra prompts): `~/Projects/external/opencode/packages/opencode/src/cli/cmd/auth.ts` (`handlePluginAuth()`)
+- OpenCode TUI dialog flow: `~/Projects/external/opencode/packages/opencode/src/cli/cmd/tui/component/dialog-provider.tsx`
+- OpenClaw grouped provider → method prompt: `~/Projects/external/openclaw/src/commands/auth-choice-prompt.ts`, `~/Projects/external/openclaw/src/commands/auth-choice-options.ts`
+
 #### 6.4.2 Update `dexto setup` onboarding
 - Make `dexto setup` call the same underlying “connect provider” logic, rather than duplicating API key prompts.
 - If `dexto-nova` is enabled, keep the current “login to Dexto” path as the simplest default, but allow “connect other providers” as a branch.
@@ -217,6 +254,12 @@ Extend `packages/core/src/llm/services/factory.ts`:
 - Replace `resolveApiKeyForProvider(provider)` with a new resolver that can return:
   - BYOK API key, or
   - OAuth-based runtime overrides for the provider.
+
+Reference runtime override patterns:
+- OpenCode Codex runtime override: `~/Projects/external/opencode/packages/opencode/src/plugin/codex.ts` (strip auth header, set Bearer token, rewrite URL, refresh on expiry, optional `ChatGPT-Account-Id`)
+- OpenCode Copilot runtime override: `~/Projects/external/opencode/packages/opencode/src/plugin/copilot.ts` (device-code auth + header rewrite + enterprise baseURL)
+- OpenClaw OAuth refresh-with-lock pattern: `~/Projects/external/openclaw/src/agents/auth-profiles/oauth.ts` (`withFileLock` + refresh + persist)
+- Dexto current factory: `packages/core/src/llm/services/factory.ts`
 
 Initial target integrations:
 - **OpenAI**

@@ -32,6 +32,7 @@ _Log findings, issues, and progress here as you work._
 2026-02-17:
 - Imported the OAuth provider plan into this worktree and refactored it to the `PLAN.md` + `WORKING_MEMORY.md` + `USER_VERIFICATION.md` paradigm.
 - Tasklist re-written with numbered tasks and explicit exit criteria.
+- Read through OpenCode/OpenClaw reference implementations and updated `PLAN.md` with concrete file-path pointers for OAuth flows, storage shapes, and two-phase authorize/callback APIs.
 
 ---
 
