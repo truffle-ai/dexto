@@ -3,6 +3,7 @@
  */
 
 import cron from 'node-cron';
+import * as cronParser from 'cron-parser';
 import { randomUUID } from 'crypto';
 import type { StorageManager, Logger } from '@dexto/core';
 import type { SchedulerToolsConfig } from './schemas.js';
@@ -317,9 +318,6 @@ export class SchedulerManager {
             }),
             ...(validated.timezone !== undefined && { timezone: validated.timezone }),
             ...(validated.enabled !== undefined && { enabled: validated.enabled }),
-            ...(validated.instruction !== undefined && {
-                task: { ...existing.task, instruction: validated.instruction },
-            }),
             task: {
                 ...existing.task,
                 ...(validated.instruction !== undefined && { instruction: validated.instruction }),
@@ -567,13 +565,14 @@ export class SchedulerManager {
     /**
      * Calculate next run time for a schedule
      */
-    private calculateNextRun(_schedule: Schedule): number | undefined {
+    private calculateNextRun(schedule: Schedule): number | undefined {
         try {
-            // For now, return approximate next run time
-            // TODO: Use a proper cron parser for accurate next run calculation
-            const now = Date.now();
-            const oneMinute = 60 * 1000;
-            return now + oneMinute;
+            const interval = cronParser.parseExpression(schedule.cronExpression, {
+                tz: schedule.timezone,
+            });
+            const next = interval.next();
+            const nextDate = next instanceof Date ? next : next.toDate();
+            return nextDate.getTime();
         } catch (error) {
             this.logger.error(
                 `Failed to calculate next run: ${error instanceof Error ? error.message : String(error)}`

@@ -14,6 +14,8 @@ const SCHEDULE_LIST_KEY = 'scheduler:schedules';
  * Storage layer for scheduler persistence
  */
 export class ScheduleStorage {
+    private listLock: Promise<void> = Promise.resolve();
+
     constructor(
         private storageManager: StorageManager,
         private maxExecutionHistory: number,
@@ -24,15 +26,26 @@ export class ScheduleStorage {
      * Save a schedule to persistent storage
      */
     async saveSchedule(schedule: Schedule): Promise<void> {
+        const key = `${SCHEDULE_PREFIX}${schedule.id}`;
+        let persisted = false;
         try {
-            const key = `${SCHEDULE_PREFIX}${schedule.id}`;
             await this.storageManager.getDatabase().set(key, schedule);
+            persisted = true;
 
             // Maintain list of schedule IDs for efficient listing
             await this.addScheduleToList(schedule.id);
 
             this.logger.debug(`Schedule ${schedule.id} saved to storage`, { name: schedule.name });
         } catch (error) {
+            if (persisted) {
+                try {
+                    await this.storageManager.getDatabase().delete(key);
+                } catch (cleanupError) {
+                    this.logger.error(
+                        `Failed to rollback schedule ${schedule.id} after list update failure: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`
+                    );
+                }
+            }
             throw SchedulerError.storageWriteFailed(
                 'save schedule',
                 error instanceof Error ? error.message : String(error)
@@ -211,24 +224,46 @@ export class ScheduleStorage {
      * Add schedule ID to master list
      */
     private async addScheduleToList(scheduleId: string): Promise<void> {
-        const scheduleIds =
-            (await this.storageManager.getDatabase().get<string[]>(SCHEDULE_LIST_KEY)) || [];
+        await this.withListLock(async () => {
+            const scheduleIds =
+                (await this.storageManager.getDatabase().get<string[]>(SCHEDULE_LIST_KEY)) || [];
 
-        if (!scheduleIds.includes(scheduleId)) {
-            scheduleIds.push(scheduleId);
-            await this.storageManager.getDatabase().set(SCHEDULE_LIST_KEY, scheduleIds);
-        }
+            if (!scheduleIds.includes(scheduleId)) {
+                scheduleIds.push(scheduleId);
+                await this.storageManager.getDatabase().set(SCHEDULE_LIST_KEY, scheduleIds);
+            }
+        });
     }
 
     /**
      * Remove schedule ID from master list
      */
     private async removeScheduleFromList(scheduleId: string): Promise<void> {
-        const scheduleIds =
-            (await this.storageManager.getDatabase().get<string[]>(SCHEDULE_LIST_KEY)) || [];
+        await this.withListLock(async () => {
+            const scheduleIds =
+                (await this.storageManager.getDatabase().get<string[]>(SCHEDULE_LIST_KEY)) || [];
 
-        const filtered = scheduleIds.filter((id) => id !== scheduleId);
+            const filtered = scheduleIds.filter((id) => id !== scheduleId);
 
-        await this.storageManager.getDatabase().set(SCHEDULE_LIST_KEY, filtered);
+            await this.storageManager.getDatabase().set(SCHEDULE_LIST_KEY, filtered);
+        });
+    }
+
+    private async withListLock<T>(handler: () => Promise<T>): Promise<T> {
+        const previous = this.listLock;
+        let release: (() => void) | undefined;
+        this.listLock = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+
+        await previous;
+
+        try {
+            return await handler();
+        } finally {
+            if (release) {
+                release();
+            }
+        }
     }
 }

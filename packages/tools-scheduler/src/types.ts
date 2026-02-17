@@ -2,24 +2,7 @@
  * Core types for scheduler tool provider
  */
 
-/**
- * Session mode determines how the scheduler manages conversation context for executions.
- *
- * - `ephemeral`: Creates a new isolated session for each execution. Best for standalone
- *   automated tasks like reports or monitoring that don't need conversation history.
- *
- * - `dedicated`: Uses a single persistent session for this schedule (`schedule-{id}`).
- *   Each execution continues the same conversation thread, building context over time.
- *   Good for ongoing projects or tasks that should remember previous runs.
- *
- * - `inherit`: Captures the session from where the schedule was created and reuses it.
- *   Perfect for "remind me about this later" or "check back on this in an hour" scenarios
- *   where you want to continue the current conversation at a scheduled time.
- *
- * - `fixed`: Uses an explicitly provided sessionId. Advanced mode for orchestrating
- *   across multiple known sessions or threads.
- */
-export type ScheduleSessionMode = 'ephemeral' | 'dedicated' | 'inherit' | 'fixed';
+import type { ScheduleSessionMode } from './schemas.js';
 
 /**
  * Schedule definition for automated task execution
@@ -70,17 +53,6 @@ export interface ExecutionLog {
     duration?: number;
     error?: string;
     result?: string;
-}
-
-/**
- * Scheduler configuration (from customTools config)
- */
-export interface SchedulerConfig {
-    type: 'scheduler-tools';
-    timezone: string;
-    maxSchedules: number;
-    executionTimeout: number;
-    maxExecutionHistory: number;
 }
 
 /**

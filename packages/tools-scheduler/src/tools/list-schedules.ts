@@ -3,7 +3,7 @@
  */
 
 import type { Tool, ToolExecutionContext } from '@dexto/core';
-import { ListSchedulesInputSchema } from '../schemas.js';
+import { ListSchedulesInputSchema, type ListSchedulesInput } from '../schemas.js';
 import type { SchedulerManagerGetter } from '../tool-types.js';
 
 export function createListSchedulesTool(getManager: SchedulerManagerGetter): Tool {
@@ -13,7 +13,8 @@ export function createListSchedulesTool(getManager: SchedulerManagerGetter): Too
         inputSchema: ListSchedulesInputSchema,
         execute: async (input: unknown, context: ToolExecutionContext) => {
             const manager = await getManager(context);
-            const schedules = await manager.listSchedules(input as any);
+            const { enabled } = input as ListSchedulesInput;
+            const schedules = await manager.listSchedules(enabled !== undefined ? { enabled } : {});
 
             if (schedules.length === 0) {
                 // Return structured data with LLM-friendly message

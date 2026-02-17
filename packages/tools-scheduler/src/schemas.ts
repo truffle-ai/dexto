@@ -17,7 +17,7 @@ export const ScheduleSessionModeSchema = z
 • fixed - Use a specific sessionId. Advanced: for cross-session orchestration.`
     );
 
-export type ScheduleSessionMode = z.infer<typeof ScheduleSessionModeSchema>;
+export type ScheduleSessionMode = z.output<typeof ScheduleSessionModeSchema>;
 
 /**
  * Scheduler tool provider configuration schema

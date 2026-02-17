@@ -36,14 +36,7 @@ export {
 } from './schemas.js';
 
 // Types
-export type {
-    Schedule,
-    ScheduleSessionMode as ScheduleSessionModeType,
-    ExecutionLog,
-    SchedulerConfig,
-    ScheduleFilters,
-    ScheduleExecutorFn,
-} from './types.js';
+export type { Schedule, ExecutionLog, ScheduleFilters, ScheduleExecutorFn } from './types.js';
 
 // Error handling
 export { SchedulerError } from './errors.js';

@@ -26,11 +26,11 @@
   "dependencies": {
     "@dexto/agent-config": "workspace:*",
     "@dexto/core": "workspace:*",
+    "cron-parser": "^4.9.0",
     "node-cron": "^4.2.1",
     "zod": "^3.25.0"
   },
   "devDependencies": {
-    "@types/node-cron": "^3.0.11",
     "tsup": "^8.0.0",
     "typescript": "^5.3.3"
   },

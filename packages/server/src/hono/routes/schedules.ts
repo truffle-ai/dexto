@@ -1,7 +1,12 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { GetAgentFn } from '../index.js';
 import { ScheduleSchema } from '../schemas/responses.js';
-import { getSchedulerManager, ensureSchedulerManagerForAgent } from '@dexto/tools-scheduler';
+import {
+    getSchedulerManager,
+    ensureSchedulerManagerForAgent,
+    SchedulerErrorCode,
+} from '@dexto/tools-scheduler';
+import { DextoRuntimeError, ErrorType } from '@dexto/core';
 
 const ErrorSchema = z
     .object({
@@ -30,6 +35,11 @@ const UpdateScheduleSchema = CreateScheduleSchema.partial()
     .extend({ enabled: z.boolean().optional() })
     .strict()
     .describe('Request body for updating a schedule');
+
+const isScheduleNotFoundError = (error: unknown): boolean =>
+    error instanceof DextoRuntimeError &&
+    error.type === ErrorType.NOT_FOUND &&
+    error.code === SchedulerErrorCode.SCHEDULE_NOT_FOUND;
 
 export function createSchedulesRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
@@ -82,7 +92,7 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
         tags: ['schedules'],
         request: { body: { content: { 'application/json': { schema: CreateScheduleSchema } } } },
         responses: {
-            200: {
+            201: {
                 description: 'Created schedule',
                 content: {
                     'application/json': {
@@ -125,6 +135,14 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            404: {
+                description: 'Schedule not found',
+                content: {
+                    'application/json': {
+                        schema: ErrorSchema,
+                    },
+                },
+            },
             503: {
                 description: 'Scheduler tools are not enabled',
                 content: {
@@ -161,6 +179,14 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                             })
                             .strict()
                             .describe('Delete schedule response'),
+                    },
+                },
+            },
+            404: {
+                description: 'Schedule not found',
+                content: {
+                    'application/json': {
+                        schema: ErrorSchema,
                     },
                 },
             },
@@ -203,6 +229,14 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            404: {
+                description: 'Schedule not found',
+                content: {
+                    'application/json': {
+                        schema: ErrorSchema,
+                    },
+                },
+            },
             503: {
                 description: 'Scheduler tools are not enabled',
                 content: {
@@ -241,7 +275,7 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                 sessionMode: 'dedicated' as const,
             };
             const schedule = await scheduler.createSchedule(createPayload);
-            return ctx.json({ schedule }, 200);
+            return ctx.json({ schedule }, 201);
         })
         .openapi(updateRoute, async (ctx) => {
             const { scheduler } = await resolveScheduler(ctx);
@@ -260,8 +294,15 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                     ? { workspacePath: input.workspacePath }
                     : {}),
             };
-            const schedule = await scheduler.updateSchedule(scheduleId, updatePayload);
-            return ctx.json({ schedule }, 200);
+            try {
+                const schedule = await scheduler.updateSchedule(scheduleId, updatePayload);
+                return ctx.json({ schedule }, 200);
+            } catch (error) {
+                if (isScheduleNotFoundError(error)) {
+                    return ctx.json({ error: 'Schedule not found' }, 404);
+                }
+                throw error;
+            }
         })
         .openapi(deleteRoute, async (ctx) => {
             const { scheduler } = await resolveScheduler(ctx);
@@ -269,8 +310,15 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                 return ctx.json({ error: 'Scheduler tools are not enabled for this agent.' }, 503);
             }
             const { scheduleId } = ctx.req.valid('param');
-            await scheduler.deleteSchedule(scheduleId);
-            return ctx.json({ deleted: true }, 200);
+            try {
+                await scheduler.deleteSchedule(scheduleId);
+                return ctx.json({ deleted: true }, 200);
+            } catch (error) {
+                if (isScheduleNotFoundError(error)) {
+                    return ctx.json({ error: 'Schedule not found' }, 404);
+                }
+                throw error;
+            }
         })
         .openapi(triggerRoute, async (ctx) => {
             const { scheduler } = await resolveScheduler(ctx);
@@ -278,7 +326,14 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                 return ctx.json({ error: 'Scheduler tools are not enabled for this agent.' }, 503);
             }
             const { scheduleId } = ctx.req.valid('param');
-            await scheduler.triggerScheduleNow(scheduleId);
-            return ctx.json({ scheduled: true }, 200);
+            try {
+                await scheduler.triggerScheduleNow(scheduleId);
+                return ctx.json({ scheduled: true }, 200);
+            } catch (error) {
+                if (isScheduleNotFoundError(error)) {
+                    return ctx.json({ error: 'Schedule not found' }, 404);
+                }
+                throw error;
+            }
         });
 }

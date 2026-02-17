@@ -26,6 +26,8 @@ import { createGetScheduleHistoryTool } from './tools/get-history.js';
  * Registry to store scheduler manager instances by agent ID.
  */
 const schedulerManagerRegistry = new Map<string, SchedulerManager>();
+const schedulerConfigRegistry = new Map<string, SchedulerToolsConfig>();
+const schedulerManagerInitPromises = new Map<string, Promise<SchedulerManager | null>>();
 let defaultSchedulerConfig: SchedulerToolsConfig | undefined;
 
 /**
@@ -55,121 +57,142 @@ export async function ensureSchedulerManagerForAgent(
         return existing;
     }
 
-    const resolvedConfig = config ?? defaultSchedulerConfig;
+    const inflight = schedulerManagerInitPromises.get(agentId);
+    if (inflight) {
+        return inflight;
+    }
+
+    const resolvedConfig = config ?? schedulerConfigRegistry.get(agentId) ?? defaultSchedulerConfig;
     if (!resolvedConfig) {
         return null;
     }
 
-    const storageManager = agent.services?.storageManager;
-    if (!storageManager) {
-        throw SchedulerError.missingStorage();
-    }
+    const initPromise = (async () => {
+        const storageManager = agent.services?.storageManager;
+        if (!storageManager) {
+            throw SchedulerError.missingStorage();
+        }
 
-    const logger = loggerOverride ?? agent.logger;
+        const logger = loggerOverride ?? agent.logger;
 
-    const manager = new SchedulerManager(storageManager, resolvedConfig, logger);
-    schedulerManagerRegistry.set(agentId, manager);
+        const manager = new SchedulerManager(storageManager, resolvedConfig, logger);
+        schedulerManagerRegistry.set(agentId, manager);
+        schedulerConfigRegistry.set(agentId, resolvedConfig);
 
-    const waitForAgentStart = async (): Promise<boolean> => {
-        if (!agent || typeof agent.isStarted !== 'function') {
+        const waitForAgentStart = async (): Promise<boolean> => {
+            if (!agent || typeof agent.isStarted !== 'function') {
+                return true;
+            }
+
+            if (agent.isStarted()) {
+                return true;
+            }
+
+            const timeoutMs = 15_000;
+            const startAt = Date.now();
+
+            while (!agent.isStarted()) {
+                if (typeof agent.isStopped === 'function' && agent.isStopped()) {
+                    return false;
+                }
+                if (Date.now() - startAt > timeoutMs) {
+                    logger.warn('Scheduler start delayed: agent did not finish starting in time.');
+                    return false;
+                }
+                await new Promise((resolve) => setTimeout(resolve, 50));
+            }
+
             return true;
-        }
+        };
 
-        if (agent.isStarted()) {
-            return true;
-        }
-
-        const timeoutMs = 15_000;
-        const startAt = Date.now();
-
-        while (!agent.isStarted()) {
-            if (typeof agent.isStopped === 'function' && agent.isStopped()) {
-                return false;
+        const withWorkspaceContext = async <T>(
+            workspacePath: string | undefined,
+            handler: () => Promise<T>
+        ): Promise<T> => {
+            if (!agent || typeof agent.getWorkspace !== 'function') {
+                return await handler();
             }
-            if (Date.now() - startAt > timeoutMs) {
-                logger.warn('Scheduler start delayed: agent did not finish starting in time.');
-                return false;
-            }
-            await new Promise((resolve) => setTimeout(resolve, 50));
-        }
 
-        return true;
-    };
+            const previous = await agent.getWorkspace();
+            const needsChange = workspacePath
+                ? previous?.path !== workspacePath
+                : Boolean(previous);
 
-    const withWorkspaceContext = async <T>(
-        workspacePath: string | undefined,
-        handler: () => Promise<T>
-    ): Promise<T> => {
-        if (!agent || typeof agent.getWorkspace !== 'function') {
-            return await handler();
-        }
-
-        const previous = await agent.getWorkspace();
-        const needsChange = workspacePath ? previous?.path !== workspacePath : Boolean(previous);
-
-        if (needsChange) {
-            if (workspacePath) {
-                await agent.setWorkspace({ path: workspacePath });
-            } else {
-                await agent.clearWorkspace();
-            }
-        }
-
-        try {
-            return await handler();
-        } finally {
             if (needsChange) {
-                if (!previous) {
-                    await agent.clearWorkspace();
+                if (workspacePath) {
+                    await agent.setWorkspace({ path: workspacePath });
                 } else {
-                    await agent.setWorkspace({
-                        path: previous.path,
-                        ...(previous.name ? { name: previous.name } : {}),
-                    });
+                    await agent.clearWorkspace();
                 }
             }
-        }
-    };
 
-    manager.setExecutor(async ({ prompt, sessionId, schedule }) => {
-        const ready = await waitForAgentStart();
-        if (!ready) {
-            throw SchedulerError.executionFailed(
-                schedule.id,
-                'Agent is not started. Scheduled execution skipped.'
+            try {
+                return await handler();
+            } finally {
+                if (needsChange) {
+                    if (!previous) {
+                        await agent.clearWorkspace();
+                    } else {
+                        await agent.setWorkspace({
+                            path: previous.path,
+                            ...(previous.name ? { name: previous.name } : {}),
+                        });
+                    }
+                }
+            }
+        };
+
+        manager.setExecutor(async ({ prompt, sessionId, schedule }) => {
+            const ready = await waitForAgentStart();
+            if (!ready) {
+                throw SchedulerError.executionFailed(
+                    schedule.id,
+                    'Agent is not started. Scheduled execution skipped.'
+                );
+            }
+
+            agent.emit('run:invoke', {
+                sessionId,
+                content: [{ type: 'text', text: prompt }],
+                source: 'scheduler',
+                metadata: {
+                    trigger: 'cron',
+                    scheduleId: schedule.id,
+                    scheduleName: schedule.name,
+                },
+            });
+
+            const workspacePath = schedule.workspacePath;
+            const response = await withWorkspaceContext(workspacePath, () =>
+                agent.generate(prompt, sessionId)
             );
-        }
-
-        agent.emit('run:invoke', {
-            sessionId,
-            content: [{ type: 'text', text: prompt }],
-            source: 'scheduler',
-            metadata: {
-                trigger: 'cron',
-                scheduleId: schedule.id,
-                scheduleName: schedule.name,
-            },
+            return response.content;
         });
 
-        const workspacePath = schedule.workspacePath;
-        const response = await withWorkspaceContext(workspacePath, () =>
-            agent.generate(prompt, sessionId)
-        );
-        return response.content;
-    });
+        await manager.init();
+        const ready = await waitForAgentStart();
+        if (ready) {
+            await manager.start();
+            logger.info('Scheduler started successfully');
+        } else {
+            logger.warn('Scheduler start skipped because agent is not ready.');
+        }
 
-    await manager.init();
-    const ready = await waitForAgentStart();
-    if (ready) {
-        await manager.start();
-        logger.info('Scheduler started successfully');
-    } else {
-        logger.warn('Scheduler start skipped because agent is not ready.');
+        agent.services?.toolManager?.registerCleanup(async () => {
+            await manager.stop();
+            schedulerManagerRegistry.delete(agentId);
+            schedulerConfigRegistry.delete(agentId);
+        });
+
+        return manager;
+    })();
+
+    schedulerManagerInitPromises.set(agentId, initPromise);
+    try {
+        return await initPromise;
+    } finally {
+        schedulerManagerInitPromises.delete(agentId);
     }
-
-    agent.services?.toolManager?.registerCleanup(() => manager.stop());
-
-    return manager;
 }
 
 /**
@@ -198,9 +221,15 @@ export const schedulerToolsFactory: ToolFactory<SchedulerToolsConfig> = {
         category: 'workflow',
     },
     create: (config) => {
-        defaultSchedulerConfig = config;
+        if (!defaultSchedulerConfig) {
+            defaultSchedulerConfig = config;
+        }
 
         const getManager: SchedulerManagerGetter = async (context) => {
+            if (context.agent) {
+                const agentId = context.agent.config?.agentId ?? 'default';
+                schedulerConfigRegistry.set(agentId, config);
+            }
             const manager = await ensureSchedulerManagerForAgent(
                 context.agent,
                 config,

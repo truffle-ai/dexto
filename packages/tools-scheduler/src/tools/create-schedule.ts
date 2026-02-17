@@ -51,7 +51,7 @@ Examples:
                 ? `Target Agent: ${targetAgent}`
                 : `Target Agent: orchestrator (default)`;
 
-            return `Schedule created successfully
+            const message = `Schedule created successfully
 
 ID: ${schedule.id}
 Name: ${schedule.name}
@@ -63,6 +63,8 @@ ${targetInfo}
 Next run: ${schedule.nextRunAt ? new Date(schedule.nextRunAt).toISOString() : 'calculating...'}
 
 The schedule is now active and will execute automatically.`;
+
+            return { message, schedule };
         },
     };
 }

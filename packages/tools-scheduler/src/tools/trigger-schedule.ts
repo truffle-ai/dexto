@@ -17,13 +17,17 @@ export function createTriggerScheduleTool(getManager: SchedulerManagerGetter): T
             const manager = await getManager(context);
             const log = await manager.triggerScheduleNow(scheduleId);
 
+            const durationLine =
+                log.duration != null ? `Duration: ${log.duration}ms` : 'Duration: (unknown)';
+            const errorLine = log.error ?? 'Unknown error';
+
             const message =
                 log.status === 'success'
                     ? `Schedule executed successfully
 
 Execution ID: ${log.id}
 Status: ${log.status}
-Duration: ${log.duration}ms
+${durationLine}
 
 Result:
 ${log.result || '(no result)'}`
@@ -31,8 +35,8 @@ ${log.result || '(no result)'}`
 
 Execution ID: ${log.id}
 Status: ${log.status}
-Duration: ${log.duration}ms
-Error: ${log.error}`;
+${durationLine}
+Error: ${errorLine}`;
 
             return { message, execution: log };
         },
