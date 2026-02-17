@@ -117,6 +117,7 @@ tools:
       - delegate_to_url
       - list_resources
       - get_resource
+      - http_request
       - web_search
       - code_search
 
