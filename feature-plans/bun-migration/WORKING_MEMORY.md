@@ -37,8 +37,13 @@
   - `init` prints `bun <path/to/file.ts>` instead of `npx tsx …`
   - `version-check` suggests `bun add -g dexto@latest` instead of `npm i -g dexto`
 - Remaining pnpm/npm touchpoints (non-exhaustive, likely PR 1 candidates):
-  - `scripts/install-global-cli.ts` — uses `npx verdaccio …` and `npm uninstall -g …` for a local install simulation
-  - Root `package.json` `link-cli*`/`unlink-cli` scripts still call `npm uninstall -g …` as a fallback cleanup
+  - CLI flow parity outside `dexto-source` depends on publishing `@dexto/*` packages (owner will publish before merge)
+
+Recent updates (commit pending at time of writing):
+- GitHub Actions workflows migrated from pnpm/npm to Bun (CI + sync jobs + changesets release workflow)
+- `changeset publish` replaced with Bun-based publishing (`scripts/publish-packages.ts`) because Changesets only supports npm/pnpm for publish
+- Legacy pnpm files deleted (`pnpm-lock.yaml`, `pnpm-workspace.yaml`)
+- Dev-only global install/link scripts moved off `npx`/`npm` fallbacks
 
 ---
 
@@ -101,6 +106,7 @@
 - 2026-02-17: Local model setup uses Bun to install `node-llama-cpp` into `~/.dexto/deps` (commit `ec32f68c`).
 - 2026-02-17: Validated `bun add --trust node-llama-cpp` + `import('node-llama-cpp')` works under Bun `1.2.9` (macOS).
 - 2026-02-17: Bun-first CLI scaffolding/templates + help text (commit `15352f74`).
+- 2026-02-17: CI + release workflows migrated to Bun; remove pnpm lock/workspace; add Bun-based publish script (commit pending).
 
 ---
 

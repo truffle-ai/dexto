@@ -17,23 +17,24 @@ Last updated: 2026-02-17
 
 - **PR 1 (this plan):** Bun migration (package manager + runtime) with functionality parity
 - **PR 2 (follow-up):** Native TypeScript extensions + layered `~/.dexto` package root (DEXTO_DOTDEXTO intent) and any image-store redesign that naturally falls out of that
-- **PR 3 (optional follow-up):** CI + docs
+- **PR 3 (optional follow-up):** Docs cleanups
 
 ## Non-goals (PR 1)
 
 - Rewriting every example app to Bun (but we should keep them runnable).
 - Switching the test framework from Vitest to `bun test` (we can run Vitest under Bun).
-- Publishing strategy changes for npm (but we should keep packages publishable).
+- Changing what gets published (but we should keep packages publishable).
 - Implementing native TypeScript extension loading from layered `.dexto` roots (explicitly split to PR 2).
 - Redesigning/replacing the image store (explicitly split to PR 2).
-- Migrating CI + docs (explicitly split to PR 3).
+- Docs updates (DEVELOPMENT/CONTRIBUTING) (explicitly split to PR 3).
 
 ## What stays the same (tooling)
 
 Bun is replacing **pnpm/npm** for installs + running scripts, but it does **not** replace the higher-level monorepo tooling we already use:
 
 - **Turborepo:** still the task runner/orchestrator (pipelines, caching). Bun can run it (`bun run …` / `bun x turbo …`), but Bun doesn’t provide a Turbo-equivalent feature set.
-- **Changesets:** still the versioning/release-plan system for this fixed-version monorepo. We run it via `bun x changeset …`. (Note: publishing still targets the npm registry; Changesets may shell out to `npm` for publish-related operations.)
+- **Changesets:** still the versioning/release-plan system for this fixed-version monorepo. We run it via `bun x changeset …`.
+  - **Important:** `changeset publish` only supports npm/pnpm, so PR 1 uses a Bun-based publish script (`scripts/publish-packages.ts`) while keeping Changesets for versioning + changelogs.
 
 ## Status (this worktree)
 
@@ -42,6 +43,7 @@ As of 2026-02-17 in `~/Projects/dexto-bun-migration`:
 - Root workspace is Bun-based (`packageManager: bun@1.2.9`) with `bun.lock`.
 - Repo scripts and entrypoints have been moved off hard `node`/`pnpm` invocations where it mattered for runtime.
 - SQLite persistence under Bun uses **`bun:sqlite`** (no `better-sqlite3` ABI dependency for the Bun runtime path).
+- CI + release workflows have been migrated to Bun (GitHub Actions no longer run pnpm).
 - `bun run build`, `bun run typecheck`, and `bun run test` are green.
 
 Version note:
@@ -99,9 +101,9 @@ But **native TypeScript at runtime is not solved**:
 
 ### 1) Workspace + lockfiles
 
-- Root `package.json` must include `workspaces` (Bun uses this; `pnpm-workspace.yaml` becomes legacy).
-- Add Bun lockfile (`bun.lock` text is fine for review/merge conflicts).
-- Keep `pnpm-lock.yaml` temporarily if you want a rollback path, but treat Bun as source-of-truth once CI switches.
+- Root `package.json` must include `workspaces` (Bun uses this).
+- Bun lockfile (`bun.lock` text is fine for review/merge conflicts) is the source of truth.
+- Legacy pnpm files (`pnpm-lock.yaml`, `pnpm-workspace.yaml`) are deleted once CI flips to Bun.
 
 ### 2) Scripts / entrypoints
 
@@ -119,12 +121,17 @@ Hard lessons / current reality:
   - `@tailwindcss/oxide`
 
 Also relevant to *this repo’s* Bun runtime story:
-- **Local model support uses a native addon**: `node-llama-cpp` is installed on-demand into `~/.dexto/deps` via `npm install node-llama-cpp` (today). If we want “Bun runtime, no Node required”, we need an explicit strategy for this (see Phase 1.5 + Known risks below).
+- **Local model support uses a native addon**: `node-llama-cpp` is installed on-demand into `~/.dexto/deps` via Bun (`bun add --trust node-llama-cpp`). If we want “Bun runtime, no Node required”, we need an explicit strategy for native addon compatibility across platforms.
 - Bun supports **Node-API** for many native addons, but this is not universal; ABI-sensitive addons are a recurring risk. Prefer Bun built-ins (like `bun:sqlite`) or pure JS when possible.
 
 Bun-specific knobs:
 - `trustedDependencies` in root `package.json` + `bun pm trust …`
 - `bun pm untrusted` to detect blocked lifecycle scripts
+
+Policy (PR 1):
+- Keep `trustedDependencies` minimal and intentional.
+- Prefer leaving dependency lifecycle scripts blocked unless a concrete breakage requires trusting them.
+- Be cautious trusting scripts that explicitly run `node` (they can reintroduce Node as a hidden dependency).
 
 Current repo state to plan around:
 - `bun pm untrusted` reports blocked postinstalls for:
@@ -272,7 +279,6 @@ Acceptance:
 
 ### PR 3 (optional) — CI + docs
 
-- Update CI to use Bun for install/build/typecheck/test.
 - Update docs that mention pnpm/npm for core workflows.
 - Document `trustedDependencies` and the `bun pm untrusted` workflow.
 

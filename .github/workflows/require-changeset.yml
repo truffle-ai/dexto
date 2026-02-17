@@ -27,7 +27,7 @@ jobs:
           # If publishable packages were touched in this PR, ensure a changeset file is part of the PR diff
           if grep -E '^(packages/(core|cli|webui)/)' changed.txt >/dev/null; then
             if ! grep -E '^\.changeset/.*\.md$' changed.txt >/dev/null; then
-              echo 'Missing changeset for publishable changes. Run pnpm changeset.'
+              echo 'Missing changeset for publishable changes. Run bun x changeset.'
               exit 1
             fi
           fi

@@ -219,7 +219,7 @@ log: { type: stdout, format: pretty, level: warn }
 
     writeFileSync(configPath, config);
 
-    const proc = spawn('npx', ['verdaccio', '--config', configPath], {
+    const proc = spawn('bun', ['x', 'verdaccio', '--config', configPath], {
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: false,
     });
@@ -341,13 +341,6 @@ async function main() {
             removedAny = true;
         } catch {
             // bun global not installed
-        }
-        try {
-            execSync('npm uninstall -g dexto', { stdio: 'ignore' });
-            console.log('  ✓ Removed npm global installation');
-            removedAny = true;
-        } catch {
-            // npm global not installed
         }
         if (!removedAny) {
             console.log('  (no existing installation)');

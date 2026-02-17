@@ -37,19 +37,20 @@ jobs:
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
-      - run: corepack enable
-      - uses: actions/setup-node@v4
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v1
         with:
-          node-version: 20
-          cache: 'pnpm'
-          registry-url: 'https://registry.npmjs.org'
-          always-auth: true
-          scope: '@dexto'
-      - run: pnpm install --frozen-lockfile
+          bun-version: '1.2.9'
+      - name: Configure npm auth for Bun
+        run: |
+          echo "registry=https://registry.npmjs.org" >> ~/.npmrc
+          echo "always-auth=true" >> ~/.npmrc
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" >> ~/.npmrc
+      - run: bun install --frozen-lockfile
       - name: Version / Publish with Changesets
         uses: changesets/action@v1
         with:
           title: 'chore: version packages'
           commit: 'chore: version packages'
-          version: pnpm run changeset:version
-          publish: pnpm run changeset:publish
+          version: bun run changeset:version
+          publish: bun run changeset:publish

@@ -30,7 +30,7 @@
         "build:webui:dev": "turbo run build --filter='@dexto/webui...'",
         "build-webui": "bun x rimraf packages/webui/node_modules packages/webui/package-lock.json && bun install && bun --cwd packages/webui run build",
         "changeset:version": "bun x changeset version && bun install",
-        "changeset:publish": "bun run build && bun x changeset publish",
+        "changeset:publish": "bun run build && bun scripts/publish-packages.ts",
         "clean": "bun scripts/clean-build-files.ts",
         "clean:storage": "rimraf .dexto",
         "copy-webui-dist": "bun scripts/copy-webui-dist.ts",
@@ -42,8 +42,8 @@
         "format:check": "prettier --check \"packages/**/*.{ts,tsx,js,jsx}\" \"scripts/**/*.ts\"",
         "install-cli": "bun install && bun run build:all && bun scripts/install-global-cli.ts",
         "install-cli-fast": "bun install && bun run build:cli && bun scripts/install-global-cli.ts",
-        "link-cli": "bun run build:all && bun remove -g dexto 2>/dev/null || true && npm uninstall -g dexto 2>/dev/null || true && bun --cwd packages/cli link --global",
-        "link-cli-fast": "bun run build:cli && bun remove -g dexto 2>/dev/null || true && npm uninstall -g dexto 2>/dev/null || true && bun --cwd packages/cli link --global",
+        "link-cli": "bun run build:all && bun remove -g dexto 2>/dev/null || true && bun --cwd packages/cli link --global",
+        "link-cli-fast": "bun run build:cli && bun remove -g dexto 2>/dev/null || true && bun --cwd packages/cli link --global",
         "lint": "turbo run lint",
         "lint:fix": "eslint . --fix",
         "prebuild": "",
@@ -68,7 +68,7 @@
         "typecheck": "turbo run typecheck",
         "typecheck:core": "tsc --noEmit -p packages/core/tsconfig.json",
         "typecheck:watch": "turbo run typecheck --watch",
-        "unlink-cli": "bun remove -g dexto 2>/dev/null || true && npm uninstall -g dexto 2>/dev/null || true"
+        "unlink-cli": "bun remove -g dexto 2>/dev/null || true"
     },
     "keywords": [
         "mcp",

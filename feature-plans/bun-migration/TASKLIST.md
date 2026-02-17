@@ -25,16 +25,18 @@ Success criteria:
 - [x] Decide Bun version policy: keep pin at `1.2.9` (don’t chase latest during migration)
 - [x] Remove/replace remaining hardcoded `pnpm`/`npm` usage in CLI output/help text
 - [x] Update CLI scaffolding and templates to prefer `bun` (install/run/build instructions)
-- [ ] Replace `npx`/`npm` usage in repo dev scripts with `bunx`/`bun` where possible (e.g. `scripts/install-global-cli.ts`)
+- [x] Replace `npx`/`npm` usage in repo dev scripts with `bun` where possible (e.g. `scripts/install-global-cli.ts`)
 - [x] Migrate image-store installer off `npm pack` + `npm install` to Bun equivalents
 - [x] Switch local model dependency install to Bun (`node-llama-cpp` via `bun add --trust`)
 - [x] Validate `node-llama-cpp` installs + imports under Bun runtime (no Node required)
-- [ ] Decide what to do with legacy pnpm files (`pnpm-lock.yaml`, `pnpm-workspace.yaml`) once CI flips
+- [x] Delete legacy pnpm files (`pnpm-lock.yaml`, `pnpm-workspace.yaml`)
 - [x] Checkpoint commit: Phase 1 SQLite + runtime blockers removed
 
 ## Phase 2 — Functionality parity audit (no feature changes)
 
 - [x] Confirm `bun install`, `bun run build`, `bun run typecheck`, `bun run test`
+- [x] Migrate GitHub Actions workflows from pnpm/npm to Bun (CI + sync jobs)
+- [x] Migrate release workflow to Bun (Changesets versioning + Bun-based publish)
 - [ ] Confirm CLI flows work and print Bun-first instructions (note: app/image scaffolds may require access to the `@dexto/*` registry when run outside `dexto-source`):
   - `dexto create-app`
   - `dexto create-image`
@@ -60,6 +62,5 @@ Success criteria:
 
 ## PR 3 (deferred) — CI + docs
 
-- [ ] Update CI to use Bun for install/build/typecheck/test
 - [ ] Update docs (DEVELOPMENT/CONTRIBUTING) from pnpm/npm to Bun commands
 - [ ] Document Bun lifecycle scripts policy (`trustedDependencies`, `bun pm untrusted`, `bun pm trust`)
