@@ -48,7 +48,7 @@ function generateDiffPreview(
 export function createPlanUpdateTool(getPlanService: PlanServiceGetter): Tool {
     return {
         id: 'plan_update',
-        displayName: 'Plan',
+        displayName: 'Update Plan',
         description:
             'Update the existing implementation plan for this session. Shows a diff preview for approval before saving. The plan must already exist (use plan_create first).',
         inputSchema: PlanUpdateInputSchema,
