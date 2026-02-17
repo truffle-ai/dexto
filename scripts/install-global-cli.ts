@@ -14,8 +14,18 @@
  * exactly as they would when users install from npm.
  */
 import { execSync, spawn, ChildProcess } from 'child_process';
-import { existsSync, rmSync, mkdirSync, writeFileSync, readdirSync, readFileSync } from 'fs';
-import { join } from 'path';
+import {
+    existsSync,
+    rmSync,
+    mkdirSync,
+    writeFileSync,
+    readdirSync,
+    readFileSync,
+    lstatSync,
+    readlinkSync,
+} from 'fs';
+import { join, resolve, sep } from 'path';
+import { homedir } from 'os';
 
 const REGISTRY_URL = 'http://localhost:4873';
 const VERDACCIO_CONFIG_DIR = join(process.cwd(), '.verdaccio');
@@ -166,6 +176,72 @@ function resolvePublishPlan(rootDir: string): WorkspacePackage[] {
     }
 
     return ordered;
+}
+
+type RemoveResult = { removed: boolean; message?: string };
+
+function removeBunGlobalCliShim(toolName: string): RemoveResult {
+    const bunInstallDir = process.env.BUN_INSTALL || join(homedir(), '.bun');
+    const bunBinDir = join(bunInstallDir, 'bin');
+
+    const candidates =
+        process.platform === 'win32'
+            ? [join(bunBinDir, `${toolName}.exe`), join(bunBinDir, `${toolName}.cmd`)]
+            : [join(bunBinDir, toolName)];
+
+    for (const candidate of candidates) {
+        if (!existsSync(candidate)) {
+            continue;
+        }
+
+        try {
+            const stat = lstatSync(candidate);
+            if (stat.isSymbolicLink()) {
+                const target = readlinkSync(candidate);
+                const resolvedTarget = resolve(bunBinDir, target);
+                const bunGlobalPkgDir = join(
+                    bunInstallDir,
+                    'install',
+                    'global',
+                    'node_modules',
+                    toolName
+                );
+                const looksLikeBunGlobalDexto =
+                    resolvedTarget === bunGlobalPkgDir ||
+                    resolvedTarget.startsWith(`${bunGlobalPkgDir}${sep}`);
+
+                if (!looksLikeBunGlobalDexto) {
+                    return {
+                        removed: false,
+                        message: `Found bun shim at ${candidate}, but its target doesn't look like a bun-managed install (${target}).`,
+                    };
+                }
+
+                rmSync(candidate, { force: true });
+                return { removed: true, message: `Removed bun shim at ${candidate}` };
+            }
+
+            const firstLine = readFileSync(candidate, 'utf8').split('\n')[0] ?? '';
+            if (!firstLine.includes('bun')) {
+                return {
+                    removed: false,
+                    message: `Found bun bin entry at ${candidate}, but it doesn't look like a bun script (first line: ${firstLine}).`,
+                };
+            }
+
+            rmSync(candidate, { force: true });
+            return { removed: true, message: `Removed bun bin entry at ${candidate}` };
+        } catch (error) {
+            return {
+                removed: false,
+                message: `Failed to inspect/remove bun shim at ${candidate}: ${
+                    error instanceof Error ? error.message : String(error)
+                }`,
+            };
+        }
+    }
+
+    return { removed: false };
 }
 
 function sleep(ms: number): Promise<void> {
@@ -353,6 +429,17 @@ async function main() {
             }
         } catch {
             // pnpm not available or no global link
+        }
+        try {
+            const bunRemoval = removeBunGlobalCliShim('dexto');
+            if (bunRemoval.removed) {
+                console.log(`  ✓ ${bunRemoval.message}`);
+                removedAny = true;
+            } else if (bunRemoval.message) {
+                console.log(`  ⚠️  ${bunRemoval.message}`);
+            }
+        } catch {
+            // bun not installed or no bun shim found
         }
         if (!removedAny) {
             console.log('  (no existing installation)');
