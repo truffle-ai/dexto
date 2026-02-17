@@ -16,7 +16,7 @@ const SleepInputSchema = z
 /**
  * Internal tool for sleeping/delaying execution.
  */
-export function createSleepTool(): Tool {
+export function createSleepTool(): Tool<typeof SleepInputSchema> {
     return defineTool({
         id: 'sleep',
         displayName: 'Sleep',

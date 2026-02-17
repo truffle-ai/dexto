@@ -26,7 +26,7 @@ const CodeSearchInputSchema = z
  *
  * Finds relevant code snippets and documentation by calling Exa's MCP endpoint via the MCP SDK.
  */
-export function createCodeSearchTool(): Tool {
+export function createCodeSearchTool(): Tool<typeof CodeSearchInputSchema> {
     return defineTool({
         id: 'code_search',
         displayName: 'Code Search',

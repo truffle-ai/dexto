@@ -183,7 +183,7 @@ class SimpleA2AClient {
  *
  * Delegates a message/task to another A2A-compliant agent URL via JSON-RPC and returns its response.
  */
-export function createDelegateToUrlTool(): Tool {
+export function createDelegateToUrlTool(): Tool<typeof DelegateToUrlInputSchema> {
     return defineTool({
         id: 'delegate_to_url',
         displayName: 'Delegate',

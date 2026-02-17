@@ -41,7 +41,7 @@ interface ResourceInfo {
  * that can be passed to `get_resource`.
  * Requires `ToolExecutionContext.services.resources`.
  */
-export function createListResourcesTool(): Tool {
+export function createListResourcesTool(): Tool<typeof ListResourcesInputSchema> {
     return defineTool({
         id: 'list_resources',
         displayName: 'List Resources',

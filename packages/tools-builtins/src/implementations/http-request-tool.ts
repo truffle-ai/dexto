@@ -279,7 +279,7 @@ async function readResponseTextWithLimit(response: Response): Promise<string> {
 /**
  * Internal tool for basic HTTP requests.
  */
-export function createHttpRequestTool(): Tool {
+export function createHttpRequestTool(): Tool<typeof HttpRequestInputSchema> {
     return defineTool({
         id: 'http_request',
         displayName: 'Fetch',

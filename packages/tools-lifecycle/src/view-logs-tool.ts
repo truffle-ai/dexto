@@ -103,7 +103,10 @@ async function readTailBytes(filePath: string, maxBytes: number): Promise<string
     }
 }
 
-export function createViewLogsTool(options: { maxLogLines: number; maxLogBytes: number }): Tool {
+export function createViewLogsTool(options: {
+    maxLogLines: number;
+    maxLogBytes: number;
+}): Tool<typeof ViewLogsInputSchema> {
     return defineTool({
         id: 'view_logs',
         displayName: 'View Logs',

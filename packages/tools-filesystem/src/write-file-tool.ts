@@ -83,7 +83,9 @@ function generateDiffPreview(
 /**
  * Create the write_file internal tool with directory approval support
  */
-export function createWriteFileTool(getFileSystemService: FileSystemServiceGetter): Tool {
+export function createWriteFileTool(
+    getFileSystemService: FileSystemServiceGetter
+): Tool<typeof WriteFileInputSchema> {
     return defineTool({
         id: 'write_file',
         displayName: 'Write',

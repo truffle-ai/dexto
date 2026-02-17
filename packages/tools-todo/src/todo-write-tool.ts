@@ -63,7 +63,9 @@ const TodoWriteInputSchema = z
  */
 export type TodoServiceGetter = (context: ToolExecutionContext) => Promise<TodoService>;
 
-export function createTodoWriteTool(getTodoService: TodoServiceGetter): Tool {
+export function createTodoWriteTool(
+    getTodoService: TodoServiceGetter
+): Tool<typeof TodoWriteInputSchema> {
     return defineTool({
         id: 'todo_write',
         displayName: 'Update Todos',

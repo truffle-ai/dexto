@@ -32,7 +32,9 @@ const PlanReviewInputSchema = z
  *
  * @param planService - Service for plan operations
  */
-export function createPlanReviewTool(getPlanService: PlanServiceGetter): Tool {
+export function createPlanReviewTool(
+    getPlanService: PlanServiceGetter
+): Tool<typeof PlanReviewInputSchema> {
     return defineTool({
         id: 'plan_review',
         displayName: 'Review Plan',

@@ -62,7 +62,7 @@ export interface ListTasksOutput {
 /**
  * Create the list_tasks tool
  */
-export function createListTasksTool(taskRegistry: TaskRegistry): Tool {
+export function createListTasksTool(taskRegistry: TaskRegistry): Tool<typeof ListTasksInputSchema> {
     return {
         id: 'list_tasks',
         displayName: 'List Tasks',

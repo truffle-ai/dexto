@@ -18,7 +18,9 @@ const KillProcessInputSchema = z
 /**
  * Create the kill_process internal tool
  */
-export function createKillProcessTool(getProcessService: ProcessServiceGetter): Tool {
+export function createKillProcessTool(
+    getProcessService: ProcessServiceGetter
+): Tool<typeof KillProcessInputSchema> {
     return defineTool({
         id: 'kill_process',
         displayName: 'Kill',

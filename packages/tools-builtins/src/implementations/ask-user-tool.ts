@@ -24,7 +24,7 @@ const AskUserInputSchema = z
  * Uses the approval/elicitation channel to collect structured user input via a JSON Schema form.
  * Requires `ToolExecutionContext.services.approval`.
  */
-export function createAskUserTool(): Tool {
+export function createAskUserTool(): Tool<typeof AskUserInputSchema> {
     return defineTool({
         id: 'ask_user',
         displayName: 'Ask',

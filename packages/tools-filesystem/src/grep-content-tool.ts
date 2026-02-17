@@ -49,7 +49,9 @@ const GrepContentInputSchema = z
 /**
  * Create the grep_content internal tool with directory approval support
  */
-export function createGrepContentTool(getFileSystemService: FileSystemServiceGetter): Tool {
+export function createGrepContentTool(
+    getFileSystemService: FileSystemServiceGetter
+): Tool<typeof GrepContentInputSchema> {
     return defineTool({
         id: 'grep_content',
         displayName: 'Search Files',

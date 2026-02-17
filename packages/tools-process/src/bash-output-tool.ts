@@ -18,7 +18,9 @@ const BashOutputInputSchema = z
 /**
  * Create the bash_output internal tool
  */
-export function createBashOutputTool(getProcessService: ProcessServiceGetter): Tool {
+export function createBashOutputTool(
+    getProcessService: ProcessServiceGetter
+): Tool<typeof BashOutputInputSchema> {
     return defineTool({
         id: 'bash_output',
         displayName: 'Bash Output',

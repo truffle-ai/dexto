@@ -44,7 +44,9 @@ function generateDiffPreview(
 /**
  * Creates the plan_update tool
  */
-export function createPlanUpdateTool(getPlanService: PlanServiceGetter): Tool {
+export function createPlanUpdateTool(
+    getPlanService: PlanServiceGetter
+): Tool<typeof PlanUpdateInputSchema> {
     return defineTool({
         id: 'plan_update',
         displayName: 'Update Plan',

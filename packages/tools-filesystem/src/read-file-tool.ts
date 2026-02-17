@@ -32,7 +32,9 @@ const ReadFileInputSchema = z
 /**
  * Create the read_file internal tool with directory approval support
  */
-export function createReadFileTool(getFileSystemService: FileSystemServiceGetter): Tool {
+export function createReadFileTool(
+    getFileSystemService: FileSystemServiceGetter
+): Tool<typeof ReadFileInputSchema> {
     return defineTool({
         id: 'read_file',
         displayName: 'Read',

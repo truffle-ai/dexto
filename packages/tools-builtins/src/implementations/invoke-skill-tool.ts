@@ -27,7 +27,7 @@ const InvokeSkillInputSchema = z
  * forks the skill into a sub-agent when the skill is marked as `context: fork`.
  * Requires `ToolExecutionContext.services.prompts` and, for forked skills, `services.taskForker`.
  */
-export function createInvokeSkillTool(): Tool {
+export function createInvokeSkillTool(): Tool<typeof InvokeSkillInputSchema> {
     return defineTool({
         id: 'invoke_skill',
         displayName: 'Skill',

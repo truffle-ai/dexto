@@ -51,7 +51,9 @@ ${agentsList}
 - If a sub-agent's LLM fails, it automatically falls back to your LLM`;
 }
 
-export function createSpawnAgentTool(service: AgentSpawnerRuntime): Tool {
+export function createSpawnAgentTool(
+    service: AgentSpawnerRuntime
+): Tool<typeof SpawnAgentInputSchema> {
     return {
         id: 'spawn_agent',
         displayName: 'Agent',

@@ -16,7 +16,9 @@ const PlanReadInputSchema = z.object({}).strict();
 /**
  * Creates the plan_read tool
  */
-export function createPlanReadTool(getPlanService: PlanServiceGetter): Tool {
+export function createPlanReadTool(
+    getPlanService: PlanServiceGetter
+): Tool<typeof PlanReadInputSchema> {
     return defineTool({
         id: 'plan_read',
         displayName: 'Read Plan',

@@ -40,7 +40,7 @@ const SearchHistoryInputSchema = z
  * Searches message/session history using the configured SearchService.
  * Requires `ToolExecutionContext.services.search`.
  */
-export function createSearchHistoryTool(): Tool {
+export function createSearchHistoryTool(): Tool<typeof SearchHistoryInputSchema> {
     return defineTool({
         id: 'search_history',
         displayName: 'Search History',

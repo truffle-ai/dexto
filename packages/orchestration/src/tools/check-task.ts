@@ -49,7 +49,7 @@ export interface CheckTaskOutput {
 /**
  * Create the check_task tool
  */
-export function createCheckTaskTool(taskRegistry: TaskRegistry): Tool {
+export function createCheckTaskTool(taskRegistry: TaskRegistry): Tool<typeof CheckTaskInputSchema> {
     return {
         id: 'check_task',
         displayName: 'Check Task',

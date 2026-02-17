@@ -48,7 +48,9 @@ const BashExecInputSchema = z
  */
 export type ProcessServiceGetter = (context: ToolExecutionContext) => Promise<ProcessService>;
 
-export function createBashExecTool(getProcessService: ProcessServiceGetter): Tool {
+export function createBashExecTool(
+    getProcessService: ProcessServiceGetter
+): Tool<typeof BashExecInputSchema> {
     return defineTool({
         id: 'bash_exec',
         displayName: 'Bash',

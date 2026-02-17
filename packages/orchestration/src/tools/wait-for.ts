@@ -147,7 +147,9 @@ function formatOutput(signal: Signal, allSignals?: Signal[]): WaitForOutput {
 /**
  * Create the wait_for tool
  */
-export function createWaitForTool(conditionEngine: ConditionEngine): Tool {
+export function createWaitForTool(
+    conditionEngine: ConditionEngine
+): Tool<typeof WaitForInputSchema> {
     return {
         id: 'wait_for',
         displayName: 'Wait',

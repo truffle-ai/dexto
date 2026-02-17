@@ -33,7 +33,9 @@ const GlobFilesInputSchema = z
 /**
  * Create the glob_files internal tool with directory approval support
  */
-export function createGlobFilesTool(getFileSystemService: FileSystemServiceGetter): Tool {
+export function createGlobFilesTool(
+    getFileSystemService: FileSystemServiceGetter
+): Tool<typeof GlobFilesInputSchema> {
     return defineTool({
         id: 'glob_files',
         displayName: 'Find Files',
@@ -125,9 +127,13 @@ export function createGlobFilesTool(getFileSystemService: FileSystemServiceGette
             // Input is validated by provider before reaching here
             const { pattern, path: searchPath, max_results } = input;
 
+            // Resolve the search directory consistently with getApprovalOverride
+            const baseDir = resolvedFileSystemService.getWorkingDirectory();
+            const resolvedSearchPath = path.resolve(baseDir, searchPath || '.');
+
             // Search for files using FileSystemService
             const result = await resolvedFileSystemService.globFiles(pattern, {
-                cwd: searchPath,
+                cwd: resolvedSearchPath,
                 maxResults: max_results,
                 includeMetadata: true,
             });

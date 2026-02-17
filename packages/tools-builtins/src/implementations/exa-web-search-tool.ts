@@ -39,7 +39,7 @@ const WebSearchInputSchema = z
  *
  * Performs a web search by calling Exa's MCP endpoint via the MCP SDK.
  */
-export function createWebSearchTool(): Tool {
+export function createWebSearchTool(): Tool<typeof WebSearchInputSchema> {
     return defineTool({
         id: 'web_search',
         displayName: 'Web Search',

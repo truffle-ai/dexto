@@ -69,7 +69,9 @@ function generateDiffPreview(
 /**
  * Create the edit_file internal tool with directory approval support
  */
-export function createEditFileTool(getFileSystemService: FileSystemServiceGetter): Tool {
+export function createEditFileTool(
+    getFileSystemService: FileSystemServiceGetter
+): Tool<typeof EditFileInputSchema> {
     return defineTool({
         id: 'edit_file',
         displayName: 'Update',

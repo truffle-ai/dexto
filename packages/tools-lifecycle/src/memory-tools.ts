@@ -26,7 +26,7 @@ const MemoryListInputSchema = z
     })
     .strict();
 
-export function createMemoryListTool(): Tool {
+export function createMemoryListTool(): Tool<typeof MemoryListInputSchema> {
     return defineTool({
         id: 'memory_list',
         displayName: 'List Memories',
@@ -55,7 +55,7 @@ export function createMemoryListTool(): Tool {
 
 const MemoryGetInputSchema = z.object({ id: z.string().describe('Memory ID') }).strict();
 
-export function createMemoryGetTool(): Tool {
+export function createMemoryGetTool(): Tool<typeof MemoryGetInputSchema> {
     return defineTool({
         id: 'memory_get',
         displayName: 'Get Memory',
@@ -84,7 +84,7 @@ const MemoryCreateInputSchema = z
     })
     .strict();
 
-export function createMemoryCreateTool(): Tool {
+export function createMemoryCreateTool(): Tool<typeof MemoryCreateInputSchema> {
     return defineTool({
         id: 'memory_create',
         displayName: 'Create Memory',
@@ -118,7 +118,7 @@ const MemoryUpdateInputSchema = z
     })
     .strict();
 
-export function createMemoryUpdateTool(): Tool {
+export function createMemoryUpdateTool(): Tool<typeof MemoryUpdateInputSchema> {
     return defineTool({
         id: 'memory_update',
         displayName: 'Update Memory',
@@ -146,7 +146,7 @@ export function createMemoryUpdateTool(): Tool {
 
 const MemoryDeleteInputSchema = z.object({ id: z.string().describe('Memory ID') }).strict();
 
-export function createMemoryDeleteTool(): Tool {
+export function createMemoryDeleteTool(): Tool<typeof MemoryDeleteInputSchema> {
     return defineTool({
         id: 'memory_delete',
         displayName: 'Delete Memory',

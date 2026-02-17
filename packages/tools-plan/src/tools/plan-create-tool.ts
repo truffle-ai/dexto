@@ -25,7 +25,9 @@ const PlanCreateInputSchema = z
 /**
  * Creates the plan_create tool
  */
-export function createPlanCreateTool(getPlanService: PlanServiceGetter): Tool {
+export function createPlanCreateTool(
+    getPlanService: PlanServiceGetter
+): Tool<typeof PlanCreateInputSchema> {
     return defineTool({
         id: 'plan_create',
         displayName: 'Plan',
