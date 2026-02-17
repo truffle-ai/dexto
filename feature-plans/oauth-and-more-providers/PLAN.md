@@ -9,6 +9,7 @@ This plan updates Dexto onboarding/login flows to support **multiple login metho
 Primary references:
 - **OpenClaw** (`~/Projects/external/openclaw`) — onboarding wizard + auth profiles + provider auth plugins.
 - **OpenCode** (`~/Projects/external/opencode`) — `/connect` UX + models.dev-backed provider catalog + plugin auth methods.
+- Provider coverage snapshot (exact provider IDs): [`PROVIDER_COVERAGE.md`](./PROVIDER_COVERAGE.md)
 
 ---
 
