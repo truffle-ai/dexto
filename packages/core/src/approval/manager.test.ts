@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import * as path from 'node:path';
+import * as os from 'node:os';
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync } from 'node:fs';
 import { ApprovalManager } from './manager.js';
 import { ApprovalStatus, DenialReason } from './types.js';
 import { AgentEventBus } from '../events/index.js';
@@ -795,6 +798,27 @@ describe('ApprovalManager', () => {
             it('should add directory with session type by default', () => {
                 manager.addApprovedDirectory('/external/project');
                 expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(true);
+            });
+
+            it('should treat symlink-approved directory as approved for its realpath', () => {
+                const baseDir = mkdtempSync(path.join(os.tmpdir(), 'dexto-approval-symlink-'));
+                try {
+                    const actualDir = path.join(baseDir, 'actual');
+                    mkdirSync(actualDir);
+
+                    const linkDir = path.join(baseDir, 'link');
+                    const symlinkType = process.platform === 'win32' ? 'junction' : 'dir';
+                    symlinkSync(actualDir, linkDir, symlinkType);
+
+                    manager.addApprovedDirectory(linkDir, 'session');
+
+                    expect(manager.isDirectoryApproved(path.join(actualDir, 'file.ts'))).toBe(true);
+                    expect(
+                        manager.isDirectorySessionApproved(path.join(actualDir, 'file.ts'))
+                    ).toBe(true);
+                } finally {
+                    rmSync(baseDir, { recursive: true, force: true });
+                }
             });
 
             it('should add directory with explicit session type', () => {

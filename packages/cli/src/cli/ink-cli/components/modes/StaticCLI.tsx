@@ -210,6 +210,7 @@ export function StaticCLI({
                     planModeActive={ui.planModeActive}
                     autoApproveEdits={ui.autoApproveEdits}
                     backgroundTasksRunning={ui.backgroundTasksRunning}
+                    reduceMotion={true}
                 />
 
                 {/* Background tasks panel */}
@@ -294,6 +295,7 @@ export function StaticCLI({
                     autoApproveEdits={ui.autoApproveEdits}
                     planModeActive={ui.planModeActive}
                     isShellMode={buffer.text.startsWith('!')}
+                    compact={approval !== null || ui.activeOverlay !== 'none'}
                 />
 
                 {/* History search bar (Ctrl+R) - shown at very bottom */}

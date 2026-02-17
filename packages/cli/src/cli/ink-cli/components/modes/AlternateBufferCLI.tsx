@@ -307,6 +307,7 @@ export function AlternateBufferCLI({
                     planModeActive={ui.planModeActive}
                     autoApproveEdits={ui.autoApproveEdits}
                     backgroundTasksRunning={ui.backgroundTasksRunning}
+                    reduceMotion={false}
                 />
 
                 {/* Background tasks panel */}
@@ -401,6 +402,7 @@ export function AlternateBufferCLI({
                     autoApproveEdits={ui.autoApproveEdits}
                     planModeActive={ui.planModeActive}
                     isShellMode={buffer.text.startsWith('!')}
+                    compact={approval !== null || ui.activeOverlay !== 'none'}
                 />
 
                 {/* History search bar (Ctrl+R) - shown at very bottom */}

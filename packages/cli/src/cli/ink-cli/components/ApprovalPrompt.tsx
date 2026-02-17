@@ -9,10 +9,12 @@ import React, {
 import { Box, Text } from 'ink';
 import type { ToolDisplayData, ElicitationMetadata } from '@dexto/core';
 import type { Key } from '../hooks/useInputOrchestrator.js';
+import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { ElicitationForm, type ElicitationFormHandle } from './ElicitationForm.js';
 import { DiffPreview, CreateFilePreview } from './renderers/index.js';
 import { isEditWriteTool } from '../utils/toolUtils.js';
-import { formatToolHeader } from '../utils/messageFormatting.js';
+import { formatToolHeader, formatPathForDisplay } from '../utils/messageFormatting.js';
+import { truncateSingleLine } from '../utils/textUtils.js';
 
 export interface ApprovalRequest {
     approvalId: string;
@@ -93,6 +95,11 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         // Check if this is an edit/write file tool
         const isEditOrWriteTool = isEditWriteTool(toolName);
 
+        const callDescription =
+            typeof approval.metadata.description === 'string'
+                ? approval.metadata.description
+                : undefined;
+
         // Format tool header using shared utility (same format as tool messages)
         const formattedTool = useMemo(() => {
             if (!toolName) return null;
@@ -156,6 +163,13 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
             options.push({ id: 'yes-session', label: 'Yes (Session)' });
             options.push({ id: 'no', label: 'No' });
         }
+
+        const { columns, rows } = useTerminalSize();
+        const maxPreviewLines = useMemo(() => {
+            // Keep previews bounded so the approval overlay doesn't exceed the terminal viewport.
+            const reservedLines = options.length + (isPlanReview ? 1 : 0) + 10;
+            return Math.max(4, Math.min(20, rows - reservedLines));
+        }, [rows, options.length, isPlanReview]);
 
         // Keep ref in sync with state
         useEffect(() => {
@@ -305,6 +319,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                         <DiffPreview
                             data={displayPreview}
                             headerType={isOverwrite ? 'overwrite' : 'edit'}
+                            maxLines={maxPreviewLines}
                         />
                     );
                 }
@@ -320,7 +335,9 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                 case 'file':
                     // Use enhanced file preview with full content for file creation
                     if (displayPreview.operation === 'create' && displayPreview.content) {
-                        return <CreateFilePreview data={displayPreview} />;
+                        return (
+                            <CreateFilePreview data={displayPreview} maxLines={maxPreviewLines} />
+                        );
                     }
                     // For plan_review (read operation with content), show full content for review
                     if (
@@ -328,7 +345,13 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                         displayPreview.content &&
                         isPlanReview
                     ) {
-                        return <CreateFilePreview data={displayPreview} header="Review plan" />;
+                        return (
+                            <CreateFilePreview
+                                data={displayPreview}
+                                header="Review plan"
+                                maxLines={maxPreviewLines}
+                            />
+                        );
                     }
                     // Fallback for other file operations
                     return (
@@ -363,15 +386,37 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                                 <Text color="yellowBright" bold>
                                     🔐 Directory Access:{' '}
                                 </Text>
-                                <Text color="cyan">{parentDir || directoryPath}</Text>
+                                <Text color="cyan">
+                                    {directoryPath
+                                        ? formatPathForDisplay(
+                                              parentDir || directoryPath,
+                                              Math.max(1, columns - 22)
+                                          )
+                                        : ''}
+                                </Text>
                             </Box>
                             <Box flexDirection="row" marginTop={0}>
                                 <Text color="gray">{'  '}</Text>
                                 <Text color="gray">
-                                    {formattedTool ? `"${formattedTool.displayName}"` : 'Tool'}{' '}
-                                    wants to {operation || 'access'} files outside working directory
+                                    {truncateSingleLine(
+                                        `${formattedTool ? formattedTool.header : 'Tool'} wants to ${
+                                            operation || 'access'
+                                        } files outside working directory`,
+                                        Math.max(1, columns - 2)
+                                    )}
                                 </Text>
                             </Box>
+                            {callDescription && (
+                                <Box flexDirection="row" marginTop={0}>
+                                    <Text color="gray">{'  '}</Text>
+                                    <Text color="gray">
+                                        {truncateSingleLine(
+                                            callDescription,
+                                            Math.max(1, columns - 4)
+                                        )}
+                                    </Text>
+                                </Box>
+                            )}
                         </>
                     ) : (
                         <>
@@ -379,8 +424,26 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                                 <Text color="yellowBright" bold>
                                     🔐 Approval:{' '}
                                 </Text>
-                                {formattedTool && <Text color="cyan">{formattedTool.header}</Text>}
+                                {formattedTool && (
+                                    <Text color="cyan">
+                                        {truncateSingleLine(
+                                            formattedTool.header,
+                                            Math.max(1, columns - 14)
+                                        )}
+                                    </Text>
+                                )}
                             </Box>
+                            {callDescription && (
+                                <Box flexDirection="row" marginTop={0}>
+                                    <Text color="gray">{'  '}</Text>
+                                    <Text color="gray">
+                                        {truncateSingleLine(
+                                            callDescription,
+                                            Math.max(1, columns - 4)
+                                        )}
+                                    </Text>
+                                </Box>
+                            )}
                             {isCommandConfirmation && command && (
                                 <Box flexDirection="row" marginTop={0}>
                                     <Text color="gray">{'  Command: '}</Text>

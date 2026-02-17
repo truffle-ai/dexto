@@ -7,7 +7,6 @@
 // Core types for hook development
 export type {
     Hook,
-    HookConfig,
     HookExecutionContext,
     HookResult,
     HookNotice,

@@ -57,6 +57,11 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
     ref
 ) {
     const { columns, rows } = useTerminalSize();
+    const maxVisibleItems = useMemo(() => {
+        // Keep overlay height responsive to terminal size to reduce flicker/jitter
+        // when overlays get taller than the available viewport.
+        return Math.max(4, Math.min(MAX_VISIBLE_ITEMS, rows - 10));
+    }, [rows]);
     const [tools, setTools] = useState<ToolInfo[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [loadError, setLoadError] = useState<string | null>(null);
@@ -204,10 +209,10 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
     useEffect(() => {
         if (selectedIndex < scrollOffset) {
             setScrollOffset(selectedIndex);
-        } else if (selectedIndex >= scrollOffset + MAX_VISIBLE_ITEMS) {
-            setScrollOffset(selectedIndex - MAX_VISIBLE_ITEMS + 1);
+        } else if (selectedIndex >= scrollOffset + maxVisibleItems) {
+            setScrollOffset(selectedIndex - maxVisibleItems + 1);
         }
-    }, [selectedIndex, scrollOffset]);
+    }, [selectedIndex, scrollOffset, maxVisibleItems]);
 
     const openListActions = (tool: ToolInfo) => {
         setSelectedTool(tool);
@@ -622,7 +627,7 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
     }
 
     // List view
-    const visibleTools = filteredTools.slice(scrollOffset, scrollOffset + MAX_VISIBLE_ITEMS);
+    const visibleTools = filteredTools.slice(scrollOffset, scrollOffset + maxVisibleItems);
     const filteredLocalCount = filteredTools.filter((t) => t.source === 'local').length;
     const filteredMcpCount = filteredTools.filter((t) => t.source === 'mcp').length;
 
@@ -699,14 +704,14 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
             )}
 
             {/* Scroll indicator */}
-            {filteredTools.length > MAX_VISIBLE_ITEMS && (
+            {filteredTools.length > maxVisibleItems && (
                 <Box paddingX={0} paddingY={0} marginTop={1}>
                     <Text color="gray">
                         {scrollOffset > 0 ? '↑ more above' : ''}
-                        {scrollOffset > 0 && scrollOffset + MAX_VISIBLE_ITEMS < filteredTools.length
+                        {scrollOffset > 0 && scrollOffset + maxVisibleItems < filteredTools.length
                             ? ' | '
                             : ''}
-                        {scrollOffset + MAX_VISIBLE_ITEMS < filteredTools.length
+                        {scrollOffset + maxVisibleItems < filteredTools.length
                             ? '↓ more below'
                             : ''}
                     </Text>

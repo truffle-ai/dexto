@@ -8,12 +8,14 @@
  * This 2-line layout prevents truncation on any terminal width.
  */
 
+import { useEffect, useState } from 'react';
 import { Box, Text } from 'ink';
-import Spinner from 'ink-spinner';
 import type { DextoAgent } from '@dexto/core';
 import { usePhraseCycler } from '../hooks/usePhraseCycler.js';
 import { useElapsedTime } from '../hooks/useElapsedTime.js';
 import { useTokenCounter } from '../hooks/useTokenCounter.js';
+
+const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'] as const;
 
 interface StatusBarProps {
     agent: DextoAgent;
@@ -34,6 +36,34 @@ interface StatusBarProps {
     autoApproveEdits?: boolean;
     /** Number of running background tasks */
     backgroundTasksRunning?: number;
+    /** Reduce or disable high-frequency animations (helps avoid flicker in Static mode) */
+    reduceMotion?: boolean;
+}
+
+function useSpinnerFrame(options: { isActive: boolean; reduceMotion: boolean }): string {
+    const [index, setIndex] = useState(0);
+
+    useEffect(() => {
+        if (!options.isActive) {
+            setIndex(0);
+            return;
+        }
+        if (options.reduceMotion) {
+            return;
+        }
+
+        const interval = setInterval(() => {
+            setIndex((current) => (current + 1) % SPINNER_FRAMES.length);
+        }, 120);
+
+        return () => clearInterval(interval);
+    }, [options.isActive, options.reduceMotion]);
+
+    if (options.reduceMotion) {
+        return '…';
+    }
+
+    return SPINNER_FRAMES[index] ?? SPINNER_FRAMES[0];
 }
 
 /**
@@ -57,8 +87,10 @@ export function StatusBar({
     planModeActive = false,
     autoApproveEdits = false,
     backgroundTasksRunning = 0,
+    reduceMotion = false,
 }: StatusBarProps) {
     const animationsActive = isProcessing && !isAwaitingApproval && !copyModeEnabled;
+    const spinnerFrame = useSpinnerFrame({ isActive: animationsActive, reduceMotion });
 
     // Cycle through witty phrases while processing (not during compacting)
     const { phrase } = usePhraseCycler({ isActive: animationsActive && !isCompacting });
@@ -120,9 +152,7 @@ export function StatusBar({
             <Box paddingX={1} marginTop={1} flexDirection="column">
                 {/* Line 1: spinner + compacting message */}
                 <Box flexDirection="row" alignItems="center">
-                    <Text color="yellow">
-                        <Spinner type="dots" />
-                    </Text>
+                    <Text color="yellow">{spinnerFrame}</Text>
                     <Text color="yellow"> 📦 Compacting context...</Text>
                 </Box>
                 {/* Line 2: meta info */}
@@ -154,9 +184,7 @@ export function StatusBar({
             <Box paddingX={1} marginTop={1} flexDirection="column">
                 {/* Line 1: spinner + phrase */}
                 <Box flexDirection="row" alignItems="center">
-                    <Text color="green">
-                        <Spinner type="dots" />
-                    </Text>
+                    <Text color="green">{spinnerFrame}</Text>
                     <Text color="green"> {phrase}</Text>
                 </Box>
                 {/* Line 2: meta info */}
@@ -185,9 +213,7 @@ export function StatusBar({
         <Box paddingX={1} marginTop={1} flexDirection="column">
             {/* Line 1: spinner + phrase + queue count */}
             <Box flexDirection="row" alignItems="center">
-                <Text color="green">
-                    <Spinner type="dots" />
-                </Text>
+                <Text color="green">{spinnerFrame}</Text>
                 <Text color="green"> {phrase}</Text>
                 {approvalQueueCount > 0 && (
                     <Text color="yellowBright"> • {approvalQueueCount} queued</Text>

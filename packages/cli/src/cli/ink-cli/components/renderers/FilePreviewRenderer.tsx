@@ -28,13 +28,15 @@ interface DiffPreviewProps {
     data: DiffDisplayData;
     /** Header text: "Edit file" or "Overwrite file" */
     headerType: 'edit' | 'overwrite';
+    /** Maximum diff lines to display before truncating */
+    maxLines?: number;
 }
 
 /**
  * Enhanced diff preview for edit_file and write_file (overwrite) approval
  * Shows full diff with line backgrounds, hunk collapsing, and word-level highlighting
  */
-export function DiffPreview({ data, headerType }: DiffPreviewProps) {
+export function DiffPreview({ data, headerType, maxLines = Infinity }: DiffPreviewProps) {
     const { unified, filename } = data;
     const hunks = parseUnifiedDiff(unified);
 
@@ -52,6 +54,15 @@ export function DiffPreview({ data, headerType }: DiffPreviewProps) {
 
     const headerText = headerType === 'edit' ? 'Edit file' : 'Overwrite file';
 
+    // Count total display lines and apply truncation
+    let totalLines = 0;
+    for (const hunk of hunks) {
+        totalLines += hunk.lines.length;
+    }
+
+    const shouldTruncate = totalLines > maxLines;
+    let linesRendered = 0;
+
     return (
         <Box flexDirection="column" marginBottom={1}>
             {/* Header - standalone line */}
@@ -68,6 +79,10 @@ export function DiffPreview({ data, headerType }: DiffPreviewProps) {
                     <Text>{makeRelativePath(filename)}</Text>
                 </Box>
                 {hunks.map((hunk, hunkIndex) => {
+                    if (shouldTruncate && linesRendered >= maxLines) {
+                        return null;
+                    }
+
                     const linePairs = allLinePairs[hunkIndex]!;
                     const processedIndices = new Set<number>();
 
@@ -77,6 +92,10 @@ export function DiffPreview({ data, headerType }: DiffPreviewProps) {
                             {hunkIndex > 0 && <HunkSeparator />}
 
                             {hunk.lines.map((line, lineIndex) => {
+                                if (shouldTruncate && linesRendered >= maxLines) {
+                                    return null;
+                                }
+
                                 // Skip if already processed as part of a pair
                                 if (processedIndices.has(lineIndex)) {
                                     return null;
@@ -87,6 +106,12 @@ export function DiffPreview({ data, headerType }: DiffPreviewProps) {
                                 if (pair) {
                                     // Mark the addition line as processed
                                     processedIndices.add(lineIndex + 1);
+
+                                    if (shouldTruncate && linesRendered + 2 > maxLines) {
+                                        linesRendered = maxLines;
+                                        return null;
+                                    }
+                                    linesRendered += 2;
 
                                     // Compute word-level diff
                                     const { oldParts, newParts } = computeWordDiff(
@@ -114,6 +139,8 @@ export function DiffPreview({ data, headerType }: DiffPreviewProps) {
                                     );
                                 }
 
+                                linesRendered++;
+
                                 // Regular line (no word-level diff)
                                 return (
                                     <DiffLine
@@ -128,6 +155,12 @@ export function DiffPreview({ data, headerType }: DiffPreviewProps) {
                         </React.Fragment>
                     );
                 })}
+
+                {shouldTruncate && (
+                    <Box>
+                        <Text color="gray">... +{totalLines - maxLines} lines</Text>
+                    </Box>
+                )}
             </Box>
         </Box>
     );
@@ -141,13 +174,19 @@ interface CreateFilePreviewProps {
     data: FileDisplayData;
     /** Custom header text (defaults to "Create file") */
     header?: string;
+    /** Maximum file lines to display before truncating */
+    maxLines?: number;
 }
 
 /**
  * Preview for write_file (new file creation) or plan review
  * Shows full file content with line numbers, white text
  */
-export function CreateFilePreview({ data, header = 'Create file' }: CreateFilePreviewProps) {
+export function CreateFilePreview({
+    data,
+    header = 'Create file',
+    maxLines = Infinity,
+}: CreateFilePreviewProps) {
     const { path, content, lineCount } = data;
 
     if (!content) {
@@ -169,6 +208,8 @@ export function CreateFilePreview({ data, header = 'Create file' }: CreateFilePr
 
     const lines = content.split('\n');
     const lineNumWidth = getLineNumWidth(lines.length);
+    const shouldTruncate = lines.length > maxLines;
+    const visibleLines = shouldTruncate ? lines.slice(0, maxLines) : lines;
 
     return (
         <Box flexDirection="column" marginBottom={1}>
@@ -187,7 +228,7 @@ export function CreateFilePreview({ data, header = 'Create file' }: CreateFilePr
                 </Box>
 
                 {/* File content */}
-                {lines.map((line, index) => (
+                {visibleLines.map((line, index) => (
                     <Box key={index}>
                         <Text color="gray">{formatLineNum(index + 1, lineNumWidth)}</Text>
                         <Text>
@@ -196,6 +237,12 @@ export function CreateFilePreview({ data, header = 'Create file' }: CreateFilePr
                         </Text>
                     </Box>
                 ))}
+
+                {shouldTruncate && (
+                    <Box>
+                        <Text color="gray">... +{lines.length - maxLines} lines</Text>
+                    </Box>
+                )}
             </Box>
         </Box>
     );

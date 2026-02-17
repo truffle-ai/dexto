@@ -4,9 +4,18 @@
  * Supports string, number, boolean, and enum field types
  */
 
-import React, { useState, forwardRef, useImperativeHandle, useCallback, useMemo } from 'react';
+import React, {
+    useState,
+    forwardRef,
+    useImperativeHandle,
+    useCallback,
+    useEffect,
+    useMemo,
+} from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../hooks/useInputOrchestrator.js';
+import { useTerminalSize } from '../hooks/useTerminalSize.js';
+import { truncateSingleLine } from '../utils/textUtils.js';
 import type { ElicitationMetadata } from '@dexto/core';
 
 export interface ElicitationFormHandle {
@@ -26,6 +35,23 @@ interface FormField {
     description: string | undefined;
     required: boolean;
     enumValues: unknown[] | undefined;
+}
+
+function getWindowRange(options: { selectedIndex: number; total: number; maxVisible: number }): {
+    start: number;
+    end: number;
+} {
+    if (options.total <= options.maxVisible) {
+        return { start: 0, end: options.total };
+    }
+
+    const half = Math.floor(options.maxVisible / 2);
+    const start = Math.min(
+        Math.max(0, options.selectedIndex - half),
+        Math.max(0, options.total - options.maxVisible)
+    );
+    const end = Math.min(options.total, start + options.maxVisible);
+    return { start, end };
 }
 
 /**
@@ -76,6 +102,8 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                 });
         }, [metadata.schema]);
 
+        const { columns, rows } = useTerminalSize();
+
         // Form state
         const [activeFieldIndex, setActiveFieldIndex] = useState(0);
         const [formData, setFormData] = useState<Record<string, unknown>>({});
@@ -84,8 +112,44 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
         const [arraySelections, setArraySelections] = useState<Set<number>>(new Set()); // For array-enum
         const [errors, setErrors] = useState<Record<string, string>>({});
         const [isReviewing, setIsReviewing] = useState(false); // Confirmation step before submit
+        const [fieldScrollOffset, setFieldScrollOffset] = useState(0);
+        const [reviewScrollOffset, setReviewScrollOffset] = useState(0);
+
+        const maxVisibleFields = useMemo(() => {
+            // Each field can take multiple lines (label + input + description).
+            // Keep the form height stable by showing a small window of fields.
+            return Math.max(3, Math.min(6, Math.floor((rows - 8) / 4)));
+        }, [rows]);
+
+        const maxVisibleReviewItems = useMemo(() => {
+            // Review items are one line each.
+            return Math.max(4, Math.min(12, rows - 6));
+        }, [rows]);
+
+        const maxVisibleEnumOptions = useMemo(() => {
+            return Math.max(4, Math.min(10, rows - 12));
+        }, [rows]);
 
         const activeField = fields[activeFieldIndex];
+
+        useEffect(() => {
+            const maxOffset = Math.max(0, fields.length - maxVisibleFields);
+            setFieldScrollOffset((current) => {
+                let next = current;
+                if (activeFieldIndex < next) {
+                    next = activeFieldIndex;
+                } else if (activeFieldIndex >= next + maxVisibleFields) {
+                    next = activeFieldIndex - maxVisibleFields + 1;
+                }
+                return Math.min(Math.max(0, next), maxOffset);
+            });
+        }, [activeFieldIndex, fields.length, maxVisibleFields]);
+
+        useEffect(() => {
+            if (isReviewing) {
+                setReviewScrollOffset(0);
+            }
+        }, [isReviewing]);
 
         // Update a field value
         const updateField = useCallback((name: string, value: unknown) => {
@@ -174,6 +238,15 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                 handleInput: (input: string, key: Key): boolean => {
                     // Review mode handling
                     if (isReviewing) {
+                        if (key.upArrow) {
+                            setReviewScrollOffset((current) => Math.max(0, current - 1));
+                            return true;
+                        }
+                        if (key.downArrow) {
+                            const maxOffset = Math.max(0, fields.length - maxVisibleReviewItems);
+                            setReviewScrollOffset((current) => Math.min(maxOffset, current + 1));
+                            return true;
+                        }
                         if (key.return) {
                             confirmSubmit();
                             return true;
@@ -372,9 +445,11 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                 formData,
                 handleSubmit,
                 isReviewing,
+                maxVisibleReviewItems,
                 nextField,
                 onCancel,
                 prevField,
+                reviewScrollOffset,
                 updateField,
             ]
         );
@@ -391,6 +466,10 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
 
         // Review mode - show summary of choices
         if (isReviewing) {
+            const visibleReviewFields = fields.slice(
+                reviewScrollOffset,
+                reviewScrollOffset + maxVisibleReviewItems
+            );
             return (
                 <Box flexDirection="column" paddingX={0} paddingY={0}>
                     <Box marginBottom={1}>
@@ -399,7 +478,7 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                         </Text>
                     </Box>
 
-                    {fields.map((field) => {
+                    {visibleReviewFields.map((field) => {
                         const value = formData[field.name];
                         const displayValue = Array.isArray(value)
                             ? value.join(', ')
@@ -419,6 +498,21 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                         );
                     })}
 
+                    {fields.length > maxVisibleReviewItems && (
+                        <Box marginTop={0}>
+                            <Text color="gray">
+                                {reviewScrollOffset > 0 ? '↑ more above' : ''}
+                                {reviewScrollOffset > 0 &&
+                                reviewScrollOffset + maxVisibleReviewItems < fields.length
+                                    ? ' | '
+                                    : ''}
+                                {reviewScrollOffset + maxVisibleReviewItems < fields.length
+                                    ? '↓ more below'
+                                    : ''}
+                            </Text>
+                        </Box>
+                    )}
+
                     <Box marginTop={1}>
                         <Text color="gray">
                             Enter to submit • Backspace to edit • Esc to cancel
@@ -427,6 +521,8 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                 </Box>
             );
         }
+
+        const visibleFields = fields.slice(fieldScrollOffset, fieldScrollOffset + maxVisibleFields);
 
         return (
             <Box flexDirection="column" paddingX={0} paddingY={0}>
@@ -438,8 +534,9 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                 </Box>
 
                 {/* Form fields */}
-                {fields.map((field, index) => {
-                    const isActive = index === activeFieldIndex;
+                {visibleFields.map((field, index) => {
+                    const actualIndex = fieldScrollOffset + index;
+                    const isActive = actualIndex === activeFieldIndex;
                     const value = formData[field.name];
                     const error = errors[field.name];
 
@@ -494,14 +591,53 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                             {/* Enum selection */}
                             {isActive && field.type === 'enum' && field.enumValues && (
                                 <Box flexDirection="column" marginLeft={2}>
-                                    {field.enumValues.map((opt, i) => (
-                                        <Box key={String(opt)}>
-                                            <Text color={i === enumIndex ? 'green' : 'gray'}>
-                                                {i === enumIndex ? '  ▶ ' : '    '}
-                                                {String(opt)}
-                                            </Text>
-                                        </Box>
-                                    ))}
+                                    {(() => {
+                                        const values = field.enumValues ?? [];
+                                        const range = getWindowRange({
+                                            selectedIndex: enumIndex,
+                                            total: values.length,
+                                            maxVisible: maxVisibleEnumOptions,
+                                        });
+                                        const visibleValues = values.slice(range.start, range.end);
+
+                                        return (
+                                            <>
+                                                {visibleValues.map((opt, i) => {
+                                                    const absoluteIndex = range.start + i;
+                                                    const isSelected = absoluteIndex === enumIndex;
+                                                    return (
+                                                        <Box
+                                                            key={`${absoluteIndex}-${String(opt)}`}
+                                                        >
+                                                            <Text
+                                                                color={
+                                                                    isSelected ? 'green' : 'gray'
+                                                                }
+                                                            >
+                                                                {isSelected ? '  ▶ ' : '    '}
+                                                                {String(opt)}
+                                                            </Text>
+                                                        </Box>
+                                                    );
+                                                })}
+
+                                                {values.length > maxVisibleEnumOptions && (
+                                                    <Box marginTop={0}>
+                                                        <Text color="gray">
+                                                            {range.start > 0 ? '↑ more above' : ''}
+                                                            {range.start > 0 &&
+                                                            range.end < values.length
+                                                                ? ' | '
+                                                                : ''}
+                                                            {range.end < values.length
+                                                                ? '↓ more below'
+                                                                : ''}
+                                                        </Text>
+                                                    </Box>
+                                                )}
+                                            </>
+                                        );
+                                    })()}
                                 </Box>
                             )}
 
@@ -509,27 +645,74 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                             {isActive && field.type === 'array-enum' && field.enumValues && (
                                 <Box flexDirection="column" marginLeft={2}>
                                     <Text color="gray"> (Space to select, Enter to confirm)</Text>
-                                    {field.enumValues.map((opt, i) => {
-                                        const isSelected = arraySelections.has(i);
+                                    {(() => {
+                                        const values = field.enumValues ?? [];
+                                        const range = getWindowRange({
+                                            selectedIndex: enumIndex,
+                                            total: values.length,
+                                            maxVisible: maxVisibleEnumOptions,
+                                        });
+                                        const visibleValues = values.slice(range.start, range.end);
+
                                         return (
-                                            <Box key={String(opt)}>
-                                                <Text color={i === enumIndex ? 'cyan' : 'gray'}>
-                                                    {i === enumIndex ? '  ▶ ' : '    '}
-                                                    <Text color={isSelected ? 'green' : 'gray'}>
-                                                        {isSelected ? '[✓]' : '[ ]'}
-                                                    </Text>{' '}
-                                                    {String(opt)}
-                                                </Text>
-                                            </Box>
+                                            <>
+                                                {visibleValues.map((opt, i) => {
+                                                    const absoluteIndex = range.start + i;
+                                                    const isCursor = absoluteIndex === enumIndex;
+                                                    const isSelected =
+                                                        arraySelections.has(absoluteIndex);
+                                                    return (
+                                                        <Box
+                                                            key={`${absoluteIndex}-${String(opt)}`}
+                                                        >
+                                                            <Text
+                                                                color={isCursor ? 'cyan' : 'gray'}
+                                                            >
+                                                                {isCursor ? '  ▶ ' : '    '}
+                                                                <Text
+                                                                    color={
+                                                                        isSelected
+                                                                            ? 'green'
+                                                                            : 'gray'
+                                                                    }
+                                                                >
+                                                                    {isSelected ? '[✓]' : '[ ]'}
+                                                                </Text>{' '}
+                                                                {String(opt)}
+                                                            </Text>
+                                                        </Box>
+                                                    );
+                                                })}
+
+                                                {values.length > maxVisibleEnumOptions && (
+                                                    <Box marginTop={0}>
+                                                        <Text color="gray">
+                                                            {range.start > 0 ? '↑ more above' : ''}
+                                                            {range.start > 0 &&
+                                                            range.end < values.length
+                                                                ? ' | '
+                                                                : ''}
+                                                            {range.end < values.length
+                                                                ? '↓ more below'
+                                                                : ''}
+                                                        </Text>
+                                                    </Box>
+                                                )}
+                                            </>
                                         );
-                                    })}
+                                    })()}
                                 </Box>
                             )}
 
                             {/* Field description */}
                             {isActive && field.description && (
                                 <Box marginLeft={2}>
-                                    <Text color="gray">{field.description}</Text>
+                                    <Text color="gray">
+                                        {truncateSingleLine(
+                                            field.description,
+                                            Math.max(1, columns - 6)
+                                        )}
+                                    </Text>
                                 </Box>
                             )}
 
@@ -542,6 +725,21 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                         </Box>
                     );
                 })}
+
+                {fields.length > maxVisibleFields && (
+                    <Box marginTop={0}>
+                        <Text color="gray">
+                            {fieldScrollOffset > 0 ? '↑ more above' : ''}
+                            {fieldScrollOffset > 0 &&
+                            fieldScrollOffset + maxVisibleFields < fields.length
+                                ? ' | '
+                                : ''}
+                            {fieldScrollOffset + maxVisibleFields < fields.length
+                                ? '↓ more below'
+                                : ''}
+                        </Text>
+                    </Box>
+                )}
 
                 {/* Help text */}
                 <Box marginTop={1}>

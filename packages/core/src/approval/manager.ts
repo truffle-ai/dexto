@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { realpathSync } from 'node:fs';
 import type {
     ApprovalHandler,
     ApprovalRequest,
@@ -16,6 +17,34 @@ import { DextoLogComponent } from '../logger/v2/types.js';
 import { ApprovalError } from './errors.js';
 import { patternCovers } from '../tools/pattern-utils.js';
 import type { PermissionsMode } from '../tools/schemas.js';
+
+function tryRealpathSync(targetPath: string): string | null {
+    try {
+        return realpathSync(targetPath);
+    } catch {
+        return null;
+    }
+}
+
+function tryRealpathSyncWithExistingParent(resolvedPath: string): string | null {
+    const direct = tryRealpathSync(resolvedPath);
+    if (direct) return direct;
+
+    let currentDir = path.dirname(resolvedPath);
+    while (true) {
+        const realDir = tryRealpathSync(currentDir);
+        if (realDir) {
+            const suffix = path.relative(currentDir, resolvedPath);
+            return path.join(realDir, suffix);
+        }
+
+        const parent = path.dirname(currentDir);
+        if (parent === currentDir) {
+            return null;
+        }
+        currentDir = parent;
+    }
+}
 
 /**
  * Configuration for the approval manager
@@ -176,6 +205,31 @@ export class ApprovalManager {
     // ==================== Directory Access Methods ====================
 
     /**
+     * Resolve a directory path for use as an approval key.
+     *
+     * We store BOTH the resolved path and (when available) its realpath, so approvals
+     * continue to work even when other subsystems canonicalize paths via realpath
+     * (e.g. macOS /tmp -> /private/tmp or custom symlinked directories).
+     */
+    private getDirectoryApprovalKeys(directory: string): string[] {
+        const resolved = path.resolve(directory);
+        const real = tryRealpathSync(resolved);
+        if (real && real !== resolved) {
+            return [resolved, real];
+        }
+        return [resolved];
+    }
+
+    private getFileApprovalKeys(filePath: string): string[] {
+        const resolved = path.resolve(filePath);
+        const real = tryRealpathSyncWithExistingParent(resolved);
+        if (real && real !== resolved) {
+            return [resolved, real];
+        }
+        return [resolved];
+    }
+
+    /**
      * Initialize the working directory as a session-approved directory.
      * This should be called once during setup to ensure the working directory
      * never triggers directory access prompts.
@@ -183,9 +237,7 @@ export class ApprovalManager {
      * @param workingDir The working directory path
      */
     initializeWorkingDirectory(workingDir: string): void {
-        const normalized = path.resolve(workingDir);
-        this.approvedDirectories.set(normalized, 'session');
-        this.logger.debug(`Initialized working directory as session-approved: "${normalized}"`);
+        this.addApprovedDirectory(workingDir, 'session');
     }
 
     /**
@@ -206,19 +258,39 @@ export class ApprovalManager {
      * ```
      */
     addApprovedDirectory(directory: string, type: 'session' | 'once' = 'session'): void {
-        const normalized = path.resolve(directory);
-        const existing = this.approvedDirectories.get(normalized);
+        const keys = this.getDirectoryApprovalKeys(directory);
 
-        // Don't downgrade from 'session' to 'once'
-        if (existing === 'session') {
+        const existingTypes = keys
+            .map((key) => this.approvedDirectories.get(key))
+            .filter((value): value is 'session' | 'once' => value !== undefined);
+        const hasSessionApproval = existingTypes.includes('session');
+
+        // Never downgrade from session to once, even across realpath aliases
+        const effectiveType: 'session' | 'once' =
+            type === 'session' || hasSessionApproval ? 'session' : 'once';
+
+        for (const key of keys) {
+            const existing = this.approvedDirectories.get(key);
+            if (existing === 'session') {
+                continue;
+            }
+            this.approvedDirectories.set(key, effectiveType);
+        }
+
+        const resolvedKey = keys[0]!;
+        if (effectiveType === 'session' && type === 'once' && hasSessionApproval) {
             this.logger.debug(
-                `Directory "${normalized}" already approved as 'session', not downgrading to '${type}'`
+                `Directory "${resolvedKey}" already approved as 'session', not downgrading to 'once'`
             );
             return;
         }
 
-        this.approvedDirectories.set(normalized, type);
-        this.logger.debug(`Added approved directory: "${normalized}" (type: ${type})`);
+        const realKey = keys.length > 1 ? keys[1] : null;
+        this.logger.debug(
+            `Added approved directory: "${resolvedKey}" (type: ${effectiveType})${
+                realKey ? `, realpath: "${realKey}"` : ''
+            }`
+        );
     }
 
     /**
@@ -230,18 +302,18 @@ export class ApprovalManager {
      * @returns true if the path is within a session-approved directory
      */
     isDirectorySessionApproved(filePath: string): boolean {
-        const normalized = path.resolve(filePath);
+        for (const normalized of this.getFileApprovalKeys(filePath)) {
+            for (const [approvedDir, type] of this.approvedDirectories) {
+                // Only check 'session' type directories for prompting decisions
+                if (type !== 'session') continue;
 
-        for (const [approvedDir, type] of this.approvedDirectories) {
-            // Only check 'session' type directories for prompting decisions
-            if (type !== 'session') continue;
-
-            const relative = path.relative(approvedDir, normalized);
-            if (!relative.startsWith('..') && !path.isAbsolute(relative)) {
-                this.logger.debug(
-                    `Path "${normalized}" is within session-approved directory "${approvedDir}"`
-                );
-                return true;
+                const relative = path.relative(approvedDir, normalized);
+                if (!relative.startsWith('..') && !path.isAbsolute(relative)) {
+                    this.logger.debug(
+                        `Path "${normalized}" is within session-approved directory "${approvedDir}"`
+                    );
+                    return true;
+                }
             }
         }
         return false;
@@ -256,15 +328,15 @@ export class ApprovalManager {
      * @returns true if the path is within any approved directory
      */
     isDirectoryApproved(filePath: string): boolean {
-        const normalized = path.resolve(filePath);
-
-        for (const [approvedDir] of this.approvedDirectories) {
-            const relative = path.relative(approvedDir, normalized);
-            if (!relative.startsWith('..') && !path.isAbsolute(relative)) {
-                this.logger.debug(
-                    `Path "${normalized}" is within approved directory "${approvedDir}"`
-                );
-                return true;
+        for (const normalized of this.getFileApprovalKeys(filePath)) {
+            for (const [approvedDir] of this.approvedDirectories) {
+                const relative = path.relative(approvedDir, normalized);
+                if (!relative.startsWith('..') && !path.isAbsolute(relative)) {
+                    this.logger.debug(
+                        `Path "${normalized}" is within approved directory "${approvedDir}"`
+                    );
+                    return true;
+                }
             }
         }
         return false;

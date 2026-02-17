@@ -3,7 +3,7 @@
  * Status line at the bottom showing CWD, branch, and model info.
  */
 
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import path from 'node:path';
 import { Box, Text } from 'ink';
 import { getModelDisplayName, type DextoAgent } from '@dexto/core';
@@ -19,6 +19,8 @@ interface FooterProps {
     planModeActive?: boolean;
     /** Whether user is in shell command mode (input starts with !) */
     isShellMode?: boolean;
+    /** Render a compact single-line footer (reduces flicker while overlays are open) */
+    compact?: boolean;
 }
 
 function getDirectoryName(cwd: string): string {
@@ -29,7 +31,7 @@ function getDirectoryName(cwd: string): string {
 /**
  * Pure presentational component for footer status line
  */
-export function Footer({
+export const Footer = memo(function Footer({
     agent,
     sessionId,
     modelName,
@@ -38,6 +40,7 @@ export function Footer({
     autoApproveEdits,
     planModeActive,
     isShellMode,
+    compact = false,
 }: FooterProps) {
     const displayPath = cwd ? getDirectoryName(cwd) : '';
     const displayModelName = getModelDisplayName(modelName);
@@ -46,17 +49,21 @@ export function Footer({
     } | null>(null);
 
     // Provider is session-scoped because /model can switch LLM per session.
-    const provider = sessionId ? agent.getCurrentLLMConfig(sessionId).provider : null;
-    const providerLabel = provider ? getLLMProviderDisplayName(provider) : null;
+    const providerLabel = useMemo(() => {
+        if (!sessionId) return null;
+        const provider = agent.getCurrentLLMConfig(sessionId).provider;
+        return provider ? getLLMProviderDisplayName(provider) : null;
+    }, [agent, sessionId]);
 
     useEffect(() => {
-        if (!sessionId) {
+        if (!sessionId || compact) {
             setContextLeft(null);
             return;
         }
 
         let cancelled = false;
         let refreshId = 0;
+        let scheduledTimeout: NodeJS.Timeout | null = null;
 
         const refreshContext = async () => {
             const requestId = ++refreshId;
@@ -64,9 +71,9 @@ export function Footer({
                 const stats = await agent.getContextStats(sessionId);
                 if (cancelled || requestId !== refreshId) return;
                 const percentLeft = Math.max(0, Math.min(100, 100 - stats.usagePercent));
-                setContextLeft({
-                    percentLeft,
-                });
+                setContextLeft((prev) =>
+                    prev?.percentLeft === percentLeft ? prev : { percentLeft }
+                );
             } catch {
                 if (!cancelled) {
                     setContextLeft(null);
@@ -74,7 +81,15 @@ export function Footer({
             }
         };
 
-        refreshContext();
+        const scheduleRefresh = () => {
+            if (scheduledTimeout) return;
+            scheduledTimeout = setTimeout(() => {
+                scheduledTimeout = null;
+                void refreshContext();
+            }, 250);
+        };
+
+        scheduleRefresh();
 
         const controller = new AbortController();
         const { signal } = controller;
@@ -83,13 +98,12 @@ export function Footer({
             'context:compacted',
             'context:pruned',
             'context:cleared',
-            'message:dequeued',
             'session:reset',
         ] as const;
 
         const handleEvent = (payload: { sessionId?: string }) => {
             if (payload.sessionId && payload.sessionId !== sessionId) return;
-            refreshContext();
+            scheduleRefresh();
         };
 
         for (const eventName of sessionEvents) {
@@ -98,9 +112,13 @@ export function Footer({
 
         return () => {
             cancelled = true;
+            if (scheduledTimeout) {
+                clearTimeout(scheduledTimeout);
+                scheduledTimeout = null;
+            }
             controller.abort();
         };
-    }, [agent, sessionId]);
+    }, [agent, sessionId, compact]);
 
     // Shell mode changes the path color to yellow as indicator
     const pathColor = isShellMode ? 'yellow' : 'blue';
@@ -120,7 +138,7 @@ export function Footer({
             </Box>
 
             {/* Line 2: Context left */}
-            {contextLeft && (
+            {!compact && contextLeft && (
                 <Box>
                     <Text color="gray">{contextLeft.percentLeft}% context left</Text>
                 </Box>
@@ -128,7 +146,7 @@ export function Footer({
 
             {/* Line 3: Mode indicators (left) */}
             {/* Shift+Tab cycles: Normal → Plan Mode → Accept All Edits → Normal */}
-            {isShellMode && (
+            {!compact && isShellMode && (
                 <Box>
                     <Text color="yellow" bold>
                         !
@@ -136,13 +154,13 @@ export function Footer({
                     <Text color="gray"> for shell mode</Text>
                 </Box>
             )}
-            {planModeActive && !isShellMode && (
+            {!compact && planModeActive && !isShellMode && (
                 <Box>
                     <Text color="magentaBright">plan mode</Text>
                     <Text color="gray"> (shift + tab to cycle)</Text>
                 </Box>
             )}
-            {autoApproveEdits && !planModeActive && !isShellMode && (
+            {!compact && autoApproveEdits && !planModeActive && !isShellMode && (
                 <Box>
                     <Text color="yellowBright">accept edits</Text>
                     <Text color="gray"> (shift + tab to cycle)</Text>
@@ -150,4 +168,4 @@ export function Footer({
             )}
         </Box>
     );
-}
+});
