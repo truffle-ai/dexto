@@ -23,6 +23,32 @@ type UsageLike = {
     };
 };
 
+type FullStreamPart =
+    StreamTextResult<VercelToolSet, unknown>['fullStream'] extends AsyncIterable<infer Part>
+        ? Part
+        : never;
+
+type ToolInputStartPart = Extract<FullStreamPart, { type: 'tool-input-start' }>;
+type ToolInputDeltaPart = Extract<FullStreamPart, { type: 'tool-input-delta' }>;
+type ToolInputEndPart = Extract<FullStreamPart, { type: 'tool-input-end' }>;
+
+type ToolInputStartEvent = ToolInputStartPart & {
+    id?: string;
+    name?: string;
+};
+
+type ToolInputDeltaEvent = ToolInputDeltaPart & {
+    argsTextDelta?: string;
+    delta?: string;
+    textDelta?: string;
+    id?: string;
+    name?: string;
+};
+
+type ToolInputEndEvent = ToolInputEndPart & {
+    id?: string;
+};
+
 export interface StreamProcessorConfig {
     provider: LLMProvider;
     model: string;
@@ -77,21 +103,21 @@ export class StreamProcessor {
     ): Promise<StreamProcessorResult> {
         const stream = streamFn();
 
-        const handleToolInputStart = (evt: any) => {
-            const toolCallId = evt?.toolCallId ?? evt?.id ?? undefined;
-            const toolName = evt?.toolName ?? evt?.name ?? 'unknown';
+        const handleToolInputStart = (evt: ToolInputStartEvent) => {
+            const toolCallId = evt.toolCallId ?? evt.id ?? undefined;
+            const toolName = evt.toolName ?? evt.name ?? 'unknown';
             if (toolCallId) {
                 this.partialToolCalls.set(toolCallId, { toolName, argsText: '' });
             }
         };
 
-        const handleToolInputDelta = (evt: any) => {
-            const toolCallId = evt?.toolCallId ?? evt?.id ?? undefined;
-            const toolName = evt?.toolName ?? evt?.name ?? 'unknown';
+        const handleToolInputDelta = (evt: ToolInputDeltaEvent) => {
+            const toolCallId = evt.toolCallId ?? evt.id ?? undefined;
+            const toolName = evt.toolName ?? evt.name ?? 'unknown';
             if (!toolCallId) return;
             const entry = this.partialToolCalls.get(toolCallId) ?? { toolName, argsText: '' };
             const deltaText =
-                evt?.argsTextDelta ?? evt?.inputTextDelta ?? evt?.delta ?? evt?.textDelta ?? '';
+                evt.argsTextDelta ?? evt.inputTextDelta ?? evt.delta ?? evt.textDelta ?? '';
             if (typeof deltaText === 'string' && deltaText.length > 0) {
                 entry.argsText += deltaText;
                 this.partialToolCalls.set(toolCallId, entry);
@@ -106,8 +132,8 @@ export class StreamProcessor {
             }
         };
 
-        const handleToolInputEnd = (evt: any) => {
-            const toolCallId = evt?.toolCallId ?? evt?.id ?? undefined;
+        const handleToolInputEnd = (evt: ToolInputEndEvent) => {
+            const toolCallId = evt.toolCallId ?? evt.id ?? undefined;
             const entry = toolCallId ? this.partialToolCalls.get(toolCallId) : undefined;
             if (toolCallId && entry) {
                 const parsed = tryParsePartialJson(entry.argsText);

@@ -60,6 +60,7 @@ function safeJsonParse(text: string): unknown | undefined {
 }
 
 const BLOCKED_HOSTNAMES = new Set(['localhost']);
+const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 
 function isPrivateIpv4(ip: string): boolean {
     const parts = ip.split('.').map((part) => Number(part));
@@ -165,6 +166,50 @@ async function assertSafeUrl(requestUrl: URL): Promise<void> {
     }
 }
 
+async function readResponseTextWithLimit(response: Response): Promise<string> {
+    const contentLength = response.headers.get('content-length');
+    if (contentLength) {
+        const parsed = Number.parseInt(contentLength, 10);
+        if (!Number.isNaN(parsed) && parsed > MAX_RESPONSE_BYTES) {
+            throw new DextoRuntimeError(
+                'HTTP_REQUEST_RESPONSE_TOO_LARGE',
+                ErrorScope.TOOLS,
+                ErrorType.THIRD_PARTY,
+                `Response too large: ${parsed} bytes exceeds ${MAX_RESPONSE_BYTES} byte limit`
+            );
+        }
+    }
+
+    if (!response.body) {
+        return '';
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let total = 0;
+    let result = '';
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!value) continue;
+        total += value.length;
+        if (total > MAX_RESPONSE_BYTES) {
+            await reader.cancel();
+            throw new DextoRuntimeError(
+                'HTTP_REQUEST_RESPONSE_TOO_LARGE',
+                ErrorScope.TOOLS,
+                ErrorType.THIRD_PARTY,
+                `Response too large: exceeded ${MAX_RESPONSE_BYTES} byte limit`
+            );
+        }
+        result += decoder.decode(value, { stream: true });
+    }
+
+    result += decoder.decode();
+    return result;
+}
+
 /**
  * Internal tool for basic HTTP requests.
  */
@@ -218,7 +263,7 @@ export function createHttpRequestTool(): Tool {
 
                 const response = await fetch(requestUrl.toString(), requestInit);
 
-                const responseText = await response.text();
+                const responseText = await readResponseTextWithLimit(response);
                 const contentType = response.headers.get('content-type');
                 const json = isJsonContentType(contentType)
                     ? safeJsonParse(responseText)
