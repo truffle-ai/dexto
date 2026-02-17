@@ -116,63 +116,75 @@ function isPrivateAddress(ip: string): boolean {
 }
 
 function createSafeDispatcher(): Dispatcher {
-    const lookup = (
-        hostname: string,
-        _options: LookupOptions,
-        callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void
-    ) => {
+    type LookupCallback =
+        | ((err: NodeJS.ErrnoException | null, address: string, family: number) => void)
+        | ((err: NodeJS.ErrnoException | null, addresses: LookupAddress[]) => void);
+
+    const lookup = (hostname: string, options: LookupOptions, callback: LookupCallback) => {
         void (async () => {
             try {
                 if (BLOCKED_HOSTNAMES.has(hostname) || hostname.endsWith('.localhost')) {
-                    callback(
+                    (callback as (err: NodeJS.ErrnoException, addresses: LookupAddress[]) => void)(
                         new DextoRuntimeError(
                             'HTTP_REQUEST_UNSAFE_TARGET',
                             ErrorScope.TOOLS,
                             ErrorType.FORBIDDEN,
                             `Blocked request to local hostname: ${hostname}`
                         ),
-                        '',
-                        0
+                        []
                     );
                     return;
                 }
 
+                // Always resolve all addresses so we can validate none are private.
                 const records = (await dns.lookup(hostname, {
                     all: true,
                     verbatim: true,
+                    family: options.family,
+                    hints: options.hints,
                 })) as LookupAddress[];
+
                 if (!records.length) {
-                    callback(
+                    (callback as (err: NodeJS.ErrnoException, addresses: LookupAddress[]) => void)(
                         new DextoRuntimeError(
                             'HTTP_REQUEST_DNS_FAILED',
                             ErrorScope.TOOLS,
                             ErrorType.THIRD_PARTY,
                             `Failed to resolve hostname: ${hostname}`
                         ),
-                        '',
-                        0
+                        []
                     );
                     return;
                 }
 
                 for (const record of records) {
                     if (isPrivateAddress(record.address)) {
-                        callback(
+                        (
+                            callback as (
+                                err: NodeJS.ErrnoException,
+                                addresses: LookupAddress[]
+                            ) => void
+                        )(
                             new DextoRuntimeError(
                                 'HTTP_REQUEST_UNSAFE_TARGET',
                                 ErrorScope.TOOLS,
                                 ErrorType.FORBIDDEN,
                                 `Blocked request to private address: ${record.address}`
                             ),
-                            '',
-                            0
+                            []
                         );
                         return;
                     }
                 }
 
+                // undici passes { all: true } and expects the dns.lookup(all:true) callback signature.
+                if (options.all) {
+                    (callback as (err: null, addresses: LookupAddress[]) => void)(null, records);
+                    return;
+                }
+
                 const selected = records[0]!;
-                callback(
+                (callback as (err: null, address: string, family: number) => void)(
                     null,
                     selected.address,
                     selected.family ?? (isIP(selected.address) === 6 ? 6 : 4)
@@ -187,7 +199,11 @@ function createSafeDispatcher(): Dispatcher {
                               ErrorType.THIRD_PARTY,
                               `Failed to resolve hostname: ${hostname}`
                           );
-                callback(err, '', 0);
+
+                (callback as (err: NodeJS.ErrnoException, addresses: LookupAddress[]) => void)(
+                    err,
+                    []
+                );
             }
         })();
     };
