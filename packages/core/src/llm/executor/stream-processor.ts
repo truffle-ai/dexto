@@ -28,16 +28,17 @@ type FullStreamPart =
         ? Part
         : never;
 
-type ToolInputStartPart = Extract<FullStreamPart, { type: 'tool-input-start' }>;
-type ToolInputDeltaPart = Extract<FullStreamPart, { type: 'tool-input-delta' }>;
-type ToolInputEndPart = Extract<FullStreamPart, { type: 'tool-input-end' }>;
-
-type ToolInputStartEvent = ToolInputStartPart & {
+type ToolInputStartEvent = Extract<FullStreamPart, { type: 'tool-input-start' }> & {
+    toolCallId?: string;
+    toolName?: string;
     id?: string;
     name?: string;
 };
 
-type ToolInputDeltaEvent = ToolInputDeltaPart & {
+type ToolInputDeltaEvent = Extract<FullStreamPart, { type: 'tool-input-delta' }> & {
+    toolCallId?: string;
+    toolName?: string;
+    inputTextDelta?: string;
     argsTextDelta?: string;
     delta?: string;
     textDelta?: string;
@@ -45,7 +46,8 @@ type ToolInputDeltaEvent = ToolInputDeltaPart & {
     name?: string;
 };
 
-type ToolInputEndEvent = ToolInputEndPart & {
+type ToolInputEndEvent = Extract<FullStreamPart, { type: 'tool-input-end' }> & {
+    toolCallId?: string;
     id?: string;
 };
 
