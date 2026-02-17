@@ -651,6 +651,38 @@ export class ToolManager {
         return this.toolExecutionContextFactory(baseContext);
     }
 
+    private validateLocalToolArgsOrThrow(
+        toolName: string,
+        args: Record<string, unknown>
+    ): Record<string, unknown> {
+        if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
+            return args;
+        }
+
+        const tool = this.agentTools.get(toolName);
+        if (!tool) {
+            return args;
+        }
+
+        const validationResult = tool.inputSchema.safeParse(args);
+        if (!validationResult.success) {
+            this.logger.error(
+                `❌ Invalid arguments for tool ${toolName}: ${validationResult.error.message}`
+            );
+            throw ToolError.invalidName(
+                toolName,
+                `Invalid arguments: ${validationResult.error.message}`
+            );
+        }
+
+        const validated = validationResult.data;
+        if (typeof validated !== 'object' || validated === null || Array.isArray(validated)) {
+            throw ToolError.invalidName(toolName, 'Invalid arguments: expected an object');
+        }
+
+        return validated as Record<string, unknown>;
+    }
+
     private async executeLocalTool(
         toolName: string,
         args: Record<string, unknown>,
@@ -667,21 +699,9 @@ export class ToolManager {
             throw ToolError.notFound(toolName);
         }
 
-        // Validate input against tool's Zod schema
-        const validationResult = tool.inputSchema.safeParse(args);
-        if (!validationResult.success) {
-            this.logger.error(
-                `❌ Invalid arguments for tool ${toolName}: ${validationResult.error.message}`
-            );
-            throw ToolError.invalidName(
-                toolName,
-                `Invalid arguments: ${validationResult.error.message}`
-            );
-        }
-
         try {
             const context = this.buildToolExecutionContext({ sessionId, abortSignal, toolCallId });
-            const result = await tool.execute(validationResult.data, context);
+            const result = await tool.execute(args, context);
             return result;
         } catch (error) {
             this.logger.error(`❌ Local tool execution failed: ${toolName}`, {
@@ -813,13 +833,18 @@ export class ToolManager {
         }
 
         // Handle approval/confirmation flow - returns whether approval was required
-        const { requireApproval, approvalStatus } = await this.handleToolApproval(
+        const {
+            requireApproval,
+            approvalStatus,
+            args: validatedToolArgs,
+        } = await this.handleToolApproval(
             toolName,
             toolArgs,
             toolCallId,
             sessionId,
             meta.callDescription
         );
+        toolArgs = validatedToolArgs;
 
         this.logger.debug(`✅ Tool execution approved: ${toolName}`);
         this.logger.info(
@@ -860,6 +885,10 @@ export class ToolManager {
 
             // Use modified payload for execution
             toolArgs = modifiedPayload.args;
+
+            // Hooks may modify tool args (including in-place). Re-validate before execution so tools
+            // always receive schema-validated args and defaults/coercions are re-applied after hook mutation.
+            toolArgs = this.validateLocalToolArgsOrThrow(toolName, toolArgs);
         }
 
         try {
@@ -1249,15 +1278,32 @@ export class ToolManager {
         toolCallId: string,
         sessionId?: string,
         callDescription?: string
-    ): Promise<{ requireApproval: boolean; approvalStatus?: 'approved' | 'rejected' }> {
+    ): Promise<{
+        requireApproval: boolean;
+        approvalStatus?: 'approved' | 'rejected';
+        args: Record<string, unknown>;
+    }> {
+        const validatedArgs = this.validateLocalToolArgsOrThrow(toolName, args);
+
         // Try quick resolution first (auto-approve/deny based on policies)
-        const quickResult = await this.tryQuickApprovalResolution(toolName, args, sessionId);
+        const quickResult = await this.tryQuickApprovalResolution(
+            toolName,
+            validatedArgs,
+            sessionId
+        );
         if (quickResult !== null) {
-            return quickResult;
+            return { ...quickResult, args: validatedArgs };
         }
 
         // Fall back to manual approval flow
-        return this.requestManualApproval(toolName, args, toolCallId, sessionId, callDescription);
+        const manualResult = await this.requestManualApproval(
+            toolName,
+            validatedArgs,
+            toolCallId,
+            sessionId,
+            callDescription
+        );
+        return { ...manualResult, args: validatedArgs };
     }
 
     /**

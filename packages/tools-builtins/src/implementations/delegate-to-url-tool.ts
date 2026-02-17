@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
-import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
+import { DextoRuntimeError, ErrorScope, ErrorType, defineTool } from '@dexto/core';
 
 const DelegateToUrlInputSchema = z
     .object({
@@ -29,8 +29,6 @@ const DelegateToUrlInputSchema = z
             .describe('Request timeout in milliseconds (default: 30000)'),
     })
     .strict();
-
-type DelegateToUrlInput = z.output<typeof DelegateToUrlInputSchema>;
 
 interface A2AMessage {
     role: 'user' | 'agent';
@@ -186,14 +184,14 @@ class SimpleA2AClient {
  * Delegates a message/task to another A2A-compliant agent URL via JSON-RPC and returns its response.
  */
 export function createDelegateToUrlTool(): Tool {
-    return {
+    return defineTool({
         id: 'delegate_to_url',
         displayName: 'Delegate',
         description:
             'Delegate a task to another A2A-compliant agent at a specific URL. Supports STATEFUL multi-turn conversations via sessionId parameter. USAGE: (1) First delegation: provide url + message. Tool returns a response AND a sessionId. (2) Follow-up: use the SAME sessionId to continue the conversation with that agent. The agent remembers previous context. EXAMPLE: First call {url: "http://agent:3001", message: "Analyze data X"} returns {sessionId: "xyz", response: "..."}. Second call {url: "http://agent:3001", message: "What was the top insight?", sessionId: "xyz"}. The agent will remember the first analysis and can answer specifically.',
         inputSchema: DelegateToUrlInputSchema,
-        execute: async (input: unknown, _context: ToolExecutionContext) => {
-            const { url, message, sessionId, timeout } = input as DelegateToUrlInput;
+        async execute(input, _context: ToolExecutionContext) {
+            const { url, message, sessionId, timeout } = input;
 
             try {
                 const client = new SimpleA2AClient(url, timeout);
@@ -225,5 +223,5 @@ export function createDelegateToUrlTool(): Tool {
                 );
             }
         },
-    };
+    });
 }

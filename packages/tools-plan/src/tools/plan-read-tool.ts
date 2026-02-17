@@ -6,6 +6,7 @@
  */
 
 import { z } from 'zod';
+import { defineTool } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
@@ -16,14 +17,14 @@ const PlanReadInputSchema = z.object({}).strict();
  * Creates the plan_read tool
  */
 export function createPlanReadTool(getPlanService: PlanServiceGetter): Tool {
-    return {
+    return defineTool({
         id: 'plan_read',
         displayName: 'Read Plan',
         description:
             'Read the current implementation plan for this session. Returns the plan content and metadata including status. Use markdown checkboxes (- [ ] and - [x]) in the content to track progress.',
         inputSchema: PlanReadInputSchema,
 
-        execute: async (_input: unknown, context: ToolExecutionContext) => {
+        async execute(_input, context: ToolExecutionContext) {
             const resolvedPlanService = await getPlanService(context);
             if (!context.sessionId) {
                 throw PlanError.sessionIdRequired();
@@ -48,5 +49,5 @@ export function createPlanReadTool(getPlanService: PlanServiceGetter): Tool {
                 updatedAt: new Date(plan.meta.updatedAt).toISOString(),
             };
         },
-    };
+    });
 }

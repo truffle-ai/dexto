@@ -6,8 +6,9 @@
 
 import * as path from 'node:path';
 import { z } from 'zod';
-import { Tool, ToolExecutionContext, ApprovalType, ToolError } from '@dexto/core';
+import { ApprovalType, ToolError, defineTool } from '@dexto/core';
 import type { SearchDisplayData, ApprovalRequestDetails, ApprovalResponse } from '@dexto/core';
+import type { Tool, ToolExecutionContext } from '@dexto/core';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
 
 const GlobFilesInputSchema = z
@@ -29,8 +30,6 @@ const GlobFilesInputSchema = z
     })
     .strict();
 
-type GlobFilesInput = z.input<typeof GlobFilesInputSchema>;
-
 /**
  * Create the glob_files internal tool with directory approval support
  */
@@ -38,7 +37,7 @@ export function createGlobFilesTool(getFileSystemService: FileSystemServiceGette
     // Store search directory for use in onApprovalGranted callback
     let pendingApprovalSearchDir: string | undefined;
 
-    return {
+    return defineTool({
         id: 'glob_files',
         displayName: 'Find Files',
         aliases: ['glob'],
@@ -50,11 +49,11 @@ export function createGlobFilesTool(getFileSystemService: FileSystemServiceGette
          * Check if this glob operation needs directory access approval.
          * Returns custom approval request if the search directory is outside allowed paths.
          */
-        getApprovalOverride: async (
-            args: unknown,
+        async getApprovalOverride(
+            input,
             context: ToolExecutionContext
-        ): Promise<ApprovalRequestDetails | null> => {
-            const { path: searchPath } = args as GlobFilesInput;
+        ): Promise<ApprovalRequestDetails | null> {
+            const { path: searchPath } = input;
 
             const resolvedFileSystemService = await getFileSystemService(context);
 
@@ -97,7 +96,7 @@ export function createGlobFilesTool(getFileSystemService: FileSystemServiceGette
         /**
          * Handle approved directory access - remember the directory for session
          */
-        onApprovalGranted: (response: ApprovalResponse, context: ToolExecutionContext): void => {
+        onApprovalGranted(response: ApprovalResponse, context: ToolExecutionContext): void {
             if (!pendingApprovalSearchDir) return;
 
             // Check if user wants to remember the directory
@@ -119,11 +118,11 @@ export function createGlobFilesTool(getFileSystemService: FileSystemServiceGette
             pendingApprovalSearchDir = undefined;
         },
 
-        execute: async (input: unknown, context: ToolExecutionContext) => {
+        async execute(input, context: ToolExecutionContext) {
             const resolvedFileSystemService = await getFileSystemService(context);
 
             // Input is validated by provider before reaching here
-            const { pattern, path, max_results } = input as GlobFilesInput;
+            const { pattern, path, max_results } = input;
 
             // Search for files using FileSystemService
             const result = await resolvedFileSystemService.globFiles(pattern, {
@@ -156,5 +155,5 @@ export function createGlobFilesTool(getFileSystemService: FileSystemServiceGette
                 _display,
             };
         },
-    };
+    });
 }

@@ -5,6 +5,7 @@
  */
 
 import { z } from 'zod';
+import { defineTool } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 import type { TodoService } from './todo-service.js';
 import { TODO_STATUS_VALUES } from './types.js';
@@ -63,7 +64,7 @@ const TodoWriteInputSchema = z
 export type TodoServiceGetter = (context: ToolExecutionContext) => Promise<TodoService>;
 
 export function createTodoWriteTool(getTodoService: TodoServiceGetter): Tool {
-    return {
+    return defineTool({
         id: 'todo_write',
         displayName: 'Update Todos',
         description: `Track progress on multi-step tasks. Use for:
@@ -76,18 +77,15 @@ Do NOT use for simple single-file edits, quick questions, or explanations.
 IMPORTANT: This replaces the entire todo list. Always include ALL tasks (pending, in_progress, completed). Only ONE task should be in_progress at a time. Update status as you work: pending → in_progress → completed.`,
         inputSchema: TodoWriteInputSchema,
 
-        execute: async (input: unknown, context: ToolExecutionContext): Promise<unknown> => {
+        async execute(input, context: ToolExecutionContext): Promise<unknown> {
             const resolvedTodoService = await getTodoService(context);
-
-            // Validate input against schema
-            const validatedInput = TodoWriteInputSchema.parse(input);
 
             // Use session_id from context, otherwise default
             const sessionId = context.sessionId ?? 'default';
 
             // Update todos in todo service
             await resolvedTodoService.initialize();
-            const result = await resolvedTodoService.updateTodos(sessionId, validatedInput.todos);
+            const result = await resolvedTodoService.updateTodos(sessionId, input.todos);
 
             // Count by status for summary
             const completed = result.todos.filter((t) => t.status === 'completed').length;
@@ -97,5 +95,5 @@ IMPORTANT: This replaces the entire todo list. Always include ALL tasks (pending
             // Return simple summary - TodoPanel shows full state
             return `Updated todos: ${completed}/${result.todos.length} completed${inProgress > 0 ? `, 1 in progress` : ''}${pending > 0 ? `, ${pending} pending` : ''}`;
         },
-    };
+    });
 }

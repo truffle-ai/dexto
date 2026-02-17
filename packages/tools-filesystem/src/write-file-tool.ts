@@ -8,19 +8,14 @@ import * as path from 'node:path';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { createPatch } from 'diff';
-import {
-    Tool,
-    ToolExecutionContext,
-    DextoRuntimeError,
-    ApprovalType,
-    ToolError,
-} from '@dexto/core';
+import { ApprovalType, DextoRuntimeError, ToolError, defineTool } from '@dexto/core';
 import type {
     DiffDisplayData,
     FileDisplayData,
     ApprovalRequestDetails,
     ApprovalResponse,
 } from '@dexto/core';
+import type { Tool, ToolExecutionContext } from '@dexto/core';
 import { FileSystemErrorCode } from './error-codes.js';
 import { BufferEncoding } from './types.js';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
@@ -62,8 +57,6 @@ const WriteFileInputSchema = z
     })
     .strict();
 
-type WriteFileInput = z.input<typeof WriteFileInputSchema>;
-
 /**
  * Generate diff preview without modifying the file
  */
@@ -94,7 +87,7 @@ export function createWriteFileTool(getFileSystemService: FileSystemServiceGette
     // Store parent directory for use in onApprovalGranted callback
     let pendingApprovalParentDir: string | undefined;
 
-    return {
+    return defineTool({
         id: 'write_file',
         displayName: 'Write',
         aliases: ['write'],
@@ -106,11 +99,11 @@ export function createWriteFileTool(getFileSystemService: FileSystemServiceGette
          * Check if this write operation needs directory access approval.
          * Returns custom approval request if the file is outside allowed paths.
          */
-        getApprovalOverride: async (
-            args: unknown,
+        async getApprovalOverride(
+            input,
             context: ToolExecutionContext
-        ): Promise<ApprovalRequestDetails | null> => {
-            const { file_path } = args as WriteFileInput;
+        ): Promise<ApprovalRequestDetails | null> {
+            const { file_path } = input;
             if (!file_path) return null;
 
             const resolvedFileSystemService = await getFileSystemService(context);
@@ -151,7 +144,7 @@ export function createWriteFileTool(getFileSystemService: FileSystemServiceGette
         /**
          * Handle approved directory access - remember the directory for session
          */
-        onApprovalGranted: (response: ApprovalResponse, context: ToolExecutionContext): void => {
+        onApprovalGranted(response: ApprovalResponse, context: ToolExecutionContext): void {
             if (!pendingApprovalParentDir) return;
 
             // Check if user wants to remember the directory
@@ -178,8 +171,8 @@ export function createWriteFileTool(getFileSystemService: FileSystemServiceGette
          * Generate preview for approval UI - shows diff or file creation info
          * Stores content hash for change detection in execute phase.
          */
-        generatePreview: async (input: unknown, context: ToolExecutionContext) => {
-            const { file_path, content } = input as WriteFileInput;
+        async generatePreview(input, context: ToolExecutionContext) {
+            const { file_path, content } = input;
 
             const resolvedFileSystemService = await getFileSystemService(context);
 
@@ -226,11 +219,11 @@ export function createWriteFileTool(getFileSystemService: FileSystemServiceGette
             }
         },
 
-        execute: async (input: unknown, context: ToolExecutionContext) => {
+        async execute(input, context: ToolExecutionContext) {
             const resolvedFileSystemService = await getFileSystemService(context);
 
             // Input is validated by provider before reaching here
-            const { file_path, content, create_dirs, encoding } = input as WriteFileInput;
+            const { file_path, content, create_dirs, encoding } = input;
 
             // Check if file was modified since preview (safety check)
             // This prevents corrupting user edits made between preview approval and execution
@@ -318,5 +311,5 @@ export function createWriteFileTool(getFileSystemService: FileSystemServiceGette
                 _display,
             };
         },
-    };
+    });
 }

@@ -3,7 +3,7 @@
 // ============================================================================
 
 import type { JSONSchema7 } from 'json-schema';
-import type { ZodSchema } from 'zod';
+import type { z, ZodTypeAny } from 'zod';
 import type { ToolDisplayData } from './display-types.js';
 import type { WorkspaceContext } from '../workspace/types.js';
 import type { ApprovalRequestDetails, ApprovalResponse } from '../approval/types.js';
@@ -114,7 +114,7 @@ export interface ToolExecutionResult {
 /**
  * Tool interface - for tools implemented within Dexto
  */
-export interface Tool {
+export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
     /** Unique identifier for the tool */
     id: string;
 
@@ -128,20 +128,20 @@ export interface Tool {
     description: string;
 
     /** Zod schema defining the input parameters */
-    inputSchema: ZodSchema;
+    inputSchema: TSchema;
 
     /** The actual function that executes the tool - input is validated by Zod before execution */
-    execute: (input: unknown, context: ToolExecutionContext) => Promise<unknown> | unknown;
+    execute(input: z.output<TSchema>, context: ToolExecutionContext): Promise<unknown> | unknown;
 
     /**
      * Optional preview generator for approval UI.
      * Called before requesting user approval to generate display data (e.g., diff preview).
      * Returns null if no preview is available.
      */
-    generatePreview?: (
-        input: unknown,
+    generatePreview?(
+        input: z.output<TSchema>,
         context: ToolExecutionContext
-    ) => Promise<ToolDisplayData | null>;
+    ): Promise<ToolDisplayData | null>;
 
     /**
      * Optional aliases for this tool id.
@@ -161,14 +161,14 @@ export interface Tool {
      *
      * Return null to disable pattern approvals for the given args (e.g. dangerous commands).
      */
-    getApprovalPatternKey?: ((args: Record<string, unknown>) => string | null) | undefined;
+    getApprovalPatternKey?(args: z.output<TSchema>): string | null;
 
     /**
      * Optional pattern suggestions for the approval UI.
      *
      * Returned patterns are shown as quick "remember pattern" options.
      */
-    suggestApprovalPatterns?: ((args: Record<string, unknown>) => string[]) | undefined;
+    suggestApprovalPatterns?(args: z.output<TSchema>): string[];
 
     /**
      * Optional custom approval override.
@@ -194,10 +194,10 @@ export interface Tool {
      * }
      * ```
      */
-    getApprovalOverride?: (
-        args: unknown,
+    getApprovalOverride?(
+        args: z.output<TSchema>,
         context: ToolExecutionContext
-    ) => Promise<ApprovalRequestDetails | null> | ApprovalRequestDetails | null;
+    ): Promise<ApprovalRequestDetails | null> | ApprovalRequestDetails | null;
 
     /**
      * Optional callback invoked when custom approval is granted.
@@ -215,7 +215,7 @@ export interface Tool {
      * }
      * ```
      */
-    onApprovalGranted?: (response: ApprovalResponse, context: ToolExecutionContext) => void;
+    onApprovalGranted?(response: ApprovalResponse, context: ToolExecutionContext): void;
 }
 
 /**

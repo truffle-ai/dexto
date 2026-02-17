@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
-import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
+import { DextoRuntimeError, ErrorScope, ErrorType, defineTool } from '@dexto/core';
 import { promises as dns, type LookupAddress, type LookupOptions } from 'node:dns';
 import { isIP } from 'node:net';
 import { TextDecoder } from 'node:util';
@@ -34,8 +34,6 @@ const HttpRequestInputSchema = z
             .describe('Request timeout in milliseconds (default: 30000)'),
     })
     .strict();
-
-type HttpRequestInput = z.output<typeof HttpRequestInputSchema>;
 
 type HttpResponsePayload = {
     ok: boolean;
@@ -282,14 +280,14 @@ async function readResponseTextWithLimit(response: Response): Promise<string> {
  * Internal tool for basic HTTP requests.
  */
 export function createHttpRequestTool(): Tool {
-    return {
+    return defineTool({
         id: 'http_request',
         displayName: 'Fetch',
         description:
             'Make a direct HTTP request using fetch. Supports method, headers, query params, JSON bodies, and timeouts. Returns status, headers, raw body text, and parsed JSON when available.',
         inputSchema: HttpRequestInputSchema,
-        execute: async (input: unknown, _context: ToolExecutionContext) => {
-            const { url, method, headers, query, body, timeoutMs } = input as HttpRequestInput;
+        async execute(input, _context: ToolExecutionContext) {
+            const { url, method, headers, query, body, timeoutMs } = input;
 
             const requestUrl = new URL(url);
             if (query) {
@@ -377,5 +375,5 @@ export function createHttpRequestTool(): Tool {
                 clearTimeout(timeoutId);
             }
         },
-    };
+    });
 }

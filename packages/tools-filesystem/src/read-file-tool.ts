@@ -6,8 +6,9 @@
 
 import * as path from 'node:path';
 import { z } from 'zod';
-import { Tool, ToolExecutionContext, ApprovalType, ToolError } from '@dexto/core';
+import { ApprovalType, ToolError, defineTool } from '@dexto/core';
 import type { FileDisplayData, ApprovalRequestDetails, ApprovalResponse } from '@dexto/core';
+import type { Tool, ToolExecutionContext } from '@dexto/core';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
 
 const ReadFileInputSchema = z
@@ -37,7 +38,7 @@ export function createReadFileTool(getFileSystemService: FileSystemServiceGetter
     // Store parent directory for use in onApprovalGranted callback
     let pendingApprovalParentDir: string | undefined;
 
-    return {
+    return defineTool({
         id: 'read_file',
         displayName: 'Read',
         aliases: ['read'],
@@ -49,11 +50,11 @@ export function createReadFileTool(getFileSystemService: FileSystemServiceGetter
          * Check if this read operation needs directory access approval.
          * Returns custom approval request if the file is outside allowed paths.
          */
-        getApprovalOverride: async (
-            args: unknown,
+        async getApprovalOverride(
+            input,
             context: ToolExecutionContext
-        ): Promise<ApprovalRequestDetails | null> => {
-            const { file_path } = args as ReadFileInput;
+        ): Promise<ApprovalRequestDetails | null> {
+            const { file_path } = input;
             if (!file_path) return null;
 
             const resolvedFileSystemService = await getFileSystemService(context);
@@ -94,7 +95,7 @@ export function createReadFileTool(getFileSystemService: FileSystemServiceGetter
         /**
          * Handle approved directory access - remember the directory for session
          */
-        onApprovalGranted: (response: ApprovalResponse, context: ToolExecutionContext): void => {
+        onApprovalGranted(response: ApprovalResponse, context: ToolExecutionContext): void {
             if (!pendingApprovalParentDir) return;
 
             // Check if user wants to remember the directory
@@ -117,11 +118,11 @@ export function createReadFileTool(getFileSystemService: FileSystemServiceGetter
             pendingApprovalParentDir = undefined;
         },
 
-        execute: async (input: unknown, context: ToolExecutionContext) => {
+        async execute(input, context: ToolExecutionContext) {
             const resolvedFileSystemService = await getFileSystemService(context);
 
             // Input is validated by provider before reaching here
-            const { file_path, limit, offset } = input as ReadFileInput;
+            const { file_path, limit, offset } = input;
 
             // Read file using FileSystemService
             const result = await resolvedFileSystemService.readFile(file_path, {
@@ -148,5 +149,5 @@ export function createReadFileTool(getFileSystemService: FileSystemServiceGetter
                 _display,
             };
         },
-    };
+    });
 }

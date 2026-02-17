@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { defineTool } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 import { callExaTool } from './exa-mcp.js';
 
@@ -34,23 +35,20 @@ const WebSearchInputSchema = z
     })
     .strict();
 
-type WebSearchInput = z.output<typeof WebSearchInputSchema>;
-
 /**
  * Create the `web_search` tool.
  *
  * Performs a web search by calling Exa's MCP endpoint via the MCP SDK.
  */
 export function createWebSearchTool(): Tool {
-    return {
+    return defineTool({
         id: 'web_search',
         displayName: 'Web Search',
         description:
             'Search the web for current information and return clean, ready-to-use text. Use for news, facts, and up-to-date context.',
         inputSchema: WebSearchInputSchema,
-        execute: async (input: unknown, context: ToolExecutionContext) => {
-            const { query, numResults, livecrawl, type, contextMaxCharacters } =
-                input as WebSearchInput;
+        async execute(input, context: ToolExecutionContext) {
+            const { query, numResults, livecrawl, type, contextMaxCharacters } = input;
 
             return await callExaTool({
                 logger: context.logger,
@@ -66,5 +64,5 @@ export function createWebSearchTool(): Tool {
                 timeoutMs: 25000,
             });
         },
-    };
+    });
 }

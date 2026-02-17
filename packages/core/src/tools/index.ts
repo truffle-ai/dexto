@@ -8,6 +8,9 @@
 // Core types and interfaces
 export * from './types.js';
 
+// Tool definition helper (schema-driven typing)
+export { defineTool } from './define-tool.js';
+
 // Display types for tool result rendering
 export * from './display-types.js';
 

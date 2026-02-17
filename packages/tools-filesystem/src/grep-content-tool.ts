@@ -6,8 +6,9 @@
 
 import * as path from 'node:path';
 import { z } from 'zod';
-import { Tool, ToolExecutionContext, ApprovalType, ToolError } from '@dexto/core';
+import { ApprovalType, ToolError, defineTool } from '@dexto/core';
 import type { SearchDisplayData, ApprovalRequestDetails, ApprovalResponse } from '@dexto/core';
+import type { Tool, ToolExecutionContext } from '@dexto/core';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
 
 const GrepContentInputSchema = z
@@ -45,8 +46,6 @@ const GrepContentInputSchema = z
     })
     .strict();
 
-type GrepContentInput = z.input<typeof GrepContentInputSchema>;
-
 /**
  * Create the grep_content internal tool with directory approval support
  */
@@ -54,7 +53,7 @@ export function createGrepContentTool(getFileSystemService: FileSystemServiceGet
     // Store search directory for use in onApprovalGranted callback
     let pendingApprovalSearchDir: string | undefined;
 
-    return {
+    return defineTool({
         id: 'grep_content',
         displayName: 'Search Files',
         aliases: ['grep'],
@@ -66,11 +65,11 @@ export function createGrepContentTool(getFileSystemService: FileSystemServiceGet
          * Check if this grep operation needs directory access approval.
          * Returns custom approval request if the search directory is outside allowed paths.
          */
-        getApprovalOverride: async (
-            args: unknown,
+        async getApprovalOverride(
+            input,
             context: ToolExecutionContext
-        ): Promise<ApprovalRequestDetails | null> => {
-            const { path: searchPath } = args as GrepContentInput;
+        ): Promise<ApprovalRequestDetails | null> {
+            const { path: searchPath } = input;
 
             // Resolve the search directory (use cwd if not specified)
             const searchDir = path.resolve(searchPath || process.cwd());
@@ -111,7 +110,7 @@ export function createGrepContentTool(getFileSystemService: FileSystemServiceGet
         /**
          * Handle approved directory access - remember the directory for session
          */
-        onApprovalGranted: (response: ApprovalResponse, context: ToolExecutionContext): void => {
+        onApprovalGranted(response: ApprovalResponse, context: ToolExecutionContext): void {
             if (!pendingApprovalSearchDir) return;
 
             // Check if user wants to remember the directory
@@ -133,12 +132,11 @@ export function createGrepContentTool(getFileSystemService: FileSystemServiceGet
             pendingApprovalSearchDir = undefined;
         },
 
-        execute: async (input: unknown, context: ToolExecutionContext) => {
+        async execute(input, context: ToolExecutionContext) {
             const resolvedFileSystemService = await getFileSystemService(context);
 
             // Input is validated by provider before reaching here
-            const { pattern, path, glob, context_lines, case_insensitive, max_results } =
-                input as GrepContentInput;
+            const { pattern, path, glob, context_lines, case_insensitive, max_results } = input;
 
             // Search for content using FileSystemService
             const result = await resolvedFileSystemService.searchContent(pattern, {
@@ -183,5 +181,5 @@ export function createGrepContentTool(getFileSystemService: FileSystemServiceGet
                 _display,
             };
         },
-    };
+    });
 }

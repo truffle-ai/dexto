@@ -7,7 +7,8 @@
 
 import * as path from 'node:path';
 import { z } from 'zod';
-import { Tool, ToolExecutionContext } from '@dexto/core';
+import { defineTool } from '@dexto/core';
+import type { Tool, ToolExecutionContext } from '@dexto/core';
 import { ProcessService } from './process-service.js';
 import { ProcessError } from './errors.js';
 import type { ShellDisplayData } from '@dexto/core';
@@ -42,15 +43,13 @@ const BashExecInputSchema = z
     })
     .strict();
 
-type BashExecInput = z.input<typeof BashExecInputSchema>;
-
 /**
  * Create the bash_exec internal tool
  */
 export type ProcessServiceGetter = (context: ToolExecutionContext) => Promise<ProcessService>;
 
 export function createBashExecTool(getProcessService: ProcessServiceGetter): Tool {
-    return {
+    return defineTool({
         id: 'bash_exec',
         displayName: 'Bash',
         aliases: ['bash'],
@@ -101,40 +100,38 @@ Each command runs in a fresh shell, so cd does not persist between calls.
 Security: Dangerous commands are blocked. Injection attempts are detected. Requires approval with pattern-based session memory.`,
         inputSchema: BashExecInputSchema,
 
-        getApprovalPatternKey: (args: Record<string, unknown>): string | null => {
-            const command = typeof args.command === 'string' ? args.command : '';
-            if (!command) return null;
+        getApprovalPatternKey(input): string | null {
+            if (!input.command) return null;
+            const command = input.command;
             return generateCommandPatternKey(command);
         },
 
-        suggestApprovalPatterns: (args: Record<string, unknown>): string[] => {
-            const command = typeof args.command === 'string' ? args.command : '';
-            if (!command) return [];
+        suggestApprovalPatterns(input): string[] {
+            if (!input.command) return [];
+            const command = input.command;
             return generateCommandPatternSuggestions(command);
         },
 
         /**
          * Generate preview for approval UI - shows the command to be executed
          */
-        generatePreview: async (input: unknown, _context: ToolExecutionContext) => {
-            const { command, run_in_background } = input as BashExecInput;
-
+        async generatePreview(input, _context: ToolExecutionContext) {
+            const { command, run_in_background } = input;
             const preview: ShellDisplayData = {
                 type: 'shell',
                 command,
                 exitCode: 0, // Placeholder - not executed yet
                 duration: 0, // Placeholder - not executed yet
-                ...(run_in_background !== undefined && { isBackground: run_in_background }),
+                isBackground: run_in_background,
             };
             return preview;
         },
 
-        execute: async (input: unknown, context: ToolExecutionContext) => {
+        async execute(input, context: ToolExecutionContext) {
             const resolvedProcessService = await getProcessService(context);
 
             // Input is validated by provider before reaching here
-            const { command, description, timeout, run_in_background, cwd } =
-                input as BashExecInput;
+            const { command, description, timeout, run_in_background, cwd } = input;
 
             // Validate cwd to prevent path traversal
             let validatedCwd: string | undefined = cwd;
@@ -211,5 +208,5 @@ Security: Dangerous commands are blocked. Injection attempts are detected. Requi
                 };
             }
         },
-    };
+    });
 }

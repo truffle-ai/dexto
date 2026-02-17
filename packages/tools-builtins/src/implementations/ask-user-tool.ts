@@ -1,6 +1,6 @@
 import { z } from 'zod';
+import { ToolError, defineTool } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
-import { ToolError } from '@dexto/core';
 
 const AskUserInputSchema = z
     .object({
@@ -18,8 +18,6 @@ const AskUserInputSchema = z
     })
     .strict();
 
-type AskUserInput = z.input<typeof AskUserInputSchema>;
-
 /**
  * Create the `ask_user` tool.
  *
@@ -27,14 +25,14 @@ type AskUserInput = z.input<typeof AskUserInputSchema>;
  * Requires `ToolExecutionContext.services.approval`.
  */
 export function createAskUserTool(): Tool {
-    return {
+    return defineTool({
         id: 'ask_user',
         displayName: 'Ask',
         description:
             'Collect structured input from the user through a form interface. ONLY use this tool when you need: 1) Multiple fields at once (e.g., name + email + preferences), 2) Pre-defined options/choices (use enum for dropdowns like ["small","medium","large"]), 3) Specific data types with validation (boolean for yes/no, number for quantities). DO NOT use for simple conversational questions - just ask those naturally in your response. This tool is for form-like data collection, not chat. Examples: collecting user profile info, configuration settings, or selecting from preset options.',
         inputSchema: AskUserInputSchema,
-        execute: async (input: unknown, context: ToolExecutionContext) => {
-            const { question, schema } = input as AskUserInput;
+        async execute(input, context: ToolExecutionContext) {
+            const { question, schema } = input;
 
             const approvalManager = context.services?.approval;
             if (!approvalManager) {
@@ -60,5 +58,5 @@ export function createAskUserTool(): Tool {
 
             return approvalManager.getElicitationData(elicitationRequest);
         },
-    };
+    });
 }

@@ -6,6 +6,7 @@
  */
 
 import { z } from 'zod';
+import { defineTool } from '@dexto/core';
 import type { Tool, ToolExecutionContext, FileDisplayData } from '@dexto/core';
 import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
@@ -21,13 +22,11 @@ const PlanCreateInputSchema = z
     })
     .strict();
 
-type PlanCreateInput = z.input<typeof PlanCreateInputSchema>;
-
 /**
  * Creates the plan_create tool
  */
 export function createPlanCreateTool(getPlanService: PlanServiceGetter): Tool {
-    return {
+    return defineTool({
         id: 'plan_create',
         displayName: 'Plan',
         description:
@@ -37,12 +36,9 @@ export function createPlanCreateTool(getPlanService: PlanServiceGetter): Tool {
         /**
          * Generate preview for approval UI
          */
-        generatePreview: async (
-            input: unknown,
-            context: ToolExecutionContext
-        ): Promise<FileDisplayData> => {
+        generatePreview: async (input, context: ToolExecutionContext): Promise<FileDisplayData> => {
             const resolvedPlanService = await getPlanService(context);
-            const { content } = input as PlanCreateInput;
+            const { content } = input;
 
             if (!context.sessionId) {
                 throw PlanError.sessionIdRequired();
@@ -67,9 +63,9 @@ export function createPlanCreateTool(getPlanService: PlanServiceGetter): Tool {
             };
         },
 
-        execute: async (input: unknown, context: ToolExecutionContext) => {
+        async execute(input, context: ToolExecutionContext) {
             const resolvedPlanService = await getPlanService(context);
-            const { title, content } = input as PlanCreateInput;
+            const { title, content } = input;
 
             if (!context.sessionId) {
                 throw PlanError.sessionIdRequired();
@@ -92,5 +88,5 @@ export function createPlanCreateTool(getPlanService: PlanServiceGetter): Tool {
                 } as FileDisplayData,
             };
         },
-    };
+    });
 }

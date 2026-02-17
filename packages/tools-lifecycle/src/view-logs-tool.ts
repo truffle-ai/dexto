@@ -1,7 +1,7 @@
 import * as fs from 'node:fs/promises';
 import { z } from 'zod';
+import { ToolError, defineTool } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
-import { ToolError } from '@dexto/core';
 
 const LOG_LEVEL_VALUES = ['debug', 'info', 'warn', 'error', 'silly'] as const;
 type LogLevel = (typeof LOG_LEVEL_VALUES)[number];
@@ -31,8 +31,6 @@ const ViewLogsInputSchema = z
             .describe('Whether to include structured context for JSON log entries'),
     })
     .strict();
-
-type ViewLogsInput = z.input<typeof ViewLogsInputSchema>;
 
 type ParsedLogEntry = {
     level: LogLevel;
@@ -106,15 +104,13 @@ async function readTailBytes(filePath: string, maxBytes: number): Promise<string
 }
 
 export function createViewLogsTool(options: { maxLogLines: number; maxLogBytes: number }): Tool {
-    return {
+    return defineTool({
         id: 'view_logs',
         displayName: 'View Logs',
         description:
             'View this session log file (tail). Returns the most recent log lines for debugging. If file logging is not configured, returns a message instead.',
         inputSchema: ViewLogsInputSchema,
-        execute: async (input: unknown, context: ToolExecutionContext) => {
-            const parsed = input as ViewLogsInput;
-
+        async execute(parsed, context: ToolExecutionContext) {
             const logFilePath = context.logger.getLogFilePath();
             if (!logFilePath) {
                 return {
@@ -125,7 +121,7 @@ export function createViewLogsTool(options: { maxLogLines: number; maxLogBytes: 
                 };
             }
 
-            const requestedLines = parsed.lines ?? 200;
+            const requestedLines = parsed.lines;
             const maxLines = options.maxLogLines;
             const linesToReturn = Math.min(requestedLines, maxLines);
 
@@ -224,5 +220,5 @@ export function createViewLogsTool(options: { maxLogLines: number; maxLogBytes: 
                 ...(component !== undefined && component.length > 0 && { component }),
             };
         },
-    };
+    });
 }

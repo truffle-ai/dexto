@@ -1,7 +1,6 @@
 import { z } from 'zod';
+import { ToolError, defineTool, flattenPromptResult } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
-import { flattenPromptResult } from '@dexto/core';
-import { ToolError } from '@dexto/core';
 
 const InvokeSkillInputSchema = z
     .object({
@@ -21,8 +20,6 @@ const InvokeSkillInputSchema = z
     })
     .strict();
 
-type InvokeSkillInput = z.input<typeof InvokeSkillInputSchema>;
-
 /**
  * Create the `invoke_skill` tool.
  *
@@ -31,13 +28,13 @@ type InvokeSkillInput = z.input<typeof InvokeSkillInputSchema>;
  * Requires `ToolExecutionContext.services.prompts` and, for forked skills, `services.taskForker`.
  */
 export function createInvokeSkillTool(): Tool {
-    return {
+    return defineTool({
         id: 'invoke_skill',
         displayName: 'Skill',
         description: buildToolDescription(),
         inputSchema: InvokeSkillInputSchema,
-        execute: async (input: unknown, context: ToolExecutionContext) => {
-            const { skill, args, taskContext } = input as InvokeSkillInput;
+        async execute(input, context: ToolExecutionContext) {
+            const { skill, args, taskContext } = input;
 
             const promptManager = context.services?.prompts;
             if (!promptManager) {
@@ -126,7 +123,7 @@ export function createInvokeSkillTool(): Tool {
                     'Follow the instructions in the skill content above to complete the task.',
             };
         },
-    };
+    });
 }
 
 function buildToolDescription(): string {
