@@ -26,7 +26,6 @@
     "@opentelemetry/sdk-node": "^0.55.0",
     "@opentelemetry/sdk-trace-base": "^1.28.0",
     "@opentelemetry/semantic-conventions": "^1.28.0",
-    "better-sqlite3": "^11.10.0",
     "boxen": "^7.1.1",
     "chalk": "^5.6.0",
     "cli-highlight": "^2.1.11",
@@ -53,11 +52,11 @@
     "zod": "^3.25.0"
   },
   "scripts": {
-    "build": "cross-env NODE_OPTIONS='--max-old-space-size=4096' tsc -p tsconfig.json && pnpm run copy-agents && pnpm run copy-assets",
+    "build": "cross-env NODE_OPTIONS='--max-old-space-size=4096' tsc -p tsconfig.json && bun run copy-agents && bun run copy-assets",
     "_comment_build": "TODO: (355) This is a known issue with MCP SDK >= 1.18.1 taking heap space, see if we can solve this without heap size hacks - https://github.com/truffle-ai/dexto/pull/355#discussion_r2412949424",
-    "copy-agents": "tsx scripts/copy-agents.ts",
+    "copy-agents": "bun scripts/copy-agents.ts",
     "copy-assets": "mkdir -p dist/cli/assets && cp -r src/cli/assets/* dist/cli/assets/",
-    "start": "node dist/index.js",
+    "start": "bun dist/index.js",
     "typecheck": "tsc -p tsconfig.typecheck.json --noEmit",
     "lint": "eslint . --ext .ts"
   },

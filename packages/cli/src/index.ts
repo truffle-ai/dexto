@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 import { applyLayeredEnvironmentLoading } from './utils/env.js';
 
 // Ensure layered env vars are loaded before the main CLI module executes.

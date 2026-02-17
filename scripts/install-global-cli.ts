@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env bun
 
 /**
  * Installs the dexto CLI globally using a local npm registry (verdaccio).
@@ -267,8 +267,8 @@ function publishPackage(pkg: { name: string; path: string }) {
         writeFileSync(npmrcPath, npmrcContent);
 
         try {
-            // Use pnpm publish to correctly resolve workspace:* dependencies to actual versions
-            execSync(`pnpm publish --registry ${REGISTRY_URL} --no-git-checks`, {
+            // Use bun publish to correctly resolve workspace:* dependencies to actual versions
+            execSync(`bun publish --registry ${REGISTRY_URL} --access public`, {
                 cwd: pkgDir,
                 stdio: ['ignore', 'ignore', 'pipe'],
             });
@@ -332,9 +332,16 @@ async function main() {
         }
         console.log('  ✓ All packages published');
 
-        // Uninstall existing global dexto (both npm and pnpm)
+        // Uninstall existing global dexto (bun and npm)
         console.log('🗑️  Removing existing global dexto...');
         let removedAny = false;
+        try {
+            execSync('bun remove -g dexto', { stdio: 'ignore' });
+            console.log('  ✓ Removed bun global installation');
+            removedAny = true;
+        } catch {
+            // bun global not installed
+        }
         try {
             execSync('npm uninstall -g dexto', { stdio: 'ignore' });
             console.log('  ✓ Removed npm global installation');
@@ -342,25 +349,13 @@ async function main() {
         } catch {
             // npm global not installed
         }
-        try {
-            // Remove pnpm global link if it exists
-            const pnpmBinDir = execSync('pnpm bin -g', { encoding: 'utf-8' }).trim();
-            const pnpmDextoPath = join(pnpmBinDir, 'dexto');
-            if (existsSync(pnpmDextoPath)) {
-                rmSync(pnpmDextoPath, { force: true });
-                console.log('  ✓ Removed pnpm global link');
-                removedAny = true;
-            }
-        } catch {
-            // pnpm not available or no global link
-        }
         if (!removedAny) {
             console.log('  (no existing installation)');
         }
 
         // Install from local registry
         console.log('📥 Installing dexto globally from local registry...');
-        execSync(`npm install -g dexto --registry ${REGISTRY_URL}`, {
+        execSync(`bun add -g dexto --registry ${REGISTRY_URL}`, {
             stdio: 'inherit',
         });
 

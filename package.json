@@ -3,57 +3,61 @@
     "version": "1.1.3",
     "engines": {
         "node": ">=20.0.0",
-        "npm": ">=8.3.0"
+        "bun": ">=1.2.9"
     },
     "description": "Your command center for controlling computers and services with natural language - connect once, command everything",
     "type": "module",
     "private": true,
-    "packageManager": "pnpm@10.12.4",
+    "workspaces": [
+        "packages/*",
+        "examples"
+    ],
+    "packageManager": "bun@1.2.9",
     "scripts": {
-        "build": "pnpm run clean && pnpm run build:packages && pnpm run copy-webui-dist",
+        "build": "bun run clean && bun run build:packages && bun run copy-webui-dist",
         "build:packages": "turbo run build --filter='./packages/*'",
-        "build:all": "pnpm run build:packages && pnpm run embed-webui",
+        "build:all": "bun run build:packages && bun run embed-webui",
         "build:agent-management": "turbo run build --filter='@dexto/agent-management...'",
         "build:analytics": "turbo run build --filter='@dexto/analytics...'",
         "build:client-sdk": "turbo run build --filter='@dexto/client-sdk...'",
-        "build:check": "pnpm run typecheck && pnpm run build",
+        "build:check": "bun run typecheck && bun run build",
         "build:cli": "turbo run build --filter='dexto...'",
         "build:core": "turbo run build --filter='@dexto/core...'",
         "build:registry": "turbo run build --filter='@dexto/registry...'",
         "build:server": "turbo run build --filter='@dexto/server...'",
-        "build:strict": "pnpm run typecheck && pnpm run build",
+        "build:strict": "bun run typecheck && bun run build",
         "build:webui": "turbo run build --filter='@dexto/webui...'",
         "build:webui:dev": "turbo run build --filter='@dexto/webui...'",
-        "build-webui": "npx rimraf packages/webui/node_modules packages/webui/package-lock.json && pnpm -C packages/webui install && pnpm -C packages/webui build",
-        "changeset:version": "pnpm -w changeset version && pnpm -w install --no-frozen-lockfile",
-        "changeset:publish": "pnpm -w build && pnpm -w changeset publish",
-        "clean": "tsx scripts/clean-build-files.ts",
+        "build-webui": "bun x rimraf packages/webui/node_modules packages/webui/package-lock.json && bun install && bun --cwd packages/webui run build",
+        "changeset:version": "bun x changeset version && bun install",
+        "changeset:publish": "bun run build && bun x changeset publish",
+        "clean": "bun scripts/clean-build-files.ts",
         "clean:storage": "rimraf .dexto",
-        "copy-webui-dist": "npx tsx scripts/copy-webui-dist.ts",
-        "dev": "tsx scripts/dev-server.ts",
-        "dev:cli": "turbo run build --filter=dexto... && cross-env DEXTO_DEV_MODE=true pnpm -C packages/cli start --mode cli",
-        "link:cli": "pnpm run link-cli",
-        "embed-webui": "tsx scripts/copy-webui-dist.ts",
+        "copy-webui-dist": "bun scripts/copy-webui-dist.ts",
+        "dev": "bun scripts/dev-server.ts",
+        "dev:cli": "turbo run build --filter=dexto... && cross-env DEXTO_DEV_MODE=true bun --cwd packages/cli run start -- --mode cli",
+        "link:cli": "bun run link-cli",
+        "embed-webui": "bun scripts/copy-webui-dist.ts",
         "format": "prettier --write \"packages/**/*.{ts,tsx,js,jsx}\" \"scripts/**/*.ts\"",
         "format:check": "prettier --check \"packages/**/*.{ts,tsx,js,jsx}\" \"scripts/**/*.ts\"",
-        "install-cli": "pnpm install && pnpm run build:all && tsx scripts/install-global-cli.ts",
-        "install-cli-fast": "pnpm install && pnpm run build:cli && tsx scripts/install-global-cli.ts",
-        "link-cli": "pnpm run build:all && npm uninstall -g dexto 2>/dev/null || true && rm -f \"$(pnpm bin -g)/dexto\" 2>/dev/null || true && cd packages/cli && pnpm link --global",
-        "link-cli-fast": "pnpm run build:cli && npm uninstall -g dexto 2>/dev/null || true && rm -f \"$(pnpm bin -g)/dexto\" 2>/dev/null || true && cd packages/cli && pnpm link --global",
+        "install-cli": "bun install && bun run build:all && bun scripts/install-global-cli.ts",
+        "install-cli-fast": "bun install && bun run build:cli && bun scripts/install-global-cli.ts",
+        "link-cli": "bun run build:all && bun remove -g dexto 2>/dev/null || true && npm uninstall -g dexto 2>/dev/null || true && bun --cwd packages/cli link --global",
+        "link-cli-fast": "bun run build:cli && bun remove -g dexto 2>/dev/null || true && npm uninstall -g dexto 2>/dev/null || true && bun --cwd packages/cli link --global",
         "lint": "turbo run lint",
         "lint:fix": "eslint . --fix",
         "prebuild": "",
-        "prepack": "pnpm run build",
+        "prepack": "bun run build",
         "prepare": "husky",
         "repo:build": "turbo run build",
         "repo:lint": "turbo run lint",
         "repo:test": "turbo run test",
         "repo:typecheck": "turbo run typecheck",
-        "sync-openapi-docs": "tsx scripts/generate-openapi-spec.ts",
-        "sync-openapi-docs:check": "tsx scripts/generate-openapi-spec.ts --check",
-        "sync-llm-registry": "tsx scripts/sync-llm-registry.ts",
-        "sync-llm-registry:check": "tsx scripts/sync-llm-registry.ts --check",
-        "start": "pnpm -C packages/cli start",
+        "sync-openapi-docs": "bun scripts/generate-openapi-spec.ts",
+        "sync-openapi-docs:check": "bun scripts/generate-openapi-spec.ts --check",
+        "sync-llm-registry": "bun scripts/sync-llm-registry.ts",
+        "sync-llm-registry:check": "bun scripts/sync-llm-registry.ts --check",
+        "start": "bun --cwd packages/cli run start",
         "test": "vitest run",
         "test:ci": "vitest run --coverage",
         "test:integ": "vitest run --config vitest.integration.config.ts",
@@ -64,7 +68,7 @@
         "typecheck": "turbo run typecheck",
         "typecheck:core": "tsc --noEmit -p packages/core/tsconfig.json",
         "typecheck:watch": "turbo run typecheck --watch",
-        "unlink-cli": "pnpm rm dexto --global 2>/dev/null || true && npm uninstall -g dexto 2>/dev/null || true"
+        "unlink-cli": "bun remove -g dexto 2>/dev/null || true && npm uninstall -g dexto 2>/dev/null || true"
     },
     "keywords": [
         "mcp",
@@ -81,7 +85,6 @@
     "devDependencies": {
         "@changesets/cli": "^2.29.6",
         "@eslint/js": "^9.23.0",
-        "@types/better-sqlite3": "^7.6.13",
         "@types/express": "^4.17.21",
         "@types/fs-extra": "^11.0.4",
         "@types/node": "^20.17.36",
@@ -116,17 +119,18 @@
             "prettier --write"
         ]
     },
-    "pnpm": {
-        "overrides": {
-            "tough-cookie": "^4.1.3",
-            "@modelcontextprotocol/sdk": "^1.25.2",
-            "@types/react": "^19",
-            "@types/react-dom": "^19",
-            "preact": "^10.27.3",
-            "qs": "^6.14.1",
-            "jws": "^3.2.3",
-            "mdast-util-to-hast": "^13.2.1"
-        }
+    "overrides": {
+        "tough-cookie": "^4.1.3",
+        "@modelcontextprotocol/sdk": "^1.25.2",
+        "@types/react": "^19",
+        "@types/react-dom": "^19",
+        "preact": "^10.27.3",
+        "qs": "^6.14.1",
+        "jws": "^3.2.3",
+        "mdast-util-to-hast": "^13.2.1"
     },
-    "preinstall": "npx only-allow pnpm"
+    "trustedDependencies": [
+        "@tailwindcss/oxide",
+        "esbuild"
+    ]
 }

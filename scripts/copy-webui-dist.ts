@@ -17,7 +17,7 @@ async function copyWebUIBuild(): Promise<void> {
     try {
         // Check if source directory exists
         if (!fs.existsSync(sourceWebUIDir)) {
-            console.log('⚠️  WebUI dist not found. Run "pnpm build:webui" first.');
+            console.log('⚠️  WebUI dist not found. Run "bun run build:webui" first.');
             console.log(`   Expected path: ${sourceWebUIDir}`);
             process.exit(1);
         }

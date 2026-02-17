@@ -66,26 +66,26 @@ fi
 
 case "$CHECK_TYPE" in
   build)
-    run_check "pnpm run build" "Build" "$OUTPUT_LINES"
+    run_check "bun run build" "Build" "$OUTPUT_LINES"
     ;;
   test)
-    run_check "pnpm test" "Tests" "$OUTPUT_LINES"
+    run_check "bun run test" "Tests" "$OUTPUT_LINES"
     ;;
   lint)
-    run_check "pnpm run lint" "Lint" "$OUTPUT_LINES"
+    run_check "bun run lint" "Lint" "$OUTPUT_LINES"
     ;;
   typecheck)
-    run_check "pnpm run typecheck" "Typecheck" "$OUTPUT_LINES"
+    run_check "bun run typecheck" "Typecheck" "$OUTPUT_LINES"
     ;;
   openapi-docs)
-    run_check "pnpm run sync-openapi-docs:check" "OpenAPI Docs" "$OUTPUT_LINES"
+    run_check "bun run sync-openapi-docs:check" "OpenAPI Docs" "$OUTPUT_LINES"
     ;;
   all)
-    run_check "pnpm run build" "Build" "$OUTPUT_LINES"
-    run_check "pnpm run sync-openapi-docs:check" "OpenAPI Docs" "$OUTPUT_LINES"
-    run_check "pnpm test" "Tests" "$OUTPUT_LINES"
-    run_check "pnpm run lint" "Lint" "$OUTPUT_LINES"
-    run_check "pnpm run typecheck" "Typecheck" "$OUTPUT_LINES"
+    run_check "bun run build" "Build" "$OUTPUT_LINES"
+    run_check "bun run sync-openapi-docs:check" "OpenAPI Docs" "$OUTPUT_LINES"
+    run_check "bun run test" "Tests" "$OUTPUT_LINES"
+    run_check "bun run lint" "Lint" "$OUTPUT_LINES"
+    run_check "bun run typecheck" "Typecheck" "$OUTPUT_LINES"
     echo ""
     echo "All quality checks passed! ✨"
     ;;

@@ -6,18 +6,16 @@ import type { DatabaseFactory } from '../factory.js';
 /**
  * Factory for SQLite database storage.
  *
- * This factory stores data in a local SQLite database file using better-sqlite3.
+ * This factory stores data in a local SQLite database file using bun:sqlite (Bun runtime)
+ * or better-sqlite3 (Node runtime fallback).
  * It's ideal for single-machine deployments and development scenarios where
  * persistence is required without the overhead of a database server.
  *
  * Features:
- * - Uses better-sqlite3 for synchronous, fast operations
+ * - Uses synchronous, fast operations
  * - WAL mode enabled for better concurrency
  * - No external server required
  * - Persistent storage survives restarts
- *
- * Note: better-sqlite3 is an optional dependency. Install it with:
- * npm install better-sqlite3
  */
 export const sqliteDatabaseFactory: DatabaseFactory<SqliteDatabaseConfig> = {
     configSchema: SqliteDatabaseSchema,
@@ -36,7 +34,7 @@ export const sqliteDatabaseFactory: DatabaseFactory<SqliteDatabaseConfig> = {
                 throw StorageError.dependencyNotInstalled(
                     'SQLite',
                     'better-sqlite3',
-                    'npm install better-sqlite3'
+                    'bun add better-sqlite3'
                 );
             }
             throw error;
