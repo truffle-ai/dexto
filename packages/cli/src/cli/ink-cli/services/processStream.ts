@@ -613,10 +613,13 @@ export async function processStream(
                         : generateMessageId('tool');
 
                     // Format tool header using shared utility
-                    const { header: toolContent } = formatToolHeader(
-                        event.toolName,
-                        (event.args as Record<string, unknown>) || {}
-                    );
+                    const { header: toolContent } = formatToolHeader({
+                        toolName: event.toolName,
+                        args: (event.args as Record<string, unknown>) || {},
+                        ...(event.toolDisplayName !== undefined && {
+                            toolDisplayName: event.toolDisplayName,
+                        }),
+                    });
 
                     // Add description if present (dim styling, on new line)
                     let finalToolContent = toolContent;

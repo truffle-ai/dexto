@@ -52,6 +52,7 @@ export type ProcessServiceGetter = (context: ToolExecutionContext) => Promise<Pr
 export function createBashExecTool(getProcessService: ProcessServiceGetter): Tool {
     return {
         id: 'bash_exec',
+        displayName: 'Bash',
         aliases: ['bash'],
         description: `Execute a shell command in the project root directory.
 

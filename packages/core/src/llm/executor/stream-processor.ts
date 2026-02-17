@@ -83,7 +83,7 @@ export class StreamProcessor {
      * @param config Provider/model configuration
      * @param logger Logger instance
      * @param streaming If true, emits llm:chunk events. Default true.
-     * @param approvalMetadata Map of tool call IDs to approval metadata
+     * @param toolCallMetadata Map of tool call IDs to tool-call metadata (approval + display name)
      */
     constructor(
         private contextManager: ContextManager,
@@ -93,9 +93,13 @@ export class StreamProcessor {
         private config: StreamProcessorConfig,
         logger: Logger,
         private streaming: boolean = true,
-        private approvalMetadata?: Map<
+        private toolCallMetadata?: Map<
             string,
-            { requireApproval: boolean; approvalStatus?: 'approved' | 'rejected' }
+            {
+                toolDisplayName?: string;
+                requireApproval?: boolean;
+                approvalStatus?: 'approved' | 'rejected';
+            }
         >
     ) {
         this.logger = logger.createChild(DextoLogComponent.EXECUTOR);
@@ -288,33 +292,36 @@ export class StreamProcessor {
                         // Truncate
                         const truncated = truncateToolResult(sanitized);
 
-                        // Get approval metadata for this tool call
-                        const approval = this.approvalMetadata?.get(event.toolCallId);
+                        // Get tool-call metadata for this tool call
+                        const metadata = this.toolCallMetadata?.get(event.toolCallId);
 
                         // Persist to history (success status comes from truncated.meta.success)
                         await this.contextManager.addToolResult(
                             event.toolCallId,
                             event.toolName,
                             truncated, // Includes meta.success from sanitization
-                            approval // Only approval metadata if present
+                            metadata // Only tool-call metadata if present
                         );
 
                         this.eventBus.emit('llm:tool-result', {
                             toolName: event.toolName,
+                            ...(metadata?.toolDisplayName !== undefined && {
+                                toolDisplayName: metadata.toolDisplayName,
+                            }),
                             callId: event.toolCallId,
                             success: true,
                             sanitized: truncated,
                             rawResult: rawResult,
-                            ...(approval?.requireApproval !== undefined && {
-                                requireApproval: approval.requireApproval,
+                            ...(metadata?.requireApproval !== undefined && {
+                                requireApproval: metadata.requireApproval,
                             }),
-                            ...(approval?.approvalStatus !== undefined && {
-                                approvalStatus: approval.approvalStatus,
+                            ...(metadata?.approvalStatus !== undefined && {
+                                approvalStatus: metadata.approvalStatus,
                             }),
                         });
 
                         // Clean up approval metadata after use
-                        this.approvalMetadata?.delete(event.toolCallId);
+                        this.toolCallMetadata?.delete(event.toolCallId);
                         // Remove from pending (tool completed successfully)
                         this.pendingToolCalls.delete(event.toolCallId);
                         this.partialToolCalls.delete(event.toolCallId);

@@ -234,11 +234,14 @@ export interface FormattedToolHeader {
  * @param args - Tool arguments object
  * @returns Formatted header components and full string
  */
-export function formatToolHeader(
-    toolName: string,
-    args: Record<string, unknown> = {}
-): FormattedToolHeader {
-    let displayName = getToolDisplayName(toolName);
+export function formatToolHeader(options: {
+    toolName: string;
+    args: Record<string, unknown>;
+    toolDisplayName?: string;
+}): FormattedToolHeader {
+    const { toolName, args, toolDisplayName } = options;
+
+    let displayName = toolDisplayName ?? getToolDisplayName(toolName);
     const argsFormatted = formatToolArgsForDisplay(toolName, args);
     const badge = getToolTypeBadge(toolName);
 
@@ -607,7 +610,7 @@ export function convertHistoryToUIMessages(
             const toolCall = toolCallMap.get(msg.toolCallId);
 
             // Format tool name
-            const displayName = getToolDisplayName(msg.name);
+            const displayName = msg.toolDisplayName ?? getToolDisplayName(msg.name);
 
             // Format args if we have them
             let toolContent = displayName;

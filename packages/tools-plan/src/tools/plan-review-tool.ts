@@ -36,6 +36,7 @@ type PlanReviewInput = z.input<typeof PlanReviewInputSchema>;
 export function createPlanReviewTool(getPlanService: PlanServiceGetter): Tool {
     return {
         id: 'plan_review',
+        displayName: 'Plan',
         description:
             'Request user review of the current plan. Shows the full plan content for review with options to approve, request changes, or reject. Use after creating or updating a plan to get user approval before implementation.',
         inputSchema: PlanReviewInputSchema,

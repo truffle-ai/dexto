@@ -196,6 +196,10 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
         if (msg.role === 'tool') {
             const toolCallId = typeof msg.toolCallId === 'string' ? msg.toolCallId : undefined;
             const toolName = typeof msg.name === 'string' ? msg.name : 'unknown';
+            const toolDisplayName =
+                typeof (msg as any).toolDisplayName === 'string'
+                    ? ((msg as any).toolDisplayName as string)
+                    : undefined;
             const normalizedContent: Array<TextPart | ImagePart | FilePart> = Array.isArray(
                 msg.content
             )
@@ -240,6 +244,7 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
                     toolResult: sanitizedFromHistory,
                     toolResultMeta: sanitizedFromHistory.meta,
                     toolResultSuccess: sanitizedFromHistory.meta?.success,
+                    ...(toolDisplayName !== undefined && { toolDisplayName }),
                     ...(requireApproval !== undefined && { requireApproval }),
                     ...(approvalStatus !== undefined && { approvalStatus }),
                 };
@@ -252,6 +257,7 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
                     createdAt,
                     sessionId,
                     toolName,
+                    ...(toolDisplayName !== undefined && { toolDisplayName }),
                     toolCallId,
                     toolResult: sanitizedFromHistory,
                     toolResultMeta: sanitizedFromHistory.meta,

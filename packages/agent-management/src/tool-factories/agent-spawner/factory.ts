@@ -293,6 +293,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
         return [
             {
                 id: 'spawn_agent',
+                displayName: 'Agent',
                 description: 'Spawn a sub-agent to handle a task and return its result.',
                 inputSchema: SpawnAgentInputSchema,
                 execute: (input, context) =>
@@ -307,6 +308,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
             },
             {
                 id: 'wait_for',
+                displayName: 'Wait',
                 description: 'Wait for background task(s) to complete.',
                 inputSchema: WaitForInputSchema,
                 execute: (input, context) =>
@@ -321,6 +323,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
             },
             {
                 id: 'check_task',
+                displayName: 'CheckTask',
                 description: 'Check the status of a background task.',
                 inputSchema: CheckTaskInputSchema,
                 execute: (input, context) =>
@@ -335,6 +338,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
             },
             {
                 id: 'list_tasks',
+                displayName: 'ListTasks',
                 description: 'List background tasks and their statuses.',
                 inputSchema: ListTasksInputSchema,
                 execute: (input, context) =>

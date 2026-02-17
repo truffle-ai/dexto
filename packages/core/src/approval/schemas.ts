@@ -37,6 +37,10 @@ const ToolDisplayDataSchema = z.custom<ToolDisplayData>((val) => isValidDisplayD
 export const ToolConfirmationMetadataSchema = z
     .object({
         toolName: z.string().describe('Name of the tool to confirm'),
+        toolDisplayName: z
+            .string()
+            .optional()
+            .describe('Optional user-facing name for the tool (UI convenience)'),
         toolCallId: z.string().describe('Unique tool call ID for tracking parallel tool calls'),
         args: z.record(z.unknown()).describe('Arguments for the tool'),
         description: z.string().optional().describe('Description of the tool'),

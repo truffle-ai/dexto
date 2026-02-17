@@ -56,6 +56,7 @@ export function createGrepContentTool(getFileSystemService: FileSystemServiceGet
 
     return {
         id: 'grep_content',
+        displayName: 'Search files',
         aliases: ['grep'],
         description:
             'Search for text patterns in files using regular expressions. Returns matching lines with file path, line number, and optional context lines. Use glob parameter to filter specific file types (e.g., "*.ts"). Supports case-insensitive search. Great for finding code patterns, function definitions, or specific text across multiple files.',

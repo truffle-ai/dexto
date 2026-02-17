@@ -33,6 +33,7 @@ export interface SubAgentProgress {
 
 export interface ToolCallTimelineProps {
     toolName: string;
+    toolDisplayName?: string;
     toolArgs?: Record<string, unknown>;
     toolResult?: unknown;
     success?: boolean;
@@ -97,6 +98,7 @@ function getSummary(
 
 export function ToolCallTimeline({
     toolName,
+    toolDisplayName,
     toolArgs,
     toolResult,
     success,
@@ -149,7 +151,8 @@ export function ToolCallTimeline({
         }
     }, [requireApproval, approvalStatus, hasRichUI, isRejected]);
 
-    const { displayName, source } = stripToolPrefix(toolName);
+    const { displayName: fallbackDisplayName, source } = stripToolPrefix(toolName);
+    const displayName = toolDisplayName ?? fallbackDisplayName;
     const summary = getSummary(displayName, toolArgs);
 
     // For sub-agent progress, format the agent name nicely

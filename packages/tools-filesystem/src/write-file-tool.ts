@@ -96,6 +96,7 @@ export function createWriteFileTool(getFileSystemService: FileSystemServiceGette
 
     return {
         id: 'write_file',
+        displayName: 'Write',
         aliases: ['write'],
         description:
             'Write content to a file. Creates a new file or overwrites existing file. Automatically creates backup of existing files before overwriting. Use create_dirs to create parent directories. Requires approval for all write operations. Returns success status, path, bytes written, and backup path if applicable.',

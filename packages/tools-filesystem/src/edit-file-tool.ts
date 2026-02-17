@@ -79,6 +79,7 @@ export function createEditFileTool(getFileSystemService: FileSystemServiceGetter
 
     return {
         id: 'edit_file',
+        displayName: 'Update',
         aliases: ['edit'],
         description:
             'Edit a file by replacing text. By default, old_string must be unique in the file (will error if found multiple times). Set replace_all=true to replace all occurrences. Automatically creates backup before editing. Requires approval. Returns success status, path, number of changes made, and backup path.',

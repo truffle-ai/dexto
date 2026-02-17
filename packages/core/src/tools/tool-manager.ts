@@ -788,6 +788,7 @@ export class ToolManager {
         const { toolArgs: rawToolArgs, meta } = extractToolCallMeta(args);
         let toolArgs = rawToolArgs;
         const backgroundTasksEnabled = isBackgroundTasksEnabled();
+        const toolDisplayName = this.agentTools.get(toolName)?.displayName;
 
         this.logger.debug(`🔧 Tool execution requested: '${toolName}' (toolCallId: ${toolCallId})`);
         this.logger.debug(`Tool args: ${JSON.stringify(toolArgs, null, 2)}`);
@@ -804,6 +805,7 @@ export class ToolManager {
         if (sessionId) {
             this.agentEventBus.emit('llm:tool-call', {
                 toolName,
+                ...(toolDisplayName !== undefined && { toolDisplayName }),
                 args: toolArgs,
                 callId: toolCallId,
                 sessionId,
@@ -996,6 +998,7 @@ export class ToolManager {
 
             return {
                 result,
+                ...(toolDisplayName !== undefined && { toolDisplayName }),
                 ...(requireApproval && { requireApproval, approvalStatus }),
             };
         } catch (error) {
@@ -1357,6 +1360,7 @@ export class ToolManager {
         );
 
         try {
+            const toolDisplayName = this.agentTools.get(toolName)?.displayName;
             // Generate preview for approval UI
             const displayPreview = await this.generateToolPreview(
                 toolName,
@@ -1371,6 +1375,7 @@ export class ToolManager {
             // Build and send approval request
             const response = await this.approvalManager.requestToolConfirmation({
                 toolName,
+                ...(toolDisplayName !== undefined && { toolDisplayName }),
                 toolCallId,
                 args,
                 ...(callDescription !== undefined && { description: callDescription }),

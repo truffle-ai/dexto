@@ -748,6 +748,7 @@ export default function MessageList({
                                             {isToolMessage(msg) && msg.toolName ? (
                                                 <ToolCallTimeline
                                                     toolName={msg.toolName}
+                                                    toolDisplayName={msg.toolDisplayName}
                                                     toolArgs={msg.toolArgs}
                                                     toolResult={msg.toolResult}
                                                     displayData={msg.toolResultMeta?.display}

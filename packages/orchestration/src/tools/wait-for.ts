@@ -150,6 +150,7 @@ function formatOutput(signal: Signal, allSignals?: Signal[]): WaitForOutput {
 export function createWaitForTool(conditionEngine: ConditionEngine): Tool {
     return {
         id: 'wait_for',
+        displayName: 'Wait',
         description:
             'Wait for background task(s) to complete. ' +
             'Blocks execution until the condition is met. ' +

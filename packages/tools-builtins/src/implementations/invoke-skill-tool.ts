@@ -33,6 +33,7 @@ type InvokeSkillInput = z.input<typeof InvokeSkillInputSchema>;
 export function createInvokeSkillTool(): Tool {
     return {
         id: 'invoke_skill',
+        displayName: 'Skill',
         description: buildToolDescription(),
         inputSchema: InvokeSkillInputSchema,
         execute: async (input: unknown, context: ToolExecutionContext) => {

@@ -65,6 +65,7 @@ export type TodoServiceGetter = (context: ToolExecutionContext) => Promise<TodoS
 export function createTodoWriteTool(getTodoService: TodoServiceGetter): Tool {
     return {
         id: 'todo_write',
+        displayName: 'UpdateTasks',
         description: `Track progress on multi-step tasks. Use for:
 - Implementation tasks with 3+ steps (features, refactors, bug fixes)
 - Tasks where the user asks for a plan or breakdown

@@ -80,6 +80,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         // Extract tool metadata
         const toolName = approval.metadata.toolName as string | undefined;
         const toolArgs = (approval.metadata.args as Record<string, unknown>) || {};
+        const toolDisplayName = approval.metadata.toolDisplayName as string | undefined;
 
         // Check if this is a plan_review tool (shows custom approval options)
         const isPlanReview = toolName === 'plan_review';
@@ -95,8 +96,12 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         // Format tool header using shared utility (same format as tool messages)
         const formattedTool = useMemo(() => {
             if (!toolName) return null;
-            return formatToolHeader(toolName, toolArgs);
-        }, [toolName, toolArgs]);
+            return formatToolHeader({
+                toolName,
+                args: toolArgs,
+                ...(toolDisplayName !== undefined && { toolDisplayName }),
+            });
+        }, [toolName, toolDisplayName, toolArgs]);
 
         const [selectedIndex, setSelectedIndex] = useState(0);
 

@@ -99,6 +99,8 @@ export interface ToolExecutionContext extends ToolExecutionContextBase {
 export interface ToolExecutionResult {
     /** The actual result data from tool execution */
     result: unknown;
+    /** Optional display name for the tool (UI convenience) */
+    toolDisplayName?: string;
     /** Whether this tool required user approval before execution */
     requireApproval?: boolean;
     /** The approval status (only present if requireApproval is true) */
@@ -115,6 +117,12 @@ export interface ToolExecutionResult {
 export interface Tool {
     /** Unique identifier for the tool */
     id: string;
+
+    /**
+     * Short, user-facing name for this tool (UI convenience).
+     * Defaults to a title-cased version of {@link id} when omitted.
+     */
+    displayName?: string | undefined;
 
     /** Human-readable description of what the tool does */
     description: string;

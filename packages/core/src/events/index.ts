@@ -375,6 +375,8 @@ export interface AgentEventMap {
     /** LLM service requested a tool call */
     'llm:tool-call': {
         toolName: string;
+        /** Optional user-facing name for the tool (UI convenience) */
+        toolDisplayName?: string;
         args: Record<string, any>;
         callId?: string;
         sessionId: string;
@@ -383,6 +385,8 @@ export interface AgentEventMap {
     /** LLM service streamed partial tool input */
     'llm:tool-call-partial': {
         toolName: string;
+        /** Optional user-facing name for the tool (UI convenience) */
+        toolDisplayName?: string;
         args: Record<string, any>;
         callId?: string;
         isComplete?: boolean;
@@ -392,6 +396,8 @@ export interface AgentEventMap {
     /** LLM service returned a tool result */
     'llm:tool-result': {
         toolName: string;
+        /** Optional user-facing name for the tool (UI convenience) */
+        toolDisplayName?: string;
         callId?: string;
         success: boolean;
         /** Sanitized result - present when success=true */
@@ -631,6 +637,8 @@ export interface SessionEventMap {
     /** LLM service requested a tool call */
     'llm:tool-call': {
         toolName: string;
+        /** Optional user-facing name for the tool (UI convenience) */
+        toolDisplayName?: string;
         args: Record<string, any>;
         callId?: string;
     };
@@ -638,6 +646,8 @@ export interface SessionEventMap {
     /** LLM service streamed partial tool input */
     'llm:tool-call-partial': {
         toolName: string;
+        /** Optional user-facing name for the tool (UI convenience) */
+        toolDisplayName?: string;
         args: Record<string, any>;
         callId?: string;
         isComplete?: boolean;
@@ -646,6 +656,8 @@ export interface SessionEventMap {
     /** LLM service returned a tool result */
     'llm:tool-result': {
         toolName: string;
+        /** Optional user-facing name for the tool (UI convenience) */
+        toolDisplayName?: string;
         callId?: string;
         success: boolean;
         /** Sanitized result - present when success=true */
