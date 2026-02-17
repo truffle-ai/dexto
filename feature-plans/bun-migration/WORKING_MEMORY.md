@@ -27,6 +27,14 @@
 ### Notes
 - Repo is pinned to Bun `1.2.9` (intentionally; no need to bump during migration).
 - Plan artifacts committed to this worktree (commit `b40d68e2`).
+- Remaining pnpm/npm touchpoints (non-exhaustive, starting points):
+  - `packages/cli/src/cli/utils/image-store.ts` — installer uses `npm pack` + `npm install`
+  - `packages/cli/src/cli/utils/local-model-setup.ts` — installs `node-llama-cpp` via `npm install` into `~/.dexto/deps`
+  - `packages/cli/src/cli/ink-cli/components/overlays/custom-model-wizard/LocalModelWizard.tsx` — also runs `npm install node-llama-cpp`
+  - `packages/cli/src/cli/utils/scaffolding-utils.ts` — uses `npm init -y`, then chooses `pnpm`/`npm` for deps
+  - `packages/cli/src/cli/utils/package-mgmt.ts` — detects `pnpm-lock.yaml` and defaults to `npm` (needs `bun` support)
+  - `scripts/install-global-cli.ts` — uses `npx verdaccio …` and `npm uninstall -g …` for a local install simulation
+  - `packages/registry/src/mcp/server-registry-data.json` + related docs — many MCP presets default to `npx` (consider `bunx` if we want “no npm” end-to-end)
 
 ---
 

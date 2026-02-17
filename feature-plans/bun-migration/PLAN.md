@@ -152,6 +152,8 @@ This repo still contains **behavior and strings** that assume pnpm/npm in a few 
 - Image store installer uses `npm pack` + `npm install` (tests mock npm).
 - Local model setup installs `node-llama-cpp` via `npm install` into `~/.dexto/deps`.
 - Some scaffolding/templates/help text prints `pnpm …` / `npm …` instructions.
+- The “install-global-cli” dev script uses `npx`/`npm` to simulate user installs.
+- MCP preset registry data and docs frequently use `npx` as the default command (consider switching to `bunx` if we want “no npm” end-to-end).
 
 Acceptance:
 - Running normal CLI flows never requires pnpm.
