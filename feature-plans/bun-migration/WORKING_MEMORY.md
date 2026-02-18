@@ -45,6 +45,7 @@
 - `930bdff6` add `dexto` npm wrapper + platform binary packages + compiled-runtime fixes + `scripts/build-cli-binaries.ts`
 - `10f5a6c1` fix review items (setup-bun v2, SQLite updated_at seconds, unlink logging, safer spawn defaults, npm update command)
 - `56ddce7a` fix unit tests for npm update command
+- `1017fece` switch local model dependency install to `npm install` (no external Bun prerequisite)
 
 ---
 
@@ -75,7 +76,7 @@
 
 1. **Release workflow:** ensure `changeset:publish` builds platform binaries (and bundles runtime assets) before publishing `dexto-*` packages.
 2. **Local “production-like install” script:** `bun run install-cli(-fast)` must build binaries (at least `--single`) before publishing to verdaccio.
-3. **Local models:** `packages/cli/src/cli/utils/local-model-setup.ts` currently spawns `bun add …` (requires external Bun). Decide how we want this to work when `dexto` is installed via npm wrapper (likely use `npm install` for that isolated deps dir, or rework the approach).
+3. **Local models:** validate the end-to-end flow after switching `node-llama-cpp` install to `npm install` (native build toolchain, import works, and a real GGUF prompt works).
 4. **Scaffolding parity:** scaffolding commands outside `dexto-source` may still depend on unpublished `@dexto/*` packages (owner publish is a merge blocker).
 
 ---
@@ -85,4 +86,3 @@
 - Implemented npm wrapper + platform binary package structure and compiled-runtime compatibility.
 - Addressed PR review feedback (workflow consistency, SQLite timestamp correctness, safer process execution, unlink logging).
 - Verified key workflows locally (lint/typecheck/unit tests/build) and validated compiled binary packaging.
-

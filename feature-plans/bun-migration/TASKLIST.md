@@ -28,7 +28,7 @@ Success criteria:
 - [x] Update CLI scaffolding and templates to prefer `bun` (install/run/build instructions)
 - [x] Replace `npx`/`npm` usage in repo dev scripts with `bun` where possible (e.g. `scripts/install-global-cli.ts`)
 - [x] Migrate image-store installer off `npm pack` + `npm install` to Bun equivalents
-- [ ] Local model deps: ensure the `node-llama-cpp` install flow works when `dexto` is installed via npm wrapper (no external Bun prerequisite)
+- [x] Local model deps: avoid Bun prerequisite by installing `node-llama-cpp` via `npm install` into `~/.dexto/deps`
 - [x] Make `bun:sqlite` Node-import safe (lazy-load at runtime) so `vitest` can run under Node
 - [x] Remove remaining `better-sqlite3`/Node-addon runtime blockers in core paths (Bun runtime)
 - [x] Delete legacy pnpm files (`pnpm-lock.yaml`, `pnpm-workspace.yaml`)
