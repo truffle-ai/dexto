@@ -812,7 +812,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
 
         const placeholder = approval
             ? 'Approval required above...'
-            : 'Type your message or /help (try /sounds)';
+            : 'Type your message or /help for commands';
 
         // Expose submit method for external use (e.g., from OverlayContainer)
         // Pass bypassOverlayCheck=true since programmatic calls should skip the overlay check
