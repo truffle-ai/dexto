@@ -5,7 +5,7 @@ allowed-tools: ["bash", "read", "glob", "grep", "task"]
 
 # Custom Plan (PLAN + Working Memory + Tasklist)
 
-Create feature plans using the same paradigm as `feature-plans/image-and-core-di-refactor/`:
+Create feature plans using the PLAN + Working Memory + Tasklist paradigm:
 - `PLAN.md` is the source of truth (problem, goals, design, and a concrete tasklist).
 - `WORKING_MEMORY.md` is the live scratchpad agents update while executing.
 - `USER_VERIFICATION.md` is the owner-only decision + manual verification checklist.
