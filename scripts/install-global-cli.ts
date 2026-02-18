@@ -193,6 +193,7 @@ function startVerdaccio(): ChildProcess {
     const configPath = join(VERDACCIO_CONFIG_DIR, 'config.yaml');
     const config = `
 storage: ${join(VERDACCIO_CONFIG_DIR, 'storage')}
+max_body_size: 500mb
 auth:
   htpasswd:
     file: ${join(VERDACCIO_CONFIG_DIR, 'htpasswd')}
@@ -206,6 +207,10 @@ packages:
     publish: $anonymous
     unpublish: $anonymous
   'dexto':
+    access: $all
+    publish: $anonymous
+    unpublish: $anonymous
+  'dexto-*':
     access: $all
     publish: $anonymous
     unpublish: $anonymous
