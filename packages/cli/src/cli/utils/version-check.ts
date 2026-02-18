@@ -28,7 +28,7 @@ export interface UpdateInfo {
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const NPM_REGISTRY_URL = 'https://registry.npmjs.org/dexto/latest';
 const CACHE_FILE_PATH = getDextoGlobalPath('cache', 'version-check.json');
-const UPDATE_COMMAND = 'bun add -g dexto@latest';
+const UPDATE_COMMAND = 'npm i -g dexto@latest';
 
 /**
  * Compare two semver versions.

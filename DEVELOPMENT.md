@@ -101,7 +101,7 @@ bun run install-cli
 bun run install-cli-fast
 ```
 
-This creates tarballs and installs them globally, simulating `npm install -g dexto`.
+This creates tarballs and installs them globally, simulating `bun add -g dexto`.
 
 ### Switching Between Workflows
 

@@ -13,8 +13,8 @@ function getBunGlobalBinDir(): string {
     }
 }
 
-function safeRemoveIfExists(filePath: string): void {
-    if (!existsSync(filePath)) return;
+function safeRemoveIfExists(filePath: string): boolean {
+    if (!existsSync(filePath)) return false;
 
     const stat = lstatSync(filePath);
     if (stat.isDirectory()) {
@@ -23,13 +23,16 @@ function safeRemoveIfExists(filePath: string): void {
     }
 
     rmSync(filePath, { force: true });
+    return true;
 }
 
 function main(): void {
     // Remove any Bun-installed global package (no-op if not installed).
     try {
         execSync('bun remove -g dexto', { stdio: 'ignore' });
-    } catch {}
+    } catch {
+        // Intentionally ignored: package may not be globally installed
+    }
 
     const bunGlobalBinDir = getBunGlobalBinDir();
     if (!bunGlobalBinDir) {
@@ -38,10 +41,14 @@ function main(): void {
     }
 
     const linkPath = path.join(bunGlobalBinDir, 'dexto');
-    safeRemoveIfExists(linkPath);
+    const removedLink = safeRemoveIfExists(linkPath);
 
-    console.log('✅ Unlinked dexto CLI (Bun global)');
-    console.log(`   Removed: ${linkPath}`);
+    if (removedLink) {
+        console.log('✅ Unlinked dexto CLI (Bun global)');
+        console.log(`   Removed: ${linkPath}`);
+    } else {
+        console.log(`ℹ️  No dexto link found at: ${linkPath}`);
+    }
 }
 
 main();

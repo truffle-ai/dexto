@@ -195,7 +195,7 @@ export class SQLiteStore implements Database {
             const serialized = JSON.stringify(value);
             db.prepare(
                 'INSERT OR REPLACE INTO kv_store (key, value, updated_at) VALUES (?, ?, ?)'
-            ).run(key, serialized, Date.now());
+            ).run(key, serialized, Math.floor(Date.now() / 1000));
         } catch (error) {
             throw StorageError.writeFailed(
                 'set',

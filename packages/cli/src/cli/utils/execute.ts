@@ -18,7 +18,7 @@ export function executeWithTimeout(
 ): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         const { cwd, timeoutMs: timeout = DEFAULT_TIMEOUT_MS } = options;
-        const child = spawn(command, args, { cwd, shell: process.platform === 'win32' });
+        const child = spawn(command, args, { cwd });
         let stdout = '';
         let stderr = '';
 

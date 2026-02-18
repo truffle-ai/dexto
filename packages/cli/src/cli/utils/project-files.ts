@@ -11,9 +11,18 @@ export async function checkForFileInCurrentDirectory(fileName: string): Promise<
 
     try {
         await fs.access(filePath);
-    } catch {
-        logger.debug(`${fileName} not found in the current directory.`);
-        throw new FileNotFoundError(`${fileName} not found in the current directory.`);
+    } catch (error: unknown) {
+        const code =
+            error && typeof error === 'object' && 'code' in error
+                ? (error as { code?: unknown }).code
+                : undefined;
+
+        if (code === 'ENOENT') {
+            logger.debug(`${fileName} not found in the current directory.`);
+            throw new FileNotFoundError(`${fileName} not found in the current directory.`);
+        }
+
+        throw error;
     }
 }
 
