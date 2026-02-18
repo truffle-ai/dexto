@@ -144,6 +144,33 @@ export function createAgentConfigSchema() {
                 'Tool permissions and approval configuration'
             ).default({}),
 
+            toolConfirmation: z
+                .object({
+                    mode: z
+                        .enum(['auto-approve', 'manual', 'auto-deny'])
+                        .optional()
+                        .describe('How tool calls are approved'),
+                    timeout: z
+                        .number()
+                        .int()
+                        .positive()
+                        .optional()
+                        .describe('Timeout in seconds for manual approvals'),
+                    allowedToolsStorage: z
+                        .enum(['memory', 'storage'])
+                        .optional()
+                        .describe('Where to persist approved tools'),
+                    toolPolicies: z
+                        .object({
+                            alwaysAllow: z.array(z.string()).optional(),
+                            alwaysDeny: z.array(z.string()).optional(),
+                        })
+                        .optional(),
+                })
+                .passthrough()
+                .optional()
+                .describe('Tool confirmation and policy configuration'),
+
             elicitation: ElicitationConfigSchema.default({}).describe(
                 'Elicitation configuration for user input requests (ask_user tool and MCP server elicitations). Independent from permissions mode.'
             ),
@@ -151,6 +178,15 @@ export function createAgentConfigSchema() {
             resources: ResourcesConfigSchema.describe(
                 'Agent-managed resource configuration'
             ).default([]),
+
+            internalResources: z
+                .object({
+                    enabled: z.boolean().optional(),
+                    resources: z.array(z.unknown()).optional(),
+                })
+                .passthrough()
+                .optional()
+                .describe('Internal resource discovery configuration'),
 
             prompts: PromptsSchema.describe(
                 'Agent prompts configuration - sample prompts which can be defined inline or referenced from file'
