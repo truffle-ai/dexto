@@ -19,6 +19,7 @@ import React, {
     forwardRef,
 } from 'react';
 import { Box, Text } from 'ink';
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
@@ -99,6 +100,12 @@ const BUILTIN_SOUNDS: BuiltinSound[] = [
         filename: 'boot.wav',
     },
     {
+        id: 'gameboy',
+        name: 'Game Boy',
+        description: 'Classic handheld startup jingle',
+        filename: 'gameboy.wav',
+    },
+    {
         id: 'success',
         name: 'Success',
         description: 'Bright completion jingle',
@@ -154,7 +161,6 @@ type PickItem =
           id: string;
           label: string;
           description: string;
-          filename: string;
           isCurrent: boolean;
       };
 
@@ -171,10 +177,13 @@ function soundConfigUpdate<K extends keyof SoundConfig>(
     return { [key]: value } as Pick<SoundConfig, K>;
 }
 
-function selectionLabel(selection: SoundSelection): string {
+function selectionLabel(
+    selection: SoundSelection,
+    builtinSounds: ReadonlyArray<Pick<BuiltinSound, 'id' | 'name'>>
+): string {
     if (selection.kind === 'system') return 'System default';
     if (selection.kind === 'custom') return 'Custom file';
-    const builtin = BUILTIN_SOUNDS.find((s) => s.id === selection.id);
+    const builtin = builtinSounds.find((s) => s.id === selection.id);
     return builtin?.name ?? selection.id;
 }
 
@@ -267,12 +276,37 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
         );
 
         const builtinSoundPaths = useMemo(() => {
-            return BUILTIN_SOUNDS.map((sound) => ({
+            const assetSounds = BUILTIN_SOUNDS.map((sound) => ({
                 ...sound,
                 absPath: fileURLToPath(
-                    new URL(`../../../assets/sounds/created/${sound.filename}`, import.meta.url)
+                    new URL(`../../../assets/sounds/${sound.filename}`, import.meta.url)
                 ),
+                destExt: '.wav',
             }));
+
+            const macOsDefaults =
+                process.platform === 'darwin'
+                    ? [
+                          {
+                              id: 'macos-blow',
+                              name: 'macOS Blow',
+                              description: 'System sound (Blow.aiff)',
+                              filename: 'Blow.aiff',
+                              absPath: '/System/Library/Sounds/Blow.aiff',
+                              destExt: '.aiff',
+                          },
+                          {
+                              id: 'macos-glass',
+                              name: 'macOS Glass',
+                              description: 'System sound (Glass.aiff)',
+                              filename: 'Glass.aiff',
+                              absPath: '/System/Library/Sounds/Glass.aiff',
+                              destExt: '.aiff',
+                          },
+                      ]
+                    : [];
+
+            return [...assetSounds, ...macOsDefaults].filter((sound) => existsSync(sound.absPath));
         }, []);
 
         const refreshSelections = useCallback(async () => {
@@ -388,7 +422,7 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                     type: 'pick',
                     id: 'pick-approval',
                     soundType: 'approval',
-                    label: `Select approval sound (${selectionLabel(approvalSelection)})`,
+                    label: `Select approval sound (${selectionLabel(approvalSelection, builtinSoundPaths)})`,
                     description: 'Choose a built-in sound or reset to system default',
                     icon: '🔔',
                 },
@@ -396,7 +430,7 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                     type: 'pick',
                     id: 'pick-complete',
                     soundType: 'complete',
-                    label: `Select completion sound (${selectionLabel(completeSelection)})`,
+                    label: `Select completion sound (${selectionLabel(completeSelection, builtinSoundPaths)})`,
                     description: 'Choose a built-in sound or reset to system default',
                     icon: '🏁',
                 },
@@ -429,7 +463,7 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                     icon: '📁',
                 },
             ];
-        }, [approvalSelection, completeSelection, config]);
+        }, [approvalSelection, builtinSoundPaths, completeSelection, config]);
 
         const pickSoundType: SoundType | null =
             viewMode === 'pick-approval'
@@ -450,18 +484,17 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                     label: 'System default',
                     description: 'Use the platform default notification sound',
                 },
-                ...BUILTIN_SOUNDS.map((sound) => ({
+                ...builtinSoundPaths.map((sound) => ({
                     type: 'builtin' as const,
                     id: sound.id,
                     label: sound.name,
                     description: sound.description,
-                    filename: sound.filename,
                     isCurrent: current.kind === 'builtin' && current.id === sound.id,
                 })),
             ];
 
             return items;
-        }, [approvalSelection, completeSelection, pickSoundType]);
+        }, [approvalSelection, builtinSoundPaths, completeSelection, pickSoundType]);
 
         const items = viewMode === 'main' ? mainItems : pickItems;
 
@@ -505,7 +538,7 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                 // Ensure only one custom file exists for this sound type
                 await removeCustomSoundFiles(soundType);
 
-                const destPath = path.join(soundsDir, `${soundType}.wav`);
+                const destPath = path.join(soundsDir, `${soundType}${builtin.destExt}`);
                 await fs.copyFile(builtin.absPath, destPath);
 
                 await refreshSelections();
