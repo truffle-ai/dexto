@@ -40,10 +40,10 @@
         "embed-webui": "bun scripts/copy-webui-dist.ts",
         "format": "prettier --write \"packages/**/*.{ts,tsx,js,jsx}\" \"scripts/**/*.ts\"",
         "format:check": "prettier --check \"packages/**/*.{ts,tsx,js,jsx}\" \"scripts/**/*.ts\"",
-        "install-cli": "bun install && bun run build:all && bun scripts/install-global-cli.ts",
-        "install-cli-fast": "bun install && bun run build:cli && bun scripts/install-global-cli.ts",
-        "link-cli": "bun run build:all && (bun remove -g dexto 2>/dev/null || true) && (cd packages/cli && bun link)",
-        "link-cli-fast": "bun run build:cli && (bun remove -g dexto 2>/dev/null || true) && (cd packages/cli && bun link)",
+        "install-cli": "bun scripts/unlink-global-cli.ts && bun install && bun run build:all && bun scripts/install-global-cli.ts",
+        "install-cli-fast": "bun scripts/unlink-global-cli.ts && bun install && bun run build:cli && bun scripts/install-global-cli.ts",
+        "link-cli": "bun run build:all && bun scripts/link-global-cli.ts",
+        "link-cli-fast": "bun run build:cli && bun scripts/link-global-cli.ts",
         "lint": "turbo run lint",
         "lint:fix": "turbo run lint -- --fix",
         "prepack": "bun run build",
@@ -67,7 +67,7 @@
         "typecheck": "turbo run typecheck",
         "typecheck:core": "tsc --noEmit -p packages/core/tsconfig.json",
         "typecheck:watch": "turbo watch typecheck",
-        "unlink-cli": "bun remove -g dexto 2>/dev/null || true"
+        "unlink-cli": "bun scripts/unlink-global-cli.ts"
     },
     "keywords": [
         "mcp",
