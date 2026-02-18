@@ -230,14 +230,10 @@ export async function createImage(name?: string): Promise<string> {
         }
 
         // Install dependencies (use Bun in dexto source for workspace protocol support)
-        await installDependencies(
-            projectPath,
-            {
-                dependencies,
-                devDependencies,
-            },
-            isDextoSource ? 'bun' : undefined
-        );
+        await installDependencies(projectPath, {
+            dependencies,
+            devDependencies,
+        });
 
         spinner.stop(chalk.green(`✓ Successfully created image: ${projectName}`));
 

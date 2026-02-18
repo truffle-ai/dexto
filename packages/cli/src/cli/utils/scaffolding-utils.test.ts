@@ -40,15 +40,9 @@ vi.mock('./execute.js', () => ({
     executeWithTimeout: vi.fn(),
 }));
 
-vi.mock('./package-mgmt.js', () => ({
-    getPackageManager: vi.fn(),
-    getPackageManagerInstallCommand: vi.fn(),
-}));
-
 const fs = await import('fs-extra');
 const p = await import('@clack/prompts');
 const { executeWithTimeout } = await import('./execute.js');
-const { getPackageManager, getPackageManagerInstallCommand } = await import('./package-mgmt.js');
 
 describe('scaffolding-utils', () => {
     beforeEach(() => {
@@ -371,8 +365,6 @@ describe('scaffolding-utils', () => {
 
     describe('installDependencies', () => {
         beforeEach(() => {
-            vi.mocked(getPackageManager).mockReturnValue('bun');
-            vi.mocked(getPackageManagerInstallCommand).mockReturnValue('add');
             vi.mocked(executeWithTimeout).mockResolvedValue(undefined as any);
         });
 

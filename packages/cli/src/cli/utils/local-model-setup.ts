@@ -38,7 +38,6 @@ import {
     getDextoGlobalPath,
     type InstalledModel,
 } from '@dexto/agent-management';
-import { getPreferredGlobalPackageManager } from './preferred-package-manager.js';
 
 /**
  * Result of local model setup
@@ -107,14 +106,8 @@ async function installNodeLlamaCpp(): Promise<boolean> {
     }
 
     return new Promise((resolve) => {
-        const pm = getPreferredGlobalPackageManager();
-        const args =
-            pm === 'bun'
-                ? ['add', '--trust', 'node-llama-cpp', '--save-text-lockfile']
-                : ['install', 'node-llama-cpp'];
-
         // Install to global deps directory (may compile native bindings)
-        const child = spawn(pm, args, {
+        const child = spawn('bun', ['add', '--trust', 'node-llama-cpp', '--save-text-lockfile'], {
             stdio: ['ignore', 'pipe', 'pipe'],
             cwd: depsDir,
             shell: true,
@@ -176,12 +169,10 @@ async function ensureNodeLlamaCpp(): Promise<boolean> {
         return true;
     } else {
         spinner.stop(chalk.red('✗ Installation failed'));
-        const pm = getPreferredGlobalPackageManager();
-        const manualCommand =
-            pm === 'bun' ? 'bun add --trust node-llama-cpp' : 'npm i node-llama-cpp';
+        const depsDir = getDextoGlobalPath('deps');
         p.log.error(
             'Failed to install node-llama-cpp. You can try manually:\n' +
-                chalk.gray(`  ${manualCommand}`)
+                chalk.gray(`  cd ${depsDir} && bun add --trust node-llama-cpp`)
         );
         return false;
     }

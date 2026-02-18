@@ -12,7 +12,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import type { Key } from '../../../hooks/useInputOrchestrator.js';
-import { getPreferredGlobalPackageManager } from '../../../../utils/preferred-package-manager.js';
 import {
     saveCustomModel,
     getAllInstalledModels,
@@ -440,16 +439,15 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
             }
 
             return new Promise((resolve) => {
-                const pm = getPreferredGlobalPackageManager();
-                const args =
-                    pm === 'bun'
-                        ? ['add', '--trust', 'node-llama-cpp', '--save-text-lockfile']
-                        : ['install', 'node-llama-cpp'];
-
-                const child = spawn(pm, args, {
-                    stdio: ['ignore', 'ignore', 'pipe'], // stdin ignored, stdout ignored (not needed), stderr piped for errors
-                    cwd: depsDir,
-                });
+                const child = spawn(
+                    'bun',
+                    ['add', '--trust', 'node-llama-cpp', '--save-text-lockfile'],
+                    {
+                        stdio: ['ignore', 'ignore', 'pipe'], // stdin ignored, stdout ignored (not needed), stderr piped for errors
+                        cwd: depsDir,
+                        shell: process.platform === 'win32',
+                    }
+                );
 
                 let stderr = '';
                 child.stderr?.on('data', (data) => {

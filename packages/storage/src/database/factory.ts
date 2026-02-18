@@ -19,7 +19,7 @@ export interface DatabaseFactory<TConfig = unknown> {
      * Factory function to create a Database instance.
      *
      * Database factories may return a Promise to support lazy loading of optional
-     * dependencies (e.g., `better-sqlite3`, `pg`).
+     * dependencies (e.g., `pg`).
      *
      * @param config - Validated configuration specific to this backend
      * @param logger - Logger instance for the database

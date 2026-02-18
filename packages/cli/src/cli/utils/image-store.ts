@@ -15,7 +15,6 @@ import {
 } from '@dexto/agent-management';
 import { loadImage } from '@dexto/agent-config';
 import { executeWithTimeout } from './execute.js';
-import { getPreferredGlobalPackageManager } from './preferred-package-manager.js';
 
 export interface InstallImageOptions {
     force?: boolean;
@@ -310,34 +309,18 @@ export async function installImageToStore(
             packDir = path.join(tmpDir, '.dexto-pack');
             await fs.mkdir(packDir, { recursive: true });
 
-            const pm = getPreferredGlobalPackageManager();
-            if (pm === 'bun') {
-                await executeWithTimeout('bun', ['pm', 'pack', '--destination', packDir], {
-                    cwd: installSpecifier,
-                    ...(installTimeoutMs !== undefined && { timeoutMs: installTimeoutMs }),
-                });
-            } else {
-                await executeWithTimeout('npm', ['pack', '--pack-destination', packDir], {
-                    cwd: installSpecifier,
-                    ...(installTimeoutMs !== undefined && { timeoutMs: installTimeoutMs }),
-                });
-            }
+            await executeWithTimeout('bun', ['pm', 'pack', '--destination', packDir], {
+                cwd: installSpecifier,
+                ...(installTimeoutMs !== undefined && { timeoutMs: installTimeoutMs }),
+            });
 
             installSpecifier = await findSingleTgzFile(packDir);
         }
 
-        const pm = getPreferredGlobalPackageManager();
-        if (pm === 'bun') {
-            await executeWithTimeout('bun', ['add', installSpecifier, '--save-text-lockfile'], {
-                cwd: tmpDir,
-                ...(installTimeoutMs !== undefined && { timeoutMs: installTimeoutMs }),
-            });
-        } else {
-            await executeWithTimeout('npm', ['install', installSpecifier], {
-                cwd: tmpDir,
-                ...(installTimeoutMs !== undefined && { timeoutMs: installTimeoutMs }),
-            });
-        }
+        await executeWithTimeout('bun', ['add', installSpecifier, '--save-text-lockfile'], {
+            cwd: tmpDir,
+            ...(installTimeoutMs !== undefined && { timeoutMs: installTimeoutMs }),
+        });
 
         if (packDir) {
             await fs.rm(packDir, { recursive: true, force: true }).catch(() => {});

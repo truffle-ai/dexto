@@ -4,6 +4,7 @@ import type { Database } from './types.js';
 import type { Logger } from '@dexto/core';
 import { DextoLogComponent, StorageError } from '@dexto/core';
 import type { SqliteDatabaseConfig } from './schemas.js';
+import { Database as BunSqliteDatabase } from 'bun:sqlite';
 
 type SqliteStatement = {
     get(...params: unknown[]): unknown;
@@ -16,12 +17,6 @@ type SqliteDriver = {
     prepare(sql: string): SqliteStatement;
     close(): void;
 };
-
-type SqliteDatabaseConstructor = new (filename: string, options?: unknown) => SqliteDriver;
-
-// Dynamic import for bun:sqlite / better-sqlite3 (Node fallback)
-let BunSqliteDatabase: SqliteDatabaseConstructor | undefined;
-let BetterSqlite3Database: SqliteDatabaseConstructor | undefined;
 
 /**
  * SQLite database store for local development and production.
@@ -111,83 +106,25 @@ export class SQLiteStore implements Database {
         const timeout =
             typeof sqliteOptions['timeout'] === 'number' ? sqliteOptions['timeout'] : 5000;
         const verbose = sqliteOptions['verbose'] === true;
-
-        const isBunRuntime = typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined';
-        const runtime = isBunRuntime ? 'bun' : 'node';
-
         this.logger.debug(`SQLite initializing database with config:`, {
-            runtime,
+            runtime: 'bun',
             readonly,
             fileMustExist,
             timeout,
             verbose,
         });
 
-        if (isBunRuntime) {
-            if (!BunSqliteDatabase) {
-                try {
-                    const module = await import('bun:sqlite');
-                    BunSqliteDatabase = (
-                        module as unknown as { Database: SqliteDatabaseConstructor }
-                    ).Database;
-                } catch (error: unknown) {
-                    throw StorageError.connectionFailed(
-                        `Failed to import bun:sqlite: ${error instanceof Error ? error.message : String(error)}`
-                    );
-                }
-            }
-
-            // bun:sqlite does not support better-sqlite3-style `timeout`/`verbose` constructor options.
-            // If we need timeout-like behavior, we should use `PRAGMA busy_timeout = ...` instead.
-            this.db = new BunSqliteDatabase(this.dbPath, {
-                readonly,
-                create: !fileMustExist,
-            });
-        } else {
-            if (!BetterSqlite3Database) {
-                try {
-                    const module = await import('better-sqlite3');
-                    BetterSqlite3Database = ((module as unknown as { default?: unknown }).default ||
-                        module) as SqliteDatabaseConstructor;
-                } catch (error: unknown) {
-                    const err = error as NodeJS.ErrnoException;
-                    if (err.code === 'ERR_MODULE_NOT_FOUND') {
-                        throw StorageError.dependencyNotInstalled(
-                            'SQLite',
-                            'better-sqlite3',
-                            'npm install better-sqlite3 (or: bun add better-sqlite3)'
-                        );
-                    }
-                    throw StorageError.connectionFailed(
-                        `Failed to import better-sqlite3: ${error instanceof Error ? error.message : String(error)}`
-                    );
-                }
-            }
-
-            this.db = new BetterSqlite3Database(this.dbPath, {
-                readonly,
-                fileMustExist,
-                timeout,
-                verbose: verbose
-                    ? (message?: unknown, ...additionalArgs: unknown[]) => {
-                          const messageStr =
-                              typeof message === 'string'
-                                  ? message
-                                  : typeof message === 'object' && message !== null
-                                    ? JSON.stringify(message)
-                                    : String(message);
-                          this.logger.debug(
-                              messageStr,
-                              additionalArgs.length > 0 ? { args: additionalArgs } : undefined
-                          );
-                      }
-                    : undefined,
-            });
-        }
+        this.db = new BunSqliteDatabase(this.dbPath, {
+            readonly,
+            create: !fileMustExist,
+        }) as unknown as SqliteDriver;
 
         const db = this.getDb();
 
-        // Enable WAL mode for better concurrency (works for both bun:sqlite and better-sqlite3)
+        // busy_timeout approximates better-sqlite3's `timeout` option.
+        db.exec(`PRAGMA busy_timeout = ${timeout}`);
+
+        // Enable WAL mode for better concurrency
         db.exec('PRAGMA journal_mode = WAL');
         this.logger.debug('SQLite enabled WAL mode for better concurrency');
 

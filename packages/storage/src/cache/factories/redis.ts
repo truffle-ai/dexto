@@ -17,7 +17,7 @@ import type { CacheFactory } from '../factory.js';
  * - Suitable for distributed deployments
  *
  * Note: ioredis is an optional dependency. Install it with:
- * npm install ioredis
+ * bun add ioredis
  */
 export const redisCacheFactory: CacheFactory<RedisCacheConfig> = {
     configSchema: RedisCacheSchema,
@@ -29,11 +29,7 @@ export const redisCacheFactory: CacheFactory<RedisCacheConfig> = {
         } catch (error: unknown) {
             const err = error as NodeJS.ErrnoException;
             if (err.code === 'ERR_MODULE_NOT_FOUND') {
-                throw StorageError.dependencyNotInstalled(
-                    'Redis',
-                    'ioredis',
-                    'npm install ioredis'
-                );
+                throw StorageError.dependencyNotInstalled('Redis', 'ioredis', 'bun add ioredis');
             }
             throw error;
         }

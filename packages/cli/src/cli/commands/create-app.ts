@@ -190,12 +190,8 @@ async function scaffoldCodeFirstDI(
         dependencies.push(`@dexto/server@${dextoDependencyVersion}`);
     }
 
-    await installDependencies(
-        projectPath,
-        {
-            dependencies,
-            devDependencies: ['typescript@^5.0.0', '@types/node@^20.0.0'],
-        },
-        isDextoSource ? 'bun' : undefined
-    );
+    await installDependencies(projectPath, {
+        dependencies,
+        devDependencies: ['typescript@^5.0.0', '@types/node@^20.0.0'],
+    });
 }

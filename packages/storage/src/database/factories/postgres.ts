@@ -16,7 +16,7 @@ import type { DatabaseFactory } from '../factory.js';
  * - Suitable for distributed deployments
  *
  * Note: pg is an optional dependency. Install it with:
- * npm install pg
+ * bun add pg
  */
 export const postgresDatabaseFactory: DatabaseFactory<PostgresDatabaseConfig> = {
     configSchema: PostgresDatabaseSchema,
@@ -28,7 +28,7 @@ export const postgresDatabaseFactory: DatabaseFactory<PostgresDatabaseConfig> = 
         } catch (error: unknown) {
             const err = error as NodeJS.ErrnoException;
             if (err.code === 'ERR_MODULE_NOT_FOUND') {
-                throw StorageError.dependencyNotInstalled('PostgreSQL', 'pg', 'npm install pg');
+                throw StorageError.dependencyNotInstalled('PostgreSQL', 'pg', 'bun add pg');
             }
             throw error;
         }

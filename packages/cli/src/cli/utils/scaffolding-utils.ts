@@ -5,7 +5,6 @@ import * as p from '@clack/prompts';
 import { createRequire } from 'module';
 import { executeWithTimeout } from './execute.js';
 import { textOrExit } from './prompt-helpers.js';
-import { getPackageManager, getPackageManagerInstallCommand } from './package-mgmt.js';
 
 const require = createRequire(import.meta.url);
 const cliPackageJson = require('../../../package.json') as { version?: string };
@@ -298,40 +297,22 @@ export async function installDependencies(
     deps: {
         dependencies?: string[];
         devDependencies?: string[];
-    },
-    packageManager?: string
+    }
 ): Promise<void> {
-    const pm = packageManager || getPackageManager();
-    const installCommand = getPackageManagerInstallCommand(pm);
-
     if (deps.dependencies && deps.dependencies.length > 0) {
-        const args = [installCommand];
-        if (pm === 'bun') {
-            args.push('--save-text-lockfile');
-        }
-        args.push(...deps.dependencies);
-
-        await executeWithTimeout(pm, args, {
+        await executeWithTimeout('bun', ['add', '--save-text-lockfile', ...deps.dependencies], {
             cwd: projectPath,
         });
     }
 
     if (deps.devDependencies && deps.devDependencies.length > 0) {
-        const args = [installCommand];
-
-        if (pm === 'bun') {
-            args.push('--dev', '--save-text-lockfile');
-        } else if (pm === 'pnpm' || pm === 'yarn') {
-            args.push('-D');
-        } else if (pm === 'npm') {
-            args.push('--save-dev');
-        }
-
-        args.push(...deps.devDependencies);
-
-        await executeWithTimeout(pm, args, {
-            cwd: projectPath,
-        });
+        await executeWithTimeout(
+            'bun',
+            ['add', '--dev', '--save-text-lockfile', ...deps.devDependencies],
+            {
+                cwd: projectPath,
+            }
+        );
     }
 }
 

@@ -117,7 +117,7 @@ import {
     handleSessionSearchCommand,
 } from './cli/commands/session-commands.js';
 import { requiresSetup } from './cli/utils/setup-utils.js';
-import { checkForFileInCurrentDirectory, FileNotFoundError } from './cli/utils/package-mgmt.js';
+import { checkForFileInCurrentDirectory, FileNotFoundError } from './cli/utils/project-files.js';
 import { checkForUpdates, displayUpdateNotification } from './cli/utils/version-check.js';
 import { resolveWebRoot } from './web.js';
 import { initializeMcpServer, createMcpTransport } from '@dexto/server';

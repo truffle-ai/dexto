@@ -3,7 +3,6 @@ import chalk from 'chalk';
 import fs from 'node:fs/promises';
 import fsExtra from 'fs-extra';
 import path from 'node:path';
-import { getPackageManager, getPackageManagerInstallCommand } from '../utils/package-mgmt.js';
 import { executeWithTimeout } from '../utils/execute.js';
 import { type LLMProvider, getDefaultModelForProvider } from '@dexto/core';
 import { saveProviderApiKey } from '@dexto/agent-management';
@@ -123,8 +122,8 @@ export async function initDexto(
 
     try {
         // install dexto
-        const packageManager = getPackageManager();
-        const installCommand = getPackageManagerInstallCommand(packageManager);
+        const packageManager = 'bun';
+        const installCommand = 'add';
         spinner.start('Installing Dexto...');
         const label = 'latest';
         debug(
@@ -135,6 +134,7 @@ export async function initDexto(
                 packageManager,
                 [
                     installCommand,
+                    '--save-text-lockfile',
                     `@dexto/core@${label}`,
                     `@dexto/storage@${label}`,
                     // Intentionally omit tool packs to keep the example minimal.
@@ -205,7 +205,6 @@ export async function postInitDexto(directory: string) {
     const nextSteps = [
         `1. Run the example (TypeScript):`,
         `   - with Bun: ${chalk.cyan(`bun ${examplePath}`)}`,
-        `   - with Node: ${chalk.cyan(`npx tsx ${examplePath}`)}`,
         `2. Add/update your API key(s) in ${chalk.cyan('.env')}`,
         `3. Customize the agent in ${chalk.cyan(examplePath)}`,
         `4. Read more about Dexto: ${chalk.cyan('https://github.com/truffle-ai/dexto')}`,

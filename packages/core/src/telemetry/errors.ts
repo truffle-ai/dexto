@@ -18,7 +18,7 @@ export class TelemetryError {
             'Telemetry is enabled but required OpenTelemetry packages are not installed.',
             {
                 packages,
-                hint: `Install with: npm install ${packages.join(' ')}`,
+                hint: `Install with: bun add ${packages.join(' ')}`,
                 recovery: 'Or disable telemetry by setting enabled: false in your configuration.',
             }
         );
@@ -39,7 +39,7 @@ export class TelemetryError {
             {
                 exporterType,
                 packageName,
-                hint: `Install with: npm install ${packageName}`,
+                hint: `Install with: bun add ${packageName}`,
             }
         );
     }
