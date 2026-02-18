@@ -101,8 +101,11 @@ describe('SoundNotificationService', () => {
                 ...TEST_CONFIG,
                 onStartup: false,
             });
+            mockedExecFile.mockClear();
+            writeSpy.mockClear();
             service.playStartupSound();
             expect(writeSpy).not.toHaveBeenCalled();
+            expect(mockedExecFile).not.toHaveBeenCalled();
         });
 
         it('should attempt to play sound when enabled', () => {
