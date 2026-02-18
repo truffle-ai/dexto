@@ -107,10 +107,10 @@ async function installNodeLlamaCpp(): Promise<boolean> {
 
     return new Promise((resolve) => {
         // Install to global deps directory (may compile native bindings)
-        const child = spawn('bun', ['add', '--trust', 'node-llama-cpp', '--save-text-lockfile'], {
-            stdio: ['ignore', 'pipe', 'pipe'],
+        const child = spawn('npm', ['install', '--no-audit', '--no-fund', 'node-llama-cpp'], {
+            stdio: ['ignore', 'ignore', 'pipe'],
             cwd: depsDir,
-            shell: true,
+            shell: process.platform === 'win32',
         });
 
         let stderr = '';
@@ -172,7 +172,7 @@ async function ensureNodeLlamaCpp(): Promise<boolean> {
         const depsDir = getDextoGlobalPath('deps');
         p.log.error(
             'Failed to install node-llama-cpp. You can try manually:\n' +
-                chalk.gray(`  cd ${depsDir} && bun add --trust node-llama-cpp`)
+                chalk.gray(`  cd ${depsDir} && npm install node-llama-cpp`)
         );
         return false;
     }
