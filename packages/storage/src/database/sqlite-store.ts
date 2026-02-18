@@ -4,7 +4,6 @@ import type { Database } from './types.js';
 import type { Logger } from '@dexto/core';
 import { DextoLogComponent, StorageError } from '@dexto/core';
 import type { SqliteDatabaseConfig } from './schemas.js';
-import { Database as BunSqliteDatabase } from 'bun:sqlite';
 
 type SqliteStatement = {
     get(...params: unknown[]): unknown;
@@ -33,6 +32,29 @@ export class SQLiteStore implements Database {
         // Path is provided via CLI enrichment
         this.dbPath = '';
         this.logger = logger.createChild(DextoLogComponent.STORAGE);
+    }
+
+    private async loadBunSqliteDatabase(): Promise<typeof import('bun:sqlite').Database> {
+        if (typeof (globalThis as { Bun?: unknown }).Bun === 'undefined') {
+            throw StorageError.connectionFailed('SQLite requires the Bun runtime (bun:sqlite)', {
+                backend: 'sqlite',
+                runtime: 'node',
+            });
+        }
+
+        try {
+            const moduleName = 'bun:' + 'sqlite';
+            const module = (await import(moduleName)) as unknown as typeof import('bun:sqlite');
+            return module.Database;
+        } catch (error) {
+            throw StorageError.connectionFailed(
+                error instanceof Error ? error.message : String(error),
+                {
+                    backend: 'sqlite',
+                    runtime: 'bun',
+                }
+            );
+        }
     }
 
     private initializeTables(): void {
@@ -114,6 +136,7 @@ export class SQLiteStore implements Database {
             verbose,
         });
 
+        const BunSqliteDatabase = await this.loadBunSqliteDatabase();
         this.db = new BunSqliteDatabase(this.dbPath, {
             readonly,
             create: !fileMustExist,
