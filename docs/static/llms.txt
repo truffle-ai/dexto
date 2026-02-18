@@ -25,7 +25,7 @@ Dexto is an AI Agent Runtime that orchestrates intelligent, stateful agents capa
 - [Sessions Configuration](https://docs.dexto.ai/docs/guides/configuring-dexto/sessions.md): Sessions Configuration
 - [Storage Configuration](https://docs.dexto.ai/docs/guides/configuring-dexto/storage.md): Storage Configuration
 - [System Prompt Configuration](https://docs.dexto.ai/docs/guides/configuring-dexto/systemPrompt.md): System Prompt Configuration
-- [Tool Confirmation Configuration](https://docs.dexto.ai/docs/guides/configuring-dexto/toolConfirmation.md): Tool Confirmation Configuration
+- [Permissions Configuration](https://docs.dexto.ai/docs/guides/configuring-dexto/permissions.md): Permissions Configuration
 - [Deployment Guide](https://docs.dexto.ai/docs/guides/deployment.md): Deployment Guide
 - [Dexto as an MCP Server](https://docs.dexto.ai/docs/guides/dexto-as-mcp-server.md): Dexto Agent as an MCP Server
 - [Using Dexto Agents in Cursor](https://docs.dexto.ai/docs/guides/dexto-in-cursor.md): Using Dexto Agents in Cursor

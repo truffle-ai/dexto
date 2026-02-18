@@ -84,11 +84,13 @@ export function createMockCache(storeType: string): Cache {
     };
 }
 
-export function createMockTool(id: string): Tool {
+const MockToolInputSchema = z.object({}).strict();
+
+export function createMockTool(id: string): Tool<typeof MockToolInputSchema> {
     return {
         id,
         description: `tool:${id}`,
-        inputSchema: z.object({}).strict(),
+        inputSchema: MockToolInputSchema,
         execute: vi.fn(async () => ({ ok: true })),
     };
 }

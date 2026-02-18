@@ -109,7 +109,7 @@ llm:
   model: claude-sonnet-4-5-20250929
   apiKey: $ANTHROPIC_API_KEY
 
-toolConfirmation:
+permissions:
   mode: auto-approve
 ```
 
@@ -117,7 +117,7 @@ toolConfirmation:
 
 1. **systemPrompt**: Defines specialized product name research expertise
 2. **mcpServers**: Connects to three complementary research tools
-3. **toolConfirmation**: Auto-approves tools for seamless research workflow
+3. **permissions**: Auto-approves tools for seamless research workflow
 4. **llm**: Configures the language model for intelligent analysis
 
 ## Step 4: Available Tools

@@ -10,7 +10,7 @@
  *
  * ## Custom Factories
  * Product layers (CLI/server/platform) decide which factories are available by including them
- * in images (`DextoImageModule.storage.blob`).
+ * in images (`DextoImage.storage.blob`).
  *
  * ## Usage
  * Blob stores are typically constructed by the product-layer resolver (`@dexto/agent-config`)

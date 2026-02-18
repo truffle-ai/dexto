@@ -307,7 +307,7 @@ Agent sees: `filesystem__read_file`, `filesystem__write_file`, `playwright__navi
 ## See Also
 
 - [agent.yml Reference → MCP Servers](./agent-yml.md#mcp-servers) - Complete field documentation
-- [Tool Confirmation](./toolConfirmation.md) - Control MCP tool execution
+- [Permissions](./permissions.md) - Control MCP tool execution
 - [MCP Overview](../../mcp/overview.md) - What is MCP and why it matters
 - [MCP Manager](../../mcp/mcp-manager.md) - Runtime server management
 - [Official MCP Servers](https://github.com/modelcontextprotocol/servers) - Available MCP servers

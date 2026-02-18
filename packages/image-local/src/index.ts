@@ -1,6 +1,6 @@
 import {
-    type DextoImageModule,
-    type PluginFactory,
+    type DextoImage,
+    type HookFactory,
     type CompactionFactory,
     NoOpCompactionConfigSchema,
     type NoOpCompactionConfig,
@@ -10,8 +10,8 @@ import {
 import { createRequire } from 'module';
 import { z } from 'zod';
 import {
-    ContentPolicyPlugin,
-    ResponseSanitizerPlugin,
+    ContentPolicyHook,
+    ResponseSanitizerHook,
     defaultLoggerFactory,
     NoOpCompactionStrategy,
     ReactiveOverflowCompactionStrategy,
@@ -31,6 +31,7 @@ import { processToolsFactory } from '@dexto/tools-process';
 import { todoToolsFactory } from '@dexto/tools-todo';
 import { planToolsFactory } from '@dexto/tools-plan';
 import { schedulerToolsFactory } from '@dexto/tools-scheduler';
+import { lifecycleToolsFactory } from '@dexto/tools-lifecycle';
 import { agentSpawnerToolsFactory } from '@dexto/agent-management';
 
 const require = createRequire(import.meta.url);
@@ -54,14 +55,14 @@ const responseSanitizerConfigSchema = z
     })
     .strict();
 
-const contentPolicyFactory: PluginFactory<z.output<typeof contentPolicyConfigSchema>> = {
+const contentPolicyFactory: HookFactory<z.output<typeof contentPolicyConfigSchema>> = {
     configSchema: contentPolicyConfigSchema,
-    create: (_config) => new ContentPolicyPlugin(),
+    create: (_config) => new ContentPolicyHook(),
 };
 
-const responseSanitizerFactory: PluginFactory<z.output<typeof responseSanitizerConfigSchema>> = {
+const responseSanitizerFactory: HookFactory<z.output<typeof responseSanitizerConfigSchema>> = {
     configSchema: responseSanitizerConfigSchema,
-    create: (_config) => new ResponseSanitizerPlugin(),
+    create: (_config) => new ResponseSanitizerHook(),
 };
 
 const noopCompactionFactory: CompactionFactory<NoOpCompactionConfig> = {
@@ -89,7 +90,7 @@ const reactiveOverflowCompactionFactory: CompactionFactory<ReactiveOverflowCompa
         }),
 };
 
-const imageLocal: DextoImageModule = {
+const imageLocal: DextoImage = {
     metadata: {
         name: packageJson.name ?? '@dexto/image-local',
         version: packageJson.version ?? '0.0.0',
@@ -110,6 +111,7 @@ const imageLocal: DextoImageModule = {
             { type: 'todo-tools' },
             { type: 'plan-tools' },
             { type: 'scheduler-tools' },
+            { type: 'lifecycle-tools' },
             { type: 'agent-spawner' },
         ],
         prompts: [
@@ -132,12 +134,12 @@ const imageLocal: DextoImageModule = {
                     '- Do not start implementing until the user approves the plan.',
                     '',
                     'Plan tools:',
-                    '- Create a plan: `custom--plan_create`',
-                    '- Update a plan: `custom--plan_update`',
-                    '- Read the current plan: `custom--plan_read`',
-                    '- Request user approval: `custom--plan_review`',
+                    '- Create a plan: `plan_create`',
+                    '- Update a plan: `plan_update`',
+                    '- Read the current plan: `plan_read`',
+                    '- Request user approval: `plan_review`',
                     '',
-                    'After drafting the plan, call `custom--plan_create` (or `custom--plan_update` if it already exists), then call `custom--plan_review`.',
+                    'After drafting the plan, call `plan_create` (or `plan_update` if it already exists), then call `plan_review`.',
                 ].join('\n'),
             },
         ],
@@ -149,6 +151,7 @@ const imageLocal: DextoImageModule = {
         'todo-tools': todoToolsFactory,
         'plan-tools': planToolsFactory,
         'scheduler-tools': schedulerToolsFactory,
+        'lifecycle-tools': lifecycleToolsFactory,
         'agent-spawner': agentSpawnerToolsFactory,
     },
     storage: {
@@ -166,7 +169,7 @@ const imageLocal: DextoImageModule = {
             redis: redisCacheFactory,
         },
     },
-    plugins: {
+    hooks: {
         'content-policy': contentPolicyFactory,
         'response-sanitizer': responseSanitizerFactory,
     },

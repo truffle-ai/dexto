@@ -3,7 +3,7 @@
 // ============================================================================
 
 import type { JSONSchema7 } from 'json-schema';
-import type { ZodSchema } from 'zod';
+import type { z, ZodTypeAny } from 'zod';
 import type { ToolDisplayData } from './display-types.js';
 import type { WorkspaceContext } from '../workspace/types.js';
 import type { ApprovalRequestDetails, ApprovalResponse } from '../approval/types.js';
@@ -38,6 +38,13 @@ export interface TaskForker {
         error?: string;
     }>;
 }
+
+// TODO: Revisit where delegation ("task forking") belongs.
+// Today `TaskForker` is a core-owned capability exposed via ToolExecutionContext.services so tool
+// packs can delegate work without depending on `@dexto/agent-management` (which provides the impl).
+// Alternatives: move delegation-only tools to a host tool pack, or surface taskForker as a
+// first-class ToolExecutionContext field rather than inside `services`.
+export type TaskForkOptions = Parameters<TaskForker['fork']>[0];
 
 export interface ToolServices {
     approval: ApprovalManager;
@@ -99,6 +106,8 @@ export interface ToolExecutionContext extends ToolExecutionContextBase {
 export interface ToolExecutionResult {
     /** The actual result data from tool execution */
     result: unknown;
+    /** Optional display name for the tool (UI convenience) */
+    toolDisplayName?: string;
     /** Whether this tool required user approval before execution */
     requireApproval?: boolean;
     /** The approval status (only present if requireApproval is true) */
@@ -112,28 +121,61 @@ export interface ToolExecutionResult {
 /**
  * Tool interface - for tools implemented within Dexto
  */
-export interface Tool {
+export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
     /** Unique identifier for the tool */
     id: string;
+
+    /**
+     * Short, user-facing name for this tool (UI convenience).
+     * Defaults to a title-cased version of {@link id} when omitted.
+     */
+    displayName?: string | undefined;
 
     /** Human-readable description of what the tool does */
     description: string;
 
     /** Zod schema defining the input parameters */
-    inputSchema: ZodSchema;
+    inputSchema: TSchema;
 
     /** The actual function that executes the tool - input is validated by Zod before execution */
-    execute: (input: unknown, context: ToolExecutionContext) => Promise<unknown> | unknown;
+    execute(input: z.output<TSchema>, context: ToolExecutionContext): Promise<unknown> | unknown;
 
     /**
      * Optional preview generator for approval UI.
      * Called before requesting user approval to generate display data (e.g., diff preview).
      * Returns null if no preview is available.
      */
-    generatePreview?: (
-        input: unknown,
+    generatePreview?(
+        input: z.output<TSchema>,
         context: ToolExecutionContext
-    ) => Promise<ToolDisplayData | null>;
+    ): Promise<ToolDisplayData | null>;
+
+    /**
+     * Optional aliases for this tool id.
+     *
+     * Used to support external prompt/skill ecosystems that refer to tools by short names
+     * (e.g. Claude Code "bash", "read", "grep" in allowed-tools). Aliases are resolved
+     * by {@link ToolManager} when applying session auto-approve lists.
+     */
+    aliases?: string[] | undefined;
+
+    /**
+     * Optional pattern key generator for approval memory.
+     *
+     * If provided, ToolManager will:
+     * - Skip confirmation when the pattern key is covered by previously approved patterns.
+     * - Offer suggested patterns (if {@link suggestApprovalPatterns} is provided) in the approval UI.
+     *
+     * Return null to disable pattern approvals for the given input (e.g. dangerous commands).
+     */
+    getApprovalPatternKey?(input: z.output<TSchema>): string | null;
+
+    /**
+     * Optional pattern suggestions for the approval UI.
+     *
+     * Returned patterns are shown as quick "remember pattern" options.
+     */
+    suggestApprovalPatterns?(input: z.output<TSchema>): string[];
 
     /**
      * Optional custom approval override.
@@ -141,14 +183,14 @@ export interface Tool {
      * the default tool confirmation. Allows tools to request specialized approval
      * flows (e.g., directory access approval for file tools).
      *
-     * @param args The validated input arguments for the tool
+     * @param input The validated input arguments for the tool
      * @returns ApprovalRequestDetails for custom approval, or null to use default tool confirmation
      *
      * @example
      * ```typescript
      * // File tool requesting directory access approval for external paths
-     * getApprovalOverride: async (args) => {
-     *   const filePath = (args as {file_path: string}).file_path;
+     * getApprovalOverride: async (input) => {
+     *   const filePath = (input as {file_path: string}).file_path;
      *   if (!await isPathWithinAllowed(filePath)) {
      *     return {
      *       type: ApprovalType.DIRECTORY_ACCESS,
@@ -159,10 +201,10 @@ export interface Tool {
      * }
      * ```
      */
-    getApprovalOverride?: (
-        args: unknown,
+    getApprovalOverride?(
+        input: z.output<TSchema>,
         context: ToolExecutionContext
-    ) => Promise<ApprovalRequestDetails | null> | ApprovalRequestDetails | null;
+    ): Promise<ApprovalRequestDetails | null> | ApprovalRequestDetails | null;
 
     /**
      * Optional callback invoked when custom approval is granted.
@@ -180,7 +222,11 @@ export interface Tool {
      * }
      * ```
      */
-    onApprovalGranted?: (response: ApprovalResponse, context: ToolExecutionContext) => void;
+    onApprovalGranted?(
+        response: ApprovalResponse,
+        context: ToolExecutionContext,
+        approvalRequest: ApprovalRequestDetails
+    ): void;
 }
 
 /**

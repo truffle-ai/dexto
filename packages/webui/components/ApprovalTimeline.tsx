@@ -3,7 +3,7 @@ import { AlertCircle, ChevronRight, CheckCircle2, XCircle, Terminal, Wrench } fr
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
-import type { ApprovalEvent } from './ToolConfirmationHandler';
+import type { ApprovalEvent } from './ApprovalRequestHandler';
 import type { JSONSchema7 } from 'json-schema';
 import { ApprovalType } from '@dexto/core';
 
@@ -65,9 +65,9 @@ export function ApprovalTimeline({ approval, onApprove, onDeny }: ApprovalTimeli
             displayName = 'bash';
             summary = 'Command requires approval';
             source = 'system';
-        } else if (approval.type === ApprovalType.TOOL_CONFIRMATION) {
+        } else if (approval.type === ApprovalType.TOOL_APPROVAL) {
             const toolName = approval.metadata.toolName;
-            if (toolName.startsWith('mcp__')) {
+            if (toolName.startsWith('mcp--')) {
                 displayName = toolName.substring(5);
                 source = 'mcp';
             } else {
@@ -329,7 +329,7 @@ export function ApprovalTimeline({ approval, onApprove, onDeny }: ApprovalTimeli
                         )}
 
                         {/* Tool confirmation */}
-                        {approval.type === ApprovalType.TOOL_CONFIRMATION && (
+                        {approval.type === ApprovalType.TOOL_APPROVAL && (
                             <>
                                 <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                                     <Wrench className="h-3 w-3" />

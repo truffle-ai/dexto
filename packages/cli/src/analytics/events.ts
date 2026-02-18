@@ -63,7 +63,7 @@ export interface CliCommandTimeoutEvent extends CliCommandBaseEvent {
 export type CliCommandEvent = CliCommandStartEvent | CliCommandEndEvent | CliCommandTimeoutEvent;
 
 export interface PromptEvent {
-    mode: 'cli' | 'headless';
+    mode: 'cli';
     provider: string;
     model: string;
 }

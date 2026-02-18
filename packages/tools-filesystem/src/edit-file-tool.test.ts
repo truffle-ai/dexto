@@ -89,17 +89,18 @@ describe('edit_file tool', () => {
                 old_string: 'world',
                 new_string: 'universe',
             };
+            const parsedInput = tool.inputSchema.parse(input);
 
             // Generate preview (stores hash)
             const preview = await tool.generatePreview!(
-                input,
+                parsedInput,
                 createToolContext(mockLogger, { toolCallId })
             );
             expect(preview).toBeDefined();
 
             // Execute without modifying file (should succeed)
             const result = (await tool.execute(
-                input,
+                parsedInput,
                 createToolContext(mockLogger, { toolCallId })
             )) as {
                 success: boolean;
@@ -125,10 +126,11 @@ describe('edit_file tool', () => {
                 old_string: 'world',
                 new_string: 'universe',
             };
+            const parsedInput = tool.inputSchema.parse(input);
 
             // Generate preview (stores hash)
             const preview = await tool.generatePreview!(
-                input,
+                parsedInput,
                 createToolContext(mockLogger, { toolCallId })
             );
             expect(preview).toBeDefined();
@@ -138,7 +140,7 @@ describe('edit_file tool', () => {
 
             // Execute should fail because file was modified
             try {
-                await tool.execute(input, createToolContext(mockLogger, { toolCallId }));
+                await tool.execute(parsedInput, createToolContext(mockLogger, { toolCallId }));
                 expect.fail('Should have thrown an error');
             } catch (error) {
                 expect(error).toBeInstanceOf(DextoRuntimeError);
@@ -163,16 +165,17 @@ describe('edit_file tool', () => {
                 old_string: 'world',
                 new_string: 'universe',
             };
+            const parsedInput = tool.inputSchema.parse(input);
 
             // Generate preview (stores hash)
-            await tool.generatePreview!(input, createToolContext(mockLogger, { toolCallId }));
+            await tool.generatePreview!(parsedInput, createToolContext(mockLogger, { toolCallId }));
 
             // Simulate user modifying the file externally
             await fs.writeFile(testFile, 'hello world modified');
 
             // Execute should fail with FILE_MODIFIED_SINCE_PREVIEW error
             try {
-                await tool.execute(input, createToolContext(mockLogger, { toolCallId }));
+                await tool.execute(parsedInput, createToolContext(mockLogger, { toolCallId }));
                 expect.fail('Should have thrown an error');
             } catch (error) {
                 expect(error).toBeInstanceOf(DextoRuntimeError);
@@ -196,9 +199,10 @@ describe('edit_file tool', () => {
                 old_string: 'world',
                 new_string: 'universe',
             };
+            const parsedInput = tool.inputSchema.parse(input);
 
             // Generate preview without toolCallId
-            await tool.generatePreview!(input, createToolContext(mockLogger));
+            await tool.generatePreview!(parsedInput, createToolContext(mockLogger));
 
             // Modify file
             await fs.writeFile(testFile, 'hello world changed');
@@ -207,7 +211,7 @@ describe('edit_file tool', () => {
             // (but will fail because old_string won't match the new content)
             // This tests that the tool doesn't crash when toolCallId is missing
             try {
-                await tool.execute(input, createToolContext(mockLogger));
+                await tool.execute(parsedInput, createToolContext(mockLogger));
             } catch (error) {
                 // Expected to fail because 'world' is no longer in the file
                 // But it should NOT be FILE_MODIFIED_SINCE_PREVIEW error
@@ -229,12 +233,13 @@ describe('edit_file tool', () => {
                 old_string: 'world',
                 new_string: 'universe',
             };
+            const parsedInput = tool.inputSchema.parse(input);
 
             // Generate preview
-            await tool.generatePreview!(input, createToolContext(mockLogger, { toolCallId }));
+            await tool.generatePreview!(parsedInput, createToolContext(mockLogger, { toolCallId }));
 
             // Execute successfully
-            await tool.execute(input, createToolContext(mockLogger, { toolCallId }));
+            await tool.execute(parsedInput, createToolContext(mockLogger, { toolCallId }));
 
             // Prepare for second edit
             const input2 = {
@@ -242,12 +247,16 @@ describe('edit_file tool', () => {
                 old_string: 'universe',
                 new_string: 'galaxy',
             };
+            const parsedInput2 = tool.inputSchema.parse(input2);
 
             // Second execution with same toolCallId should work
             // (hash should have been cleaned up, so no stale check)
-            await tool.generatePreview!(input2, createToolContext(mockLogger, { toolCallId }));
+            await tool.generatePreview!(
+                parsedInput2,
+                createToolContext(mockLogger, { toolCallId })
+            );
             const result = (await tool.execute(
-                input2,
+                parsedInput2,
                 createToolContext(mockLogger, { toolCallId })
             )) as { success: boolean };
 
@@ -267,16 +276,17 @@ describe('edit_file tool', () => {
                 old_string: 'world',
                 new_string: 'universe',
             };
+            const parsedInput = tool.inputSchema.parse(input);
 
             // Generate preview
-            await tool.generatePreview!(input, createToolContext(mockLogger, { toolCallId }));
+            await tool.generatePreview!(parsedInput, createToolContext(mockLogger, { toolCallId }));
 
             // Modify file to cause failure
             await fs.writeFile(testFile, 'hello world modified');
 
             // Execute should fail
             try {
-                await tool.execute(input, createToolContext(mockLogger, { toolCallId }));
+                await tool.execute(parsedInput, createToolContext(mockLogger, { toolCallId }));
             } catch {
                 // Expected
             }
@@ -286,9 +296,9 @@ describe('edit_file tool', () => {
 
             // Next execution with same toolCallId should work
             // (hash should have been cleaned up even after failure)
-            await tool.generatePreview!(input, createToolContext(mockLogger, { toolCallId }));
+            await tool.generatePreview!(parsedInput, createToolContext(mockLogger, { toolCallId }));
             const result = (await tool.execute(
-                input,
+                parsedInput,
                 createToolContext(mockLogger, { toolCallId })
             )) as { success: boolean };
 

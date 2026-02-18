@@ -40,7 +40,7 @@ describe('Config Writer', () => {
             systemPrompt: 'You are a helpful assistant.',
             tools: [
                 {
-                    type: 'builtin-tools',
+                    type: 'lifecycle-tools',
                     enabledTools: ['search_history'],
                 },
             ],

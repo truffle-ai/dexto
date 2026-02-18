@@ -254,9 +254,9 @@ export class ApprovalError {
     }
 
     /**
-     * Create an error for tool confirmation denied
+     * Create an error for tool approval denied
      */
-    static toolConfirmationDenied(
+    static toolApprovalDenied(
         toolName: string,
         reason?: DenialReason,
         customMessage?: string,
@@ -275,11 +275,11 @@ export class ApprovalError {
                 message = customMessage ?? `Tool execution denied by system policy: ${toolName}`;
                 suggestions = [
                     'Tool is in the alwaysDeny list',
-                    'Check toolConfirmation.toolPolicies in agent configuration',
+                    'Check permissions.toolPolicies in agent configuration',
                 ];
                 break;
             case 'timeout':
-                message = customMessage ?? `Tool confirmation timed out: ${toolName}`;
+                message = customMessage ?? `Tool approval timed out: ${toolName}`;
                 suggestions = [
                     'Increase the timeout value',
                     'Respond to approval requests more quickly',
@@ -300,7 +300,7 @@ export class ApprovalError {
         if (sessionId) context.sessionId = sessionId;
 
         return new DextoRuntimeError(
-            ApprovalErrorCode.APPROVAL_TOOL_CONFIRMATION_DENIED,
+            ApprovalErrorCode.APPROVAL_TOOL_APPROVAL_DENIED,
             ErrorScope.TOOLS,
             ErrorType.FORBIDDEN,
             message,

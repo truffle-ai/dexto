@@ -33,6 +33,7 @@
     "@dexto/storage": "workspace:*",
     "@dexto/tools-builtins": "workspace:*",
     "@dexto/tools-filesystem": "workspace:*",
+    "@dexto/tools-lifecycle": "workspace:*",
     "@dexto/tools-plan": "workspace:*",
     "@dexto/tools-process": "workspace:*",
     "@dexto/tools-scheduler": "workspace:*",

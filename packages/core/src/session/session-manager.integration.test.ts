@@ -5,8 +5,8 @@ import { SystemPromptConfigSchema } from '../systemPrompt/schemas.js';
 import { LLMConfigSchema } from '../llm/schemas.js';
 import { LoggerConfigSchema } from '../logger/index.js';
 import { SessionConfigSchema } from './schemas.js';
-import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '../tools/schemas.js';
-import { InternalResourcesSchema } from '../resources/schemas.js';
+import { PermissionsConfigSchema, ElicitationConfigSchema } from '../tools/schemas.js';
+import { ResourcesConfigSchema } from '../resources/schemas.js';
 import { PromptsSchema } from '../prompts/schemas.js';
 import { createLogger } from '../logger/factory.js';
 import type { SessionData } from './session-manager.js';
@@ -37,7 +37,7 @@ describe('Session Integration: Chat History Preservation', () => {
             maxSessions: 10,
             sessionTTL: 100, // 100ms for fast testing
         }),
-        toolConfirmation: ToolConfirmationConfigSchema.parse({
+        permissions: PermissionsConfigSchema.parse({
             mode: 'auto-approve',
             timeout: 120000,
         }),
@@ -45,7 +45,7 @@ describe('Session Integration: Chat History Preservation', () => {
             enabled: false,
             timeout: 120000,
         }),
-        internalResources: InternalResourcesSchema.parse([]),
+        resources: ResourcesConfigSchema.parse([]),
         prompts: PromptsSchema.parse([]),
     };
 
@@ -65,7 +65,7 @@ describe('Session Integration: Chat History Preservation', () => {
                 cache: createInMemoryCache(),
             },
             tools: [],
-            plugins: [],
+            hooks: [],
         });
         await agent.start();
     });
@@ -264,7 +264,7 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
         agentId: 'token-tracking-test-agent',
         mcpServers: ServersConfigSchema.parse({}),
         sessions: SessionConfigSchema.parse({}),
-        toolConfirmation: ToolConfirmationConfigSchema.parse({
+        permissions: PermissionsConfigSchema.parse({
             mode: 'auto-approve',
             timeout: 120000,
         }),
@@ -272,7 +272,7 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
             enabled: false,
             timeout: 120000,
         }),
-        internalResources: InternalResourcesSchema.parse([]),
+        resources: ResourcesConfigSchema.parse([]),
         prompts: PromptsSchema.parse([]),
     };
 
@@ -292,7 +292,7 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
                 cache: createInMemoryCache(),
             },
             tools: [],
-            plugins: [],
+            hooks: [],
         });
         await agent.start();
     });

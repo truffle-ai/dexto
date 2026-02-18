@@ -19,7 +19,7 @@ type FileSystemToolName = (typeof FILESYSTEM_TOOL_NAMES)[number];
 export const fileSystemToolsFactory: ToolFactory<FileSystemToolsConfig> = {
     configSchema: FileSystemToolsConfigSchema,
     metadata: {
-        displayName: 'FileSystem Tools',
+        displayName: 'Filesystem Tools',
         description: 'File system operations (read, write, edit, glob, grep)',
         category: 'filesystem',
     },

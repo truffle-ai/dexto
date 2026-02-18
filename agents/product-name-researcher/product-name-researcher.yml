@@ -159,7 +159,7 @@ storage:
     type: sqlite
 
 # Tool confirmation - auto-approve for seamless domain checking
-toolConfirmation:
+permissions:
   mode: auto-approve
   allowedToolsStorage: memory
 

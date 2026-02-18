@@ -67,12 +67,11 @@ export function applyCLIOverrides(
     }
 
     if (cliOverrides.autoApprove) {
-        // Ensure toolConfirmation section exists before overriding
-        if (!mergedConfig.toolConfirmation) {
-            mergedConfig.toolConfirmation = { mode: 'auto-approve' };
-        } else {
-            mergedConfig.toolConfirmation.mode = 'auto-approve';
-        }
+        // Ensure permissions section exists before overriding
+        mergedConfig.permissions = {
+            ...(mergedConfig.permissions ?? {}),
+            mode: 'auto-approve',
+        };
     }
 
     if (cliOverrides.elicitation === false) {

@@ -188,10 +188,19 @@ await manager.disconnectAll();
 Delegate tasks to other A2A-compliant agents using the built-in `delegate_to_url` tool.
 
 ```typescript
+import { builtinToolsFactory } from '@dexto/tools-builtins';
+
+const tools = builtinToolsFactory.create({
+  type: 'builtin-tools',
+  enabledTools: ['delegate_to_url'],
+});
+
 const agent = new DextoAgent({
   llm: { /* ... */ },
-  internalTools: ['delegate_to_url'], // Enable delegation tool
-  toolConfirmation: { mode: 'auto-approve' }
+  logger,   // provide a per-agent logger instance
+  storage,  // provide cache/database/blob implementations
+  tools,
+  permissions: { mode: 'auto-approve' }
 });
 await agent.start();
 
@@ -204,15 +213,18 @@ await agent.generate(`
 `, session.id);
 
 // Or call the tool directly
-const tools = await agent.getAllTools();
-const delegateTool = tools.find(t => t.name === 'internal--delegate_to_url');
-// The tool is prefixed with 'internal--' by the ToolManager
+await agent.executeTool('delegate_to_url', {
+  url: 'http://localhost:3001',
+  message: 'Extract all tables from the Q4 sales report',
+});
 ```
 
 **Configuration (YAML):**
 ```yaml
-internalTools:
-  - delegate_to_url
+tools:
+  - type: builtin-tools
+    enabledTools:
+      - delegate_to_url
 ```
 
 **What it provides:**
@@ -280,4 +292,3 @@ https://docs.dexto.ai/api/dexto-agent/
 ## License
 
 Elastic License 2.0. See the repository LICENSE for details.
-

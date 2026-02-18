@@ -97,6 +97,7 @@ export const systemCommands: CommandDefinition[] = [
             try {
                 const config = agent.getEffectiveConfig();
                 const servers = Object.keys(config.mcpServers || {});
+                const hooksEnabled = agent.services.hookManager.getHookNames();
 
                 const configFilePath = ctx.configFilePath ?? null;
 
@@ -107,14 +108,14 @@ export const systemCommands: CommandDefinition[] = [
                     model: config.llm.model,
                     maxTokens: config.llm.maxOutputTokens ?? null,
                     temperature: config.llm.temperature ?? null,
-                    toolConfirmationMode: config.toolConfirmation?.mode || 'auto',
+                    permissionsMode: config.permissions.mode,
                     maxSessions: config.sessions?.maxSessions?.toString() || 'Default',
                     sessionTTL: config.sessions?.sessionTTL
                         ? `${config.sessions.sessionTTL / 1000}s`
                         : 'Default',
                     mcpServers: servers,
                     promptsCount: config.prompts?.length || 0,
-                    pluginsEnabled: [],
+                    hooksEnabled,
                 };
 
                 // Build fallback text (no console.log - interferes with Ink rendering)
@@ -122,10 +123,11 @@ export const systemCommands: CommandDefinition[] = [
                     'Configuration:',
                     configFilePath ? `  Config: ${configFilePath}` : '',
                     `  LLM: ${config.llm.provider} / ${config.llm.model}`,
-                    `  Tool Confirmation: ${styledData.toolConfirmationMode}`,
+                    `  Permissions: ${styledData.permissionsMode}`,
                     `  Sessions: max=${styledData.maxSessions}, ttl=${styledData.sessionTTL}`,
                     `  MCP Servers: ${servers.length > 0 ? servers.join(', ') : 'none'}`,
                     `  Prompts: ${styledData.promptsCount}`,
+                    `  Hooks: ${hooksEnabled.length > 0 ? hooksEnabled.join(', ') : 'none'}`,
                 ].filter(Boolean);
 
                 return CommandOutputHelper.styled('config', styledData, fallbackLines.join('\n'));

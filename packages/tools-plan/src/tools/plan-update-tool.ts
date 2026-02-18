@@ -7,6 +7,7 @@
 
 import { z } from 'zod';
 import { createPatch } from 'diff';
+import { defineTool } from '@dexto/core';
 import type { Tool, ToolExecutionContext, DiffDisplayData } from '@dexto/core';
 import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
@@ -16,8 +17,6 @@ const PlanUpdateInputSchema = z
         content: z.string().describe('Updated plan content in markdown format'),
     })
     .strict();
-
-type PlanUpdateInput = z.input<typeof PlanUpdateInputSchema>;
 
 /**
  * Generate diff preview for plan update
@@ -45,9 +44,12 @@ function generateDiffPreview(
 /**
  * Creates the plan_update tool
  */
-export function createPlanUpdateTool(getPlanService: PlanServiceGetter): Tool {
-    return {
+export function createPlanUpdateTool(
+    getPlanService: PlanServiceGetter
+): Tool<typeof PlanUpdateInputSchema> {
+    return defineTool({
         id: 'plan_update',
+        displayName: 'Update Plan',
         description:
             'Update the existing implementation plan for this session. Shows a diff preview for approval before saving. The plan must already exist (use plan_create first).',
         inputSchema: PlanUpdateInputSchema,
@@ -55,12 +57,9 @@ export function createPlanUpdateTool(getPlanService: PlanServiceGetter): Tool {
         /**
          * Generate diff preview for approval UI
          */
-        generatePreview: async (
-            input: unknown,
-            context: ToolExecutionContext
-        ): Promise<DiffDisplayData> => {
+        generatePreview: async (input, context: ToolExecutionContext): Promise<DiffDisplayData> => {
             const resolvedPlanService = await getPlanService(context);
-            const { content: newContent } = input as PlanUpdateInput;
+            const { content: newContent } = input;
 
             if (!context.sessionId) {
                 throw PlanError.sessionIdRequired();
@@ -77,9 +76,9 @@ export function createPlanUpdateTool(getPlanService: PlanServiceGetter): Tool {
             return generateDiffPreview(planPath, existing.content, newContent);
         },
 
-        execute: async (input: unknown, context: ToolExecutionContext) => {
+        async execute(input, context: ToolExecutionContext) {
             const resolvedPlanService = await getPlanService(context);
-            const { content } = input as PlanUpdateInput;
+            const { content } = input;
 
             if (!context.sessionId) {
                 throw PlanError.sessionIdRequired();
@@ -95,5 +94,5 @@ export function createPlanUpdateTool(getPlanService: PlanServiceGetter): Tool {
                 _display: generateDiffPreview(planPath, result.oldContent, result.newContent),
             };
         },
-    };
+    });
 }

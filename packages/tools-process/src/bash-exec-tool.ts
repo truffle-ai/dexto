@@ -2,19 +2,24 @@
  * Bash Execute Tool
  *
  * Internal tool for executing shell commands.
- * Approval is handled at the ToolManager level with pattern-based approval.
+ * Pattern-based approval support is declared on the tool (ToolManager stays generic).
  */
 
 import * as path from 'node:path';
 import { z } from 'zod';
-import { Tool, ToolExecutionContext } from '@dexto/core';
+import { defineTool } from '@dexto/core';
+import type { Tool, ToolExecutionContext } from '@dexto/core';
 import { ProcessService } from './process-service.js';
 import { ProcessError } from './errors.js';
 import type { ShellDisplayData } from '@dexto/core';
+import {
+    generateCommandPatternKey,
+    generateCommandPatternSuggestions,
+} from './command-pattern-utils.js';
 
 const BashExecInputSchema = z
     .object({
-        command: z.string().describe('Shell command to execute'),
+        command: z.string().min(1).describe('Shell command to execute'),
         description: z
             .string()
             .optional()
@@ -38,16 +43,18 @@ const BashExecInputSchema = z
     })
     .strict();
 
-type BashExecInput = z.input<typeof BashExecInputSchema>;
-
 /**
  * Create the bash_exec internal tool
  */
 export type ProcessServiceGetter = (context: ToolExecutionContext) => Promise<ProcessService>;
 
-export function createBashExecTool(getProcessService: ProcessServiceGetter): Tool {
-    return {
+export function createBashExecTool(
+    getProcessService: ProcessServiceGetter
+): Tool<typeof BashExecInputSchema> {
+    return defineTool({
         id: 'bash_exec',
+        displayName: 'Bash',
+        aliases: ['bash'],
         description: `Execute a shell command in the project root directory.
 
 IMPORTANT: This tool is for terminal operations like git, npm, docker, etc. Do NOT use it for file operations - use the specialized tools instead:
@@ -95,28 +102,36 @@ Each command runs in a fresh shell, so cd does not persist between calls.
 Security: Dangerous commands are blocked. Injection attempts are detected. Requires approval with pattern-based session memory.`,
         inputSchema: BashExecInputSchema,
 
+        getApprovalPatternKey(input): string | null {
+            const command = input.command;
+            return generateCommandPatternKey(command);
+        },
+
+        suggestApprovalPatterns(input): string[] {
+            const command = input.command;
+            return generateCommandPatternSuggestions(command);
+        },
+
         /**
          * Generate preview for approval UI - shows the command to be executed
          */
-        generatePreview: async (input: unknown, _context: ToolExecutionContext) => {
-            const { command, run_in_background } = input as BashExecInput;
-
+        async generatePreview(input, _context: ToolExecutionContext) {
+            const { command, run_in_background } = input;
             const preview: ShellDisplayData = {
                 type: 'shell',
                 command,
                 exitCode: 0, // Placeholder - not executed yet
                 duration: 0, // Placeholder - not executed yet
-                ...(run_in_background !== undefined && { isBackground: run_in_background }),
+                isBackground: run_in_background,
             };
             return preview;
         },
 
-        execute: async (input: unknown, context: ToolExecutionContext) => {
+        async execute(input, context: ToolExecutionContext) {
             const resolvedProcessService = await getProcessService(context);
 
             // Input is validated by provider before reaching here
-            const { command, description, timeout, run_in_background, cwd } =
-                input as BashExecInput;
+            const { command, description, timeout, run_in_background, cwd } = input;
 
             // Validate cwd to prevent path traversal
             let validatedCwd: string | undefined = cwd;
@@ -193,5 +208,5 @@ Security: Dangerous commands are blocked. Injection attempts are detected. Requi
                 };
             }
         },
-    };
+    });
 }

@@ -47,7 +47,7 @@ import {
     resolveServicesFromConfig,
     setImageImporter,
     toDextoAgentOptions,
-    type DextoImageModule,
+    type DextoImage,
     type ValidatedAgentConfig,
 } from '@dexto/agent-config';
 import {
@@ -89,8 +89,6 @@ import {
     handleWhichCommand,
     handleSyncAgentsCommand,
     shouldPromptForSync,
-    markSyncDismissed,
-    clearSyncDismissed,
     type SyncAgentsCommandOptions,
     handleLoginCommand,
     handleLogoutCommand,
@@ -150,10 +148,7 @@ program
     .description('AI-powered CLI and WebUI for interacting with MCP servers.')
     .version(pkg.version, '-v, --version', 'output the current version')
     .option('-a, --agent <id|path>', 'Agent ID or path to agent config file')
-    .option(
-        '-p, --prompt <text>',
-        'Run prompt and exit. Alternatively provide a single quoted string as positional argument.'
-    )
+    .option('-p, --prompt <text>', 'Start the interactive CLI and immediately run the prompt')
     .option('-s, --strict', 'Require all server connections to succeed')
     .option('--no-verbose', 'Disable verbose output')
     .option('--no-interactive', 'Disable interactive prompts and API key setup')
@@ -161,8 +156,8 @@ program
     .option('-m, --model <model>', 'Specify the LLM model to use')
     .option('--auto-approve', 'Always approve tool executions without confirmation prompts')
     .option('--no-elicitation', 'Disable elicitation (agent cannot prompt user for input)')
-    .option('-c, --continue', 'Continue most recent session (requires -p/prompt)')
-    .option('-r, --resume <sessionId>', 'Resume specific session (requires -p/prompt)')
+    .option('-c, --continue', 'Continue most recent session (CLI mode)')
+    .option('-r, --resume <sessionId>', 'Resume a session by ID (CLI mode)')
     .option(
         '--mode <mode>',
         'The application in which dexto should talk to you - web | cli | server | mcp',
@@ -748,7 +743,7 @@ async function bootstrapAgentFromGlobalOpts() {
         process.env.DEXTO_IMAGE || // DEXTO_IMAGE env var
         '@dexto/image-local'; // Default for convenience
 
-    let image: DextoImageModule;
+    let image: DextoImage;
     try {
         image = await loadImage(imageName);
     } catch (err) {
@@ -769,11 +764,9 @@ async function bootstrapAgentFromGlobalOpts() {
 
     // Override approval config for read-only commands (never run conversations)
     // This avoids needing to set up unused approval handlers
-    enrichedConfig.toolConfirmation = {
+    enrichedConfig.permissions = {
+        ...(enrichedConfig.permissions ?? {}),
         mode: 'auto-approve',
-        ...(enrichedConfig.toolConfirmation?.timeout !== undefined && {
-            timeout: enrichedConfig.toolConfirmation.timeout,
-        }),
     };
     enrichedConfig.elicitation = {
         enabled: false,
@@ -803,12 +796,7 @@ async function bootstrapAgentFromGlobalOpts() {
 }
 
 // Helper to find the most recent session
-// @param includeHeadless - If false, skip ephemeral headless sessions (for interactive mode)
-//                          If true, include all sessions (for headless mode continuation)
-async function getMostRecentSessionId(
-    agent: DextoAgent,
-    includeHeadless: boolean = false
-): Promise<string | null> {
+async function getMostRecentSessionId(agent: DextoAgent): Promise<string | null> {
     const sessionIds = await agent.listSessions();
     if (sessionIds.length === 0) {
         return null;
@@ -819,11 +807,6 @@ async function getMostRecentSessionId(
     let mostRecentActivity = 0;
 
     for (const sessionId of sessionIds) {
-        // Skip ephemeral headless sessions unless includeHeadless is true
-        if (!includeHeadless && sessionId.startsWith('headless-')) {
-            continue;
-        }
-
         const metadata = await agent.getSessionMetadata(sessionId);
         if (metadata && metadata.lastActivity > mostRecentActivity) {
             mostRecentActivity = metadata.lastActivity;
@@ -1162,24 +1145,13 @@ program
 
 // 16) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/server/mcp)
 program
-    .argument(
-        '[prompt...]',
-        'Natural-language prompt to run once. If not passed, dexto will start as an interactive CLI'
-    )
     // Main customer facing description
     .description(
         'Dexto CLI - AI-powered assistant with session management.\n\n' +
             'Basic Usage:\n' +
             '  dexto                    Start web UI (default)\n' +
-            '  dexto "query"            Run one-shot query (auto-uses CLI mode)\n' +
-            '  dexto -p "query"         Run one-shot query, then exit\n' +
-            '  cat file | dexto -p "query"  Process piped content\n\n' +
-            'CLI Mode:\n' +
-            '  dexto --mode cli         Start interactive CLI\n\n' +
-            'Headless Session Continuation:\n' +
-            '  dexto -c -p "message"           Continue most recent session\n' +
-            '  dexto -r <session-id> -p "msg"  Resume specific session by ID\n' +
-            '  (Interactive mode: use /resume command instead)\n\n' +
+            '  dexto --mode cli         Start interactive CLI\n' +
+            '  dexto --prompt "query"   Start interactive CLI and run the prompt\n\n' +
             'Session Management Commands:\n' +
             '  dexto session list              List all sessions\n' +
             '  dexto session history [id]      Show session history\n' +
@@ -1195,12 +1167,12 @@ program
             'Advanced Modes:\n' +
             '  dexto --mode server      Run as API server\n' +
             '  dexto --mode mcp         Run as MCP server\n\n' +
-            'See https://docs.dexto.ai for documentation and examples'
+            'Docs: https://docs.dexto.ai'
     )
     .action(
         withAnalytics(
             'main',
-            async (prompt: string[] = []) => {
+            async () => {
                 // ——— ENV CHECK (optional) ———
                 if (!existsSync('.env')) {
                     logger.debug(
@@ -1236,55 +1208,33 @@ program
                     }
                 }
 
-                let headlessInput: string | undefined = undefined;
+                const initialPrompt = opts.prompt !== undefined ? String(opts.prompt) : undefined;
 
-                // Prefer explicit -p/--prompt for headless one-shot
-                if (opts.prompt !== undefined && String(opts.prompt).trim() !== '') {
-                    headlessInput = String(opts.prompt);
-                } else if (opts.prompt !== undefined) {
-                    // Explicit empty -p "" was provided
+                if (initialPrompt !== undefined && initialPrompt.trim() === '') {
                     console.error(
-                        '❌ For headless one-shot mode, prompt cannot be empty. Provide a non-empty prompt with -p/--prompt or use positional argument.'
+                        '❌ Prompt cannot be empty. Provide a non-empty prompt with -p/--prompt.'
                     );
                     safeExit('main', 1, 'empty-prompt');
-                } else if (prompt.length > 0) {
-                    // Enforce quoted single positional argument for headless mode
-                    if (prompt.length === 1) {
-                        headlessInput = prompt[0];
-                    } else {
-                        console.error(
-                            '❌ For headless one-shot mode, pass the prompt in double quotes as a single argument (e.g., "say hello") or use -p/--prompt.'
-                        );
-                        safeExit('main', 1, 'too-many-positional');
-                    }
                 }
 
                 // Note: Agent selection must be passed via -a/--agent. We no longer interpret
                 // the first positional argument as an agent name to avoid ambiguity with prompts.
 
-                // ——— VALIDATE SESSION FLAGS ———
-                // -c and -r are for headless mode only (require a prompt)
-                if ((opts.continue || opts.resume) && !headlessInput) {
-                    console.error(
-                        '❌ Session continuation flags (-c/--continue or -r/--resume) require a prompt for headless mode.'
-                    );
-                    console.error(
-                        '   Provide a prompt: dexto -c -p "your message" or dexto -r <sessionId> -p "your message"'
-                    );
-                    console.error(
-                        '   For interactive mode with session management, use: dexto (starts new) or use /resume command'
-                    );
-                    safeExit('main', 1, 'session-flag-without-prompt');
-                }
-
-                // ——— FORCE CLI MODE FOR HEADLESS PROMPTS ———
-                // If a prompt was provided via -p or positional args, force CLI mode
-                if (headlessInput && opts.mode !== 'cli') {
-                    console.error(
-                        `ℹ️  Prompt detected via -p or positional argument. Forcing CLI mode for one-shot execution.`
-                    );
+                // ——— FORCE CLI MODE FOR PROMPT/SESSION FLAGS ———
+                // If a prompt or session flag was provided, force CLI mode.
+                if ((initialPrompt || opts.continue || opts.resume) && opts.mode !== 'cli') {
+                    console.error(`ℹ️  Forcing CLI mode due to --prompt/--continue/--resume.`);
                     console.error(`   Original mode: ${opts.mode} → Overridden to: cli`);
                     opts.mode = 'cli';
+                }
+
+                // The interactive CLI requires a TTY (Ink uses stdin for keypress input).
+                if (opts.mode === 'cli' && !process.stdin.isTTY) {
+                    console.error('❌ Interactive CLI requires a TTY.');
+                    console.error(
+                        '💡 Headless one-shot mode has been removed. Run in an interactive terminal, or use --mode server for automation.'
+                    );
+                    safeExit('main', 1, 'no-tty');
                 }
 
                 // ——— Infer provider & API key from model ———
@@ -1329,12 +1279,12 @@ program
                 // ——— ENHANCED PREFERENCE-AWARE CONFIG LOADING ———
                 let validatedConfig: ValidatedAgentConfig;
                 let resolvedPath: string;
-                let image: DextoImageModule;
+                let image: DextoImage;
                 let imageName: string;
 
                 // Determine validation mode early - used throughout config loading and agent creation
                 // Use relaxed validation for interactive modes (web/cli) where users can configure later
-                // Use strict validation for headless modes (server/mcp) that need full config upfront
+                // Use strict validation for non-interactive modes (server/mcp) that need full config upfront
                 const isInteractiveMode = opts.mode === 'web' || opts.mode === 'cli';
 
                 try {
@@ -1572,7 +1522,7 @@ program
                     // Enrich config with per-agent paths BEFORE validation
                     // Enrichment adds filesystem paths to storage (schema has in-memory defaults)
                     // Interactive CLI mode: only log to file (console would interfere with chat UI)
-                    const isInteractiveCli = opts.mode === 'cli' && !headlessInput;
+                    const isInteractiveCli = opts.mode === 'cli';
                     const enrichedConfig = enrichAgentConfig(
                         configWithImageDefaults,
                         resolvedPath,
@@ -1636,25 +1586,10 @@ program
                 // ——— VALIDATE APPROVAL MODE COMPATIBILITY ———
                 // Check if approval handler is needed (manual mode OR elicitation enabled)
                 const needsHandler =
-                    validatedConfig.toolConfirmation?.mode === 'manual' ||
+                    validatedConfig.permissions.mode === 'manual' ||
                     validatedConfig.elicitation.enabled;
 
                 if (needsHandler) {
-                    // Headless CLI cannot do interactive approval
-                    if (opts.mode === 'cli' && headlessInput) {
-                        console.error(
-                            '❌ Manual approval and elicitation are not supported in headless CLI mode (pipes/scripts).'
-                        );
-                        console.error(
-                            '💡 Use interactive CLI mode, or skip approvals by running `dexto --auto-approve` and disabling elicitation in your config.'
-                        );
-                        console.error(
-                            '   - toolConfirmation.mode: auto-approve (or auto-deny for strict denial policies)'
-                        );
-                        console.error('   - elicitation.enabled: false');
-                        safeExit('main', 1, 'approval-unsupported-headless');
-                    }
-
                     // Only web, server, and interactive CLI support approval handlers
                     // TODO: Add approval support for other modes:
                     // - Discord: Could use Discord message buttons/reactions for approval UI
@@ -1671,10 +1606,10 @@ program
                             )}`
                         );
                         console.error(
-                            '💡 Run `dexto --auto-approve` or configure your agent to skip approvals when running headlessly.'
+                            '💡 Run `dexto --auto-approve` or configure your agent to skip approvals when running non-interactively.'
                         );
                         console.error(
-                            '   toolConfirmation.mode: auto-approve (or auto-deny if you want to deny certain tools)'
+                            '   permissions.mode: auto-approve (or auto-deny if you want to deny certain tools)'
                         );
                         console.error('   elicitation.enabled: false');
                         safeExit('main', 1, 'approval-unsupported-mode');
@@ -1750,11 +1685,9 @@ program
                 switch (opts.mode) {
                     case 'cli': {
                         // Set up approval handler for interactive CLI if manual mode OR elicitation enabled
-                        // Note: Headless CLI with manual mode is blocked by validation above
                         const needsHandler =
-                            !headlessInput &&
-                            (validatedConfig.toolConfirmation?.mode === 'manual' ||
-                                validatedConfig.elicitation.enabled);
+                            validatedConfig.permissions.mode === 'manual' ||
+                            validatedConfig.elicitation.enabled;
 
                         if (needsHandler) {
                             // CLI uses its own approval handler that works directly with AgentEventBus
@@ -1775,245 +1708,145 @@ program
                         // NOTE: Migrated from defaultSession pattern which will be deprecated in core
                         // We now pass sessionId explicitly to all agent methods (agent.run, agent.switchLLM, etc.)
 
-                        // Note: CLI uses different implementations for interactive vs headless modes
-                        // - Interactive: Ink CLI with full TUI
-                        // - Headless: CLISubscriber (no TUI, works in pipes/scripts)
+                        // Check if API key is configured before trying to create session
+                        // Session creation triggers LLM service init which requires API key
+                        const llmConfig = agent.getCurrentLLMConfig();
+                        const { requiresApiKey } = await import('@dexto/core');
+                        if (requiresApiKey(llmConfig.provider) && !llmConfig.apiKey?.trim()) {
+                            // Offer interactive API key setup instead of just exiting
+                            const { interactiveApiKeySetup } = await import(
+                                './cli/utils/api-key-setup.js'
+                            );
 
-                        if (headlessInput) {
-                            // Headless mode - isolated execution by default
-                            // Each run gets a unique ephemeral session to avoid context bleeding between runs
-                            // Use persistent session if explicitly resuming with -r or -c
-                            let headlessSessionId: string;
+                            console.log(
+                                chalk.yellow(
+                                    `\n⚠️  API key required for provider '${llmConfig.provider}'\n`
+                                )
+                            );
 
-                            if (opts.resume) {
-                                // Resume specific session by ID
-                                try {
-                                    const session = await agent.getSession(opts.resume);
-                                    if (!session) {
-                                        console.error(`❌ Session '${opts.resume}' not found`);
-                                        console.error(
-                                            '💡 Use `dexto session list` to see available sessions'
-                                        );
-                                        safeExit('main', 1, 'resume-failed');
-                                    }
-                                    headlessSessionId = opts.resume;
-                                    logger.info(
-                                        `Resumed session: ${headlessSessionId}`,
-                                        null,
-                                        'cyan'
-                                    );
-                                } catch (err) {
-                                    console.error(
-                                        `❌ Failed to resume session '${opts.resume}': ${err instanceof Error ? err.message : String(err)}`
-                                    );
-                                    console.error(
-                                        '💡 Use `dexto session list` to see available sessions'
-                                    );
-                                    safeExit('main', 1, 'resume-failed');
-                                }
-                            } else if (opts.continue) {
-                                // Continue most recent conversation (include headless sessions in headless mode)
-                                const mostRecentSessionId = await getMostRecentSessionId(
-                                    agent,
-                                    true
-                                );
-                                if (!mostRecentSessionId) {
-                                    console.error(`❌ No previous sessions found`);
-                                    console.error(
-                                        '💡 Start a new conversation or use `dexto session list` to see available sessions'
-                                    );
-                                    safeExit('main', 1, 'no-sessions-found');
-                                }
-                                headlessSessionId = mostRecentSessionId;
-                                logger.info(
-                                    `Continuing most recent session: ${headlessSessionId}`,
-                                    null,
-                                    'cyan'
-                                );
-                            } else {
-                                // TODO: Remove this workaround once defaultSession is deprecated in core
-                                // Currently passing null/undefined to agent.run() falls back to defaultSession,
-                                // causing context to bleed between headless runs. We create a unique ephemeral
-                                // session ID to ensure each headless run is isolated.
-                                // When defaultSession is removed, we can pass null here for truly stateless execution.
-                                headlessSessionId = `headless-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-                                logger.debug(
-                                    `Created ephemeral session for headless run: ${headlessSessionId}`
-                                );
-                            }
-                            // Headless mode - use CLISubscriber for simple stdout output
-                            const llm = agent.getCurrentLLMConfig();
-                            capture('dexto_prompt', {
-                                mode: 'headless',
-                                provider: llm.provider,
-                                model: llm.model,
+                            const setupResult = await interactiveApiKeySetup(llmConfig.provider, {
+                                exitOnCancel: false,
+                                model: llmConfig.model,
                             });
 
-                            const { CLISubscriber } = await import('./cli/cli-subscriber.js');
-                            const cliSubscriber = new CLISubscriber();
-                            agent.registerSubscriber(cliSubscriber);
+                            if (setupResult.cancelled) {
+                                await agent.stop().catch(() => {});
+                                safeExit('main', 0, 'api-key-setup-cancelled');
+                            }
 
-                            try {
-                                await cliSubscriber.runAndWait(
-                                    agent,
-                                    headlessInput,
-                                    headlessSessionId
+                            if (setupResult.skipped) {
+                                // User chose to skip - exit with instructions
+                                await agent.stop().catch(() => {});
+                                safeExit('main', 0, 'api-key-pending');
+                            }
+
+                            if (setupResult.success && setupResult.apiKey) {
+                                // API key was entered and saved - reload config and continue
+                                // Update the agent's LLM config with the new API key
+                                await agent.switchLLM({
+                                    provider: llmConfig.provider,
+                                    model: llmConfig.model,
+                                    apiKey: setupResult.apiKey,
+                                });
+                                logger.info('API key configured successfully, continuing...');
+                            }
+                        }
+
+                        // Resolve the initial session
+                        let cliSessionId: string;
+                        if (opts.resume) {
+                            const existing = await agent.getSession(opts.resume);
+                            if (!existing) {
+                                console.error(`❌ Session '${opts.resume}' not found`);
+                                console.error(
+                                    '💡 Use `dexto session list` to see available sessions'
                                 );
-                                // Clean up before exit
-                                cliSubscriber.cleanup();
-                                try {
-                                    await agent.stop();
-                                } catch (stopError) {
-                                    logger.debug(`Agent stop error (ignoring): ${stopError}`);
-                                }
-                                safeExit('main', 0);
-                            } catch (error) {
-                                // Rethrow ExitSignal - it's not an error, it's how safeExit works
-                                if (error instanceof ExitSignal) throw error;
-
-                                // Write to stderr for headless users/scripts
-                                const errorMessage =
-                                    error instanceof Error ? error.message : String(error);
-                                console.error(`❌ Error in headless mode: ${errorMessage}`);
-                                if (error instanceof Error && error.stack) {
-                                    console.error(error.stack);
-                                }
-
-                                // Also log for diagnostics
-                                logger.error(`Error in headless mode: ${errorMessage}`);
-
-                                cliSubscriber.cleanup();
-                                await agent.stop().catch(() => {}); // Best effort cleanup
-                                safeExit('main', 1, 'headless-error');
+                                safeExit('main', 1, 'resume-failed');
+                            }
+                            cliSessionId = opts.resume;
+                        } else if (opts.continue) {
+                            const mostRecentSessionId = await getMostRecentSessionId(agent);
+                            if (mostRecentSessionId) {
+                                cliSessionId = mostRecentSessionId;
+                            } else {
+                                const session = await agent.createSession();
+                                cliSessionId = session.id;
                             }
                         } else {
-                            // Interactive mode - session management handled via /resume command
-                            // Note: -c and -r flags are validated to require a prompt (headless mode only)
-
-                            // Check if API key is configured before trying to create session
-                            // Session creation triggers LLM service init which requires API key
-                            const llmConfig = agent.getCurrentLLMConfig();
-                            const { requiresApiKey } = await import('@dexto/core');
-                            if (requiresApiKey(llmConfig.provider) && !llmConfig.apiKey?.trim()) {
-                                // Offer interactive API key setup instead of just exiting
-                                const { interactiveApiKeySetup } = await import(
-                                    './cli/utils/api-key-setup.js'
-                                );
-
-                                console.log(
-                                    chalk.yellow(
-                                        `\n⚠️  API key required for provider '${llmConfig.provider}'\n`
-                                    )
-                                );
-
-                                const setupResult = await interactiveApiKeySetup(
-                                    llmConfig.provider,
-                                    {
-                                        exitOnCancel: false,
-                                        model: llmConfig.model,
-                                    }
-                                );
-
-                                if (setupResult.cancelled) {
-                                    await agent.stop().catch(() => {});
-                                    safeExit('main', 0, 'api-key-setup-cancelled');
-                                }
-
-                                if (setupResult.skipped) {
-                                    // User chose to skip - exit with instructions
-                                    await agent.stop().catch(() => {});
-                                    safeExit('main', 0, 'api-key-pending');
-                                }
-
-                                if (setupResult.success && setupResult.apiKey) {
-                                    // API key was entered and saved - reload config and continue
-                                    // Update the agent's LLM config with the new API key
-                                    await agent.switchLLM({
-                                        provider: llmConfig.provider,
-                                        model: llmConfig.model,
-                                        apiKey: setupResult.apiKey,
-                                    });
-                                    logger.info('API key configured successfully, continuing...');
-                                }
-                            }
-
-                            // Create session eagerly so slash commands work immediately
                             const session = await agent.createSession();
-                            const cliSessionId: string = session.id;
-
-                            // Check for updates (will be shown in Ink header)
-                            const cliUpdateInfo = await versionCheckPromise;
-
-                            // Check if installed agents differ from bundled and prompt to sync
-                            const needsSync = await shouldPromptForSync(pkg.version);
-                            if (needsSync) {
-                                const shouldSync = await p.confirm({
-                                    message: 'Agent config updates available. Sync now?',
-                                    initialValue: true,
-                                });
-
-                                if (p.isCancel(shouldSync) || !shouldSync) {
-                                    await markSyncDismissed(pkg.version);
-                                } else {
-                                    await handleSyncAgentsCommand({ force: true, quiet: true });
-                                    await clearSyncDismissed();
-                                }
-                            }
-
-                            // Interactive mode - use Ink CLI with session support
-                            // Suppress console output before starting Ink UI
-                            const originalConsole = {
-                                log: console.log,
-                                error: console.error,
-                                warn: console.warn,
-                                info: console.info,
-                            };
-                            const noOp = () => {};
-                            console.log = noOp;
-                            console.error = noOp;
-                            console.warn = noOp;
-                            console.info = noOp;
-
-                            let inkError: unknown = undefined;
-                            try {
-                                const { startInkCliRefactored } = await import(
-                                    './cli/ink-cli/InkCLIRefactored.js'
-                                );
-                                await startInkCliRefactored(agent, cliSessionId, {
-                                    updateInfo: cliUpdateInfo ?? undefined,
-                                    configFilePath: resolvedPath,
-                                });
-                            } catch (error) {
-                                inkError = error;
-                            } finally {
-                                // Restore console methods so any errors are visible
-                                console.log = originalConsole.log;
-                                console.error = originalConsole.error;
-                                console.warn = originalConsole.warn;
-                                console.info = originalConsole.info;
-                            }
-
-                            // Stop the agent after Ink CLI exits
-                            try {
-                                await agent.stop();
-                            } catch {
-                                // Ignore shutdown errors
-                            }
-
-                            // Handle any errors from Ink CLI
-                            if (inkError) {
-                                if (inkError instanceof ExitSignal) throw inkError;
-                                const errorMessage =
-                                    inkError instanceof Error ? inkError.message : String(inkError);
-                                console.error(`❌ Ink CLI failed: ${errorMessage}`);
-                                if (inkError instanceof Error && inkError.stack) {
-                                    console.error(inkError.stack);
-                                }
-                                safeExit('main', 1, 'ink-cli-error');
-                            }
-
-                            safeExit('main', 0);
+                            cliSessionId = session.id;
                         }
+
+                        // Check for updates (will be shown in Ink header)
+                        const cliUpdateInfo = await versionCheckPromise;
+
+                        // Check if installed agents differ from bundled and prompt to sync
+                        const needsSync = await shouldPromptForSync();
+                        if (needsSync) {
+                            const shouldSync = await p.confirm({
+                                message: 'Agent config updates available. Sync now?',
+                                initialValue: true,
+                            });
+
+                            if (!p.isCancel(shouldSync) && shouldSync) {
+                                await handleSyncAgentsCommand({ force: true, quiet: true });
+                            }
+                        }
+
+                        // Interactive mode - use Ink CLI with session support
+                        // Suppress console output before starting Ink UI
+                        const originalConsole = {
+                            log: console.log,
+                            error: console.error,
+                            warn: console.warn,
+                            info: console.info,
+                        };
+                        const noOp = () => {};
+                        console.log = noOp;
+                        console.error = noOp;
+                        console.warn = noOp;
+                        console.info = noOp;
+
+                        let inkError: unknown = undefined;
+                        try {
+                            const { startInkCliRefactored } = await import(
+                                './cli/ink-cli/InkCLIRefactored.js'
+                            );
+                            await startInkCliRefactored(agent, cliSessionId, {
+                                updateInfo: cliUpdateInfo ?? undefined,
+                                configFilePath: resolvedPath,
+                                ...(initialPrompt && { initialPrompt }),
+                            });
+                        } catch (error) {
+                            inkError = error;
+                        } finally {
+                            // Restore console methods so any errors are visible
+                            console.log = originalConsole.log;
+                            console.error = originalConsole.error;
+                            console.warn = originalConsole.warn;
+                            console.info = originalConsole.info;
+                        }
+
+                        // Stop the agent after Ink CLI exits
+                        try {
+                            await agent.stop();
+                        } catch {
+                            // Ignore shutdown errors
+                        }
+
+                        // Handle any errors from Ink CLI
+                        if (inkError) {
+                            if (inkError instanceof ExitSignal) throw inkError;
+                            const errorMessage =
+                                inkError instanceof Error ? inkError.message : String(inkError);
+                            console.error(`❌ Ink CLI failed: ${errorMessage}`);
+                            if (inkError instanceof Error && inkError.stack) {
+                                console.error(inkError.stack);
+                            }
+                            safeExit('main', 1, 'ink-cli-error');
+                        }
+
+                        safeExit('main', 0);
                     }
                     // falls through - safeExit returns never, but eslint doesn't know that
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
-import type { Plugin } from '@dexto/core';
-import type { DextoImageModule } from '../image/types.js';
+import type { Hook } from '@dexto/core';
+import type { DextoImage } from '../image/types.js';
 import { AgentConfigSchema, type AgentConfig } from '../schemas/agent-config.js';
 import { resolveServicesFromConfig } from './resolve-services-from-config.js';
 import {
@@ -28,7 +28,7 @@ describe('resolveServicesFromConfig', () => {
         compaction: { type: 'noop', enabled: false },
     };
 
-    function createMockImage(overrides?: Partial<DextoImageModule>): DextoImageModule {
+    function createMockImage(overrides?: Partial<DextoImage>): DextoImage {
         const loggerFactory = {
             configSchema: z
                 .object({
@@ -39,7 +39,7 @@ describe('resolveServicesFromConfig', () => {
             create: (_cfg: { agentId: string }) => createMockLogger(),
         };
 
-        const image: DextoImageModule = {
+        const image: DextoImage = {
             metadata: { name: 'mock-image', version: '0.0.0', description: 'mock' },
             tools: {},
             storage: {
@@ -62,7 +62,7 @@ describe('resolveServicesFromConfig', () => {
                     },
                 },
             },
-            plugins: {},
+            hooks: {},
             compaction: {},
             logger: loggerFactory,
             ...(overrides ?? {}),
@@ -104,7 +104,7 @@ describe('resolveServicesFromConfig', () => {
         expect(services.storage.database.getStoreType()).toBe('in-memory');
         expect(services.storage.cache.getStoreType()).toBe('in-memory');
 
-        expect(services.tools.map((t) => t.id)).toEqual(['custom--foo']);
+        expect(services.tools.map((t) => t.id)).toEqual(['foo']);
         expect(fooFactoryCreate).toHaveBeenCalledTimes(1);
         expect(fooFactoryCreate).toHaveBeenCalledWith({ type: 'foo-tools', foo: 123 });
         expect(barFactoryCreate).not.toHaveBeenCalled();
@@ -131,7 +131,7 @@ describe('resolveServicesFromConfig', () => {
         expect(validated.tools).toBeUndefined();
 
         const services = await resolveServicesFromConfig(validated, image);
-        expect(services.tools.map((t) => t.id)).toEqual(['custom--foo']);
+        expect(services.tools.map((t) => t.id)).toEqual(['foo']);
     });
 
     it('throws a clear error for unknown tool types', async () => {
@@ -171,15 +171,12 @@ describe('resolveServicesFromConfig', () => {
         );
     });
 
-    it('prefixes builtin tool ids as internal-- and preserves already-qualified ids', async () => {
+    it('preserves tool ids returned by factories', async () => {
         const builtinFactoryCreate = vi.fn(() => [
             createMockTool('ask_user'),
-            createMockTool('internal--already-qualified'),
+            createMockTool('already-qualified'),
         ]);
-        const customFactoryCreate = vi.fn(() => [
-            createMockTool('custom--foo'),
-            createMockTool('bar'),
-        ]);
+        const customFactoryCreate = vi.fn(() => [createMockTool('foo'), createMockTool('bar')]);
 
         const image = createMockImage({
             tools: {
@@ -202,10 +199,10 @@ describe('resolveServicesFromConfig', () => {
         const services = await resolveServicesFromConfig(validated, image);
 
         expect(services.tools.map((t) => t.id)).toEqual([
-            'internal--ask_user',
-            'internal--already-qualified',
-            'custom--foo',
-            'custom--bar',
+            'ask_user',
+            'already-qualified',
+            'foo',
+            'bar',
         ]);
     });
 
@@ -230,9 +227,9 @@ describe('resolveServicesFromConfig', () => {
 
         const services = await resolveServicesFromConfig(validated, image);
 
-        expect(services.tools.map((t) => t.id)).toEqual(['custom--dup']);
+        expect(services.tools.map((t) => t.id)).toEqual(['dup']);
         expect(services.logger.warn).toHaveBeenCalledWith(
-            "Tool id conflict for 'custom--dup'. Skipping duplicate tool."
+            "Tool id conflict for 'dup'. Skipping duplicate tool."
         );
     });
 
@@ -283,9 +280,9 @@ describe('resolveServicesFromConfig', () => {
         );
     });
 
-    it('throws a clear error for unknown plugin types', async () => {
+    it('throws a clear error for unknown hook types', async () => {
         const image = createMockImage({
-            plugins: {
+            hooks: {
                 'content-policy': {
                     configSchema: z.object({ type: z.literal('content-policy') }).strict(),
                     create: () => ({ beforeResponse: async () => ({ ok: true }) }),
@@ -295,17 +292,17 @@ describe('resolveServicesFromConfig', () => {
 
         const validated = AgentConfigSchema.parse({
             ...baseConfig,
-            plugins: [{ type: 'content-policy' }, { type: 'response-sanitizer' }],
+            hooks: [{ type: 'content-policy' }, { type: 'response-sanitizer' }],
         } satisfies AgentConfig);
 
         await expect(resolveServicesFromConfig(validated, image)).rejects.toThrow(
-            /Unknown plugin type 'response-sanitizer'/
+            /Unknown hook type 'response-sanitizer'/
         );
     });
 
-    it('throws when plugin factory configSchema validation fails', async () => {
+    it('throws when hook factory configSchema validation fails', async () => {
         const image = createMockImage({
-            plugins: {
+            hooks: {
                 'content-policy': {
                     configSchema: z
                         .object({ type: z.literal('content-policy'), foo: z.number() })
@@ -317,7 +314,7 @@ describe('resolveServicesFromConfig', () => {
 
         const validated = AgentConfigSchema.parse({
             ...baseConfig,
-            plugins: [{ type: 'content-policy', foo: 'not-a-number' }],
+            hooks: [{ type: 'content-policy', foo: 'not-a-number' }],
         } satisfies AgentConfig);
 
         await expect(resolveServicesFromConfig(validated, image)).rejects.toThrow(
@@ -325,10 +322,10 @@ describe('resolveServicesFromConfig', () => {
         );
     });
 
-    it('resolves plugins via image factories (list order) and runs initialize()', async () => {
+    it('resolves hooks via image factories (list order) and runs initialize()', async () => {
         const initCalls: string[] = [];
 
-        const createPlugin = (name: string): Plugin => ({
+        const createHook = (name: string): Hook => ({
             initialize: async () => {
                 initCalls.push(name);
             },
@@ -336,25 +333,25 @@ describe('resolveServicesFromConfig', () => {
         });
 
         const image = createMockImage({
-            plugins: {
+            hooks: {
                 'content-policy': {
                     configSchema: z.object({ type: z.literal('content-policy') }).strict(),
-                    create: () => createPlugin('content-policy'),
+                    create: () => createHook('content-policy'),
                 },
                 'response-sanitizer': {
                     configSchema: z.object({ type: z.literal('response-sanitizer') }).strict(),
-                    create: () => createPlugin('response-sanitizer'),
+                    create: () => createHook('response-sanitizer'),
                 },
             },
         });
 
         const validated = AgentConfigSchema.parse({
             ...baseConfig,
-            plugins: [{ type: 'content-policy' }, { type: 'response-sanitizer' }],
+            hooks: [{ type: 'content-policy' }, { type: 'response-sanitizer' }],
         } satisfies AgentConfig);
 
         const services = await resolveServicesFromConfig(validated, image);
-        expect(services.plugins).toHaveLength(2);
+        expect(services.hooks).toHaveLength(2);
         expect(initCalls).toEqual(['content-policy', 'response-sanitizer']);
     });
 });

@@ -292,8 +292,7 @@ export function createDextoApp(options: CreateDextoAppOptions) {
             },
             {
                 name: 'tools',
-                description:
-                    'List and inspect available tools from internal, custom, and MCP sources',
+                description: 'List and inspect available tools from local and MCP sources',
             },
             {
                 name: 'models',

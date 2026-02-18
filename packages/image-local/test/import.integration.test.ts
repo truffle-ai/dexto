@@ -5,10 +5,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 /**
  * Integration test to ensure image-local can be imported successfully and
- * satisfies the DextoImageModule contract.
+ * satisfies the DextoImage contract.
  */
 describe('Image Local - Import Integration', () => {
-    it('loads as a valid DextoImageModule', async () => {
+    it('loads as a valid DextoImage', async () => {
         const metaResolve = (import.meta as unknown as { resolve?: (s: string) => string }).resolve;
         const imageSpecifier = metaResolve
             ? metaResolve('@dexto/image-local')
@@ -43,9 +43,9 @@ describe('Image Local - Import Integration', () => {
         expect(image.storage.database['sqlite']).toBeDefined();
         expect(image.storage.cache['in-memory']).toBeDefined();
 
-        expect(image.plugins['content-policy']).toBeDefined();
-        expect(image.plugins['response-sanitizer']).toBeDefined();
+        expect(image.hooks['content-policy']).toBeDefined();
+        expect(image.hooks['response-sanitizer']).toBeDefined();
 
         expect(image.logger).toBeDefined();
-    });
+    }, 15_000);
 });

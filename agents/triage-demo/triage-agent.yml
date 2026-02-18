@@ -99,7 +99,7 @@ systemPrompt:
 
 # Auto-approve tool executions so the triage agent can seamlessly delegate tasks
 
-toolConfirmation:
+permissions:
   mode: auto-approve
   allowedToolsStorage: memory
 

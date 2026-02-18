@@ -221,10 +221,10 @@ export {
 } from '@dexto/core';
 
 // Tool schemas
-export { ToolConfirmationConfigSchema } from '@dexto/core';
+export { PermissionsConfigSchema } from '@dexto/core';
 
 // Resource schemas
-export { InternalResourceConfigSchema } from '@dexto/core';
+export { ResourceConfigSchema } from '@dexto/core';
 
 // ============================================================================
 // New schemas for types that don't have Zod equivalents in core

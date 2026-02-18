@@ -45,7 +45,7 @@ mcpServers:
     env:
       OPENAI_API_KEY: $OPENAI_API_KEY
 
-toolConfirmation:
+permissions:
   mode: "auto-approve"
   allowedToolsStorage: "memory"
 
@@ -54,10 +54,8 @@ llm:
   model: gpt-5-mini
   apiKey: $OPENAI_API_KEY
 
-internalResources:
-  enabled: true
-  resources:
-    - type: blob
+resources:
+  - type: blob
 
 storage:
   cache:

@@ -147,16 +147,18 @@ function formatOutput(signal: Signal, allSignals?: Signal[]): WaitForOutput {
 /**
  * Create the wait_for tool
  */
-export function createWaitForTool(conditionEngine: ConditionEngine): Tool {
+export function createWaitForTool(
+    conditionEngine: ConditionEngine
+): Tool<typeof WaitForInputSchema> {
     return {
         id: 'wait_for',
+        displayName: 'Wait',
         description:
             'Wait for background task(s) to complete. ' +
             'Blocks execution until the condition is met. ' +
             'Use taskId for a single task, or taskIds with mode for multiple tasks.',
         inputSchema: WaitForInputSchema,
-        execute: async (rawInput: unknown, _context): Promise<WaitForOutput> => {
-            const input = WaitForInputSchema.parse(rawInput);
+        execute: async (input, _context): Promise<WaitForOutput> => {
             const condition = buildCondition(input);
 
             // This blocks until condition is met (the key design!)

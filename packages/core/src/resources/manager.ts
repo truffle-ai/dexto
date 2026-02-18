@@ -1,23 +1,22 @@
 import type { MCPManager } from '../mcp/manager.js';
 import type { ResourceSet, ResourceMetadata } from './types.js';
-import { InternalResourcesProvider } from './internal-provider.js';
+import { AgentResourcesProvider } from './agent-resources-provider.js';
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
-import type { ValidatedInternalResourcesConfig } from './schemas.js';
+import type { ValidatedResourcesConfig } from './schemas.js';
 import type { InternalResourceServices } from './handlers/types.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
-import { ResourceError } from './errors.js';
 import type { AgentEventBus } from '../events/index.js';
 import type { BlobStore } from '../storage/blob/types.js';
 
 export interface ResourceManagerOptions {
-    internalResourcesConfig: ValidatedInternalResourcesConfig;
+    resourcesConfig: ValidatedResourcesConfig;
     blobStore: BlobStore;
 }
 
 export class ResourceManager {
     private readonly mcpManager: MCPManager;
-    private internalResourcesProvider?: InternalResourcesProvider;
+    private agentResourcesProvider: AgentResourcesProvider;
     private readonly blobStore: BlobStore;
     private logger: Logger;
     private readonly eventBus: AgentEventBus;
@@ -38,21 +37,11 @@ export class ResourceManager {
             blobStore: this.blobStore,
         };
 
-        const config = options.internalResourcesConfig;
-        if (config.enabled || config.resources.length > 0) {
-            this.internalResourcesProvider = new InternalResourcesProvider(
-                config,
-                services,
-                this.logger
-            );
-        } else {
-            // Always create provider to enable blob resources even if no other internal resources configured
-            this.internalResourcesProvider = new InternalResourcesProvider(
-                { enabled: true, resources: [] },
-                services,
-                this.logger
-            );
-        }
+        this.agentResourcesProvider = new AgentResourcesProvider(
+            options.resourcesConfig,
+            services,
+            this.logger
+        );
 
         // Listen for MCP resource notifications for real-time updates
         this.setupNotificationListeners();
@@ -61,9 +50,7 @@ export class ResourceManager {
     }
 
     async initialize(): Promise<void> {
-        if (this.internalResourcesProvider) {
-            await this.internalResourcesProvider.initialize();
-        }
+        await this.agentResourcesProvider.initialize();
         this.logger.debug('ResourceManager initialization complete');
     }
 
@@ -124,22 +111,20 @@ export class ResourceManager {
             );
         }
 
-        if (this.internalResourcesProvider) {
-            try {
-                const internalResources = await this.internalResourcesProvider.listResources();
-                for (const resource of internalResources) {
-                    resources[resource.uri] = resource;
-                }
-                if (internalResources.length > 0) {
-                    this.logger.debug(
-                        `🗃️ Resource discovery (internal): ${internalResources.length} resources`
-                    );
-                }
-            } catch (error) {
-                this.logger.error(
-                    `Failed to enumerate internal resources: ${error instanceof Error ? error.message : String(error)}`
+        try {
+            const internalResources = await this.agentResourcesProvider.listResources();
+            for (const resource of internalResources) {
+                resources[resource.uri] = resource;
+            }
+            if (internalResources.length > 0) {
+                this.logger.debug(
+                    `🗃️ Resource discovery (internal): ${internalResources.length} resources`
                 );
             }
+        } catch (error) {
+            this.logger.error(
+                `Failed to enumerate internal resources: ${error instanceof Error ? error.message : String(error)}`
+            );
         }
 
         return resources;
@@ -160,10 +145,7 @@ export class ResourceManager {
                 return false;
             }
         }
-        if (!this.internalResourcesProvider) {
-            return false;
-        }
-        return await this.internalResourcesProvider.hasResource(uri);
+        return await this.agentResourcesProvider.hasResource(uri);
     }
 
     async read(uri: string): Promise<ReadResourceResult> {
@@ -195,11 +177,7 @@ export class ResourceManager {
                 };
             }
 
-            if (!this.internalResourcesProvider) {
-                throw ResourceError.providerNotInitialized('Internal', uri);
-            }
-
-            const result = await this.internalResourcesProvider.readResource(uri);
+            const result = await this.agentResourcesProvider.readResource(uri);
             this.logger.debug(`✅ Successfully read internal resource: ${uri}`);
             return result;
         } catch (error) {
@@ -211,14 +189,12 @@ export class ResourceManager {
     }
 
     async refresh(): Promise<void> {
-        if (this.internalResourcesProvider) {
-            await this.internalResourcesProvider.refresh();
-        }
+        await this.agentResourcesProvider.refresh();
         this.logger.info('ResourceManager refreshed');
     }
 
-    getInternalResourcesProvider(): InternalResourcesProvider | undefined {
-        return this.internalResourcesProvider;
+    getAgentResourcesProvider(): AgentResourcesProvider {
+        return this.agentResourcesProvider;
     }
 
     emitCacheInvalidated(payload: {

@@ -5,7 +5,8 @@
  */
 
 import { z } from 'zod';
-import { Tool, ToolExecutionContext } from '@dexto/core';
+import { defineTool } from '@dexto/core';
+import type { Tool, ToolExecutionContext } from '@dexto/core';
 import type { ProcessServiceGetter } from './bash-exec-tool.js';
 
 const BashOutputInputSchema = z
@@ -14,22 +15,23 @@ const BashOutputInputSchema = z
     })
     .strict();
 
-type BashOutputInput = z.input<typeof BashOutputInputSchema>;
-
 /**
  * Create the bash_output internal tool
  */
-export function createBashOutputTool(getProcessService: ProcessServiceGetter): Tool {
-    return {
+export function createBashOutputTool(
+    getProcessService: ProcessServiceGetter
+): Tool<typeof BashOutputInputSchema> {
+    return defineTool({
         id: 'bash_output',
+        displayName: 'Bash Output',
         description:
             'Retrieve output from a background process started with bash_exec. Returns stdout, stderr, status (running/completed/failed), exit code, and duration. Each call returns only new output since last read. The output buffer is cleared after reading. Use this tool to monitor long-running commands.',
         inputSchema: BashOutputInputSchema,
-        execute: async (input: unknown, context: ToolExecutionContext) => {
+        async execute(input, context: ToolExecutionContext) {
             const resolvedProcessService = await getProcessService(context);
 
             // Input is validated by provider before reaching here
-            const { process_id } = input as BashOutputInput;
+            const { process_id } = input;
 
             // Get output from ProcessService
             const result = await resolvedProcessService.getProcessOutput(process_id);
@@ -42,5 +44,5 @@ export function createBashOutputTool(getProcessService: ProcessServiceGetter): T
                 ...(result.duration !== undefined && { duration: result.duration }),
             };
         },
-    };
+    });
 }

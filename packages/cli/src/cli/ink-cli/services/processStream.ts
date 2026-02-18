@@ -28,19 +28,10 @@ import type { Message, UIState, ToolStatus } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import { checkForSplit } from '../utils/streamSplitter.js';
-import { formatToolHeader } from '../utils/messageFormatting.js';
+import { formatToolHeader, shouldHideTool } from '../utils/messageFormatting.js';
 import { isAutoApprovableInEditMode } from '../utils/toolUtils.js';
 import { capture } from '../../../analytics/index.js';
 import chalk from 'chalk';
-
-const HIDDEN_TOOL_NAMES = new Set(['wait_for']);
-const normalizeToolName = (toolName: string) => {
-    const stripped = toolName.replace(/^(?:internal--|internal__|custom--|custom__)/, '');
-    const delimiterSplit = stripped.split(/[:.]/);
-    return delimiterSplit[delimiterSplit.length - 1] ?? stripped;
-};
-const shouldHideTool = (toolName?: string) =>
-    toolName ? HIDDEN_TOOL_NAMES.has(normalizeToolName(toolName)) : false;
 
 /**
  * Build error message with recovery guidance if available
@@ -622,10 +613,13 @@ export async function processStream(
                         : generateMessageId('tool');
 
                     // Format tool header using shared utility
-                    const { header: toolContent } = formatToolHeader(
-                        event.toolName,
-                        (event.args as Record<string, unknown>) || {}
-                    );
+                    const { header: toolContent } = formatToolHeader({
+                        toolName: event.toolName,
+                        args: (event.args as Record<string, unknown>) || {},
+                        ...(event.toolDisplayName !== undefined && {
+                            toolDisplayName: event.toolDisplayName,
+                        }),
+                    });
 
                     // Add description if present (dim styling, on new line)
                     let finalToolContent = toolContent;
@@ -718,12 +712,7 @@ export async function processStream(
                     }
 
                     // Handle plan_review tool results - update UI state when plan is approved
-                    // Note: tool ids may be qualified (custom--/internal--) depending on image resolution.
-                    const isPlanReviewTool =
-                        event.toolName === 'plan_review' ||
-                        event.toolName === 'custom--plan_review' ||
-                        event.toolName === 'internal--plan_review';
-                    if (isPlanReviewTool && event.success !== false) {
+                    if (event.toolName === 'plan_review' && event.success !== false) {
                         try {
                             const planReviewResult = event.rawResult as {
                                 approved?: boolean;
@@ -922,8 +911,8 @@ export async function processStream(
                     const autoApproveEdits = options.autoApproveEditsRef.current;
                     const { eventBus } = options;
 
-                    if (autoApproveEdits && event.type === ApprovalTypeEnum.TOOL_CONFIRMATION) {
-                        // Type is narrowed - metadata is now ToolConfirmationMetadata
+                    if (autoApproveEdits && event.type === ApprovalTypeEnum.TOOL_APPROVAL) {
+                        // Type is narrowed - metadata is now ToolApprovalMetadata
                         const { toolName } = event.metadata;
 
                         if (isAutoApprovableInEditMode(toolName)) {
@@ -941,7 +930,7 @@ export async function processStream(
                     // Manual approval needed - update tool status to 'pending_approval'
                     // Extract toolCallId based on approval type
                     const toolCallId =
-                        event.type === ApprovalTypeEnum.TOOL_CONFIRMATION
+                        event.type === ApprovalTypeEnum.TOOL_APPROVAL
                             ? event.metadata.toolCallId
                             : undefined;
                     if (toolCallId) {
@@ -951,7 +940,7 @@ export async function processStream(
 
                     // Show approval UI (moved from useAgentEvents for ordering)
                     if (
-                        event.type === ApprovalTypeEnum.TOOL_CONFIRMATION ||
+                        event.type === ApprovalTypeEnum.TOOL_APPROVAL ||
                         event.type === ApprovalTypeEnum.COMMAND_CONFIRMATION ||
                         event.type === ApprovalTypeEnum.ELICITATION ||
                         event.type === ApprovalTypeEnum.DIRECTORY_ACCESS

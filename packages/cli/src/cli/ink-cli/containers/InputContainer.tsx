@@ -41,6 +41,8 @@ interface InputContainerProps {
     input: InputState;
     ui: UIState;
     session: SessionState;
+    /** If provided, auto-submits once when the UI is ready */
+    initialPrompt?: string | undefined;
     approval: ApprovalRequest | null;
     /** Queued messages waiting to be processed */
     queuedMessages: QueuedMessage[];
@@ -82,6 +84,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             input,
             ui,
             session,
+            initialPrompt,
             approval,
             queuedMessages,
             setInput,
@@ -104,6 +107,8 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
     ) {
         // Track pending session creation to prevent race conditions
         const sessionCreationPromiseRef = useRef<Promise<SessionCreationResult> | null>(null);
+
+        const didAutoSubmitInitialPromptRef = useRef(false);
 
         // Sound notification service from context
         const soundService = useSoundService();
@@ -753,6 +758,30 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 soundService,
             ]
         );
+
+        useEffect(() => {
+            if (!initialPrompt || didAutoSubmitInitialPromptRef.current) {
+                return;
+            }
+
+            didAutoSubmitInitialPromptRef.current = true;
+
+            handleSubmit(initialPrompt, true).catch((error) => {
+                agent.logger.error('InputContainer initial prompt submission failed', {
+                    error,
+                    initialPrompt,
+                });
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('error'),
+                        role: 'system',
+                        content: `Failed to submit initial prompt: ${error instanceof Error ? error.message : String(error)}`,
+                        timestamp: new Date(),
+                    },
+                ]);
+            });
+        }, [agent.logger, handleSubmit, initialPrompt, setMessages]);
 
         // Determine if input should be active (not blocked by approval/overlay/history search)
         // Input stays active for filter-type overlays (so user can keep typing to filter)

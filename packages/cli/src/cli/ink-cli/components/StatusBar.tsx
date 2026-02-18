@@ -58,12 +58,17 @@ export function StatusBar({
     autoApproveEdits = false,
     backgroundTasksRunning = 0,
 }: StatusBarProps) {
+    const animationsActive = isProcessing && !isAwaitingApproval && !copyModeEnabled;
+
     // Cycle through witty phrases while processing (not during compacting)
-    const { phrase } = usePhraseCycler({ isActive: isProcessing && !isCompacting });
+    const { phrase } = usePhraseCycler({ isActive: animationsActive && !isCompacting });
     // Track elapsed time during processing
-    const { formatted: elapsedTime, elapsedMs } = useElapsedTime({ isActive: isProcessing });
+    const { formatted: elapsedTime, elapsedMs } = useElapsedTime({
+        isActive: animationsActive,
+        intervalMs: 1000,
+    });
     // Track token usage during processing
-    const { formatted: tokenCount } = useTokenCounter({ agent, isActive: isProcessing });
+    const { formatted: tokenCount } = useTokenCounter({ agent, isActive: animationsActive });
     // Only show time after 30 seconds
     const showTime = elapsedMs >= 30000;
 
@@ -88,11 +93,11 @@ export function StatusBar({
         return null;
     }
 
-    // Build the task toggle hint based on state
+    // Build the todo toggle hint based on state
     const todoHint = hasTodos
         ? todoExpanded
-            ? 'ctrl+t to hide tasks'
-            : 'ctrl+t to show tasks'
+            ? 'ctrl+t to hide todos'
+            : 'ctrl+t to show todos'
         : null;
 
     const backgroundHint = backgroundTasksRunning > 0 ? 'ctrl+b to view bg tasks' : null;

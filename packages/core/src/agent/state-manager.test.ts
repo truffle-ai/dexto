@@ -5,8 +5,8 @@ import { LLMConfigSchema } from '../llm/schemas.js';
 import { McpServerConfigSchema, ServersConfigSchema } from '../mcp/schemas.js';
 import { SystemPromptConfigSchema } from '../systemPrompt/schemas.js';
 import { SessionConfigSchema } from '../session/schemas.js';
-import { ToolConfirmationConfigSchema, ElicitationConfigSchema } from '../tools/schemas.js';
-import { InternalResourcesSchema } from '../resources/schemas.js';
+import { PermissionsConfigSchema, ElicitationConfigSchema } from '../tools/schemas.js';
+import { ResourcesConfigSchema } from '../resources/schemas.js';
 import { PromptsSchema } from '../prompts/schemas.js';
 import type { AgentRuntimeSettings } from './runtime-config.js';
 
@@ -52,13 +52,13 @@ describe('AgentStateManager Events', () => {
             agentId: 'test-agent',
             mcpServers: ServersConfigSchema.parse({ test: mcpServer }),
             sessions: SessionConfigSchema.parse({ maxSessions: 100, sessionTTL: 3600000 }),
-            toolConfirmation: ToolConfirmationConfigSchema.parse({
+            permissions: PermissionsConfigSchema.parse({
                 mode: 'manual',
                 timeout: 30000,
                 allowedToolsStorage: 'storage',
             }),
             elicitation: ElicitationConfigSchema.parse({ enabled: false }),
-            internalResources: InternalResourcesSchema.parse([]),
+            resources: ResourcesConfigSchema.parse([]),
             prompts: PromptsSchema.parse([]),
         };
 

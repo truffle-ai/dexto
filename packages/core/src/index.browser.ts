@@ -58,12 +58,12 @@ export {
 // Storage errors (used by @dexto/storage schemas in browser bundles)
 export { StorageErrorCode } from './storage/error-codes.js';
 
-// Tool confirmation types and constants (used by webui)
-export type { ToolConfirmationMode, AllowedToolsStorageType } from './tools/schemas.js';
+// Tool permissions types and constants (used by webui)
+export type { PermissionsMode, AllowedToolsStorageType } from './tools/schemas.js';
 export {
-    TOOL_CONFIRMATION_MODES,
+    PERMISSIONS_MODES,
     ALLOWED_TOOLS_STORAGE_TYPES,
-    DEFAULT_TOOL_CONFIRMATION_MODE,
+    DEFAULT_PERMISSIONS_MODE,
     DEFAULT_ALLOWED_TOOLS_STORAGE,
 } from './tools/schemas.js';
 

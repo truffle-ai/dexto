@@ -786,6 +786,7 @@ export class ContextManager<TMessage = unknown> {
         metadata?: {
             requireApproval?: boolean;
             approvalStatus?: 'approved' | 'rejected';
+            toolDisplayName?: string;
         }
     ): Promise<void> {
         if (!toolCallId || !name) {
@@ -810,6 +811,9 @@ export class ContextManager<TMessage = unknown> {
             content: sanitizedResult.content,
             toolCallId,
             name,
+            ...(metadata?.toolDisplayName !== undefined && {
+                toolDisplayName: metadata.toolDisplayName,
+            }),
             // Success status comes from sanitizedResult.meta (single source of truth)
             success: sanitizedResult.meta.success,
             // Persist display data for rich rendering on session resume

@@ -273,6 +273,9 @@ export interface ToolMessage extends MessageBase {
     /** Name of the tool that produced this result (REQUIRED) */
     name: string;
 
+    /** Optional user-facing name for the tool (UI convenience) */
+    toolDisplayName?: string;
+
     /** Whether the tool execution was successful */
     success?: boolean;
 

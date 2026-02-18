@@ -1,7 +1,6 @@
 import { z } from 'zod';
-import type { Tool, ToolExecutionContext } from '@dexto/core';
-import { flattenPromptResult } from '@dexto/core';
-import { ToolError } from '@dexto/core';
+import { ToolError, defineTool, flattenPromptResult } from '@dexto/core';
+import type { TaskForkOptions, Tool, ToolExecutionContext } from '@dexto/core';
 
 const InvokeSkillInputSchema = z
     .object({
@@ -21,8 +20,6 @@ const InvokeSkillInputSchema = z
     })
     .strict();
 
-type InvokeSkillInput = z.input<typeof InvokeSkillInputSchema>;
-
 /**
  * Create the `invoke_skill` tool.
  *
@@ -30,13 +27,14 @@ type InvokeSkillInput = z.input<typeof InvokeSkillInputSchema>;
  * forks the skill into a sub-agent when the skill is marked as `context: fork`.
  * Requires `ToolExecutionContext.services.prompts` and, for forked skills, `services.taskForker`.
  */
-export function createInvokeSkillTool(): Tool {
-    return {
+export function createInvokeSkillTool(): Tool<typeof InvokeSkillInputSchema> {
+    return defineTool({
         id: 'invoke_skill',
+        displayName: 'Skill',
         description: buildToolDescription(),
         inputSchema: InvokeSkillInputSchema,
-        execute: async (input: unknown, context: ToolExecutionContext) => {
-            const { skill, args, taskContext } = input as InvokeSkillInput;
+        async execute(input, context: ToolExecutionContext) {
+            const { skill, args, taskContext } = input;
 
             const promptManager = context.services?.prompts;
             if (!promptManager) {
@@ -88,14 +86,7 @@ export function createInvokeSkillTool(): Tool {
                     ? `## Task Context\n${taskContext}\n\n## Skill Instructions\n${content}`
                     : content;
 
-                const forkOptions: {
-                    task: string;
-                    instructions: string;
-                    agentId?: string;
-                    autoApprove?: boolean;
-                    toolCallId?: string;
-                    sessionId?: string;
-                } = {
+                const forkOptions: TaskForkOptions = {
                     task: `Skill: ${skill}`,
                     instructions,
                     autoApprove: true,
@@ -125,7 +116,7 @@ export function createInvokeSkillTool(): Tool {
                     'Follow the instructions in the skill content above to complete the task.',
             };
         },
-    };
+    });
 }
 
 function buildToolDescription(): string {

@@ -83,7 +83,7 @@ storage:
     maxTotalSize: 1073741824  # 1GB total storage
     cleanupAfterDays: 30
 
-toolConfirmation:
+permissions:
   mode: manual
   # timeout: <optional>      # Time to wait for approval (ms). Omit for no timeout (wait indefinitely)
   allowedToolsStorage: memory  # 'memory' or 'storage' for persisting allowed tools
@@ -92,7 +92,7 @@ toolConfirmation:
   toolPolicies:
     # Tools that never require approval (low-risk, common operations)
     alwaysAllow:
-      - internal--ask_user
+      - ask_user
       - mcp--read_file
       - mcp--list_directory
       - mcp--list_allowed_directories
@@ -117,25 +117,26 @@ tools:
       - delegate_to_url
       - list_resources
       - get_resource
+      - http_request
+      - web_search
+      - code_search
 
-# Internal resources configuration - manages file system access and blob storage
+# Resources configuration - manages file system access and blob storage
 # NOTE: Blob storage capacity and backend settings are in the 'storage.blob' section above
-internalResources:
-  enabled: true
-  resources:
-    # Filesystem resource - provides read access to local files for the agent
-    - type: filesystem
-      paths: ["."]                 # Directories to expose
-      maxFiles: 50               # Maximum number of files to index
-      maxDepth: 3                # Maximum directory depth to traverse
-      includeHidden: false         # Include hidden files/directories
-      includeExtensions: [".txt", ".md", ".json", ".yaml", ".yml", ".js", ".ts", ".py", ".html", ".css"]
+resources:
+  # Filesystem resource - provides read access to local files for the agent
+  - type: filesystem
+    paths: ["."]                 # Directories to expose
+    maxFiles: 50               # Maximum number of files to index
+    maxDepth: 3                # Maximum directory depth to traverse
+    includeHidden: false         # Include hidden files/directories
+    includeExtensions: [".txt", ".md", ".json", ".yaml", ".yml", ".js", ".ts", ".py", ".html", ".css"]
 
-    # Blob resource - enables large file upload/storage (settings in storage.blob section above)
-    - type: blob
+  # Blob resource - enables large file upload/storage (settings in storage.blob section above)
+  - type: blob
 
-# Plugin system - plugins are resolved via the selected image
-# plugins:
+# Hook system - hooks are resolved via the selected image
+# hooks:
 #   - type: content-policy
 #     maxInputChars: 50000      # Maximum input length (characters)
 #     redactEmails: true        # Redact email addresses from input

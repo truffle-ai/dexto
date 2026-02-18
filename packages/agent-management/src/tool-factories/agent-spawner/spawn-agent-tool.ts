@@ -6,7 +6,7 @@
  */
 
 import type { Tool, ToolExecutionContext } from '@dexto/core';
-import { SpawnAgentInputSchema, type SpawnAgentInput } from './schemas.js';
+import { SpawnAgentInputSchema } from './schemas.js';
 import type { AgentSpawnerRuntime } from './runtime.js';
 
 /**
@@ -51,16 +51,18 @@ ${agentsList}
 - If a sub-agent's LLM fails, it automatically falls back to your LLM`;
 }
 
-export function createSpawnAgentTool(service: AgentSpawnerRuntime): Tool {
+export function createSpawnAgentTool(
+    service: AgentSpawnerRuntime
+): Tool<typeof SpawnAgentInputSchema> {
     return {
         id: 'spawn_agent',
+        displayName: 'Agent',
+        aliases: ['task'],
         description: buildDescription(service),
 
         inputSchema: SpawnAgentInputSchema,
 
-        execute: async (input: unknown, context: ToolExecutionContext) => {
-            const validatedInput = input as SpawnAgentInput;
-
+        execute: async (input, context: ToolExecutionContext) => {
             // Build options object - only include optional properties if they have values
             const options: {
                 task: string;
@@ -69,12 +71,12 @@ export function createSpawnAgentTool(service: AgentSpawnerRuntime): Tool {
                 toolCallId?: string;
                 sessionId?: string;
             } = {
-                task: validatedInput.task,
-                instructions: validatedInput.instructions,
+                task: input.task,
+                instructions: input.instructions,
             };
 
-            if (validatedInput.agentId !== undefined) {
-                options.agentId = validatedInput.agentId;
+            if (input.agentId !== undefined) {
+                options.agentId = input.agentId;
             }
             if (context.toolCallId !== undefined) {
                 options.toolCallId = context.toolCallId;

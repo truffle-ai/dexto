@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 describe('Image Logger Agent - Import Integration', () => {
-    it('loads as a valid DextoImageModule', async () => {
+    it('loads as a valid DextoImage', async () => {
         const metaResolve = (import.meta as unknown as { resolve?: (s: string) => string }).resolve;
         const imageSpecifier = metaResolve
             ? metaResolve('@dexto/image-logger-agent')
@@ -16,8 +16,8 @@ describe('Image Logger Agent - Import Integration', () => {
 
         expect(image.metadata.name).toBe('@dexto/image-logger-agent');
 
-        expect(image.plugins['request-logger']).toBeDefined();
-        expect(image.plugins['content-policy']).toBeDefined();
-        expect(image.plugins['response-sanitizer']).toBeDefined();
-    });
+        expect(image.hooks['request-logger']).toBeDefined();
+        expect(image.hooks['content-policy']).toBeDefined();
+        expect(image.hooks['response-sanitizer']).toBeDefined();
+    }, 15_000);
 });

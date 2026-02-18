@@ -22,7 +22,7 @@ export enum ApprovalErrorCode {
     APPROVAL_NOT_FOUND = 'approval_not_found',
 
     // Type-specific errors
-    APPROVAL_TOOL_CONFIRMATION_DENIED = 'approval_tool_confirmation_denied',
+    APPROVAL_TOOL_APPROVAL_DENIED = 'approval_tool_confirmation_denied',
     APPROVAL_ELICITATION_DENIED = 'approval_elicitation_denied',
     APPROVAL_ELICITATION_VALIDATION_FAILED = 'approval_elicitation_validation_failed',
 

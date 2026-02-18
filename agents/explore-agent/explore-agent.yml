@@ -74,7 +74,7 @@ storage:
     type: in-memory
 
 # Auto-approve all tools since they're read-only
-toolConfirmation:
+permissions:
   mode: auto-approve
   allowedToolsStorage: memory
 

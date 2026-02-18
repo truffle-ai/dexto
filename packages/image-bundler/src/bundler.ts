@@ -65,10 +65,10 @@ export async function bundle(options: BundleOptions): Promise<BundleResult> {
         compiledCount++;
     }
 
-    // plugins/
-    const pluginsDir = join(imageDir, 'plugins');
-    if (existsSync(pluginsDir)) {
-        compileSourceFiles(pluginsDir, join(outDir, 'plugins'));
+    // hooks/
+    const hooksDir = join(imageDir, 'hooks');
+    if (existsSync(hooksDir)) {
+        compileSourceFiles(hooksDir, join(outDir, 'hooks'));
         compiledCount++;
     }
 
@@ -340,7 +340,7 @@ export interface DiscoveredFactories {
         database: DiscoveredFactory[];
         cache: DiscoveredFactory[];
     };
-    plugins: DiscoveredFactory[];
+    hooks: DiscoveredFactory[];
     compaction: DiscoveredFactory[];
     totalCount: number;
 }
@@ -355,7 +355,7 @@ export interface DiscoveredFactories {
  *       helpers.ts   - Optional helper files
  *       types.ts     - Optional type definitions
  *   compaction/      - CompactionFactory folders
- *   plugins/         - PluginFactory folders
+ *   hooks/           - HookFactory folders
  *   storage/blob/    - BlobStoreFactory folders
  *   storage/cache/   - CacheFactory folders
  *   storage/database/ - DatabaseFactory folders
@@ -372,7 +372,7 @@ function discoverFactories(imageDir: string, warnings: string[]): DiscoveredFact
             database: [],
             cache: [],
         },
-        plugins: [],
+        hooks: [],
         compaction: [],
         totalCount: 0,
     };
@@ -416,11 +416,11 @@ function discoverFactories(imageDir: string, warnings: string[]): DiscoveredFact
         label: 'tools/',
     });
 
-    // plugins/
-    result.plugins = discoverFolder({
-        srcDir: join(imageDir, 'plugins'),
-        importBase: 'plugins',
-        label: 'plugins/',
+    // hooks/
+    result.hooks = discoverFolder({
+        srcDir: join(imageDir, 'hooks'),
+        importBase: 'hooks',
+        label: 'hooks/',
     });
 
     // compaction/
@@ -453,7 +453,7 @@ function discoverFactories(imageDir: string, warnings: string[]): DiscoveredFact
 
     result.totalCount =
         result.tools.length +
-        result.plugins.length +
+        result.hooks.length +
         result.compaction.length +
         result.storage.blob.length +
         result.storage.database.length +
@@ -527,8 +527,8 @@ async function validateDiscoveredFactories(
     for (const entry of discovered.tools) {
         validations.push(validateFactoryExport({ outDir, kind: 'tool', entry }));
     }
-    for (const entry of discovered.plugins) {
-        validations.push(validateFactoryExport({ outDir, kind: 'plugin', entry }));
+    for (const entry of discovered.hooks) {
+        validations.push(validateFactoryExport({ outDir, kind: 'hook', entry }));
     }
     for (const entry of discovered.compaction) {
         validations.push(validateFactoryExport({ outDir, kind: 'compaction', entry }));

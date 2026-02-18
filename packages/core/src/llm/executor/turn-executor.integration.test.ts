@@ -155,7 +155,7 @@ describe('TurnExecutor Integration Tests', () => {
         resourceManager = new ResourceManager(
             mcpManager,
             {
-                internalResourcesConfig: { enabled: false, resources: [] },
+                resourcesConfig: [],
                 blobStore: storageManager.getBlobStore(),
             },
             agentEventBus,
@@ -203,7 +203,7 @@ describe('TurnExecutor Integration Tests', () => {
         // Create real approval manager
         approvalManager = new ApprovalManager(
             {
-                toolConfirmation: { mode: 'auto-approve', timeout: 120000 },
+                permissions: { mode: 'auto-approve', timeout: 120000 },
                 elicitation: { enabled: false, timeout: 120000 },
             },
             logger

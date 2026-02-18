@@ -39,24 +39,18 @@ interface ServersPanelProps {
     refreshTrigger?: number; // Add a trigger to force refresh
 }
 
-// Utility function to strip tool name prefixes (internal--, custom--, mcp--serverName--)
-function stripToolPrefix(toolName: string, source: 'internal' | 'custom' | 'mcp'): string {
-    if (source === 'internal' && toolName.startsWith('internal--')) {
-        return toolName.replace('internal--', '');
+// Utility function to strip MCP server prefix from tool names (mcp--serverName--toolName -> toolName)
+function stripToolPrefix(toolName: string, source: 'local' | 'mcp'): string {
+    if (source !== 'mcp') {
+        return toolName;
     }
-    if (source === 'custom' && toolName.startsWith('custom--')) {
-        return toolName.replace('custom--', '');
+
+    if (!toolName.startsWith('mcp--')) {
+        return toolName;
     }
-    if (source === 'mcp' && toolName.startsWith('mcp--')) {
-        // Format: mcp--serverName--toolName -> extract toolName
-        const parts = toolName.split('--');
-        if (parts.length >= 3) {
-            return parts.slice(2).join('--'); // Join remaining parts in case tool name has '--'
-        }
-        // Fallback: if format is different, just remove 'mcp--'
-        return toolName.replace('mcp--', '');
-    }
-    return toolName;
+    const trimmed = toolName.substring('mcp--'.length);
+    const parts = trimmed.split('--');
+    return parts.length >= 2 ? parts.slice(1).join('--') : trimmed;
 }
 
 export default function ServersPanel({
@@ -88,7 +82,7 @@ export default function ServersPanel({
     const deleteServerMutation = useDeleteServer();
     const restartServerMutation = useRestartServer();
 
-    // Fetch all tools from all sources (internal, custom, MCP)
+    // Fetch all tools from all sources (local, MCP)
     const {
         data: allToolsData,
         isLoading: isLoadingAllTools,
@@ -119,10 +113,9 @@ export default function ServersPanel({
 
     // Group tools by source with server info
     const toolsBySource = useMemo(() => {
-        if (!allToolsData)
+        if (!allToolsData) {
             return {
-                internal: [],
-                custom: [],
+                local: [] as ToolInfo[],
                 mcp: new Map<
                     string,
                     {
@@ -131,19 +124,17 @@ export default function ServersPanel({
                     }
                 >(),
             };
+        }
 
-        const internal: ToolInfo[] = [];
-        const custom: ToolInfo[] = [];
+        const local: ToolInfo[] = [];
         const mcp = new Map<
             string,
             { tools: ToolInfo[]; server: { id: string; name: string; status: string } | null }
         >();
 
         allToolsData.tools.forEach((tool: ToolInfo) => {
-            if (tool.source === 'internal') {
-                internal.push(tool);
-            } else if (tool.source === 'custom') {
-                custom.push(tool);
+            if (tool.source === 'local') {
+                local.push(tool);
             } else if (tool.source === 'mcp' && tool.serverName) {
                 const existing = mcp.get(tool.serverName) || { tools: [], server: null };
                 existing.tools.push(tool);
@@ -158,7 +149,7 @@ export default function ServersPanel({
             }
         });
 
-        return { internal, custom, mcp };
+        return { local, mcp };
     }, [allToolsData, servers]);
 
     // Filter tools based on search query and create sections
@@ -166,38 +157,23 @@ export default function ServersPanel({
         const sections: Array<{
             title: string;
             tools: ToolInfo[];
-            type: 'internal' | 'custom' | 'mcp';
+            type: 'local' | 'mcp';
             server?: { id: string; name: string; status: string } | null;
         }> = [];
         const query = searchQuery.toLowerCase();
 
-        // Internal tools section
-        if (toolsBySource.internal.length > 0) {
+        // Local tools section
+        if (toolsBySource.local.length > 0) {
             const filtered = searchQuery
-                ? toolsBySource.internal.filter(
+                ? toolsBySource.local.filter(
                       (tool) =>
                           tool.name.toLowerCase().includes(query) ||
                           tool.description?.toLowerCase().includes(query)
                   )
-                : toolsBySource.internal;
+                : toolsBySource.local;
 
             if (filtered.length > 0) {
-                sections.push({ title: 'Internal', tools: filtered, type: 'internal' });
-            }
-        }
-
-        // Custom tools section
-        if (toolsBySource.custom.length > 0) {
-            const filtered = searchQuery
-                ? toolsBySource.custom.filter(
-                      (tool) =>
-                          tool.name.toLowerCase().includes(query) ||
-                          tool.description?.toLowerCase().includes(query)
-                  )
-                : toolsBySource.custom;
-
-            if (filtered.length > 0) {
-                sections.push({ title: 'Custom', tools: filtered, type: 'custom' });
+                sections.push({ title: 'Local', tools: filtered, type: 'local' });
             }
         }
 

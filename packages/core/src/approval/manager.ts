@@ -4,7 +4,7 @@ import type {
     ApprovalRequest,
     ApprovalResponse,
     ApprovalRequestDetails,
-    ToolConfirmationMetadata,
+    ToolApprovalMetadata,
     CommandConfirmationMetadata,
     ElicitationMetadata,
     DirectoryAccessMetadata,
@@ -14,14 +14,15 @@ import { createApprovalRequest } from './factory.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { ApprovalError } from './errors.js';
-import { patternCovers } from '../tools/bash-pattern-utils.js';
+import { patternCovers } from '../tools/pattern-utils.js';
+import type { PermissionsMode } from '../tools/schemas.js';
 
 /**
  * Configuration for the approval manager
  */
 export interface ApprovalManagerConfig {
-    toolConfirmation: {
-        mode: 'manual' | 'auto-approve' | 'auto-deny';
+    permissions: {
+        mode: PermissionsMode;
         timeout?: number; // Optional - no timeout if not specified
     };
     elicitation: {
@@ -34,7 +35,7 @@ export interface ApprovalManagerConfig {
  * ApprovalManager orchestrates all user approval flows in Dexto.
  *
  * It provides a unified interface for requesting user approvals across different
- * types (tool confirmation, MCP elicitation, custom approvals) and manages the
+ * types (tool approval, MCP elicitation, custom approvals) and manages the
  * underlying approval provider based on configuration.
  *
  * Key responsibilities:
@@ -47,12 +48,12 @@ export interface ApprovalManagerConfig {
  * @example
  * ```typescript
  * const manager = new ApprovalManager(
- *   { toolConfirmation: { mode: 'manual', timeout: 60000 }, elicitation: { enabled: true, timeout: 60000 } },
+ *   { permissions: { mode: 'manual', timeout: 60000 }, elicitation: { enabled: true, timeout: 60000 } },
  *   logger
  * );
  *
- * // Request tool confirmation
- * const response = await manager.requestToolConfirmation({
+ * // Request tool approval
+ * const response = await manager.requestToolApproval({
  *   toolName: 'git_commit',
  *   args: { message: 'feat: add feature' },
  *   sessionId: 'session-123'
@@ -69,11 +70,12 @@ export class ApprovalManager {
     private logger: Logger;
 
     /**
-     * Bash command patterns approved for the current session.
-     * Patterns use simple glob syntax (e.g., "git *", "npm install *").
-     * Cleared when session ends.
+     * Tool approval patterns, keyed by tool id.
+     *
+     * Patterns use simple glob syntax (e.g. "git *", "npm install *") and are matched
+     * using pattern-to-pattern covering (see {@link patternCovers}).
      */
-    private bashPatterns: Set<string> = new Set();
+    private toolPatterns: Map<string, Set<string>> = new Map();
 
     /**
      * Directories approved for file access for the current session.
@@ -89,39 +91,42 @@ export class ApprovalManager {
         this.logger = logger.createChild(DextoLogComponent.APPROVAL);
 
         this.logger.debug(
-            `ApprovalManager initialized with toolConfirmation.mode: ${config.toolConfirmation.mode}, elicitation.enabled: ${config.elicitation.enabled}`
+            `ApprovalManager initialized with permissions.mode: ${config.permissions.mode}, elicitation.enabled: ${config.elicitation.enabled}`
         );
     }
 
-    // ==================== Bash Pattern Methods ====================
+    // ==================== Pattern Methods ====================
 
-    /**
-     * Add a bash command pattern to the approved list for this session.
-     * Patterns use simple glob syntax with * as wildcard.
-     *
-     * @example
-     * ```typescript
-     * manager.addBashPattern("git *");        // Approves all git commands
-     * manager.addBashPattern("npm install *"); // Approves npm install with any package
-     * ```
-     */
-    addBashPattern(pattern: string): void {
-        this.bashPatterns.add(pattern);
-        this.logger.debug(`Added bash pattern: "${pattern}"`);
+    private getOrCreateToolPatternSet(toolName: string): Set<string> {
+        const existing = this.toolPatterns.get(toolName);
+        if (existing) return existing;
+        const created = new Set<string>();
+        this.toolPatterns.set(toolName, created);
+        return created;
     }
 
     /**
-     * Check if a bash pattern key is covered by any approved pattern.
-     * Uses pattern-to-pattern covering for broader pattern support.
-     *
-     * @param patternKey The pattern key generated from the command (e.g., "git push *")
-     * @returns true if the pattern key is covered by an approved pattern
+     * Add an approval pattern for a tool.
      */
-    matchesBashPattern(patternKey: string): boolean {
-        for (const storedPattern of this.bashPatterns) {
+    addPattern(toolName: string, pattern: string): void {
+        this.getOrCreateToolPatternSet(toolName).add(pattern);
+        this.logger.debug(`Added pattern for '${toolName}': "${pattern}"`);
+    }
+
+    /**
+     * Check if a pattern key is covered by any approved pattern for a tool.
+     *
+     * Note: This expects a pattern key (e.g. "git push *"), not raw arguments.
+     * Tools are responsible for generating the key via Tool.getApprovalPatternKey().
+     */
+    matchesPattern(toolName: string, patternKey: string): boolean {
+        const patterns = this.toolPatterns.get(toolName);
+        if (!patterns || patterns.size === 0) return false;
+
+        for (const storedPattern of patterns) {
             if (patternCovers(storedPattern, patternKey)) {
                 this.logger.debug(
-                    `Pattern key "${patternKey}" is covered by approved pattern "${storedPattern}"`
+                    `Pattern key "${patternKey}" is covered by approved pattern "${storedPattern}" (tool: ${toolName})`
                 );
                 return true;
             }
@@ -130,22 +135,42 @@ export class ApprovalManager {
     }
 
     /**
-     * Clear all approved bash patterns.
-     * Should be called when session ends.
+     * Clear all patterns for a tool (or all tools when omitted).
      */
-    clearBashPatterns(): void {
-        const count = this.bashPatterns.size;
-        this.bashPatterns.clear();
+    clearPatterns(toolName?: string): void {
+        if (toolName) {
+            const patterns = this.toolPatterns.get(toolName);
+            if (!patterns) return;
+            const count = patterns.size;
+            patterns.clear();
+            if (count > 0) {
+                this.logger.debug(`Cleared ${count} pattern(s) for '${toolName}'`);
+            }
+            return;
+        }
+
+        const count = Array.from(this.toolPatterns.values()).reduce(
+            (sum, set) => sum + set.size,
+            0
+        );
+        this.toolPatterns.clear();
         if (count > 0) {
-            this.logger.debug(`Cleared ${count} bash patterns`);
+            this.logger.debug(`Cleared ${count} total tool pattern(s)`);
         }
     }
 
     /**
-     * Get the current set of approved bash patterns (for debugging/display).
+     * Get patterns for a tool (for debugging/display).
      */
-    getBashPatterns(): ReadonlySet<string> {
-        return this.bashPatterns;
+    getToolPatterns(toolName: string): ReadonlySet<string> {
+        return this.toolPatterns.get(toolName) ?? new Set<string>();
+    }
+
+    /**
+     * Get all tool patterns (for debugging/display).
+     */
+    getAllToolPatterns(): ReadonlyMap<string, Set<string>> {
+        return this.toolPatterns;
     }
 
     // ==================== Directory Access Methods ====================
@@ -272,11 +297,11 @@ export class ApprovalManager {
     }
 
     /**
-     * Clear all session-scoped approvals (bash patterns and directories).
+     * Clear all session-scoped approvals (tool patterns and directories).
      * Convenience method for clearing all session state at once.
      */
     clearSessionApprovals(): void {
-        this.clearBashPatterns();
+        this.clearPatterns();
         this.clearApprovedDirectories();
         this.logger.debug('Cleared all session approvals');
     }
@@ -304,7 +329,7 @@ export class ApprovalManager {
         const details: ApprovalRequestDetails = {
             type: ApprovalType.DIRECTORY_ACCESS,
             // Use provided timeout, fallback to config timeout, or undefined (no timeout)
-            timeout: timeout !== undefined ? timeout : this.config.toolConfirmation.timeout,
+            timeout: timeout !== undefined ? timeout : this.config.permissions.timeout,
             metadata: directoryMetadata,
         };
 
@@ -333,7 +358,7 @@ export class ApprovalManager {
     }
 
     /**
-     * Handle approval requests (tool confirmation, elicitation, command confirmation, directory access, custom)
+     * Handle approval requests (tool approval, elicitation, command confirmation, directory access, custom)
      * @private
      */
     private async handleApproval(request: ApprovalRequest): Promise<ApprovalResponse> {
@@ -347,7 +372,7 @@ export class ApprovalManager {
         }
 
         // Tool/command/directory-access/custom confirmations respect the configured mode
-        const mode = this.config.toolConfirmation.mode;
+        const mode = this.config.permissions.mode;
 
         // Auto-approve mode
         if (mode === 'auto-approve') {
@@ -390,21 +415,21 @@ export class ApprovalManager {
     }
 
     /**
-     * Request tool confirmation approval
-     * Convenience method for tool execution confirmation
+     * Request tool approval
+     * Convenience method for tool execution approval
      *
      * TODO: Make sessionId required once all callers are updated to pass it
      * Tool confirmations always happen in session context during LLM execution
      */
-    async requestToolConfirmation(
-        metadata: ToolConfirmationMetadata & { sessionId?: string; timeout?: number }
+    async requestToolApproval(
+        metadata: ToolApprovalMetadata & { sessionId?: string; timeout?: number }
     ): Promise<ApprovalResponse> {
         const { sessionId, timeout, ...toolMetadata } = metadata;
 
         const details: ApprovalRequestDetails = {
-            type: ApprovalType.TOOL_CONFIRMATION,
+            type: ApprovalType.TOOL_APPROVAL,
             // Use provided timeout, fallback to config timeout, or undefined (no timeout)
-            timeout: timeout !== undefined ? timeout : this.config.toolConfirmation.timeout,
+            timeout: timeout !== undefined ? timeout : this.config.permissions.timeout,
             metadata: toolMetadata,
         };
 
@@ -419,7 +444,7 @@ export class ApprovalManager {
      * Request command confirmation approval
      * Convenience method for dangerous command execution within an already-approved tool
      *
-     * This is different from tool confirmation - it's for per-command approval
+     * This is different from tool approval - it's for per-command approval
      * of dangerous operations (like rm, git push) within tools that are already approved.
      *
      * TODO: Make sessionId required once all callers are updated to pass it
@@ -444,7 +469,7 @@ export class ApprovalManager {
         const details: ApprovalRequestDetails = {
             type: ApprovalType.COMMAND_CONFIRMATION,
             // Use provided timeout, fallback to config timeout, or undefined (no timeout)
-            timeout: timeout !== undefined ? timeout : this.config.toolConfirmation.timeout,
+            timeout: timeout !== undefined ? timeout : this.config.permissions.timeout,
             metadata: commandMetadata,
         };
 
@@ -482,18 +507,18 @@ export class ApprovalManager {
     }
 
     /**
-     * Check if tool confirmation was approved
+     * Check if tool approval was approved
      * Throws appropriate error if denied
      */
-    async checkToolConfirmation(
-        metadata: ToolConfirmationMetadata & { sessionId?: string; timeout?: number }
+    async checkToolApproval(
+        metadata: ToolApprovalMetadata & { sessionId?: string; timeout?: number }
     ): Promise<boolean> {
-        const response = await this.requestToolConfirmation(metadata);
+        const response = await this.requestToolApproval(metadata);
 
         if (response.status === ApprovalStatus.APPROVED) {
             return true;
         } else if (response.status === ApprovalStatus.DENIED) {
-            throw ApprovalError.toolConfirmationDenied(
+            throw ApprovalError.toolApprovalDenied(
                 metadata.toolName,
                 response.reason,
                 response.message,
@@ -502,7 +527,7 @@ export class ApprovalManager {
         } else {
             throw ApprovalError.cancelled(
                 response.approvalId,
-                ApprovalType.TOOL_CONFIRMATION,
+                ApprovalType.TOOL_APPROVAL,
                 response.message ?? response.reason
             );
         }
@@ -605,11 +630,11 @@ export class ApprovalManager {
      * Set the approval handler for manual approval mode.
      *
      * The handler will be called for:
-     * - Tool confirmation requests when toolConfirmation.mode is 'manual'
-     * - All elicitation requests (when elicitation is enabled, regardless of toolConfirmation.mode)
+     * - Tool confirmation requests when permissions.mode is 'manual'
+     * - All elicitation requests (when elicitation is enabled, regardless of permissions.mode)
      *
      * A handler must be set before processing requests if:
-     * - toolConfirmation.mode is 'manual', or
+     * - permissions.mode is 'manual', or
      * - elicitation is enabled (elicitation.enabled is true)
      *
      * @param handler The approval handler function, or null to clear
@@ -648,10 +673,10 @@ export class ApprovalManager {
             throw ApprovalError.invalidConfig(
                 'An approval handler is required but not configured.\n' +
                     'Handlers are required for:\n' +
-                    '  • manual tool confirmation mode\n' +
+                    '  • manual tool approval mode\n' +
                     '  • all elicitation requests (when elicitation is enabled)\n' +
                     'Either:\n' +
-                    '  • set toolConfirmation.mode to "auto-approve" or "auto-deny", or\n' +
+                    '  • set permissions.mode to "auto-approve" or "auto-deny", or\n' +
                     '  • disable elicitation (set elicitation.enabled: false), or\n' +
                     '  • call agent.setApprovalHandler(...) before processing requests.'
             );

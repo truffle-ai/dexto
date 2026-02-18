@@ -33,7 +33,7 @@ export interface ApprovalPromptHandle {
 export interface ApprovalOptions {
     /** Remember this tool for the entire session (approves ALL uses) */
     rememberChoice?: boolean;
-    /** Remember a specific command pattern for bash (e.g., "git *") */
+    /** Remember an approval pattern (e.g., "git *") */
     rememberPattern?: string;
     /** Form data for elicitation requests */
     formData?: Record<string, unknown>;
@@ -68,7 +68,7 @@ type SelectionOption =
  * Compact approval prompt component that displays above the input area
  * Shows options based on approval type:
  * - Tool confirmation: Yes, Yes (Session), No
- * - Bash with patterns: Yes (once), pattern options, Yes (all bash), No
+ * - Tool with patterns: Yes (once), pattern options, Yes (session), No
  * - Elicitation: Form with input fields
  */
 export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptProps>(
@@ -80,17 +80,15 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         // Extract tool metadata
         const toolName = approval.metadata.toolName as string | undefined;
         const toolArgs = (approval.metadata.args as Record<string, unknown>) || {};
+        const toolDisplayName = approval.metadata.toolDisplayName as string | undefined;
 
         // Check if this is a plan_review tool (shows custom approval options)
-        const isPlanReview =
-            toolName === 'custom--plan_review' ||
-            toolName === 'internal--plan_review' ||
-            toolName === 'plan_review';
+        const isPlanReview = toolName === 'plan_review';
 
-        // Extract suggested patterns for bash tools
+        // Extract suggested patterns for tools that support pattern-based approvals
         const suggestedPatterns =
             (approval.metadata.suggestedPatterns as string[] | undefined) ?? [];
-        const hasBashPatterns = suggestedPatterns.length > 0;
+        const hasSuggestedPatterns = suggestedPatterns.length > 0;
 
         // Check if this is an edit/write file tool
         const isEditOrWriteTool = isEditWriteTool(toolName);
@@ -98,8 +96,12 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         // Format tool header using shared utility (same format as tool messages)
         const formattedTool = useMemo(() => {
             if (!toolName) return null;
-            return formatToolHeader(toolName, toolArgs);
-        }, [toolName, toolArgs]);
+            return formatToolHeader({
+                toolName,
+                args: toolArgs,
+                ...(toolDisplayName !== undefined && { toolDisplayName }),
+            });
+        }, [toolName, toolDisplayName, toolArgs]);
 
         const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -121,8 +123,8 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
             options.push({ id: 'plan-approve', label: 'Approve' });
             options.push({ id: 'plan-approve-accept-edits', label: 'Approve + Accept All Edits' });
             // Third "option" is the feedback input (handled specially in render)
-        } else if (hasBashPatterns) {
-            // Bash tool with pattern suggestions
+        } else if (hasSuggestedPatterns) {
+            // Tool with pattern suggestions
             options.push({ id: 'yes', label: 'Yes (once)' });
             suggestedPatterns.forEach((pattern, i) => {
                 options.push({
@@ -130,7 +132,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                     label: `Yes, allow "${pattern}"`,
                 });
             });
-            options.push({ id: 'yes-session', label: 'Yes, allow all bash' });
+            options.push({ id: 'yes-session', label: 'Yes, allow this tool (session)' });
             options.push({ id: 'no', label: 'No' });
         } else if (isCommandConfirmation) {
             // Command confirmation (no session option)
@@ -298,10 +300,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
 
             switch (displayPreview.type) {
                 case 'diff': {
-                    const isOverwrite =
-                        toolName === 'custom--write_file' ||
-                        toolName === 'internal--write_file' ||
-                        toolName === 'write_file';
+                    const isOverwrite = toolName === 'write_file';
                     return (
                         <DiffPreview
                             data={displayPreview}

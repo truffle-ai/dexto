@@ -18,7 +18,7 @@ describe('ApprovalManager', () => {
         it('should allow auto-approve for tools while elicitation is enabled', async () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-approve',
                         timeout: 120000,
                     },
@@ -30,8 +30,8 @@ describe('ApprovalManager', () => {
                 mockLogger
             );
 
-            // Tool confirmation should be auto-approved
-            const toolResponse = await manager.requestToolConfirmation({
+            // Tool approval should be auto-approved
+            const toolResponse = await manager.requestToolApproval({
                 toolName: 'test_tool',
                 toolCallId: 'test-call-id',
                 args: { foo: 'bar' },
@@ -43,7 +43,7 @@ describe('ApprovalManager', () => {
         it('should reject elicitation when disabled, even if tools are auto-approved', async () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-approve',
                         timeout: 120000,
                     },
@@ -86,7 +86,7 @@ describe('ApprovalManager', () => {
         it('should auto-deny tools while elicitation is enabled', async () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-deny',
                         timeout: 120000,
                     },
@@ -98,8 +98,8 @@ describe('ApprovalManager', () => {
                 mockLogger
             );
 
-            // Tool confirmation should be auto-denied
-            const toolResponse = await manager.requestToolConfirmation({
+            // Tool approval should be auto-denied
+            const toolResponse = await manager.requestToolApproval({
                 toolName: 'test_tool',
                 toolCallId: 'test-call-id',
                 args: { foo: 'bar' },
@@ -111,7 +111,7 @@ describe('ApprovalManager', () => {
         it('should use separate timeouts for tools and elicitation', () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'manual',
                         timeout: 60000,
                     },
@@ -124,16 +124,16 @@ describe('ApprovalManager', () => {
             );
 
             const config = manager.getConfig();
-            expect(config.toolConfirmation.timeout).toBe(60000);
+            expect(config.permissions.timeout).toBe(60000);
             expect(config.elicitation.timeout).toBe(180000);
         });
     });
 
     describe('Approval routing by type', () => {
-        it('should route tool confirmations to tool confirmation handler', async () => {
+        it('should route tool approvals to tool approval handler', async () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-approve',
                         timeout: 120000,
                     },
@@ -145,7 +145,7 @@ describe('ApprovalManager', () => {
                 mockLogger
             );
 
-            const response = await manager.requestToolConfirmation({
+            const response = await manager.requestToolApproval({
                 toolName: 'test_tool',
                 toolCallId: 'test-call-id',
                 args: {},
@@ -157,7 +157,7 @@ describe('ApprovalManager', () => {
         it('should route command confirmations to tool confirmation handler', async () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-approve',
                         timeout: 120000,
                     },
@@ -181,7 +181,7 @@ describe('ApprovalManager', () => {
         it('should route elicitation to elicitation provider when enabled', async () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-deny', // Different mode for tools
                         timeout: 120000,
                     },
@@ -215,7 +215,7 @@ describe('ApprovalManager', () => {
         it('should track pending approvals across both providers', () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'manual',
                         timeout: 120000,
                     },
@@ -237,7 +237,7 @@ describe('ApprovalManager', () => {
         it('should cancel approvals in both providers', () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'manual',
                         timeout: 120000,
                     },
@@ -259,7 +259,7 @@ describe('ApprovalManager', () => {
         it('should throw clear error when elicitation is disabled', async () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-approve',
                         timeout: 120000,
                     },
@@ -288,7 +288,7 @@ describe('ApprovalManager', () => {
         it('should provide helpful error message about enabling elicitation', async () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-approve',
                         timeout: 120000,
                     },
@@ -324,7 +324,7 @@ describe('ApprovalManager', () => {
         it('should allow undefined timeout (infinite wait) for tool confirmation', () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'manual',
                         // No timeout specified - should wait indefinitely
                     },
@@ -337,13 +337,13 @@ describe('ApprovalManager', () => {
             );
 
             const config = manager.getConfig();
-            expect(config.toolConfirmation.timeout).toBeUndefined();
+            expect(config.permissions.timeout).toBeUndefined();
         });
 
         it('should allow undefined timeout (infinite wait) for elicitation', () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'manual',
                         timeout: 60000,
                     },
@@ -362,7 +362,7 @@ describe('ApprovalManager', () => {
         it('should allow both timeouts to be undefined (infinite wait for all approvals)', () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'manual',
                         // No timeout
                     },
@@ -375,14 +375,14 @@ describe('ApprovalManager', () => {
             );
 
             const config = manager.getConfig();
-            expect(config.toolConfirmation.timeout).toBeUndefined();
+            expect(config.permissions.timeout).toBeUndefined();
             expect(config.elicitation.timeout).toBeUndefined();
         });
 
         it('should use per-request timeout override when provided', async () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-approve', // Auto-approve so we can test immediately
                         timeout: 60000,
                     },
@@ -396,7 +396,7 @@ describe('ApprovalManager', () => {
 
             // The per-request timeout should override the config timeout
             // This is tested implicitly through the factory flow
-            const response = await manager.requestToolConfirmation({
+            const response = await manager.requestToolApproval({
                 toolName: 'test_tool',
                 toolCallId: 'test-call-id',
                 args: { foo: 'bar' },
@@ -409,7 +409,7 @@ describe('ApprovalManager', () => {
         it('should not timeout when timeout is undefined in auto-approve mode', async () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-approve',
                         // No timeout - should not cause any issues with auto-approve
                     },
@@ -420,7 +420,7 @@ describe('ApprovalManager', () => {
                 mockLogger
             );
 
-            const response = await manager.requestToolConfirmation({
+            const response = await manager.requestToolApproval({
                 toolName: 'test_tool',
                 toolCallId: 'test-call-id',
                 args: {},
@@ -432,7 +432,7 @@ describe('ApprovalManager', () => {
         it('should not timeout when timeout is undefined in auto-deny mode', async () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-deny',
                         // No timeout - should not cause any issues with auto-deny
                     },
@@ -443,7 +443,7 @@ describe('ApprovalManager', () => {
                 mockLogger
             );
 
-            const response = await manager.requestToolConfirmation({
+            const response = await manager.requestToolApproval({
                 toolName: 'test_tool',
                 toolCallId: 'test-call-id',
                 args: {},
@@ -458,7 +458,7 @@ describe('ApprovalManager', () => {
         it('should work with manual mode for both tools and elicitation', () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'manual',
                         timeout: 120000,
                     },
@@ -471,7 +471,7 @@ describe('ApprovalManager', () => {
             );
 
             expect(manager.getConfig()).toEqual({
-                toolConfirmation: {
+                permissions: {
                     mode: 'manual',
                     timeout: 120000,
                 },
@@ -485,7 +485,7 @@ describe('ApprovalManager', () => {
         it('should respect explicitly set elicitation enabled value', () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'manual',
                         timeout: 120000,
                     },
@@ -505,7 +505,7 @@ describe('ApprovalManager', () => {
         it('should include system_denied reason in auto-deny mode', async () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-deny',
                         timeout: 120000,
                     },
@@ -517,7 +517,7 @@ describe('ApprovalManager', () => {
                 mockLogger
             );
 
-            const response = await manager.requestToolConfirmation({
+            const response = await manager.requestToolApproval({
                 toolName: 'test_tool',
                 toolCallId: 'test-call-id',
                 args: {},
@@ -531,7 +531,7 @@ describe('ApprovalManager', () => {
         it('should throw error with specific reason when tool is denied', async () => {
             const manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-deny',
                         timeout: 120000,
                     },
@@ -544,7 +544,7 @@ describe('ApprovalManager', () => {
             );
 
             try {
-                await manager.checkToolConfirmation({
+                await manager.checkToolApproval({
                     toolName: 'test_tool',
                     toolCallId: 'test-call-id',
                     args: {},
@@ -553,7 +553,7 @@ describe('ApprovalManager', () => {
             } catch (error) {
                 expect(error).toBeInstanceOf(DextoRuntimeError);
                 expect((error as DextoRuntimeError).code).toBe(
-                    ApprovalErrorCode.APPROVAL_TOOL_CONFIRMATION_DENIED
+                    ApprovalErrorCode.APPROVAL_TOOL_APPROVAL_DENIED
                 );
                 expect((error as DextoRuntimeError).message).toContain('system policy');
                 expect((error as any).context.reason).toBe(DenialReason.SYSTEM_DENIED);
@@ -563,7 +563,7 @@ describe('ApprovalManager', () => {
         it('should handle user_denied reason in error message', async () => {
             const _manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'manual',
                         timeout: 1, // Quick timeout for test
                     },
@@ -620,13 +620,14 @@ describe('ApprovalManager', () => {
         });
     });
 
-    describe('Bash Pattern Approval', () => {
+    describe('Tool Pattern Approval', () => {
         let manager: ApprovalManager;
+        const toolName = 'bash_exec';
 
         beforeEach(() => {
             manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'manual',
                         timeout: 120000,
                     },
@@ -638,18 +639,18 @@ describe('ApprovalManager', () => {
             );
         });
 
-        describe('addBashPattern', () => {
+        describe('addPattern', () => {
             it('should add a pattern to the approved list', () => {
-                manager.addBashPattern('git *');
-                expect(manager.getBashPatterns().has('git *')).toBe(true);
+                manager.addPattern(toolName, 'git *');
+                expect(manager.getToolPatterns(toolName).has('git *')).toBe(true);
             });
 
             it('should add multiple patterns', () => {
-                manager.addBashPattern('git *');
-                manager.addBashPattern('npm *');
-                manager.addBashPattern('ls *');
+                manager.addPattern(toolName, 'git *');
+                manager.addPattern(toolName, 'npm *');
+                manager.addPattern(toolName, 'ls *');
 
-                const patterns = manager.getBashPatterns();
+                const patterns = manager.getToolPatterns(toolName);
                 expect(patterns.size).toBe(3);
                 expect(patterns.has('git *')).toBe(true);
                 expect(patterns.has('npm *')).toBe(true);
@@ -657,101 +658,103 @@ describe('ApprovalManager', () => {
             });
 
             it('should not duplicate patterns', () => {
-                manager.addBashPattern('git *');
-                manager.addBashPattern('git *');
+                manager.addPattern(toolName, 'git *');
+                manager.addPattern(toolName, 'git *');
 
-                expect(manager.getBashPatterns().size).toBe(1);
+                expect(manager.getToolPatterns(toolName).size).toBe(1);
             });
         });
 
-        describe('matchesBashPattern (pattern-to-pattern covering)', () => {
-            // Note: matchesBashPattern expects pattern keys (e.g., "git push *"),
+        describe('matchesPattern (pattern-to-pattern covering)', () => {
+            // Note: matchesPattern expects pattern keys (e.g., "git push *"),
             // not raw commands. ToolManager generates pattern keys from commands.
 
             it('should match exact pattern against exact stored pattern', () => {
-                manager.addBashPattern('git status *');
-                expect(manager.matchesBashPattern('git status *')).toBe(true);
-                expect(manager.matchesBashPattern('git push *')).toBe(false);
+                manager.addPattern(toolName, 'git status *');
+                expect(manager.matchesPattern(toolName, 'git status *')).toBe(true);
+                expect(manager.matchesPattern(toolName, 'git push *')).toBe(false);
             });
 
             it('should cover narrower pattern with broader pattern', () => {
                 // "git *" is broader and should cover "git push *", "git status *", etc.
-                manager.addBashPattern('git *');
-                expect(manager.matchesBashPattern('git *')).toBe(true);
-                expect(manager.matchesBashPattern('git push *')).toBe(true);
-                expect(manager.matchesBashPattern('git status *')).toBe(true);
-                expect(manager.matchesBashPattern('npm *')).toBe(false);
+                manager.addPattern(toolName, 'git *');
+                expect(manager.matchesPattern(toolName, 'git *')).toBe(true);
+                expect(manager.matchesPattern(toolName, 'git push *')).toBe(true);
+                expect(manager.matchesPattern(toolName, 'git status *')).toBe(true);
+                expect(manager.matchesPattern(toolName, 'npm *')).toBe(false);
             });
 
             it('should not let narrower pattern cover broader pattern', () => {
                 // "git push *" should NOT cover "git *"
-                manager.addBashPattern('git push *');
-                expect(manager.matchesBashPattern('git push *')).toBe(true);
-                expect(manager.matchesBashPattern('git *')).toBe(false);
-                expect(manager.matchesBashPattern('git status *')).toBe(false);
+                manager.addPattern(toolName, 'git push *');
+                expect(manager.matchesPattern(toolName, 'git push *')).toBe(true);
+                expect(manager.matchesPattern(toolName, 'git *')).toBe(false);
+                expect(manager.matchesPattern(toolName, 'git status *')).toBe(false);
             });
 
             it('should match against multiple patterns', () => {
-                manager.addBashPattern('git *');
-                manager.addBashPattern('npm install *');
+                manager.addPattern(toolName, 'git *');
+                manager.addPattern(toolName, 'npm install *');
 
-                expect(manager.matchesBashPattern('git status *')).toBe(true);
-                expect(manager.matchesBashPattern('npm install *')).toBe(true);
+                expect(manager.matchesPattern(toolName, 'git status *')).toBe(true);
+                expect(manager.matchesPattern(toolName, 'npm install *')).toBe(true);
                 // npm * is not covered, only npm install * specifically
-                expect(manager.matchesBashPattern('npm run *')).toBe(false);
+                expect(manager.matchesPattern(toolName, 'npm run *')).toBe(false);
             });
 
             it('should return false when no patterns are set', () => {
-                expect(manager.matchesBashPattern('git status *')).toBe(false);
+                expect(manager.matchesPattern(toolName, 'git status *')).toBe(false);
             });
 
             it('should not cross-match unrelated commands', () => {
-                manager.addBashPattern('npm *');
+                manager.addPattern(toolName, 'npm *');
                 // "npx" starts with "np" but is not "npm " + something
-                expect(manager.matchesBashPattern('npx *')).toBe(false);
+                expect(manager.matchesPattern(toolName, 'npx *')).toBe(false);
             });
 
             it('should handle multi-level subcommands', () => {
-                manager.addBashPattern('docker compose *');
-                expect(manager.matchesBashPattern('docker compose *')).toBe(true);
-                expect(manager.matchesBashPattern('docker compose up *')).toBe(true);
-                expect(manager.matchesBashPattern('docker *')).toBe(false);
+                manager.addPattern(toolName, 'docker compose *');
+                expect(manager.matchesPattern(toolName, 'docker compose *')).toBe(true);
+                expect(manager.matchesPattern(toolName, 'docker compose up *')).toBe(true);
+                expect(manager.matchesPattern(toolName, 'docker *')).toBe(false);
+            });
+
+            it('should isolate patterns by tool', () => {
+                manager.addPattern('tool-a', 'git *');
+                expect(manager.matchesPattern('tool-a', 'git push *')).toBe(true);
+                expect(manager.matchesPattern('tool-b', 'git push *')).toBe(false);
             });
         });
 
-        describe('clearBashPatterns', () => {
-            it('should clear all patterns', () => {
-                manager.addBashPattern('git *');
-                manager.addBashPattern('npm *');
-                expect(manager.getBashPatterns().size).toBe(2);
+        describe('clearPatterns', () => {
+            it('should clear patterns for a tool', () => {
+                manager.addPattern(toolName, 'git *');
+                manager.addPattern(toolName, 'npm *');
+                expect(manager.getToolPatterns(toolName).size).toBe(2);
 
-                manager.clearBashPatterns();
-                expect(manager.getBashPatterns().size).toBe(0);
+                manager.clearPatterns(toolName);
+                expect(manager.getToolPatterns(toolName).size).toBe(0);
             });
 
             it('should allow adding patterns after clearing', () => {
-                manager.addBashPattern('git *');
-                manager.clearBashPatterns();
-                manager.addBashPattern('npm *');
+                manager.addPattern(toolName, 'git *');
+                manager.clearPatterns(toolName);
+                manager.addPattern(toolName, 'npm *');
 
-                expect(manager.getBashPatterns().size).toBe(1);
-                expect(manager.getBashPatterns().has('npm *')).toBe(true);
+                expect(manager.getToolPatterns(toolName).size).toBe(1);
+                expect(manager.getToolPatterns(toolName).has('npm *')).toBe(true);
             });
         });
 
-        describe('getBashPatterns', () => {
+        describe('getToolPatterns', () => {
             it('should return empty set initially', () => {
-                expect(manager.getBashPatterns().size).toBe(0);
+                expect(manager.getToolPatterns(toolName).size).toBe(0);
             });
 
             it('should return a copy that reflects current patterns', () => {
-                manager.addBashPattern('git *');
-                const patterns = manager.getBashPatterns();
+                manager.addPattern(toolName, 'git *');
+                const patterns = manager.getToolPatterns(toolName);
                 expect(patterns.has('git *')).toBe(true);
-
-                // Note: ReadonlySet is a TypeScript type constraint, not runtime protection
-                // The returned set IS the internal set, so modifying it would affect the manager
-                // This is acceptable for our use case (debugging/display)
             });
         });
     });
@@ -762,7 +765,7 @@ describe('ApprovalManager', () => {
         beforeEach(() => {
             manager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'manual',
                         timeout: 120000,
                     },

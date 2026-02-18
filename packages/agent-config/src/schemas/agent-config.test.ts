@@ -36,7 +36,7 @@ describe('AgentConfigSchema', () => {
             expect(result.storage.blob.type).toBe('in-memory');
 
             expect(result.sessions.maxSessions).toBe(100);
-            expect(result.toolConfirmation.mode).toBe('auto-approve');
+            expect(result.permissions.mode).toBe('auto-approve');
         });
 
         it('should preserve explicit values from composed schemas', () => {
@@ -64,7 +64,7 @@ describe('AgentConfigSchema', () => {
                         args: ['server.js'],
                     },
                 },
-                tools: [{ type: 'builtin-tools', enabledTools: ['search_history'] }],
+                tools: [{ type: 'lifecycle-tools', enabledTools: ['search_history'] }],
                 llm: {
                     provider: 'anthropic',
                     model: 'claude-haiku-4-5-20251001',
@@ -80,7 +80,7 @@ describe('AgentConfigSchema', () => {
                     maxSessions: 5,
                     sessionTTL: 1_800_000,
                 },
-                toolConfirmation: {
+                permissions: {
                     mode: 'auto-approve',
                     timeout: 15_000,
                 },
@@ -91,11 +91,11 @@ describe('AgentConfigSchema', () => {
             expect(result.agentCard?.name).toBe('TestAgent');
             expect(result.systemPrompt.contributors[0]!.id).toBe('custom');
             expect(result.mcpServers.testServer).toBeDefined();
-            expect(result.tools?.[0]?.type).toBe('builtin-tools');
+            expect(result.tools?.[0]?.type).toBe('lifecycle-tools');
             expect(result.llm.provider).toBe('anthropic');
             expect(result.storage.cache.type).toBe('redis');
             expect(result.sessions.maxSessions).toBe(5);
-            expect(result.toolConfirmation.mode).toBe('auto-approve');
+            expect(result.permissions.mode).toBe('auto-approve');
         });
     });
 
@@ -204,7 +204,7 @@ describe('AgentConfigSchema', () => {
                         env: { DB_URL: 'postgresql://prod:5432/db' },
                     },
                 },
-                tools: [{ type: 'builtin-tools', enabledTools: ['search_history'] }],
+                tools: [{ type: 'lifecycle-tools', enabledTools: ['search_history'] }],
                 llm: {
                     provider: 'openai',
                     model: 'gpt-4o-mini',
@@ -227,7 +227,7 @@ describe('AgentConfigSchema', () => {
                     maxSessions: 100,
                     sessionTTL: 7_200_000,
                 },
-                toolConfirmation: {
+                permissions: {
                     mode: 'manual',
                     timeout: 45_000,
                     allowedToolsStorage: 'storage',
@@ -239,11 +239,11 @@ describe('AgentConfigSchema', () => {
             expect(result.agentCard?.name).toBe('Production Agent');
             expect(result.systemPrompt.contributors).toHaveLength(2);
             expect(Object.keys(result.mcpServers)).toHaveLength(1);
-            expect(result.tools?.[0]?.type).toBe('builtin-tools');
+            expect(result.tools?.[0]?.type).toBe('lifecycle-tools');
             expect(result.llm.temperature).toBe(0.3);
             expect(result.storage.cache.type).toBe('redis');
             expect(result.sessions.maxSessions).toBe(100);
-            expect(result.toolConfirmation.timeout).toBe(45_000);
+            expect(result.permissions.timeout).toBe(45_000);
         });
     });
 });

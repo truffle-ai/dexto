@@ -1,6 +1,6 @@
 import { z } from 'zod';
+import { ToolError, defineTool } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
-import { ToolError } from '@dexto/core';
 
 const GetResourceInputSchema = z
     .object({
@@ -20,25 +20,24 @@ const GetResourceInputSchema = z
     })
     .strict();
 
-type GetResourceInput = z.output<typeof GetResourceInputSchema>;
-
 /**
  * Create the `get_resource` tool.
  *
  * Retrieves resource metadata or a shareable URL for a stored blob resource.
  * Requires `ToolExecutionContext.services.resources`.
  */
-export function createGetResourceTool(): Tool {
-    return {
+export function createGetResourceTool(): Tool<typeof GetResourceInputSchema> {
+    return defineTool({
         id: 'get_resource',
+        displayName: 'Get Resource',
         description:
             'Access a stored resource. Use format "url" to get a shareable URL for other agents ' +
             'or external systems (requires remote storage like Supabase). Use format "metadata" ' +
             'to get resource information without loading data. ' +
             'References can be obtained from tool result annotations or list_resources.',
         inputSchema: GetResourceInputSchema,
-        execute: async (input: unknown, context: ToolExecutionContext) => {
-            const { reference, format } = input as GetResourceInput;
+        async execute(input, context: ToolExecutionContext) {
+            const { reference, format } = input;
 
             const resourceManager = context.services?.resources;
             if (!resourceManager) {
@@ -128,5 +127,5 @@ export function createGetResourceTool(): Tool {
                 };
             }
         },
-    };
+    });
 }

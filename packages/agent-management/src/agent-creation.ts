@@ -1,4 +1,4 @@
-import type { AgentConfig, DextoImageModule } from '@dexto/agent-config';
+import type { AgentConfig, DextoImage } from '@dexto/agent-config';
 import {
     AgentConfigSchema,
     applyImageDefaults,
@@ -24,7 +24,7 @@ type CreateDextoAgentFromConfigOptions = {
 async function loadImageForConfig(options: {
     config: AgentConfig;
     imageNameOverride?: string | undefined;
-}): Promise<{ imageName: string; image: DextoImageModule }> {
+}): Promise<{ imageName: string; image: DextoImage }> {
     const { config, imageNameOverride } = options;
     const imageName =
         imageNameOverride ?? config.image ?? process.env.DEXTO_IMAGE ?? '@dexto/image-local';

@@ -61,7 +61,7 @@ describe('image-store', () => {
                 `  metadata: { name: '@myorg/my-image', version: '1.0.0', description: 'test image' },`,
                 `  tools: {},`,
                 `  storage: { blob: {}, database: {}, cache: {} },`,
-                `  plugins: {},`,
+                `  hooks: {},`,
                 `  compaction: {},`,
                 `  logger: { configSchema: schema, create: () => ({}) },`,
                 `};`,

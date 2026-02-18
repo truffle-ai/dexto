@@ -2,7 +2,7 @@ import type {
     BlobStore,
     Cache,
     Database,
-    Plugin,
+    Hook,
     Logger,
     CompactionStrategy as CompactionStrategy,
     Tool,
@@ -69,11 +69,11 @@ export interface CacheFactory<TConfig = unknown> {
 }
 
 /**
- * Plugin factories are keyed by `type` in the agent config (`plugins: [{ type: "..." }]`).
+ * Hook factories are keyed by `type` in the agent config (`hooks: [{ type: "..." }]`).
  */
-export interface PluginFactory<TConfig = unknown> {
+export interface HookFactory<TConfig = unknown> {
     configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>;
-    create(config: TConfig): Plugin;
+    create(config: TConfig): Hook;
     metadata?: Record<string, unknown> | undefined;
 }
 
@@ -106,7 +106,7 @@ export interface LoggerFactory<TConfig = unknown> {
  * - Factories are plain exports; resolution is explicit and testable
  * - Hosts decide how to load images (static import, dynamic import via `loadImage()`, allowlists, etc.)
  */
-export interface DextoImageModule {
+export interface DextoImage {
     /**
      * Metadata about the image package.
      *
@@ -134,7 +134,7 @@ export interface DextoImageModule {
         database: Record<string, DatabaseFactory>;
         cache: Record<string, CacheFactory>;
     };
-    plugins: Record<string, PluginFactory>;
+    hooks: Record<string, HookFactory>;
     compaction: Record<string, CompactionFactory>;
     logger: LoggerFactory;
 }

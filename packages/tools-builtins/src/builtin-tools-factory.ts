@@ -6,19 +6,21 @@ import { createDelegateToUrlTool } from './implementations/delegate-to-url-tool.
 import { createGetResourceTool } from './implementations/get-resource-tool.js';
 import { createInvokeSkillTool } from './implementations/invoke-skill-tool.js';
 import { createListResourcesTool } from './implementations/list-resources-tool.js';
-import { createSearchHistoryTool } from './implementations/search-history-tool.js';
 import { createHttpRequestTool } from './implementations/http-request-tool.js';
 import { createSleepTool } from './implementations/sleep-tool.js';
+import { createWebSearchTool } from './implementations/exa-web-search-tool.js';
+import { createCodeSearchTool } from './implementations/exa-code-search-tool.js';
 
 export const BUILTIN_TOOL_NAMES = [
     'ask_user',
-    'search_history',
     'delegate_to_url',
     'list_resources',
     'get_resource',
     'invoke_skill',
     'http_request',
     'sleep',
+    'web_search',
+    'code_search',
 ] as const;
 
 export type BuiltinToolName = (typeof BUILTIN_TOOL_NAMES)[number];
@@ -38,8 +40,6 @@ function createToolByName(name: BuiltinToolName): Tool {
     switch (name) {
         case 'ask_user':
             return createAskUserTool();
-        case 'search_history':
-            return createSearchHistoryTool();
         case 'delegate_to_url':
             return createDelegateToUrlTool();
         case 'list_resources':
@@ -52,6 +52,10 @@ function createToolByName(name: BuiltinToolName): Tool {
             return createHttpRequestTool();
         case 'sleep':
             return createSleepTool();
+        case 'web_search':
+            return createWebSearchTool();
+        case 'code_search':
+            return createCodeSearchTool();
         default: {
             const exhaustive: never = name;
             throw new Error(`Unknown builtin tool: ${exhaustive}`);
@@ -62,7 +66,7 @@ function createToolByName(name: BuiltinToolName): Tool {
 export const builtinToolsFactory: ToolFactory<BuiltinToolsConfig> = {
     configSchema: BuiltinToolsConfigSchema,
     metadata: {
-        displayName: 'Built-in tools',
+        displayName: 'Built-in Tools',
         description: 'Core built-in tools shipped with Dexto',
         category: 'core',
     },

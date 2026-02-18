@@ -2,14 +2,14 @@
 
 Local development image for Dexto.
 
-This package default-exports a typed `DextoImageModule` (no side effects, no registries). Hosts
+This package default-exports a typed `DextoImage` (no side effects, no registries). Hosts
 (CLI/server/apps) load the image and resolve config → concrete services via `@dexto/agent-config`.
 
 ## What’s included
 
 - **Storage factories**: local filesystem blob store, SQLite database, in-memory cache (plus in-memory alternatives; Postgres/Redis factories are included but require optional deps)
 - **Tool factories**: builtin, filesystem, process, todo, plan, agent-spawner
-- **Plugins**: content-policy, response-sanitizer
+- **Hooks**: content-policy, response-sanitizer
 - **Compaction**: reactive-overflow, noop
 - **Logger**: core `defaultLoggerFactory`
 

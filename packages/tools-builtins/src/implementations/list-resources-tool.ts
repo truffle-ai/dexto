@@ -1,6 +1,6 @@
 import { z } from 'zod';
+import { ToolError, defineTool } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
-import { ToolError } from '@dexto/core';
 
 const ListResourcesInputSchema = z
     .object({
@@ -24,8 +24,6 @@ const ListResourcesInputSchema = z
     })
     .strict();
 
-type ListResourcesInput = z.output<typeof ListResourcesInputSchema>;
-
 interface ResourceInfo {
     reference: string;
     kind: string;
@@ -43,16 +41,17 @@ interface ResourceInfo {
  * that can be passed to `get_resource`.
  * Requires `ToolExecutionContext.services.resources`.
  */
-export function createListResourcesTool(): Tool {
-    return {
+export function createListResourcesTool(): Tool<typeof ListResourcesInputSchema> {
+    return defineTool({
         id: 'list_resources',
+        displayName: 'List Resources',
         description:
             'List available resources (images, files, etc.). Returns resource references ' +
             'that can be used with get_resource to obtain shareable URLs or metadata. ' +
             'Filter by source (tool/user) or kind (image/audio/video/binary).',
         inputSchema: ListResourcesInputSchema,
-        execute: async (input: unknown, context: ToolExecutionContext) => {
-            const { source, kind, limit } = input as ListResourcesInput;
+        async execute(input, context: ToolExecutionContext) {
+            const { source, kind, limit } = input;
 
             const resourceManager = context.services?.resources;
             if (!resourceManager) {
@@ -119,5 +118,5 @@ export function createListResourcesTool(): Tool {
                 };
             }
         },
-    };
+    });
 }

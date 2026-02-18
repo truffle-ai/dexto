@@ -67,12 +67,16 @@ export class TurnExecutor {
     private stepAbortController: AbortController;
     private compactionStrategy: CompactionStrategy | null = null;
     /**
-     * Map to track approval metadata by toolCallId.
-     * Used to pass approval info from tool execution to result persistence.
+     * Map to track tool-call metadata by toolCallId.
+     * Used to pass execution-time info (approval + display name) to result persistence.
      */
-    private approvalMetadata = new Map<
+    private toolCallMetadata = new Map<
         string,
-        { requireApproval: boolean; approvalStatus?: 'approved' | 'rejected' }
+        {
+            toolDisplayName?: string;
+            requireApproval?: boolean;
+            approvalStatus?: 'approved' | 'rejected';
+        }
     >();
 
     constructor(
@@ -263,7 +267,7 @@ export class TurnExecutor {
                     this.getStreamProcessorConfig(estimatedTokens),
                     this.logger,
                     streaming,
-                    this.approvalMetadata
+                    this.toolCallMetadata
                 );
 
                 // Build provider-specific options (caching, reasoning, etc.)
@@ -636,19 +640,37 @@ export class TurnExecutor {
                                         abortSignal
                                     );
 
-                                    // Store approval metadata for later retrieval by StreamProcessor
-                                    if (executionResult.requireApproval !== undefined) {
-                                        const metadata: {
-                                            requireApproval: boolean;
+                                    const metadata:
+                                        | {
+                                              toolDisplayName?: string;
+                                              requireApproval?: boolean;
+                                              approvalStatus?: 'approved' | 'rejected';
+                                          }
+                                        | undefined = (() => {
+                                        const meta: {
+                                            toolDisplayName?: string;
+                                            requireApproval?: boolean;
                                             approvalStatus?: 'approved' | 'rejected';
-                                        } = {
-                                            requireApproval: executionResult.requireApproval,
-                                        };
-                                        if (executionResult.approvalStatus !== undefined) {
-                                            metadata.approvalStatus =
-                                                executionResult.approvalStatus;
+                                        } = {};
+
+                                        if (executionResult.toolDisplayName !== undefined) {
+                                            meta.toolDisplayName = executionResult.toolDisplayName;
                                         }
-                                        this.approvalMetadata.set(options.toolCallId, metadata);
+
+                                        // Store approval metadata for later retrieval by StreamProcessor
+                                        if (executionResult.requireApproval !== undefined) {
+                                            meta.requireApproval = executionResult.requireApproval;
+                                            if (executionResult.approvalStatus !== undefined) {
+                                                meta.approvalStatus =
+                                                    executionResult.approvalStatus;
+                                            }
+                                        }
+
+                                        return Object.keys(meta).length > 0 ? meta : undefined;
+                                    })();
+
+                                    if (metadata) {
+                                        this.toolCallMetadata.set(options.toolCallId, metadata);
                                     }
 
                                     // Return just the raw result for Vercel SDK

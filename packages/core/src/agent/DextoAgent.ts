@@ -45,10 +45,10 @@ import type { LLMUpdates, ValidatedLLMConfig } from '../llm/schemas.js';
 import { ServersConfigSchema } from '../mcp/schemas.js';
 import { MemoriesConfigSchema } from '../memory/schemas.js';
 import { PromptsSchema } from '../prompts/schemas.js';
-import { InternalResourcesSchema } from '../resources/schemas.js';
+import { ResourcesConfigSchema } from '../resources/schemas.js';
 import { SessionConfigSchema } from '../session/schemas.js';
 import { SystemPromptConfigSchema } from '../systemPrompt/schemas.js';
-import { ElicitationConfigSchema, ToolConfirmationConfigSchema } from '../tools/schemas.js';
+import { ElicitationConfigSchema, PermissionsConfigSchema } from '../tools/schemas.js';
 import { OtelConfigurationSchema } from '../telemetry/schemas.js';
 import { AgentCardSchema } from './schemas.js';
 import type { AgentRuntimeSettings, DextoAgentConfigInput } from './runtime-config.js';
@@ -122,7 +122,7 @@ export interface AgentEventSubscriber {
  *   logger,
  *   storage,
  *   tools,
- *   plugins,
+ *   hooks,
  * });
  * await agent.start();
  *
@@ -205,11 +205,11 @@ export class DextoAgent {
     private activeStreamControllers: Map<string, AbortController> = new Map();
 
     // Host overrides for service initialization (e.g. session logger factory)
-    private readonly serviceOverrides: InitializeServicesOptions;
+    private readonly overrides: InitializeServicesOptions;
 
     // DI-provided local tools.
-    private readonly injectedTools: Tool[];
-    private readonly injectedCompactionStrategy: CompactionStrategy | null;
+    private readonly tools: Tool[];
+    private readonly compactionStrategy: CompactionStrategy | null;
 
     // Logger instance for this agent (dependency injection)
     public readonly logger: Logger;
@@ -228,9 +228,9 @@ export class DextoAgent {
             systemPrompt: SystemPromptConfigSchema.parse(options.systemPrompt),
             mcpServers: ServersConfigSchema.parse(options.mcpServers ?? {}),
             sessions: SessionConfigSchema.parse(options.sessions ?? {}),
-            toolConfirmation: ToolConfirmationConfigSchema.parse(options.toolConfirmation ?? {}),
+            permissions: PermissionsConfigSchema.parse(options.permissions ?? {}),
             elicitation: ElicitationConfigSchema.parse(options.elicitation ?? {}),
-            internalResources: InternalResourcesSchema.parse(options.internalResources),
+            resources: ResourcesConfigSchema.parse(options.resources ?? []),
             prompts: PromptsSchema.parse(options.prompts),
             ...(options.agentCard !== undefined && {
                 agentCard: AgentCardSchema.parse(options.agentCard),
@@ -250,7 +250,7 @@ export class DextoAgent {
      *
      * Constructor options are DI-first:
      * - runtime settings (validated + defaulted by core)
-     * - concrete services (logger/tools/plugins/storage backends)
+     * - concrete services (logger/tools/hooks/storage backends)
      * - optional internal service overrides (session logging, auth factories, etc.)
      */
     constructor(options: DextoAgentOptions) {
@@ -258,22 +258,22 @@ export class DextoAgent {
             logger,
             storage,
             tools: toolsInput,
-            plugins: pluginsInput,
+            hooks: hooksInput,
             compaction,
             overrides: overridesInput,
             ...runtimeSettings
         } = options;
 
         const tools = toolsInput ?? [];
-        const plugins = pluginsInput ?? [];
+        const hooks = hooksInput ?? [];
 
         this.config = DextoAgent.validateConfig(runtimeSettings);
 
         // Agent logger is always provided by the host (typically created from config).
         this.logger = logger;
 
-        this.injectedTools = tools;
-        this.injectedCompactionStrategy = compaction ?? null;
+        this.tools = tools;
+        this.compactionStrategy = compaction ?? null;
 
         const overrides: InitializeServicesOptions = { ...(overridesInput ?? {}) };
 
@@ -288,11 +288,11 @@ export class DextoAgent {
             );
         }
 
-        if (overrides.plugins === undefined) {
-            overrides.plugins = plugins;
+        if (overrides.hooks === undefined) {
+            overrides.hooks = hooks;
         }
 
-        this.serviceOverrides = overrides;
+        this.overrides = overrides;
 
         if (overrides.mcpAuthProviderFactory !== undefined) {
             this.mcpAuthProviderFactory = overrides.mcpAuthProviderFactory;
@@ -326,8 +326,8 @@ export class DextoAgent {
                 this.config,
                 this.logger,
                 this.agentEventBus,
-                this.serviceOverrides,
-                this.injectedCompactionStrategy
+                this.overrides,
+                this.compactionStrategy
             );
 
             if (this.mcpAuthProviderFactory) {
@@ -346,12 +346,12 @@ export class DextoAgent {
             // Validate approval configuration
             // Handler is required for manual tool confirmation OR when elicitation is enabled
             const needsHandler =
-                this.config.toolConfirmation.mode === 'manual' || this.config.elicitation.enabled;
+                this.config.permissions.mode === 'manual' || this.config.elicitation.enabled;
 
             if (needsHandler && !this.approvalHandler) {
                 const reasons = [];
-                if (this.config.toolConfirmation.mode === 'manual') {
-                    reasons.push('tool confirmation mode is "manual"');
+                if (this.config.permissions.mode === 'manual') {
+                    reasons.push('permissions mode is "manual"');
                 }
                 if (this.config.elicitation.enabled) {
                     reasons.push('elicitation is enabled');
@@ -361,7 +361,7 @@ export class DextoAgent {
                     `An approval handler is required but not configured (${reasons.join(' and ')}).\n` +
                         'Either:\n' +
                         '  • Call agent.setApprovalHandler() before starting\n' +
-                        '  • Set toolConfirmation: { mode: "auto-approve" } or { mode: "auto-deny" }\n' +
+                        '  • Set permissions: { mode: "auto-approve" } or { mode: "auto-deny" }\n' +
                         '  • Disable elicitation: { enabled: false }'
                 );
             }
@@ -419,11 +419,11 @@ export class DextoAgent {
                 services: toolExecutionServices,
             }));
 
-            const localTools = this.injectedTools;
+            const agentTools = this.tools;
 
             // Add skills contributor to system prompt if invoke_skill is enabled.
             // This lists available skills so the LLM knows what it can invoke.
-            if (localTools.some((t) => t.id === 'internal--invoke_skill')) {
+            if (agentTools.some((t) => t.id === 'invoke_skill')) {
                 const skillsContributor = new SkillsContributor(
                     'skills',
                     50, // Priority after memories (40) but before most other content
@@ -434,7 +434,7 @@ export class DextoAgent {
                 this.logger.debug('Added SkillsContributor to system prompt');
             }
 
-            services.toolManager.setTools(localTools);
+            services.toolManager.setTools(agentTools);
 
             // Initialize toolManager after tools and context have been wired.
             await services.toolManager.initialize();
@@ -505,16 +505,16 @@ export class DextoAgent {
                 shutdownErrors.push(new Error(`ToolManager cleanup failed: ${err.message}`));
             }
 
-            // 2. Clean up plugins (close file handles, connections, etc.)
-            // Do this before storage disconnect so plugins can flush state if needed
+            // 2. Clean up hooks (close file handles, connections, etc.)
+            // Do this before storage disconnect so hooks can flush state if needed
             try {
-                if (this.services?.pluginManager) {
-                    await this.services.pluginManager.cleanup();
-                    this.logger.debug('PluginManager cleaned up successfully');
+                if (this.services?.hookManager) {
+                    await this.services.hookManager.cleanup();
+                    this.logger.debug('HookManager cleaned up successfully');
                 }
             } catch (error) {
                 const err = error instanceof Error ? error : new Error(String(error));
-                shutdownErrors.push(new Error(`PluginManager cleanup failed: ${err.message}`));
+                shutdownErrors.push(new Error(`HookManager cleanup failed: ${err.message}`));
             }
 
             // 3. Disconnect all MCP clients
@@ -1994,10 +1994,10 @@ export class DextoAgent {
 
         // Get raw history for hasSummary check
         const history = await contextManager.getHistory();
-        // Get the effective max context tokens from the injected compaction strategy (if any)
+        // Get the effective max context tokens from the configured compaction strategy (if any)
         const runtimeConfig = this.stateManager.getRuntimeConfig(sessionId);
         const modelContextWindow = contextManager.getMaxInputTokens();
-        const compactionStrategy = this.injectedCompactionStrategy;
+        const compactionStrategy = this.compactionStrategy;
         const compactionSettings = compactionStrategy?.getSettings();
         const thresholdPercent =
             compactionSettings && compactionSettings.enabled
@@ -3086,7 +3086,7 @@ export class DextoAgent {
     /**
      * Set a custom approval handler for manual approval mode.
      *
-     * When `toolConfirmation.mode` is set to 'manual', an approval handler must be
+     * When `permissions.mode` is set to 'manual', an approval handler must be
      * provided to process tool confirmation requests. The handler will be called
      * whenever a tool execution requires user approval.
      *
