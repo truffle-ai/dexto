@@ -128,6 +128,7 @@ const BUILTIN_SOUNDS: BuiltinSound[] = [
 type SoundSelection = { kind: 'system' } | { kind: 'builtin'; id: string } | { kind: 'custom' };
 
 type ViewMode = 'main' | 'pick-startup' | 'pick-approval' | 'pick-complete';
+type PickAction = 'listen' | 'select';
 
 type MainItem =
     | { type: 'enabled'; id: 'enabled' }
@@ -139,12 +140,9 @@ type MainItem =
       };
 
 type PickItem =
+    | { type: 'off'; id: 'off'; label: string; isCurrent: boolean }
     | { type: 'default'; id: 'default'; label: string; isCurrent: boolean }
     | { type: 'builtin'; id: string; label: string; isCurrent: boolean };
-
-function isPickItem(item: MainItem | PickItem): item is PickItem {
-    return item.type === 'default' || item.type === 'builtin';
-}
 
 const DEFAULT_CONFIG: SoundConfig = {
     enabled: true,
@@ -152,6 +150,19 @@ const DEFAULT_CONFIG: SoundConfig = {
     onApprovalRequired: true,
     onTaskComplete: true,
 };
+
+function getSoundEnabledKey(
+    soundType: SoundType
+): 'onStartup' | 'onApprovalRequired' | 'onTaskComplete' {
+    switch (soundType) {
+        case 'startup':
+            return 'onStartup';
+        case 'approval':
+            return 'onApprovalRequired';
+        case 'complete':
+            return 'onTaskComplete';
+    }
+}
 
 function selectionLabel(
     soundType: SoundType,
@@ -211,14 +222,10 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
 
         const baseSelectorRef = useRef<BaseSelectorHandle>(null);
         const builtinBuffersRef = useRef<Map<string, Buffer>>(new Map());
-        const applyConfigUpdateRef = useRef<(partial: Partial<SoundConfig>) => Promise<void>>(
-            async () => {}
-        );
-        const pickItemsRef = useRef<PickItem[]>([]);
-        const previewPickItemRef = useRef<(item: PickItem) => void>(() => {});
 
         const [viewMode, setViewMode] = useState<ViewMode>('main');
         const [selectedIndex, setSelectedIndex] = useState(0);
+        const [pickAction, setPickAction] = useState<PickAction>('listen');
         const [isLoading, setIsLoading] = useState(false);
         const [isApplying, setIsApplying] = useState(false);
         const [error, setError] = useState<string | null>(null);
@@ -253,30 +260,21 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                 handleInput: (input: string, key: Key): boolean => {
                     if (!isVisible) return false;
 
-                    // Main view: allow ←/→ to toggle the master sounds setting (On/Off)
-                    if (viewMode === 'main' && selectedIndex === 0) {
-                        if (key.leftArrow || key.rightArrow) {
-                            const nextEnabled = Boolean(key.rightArrow);
-                            if (configRef.current.enabled !== nextEnabled) {
-                                void applyConfigUpdateRef.current({ enabled: nextEnabled });
-                            }
+                    if (viewMode !== 'main') {
+                        if (key.leftArrow) {
+                            setPickAction('listen');
                             return true;
                         }
-                    }
-
-                    // Pick view: allow Space to preview the selected sound
-                    if (viewMode !== 'main' && input === ' ') {
-                        const item = pickItemsRef.current[selectedIndex];
-                        if (item) {
-                            previewPickItemRef.current(item);
+                        if (key.rightArrow) {
+                            setPickAction('select');
+                            return true;
                         }
-                        return true;
                     }
 
                     return baseSelectorRef.current?.handleInput(input, key) ?? false;
                 },
             }),
-            [isVisible, selectedIndex, viewMode]
+            [isVisible, viewMode]
         );
 
         const builtinSoundPaths = useMemo(() => {
@@ -416,19 +414,27 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                     : pickSoundType === 'approval'
                       ? approvalSelection
                       : completeSelection;
+            const enabledKey = getSoundEnabledKey(pickSoundType);
+            const isEnabled = config[enabledKey];
 
             const items: PickItem[] = [
+                {
+                    type: 'off',
+                    id: 'off',
+                    label: 'Off',
+                    isCurrent: !isEnabled,
+                },
                 {
                     type: 'default',
                     id: 'default',
                     label: 'Default',
-                    isCurrent: current.kind === 'system',
+                    isCurrent: isEnabled && current.kind === 'system',
                 },
                 ...builtinSoundPaths.map((sound) => ({
                     type: 'builtin' as const,
                     id: sound.id,
                     label: sound.name,
-                    isCurrent: current.kind === 'builtin' && current.id === sound.id,
+                    isCurrent: isEnabled && current.kind === 'builtin' && current.id === sound.id,
                 })),
             ];
 
@@ -437,11 +443,10 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
             approvalSelection,
             builtinSoundPaths,
             completeSelection,
+            config,
             pickSoundType,
             startupSelection,
         ]);
-
-        pickItemsRef.current = pickItems;
 
         const items = viewMode === 'main' ? mainItems : pickItems;
 
@@ -467,8 +472,6 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
             },
             [canPersistPreferences, soundService]
         );
-
-        applyConfigUpdateRef.current = applyConfigUpdate;
 
         const setBuiltinSound = useCallback(
             async (soundType: SoundType, soundId: string) => {
@@ -505,6 +508,10 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
             (item: PickItem) => {
                 if (!pickSoundType) return;
 
+                if (item.type === 'off') {
+                    return;
+                }
+
                 if (item.type === 'default') {
                     const spec = getDefaultSoundSpec(pickSoundType);
                     if (spec) playSoundFile(spec);
@@ -519,8 +526,6 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
             [builtinSoundPaths, pickSoundType]
         );
 
-        previewPickItemRef.current = previewPickItem;
-
         const handleSelect = useCallback(
             async (item: MainItem | PickItem) => {
                 if (isApplying || isLoading) return;
@@ -534,22 +539,39 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                     }
 
                     if (item.type === 'pick') {
+                        setPickAction('listen');
                         setViewMode(item.id);
                         setSelectedIndex(0);
                         return;
                     }
 
-                    if (item.type === 'default') {
+                    if (item.type === 'off' || item.type === 'default' || item.type === 'builtin') {
                         if (!pickSoundType) return;
-                        await setSystemDefaultSound(pickSoundType);
-                        setViewMode('main');
-                        setSelectedIndex(0);
-                        return;
-                    }
+                        const enabledKey = getSoundEnabledKey(pickSoundType);
 
-                    if (item.type === 'builtin') {
-                        if (!pickSoundType) return;
-                        await setBuiltinSound(pickSoundType, item.id);
+                        if (pickAction === 'listen') {
+                            previewPickItem(item);
+                            return;
+                        }
+
+                        if (item.type === 'off') {
+                            await applyConfigUpdate({ [enabledKey]: false });
+                            setViewMode('main');
+                            setSelectedIndex(0);
+                            return;
+                        }
+
+                        // Selecting any sound enables the event
+                        if (!configRef.current[enabledKey]) {
+                            await applyConfigUpdate({ [enabledKey]: true });
+                        }
+
+                        if (item.type === 'default') {
+                            await setSystemDefaultSound(pickSoundType);
+                        } else {
+                            await setBuiltinSound(pickSoundType, item.id);
+                        }
+
                         setViewMode('main');
                         setSelectedIndex(0);
                         return;
@@ -562,7 +584,9 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                 applyConfigUpdate,
                 isApplying,
                 isLoading,
+                pickAction,
                 pickSoundType,
+                previewPickItem,
                 setBuiltinSound,
                 setSystemDefaultSound,
             ]
@@ -576,29 +600,29 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                             <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
                                 sounds:{' '}
                             </Text>
-                            <Text inverse={config.enabled} bold={config.enabled}>
-                                On
-                            </Text>
-                            <Text> </Text>
-                            <Text inverse={!config.enabled} bold={!config.enabled}>
-                                Off
+                            <Text color={config.enabled ? 'green' : 'gray'} bold={isSelected}>
+                                {config.enabled ? 'On' : 'Off'}
                             </Text>
                         </>
                     );
                 }
 
                 if (item.type === 'pick') {
+                    const enabled =
+                        item.soundType === 'startup'
+                            ? config.onStartup
+                            : item.soundType === 'approval'
+                              ? config.onApprovalRequired
+                              : config.onTaskComplete;
                     const selection =
                         item.soundType === 'startup'
                             ? startupSelection
                             : item.soundType === 'approval'
                               ? approvalSelection
                               : completeSelection;
-                    const currentLabel = selectionLabel(
-                        item.soundType,
-                        selection,
-                        builtinSoundPaths
-                    );
+                    const currentLabel = enabled
+                        ? selectionLabel(item.soundType, selection, builtinSoundPaths)
+                        : 'Off';
 
                     return (
                         <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
@@ -607,13 +631,31 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                     );
                 }
 
-                if (item.type === 'default' || item.type === 'builtin') {
+                if (item.type === 'off' || item.type === 'default' || item.type === 'builtin') {
                     return (
                         <>
                             <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
                                 {item.label}
                             </Text>
                             {item.isCurrent && <Text color="green"> *</Text>}
+                            {isSelected && (
+                                <>
+                                    <Text> </Text>
+                                    <Text
+                                        inverse={pickAction === 'listen'}
+                                        bold={pickAction === 'listen'}
+                                    >
+                                        Listen
+                                    </Text>
+                                    <Text> </Text>
+                                    <Text
+                                        inverse={pickAction === 'select'}
+                                        bold={pickAction === 'select'}
+                                    >
+                                        Select
+                                    </Text>
+                                </>
+                            )}
                         </>
                     );
                 }
@@ -625,6 +667,7 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                 builtinSoundPaths,
                 completeSelection,
                 config.enabled,
+                pickAction,
                 startupSelection,
             ]
         );
@@ -649,19 +692,13 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                     selectedIndex={selectedIndex}
                     onSelectIndex={setSelectedIndex}
                     onSelect={(item) => void handleSelect(item as MainItem | PickItem)}
-                    onTab={(item) => {
-                        if (isPickItem(item as MainItem | PickItem)) {
-                            previewPickItem(item as PickItem);
-                        }
-                    }}
-                    supportsTab={viewMode !== 'main'}
                     onClose={closeOrBack}
                     formatItem={formatItem}
                     title={title}
                     instructionsOverride={
                         viewMode === 'main'
-                            ? '↑↓ navigate, ←→ toggle, Enter select, Esc close'
-                            : '↑↓ navigate, Tab/Space preview, Enter select, Esc back'
+                            ? '↑↓ navigate, Enter toggle/select, Esc close'
+                            : '↑↓ navigate, ←→ Listen/Select, Enter run, Esc back'
                     }
                     borderColor="magenta"
                     emptyMessage="No options available"
