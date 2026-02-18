@@ -140,7 +140,8 @@ type MainItem =
 type PickItem =
     | { type: 'off'; id: 'off'; label: string; isCurrent: boolean }
     | { type: 'default'; id: 'default'; label: string; isCurrent: boolean }
-    | { type: 'builtin'; id: string; label: string; isCurrent: boolean };
+    | { type: 'builtin'; id: string; label: string; isCurrent: boolean }
+    | { type: 'file'; id: string; relativePath: string; label: string; isCurrent: boolean };
 
 const DEFAULT_CONFIG: SoundConfig = {
     enabled: true,
@@ -187,7 +188,63 @@ function selectionLabel(soundType: SoundType, selection: SoundSelection): string
         if (builtin) return builtin.name;
     }
 
-    return path.parse(normalizedRelative).name;
+    return normalizedRelative.replace(/\.[^/.]+$/, '');
+}
+
+function getAllowedCustomSoundExtensions(): ReadonlySet<string> {
+    switch (process.platform) {
+        case 'win32':
+            return new Set(['.wav']);
+        case 'linux':
+            return new Set(['.wav', '.ogg', '.oga']);
+        default:
+            return new Set(CUSTOM_SOUND_EXTENSIONS);
+    }
+}
+
+async function listCustomSoundFiles(soundsDir: string): Promise<string[]> {
+    const allowedExtensions = getAllowedCustomSoundExtensions();
+    const results: string[] = [];
+
+    const walk = async (dir: string): Promise<void> => {
+        let entries: Array<import('node:fs').Dirent>;
+        try {
+            entries = await fs.readdir(dir, { withFileTypes: true });
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+            throw error;
+        }
+
+        for (const entry of entries) {
+            if (entry.name.startsWith('.')) continue;
+
+            const absPath = path.join(dir, entry.name);
+
+            if (entry.isDirectory()) {
+                if (dir === soundsDir && entry.name === 'builtins') continue;
+                await walk(absPath);
+                continue;
+            }
+
+            if (!entry.isFile()) continue;
+
+            const ext = path.extname(entry.name).toLowerCase();
+            if (!allowedExtensions.has(ext)) continue;
+
+            const relative = path.relative(soundsDir, absPath);
+            if (relative.startsWith('..') || path.isAbsolute(relative)) continue;
+
+            results.push(relative.split(path.sep).join('/'));
+        }
+    };
+
+    await walk(soundsDir);
+
+    return results.sort((a, b) => a.localeCompare(b));
+}
+
+function formatCustomSoundLabel(relativePath: string): string {
+    return relativePath.replaceAll('\\', '/').replace(/\.[^/.]+$/, '');
 }
 
 async function safeUnlink(filePath: string): Promise<void> {
@@ -242,6 +299,7 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
         const [error, setError] = useState<string | null>(null);
         const [canPersistPreferences, setCanPersistPreferences] = useState(false);
         const [config, setConfig] = useState<SoundConfig>(DEFAULT_CONFIG);
+        const [customSoundFiles, setCustomSoundFiles] = useState<string[]>([]);
         const [approvalSelection, setApprovalSelection] = useState<SoundSelection>({
             kind: 'system',
         });
@@ -352,6 +410,19 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                     soundService?.setConfig(nextConfig);
                     refreshSelections(nextConfig);
                 }
+
+                const soundsDir = getDextoGlobalPath('sounds');
+                try {
+                    const files = await listCustomSoundFiles(soundsDir);
+                    if (!cancelled) setCustomSoundFiles(files);
+                } catch (err) {
+                    if (!cancelled) {
+                        setCustomSoundFiles([]);
+                        setError(
+                            `Failed to load custom sounds: ${err instanceof Error ? err.message : String(err)}`
+                        );
+                    }
+                }
             };
 
             void run()
@@ -438,12 +509,21 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                         isEnabled &&
                         normalizedRelative === path.posix.join('builtins', sound.filename),
                 })),
+                ...customSoundFiles.map((relativePath) => ({
+                    type: 'file' as const,
+                    id: relativePath,
+                    relativePath,
+                    label: formatCustomSoundLabel(relativePath),
+                    isCurrent:
+                        isEnabled && normalizedRelative === relativePath.replaceAll('\\', '/'),
+                })),
             ];
 
             return items;
         }, [
             approvalSelection,
             builtinSoundPaths,
+            customSoundFiles,
             completeSelection,
             config,
             pickSoundType,
@@ -510,9 +590,20 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                     return;
                 }
 
-                const builtin = builtinSoundPaths.find((s) => s.id === item.id);
-                if (builtin) {
-                    playSoundFile(builtin.absPath);
+                if (item.type === 'builtin') {
+                    const builtin = builtinSoundPaths.find((s) => s.id === item.id);
+                    if (builtin) {
+                        playSoundFile(builtin.absPath);
+                    }
+                    return;
+                }
+
+                if (item.type === 'file') {
+                    const soundsDir = path.normalize(getDextoGlobalPath('sounds'));
+                    const resolved = path.normalize(path.resolve(soundsDir, item.relativePath));
+                    if (resolved === soundsDir || resolved.startsWith(soundsDir + path.sep)) {
+                        playSoundFile(resolved);
+                    }
                 }
             },
             [builtinSoundPaths, pickSoundType]
@@ -537,7 +628,12 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                         return;
                     }
 
-                    if (item.type === 'off' || item.type === 'default' || item.type === 'builtin') {
+                    if (
+                        item.type === 'off' ||
+                        item.type === 'default' ||
+                        item.type === 'builtin' ||
+                        item.type === 'file'
+                    ) {
                         if (!pickSoundType) return;
                         const enabledKey = getSoundEnabledKey(pickSoundType);
                         const fileKey = getSoundFileKey(pickSoundType);
@@ -565,11 +661,21 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                                 ...configRef.current,
                                 ...partial,
                             });
-                        } else {
+                        } else if (item.type === 'builtin') {
                             const relativePath = await ensureBuiltinSoundFile(item.id);
                             const partial: Partial<SoundConfig> = {
                                 [enabledKey]: true,
                                 [fileKey]: relativePath,
+                            };
+                            await applyConfigUpdate(partial);
+                            playNotificationSound(pickSoundType, {
+                                ...configRef.current,
+                                ...partial,
+                            });
+                        } else {
+                            const partial: Partial<SoundConfig> = {
+                                [enabledKey]: true,
+                                [fileKey]: item.relativePath,
                             };
                             await applyConfigUpdate(partial);
                             playNotificationSound(pickSoundType, {
@@ -636,7 +742,12 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                     );
                 }
 
-                if (item.type === 'off' || item.type === 'default' || item.type === 'builtin') {
+                if (
+                    item.type === 'off' ||
+                    item.type === 'default' ||
+                    item.type === 'builtin' ||
+                    item.type === 'file'
+                ) {
                     return (
                         <>
                             <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>

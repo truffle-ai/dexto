@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 
 export type SoundType = 'startup' | 'approval' | 'complete';
 
-export const CUSTOM_SOUND_EXTENSIONS = ['.wav', '.mp3', '.ogg', '.aiff', '.m4a'] as const;
+export const CUSTOM_SOUND_EXTENSIONS = ['.wav', '.mp3', '.ogg', '.oga', '.aiff', '.m4a'] as const;
 
 type SoundFileKey = 'startupSoundFile' | 'approvalSoundFile' | 'completeSoundFile';
 
