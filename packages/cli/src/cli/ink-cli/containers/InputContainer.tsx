@@ -25,6 +25,7 @@ import { generateMessageId } from '../utils/idGenerator.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
 import { capture } from '../../../analytics/index.js';
+import { getOverlayPresentation } from '../utils/overlayPresentation.js';
 
 /** Type for pending session creation promise */
 type SessionCreationResult = { id: string };
@@ -810,6 +811,10 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
         // Allow during processing so users can browse previous prompts while agent runs
         const canNavigateHistory = !approval && ui.activeOverlay === 'none';
 
+        // Hide the input area when a focused overlay/approval is active.
+        // This matches "full-screen overlay" UX (Claude-style) and prevents extra UI chrome/flicker.
+        const shouldHideInputArea = getOverlayPresentation(ui.activeOverlay, approval) === 'focus';
+
         const placeholder = approval
             ? 'Approval required above...'
             : 'Type your message or /help for commands';
@@ -819,6 +824,10 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
         useImperativeHandle(ref, () => ({
             submit: (text: string) => handleSubmit(text, true),
         }));
+
+        if (shouldHideInputArea) {
+            return null;
+        }
 
         return (
             <InputArea

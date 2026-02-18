@@ -122,6 +122,8 @@ import { InputService } from '../services/InputService.js';
 import { createUserMessage, convertHistoryToUIMessages } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import { capture } from '../../../analytics/index.js';
+import { FocusOverlayFrame } from '../components/shared/FocusOverlayFrame.js';
+import { shouldHideCliChrome } from '../utils/overlayPresentation.js';
 
 export interface OverlayContainerHandle {
     handleInput: (input: string, key: Key) => boolean;
@@ -2291,7 +2293,9 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
         }, [setUi]);
 
-        return (
+        const hideCliChrome = shouldHideCliChrome(ui.activeOverlay, approval);
+
+        const overlayContent = (
             <>
                 {/* Approval prompt */}
                 {approval && (
@@ -2680,6 +2684,12 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     />
                 )}
             </>
+        );
+
+        return hideCliChrome ? (
+            <FocusOverlayFrame>{overlayContent}</FocusOverlayFrame>
+        ) : (
+            overlayContent
         );
     }
 );

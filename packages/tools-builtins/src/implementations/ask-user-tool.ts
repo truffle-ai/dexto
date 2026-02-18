@@ -13,10 +13,39 @@ const AskUserInputSchema = z
             })
             .passthrough()
             .describe(
-                'JSON Schema defining form fields. Use descriptive property names as labels (e.g., "favorite_team", "World Cup winner country") - NOT generic names like "q1". Use "enum" for dropdowns, "boolean" for yes/no, "number" for numeric inputs, "string" for text. Include "required" array for mandatory fields.'
+                'JSON Schema defining form fields. Use stable, descriptive property keys (avoid generic names like "q1"). Prefer providing per-field "title" (short label for navigation) and "description" (the full question/prompt). Use "enum" for dropdowns, "boolean" for yes/no, "number" for numeric inputs, "string" for text. Include a "required" array for mandatory fields.'
             ),
     })
     .strict();
+
+function toTitleCase(value: string): string {
+    return value
+        .trim()
+        .replace(/[_-]+/g, ' ')
+        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+        .replace(/\s+/g, ' ')
+        .split(' ')
+        .map((part) => (part ? part[0]!.toUpperCase() + part.slice(1) : part))
+        .join(' ');
+}
+
+function enrichSchemaTitles(schema: Record<string, unknown>): Record<string, unknown> {
+    if (schema.type !== 'object') return schema;
+    const properties = schema.properties;
+    if (!properties || typeof properties !== 'object') return schema;
+
+    const nextProperties: Record<string, unknown> = { ...(properties as Record<string, unknown>) };
+
+    for (const [key, value] of Object.entries(nextProperties)) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+        const prop = value as Record<string, unknown>;
+        const title = typeof prop.title === 'string' ? prop.title.trim() : '';
+        if (title) continue;
+        prop.title = toTitleCase(key);
+    }
+
+    return { ...schema, properties: nextProperties };
+}
 
 /**
  * Create the `ask_user` tool.
@@ -47,7 +76,7 @@ export function createAskUserTool(): Tool<typeof AskUserInputSchema> {
                 serverName: string;
                 sessionId?: string;
             } = {
-                schema,
+                schema: enrichSchemaTitles(schema as unknown as Record<string, unknown>),
                 prompt: question,
                 serverName: 'Dexto Agent',
             };
