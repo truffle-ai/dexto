@@ -6,6 +6,7 @@ import chalk from 'chalk';
 import boxen from 'boxen';
 import { logger } from '@dexto/core';
 import { getDextoGlobalPath } from '@dexto/agent-management';
+import { getGlobalUpdateCommand } from './preferred-package-manager.js';
 
 /**
  * Version cache stored in ~/.dexto/version-check.json
@@ -28,7 +29,7 @@ export interface UpdateInfo {
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const NPM_REGISTRY_URL = 'https://registry.npmjs.org/dexto/latest';
 const CACHE_FILE_PATH = getDextoGlobalPath('cache', 'version-check.json');
-const UPDATE_COMMAND = 'bun add -g dexto@latest';
+const UPDATE_COMMAND = getGlobalUpdateCommand();
 
 /**
  * Compare two semver versions.

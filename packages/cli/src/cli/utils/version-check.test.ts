@@ -62,7 +62,7 @@ describe('version-check', () => {
             expect(result).toEqual({
                 current: '1.0.0',
                 latest: '2.0.0',
-                updateCommand: 'bun add -g dexto@latest',
+                updateCommand: expect.stringMatching(/^(bun add -g|npm i -g) dexto@latest$/),
             });
         });
 
@@ -110,7 +110,7 @@ describe('version-check', () => {
             expect(result).toEqual({
                 current: '1.0.0',
                 latest: '2.0.0',
-                updateCommand: 'bun add -g dexto@latest',
+                updateCommand: expect.stringMatching(/^(bun add -g|npm i -g) dexto@latest$/),
             });
             expect(mockFetch).not.toHaveBeenCalled();
         });
@@ -136,7 +136,7 @@ describe('version-check', () => {
             expect(result).toEqual({
                 current: '1.0.0',
                 latest: '2.0.0',
-                updateCommand: 'bun add -g dexto@latest',
+                updateCommand: expect.stringMatching(/^(bun add -g|npm i -g) dexto@latest$/),
             });
             expect(mockFetch).toHaveBeenCalled();
         });
@@ -220,7 +220,7 @@ describe('version-check', () => {
                 displayUpdateNotification({
                     current: '1.0.0',
                     latest: '2.0.0',
-                    updateCommand: 'bun add -g dexto@latest',
+                    updateCommand: 'npm i -g dexto@latest',
                 })
             ).not.toThrow();
         });
