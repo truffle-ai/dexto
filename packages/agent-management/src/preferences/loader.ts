@@ -77,9 +77,8 @@ const PREFERENCES_FILE_HEADER = `# Dexto Global Preferences
 #
 #   Tip: Use the /sounds overlay to preview and pick sounds.
 #
-#   Legacy fallback (still supported):
-#     Place startup.* / approval.* / complete.* in ~/.dexto/sounds/ and omit the *SoundFile keys.
-#     Supported audio formats vary by OS (Windows reliably supports .wav).
+#   To use custom sounds, copy files into ~/.dexto/sounds/ (subfolders ok) and set the *SoundFile
+#   keys to a relative path. Supported audio formats vary by OS (Windows reliably supports .wav).
 
 `;
 

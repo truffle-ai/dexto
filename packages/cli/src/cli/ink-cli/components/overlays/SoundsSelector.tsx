@@ -26,7 +26,6 @@ import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
 import {
     CUSTOM_SOUND_EXTENSIONS,
     getDefaultSoundSpec,
-    getCustomSoundPath,
     playNotificationSound,
     playSoundFile,
     type SoundConfig,
@@ -56,11 +55,6 @@ interface BuiltinSound {
 }
 
 const BUILTIN_SOUNDS: BuiltinSound[] = [
-    {
-        id: 'blow',
-        name: 'Blow',
-        filename: 'blow.wav',
-    },
     {
         id: 'coin',
         name: 'Coin',
@@ -100,11 +94,6 @@ const BUILTIN_SOUNDS: BuiltinSound[] = [
         id: 'startup',
         name: 'Startup',
         filename: 'startup.wav',
-    },
-    {
-        id: 'glass',
-        name: 'Glass',
-        filename: 'glass.wav',
     },
     {
         id: 'success',
@@ -247,39 +236,10 @@ function formatCustomSoundLabel(relativePath: string): string {
     return relativePath.replaceAll('\\', '/').replace(/\.[^/.]+$/, '');
 }
 
-async function safeUnlink(filePath: string): Promise<void> {
-    try {
-        await fs.unlink(filePath);
-    } catch (error) {
-        // Ignore if missing
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-            throw error;
-        }
-    }
-}
-
-async function removeCustomSoundFiles(soundType: SoundType): Promise<void> {
-    const soundsDir = getDextoGlobalPath('sounds');
-    await Promise.all(
-        CUSTOM_SOUND_EXTENSIONS.map((ext) => safeUnlink(path.join(soundsDir, `${soundType}${ext}`)))
-    );
-}
-
 function resolveSelection(soundType: SoundType, config: SoundConfig): SoundSelection {
     const configuredRelativePath = config[getSoundFileKey(soundType)];
     if (configuredRelativePath) {
         return { kind: 'file', relativePath: configuredRelativePath };
-    }
-
-    const legacyCustomPath = getCustomSoundPath(soundType);
-    if (legacyCustomPath) {
-        const soundsDir = getDextoGlobalPath('sounds');
-        const relative = path.relative(soundsDir, legacyCustomPath);
-        const normalized =
-            relative.startsWith('..') || path.isAbsolute(relative)
-                ? path.basename(legacyCustomPath)
-                : relative.split(path.sep).join('/');
-        return { kind: 'file', relativePath: normalized };
     }
 
     return { kind: 'system' };
@@ -438,7 +398,7 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
             return () => {
                 cancelled = true;
             };
-        }, [isVisible, builtinSoundPaths, refreshSelections, soundService]);
+        }, [isVisible, refreshSelections, soundService]);
 
         const mainItems: MainItem[] = useMemo(
             () => [
@@ -651,7 +611,6 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                         }
 
                         if (item.type === 'default') {
-                            await removeCustomSoundFiles(pickSoundType);
                             const partial: Partial<SoundConfig> = {
                                 [enabledKey]: true,
                                 [fileKey]: undefined,
@@ -778,14 +737,7 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
 
                 return null;
             },
-            [
-                approvalSelection,
-                builtinSoundPaths,
-                completeSelection,
-                config.enabled,
-                pickAction,
-                startupSelection,
-            ]
+            [approvalSelection, completeSelection, config, pickAction, startupSelection]
         );
 
         const title =

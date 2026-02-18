@@ -7,11 +7,11 @@
  * Sound files should be placed in ~/.dexto/sounds/ or use system defaults.
  */
 
-import { exec } from 'child_process';
 import { existsSync } from 'fs';
 import { isAbsolute, join, normalize, resolve, sep } from 'path';
 import { homedir, platform } from 'os';
 import { fileURLToPath } from 'node:url';
+import { execFile } from 'child_process';
 
 export type SoundType = 'startup' | 'approval' | 'complete';
 
@@ -81,45 +81,44 @@ export function getDefaultSoundSpec(soundType: SoundType): string | null {
 }
 
 /**
- * Get custom sound path from ~/.dexto/sounds/
- */
-export function getCustomSoundPath(soundType: SoundType): string | null {
-    const dextoSoundsDir = getDextoSoundsDir();
-
-    for (const ext of CUSTOM_SOUND_EXTENSIONS) {
-        const customPath = join(dextoSoundsDir, `${soundType}${ext}`);
-        if (existsSync(customPath)) {
-            return customPath;
-        }
-    }
-
-    return null;
-}
-
-/**
  * Play a sound file using platform-specific command
  */
 function playSound(soundPath: string): void {
     const currentPlatform = platform();
 
-    let command: string;
+    const execOrBell = (cmd: string, args: string[], onError?: () => void) => {
+        execFile(cmd, args, { timeout: 5000 }, (error) => {
+            if (!error) return;
+            if (onError) {
+                onError();
+                return;
+            }
+            playTerminalBell();
+        });
+    };
 
     switch (currentPlatform) {
-        case 'darwin':
-            // macOS: use afplay
-            command = `afplay "${soundPath}"`;
-            break;
+        case 'darwin': {
+            execOrBell('afplay', [soundPath]);
+            return;
+        }
 
-        case 'linux':
-            // Linux: try paplay (PulseAudio), then aplay (ALSA)
-            if (soundPath.endsWith('.oga') || soundPath.endsWith('.ogg')) {
-                command = `paplay "${soundPath}" 2>/dev/null || ogg123 -q "${soundPath}" 2>/dev/null`;
+        case 'linux': {
+            const lowerSoundPath = soundPath.toLowerCase();
+            const isOgg = lowerSoundPath.endsWith('.oga') || lowerSoundPath.endsWith('.ogg');
+            if (isOgg) {
+                execOrBell('paplay', [soundPath], () => {
+                    execOrBell('ogg123', ['-q', soundPath]);
+                });
             } else {
-                command = `paplay "${soundPath}" 2>/dev/null || aplay -q "${soundPath}" 2>/dev/null`;
+                execOrBell('paplay', [soundPath], () => {
+                    execOrBell('aplay', ['-q', soundPath]);
+                });
             }
-            break;
+            return;
+        }
 
-        case 'win32':
+        case 'win32': {
             // Windows: use PowerShell with System.Media.SystemSounds
             // For Windows system sounds, soundPath is the sound name
             if (
@@ -127,27 +126,33 @@ function playSound(soundPath: string): void {
                     soundPath
                 )
             ) {
-                command = `powershell -c "[System.Media.SystemSounds]::${soundPath.replace('System', '')}.Play()"`;
-            } else {
-                // For custom files, use SoundPlayer
-                command = `powershell -c "(New-Object System.Media.SoundPlayer '${soundPath}').PlaySync()"`;
+                const systemSoundName = soundPath.replace('System', '');
+                execOrBell('powershell', [
+                    '-NoProfile',
+                    '-NonInteractive',
+                    '-Command',
+                    `[System.Media.SystemSounds]::${systemSoundName}.Play()`,
+                ]);
+                return;
             }
-            break;
 
-        default:
+            // For custom files, use SoundPlayer
+            execOrBell('powershell', [
+                '-NoProfile',
+                '-NonInteractive',
+                '-Command',
+                '& { param([string]$p) (New-Object System.Media.SoundPlayer $p).PlaySync() }',
+                soundPath,
+            ]);
+            return;
+        }
+
+        default: {
             // Fallback: try to use terminal bell
             playTerminalBell();
             return;
-    }
-
-    // Execute sound command asynchronously (fire and forget)
-    // Use 5s timeout to prevent hanging processes (e.g., audio device issues)
-    exec(command, { timeout: 5000 }, (error) => {
-        if (error) {
-            // Silently fall back to terminal bell on error
-            playTerminalBell();
         }
-    });
+    }
 }
 
 export function playSoundFile(soundPath: string): void {
@@ -191,13 +196,6 @@ export function playNotificationSound(soundType: SoundType, config?: SoundConfig
                 return;
             }
         }
-    }
-
-    // Check for custom sound first
-    const customSound = getCustomSoundPath(soundType);
-    if (customSound) {
-        playSound(customSound);
-        return;
     }
 
     // Startup defaults to the bundled sound (not a platform system sound)

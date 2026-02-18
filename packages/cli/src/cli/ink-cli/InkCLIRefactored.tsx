@@ -178,14 +178,25 @@ export async function startInkCliRefactored(
         needsAgentSync: options.needsAgentSync,
     };
 
-    // Initialize sound service from preferences
-    const { SoundNotificationService } = await import('./utils/soundNotification.js');
-    const {
-        globalPreferencesExist,
-        loadGlobalPreferences,
-        agentPreferencesExist,
-        loadAgentPreferences,
-    } = await import('@dexto/agent-management');
+    // Load preferences helpers (non-fatal if unavailable)
+    let globalPreferencesExistFn: () => boolean = () => false;
+    let loadGlobalPreferencesFn: (() => Promise<{ sounds?: Partial<SoundConfig> }>) | null = null;
+    let agentPreferencesExistFn: (agentId: string) => boolean = () => false;
+    let loadAgentPreferencesFn:
+        | ((agentId: string) => Promise<{ tools?: { disabled?: string[] } }>)
+        | null = null;
+
+    try {
+        const agentManagement = await import('@dexto/agent-management');
+        globalPreferencesExistFn = agentManagement.globalPreferencesExist;
+        loadGlobalPreferencesFn = agentManagement.loadGlobalPreferences;
+        agentPreferencesExistFn = agentManagement.agentPreferencesExist;
+        loadAgentPreferencesFn = agentManagement.loadAgentPreferences;
+    } catch (error) {
+        agent.logger.debug(
+            `Preferences module could not be loaded: ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
 
     let soundService: SoundNotificationService | null = null;
     // Initialize sound config with defaults (enabled by default even without preferences file)
@@ -198,39 +209,53 @@ export async function startInkCliRefactored(
         onTaskComplete: true,
         completeSoundFile: undefined,
     };
-    // Override with user preferences if they exist
-    if (globalPreferencesExist()) {
-        try {
-            const preferences = await loadGlobalPreferences();
-            soundConfig = {
-                enabled: preferences.sounds?.enabled ?? soundConfig.enabled,
-                onStartup: preferences.sounds?.onStartup ?? soundConfig.onStartup,
-                startupSoundFile:
-                    preferences.sounds?.startupSoundFile ?? soundConfig.startupSoundFile,
-                onApprovalRequired:
-                    preferences.sounds?.onApprovalRequired ?? soundConfig.onApprovalRequired,
-                approvalSoundFile:
-                    preferences.sounds?.approvalSoundFile ?? soundConfig.approvalSoundFile,
-                onTaskComplete: preferences.sounds?.onTaskComplete ?? soundConfig.onTaskComplete,
-                completeSoundFile:
-                    preferences.sounds?.completeSoundFile ?? soundConfig.completeSoundFile,
-            };
-        } catch (error) {
-            // Log at debug level to help troubleshoot sound configuration issues
-            // Continue with default sounds - this is non-critical functionality
-            agent.logger.debug(
-                `Sound preferences could not be loaded: ${error instanceof Error ? error.message : String(error)}`
-            );
+
+    // Initialize sound service from preferences (non-fatal)
+    try {
+        const { SoundNotificationService: SoundNotificationServiceImpl } = await import(
+            './utils/soundNotification.js'
+        );
+
+        // Override with user preferences if they exist
+        if (globalPreferencesExistFn() && loadGlobalPreferencesFn) {
+            try {
+                const preferences = await loadGlobalPreferencesFn();
+                soundConfig = {
+                    enabled: preferences.sounds?.enabled ?? soundConfig.enabled,
+                    onStartup: preferences.sounds?.onStartup ?? soundConfig.onStartup,
+                    startupSoundFile:
+                        preferences.sounds?.startupSoundFile ?? soundConfig.startupSoundFile,
+                    onApprovalRequired:
+                        preferences.sounds?.onApprovalRequired ?? soundConfig.onApprovalRequired,
+                    approvalSoundFile:
+                        preferences.sounds?.approvalSoundFile ?? soundConfig.approvalSoundFile,
+                    onTaskComplete:
+                        preferences.sounds?.onTaskComplete ?? soundConfig.onTaskComplete,
+                    completeSoundFile:
+                        preferences.sounds?.completeSoundFile ?? soundConfig.completeSoundFile,
+                };
+            } catch (error) {
+                // Continue with default sounds - this is non-critical functionality
+                agent.logger.debug(
+                    `Sound preferences could not be loaded: ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
         }
+
+        // Always create the service so sound settings can be toggled at runtime (service gates playback by config)
+        soundService = new SoundNotificationServiceImpl(soundConfig);
+        soundService.playStartupSound();
+    } catch (error) {
+        agent.logger.debug(
+            `Sound initialization failed: ${error instanceof Error ? error.message : String(error)}`
+        );
+        soundService = null;
     }
-    // Always create the service so sound settings can be toggled at runtime (service gates playback by config)
-    soundService = new SoundNotificationService(soundConfig);
-    soundService.playStartupSound();
 
     // Initialize tool preferences (per-agent)
-    if (agentPreferencesExist(agent.config.agentId)) {
+    if (agentPreferencesExistFn(agent.config.agentId) && loadAgentPreferencesFn) {
         try {
-            const preferences = await loadAgentPreferences(agent.config.agentId);
+            const preferences = await loadAgentPreferencesFn(agent.config.agentId);
             agent.setGlobalDisabledTools(preferences.tools?.disabled ?? []);
         } catch (error) {
             agent.logger.debug(
