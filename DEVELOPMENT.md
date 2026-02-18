@@ -35,7 +35,7 @@ dexto/
 
 ### Prerequisites
 - Node.js >= 20.0.0
-- Bun >= 1.2.9
+- Bun >= 1.3.5
 
 ### Initial Setup
 ```bash
