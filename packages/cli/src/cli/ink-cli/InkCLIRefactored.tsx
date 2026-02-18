@@ -241,13 +241,12 @@ export async function startInkCliRefactored(
     disableBracketedPaste();
 
     // Display session stats if available (after Ink has unmounted)
+    const chalk = (await import('chalk')).default;
     const { getExitStats, clearExitStats } = await import(
         '../commands/interactive-commands/exit-stats.js'
     );
     const exitStats = getExitStats();
     if (exitStats) {
-        const chalk = (await import('chalk')).default;
-
         // Add visual separation - clear space like Gemini CLI does
         // This creates a clean slate showing only the exit command and summary
         process.stdout.write('\n'.repeat(1));
@@ -370,9 +369,9 @@ export async function startInkCliRefactored(
             );
         }
 
-        process.stdout.write(chalk.dim('─'.repeat(50)) + '\n');
-        process.stdout.write('\n' + chalk.rgb(255, 165, 0)('Exiting Dexto CLI. Goodbye!') + '\n');
-
         clearExitStats();
     }
+
+    process.stdout.write(chalk.dim('─'.repeat(50)) + '\n');
+    process.stdout.write('\n' + chalk.rgb(255, 165, 0)('Exiting Dexto CLI. Goodbye!') + '\n');
 }
