@@ -139,6 +139,7 @@ describe('requiresSetup', () => {
                 },
                 sounds: {
                     enabled: true,
+                    onStartup: true,
                     onApprovalRequired: true,
                     onTaskComplete: true,
                 },
@@ -168,6 +169,7 @@ describe('requiresSetup', () => {
                 },
                 sounds: {
                     enabled: true,
+                    onStartup: true,
                     onApprovalRequired: true,
                     onTaskComplete: true,
                 },
@@ -197,6 +199,7 @@ describe('requiresSetup', () => {
                 },
                 sounds: {
                     enabled: true,
+                    onStartup: true,
                     onApprovalRequired: true,
                     onTaskComplete: true,
                 },
@@ -226,6 +229,7 @@ describe('requiresSetup', () => {
                 },
                 sounds: {
                     enabled: true,
+                    onStartup: true,
                     onApprovalRequired: true,
                     onTaskComplete: true,
                 },

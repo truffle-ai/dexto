@@ -3,6 +3,7 @@
  * Interactive overlay for configuring sound notifications and selecting built-in sounds.
  *
  * Built-in sounds are copied into ~/.dexto/sounds/ as:
+ * - startup.wav
  * - approval.wav
  * - complete.wav
  *
@@ -138,7 +139,7 @@ const BUILTIN_SOUNDS: BuiltinSound[] = [
 
 type SoundSelection = { kind: 'system' } | { kind: 'builtin'; id: string } | { kind: 'custom' };
 
-type ViewMode = 'main' | 'pick-approval' | 'pick-complete';
+type ViewMode = 'main' | 'pick-startup' | 'pick-approval' | 'pick-complete';
 
 type MainItem =
     | {
@@ -151,7 +152,7 @@ type MainItem =
       }
     | {
           type: 'pick';
-          id: 'pick-approval' | 'pick-complete';
+          id: 'pick-startup' | 'pick-approval' | 'pick-complete';
           soundType: SoundType;
           label: string;
           description: string;
@@ -159,7 +160,7 @@ type MainItem =
       }
     | {
           type: 'action';
-          id: 'test-approval' | 'test-complete' | 'reset-custom' | 'show-folder';
+          id: 'test-startup' | 'test-approval' | 'test-complete' | 'reset-custom' | 'show-folder';
           label: string;
           description: string;
           icon: string;
@@ -177,6 +178,7 @@ type PickItem =
 
 const DEFAULT_CONFIG: SoundConfig = {
     enabled: true,
+    onStartup: true,
     onApprovalRequired: true,
     onTaskComplete: true,
 };
@@ -189,10 +191,13 @@ function soundConfigUpdate<K extends keyof SoundConfig>(
 }
 
 function selectionLabel(
+    soundType: SoundType,
     selection: SoundSelection,
     builtinSounds: ReadonlyArray<Pick<BuiltinSound, 'id' | 'name'>>
 ): string {
-    if (selection.kind === 'system') return 'System default';
+    if (selection.kind === 'system') {
+        return soundType === 'startup' ? 'Startup (default)' : 'System default';
+    }
     if (selection.kind === 'custom') return 'Custom file';
     const builtin = builtinSounds.find((s) => s.id === selection.id);
     return builtin?.name ?? selection.id;
@@ -260,6 +265,9 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
         const [completeSelection, setCompleteSelection] = useState<SoundSelection>({
             kind: 'system',
         });
+        const [startupSelection, setStartupSelection] = useState<SoundSelection>({
+            kind: 'system',
+        });
 
         const configRef = useRef(config);
         configRef.current = config;
@@ -297,10 +305,12 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
 
         const refreshSelections = useCallback(async () => {
             const builtinBuffers = builtinBuffersRef.current;
-            const [nextApproval, nextComplete] = await Promise.all([
+            const [nextStartup, nextApproval, nextComplete] = await Promise.all([
+                resolveSelection('startup', builtinBuffers),
                 resolveSelection('approval', builtinBuffers),
                 resolveSelection('complete', builtinBuffers),
             ]);
+            setStartupSelection(nextStartup);
             setApprovalSelection(nextApproval);
             setCompleteSelection(nextComplete);
         }, []);
@@ -329,6 +339,7 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                         const preferences = await loadGlobalPreferences();
                         nextConfig = {
                             enabled: preferences.sounds?.enabled ?? nextConfig.enabled,
+                            onStartup: preferences.sounds?.onStartup ?? nextConfig.onStartup,
                             onApprovalRequired:
                                 preferences.sounds?.onApprovalRequired ??
                                 nextConfig.onApprovalRequired,
@@ -390,6 +401,14 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                 },
                 {
                     type: 'toggle',
+                    id: 'onStartup',
+                    label: `On startup: ${config.onStartup ? 'On' : 'Off'}`,
+                    description: 'Play a sound when the interactive CLI starts',
+                    icon: '🚀',
+                    value: config.onStartup,
+                },
+                {
+                    type: 'toggle',
                     id: 'onApprovalRequired',
                     label: `On approval required: ${config.onApprovalRequired ? 'On' : 'Off'}`,
                     description: 'Play a sound when tool approval is needed',
@@ -406,9 +425,17 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                 },
                 {
                     type: 'pick',
+                    id: 'pick-startup',
+                    soundType: 'startup',
+                    label: `Select startup sound (${selectionLabel('startup', startupSelection, builtinSoundPaths)})`,
+                    description: 'Choose a built-in sound or reset to default',
+                    icon: '🎬',
+                },
+                {
+                    type: 'pick',
                     id: 'pick-approval',
                     soundType: 'approval',
-                    label: `Select approval sound (${selectionLabel(approvalSelection, builtinSoundPaths)})`,
+                    label: `Select approval sound (${selectionLabel('approval', approvalSelection, builtinSoundPaths)})`,
                     description: 'Choose a built-in sound or reset to system default',
                     icon: '🔔',
                 },
@@ -416,9 +443,16 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                     type: 'pick',
                     id: 'pick-complete',
                     soundType: 'complete',
-                    label: `Select completion sound (${selectionLabel(completeSelection, builtinSoundPaths)})`,
+                    label: `Select completion sound (${selectionLabel('complete', completeSelection, builtinSoundPaths)})`,
                     description: 'Choose a built-in sound or reset to system default',
                     icon: '🏁',
+                },
+                {
+                    type: 'action',
+                    id: 'test-startup',
+                    label: 'Test startup sound',
+                    description: 'Plays the current startup sound (ignores enabled toggles)',
+                    icon: '▶️',
                 },
                 {
                     type: 'action',
@@ -437,7 +471,7 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                 {
                     type: 'action',
                     id: 'reset-custom',
-                    label: 'Reset custom sounds (system defaults)',
+                    label: 'Reset custom sounds (defaults)',
                     description: 'Removes custom sound files from ~/.dexto/sounds/',
                     icon: '♻️',
                 },
@@ -449,26 +483,36 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                     icon: '📁',
                 },
             ];
-        }, [approvalSelection, builtinSoundPaths, completeSelection, config]);
+        }, [approvalSelection, builtinSoundPaths, completeSelection, config, startupSelection]);
 
         const pickSoundType: SoundType | null =
-            viewMode === 'pick-approval'
-                ? 'approval'
-                : viewMode === 'pick-complete'
-                  ? 'complete'
-                  : null;
+            viewMode === 'pick-startup'
+                ? 'startup'
+                : viewMode === 'pick-approval'
+                  ? 'approval'
+                  : viewMode === 'pick-complete'
+                    ? 'complete'
+                    : null;
 
         const pickItems: PickItem[] = useMemo(() => {
             if (!pickSoundType) return [];
 
-            const current = pickSoundType === 'approval' ? approvalSelection : completeSelection;
+            const current =
+                pickSoundType === 'startup'
+                    ? startupSelection
+                    : pickSoundType === 'approval'
+                      ? approvalSelection
+                      : completeSelection;
 
             const items: PickItem[] = [
                 {
                     type: 'system-default',
                     id: 'system-default',
-                    label: 'System default',
-                    description: 'Use the platform default notification sound',
+                    label: pickSoundType === 'startup' ? 'Startup (default)' : 'System default',
+                    description:
+                        pickSoundType === 'startup'
+                            ? 'Use the bundled default startup sound'
+                            : 'Use the platform default notification sound',
                 },
                 ...builtinSoundPaths.map((sound) => ({
                     type: 'builtin' as const,
@@ -480,7 +524,13 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
             ];
 
             return items;
-        }, [approvalSelection, builtinSoundPaths, completeSelection, pickSoundType]);
+        }, [
+            approvalSelection,
+            builtinSoundPaths,
+            completeSelection,
+            pickSoundType,
+            startupSelection,
+        ]);
 
         const items = viewMode === 'main' ? mainItems : pickItems;
 
@@ -539,18 +589,23 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                 await removeCustomSoundFiles(soundType);
                 await refreshSelections();
                 playNotificationSound(soundType);
-                setStatus(`Reset ${soundType} sound to system default.`);
+                setStatus(
+                    soundType === 'startup'
+                        ? 'Reset startup sound to default.'
+                        : `Reset ${soundType} sound to system default.`
+                );
             },
             [refreshSelections]
         );
 
         const resetAllCustomSounds = useCallback(async () => {
             await Promise.all([
+                removeCustomSoundFiles('startup'),
                 removeCustomSoundFiles('approval'),
                 removeCustomSoundFiles('complete'),
             ]);
             await refreshSelections();
-            setStatus('Reset custom sounds to system defaults.');
+            setStatus('Reset custom sounds to defaults.');
         }, [refreshSelections]);
 
         const handleSelect = useCallback(
@@ -574,6 +629,11 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                     }
 
                     if (item.type === 'action') {
+                        if (item.id === 'test-startup') {
+                            playNotificationSound('startup');
+                            setStatus('Played startup sound.');
+                            return;
+                        }
                         if (item.id === 'test-approval') {
                             playNotificationSound('approval');
                             setStatus('Played approval sound.');
@@ -665,14 +725,16 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
 
                 if ('type' in item && item.type === 'system-default') {
                     const isCurrent =
-                        pickSoundType === 'approval'
-                            ? approvalSelection.kind === 'system'
-                            : pickSoundType === 'complete'
-                              ? completeSelection.kind === 'system'
-                              : false;
+                        pickSoundType === 'startup'
+                            ? startupSelection.kind === 'system'
+                            : pickSoundType === 'approval'
+                              ? approvalSelection.kind === 'system'
+                              : pickSoundType === 'complete'
+                                ? completeSelection.kind === 'system'
+                                : false;
                     return (
                         <>
-                            <Text>🖥️ </Text>
+                            <Text>{pickSoundType === 'startup' ? '📦 ' : '🖥️ '}</Text>
                             <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
                                 {item.label}
                             </Text>
@@ -707,15 +769,17 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
 
                 return null;
             },
-            [approvalSelection.kind, completeSelection.kind, pickSoundType]
+            [approvalSelection.kind, completeSelection.kind, pickSoundType, startupSelection.kind]
         );
 
         const title =
             viewMode === 'main'
                 ? 'Sounds'
-                : pickSoundType === 'approval'
-                  ? 'Select Approval Sound'
-                  : 'Select Completion Sound';
+                : pickSoundType === 'startup'
+                  ? 'Select Startup Sound'
+                  : pickSoundType === 'approval'
+                    ? 'Select Approval Sound'
+                    : 'Select Completion Sound';
 
         return (
             <Box flexDirection="column">

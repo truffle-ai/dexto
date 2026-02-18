@@ -191,6 +191,7 @@ export async function startInkCliRefactored(
     // Initialize sound config with defaults (enabled by default even without preferences file)
     let soundConfig = {
         enabled: true,
+        onStartup: true,
         onApprovalRequired: true,
         onTaskComplete: true,
     };
@@ -200,6 +201,7 @@ export async function startInkCliRefactored(
             const preferences = await loadGlobalPreferences();
             soundConfig = {
                 enabled: preferences.sounds?.enabled ?? soundConfig.enabled,
+                onStartup: preferences.sounds?.onStartup ?? soundConfig.onStartup,
                 onApprovalRequired:
                     preferences.sounds?.onApprovalRequired ?? soundConfig.onApprovalRequired,
                 onTaskComplete: preferences.sounds?.onTaskComplete ?? soundConfig.onTaskComplete,
@@ -214,6 +216,7 @@ export async function startInkCliRefactored(
     }
     // Always create the service so sound settings can be toggled at runtime (service gates playback by config)
     soundService = new SoundNotificationService(soundConfig);
+    soundService.playStartupSound();
 
     // Initialize tool preferences (per-agent)
     if (agentPreferencesExist(agent.config.agentId)) {

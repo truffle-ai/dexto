@@ -16,6 +16,7 @@ const mockedExec = vi.mocked(exec);
 // Full config for testing (mirrors defaults from PreferenceSoundsSchema)
 const TEST_CONFIG: SoundConfig = {
     enabled: true,
+    onStartup: true,
     onApprovalRequired: true,
     onTaskComplete: true,
 };
@@ -43,6 +44,7 @@ describe('SoundNotificationService', () => {
         it('should allow disabling specific sounds', () => {
             const config: SoundConfig = {
                 enabled: true,
+                onStartup: false,
                 onApprovalRequired: false,
                 onTaskComplete: true,
             };
@@ -83,6 +85,30 @@ describe('SoundNotificationService', () => {
             writeSpy.mockClear();
             service.playApprovalSound();
             // Should either call exec (platform sound) or write bell (fallback)
+            const soundAttempted =
+                mockedExec.mock.calls.length > 0 || writeSpy.mock.calls.length > 0;
+            expect(soundAttempted).toBe(true);
+        });
+    });
+
+    describe('playStartupSound', () => {
+        it('should not play when startup sounds disabled', () => {
+            const service = new SoundNotificationService({
+                ...TEST_CONFIG,
+                onStartup: false,
+            });
+            service.playStartupSound();
+            expect(writeSpy).not.toHaveBeenCalled();
+        });
+
+        it('should attempt to play sound when enabled', () => {
+            const service = new SoundNotificationService({
+                ...TEST_CONFIG,
+                onStartup: true,
+            });
+            mockedExec.mockClear();
+            writeSpy.mockClear();
+            service.playStartupSound();
             const soundAttempted =
                 mockedExec.mock.calls.length > 0 || writeSpy.mock.calls.length > 0;
             expect(soundAttempted).toBe(true);

@@ -63,8 +63,9 @@ const PREFERENCES_FILE_HEADER = `# Dexto Global Preferences
 # Documentation: https://dexto.dev/docs/configuration/preferences
 #
 # Sound Notifications:
-#   Dexto plays sounds for approval requests and task completion.
+#   Dexto plays sounds for CLI startup, approval requests, and task completion.
 #   To customize sounds, place audio files in ~/.dexto/sounds/:
+#     - startup.wav (or .mp3, .ogg, .aiff, .m4a) - played when the interactive CLI starts
 #     - approval.wav (or .mp3, .ogg, .aiff, .m4a) - played when tool approval is needed
 #     - complete.wav (or .mp3, .ogg, .aiff, .m4a) - played when agent finishes a task
 #   Set sounds.enabled: false to disable all sounds.
@@ -290,6 +291,7 @@ export interface CreatePreferencesOptions {
     /** Sound notification preferences */
     sounds?: {
         enabled?: boolean;
+        onStartup?: boolean;
         onApprovalRequired?: boolean;
         onTaskComplete?: boolean;
     };
@@ -333,6 +335,7 @@ export function createInitialPreferences(options: CreatePreferencesOptions): Glo
         },
         sounds: {
             enabled: options.sounds?.enabled ?? true,
+            onStartup: options.sounds?.onStartup ?? true,
             onApprovalRequired: options.sounds?.onApprovalRequired ?? true,
             onTaskComplete: options.sounds?.onTaskComplete ?? true,
         },

@@ -11,15 +11,16 @@ import { exec } from 'child_process';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { homedir, platform } from 'os';
+import { fileURLToPath } from 'node:url';
 
-export type SoundType = 'approval' | 'complete';
+export type SoundType = 'startup' | 'approval' | 'complete';
 
 export const CUSTOM_SOUND_EXTENSIONS = ['.wav', '.mp3', '.ogg', '.aiff', '.m4a'] as const;
 
 /**
  * Platform-specific default sound paths
  */
-const PLATFORM_SOUNDS: Record<string, Record<SoundType, string>> = {
+const PLATFORM_SOUNDS: Record<string, Partial<Record<SoundType, string>>> = {
     darwin: {
         // macOS system sounds
         approval: '/System/Library/Sounds/Blow.aiff',
@@ -36,6 +37,10 @@ const PLATFORM_SOUNDS: Record<string, Record<SoundType, string>> = {
         complete: 'SystemHand',
     },
 };
+
+const BUNDLED_STARTUP_SOUND_PATH = fileURLToPath(
+    new URL('../../assets/sounds/startup.wav', import.meta.url)
+);
 
 /**
  * Get custom sound path from ~/.dexto/sounds/
@@ -117,7 +122,7 @@ function playTerminalBell(): void {
 /**
  * Play a notification sound
  *
- * @param soundType - Type of sound to play ('approval' or 'complete')
+ * @param soundType - Type of sound to play ('startup', 'approval', or 'complete')
  *
  * @example
  * ```typescript
@@ -126,6 +131,9 @@ function playTerminalBell(): void {
  *
  * // Play task complete sound
  * playNotificationSound('complete');
+ *
+ * // Play startup sound
+ * playNotificationSound('startup');
  * ```
  */
 export function playNotificationSound(soundType: SoundType): void {
@@ -135,6 +143,16 @@ export function playNotificationSound(soundType: SoundType): void {
     const customSound = getCustomSoundPath(soundType);
     if (customSound) {
         playSound(customSound);
+        return;
+    }
+
+    // Startup defaults to the bundled sound (not a platform system sound)
+    if (soundType === 'startup') {
+        if (existsSync(BUNDLED_STARTUP_SOUND_PATH)) {
+            playSound(BUNDLED_STARTUP_SOUND_PATH);
+        } else {
+            playTerminalBell();
+        }
         return;
     }
 
@@ -171,6 +189,7 @@ export function playNotificationSound(soundType: SoundType): void {
  */
 export interface SoundConfig {
     enabled: boolean;
+    onStartup: boolean;
     onApprovalRequired: boolean;
     onTaskComplete: boolean;
 }
@@ -200,6 +219,15 @@ export class SoundNotificationService {
      */
     getConfig(): SoundConfig {
         return { ...this.config };
+    }
+
+    /**
+     * Play CLI startup sound if enabled
+     */
+    playStartupSound(): void {
+        if (this.config.enabled && this.config.onStartup) {
+            playNotificationSound('startup');
+        }
     }
 
     /**

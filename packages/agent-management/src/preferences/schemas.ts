@@ -116,6 +116,10 @@ export const PreferenceSetupSchema = z
 export const PreferenceSoundsSchema = z
     .object({
         enabled: z.boolean().default(true).describe('Enable sound notifications (default: true)'),
+        onStartup: z
+            .boolean()
+            .default(true)
+            .describe('Play sound when the interactive CLI starts (default: true)'),
         onApprovalRequired: z
             .boolean()
             .default(true)
