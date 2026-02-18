@@ -43,7 +43,7 @@ As of 2026-02-18 in `~/Projects/dexto-bun-migration`:
 - Root workspace is Bun-based (`packageManager: bun@1.2.9`) with `bun.lock`.
 - Docs site (`docs/`) is Bun-based (`docs/bun.lock`) and builds under Bun.
 - Repo scripts and entrypoints have been moved off hard `node`/`pnpm` invocations where it mattered for runtime.
-- SQLite persistence under Bun uses **`bun:sqlite`** (no `better-sqlite3` ABI dependency for the Bun runtime path).
+- SQLite persistence under Bun uses **`bun:sqlite`** (removed `better-sqlite3` runtime fallbacks entirely).
 - CI + release workflows have been migrated to Bun (GitHub Actions no longer run pnpm).
 - `bun run build`, `bun run typecheck`, and `bun run test` are green.
 - Root `package.json` scripts have been executed under Bun (excluding destructive Changesets scripts).
@@ -117,7 +117,7 @@ Targets:
 ### 3) Native dependency audit (actual deps in this repo)
 
 Hard lessons / current reality:
-- **`better-sqlite3`** (Node native addon) is ABI-sensitive and fails under Bun unless compiled against Bun’s Node ABI compatibility (Bun v1.2.9 reports `NODE_MODULE_VERSION 127`).
+- **`better-sqlite3`** (Node native addon) is ABI-sensitive and fails under Bun unless compiled against Bun’s Node ABI compatibility (Bun v1.2.9 reports `NODE_MODULE_VERSION 127`). We removed it from runtime codepaths in PR 1.
 - Build tooling commonly includes native pieces:
   - `esbuild`
   - `@tailwindcss/oxide`
@@ -148,7 +148,7 @@ Implication:
 ### 4) Images + the “image store” vs `~/.dexto` as a Bun package
 
 Current implementation (today):
-- Image installation uses `npm pack` + `npm install` into a temp dir, then moves into the image store.
+- Image installation uses `bun pm pack` (for local directories) + `bun add` into a temp dir, then moves into the image store.
 - Image resolution imports the store’s **entry file URL** or falls back to `import('@scope/pkg')` (host resolution).
 
 Migration direction (what we want):
@@ -184,30 +184,31 @@ Acceptance:
 ### Phase 1 — Replace SQLite native addon with Bun SQLite
 
 Why:
-- `better-sqlite3` is the primary “Bun runtime blocker” in this repo.
+- `better-sqlite3` was the primary “Bun runtime blocker” in this repo.
 
 Approach:
 - Use Bun’s built-in `bun:sqlite` for the SQLite database store.
 - Keep SQL schema + behavior the same.
-- Make TypeScript happy by providing a local module declaration for `bun:sqlite` (so DTS/typecheck works in the monorepo).
 
 Acceptance:
 - Storage opens/creates the SQLite file and performs CRUD/list operations under Bun.
-- CLI commands that touch persistence do not trigger any `better-sqlite3` ABI error under Bun.
+- SQLite does not require `better-sqlite3` to function under Bun.
 
 ### Phase 1.5 — Remove remaining pnpm/npm assumptions (repo + CLI UX)
 
-This repo still contains **behavior and strings** that assume pnpm/npm in a few key places:
-- Image store installer uses `npm pack` + `npm install` (tests mock npm).
-- Local model setup installs `node-llama-cpp` via `npm install` into `~/.dexto/deps`.
-- Some scaffolding/templates/help text prints `pnpm …` / `npm …` instructions.
-- The “install-global-cli” dev script uses `npx`/`npm` to simulate user installs.
-- MCP preset registry data and docs frequently use `npx` as the default command (switching defaults to `bunx` / `bun x` is required for “no npm” end-to-end).
+This repo used to contain **behavior and strings** that assumed pnpm/npm in a few key places; PR 1 migrated these to Bun:
+- Image store installer uses `bun pm pack` + `bun add` (tests mock Bun).
+- Local model setup installs `node-llama-cpp` via `bun add --trust` into `~/.dexto/deps`.
+- Scaffolding/templates/help text prints Bun-first instructions.
+
+Remaining touchpoints:
+- MCP preset registry data and docs frequently use `npx` as the default command. Switching defaults to `bunx` (and deciding whether to add `--bun`) is required for “no npm” end-to-end.
   - Bun nuance: `bunx` respects the package bin’s shebang; if it’s `node`, Bun will start a Node process by default (use `bunx --bun …` to force Bun runtime).
   - If we choose `bunx --bun` defaults, we must validate MCP servers we ship by default (filesystem/playwright/etc.) run under Bun runtime without regressions.
 
 Acceptance:
 - Running normal CLI flows never requires pnpm.
+- No runtime Bun→npm fallback paths remain in Dexto code.
 - Any remaining npm usage is either removed or explicitly documented as “requires Node/npm” (with a Bun-first alternative).
 
 ### Phase 2 — Functionality parity audit (no feature changes)
@@ -275,7 +276,7 @@ Intent:
   - `registry.json` tracking of active versions (or at least we can simplify it)
 
 Options:
-- **Option A (minimal change):** keep image store but replace `npm pack/install` with `bun pm pack` + `bun add`/`bun install` equivalents.
+- **Option A (minimal change):** keep image store but use `bun pm pack` + `bun add`/`bun install` (implemented for the current installer flow in PR 1).
 - **Option B (preferred):** treat `~/.dexto` as the canonical package root:
   - images become dependencies in `~/.dexto/package.json`
   - “activate version” becomes updating a dependency range + reinstall

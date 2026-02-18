@@ -29,6 +29,7 @@ Success criteria:
 - [x] Migrate image-store installer off `npm pack` + `npm install` to Bun equivalents
 - [x] Switch local model dependency install to Bun (`node-llama-cpp` via `bun add --trust`)
 - [x] Validate `node-llama-cpp` installs + imports under Bun runtime (no Node required)
+- [x] Remove remaining Bun→npm and Node runtime fallback paths (Bun-only runtime)
 - [x] Delete legacy pnpm files (`pnpm-lock.yaml`, `pnpm-workspace.yaml`)
 - [x] Checkpoint commit: Phase 1 SQLite + runtime blockers removed
 

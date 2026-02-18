@@ -31,6 +31,7 @@
 - Plan artifacts committed to this worktree (commit `b40d68e2`).
 - Checkpoint commit for Phase 0 + Phase 1 completed: `5ea80491`.
 - Scope split (per discussion): **native TS `.dexto` layering** and **image-store redesign** are deferred to a follow-up PR (PR 2). PR 1 is Bun migration with **no feature/functionality changes**.
+- Decision: **no runtime fallbacks**. Bun is required; no Bun→npm, Bun→Node fallback paths in Dexto runtime code.
 - Scaffolding/template updates completed (commit `15352f74`):
   - `create-app` scaffold uses `bun src/index.ts` (no `tsx` dependency) and prints `bun run start`
   - `create-image` and generated READMEs print Bun commands (`bun run build`, `bun pm pack`, `bun publish`)
@@ -43,7 +44,18 @@
   - Opencode reference for layered config + MCP:
     - It treats each discovered `.opencode/` directory (including `~/.opencode`) as a Bun package root and runs `bun add`/`bun install` to ensure dependencies are present.
     - It configures local MCP servers as a single `command: string[]` (cmd + args) and spawns them via `StdioClientTransport`.
-  - Bun CLI nuance found during testing: `bun --cwd <dir> run <script>` prints Bun help instead of running the script; use `bun run --cwd <dir> <script>` (or `cd <dir> && bun run <script>`). This affected root scripts like `start`, `dev:cli`, `build-webui`, and `link-cli` and has been fixed in root `package.json`.
+  - Bun CLI nuance found during testing: `bun --cwd <dir> run <script>` prints Bun help instead of running the script; use `bun run --cwd <dir> <script>` (or `cd <dir> && bun run <script>`). This affected root scripts like `start`, `dev:cli`, and `build-webui` and has been fixed in root `package.json`.
+
+Recent updates (commit `569253a5`):
+- Removed remaining Bun→npm and Node runtime fallback paths:
+  - CLI no longer falls back to npm for global installs (local models, image store, update command).
+  - SQLite store is Bun-only (`bun:sqlite`; removed `better-sqlite3` fallback).
+- Validation: `bun run build:cli`, `bun run test:unit`, `bun run lint` are green.
+
+Recent updates (commit `3d6dbb1e`):
+- `link-cli` now creates a Bun-global `dexto` shim by symlinking `packages/cli/dist/index.js` into `$(bun pm bin -g)`.
+- `unlink-cli` removes the Bun-global shim and any Bun-global install.
+- Validation: `bun run link-cli-fast`, `bun run unlink-cli` are green.
 
 Recent updates (commit `ec3564ce`):
 - GitHub Actions workflows migrated from pnpm/npm to Bun (CI + sync jobs + changesets release workflow)
@@ -63,7 +75,7 @@ Merge blocker reminder:
 
 ---
 
-## Current State (as of 2026-02-17)
+## Current State (as of 2026-02-18)
 
 ### What’s working under Bun
 
@@ -74,6 +86,8 @@ Merge blocker reminder:
   - `bun run build`
   - `bun run typecheck`
   - `bun run test`
+  - `bun run test:unit`
+  - `bun run lint`
   - `cd packages/cli && bun run start -- --help`
 
 ### Key repo changes already made (high level)
@@ -128,6 +142,9 @@ Merge blocker reminder:
 - 2026-02-17: Synced `main` into this branch; conflicts resolved; quality checks green (commit `f235a56a`).
 - 2026-02-17: Fix root scripts to use correct Bun `--cwd` placement (`bun run --cwd …`) and `bun link` behavior (`cd … && bun link`) and validate `bun run start -- --help` + `bun run link-cli-fast`.
 - 2026-02-17: Executed all root `package.json` scripts under Bun (skipped destructive Changesets scripts); fixed `bun run repo:test` failure caused by `@dexto/client-sdk` having no tests by adding `vitest run --passWithNoTests` (commit `dc3b79c2`).
+- 2026-02-18: Removed remaining Bun→npm and Node runtime fallbacks (commit `569253a5`); validated with `bun run build:cli`, `bun run test:unit`, `bun run lint`.
+- 2026-02-18: Fix `link-cli`/`unlink-cli` to create/remove a Bun-global shim for `dexto` (commit `3d6dbb1e`).
+- 2026-02-18: Remove leftover example pnpm lockfiles (commit `8681cabd`).
 
 ---
 
@@ -141,3 +158,4 @@ Merge blocker reminder:
 | 2026-02-17 | CI + release on Bun | ✅ | Commit `ec3564ce`; workflows migrated; publish uses Bun script; pnpm files deleted |
 | 2026-02-17 | Docs on Bun | ✅ | Commit `c6b670f7`; `docs/` uses Bun; `build-docs` workflow updated |
 | 2026-02-17 | Main sync | ✅ | Commit `f235a56a`; conflicts resolved; `bash scripts/quality-checks.sh all` green |
+| 2026-02-18 | No npm/node fallbacks | ✅ | Commit `569253a5`; validated with `bun run build:cli`, `bun run test:unit`, `bun run lint` |
