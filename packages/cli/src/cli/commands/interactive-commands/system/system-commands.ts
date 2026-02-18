@@ -226,7 +226,7 @@ export const systemCommands: CommandDefinition[] = [
     },
     {
         name: 'sounds',
-        description: 'Configure sound notifications (interactive)',
+        description: 'Configure sound notifications',
         usage: '/sounds',
         category: 'System',
         handler: overlayOnlyHandler,
