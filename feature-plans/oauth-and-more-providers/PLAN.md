@@ -14,6 +14,7 @@ Primary references:
 - **pi-mono** (`~/Projects/external/pi-mono`) — model registry generation (multi-source) + explicit `api`/transport discriminators.
 - **models.dev** (`~/Projects/external/models.dev`) — provider/model metadata source (and clarifies when catalogs are curated vs exhaustive).
 - Provider coverage snapshot (exact provider IDs): [`PROVIDER_COVERAGE.md`](./PROVIDER_COVERAGE.md)
+- Provider grouping by `provider.npm` (transport mapping roadmap): [`NPM_TRANSPORT_COVERAGE.md`](./NPM_TRANSPORT_COVERAGE.md)
 
 ---
 
@@ -610,10 +611,29 @@ Implementation note (important):
 
 - [ ] **2.3 Expand `/connect` provider list using models.dev**
   - Deliverables:
-    - Provider picker uses models.dev **provider registry** for name + env vars + baseURL + model list, with a curated “top providers” grouping.
-    - Providers without special methods still get a default “API key” method (and “custom baseURL” when applicable).
+    - Provider picker is driven by the generated **models.dev provider snapshot** (name + env vars + docs + `npm` + baseURL when present), with a curated “top providers” grouping.
+    - Providers are classified by `provider.npm` into:
+      - **Supported (transport-mapped)**: `/connect` offers an API-key method (or guidance when creds aren’t stored), and runtime can create the model without per-provider code.
+      - **Unsupported (no transport yet)**: shown as disabled with a clear “not supported yet” hint + pointer to the plan section that adds the missing transport (`NPM_TRANSPORT_COVERAGE.md` is the roadmap).
+    - “Boring” OpenAI-compatible providers should require **zero per-provider code** beyond the transport mapping:
+      - save API key
+      - use models.dev `provider.api` as baseURL
+      - run via the shared OpenAI-compatible driver
   - Exit:
-    - `/connect` can add an API-key profile for a models.dev provider without adding per-provider code (where transport is already supported).
+    - `/connect` can add an API-key profile for *any* models.dev provider whose `provider.npm` maps to an implemented transport, without adding per-provider code.
+
+### Phase 2.4 — Expand transport coverage to “all providers”
+> **Goal:** achieve near-total models.dev provider coverage by implementing transports per unique `provider.npm` value (small set), rather than per provider ID (large set).
+
+- [ ] **2.4.1 Implement remaining `provider.npm` transports (models.dev roadmap)**
+  - Deliverables:
+    - For each “unsupported” `provider.npm` value in [`NPM_TRANSPORT_COVERAGE.md`](./NPM_TRANSPORT_COVERAGE.md), decide one of:
+      - add the provider SDK package + wire it into the LLM factory, or
+      - intentionally defer (with a documented reason), or
+      - treat as OpenAI-compatible via a curated baseURL if the upstream is actually OpenAI-compatible.
+    - Keep the LLM factory table-driven: adding a new `provider.npm` should be a small, isolated change (no switch-case sprawl).
+  - Exit:
+    - `NPM_TRANSPORT_COVERAGE.md` “not covered yet” list shrinks over time, and `/connect` auto-enables newly supported providers without additional UX work.
 
 ### Phase 3 — OpenAI ChatGPT OAuth (Codex)
 > **Goal:** make OAuth a first-class method whose tokens affect runtime requests (not just storage).
