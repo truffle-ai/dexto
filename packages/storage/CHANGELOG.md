@@ -1,4 +1,4 @@
-# @dexto/registry
+# @dexto/storage
 
 ## 1.6.0
 
@@ -21,51 +21,32 @@
     - Config/YAML usage should go through `@dexto/agent-management` (load/enrich) + `@dexto/agent-config` (validate + resolve services + `toDextoAgentOptions()`).
     - Server “save/apply config” endpoints now rely on host-owned config paths (core no longer tracks file paths and no longer supports `agent.reload()`).
 
-## 1.5.8
-
-## 1.5.7
-
-## 1.5.6
-
 ### Patch Changes
 
-- 042f4f0: ### CLI Improvements
-    - Add `/export` command to export conversations as Markdown or JSON
-    - Add `Ctrl+T` toggle for task list visibility during processing
-    - Improve task list UI with collapsible view near the processing message
-    - Fix race condition causing duplicate rendering (mainly visible with explore tool)
-    - Don't truncate `pattern` and `question` args in tool output display
-
-    ### Bug Fixes
-    - Fix build script to preserve `.dexto` storage (conversations, logs) during clean builds
-    - Fix `@dexto/tools-todo` versioning - add to fixed version group in changeset config
-
-    ### Configuration Changes
-    - Remove approval timeout defaults - now waits indefinitely (better UX for CLI)
-    - Add package versioning guidelines to AGENTS.md
-
-## 1.5.5
-
-### Patch Changes
-
-- 6df3ca9: Updated readme. Removed stale filesystem and process tool from dexto/core.
-
-## 1.5.4
-
-## 1.5.3
-
-## 1.5.2
-
-## 1.5.1
-
-## 1.5.0
-
-### Minor Changes
-
-- e7722e5: Minor version bump for new release with bundler, custom tool pkgs, etc.
-
-## 1.4.0
-
-### Minor Changes
-
-- f73a519: Revamp CLI. Breaking change to DextoAgent.generate() and stream() apis and hono message APIs, so new minor version. Other fixes for logs, web UI related to message streaming/generating
+- 99cf1c6: Refactors
+    - Agent config terminology updates:
+        - `toolConfirmation` → `permissions`
+        - `internalResources` → `resources` (and removes the unused `enabled` flag)
+        - runtime “plugins” → “hooks” (to avoid confusion with Claude Code-style plugins)
+    - CLI UX: removes headless/positional prompt mode; `--prompt` now starts the interactive CLI with an initial prompt.
+    - CLI UX: the “Agent config updates available” sync prompt reappears on subsequent runs until agents are synced (no per-version dismissal).
+    - Tool surface refactor: removes `custom`/`internal` tool ID prefixes; MCP tools remain namespaced.
+    - Approval UX:
+        - Directory access prompts now auto-approve parallel pending requests after the first approval (reduces repetitive prompts during multi-tool flows).
+        - Remembering a tool for the session now auto-approves parallel pending tool approvals for that tool.
+    - New and updated tools:
+        - Adds built-in Exa `web_search` + `code_search` tools.
+        - Enables built-in `http_request` (“Fetch”) in the default and coding agents.
+        - Refines tool display names for readability (e.g. “Update Todos”, “Web Search”, “Code Search”, “Check Task”, “List Tasks”).
+        - Adds `@dexto/tools-lifecycle` (view logs + memory management) and moves session search into lifecycle tools.
+    - UI terminology: “task list” → “todo list”.
+    - Images:
+        - `DextoImageModule` renamed to `DextoImage`.
+        - `dexto image create` scaffold includes minimal examples for tools/hooks/storage/compaction.
+- Updated dependencies [d6b4368]
+- Updated dependencies [facabe1]
+- Updated dependencies [99cf1c6]
+- Updated dependencies [c862605]
+- Updated dependencies [8d37b8a]
+- Updated dependencies [7ffa399]
+    - @dexto/core@1.6.0
