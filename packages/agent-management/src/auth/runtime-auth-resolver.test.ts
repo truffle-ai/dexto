@@ -156,7 +156,62 @@ describe('llm runtime auth resolver', () => {
         expect(calls[0]!.headers.get('x-api-key')).toBe('access-token');
     });
 
+    it('overlays init.headers on top of Request headers', async () => {
+        await upsertLlmAuthProfile({
+            profileId: 'minimax:portal_oauth_cn',
+            providerId: 'minimax',
+            methodId: 'portal_oauth_cn',
+            credential: {
+                type: 'oauth',
+                accessToken: 'access-token',
+                refreshToken: 'refresh-token',
+                expiresAt: Date.now() + 60_000,
+                metadata: { region: 'cn' },
+            },
+        });
+        await setDefaultLlmAuthProfile({
+            providerId: 'minimax',
+            profileId: 'minimax:portal_oauth_cn',
+        });
+
+        const resolver = createDefaultLlmAuthResolver();
+        const runtime = resolver.resolveRuntimeAuth({ provider: 'minimax', model: 'MiniMax-M2.1' });
+        expect(typeof runtime?.fetch).toBe('function');
+
+        const calls: Array<{ url: string; headers: globalThis.Headers }> = [];
+        globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+            const url =
+                input instanceof URL
+                    ? input.toString()
+                    : typeof input === 'string'
+                      ? input
+                      : input.url;
+            calls.push({ url, headers: new globalThis.Headers(init?.headers) });
+            return new Response('ok', { status: 200 });
+        }) satisfies typeof fetch;
+
+        const request = new globalThis.Request('https://example.com', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Custom': 'old',
+            },
+            body: JSON.stringify({ hello: 'world' }),
+        });
+
+        await runtime!.fetch!(request, {
+            headers: { 'X-Custom': 'new', 'x-api-key': 'placeholder' },
+        });
+
+        expect(calls).toHaveLength(1);
+        expect(calls[0]!.headers.get('content-type')).toBe('application/json');
+        expect(calls[0]!.headers.get('x-custom')).toBe('new');
+        expect(calls[0]!.headers.get('x-api-key')).toBe('access-token');
+    });
+
     it('refreshes minimax oauth tokens when expired', async () => {
+        delete process.env.DEXTO_MINIMAX_PORTAL_OAUTH_CLIENT_ID;
+
         await upsertLlmAuthProfile({
             profileId: 'minimax:portal_oauth_global',
             providerId: 'minimax',
@@ -226,6 +281,69 @@ describe('llm runtime auth resolver', () => {
             expect(updated.credential.refreshToken).toBe('fresh-refresh');
             expect(updated.credential.expiresAt).toBeGreaterThan(Date.now());
         }
+    });
+
+    it('dedupes concurrent minimax oauth refresh calls for the same profile', async () => {
+        delete process.env.DEXTO_MINIMAX_PORTAL_OAUTH_CLIENT_ID;
+
+        await upsertLlmAuthProfile({
+            profileId: 'minimax:portal_oauth_global',
+            providerId: 'minimax',
+            methodId: 'portal_oauth_global',
+            credential: {
+                type: 'oauth',
+                accessToken: 'stale-access',
+                refreshToken: 'stale-refresh',
+                expiresAt: Date.now() - 1,
+                metadata: { region: 'global', clientId: 'client-id' },
+            },
+        });
+        await setDefaultLlmAuthProfile({
+            providerId: 'minimax',
+            profileId: 'minimax:portal_oauth_global',
+        });
+
+        const resolver = createDefaultLlmAuthResolver();
+        const runtime = resolver.resolveRuntimeAuth({ provider: 'minimax', model: 'MiniMax-M2.1' });
+        expect(typeof runtime?.fetch).toBe('function');
+
+        let refreshCalls = 0;
+        const requestCalls: Array<{ url: string; headers: globalThis.Headers }> = [];
+        globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+            const url =
+                input instanceof URL
+                    ? input.toString()
+                    : typeof input === 'string'
+                      ? input
+                      : input.url;
+
+            if (url === 'https://api.minimax.io/oauth/token') {
+                refreshCalls += 1;
+                await new Promise((resolve) => setTimeout(resolve, 50));
+                return new Response(
+                    JSON.stringify({
+                        status: 'success',
+                        access_token: 'fresh-access',
+                        refresh_token: 'fresh-refresh',
+                        expired_in: 3600,
+                    }),
+                    { status: 200 }
+                );
+            }
+
+            requestCalls.push({ url, headers: new globalThis.Headers(init?.headers) });
+            return new Response('ok', { status: 200 });
+        }) satisfies typeof fetch;
+
+        await Promise.all([
+            runtime!.fetch!('https://example.com/one', { headers: { 'x-api-key': 'placeholder' } }),
+            runtime!.fetch!('https://example.com/two', { headers: { 'x-api-key': 'placeholder' } }),
+        ]);
+
+        expect(refreshCalls).toBe(1);
+        expect(requestCalls).toHaveLength(2);
+        expect(requestCalls[0]!.headers.get('x-api-key')).toBe('fresh-access');
+        expect(requestCalls[1]!.headers.get('x-api-key')).toBe('fresh-access');
     });
 
     it('refreshes openai oauth tokens using the stored clientId', async () => {

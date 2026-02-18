@@ -1,3 +1,5 @@
+import { formatOauthHttpError } from './oauth-error.js';
+
 const OPENAI_AUTH_ISSUER = 'https://auth.openai.com';
 const DEVICE_CODE_URL = `${OPENAI_AUTH_ISSUER}/codex/device`;
 
@@ -78,10 +80,8 @@ export async function loginOpenAiCodexDeviceCode(options: {
     });
 
     if (!deviceResponse.ok) {
-        const text = await deviceResponse.text().catch(() => '');
-        throw new Error(
-            `OpenAI device auth init failed (${deviceResponse.status}): ${text || deviceResponse.statusText}`
-        );
+        const text = await formatOauthHttpError(deviceResponse);
+        throw new Error(`OpenAI device auth init failed: ${text}`);
     }
 
     const deviceData = (await deviceResponse.json()) as {
@@ -131,10 +131,8 @@ export async function loginOpenAiCodexDeviceCode(options: {
                 continue;
             }
 
-            const text = await response.text().catch(() => '');
-            throw new Error(
-                `OpenAI device auth poll failed (${response.status}): ${text || response.statusText}`
-            );
+            const text = await formatOauthHttpError(response);
+            throw new Error(`OpenAI device auth poll failed: ${text}`);
         }
 
         throw new Error('OpenAI device auth timed out waiting for authorization');
@@ -158,10 +156,8 @@ export async function loginOpenAiCodexDeviceCode(options: {
         });
 
         if (!tokenResponse.ok) {
-            const text = await tokenResponse.text().catch(() => '');
-            throw new Error(
-                `OpenAI token exchange failed (${tokenResponse.status}): ${text || tokenResponse.statusText}`
-            );
+            const text = await formatOauthHttpError(tokenResponse);
+            throw new Error(`OpenAI token exchange failed: ${text}`);
         }
 
         const tokens = (await tokenResponse.json()) as {

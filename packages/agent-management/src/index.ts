@@ -103,7 +103,6 @@ export {
     getLlmAuthProfilesPath,
     loadLlmAuthProfilesStore,
     loadLlmAuthProfilesStoreSync,
-    saveLlmAuthProfilesStore,
     listLlmAuthProfiles,
     upsertLlmAuthProfile,
     deleteLlmAuthProfile,

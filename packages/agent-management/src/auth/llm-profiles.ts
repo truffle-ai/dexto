@@ -23,8 +23,8 @@ const STORE_DIR = 'auth';
 const STORE_FILENAME = 'llm-profiles.json';
 
 const FILE_MODE = 0o600;
-const STORE_LOCK_TIMEOUT_MS = 5000;
-const STORE_LOCK_STALE_MS = 60_000;
+const STORE_LOCK_TIMEOUT_MS = 15_000;
+const STORE_LOCK_STALE_MS = 15_000;
 const STORE_LOCK_RETRY_DELAY_MS = 50;
 
 export const LlmAuthCredentialSchema = z

@@ -1,5 +1,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 
+import { formatOauthHttpError } from './oauth-error.js';
+
 export type MiniMaxRegion = 'cn' | 'global';
 
 const MINIMAX_SCOPE = 'group_id profile model.completion';
@@ -74,10 +76,8 @@ export async function loginMiniMaxPortalDeviceCode(options: {
     });
 
     if (!codeRes.ok) {
-        const text = await codeRes.text().catch(() => '');
-        throw new Error(
-            `MiniMax OAuth init failed (${codeRes.status}): ${text || codeRes.statusText}`
-        );
+        const text = await formatOauthHttpError(codeRes);
+        throw new Error(`MiniMax OAuth init failed: ${text}`);
     }
 
     const oauth = (await codeRes.json()) as {
@@ -150,8 +150,13 @@ export async function loginMiniMaxPortalDeviceCode(options: {
             const payload = parsePayload(text);
 
             if (!res.ok) {
-                const msg = payload?.base_resp?.status_msg ?? text ?? res.statusText;
-                throw new Error(`MiniMax OAuth token poll failed (${res.status}): ${msg}`);
+                const msg =
+                    typeof payload?.base_resp?.status_msg === 'string'
+                        ? payload.base_resp.status_msg.trim()
+                        : '';
+                throw new Error(
+                    `MiniMax OAuth token poll failed (${res.status}): ${msg || res.statusText}`
+                );
             }
 
             const status: string | undefined = payload?.status;

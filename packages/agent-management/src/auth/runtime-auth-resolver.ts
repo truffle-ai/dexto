@@ -139,13 +139,37 @@ function normalizeAnthropicBaseUrl(url: string): string {
     return `${trimmed}/v1`;
 }
 
-function toSafeErrorText(text: string): string {
-    const trimmed = text.trim();
-    if (!trimmed) return '';
-    const singleLine = trimmed.replace(/\s+/g, ' ');
-    const maxLen = 500;
+function toMiniMaxRegion(value: unknown): 'cn' | 'global' | null {
+    if (value === 'cn' || value === 'global') return value;
+    return null;
+}
+
+function toShortSingleLineText(value: string, maxLen: number): string {
+    const singleLine = value.replace(/\s+/g, ' ').trim();
     if (singleLine.length <= maxLen) return singleLine;
     return `${singleLine.slice(0, maxLen)}…`;
+}
+
+function toWhitelistedOauthErrorText(payload: unknown): string | null {
+    if (typeof payload !== 'object' || payload === null) return null;
+    const record = payload as Record<string, unknown>;
+
+    const parts: string[] = [];
+    function addField(key: string): void {
+        const value = record[key];
+        if (typeof value !== 'string') return;
+        const trimmed = value.trim();
+        if (!trimmed) return;
+        parts.push(`${key}: ${toShortSingleLineText(trimmed, 200)}`);
+    }
+
+    addField('error');
+    addField('error_description');
+    addField('message');
+    addField('status');
+    addField('status_msg');
+
+    return parts.length > 0 ? parts.join(', ') : null;
 }
 
 async function refreshOpenAiOauthTokens(params: {
@@ -157,11 +181,20 @@ async function refreshOpenAiOauthTokens(params: {
     expiresAt: number;
     accountId: string | null;
 }> {
-    const clientId =
-        process.env.DEXTO_OPENAI_CODEX_OAUTH_CLIENT_ID?.trim() ||
-        params.clientIdFromProfile?.trim();
+    const clientIdFromProfile = params.clientIdFromProfile?.trim();
+    const clientIdFromEnv = process.env.DEXTO_OPENAI_CODEX_OAUTH_CLIENT_ID?.trim();
+
+    if (clientIdFromProfile && clientIdFromEnv && clientIdFromProfile !== clientIdFromEnv) {
+        throw new Error(
+            'OpenAI OAuth clientId mismatch between profile and DEXTO_OPENAI_CODEX_OAUTH_CLIENT_ID; reconnect or unset the env var.'
+        );
+    }
+
+    const clientId = clientIdFromProfile || clientIdFromEnv;
     if (!clientId) {
-        throw new Error('Missing DEXTO_OPENAI_CODEX_OAUTH_CLIENT_ID');
+        throw new Error(
+            'Missing OpenAI OAuth clientId (reconnect or set DEXTO_OPENAI_CODEX_OAUTH_CLIENT_ID)'
+        );
     }
 
     const response = await fetch(`${OPENAI_AUTH_ISSUER}/oauth/token`, {
@@ -177,9 +210,14 @@ async function refreshOpenAiOauthTokens(params: {
 
     if (!response.ok) {
         const text = await response.text().catch(() => '');
-        const safe = toSafeErrorText(text);
+        let details: string | null = null;
+        try {
+            details = toWhitelistedOauthErrorText(JSON.parse(text) as unknown);
+        } catch {
+            details = null;
+        }
         throw new Error(
-            `OpenAI OAuth refresh failed (${response.status}): ${safe || response.statusText}`
+            `OpenAI OAuth refresh failed (${response.status}): ${details || response.statusText}`
         );
     }
 
@@ -220,11 +258,20 @@ async function refreshMiniMaxPortalOauthTokens(params: {
     resourceUrl?: string;
     notificationMessage?: string;
 }> {
-    const clientId =
-        process.env.DEXTO_MINIMAX_PORTAL_OAUTH_CLIENT_ID?.trim() ||
-        params.clientIdFromProfile?.trim();
+    const clientIdFromProfile = params.clientIdFromProfile?.trim();
+    const clientIdFromEnv = process.env.DEXTO_MINIMAX_PORTAL_OAUTH_CLIENT_ID?.trim();
+
+    if (clientIdFromProfile && clientIdFromEnv && clientIdFromProfile !== clientIdFromEnv) {
+        throw new Error(
+            'MiniMax OAuth clientId mismatch between profile and DEXTO_MINIMAX_PORTAL_OAUTH_CLIENT_ID; reconnect or unset the env var.'
+        );
+    }
+
+    const clientId = clientIdFromProfile || clientIdFromEnv;
     if (!clientId) {
-        throw new Error('Missing DEXTO_MINIMAX_PORTAL_OAUTH_CLIENT_ID');
+        throw new Error(
+            'Missing MiniMax OAuth clientId (reconnect or set DEXTO_MINIMAX_PORTAL_OAUTH_CLIENT_ID)'
+        );
     }
 
     const baseUrl = params.region === 'cn' ? 'https://api.minimaxi.com' : 'https://api.minimax.io';
@@ -251,9 +298,9 @@ async function refreshMiniMaxPortalOauthTokens(params: {
     }
 
     if (!response.ok) {
-        const safe = toSafeErrorText(text);
+        const details = toWhitelistedOauthErrorText(payload);
         throw new Error(
-            `MiniMax OAuth refresh failed (${response.status}): ${safe || response.statusText}`
+            `MiniMax OAuth refresh failed (${response.status}): ${details || response.statusText}`
         );
     }
 
@@ -338,7 +385,7 @@ async function refreshOauthProfileIfNeeded(profile: LlmAuthProfile): Promise<Llm
             (latest.methodId === 'portal_oauth_global' || latest.methodId === 'portal_oauth_cn')
         ) {
             const region =
-                (latest.credential.metadata?.region as 'cn' | 'global' | undefined) ??
+                toMiniMaxRegion(latest.credential.metadata?.region) ??
                 (latest.methodId === 'portal_oauth_cn' ? 'cn' : 'global');
 
             const refreshed = await refreshMiniMaxPortalOauthTokens({
@@ -462,7 +509,7 @@ export function createDefaultLlmAuthResolver(): LlmAuthResolver {
                         profile.methodId === 'portal_oauth_cn')
                 ) {
                     const region =
-                        (profile.credential.metadata?.region as 'cn' | 'global' | undefined) ??
+                        toMiniMaxRegion(profile.credential.metadata?.region) ??
                         (profile.methodId === 'portal_oauth_cn' ? 'cn' : 'global');
 
                     const fallbackResourceUrl =
