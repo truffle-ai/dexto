@@ -64,11 +64,22 @@ const PREFERENCES_FILE_HEADER = `# Dexto Global Preferences
 #
 # Sound Notifications:
 #   Dexto plays sounds for CLI startup, approval requests, and task completion.
-#   To customize sounds, place audio files in ~/.dexto/sounds/:
-#     - startup.wav (or .mp3, .ogg, .aiff, .m4a) - played when the interactive CLI starts
-#     - approval.wav (or .mp3, .ogg, .aiff, .m4a) - played when tool approval is needed
-#     - complete.wav (or .mp3, .ogg, .aiff, .m4a) - played when agent finishes a task
-#   Set sounds.enabled: false to disable all sounds.
+#   Configure which events play sounds:
+#     sounds.enabled: true|false
+#     sounds.onStartup: true|false
+#     sounds.onApprovalRequired: true|false
+#     sounds.onTaskComplete: true|false
+#
+#   Select sound files (paths are relative to ~/.dexto/sounds):
+#     sounds.startupSoundFile: builtins/startup.wav
+#     sounds.approvalSoundFile: builtins/coin.wav
+#     sounds.completeSoundFile: builtins/success.wav
+#
+#   Tip: Use the /sounds overlay to preview and pick sounds.
+#
+#   Legacy fallback (still supported):
+#     Place startup.* / approval.* / complete.* in ~/.dexto/sounds/ and omit the *SoundFile keys.
+#     Supported audio formats vary by OS (Windows reliably supports .wav).
 
 `;
 
