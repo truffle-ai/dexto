@@ -22,13 +22,14 @@ Success criteria:
 
 - [x] Remove the primary Bun runtime blocker (`better-sqlite3`) from runtime dependency paths
 - [x] Implement Bun-native SQLite store path using `bun:sqlite`
-- [x] Decide Bun version policy: keep pin at `1.2.9` (don’t chase latest during migration)
+- [x] Decide Bun version policy: pin at `1.3.5` (stable + supports `Bun.build({ compile: … })`)
 - [x] Remove/replace remaining hardcoded `pnpm`/`npm` usage in CLI output/help text
 - [x] Update CLI scaffolding and templates to prefer `bun` (install/run/build instructions)
 - [x] Replace `npx`/`npm` usage in repo dev scripts with `bun` where possible (e.g. `scripts/install-global-cli.ts`)
 - [x] Migrate image-store installer off `npm pack` + `npm install` to Bun equivalents
 - [x] Switch local model dependency install to Bun (`node-llama-cpp` via `bun add --trust`)
 - [x] Validate `node-llama-cpp` installs + imports under Bun runtime (no Node required)
+- [x] Make `bun:sqlite` Node-import safe (lazy-load at runtime) so `vitest` can run under Node
 - [x] Remove remaining Bun→npm and Node runtime fallback paths (Bun-only runtime)
 - [x] Delete legacy pnpm files (`pnpm-lock.yaml`, `pnpm-workspace.yaml`)
 - [x] Checkpoint commit: Phase 1 SQLite + runtime blockers removed
