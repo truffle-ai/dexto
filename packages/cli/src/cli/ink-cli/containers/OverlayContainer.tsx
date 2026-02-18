@@ -36,6 +36,10 @@ import StreamSelector, {
     type StreamSelectorHandle,
 } from '../components/overlays/StreamSelector.js';
 import ToolBrowser, { type ToolBrowserHandle } from '../components/overlays/ToolBrowser.js';
+import {
+    CommandOutputOverlay,
+    type CommandOutputOverlayHandle,
+} from '../components/overlays/CommandOutputOverlay.js';
 import McpServerList, {
     type McpServerListHandle,
     type McpServerListAction,
@@ -186,6 +190,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const logLevelSelectorRef = useRef<LogLevelSelectorHandle>(null);
         const streamSelectorRef = useRef<StreamSelectorHandle>(null);
         const toolBrowserRef = useRef<ToolBrowserHandle>(null);
+        const commandOutputRef = useRef<CommandOutputOverlayHandle>(null);
         const mcpServerListRef = useRef<McpServerListHandle>(null);
         const mcpServerActionsRef = useRef<McpServerActionsHandle>(null);
         const mcpAddChoiceRef = useRef<McpAddChoiceHandle>(null);
@@ -262,6 +267,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             return streamSelectorRef.current?.handleInput(inputStr, key) ?? false;
                         case 'tool-browser':
                             return toolBrowserRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'command-output':
+                            return commandOutputRef.current?.handleInput(inputStr, key) ?? false;
                         case 'mcp-server-list':
                             return mcpServerListRef.current?.handleInput(inputStr, key) ?? false;
                         case 'mcp-server-actions':
@@ -1216,7 +1223,12 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         );
 
         const handleClose = useCallback(() => {
-            setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
+            setUi((prev) => ({
+                ...prev,
+                activeOverlay: 'none',
+                mcpWizardServerType: null,
+                commandOutput: null,
+            }));
         }, [setUi]);
 
         // Handle log level selection
@@ -2405,6 +2417,19 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             onClose={handleClose}
                             agent={agent}
                             sessionId={session.id}
+                        />
+                    </Box>
+                )}
+
+                {/* Command output modal */}
+                {ui.activeOverlay === 'command-output' && ui.commandOutput && (
+                    <Box marginTop={1}>
+                        <CommandOutputOverlay
+                            ref={commandOutputRef}
+                            isVisible={true}
+                            title={ui.commandOutput.title}
+                            content={ui.commandOutput.content}
+                            onClose={handleClose}
                         />
                     </Box>
                 )}

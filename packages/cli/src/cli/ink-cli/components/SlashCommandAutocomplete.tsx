@@ -154,8 +154,8 @@ const SlashCommandAutocompleteInner = forwardRef<
     const maxVisibleItems = useMemo(() => {
         return getMaxVisibleItemsForTerminalRows({
             rows: terminalRows,
-            hardCap: 12,
-            reservedRows: 6,
+            hardCap: 8,
+            reservedRows: 8,
         });
     }, [terminalRows]);
 

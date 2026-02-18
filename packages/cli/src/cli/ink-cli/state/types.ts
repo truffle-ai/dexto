@@ -343,7 +343,16 @@ export type OverlayType =
     | 'plugin-list'
     | 'plugin-actions'
     | 'marketplace-browser'
-    | 'marketplace-add';
+    | 'marketplace-add'
+    | 'command-output';
+
+/**
+ * Temporary modal output for slash commands (e.g., /help, /stats).
+ */
+export interface CommandOutputState {
+    title: string;
+    content: string;
+}
 
 /**
  * MCP server type for custom wizard (null = not yet selected)
@@ -425,6 +434,7 @@ export interface UIState {
     // Plan mode state (Shift+Tab toggle)
     planModeActive: boolean; // True when plan mode indicator is shown
     planModeInitialized: boolean; // True after first message sent in plan mode (prevents re-injection)
+    commandOutput: CommandOutputState | null; // Command output modal state
 }
 
 /**

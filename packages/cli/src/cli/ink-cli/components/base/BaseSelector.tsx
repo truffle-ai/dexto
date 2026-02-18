@@ -16,6 +16,9 @@ import {
 } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
+import { useTerminalSize } from '../../hooks/useTerminalSize.js';
+import { getMaxVisibleItemsForTerminalRows } from '../../utils/overlaySizing.js';
+import { HintBar } from '../shared/HintBar.js';
 
 export interface BaseSelectorProps<T> {
     items: T[];
@@ -62,6 +65,15 @@ function BaseSelectorInner<T>(
     }: BaseSelectorProps<T>,
     ref: React.Ref<BaseSelectorHandle>
 ) {
+    const { rows: terminalRows } = useTerminalSize();
+    const viewportItems = useMemo(() => {
+        return getMaxVisibleItemsForTerminalRows({
+            rows: terminalRows,
+            hardCap: maxVisibleItems,
+            reservedRows: 14,
+        });
+    }, [terminalRows, maxVisibleItems]);
+
     // Track scroll offset as state, but derive during render when needed
     const [scrollOffsetState, setScrollOffset] = useState(0);
     const selectedIndexRef = useRef(selectedIndex);
@@ -76,7 +88,7 @@ function BaseSelectorInner<T>(
         const itemsChanged = items.length !== prevItemsLengthRef.current;
 
         // Reset scroll if items changed significantly
-        if (itemsChanged && items.length <= maxVisibleItems) {
+        if (itemsChanged && items.length <= viewportItems) {
             return 0;
         }
 
@@ -85,14 +97,14 @@ function BaseSelectorInner<T>(
         // Adjust offset to keep selectedIndex visible
         if (selectedIndex < offset) {
             offset = selectedIndex;
-        } else if (selectedIndex >= offset + maxVisibleItems) {
-            offset = Math.max(0, selectedIndex - maxVisibleItems + 1);
+        } else if (selectedIndex >= offset + viewportItems) {
+            offset = Math.max(0, selectedIndex - viewportItems + 1);
         }
 
         // Clamp to valid range
-        const maxOffset = Math.max(0, items.length - maxVisibleItems);
+        const maxOffset = Math.max(0, items.length - viewportItems);
         return Math.min(maxOffset, Math.max(0, offset));
-    }, [selectedIndex, items.length, maxVisibleItems, scrollOffsetState]);
+    }, [selectedIndex, items.length, viewportItems, scrollOffsetState]);
 
     // Update refs after render (not during useMemo which can run multiple times)
     useEffect(() => {
@@ -118,8 +130,8 @@ function BaseSelectorInner<T>(
 
     // Calculate visible items
     const visibleItems = useMemo(() => {
-        return items.slice(scrollOffset, scrollOffset + maxVisibleItems);
-    }, [items, scrollOffset, maxVisibleItems]);
+        return items.slice(scrollOffset, scrollOffset + viewportItems);
+    }, [items, scrollOffset, viewportItems]);
 
     // Expose handleInput method via ref
     useImperativeHandle(
@@ -135,7 +147,7 @@ function BaseSelectorInner<T>(
                 }
 
                 const itemsLength = items.length;
-                if (itemsLength === 0) return false;
+                if (isLoading || itemsLength === 0) return true;
 
                 if (key.upArrow) {
                     const nextIndex = (selectedIndexRef.current - 1 + itemsLength) % itemsLength;
@@ -168,49 +180,72 @@ function BaseSelectorInner<T>(
                 return false;
             },
         }),
-        [isVisible, items, handleSelectIndex, onClose, onSelect, onTab]
+        [isVisible, isLoading, items, handleSelectIndex, onClose, onSelect, onTab]
     );
 
     if (!isVisible) return null;
-
-    if (isLoading) {
-        return (
-            <Box paddingX={0} paddingY={0}>
-                <Text color="gray">{loadingMessage}</Text>
-            </Box>
-        );
-    }
-
-    if (items.length === 0) {
-        return (
-            <Box paddingX={0} paddingY={0}>
-                <Text color="gray">{emptyMessage}</Text>
-            </Box>
-        );
-    }
-
-    // Build instruction text based on features
-    const instructions = supportsTab
-        ? '↑↓ navigate, Tab load, Enter select, Esc close'
-        : '↑↓ navigate, Enter select, Esc close';
 
     return (
         <Box flexDirection="column">
             <Box paddingX={0} paddingY={0}>
                 <Text color={borderColor} bold>
-                    {title} ({selectedIndex + 1}/{items.length}) - {instructions}
+                    {title}
                 </Text>
             </Box>
-            {visibleItems.map((item, visibleIndex) => {
-                const actualIndex = scrollOffset + visibleIndex;
-                const isSelected = actualIndex === selectedIndex;
+            <Box flexDirection="column" height={viewportItems} marginTop={1}>
+                {isLoading ? (
+                    <>
+                        <Box paddingX={0} paddingY={0}>
+                            <Text color="gray">{loadingMessage}</Text>
+                        </Box>
+                        {Array.from({ length: Math.max(0, viewportItems - 1) }, (_, index) => (
+                            <Box key={`loading-spacer-${index}`} paddingX={0} paddingY={0}>
+                                <Text> </Text>
+                            </Box>
+                        ))}
+                    </>
+                ) : items.length === 0 ? (
+                    <>
+                        <Box paddingX={0} paddingY={0}>
+                            <Text color="gray">{emptyMessage}</Text>
+                        </Box>
+                        {Array.from({ length: Math.max(0, viewportItems - 1) }, (_, index) => (
+                            <Box key={`empty-spacer-${index}`} paddingX={0} paddingY={0}>
+                                <Text> </Text>
+                            </Box>
+                        ))}
+                    </>
+                ) : (
+                    Array.from({ length: viewportItems }, (_, rowIndex) => {
+                        const item = visibleItems[rowIndex];
+                        if (item === undefined) {
+                            return (
+                                <Box key={`item-empty-${rowIndex}`} paddingX={0} paddingY={0}>
+                                    <Text> </Text>
+                                </Box>
+                            );
+                        }
 
-                return (
-                    <Box key={actualIndex} paddingX={0} paddingY={0}>
-                        {formatItem(item, isSelected)}
-                    </Box>
-                );
-            })}
+                        const actualIndex = scrollOffset + rowIndex;
+                        const isSelected = actualIndex === selectedIndex;
+                        return (
+                            <Box key={actualIndex} paddingX={0} paddingY={0}>
+                                {formatItem(item, isSelected)}
+                            </Box>
+                        );
+                    })
+                )}
+            </Box>
+            <Box paddingX={0} paddingY={0} marginTop={1}>
+                <HintBar
+                    hints={[
+                        '↑↓ navigate',
+                        supportsTab ? 'Tab load' : '',
+                        'Enter select',
+                        'Esc close',
+                    ]}
+                />
+            </Box>
         </Box>
     );
 }

@@ -10,7 +10,6 @@
  * - /<prompt-name> [args] - Direct prompt execution (auto-generated for each prompt)
  */
 
-import chalk from 'chalk';
 import type { DextoAgent, PromptInfo } from '@dexto/core';
 import type { CommandDefinition, CommandContext, CommandHandlerResult } from './command-parser.js';
 import { formatForInkCli } from './utils/format-output.js';
@@ -65,7 +64,6 @@ export const promptCommands: CommandDefinition[] = [
 
                 if (promptNames.length === 0) {
                     const output = '\n⚠️  No prompts available';
-                    console.log(chalk.rgb(255, 165, 0)(output));
                     return formatForInkCli(output);
                 }
 
@@ -141,69 +139,9 @@ export const promptCommands: CommandDefinition[] = [
                 outputLines.push(`Total: ${promptNames.length} prompts`);
                 const output = outputLines.join('\n');
 
-                // Log for regular CLI (with chalk formatting)
-                console.log(chalk.bold.green('\n📝 Available Prompts:\n'));
-                if (mcpPrompts.length > 0) {
-                    console.log(chalk.cyan('🔗 MCP Prompts:'));
-                    mcpPrompts.forEach((name) => {
-                        const info = prompts[name];
-                        if (info) {
-                            const displayName = info.displayName || name;
-                            const title =
-                                info.title && info.title !== displayName ? ` (${info.title})` : '';
-                            const desc = info.description ? ` - ${info.description}` : '';
-                            const args =
-                                info.arguments && info.arguments.length > 0
-                                    ? ` [args: ${info.arguments
-                                          .map((a) => `${a.name}${a.required ? '*' : ''}`)
-                                          .join(', ')}]`
-                                    : '';
-                            console.log(
-                                `  ${chalk.blue(displayName)}${chalk.rgb(255, 165, 0)(title)}${chalk.gray(desc)}${chalk.gray(args)}`
-                            );
-                        }
-                    });
-                    console.log();
-                }
-                if (configPrompts.length > 0) {
-                    console.log(chalk.cyan('📋 Config Prompts:'));
-                    configPrompts.forEach((name) => {
-                        const info = prompts[name];
-                        if (info) {
-                            const displayName = info.displayName || name;
-                            const title =
-                                info.title && info.title !== displayName ? ` (${info.title})` : '';
-                            const desc = info.description ? ` - ${info.description}` : '';
-                            console.log(
-                                `  ${chalk.blue(displayName)}${chalk.rgb(255, 165, 0)(title)}${chalk.gray(desc)}`
-                            );
-                        }
-                    });
-                    console.log();
-                }
-                if (customPrompts.length > 0) {
-                    console.log(chalk.greenBright('✨ Custom Prompts:'));
-                    customPrompts.forEach((name) => {
-                        const info = prompts[name];
-                        if (info) {
-                            const displayName = info.displayName || name;
-                            const title =
-                                info.title && info.title !== displayName ? ` (${info.title})` : '';
-                            const desc = info.description ? ` - ${info.description}` : '';
-                            console.log(
-                                `  ${chalk.blue(displayName)}${chalk.rgb(255, 165, 0)(title)}${chalk.gray(desc)}`
-                            );
-                        }
-                    });
-                    console.log();
-                }
-                console.log(chalk.gray(`Total: ${promptNames.length} prompts`));
-                console.log(chalk.gray('💡 Use /<prompt-name> to execute a prompt directly\n'));
-
                 return formatForInkCli(output);
             } catch (error) {
                 const errorMsg = `Error listing prompts: ${error instanceof Error ? error.message : String(error)}`;
-                console.error(chalk.red(`❌ ${errorMsg}`));
                 return formatForInkCli(`❌ ${errorMsg}`);
             }
         },
@@ -257,17 +195,16 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                 if (ctx.sessionId) {
                     // Apply model override if specified
                     if (result.model) {
-                        console.log(
-                            chalk.gray(`🔄 Switching model to '${result.model}' for this prompt`)
-                        );
                         try {
                             await agent.switchLLM({ model: result.model }, ctx.sessionId);
                         } catch (modelError) {
-                            console.log(
-                                chalk.yellow(
-                                    `⚠️  Failed to switch model: ${modelError instanceof Error ? modelError.message : String(modelError)}`
-                                )
-                            );
+                            agent.logger.warn('Failed to switch model for prompt override', {
+                                model: result.model,
+                                error:
+                                    modelError instanceof Error
+                                        ? modelError.message
+                                        : String(modelError),
+                            });
                         }
                     }
 
@@ -285,20 +222,19 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                             }
                             return tool;
                         });
-                        console.log(
-                            chalk.gray(`🔓 Auto-approving tools: ${displayTools.join(', ')}`)
-                        );
                         try {
                             agent.toolManager.setSessionAutoApproveTools(
                                 ctx.sessionId,
                                 result.allowedTools
                             );
                         } catch (toolError) {
-                            console.log(
-                                chalk.yellow(
-                                    `⚠️  Failed to set auto-approve tools: ${toolError instanceof Error ? toolError.message : String(toolError)}`
-                                )
-                            );
+                            agent.logger.warn('Failed to set auto-approve tools for prompt', {
+                                tools: result.allowedTools,
+                                error:
+                                    toolError instanceof Error
+                                        ? toolError.message
+                                        : String(toolError),
+                            });
                         }
                     }
                 }
@@ -349,7 +285,6 @@ ${finalText.trim()}`;
                     return createSendMessageMarker(wrappedText);
                 } else {
                     const warningMsg = `⚠️  Prompt '${commandName}' returned no content`;
-                    console.log(chalk.rgb(255, 165, 0)(warningMsg));
                     return formatForInkCli(warningMsg);
                 }
             } catch (error) {

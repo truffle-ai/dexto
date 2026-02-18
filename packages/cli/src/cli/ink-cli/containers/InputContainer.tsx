@@ -443,6 +443,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                     isProcessing: true,
                     isCancelling: false,
                     activeOverlay: 'none',
+                    commandOutput: null,
                     exitWarningShown: false,
                     exitWarningTimestamp: null,
                 }));
@@ -479,30 +480,26 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
 
                         if (result.type === 'output' && result.output) {
                             const output = result.output;
-                            setMessages((prev) => [
+                            setUi((prev) => ({
                                 ...prev,
-                                {
-                                    id: generateMessageId('command'),
-                                    role: 'system',
+                                activeOverlay: 'command-output',
+                                commandOutput: {
+                                    title: `/${parsed.command}`,
                                     content: output,
-                                    timestamp: new Date(),
                                 },
-                            ]);
+                            }));
                         }
 
                         if (result.type === 'styled' && result.styled) {
-                            const { fallbackText, styledType, styledData } = result.styled;
-                            setMessages((prev) => [
+                            const { fallbackText } = result.styled;
+                            setUi((prev) => ({
                                 ...prev,
-                                {
-                                    id: generateMessageId('command'),
-                                    role: 'system',
+                                activeOverlay: 'command-output',
+                                commandOutput: {
+                                    title: `/${parsed.command}`,
                                     content: fallbackText,
-                                    timestamp: new Date(),
-                                    styledType,
-                                    styledData,
                                 },
-                            ]);
+                            }));
                         }
 
                         // Handle sendMessage - send through normal streaming flow

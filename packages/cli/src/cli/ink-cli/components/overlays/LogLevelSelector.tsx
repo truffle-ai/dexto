@@ -136,7 +136,7 @@ const LogLevelSelector = forwardRef<LogLevelSelectorHandle, LogLevelSelectorProp
                     borderColor="yellowBright"
                     emptyMessage="No log levels available"
                 />
-                {logFilePath && process.env.DEXTO_DEV_MODE === 'true' && (
+                {logFilePath && (
                     <Box marginTop={1}>
                         <Text color="gray">📁 Log file: {logFilePath}</Text>
                     </Box>
