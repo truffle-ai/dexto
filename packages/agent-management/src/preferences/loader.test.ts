@@ -63,6 +63,7 @@ describe('Preferences Loader', () => {
             },
             sounds: {
                 enabled: true,
+                onStartup: true,
                 onApprovalRequired: true,
                 onTaskComplete: true,
             },
@@ -314,6 +315,7 @@ setup:
                 },
                 sounds: {
                     enabled: true,
+                    onStartup: true,
                     onApprovalRequired: true,
                     onTaskComplete: true,
                 },
@@ -348,6 +350,7 @@ setup:
 
             expect(preferences.sounds).toEqual({
                 enabled: true,
+                onStartup: true,
                 onApprovalRequired: true,
                 onTaskComplete: true,
             });
@@ -365,6 +368,7 @@ setup:
 
             expect(preferences.sounds).toEqual({
                 enabled: true,
+                onStartup: true,
                 onApprovalRequired: false,
                 onTaskComplete: true,
             });

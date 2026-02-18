@@ -1,6 +1,6 @@
 {
   "name": "@dexto/tools-lifecycle",
-  "version": "1.5.8",
+  "version": "1.6.0",
   "description": "Lifecycle and self-observation tools for Dexto agents",
   "type": "module",
   "main": "./dist/index.js",
@@ -38,4 +38,3 @@
     "README.md"
   ]
 }
-

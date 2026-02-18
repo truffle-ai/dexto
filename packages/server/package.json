@@ -1,6 +1,6 @@
 {
   "name": "@dexto/server",
-  "version": "1.5.8",
+  "version": "1.6.0",
   "private": false,
   "type": "module",
   "main": "./dist/index.cjs",
@@ -30,6 +30,7 @@
     "@dexto/core": "workspace:*",
     "@dexto/image-local": "workspace:*",
     "@dexto/storage": "workspace:*",
+    "@dexto/tools-scheduler": "workspace:*",
     "@hono/node-server": "1.19.5",
     "@hono/zod-openapi": "^0.19.1",
     "hono": "^4.6.8",

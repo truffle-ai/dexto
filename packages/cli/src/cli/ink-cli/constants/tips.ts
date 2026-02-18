@@ -19,6 +19,7 @@ export const tips: string[] = [
     'Use /prompts to browse, add and delete custom prompts…',
     'Use /log to change logging verbosity…',
     'Use /clear to clear the session context…',
+    'Use /sounds to customize notification sounds…',
     'Use /exit or /quit to close dexto…',
     'Use /docs to access documentation…',
     'Use /copy to copy the previous response…',

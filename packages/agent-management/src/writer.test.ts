@@ -64,6 +64,7 @@ describe('Config Writer', () => {
             },
             sounds: {
                 enabled: true,
+                onStartup: true,
                 onApprovalRequired: true,
                 onTaskComplete: true,
             },
