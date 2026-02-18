@@ -1,17 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { SoundNotificationService, type SoundConfig } from './soundNotification.js';
 
-// Mock child_process exec
+// Mock child_process execFile
 vi.mock('child_process', () => ({
-    exec: vi.fn((_command, _options, callback) => {
-        // Handle both (command, callback) and (command, options, callback) signatures
+    execFile: vi.fn((_file, _args, _options, callback) => {
+        // Handle both (file, args, callback) and (file, args, options, callback) signatures
         const cb = typeof _options === 'function' ? _options : callback;
         if (cb) cb(null, '', '');
     }),
 }));
 
-const mockedExec = vi.mocked(exec);
+const mockedExecFile = vi.mocked(execFile);
 
 // Full config for testing (mirrors defaults from PreferenceSoundsSchema)
 const TEST_CONFIG: SoundConfig = {
@@ -81,12 +81,12 @@ describe('SoundNotificationService', () => {
 
         it('should attempt to play sound when enabled', () => {
             const service = new SoundNotificationService(TEST_CONFIG);
-            mockedExec.mockClear();
+            mockedExecFile.mockClear();
             writeSpy.mockClear();
             service.playApprovalSound();
             // Should either call exec (platform sound) or write bell (fallback)
             const soundAttempted =
-                mockedExec.mock.calls.length > 0 || writeSpy.mock.calls.length > 0;
+                mockedExecFile.mock.calls.length > 0 || writeSpy.mock.calls.length > 0;
             expect(soundAttempted).toBe(true);
         });
     });
@@ -106,11 +106,11 @@ describe('SoundNotificationService', () => {
                 ...TEST_CONFIG,
                 onStartup: true,
             });
-            mockedExec.mockClear();
+            mockedExecFile.mockClear();
             writeSpy.mockClear();
             service.playStartupSound();
             const soundAttempted =
-                mockedExec.mock.calls.length > 0 || writeSpy.mock.calls.length > 0;
+                mockedExecFile.mock.calls.length > 0 || writeSpy.mock.calls.length > 0;
             expect(soundAttempted).toBe(true);
         });
     });
@@ -133,12 +133,12 @@ describe('SoundNotificationService', () => {
 
         it('should attempt to play sound when enabled', () => {
             const service = new SoundNotificationService(TEST_CONFIG);
-            mockedExec.mockClear();
+            mockedExecFile.mockClear();
             writeSpy.mockClear();
             service.playCompleteSound();
             // Should either call exec (platform sound) or write bell (fallback)
             const soundAttempted =
-                mockedExec.mock.calls.length > 0 || writeSpy.mock.calls.length > 0;
+                mockedExecFile.mock.calls.length > 0 || writeSpy.mock.calls.length > 0;
             expect(soundAttempted).toBe(true);
         });
     });
