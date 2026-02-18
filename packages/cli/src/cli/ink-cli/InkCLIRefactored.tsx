@@ -43,6 +43,12 @@ import { getStartupInfo } from './utils/messageFormatting.js';
 //const USE_ALTERNATE_BUFFER = true;
 const USE_ALTERNATE_BUFFER = false;
 
+function formatCost(c: number): string {
+    if (c < 0.01) return `$${c.toFixed(4)}`;
+    if (c < 1) return `$${c.toFixed(3)}`;
+    return `$${c.toFixed(2)}`;
+}
+
 interface InkCLIProps {
     agent: DextoAgent;
     initialSessionId: string | null;
@@ -307,13 +313,11 @@ export async function startInkCliRefactored(
                 );
 
                 if (modelStat.estimatedCost > 0) {
-                    const costStr =
-                        modelStat.estimatedCost < 0.01
-                            ? `$${modelStat.estimatedCost.toFixed(4)}`
-                            : modelStat.estimatedCost < 1
-                              ? `$${modelStat.estimatedCost.toFixed(3)}`
-                              : `$${modelStat.estimatedCost.toFixed(2)}`;
-                    process.stdout.write(chalk.gray(`      Cost:               ${costStr}`) + '\n');
+                    process.stdout.write(
+                        chalk.gray(
+                            `      Cost:               ${formatCost(modelStat.estimatedCost)}`
+                        ) + '\n'
+                    );
                 }
             }
         }
@@ -361,14 +365,9 @@ export async function startInkCliRefactored(
 
         // Estimated cost
         if (exitStats.estimatedCost !== undefined) {
-            const cost = exitStats.estimatedCost;
-            const costStr =
-                cost < 0.01
-                    ? `$${cost.toFixed(4)}`
-                    : cost < 1
-                      ? `$${cost.toFixed(3)}`
-                      : `$${cost.toFixed(2)}`;
-            process.stdout.write(chalk.green(`\n  Estimated Cost: ${costStr}`) + '\n');
+            process.stdout.write(
+                chalk.green(`\n  Estimated Cost: ${formatCost(exitStats.estimatedCost)}`) + '\n'
+            );
         }
 
         process.stdout.write(chalk.dim('─'.repeat(50)) + '\n');

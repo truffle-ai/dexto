@@ -208,9 +208,10 @@ export const generalCommands: CommandDefinition[] = [
             try {
                 const { sessionId } = ctx;
                 if (sessionId) {
-                    const sessionMetadata =
-                        await agent.sessionManager.getSessionMetadata(sessionId);
-                    const history = await agent.getSessionHistory(sessionId);
+                    const [sessionMetadata, history] = await Promise.all([
+                        agent.sessionManager.getSessionMetadata(sessionId),
+                        agent.getSessionHistory(sessionId),
+                    ]);
 
                     if (sessionMetadata) {
                         // Calculate session duration
@@ -231,13 +232,9 @@ export const generalCommands: CommandDefinition[] = [
                                 history?.filter((msg) => msg.role === 'assistant').length || 0,
                         };
 
-                        // Get model info from agent config
-                        const modelName = agent.config.llm.model;
-
                         // Store stats for display after exit
                         setExitStats({
                             ...(sessionId && { sessionId }),
-                            ...(modelName && { modelName }),
                             ...(durationStr && { duration: durationStr }),
                             messageCount,
                             ...(sessionMetadata.tokenUsage && {

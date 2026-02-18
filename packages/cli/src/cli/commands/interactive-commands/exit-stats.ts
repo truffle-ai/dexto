@@ -6,38 +6,19 @@
  * ensuring they appear at the bottom of the terminal.
  */
 
+import type { SessionMetadata } from '@dexto/core';
+
 export interface ExitSessionStats {
     sessionId?: string;
-    modelName?: string;
     duration?: string;
     messageCount: {
         total: number;
         user: number;
         assistant: number;
     };
-    tokenUsage?: {
-        inputTokens: number;
-        outputTokens: number;
-        reasoningTokens: number;
-        cacheReadTokens: number;
-        cacheWriteTokens: number;
-        totalTokens: number;
-    };
-    estimatedCost?: number;
-    modelStats?: Array<{
-        provider: string;
-        model: string;
-        messageCount: number;
-        tokenUsage: {
-            inputTokens: number;
-            outputTokens: number;
-            reasoningTokens: number;
-            cacheReadTokens: number;
-            cacheWriteTokens: number;
-            totalTokens: number;
-        };
-        estimatedCost: number;
-    }>;
+    tokenUsage?: NonNullable<SessionMetadata['tokenUsage']>;
+    estimatedCost?: SessionMetadata['estimatedCost'];
+    modelStats?: NonNullable<SessionMetadata['modelStats']>;
 }
 
 let exitStats: ExitSessionStats | null = null;
