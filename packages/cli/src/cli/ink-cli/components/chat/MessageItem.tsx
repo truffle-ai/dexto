@@ -32,6 +32,7 @@ import {
 import { ToolResultRenderer } from '../renderers/index.js';
 import { MarkdownText } from '../shared/MarkdownText.js';
 import { ToolIcon } from './ToolIcon.js';
+import { formatToolResultPreview } from '../../utils/messageFormatting.js';
 
 /**
  * Strip <plan-mode>...</plan-mode> tags from content.
@@ -206,11 +207,14 @@ export const MessageItem = memo(
             // Check for sub-agent progress data
             const subAgentProgress = message.subAgentProgress;
 
+            const contentLines = message.content.split('\n');
+            const headerLine = contentLines[0] ?? '';
+            const subHeaderLine = contentLines.length > 1 ? contentLines[1] : '';
+
             // Parse tool name and args for bold formatting: "ToolName(args)" → bold name + normal args
-            const parenIndex = message.content.indexOf('(');
-            const toolName =
-                parenIndex > 0 ? message.content.slice(0, parenIndex) : message.content;
-            const toolArgs = parenIndex > 0 ? message.content.slice(parenIndex) : '';
+            const parenIndex = headerLine.indexOf('(');
+            const toolName = parenIndex > 0 ? headerLine.slice(0, parenIndex) : headerLine;
+            const toolArgs = parenIndex > 0 ? headerLine.slice(parenIndex) : '';
 
             // Build the full tool header text for wrapping
             // Don't include status suffix if we have sub-agent progress (it shows its own status)
@@ -258,6 +262,11 @@ export const MessageItem = memo(
                             </Text>
                         </Box>
                     ))}
+                    {subHeaderLine && (
+                        <Box marginLeft={2}>
+                            <Text color="gray">{subHeaderLine}</Text>
+                        </Box>
+                    )}
                     {/* Sub-agent progress line - show when we have progress data */}
                     {subAgentProgress && isRunning && (
                         <Box marginLeft={2}>
@@ -281,7 +290,9 @@ export const MessageItem = memo(
                     ) : (
                         message.toolResult && (
                             <Box flexDirection="column">
-                                <Text color="gray"> ⎿ {message.toolResult}</Text>
+                                <Text color="gray">
+                                    ⎿ {formatToolResultPreview(message.toolResult)}
+                                </Text>
                             </Box>
                         )
                     )}

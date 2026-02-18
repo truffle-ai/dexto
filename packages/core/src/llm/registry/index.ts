@@ -23,7 +23,7 @@ import {
     type SupportedFileType,
     type TokenUsage,
 } from '../types.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 import { getOpenRouterModelContextLength } from '../providers/openrouter-model-registry.js';
 import { MODELS_BY_PROVIDER } from './models.generated.js';
 import { MANUAL_MODELS_BY_PROVIDER } from './models.manual.js';
@@ -135,7 +135,7 @@ export interface ProviderInfo {
     supportsCustomModels?: boolean; // Allow arbitrary model IDs beyond fixed list
     /**
      * When true, this provider can access all models from all other providers in the registry.
-     * Used for gateway providers like 'dexto' that route to multiple upstream providers.
+     * Used for gateway providers like 'dexto-nova' that route to multiple upstream providers.
      * Model names are transformed to the gateway's format (e.g., 'gpt-5-mini' → 'openai/gpt-5-mini').
      */
     supportsAllRegistryModels?: boolean;
@@ -270,7 +270,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     // Requires DEXTO_API_KEY from dexto login
     //
     // Model IDs are in OpenRouter format (e.g., 'anthropic/claude-sonnet-4.5')
-    dexto: {
+    'dexto-nova': {
         models: [
             // Claude models (Anthropic via OpenRouter)
             {
@@ -475,13 +475,13 @@ export function getSupportedModels(provider: LLMProvider): string[] {
 export function getMaxInputTokensForModel(
     provider: LLMProvider,
     model: string,
-    logger?: IDextoLogger
+    logger?: Logger
 ): number {
     const modelInfo = findModelInfo(provider, model);
     if (!modelInfo) {
         // Gateways can accept arbitrary OpenRouter-format IDs; fall back to OpenRouter's cached catalog
         // for a context length hint when possible.
-        if ((provider === 'openrouter' || provider === 'dexto') && model.includes('/')) {
+        if ((provider === 'openrouter' || provider === 'dexto-nova') && model.includes('/')) {
             const contextLength = getOpenRouterModelContextLength(model);
             if (typeof contextLength === 'number') {
                 logger?.debug(
@@ -713,18 +713,18 @@ export function getAllModelsForProvider(
 }
 
 /**
- * Transforms a model name to the format required by a gateway provider (dexto/openrouter).
+ * Transforms a model name to the format required by a gateway provider (dexto-nova/openrouter).
  * This is primarily used for internal wiring (e.g. sub-agent LLM resolution).
  *
  * Note: user-facing configs should prefer OpenRouter-format IDs directly when using gateway providers.
  *
  * Transformation is needed when:
- * - Target is a gateway (dexto/openrouter)
+ * - Target is a gateway (dexto-nova/openrouter)
  * - Original provider is a "native" provider (anthropic, openai, google, etc.)
  *
  * No transformation needed when:
  * - Target is not a gateway
- * - Original provider is already a gateway (dexto/openrouter) - model is already in correct format
+ * - Original provider is already a gateway (dexto-nova/openrouter) - model is already in correct format
  * - Model already contains a slash (already in OpenRouter format)
  * - Provider models have vendor prefixes (groq's meta-llama/)
  *
@@ -938,7 +938,7 @@ export function validateModelFileSupport(
  * - If `baseURL` is not set and the model isn't found in the registry, this throws.
  * TODO: make more readable
  */
-export function getEffectiveMaxInputTokens(config: LLMConfig, logger: IDextoLogger): number {
+export function getEffectiveMaxInputTokens(config: LLMConfig, logger: Logger): number {
     const configuredMaxInputTokens = config.maxInputTokens;
 
     // Priority 1: Explicit config override or required value with baseURL

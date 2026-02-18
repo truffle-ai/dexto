@@ -1,3 +1,4 @@
+// NOTE: Shared helpers for LLM service integration tests (not itself a test file).
 import { DextoAgent } from '../../agent/DextoAgent.js';
 import {
     resolveApiKeyForProvider,
@@ -5,7 +6,21 @@ import {
     PROVIDER_API_KEY_MAP,
 } from '../../utils/api-key-resolver.js';
 import type { LLMProvider } from '../types.js';
-import type { AgentConfig } from '../../agent/schemas.js';
+import type { AgentRuntimeSettings } from '../../agent/runtime-config.js';
+import { SystemPromptConfigSchema } from '../../systemPrompt/schemas.js';
+import { LLMConfigSchema } from '../schemas.js';
+import { LoggerConfigSchema } from '../../logger/v2/schemas.js';
+import { SessionConfigSchema } from '../../session/schemas.js';
+import { PermissionsConfigSchema, ElicitationConfigSchema } from '../../tools/schemas.js';
+import { ServersConfigSchema } from '../../mcp/schemas.js';
+import { ResourcesConfigSchema } from '../../resources/schemas.js';
+import { PromptsSchema } from '../../prompts/schemas.js';
+import { createLogger } from '../../logger/factory.js';
+import {
+    createInMemoryBlobStore,
+    createInMemoryCache,
+    createInMemoryDatabase,
+} from '../../test-utils/in-memory-storage.js';
 
 /**
  * Shared utilities for LLM service integration tests
@@ -22,10 +37,28 @@ export interface TestEnvironment {
  * Uses DextoAgent to handle complex initialization properly
  */
 export async function createTestEnvironment(
-    config: AgentConfig,
+    settings: AgentRuntimeSettings,
     sessionId: string = 'test-session'
 ): Promise<TestEnvironment> {
-    const agent = new DextoAgent(config);
+    const loggerConfig = LoggerConfigSchema.parse({
+        level: 'info',
+        transports: [{ type: 'console' }],
+    });
+    const logger = createLogger({
+        config: loggerConfig,
+        agentId: settings.agentId,
+    });
+    const agent = new DextoAgent({
+        ...settings,
+        logger,
+        storage: {
+            blob: createInMemoryBlobStore(),
+            database: createInMemoryDatabase(),
+            cache: createInMemoryCache(),
+        },
+        tools: [],
+        hooks: [],
+    });
     await agent.start();
 
     return {
@@ -51,7 +84,7 @@ export const TestConfigs = {
     /**
      * Creates OpenAI test config
      */
-    createOpenAIConfig(): AgentConfig {
+    createOpenAIConfig(): AgentRuntimeSettings {
         const provider: LLMProvider = 'openai';
         const apiKey = resolveApiKeyForProvider(provider);
         if (!apiKey) {
@@ -61,44 +94,40 @@ export const TestConfigs = {
         }
 
         return {
-            systemPrompt: 'You are a helpful assistant for testing purposes.',
-            llm: {
+            systemPrompt: SystemPromptConfigSchema.parse(
+                'You are a helpful assistant for testing purposes.'
+            ),
+            llm: LLMConfigSchema.parse({
                 provider,
                 model: 'gpt-4o-mini', // Use cheapest non-reasoning model for testing
                 apiKey,
                 maxOutputTokens: 1000, // Enough for reasoning models (reasoning + answer)
                 temperature: 0, // Deterministic responses
                 maxIterations: 1, // Minimal tool iterations
-            },
-            mcpServers: {},
-            storage: {
-                cache: { type: 'in-memory' },
-                database: { type: 'in-memory' },
-                blob: { type: 'local', storePath: '/tmp/test-blobs' },
-            },
-            sessions: {
+            }),
+            agentId: 'test-agent',
+            mcpServers: ServersConfigSchema.parse({}),
+            sessions: SessionConfigSchema.parse({
                 maxSessions: 10,
                 sessionTTL: 60000, // 60s for tests
-            },
-            logger: {
-                level: 'info',
-                transports: [{ type: 'console' }],
-            },
-            toolConfirmation: {
+            }),
+            permissions: PermissionsConfigSchema.parse({
                 mode: 'auto-approve', // Tests don't have interactive approval
                 timeout: 120000,
-            },
-            elicitation: {
+            }),
+            elicitation: ElicitationConfigSchema.parse({
                 enabled: false, // Tests don't handle elicitation
                 timeout: 120000,
-            },
+            }),
+            resources: ResourcesConfigSchema.parse([]),
+            prompts: PromptsSchema.parse([]),
         };
     },
 
     /**
      * Creates Anthropic test config
      */
-    createAnthropicConfig(): AgentConfig {
+    createAnthropicConfig(): AgentRuntimeSettings {
         const provider: LLMProvider = 'anthropic';
         const apiKey = resolveApiKeyForProvider(provider);
         if (!apiKey) {
@@ -108,44 +137,40 @@ export const TestConfigs = {
         }
 
         return {
-            systemPrompt: 'You are a helpful assistant for testing purposes.',
-            llm: {
+            systemPrompt: SystemPromptConfigSchema.parse(
+                'You are a helpful assistant for testing purposes.'
+            ),
+            llm: LLMConfigSchema.parse({
                 provider,
                 model: 'claude-haiku-4-5-20251001', // Use cheapest model for testing
                 apiKey,
                 maxOutputTokens: 1000, // Enough for reasoning models (reasoning + answer)
                 temperature: 0,
                 maxIterations: 1,
-            },
-            mcpServers: {},
-            storage: {
-                cache: { type: 'in-memory' },
-                database: { type: 'in-memory' },
-                blob: { type: 'local', storePath: '/tmp/test-blobs' },
-            },
-            sessions: {
+            }),
+            agentId: 'test-agent',
+            mcpServers: ServersConfigSchema.parse({}),
+            sessions: SessionConfigSchema.parse({
                 maxSessions: 10,
                 sessionTTL: 60000,
-            },
-            logger: {
-                level: 'info',
-                transports: [{ type: 'console' }],
-            },
-            toolConfirmation: {
+            }),
+            permissions: PermissionsConfigSchema.parse({
                 mode: 'auto-approve', // Tests don't have interactive approval
                 timeout: 120000,
-            },
-            elicitation: {
+            }),
+            elicitation: ElicitationConfigSchema.parse({
                 enabled: false, // Tests don't handle elicitation
                 timeout: 120000,
-            },
+            }),
+            resources: ResourcesConfigSchema.parse([]),
+            prompts: PromptsSchema.parse([]),
         };
     },
 
     /**
      * Creates Vercel test config - parametric for different providers/models
      */
-    createVercelConfig(provider: LLMProvider = 'openai', model?: string): AgentConfig {
+    createVercelConfig(provider: LLMProvider = 'openai', model?: string): AgentRuntimeSettings {
         const apiKey = resolveApiKeyForProvider(provider);
         // Only enforce API key check for providers that require it (exclude local, ollama, vertex with empty key maps)
         if (!apiKey && providerRequiresApiKey(provider)) {
@@ -172,41 +197,37 @@ export const TestConfigs = {
             bedrock: 'anthropic.claude-3-5-haiku-20241022-v1:0', // Bedrock uses AWS credentials, not API keys
             local: 'llama-3.2-3b-q4', // Native node-llama-cpp GGUF models
             ollama: 'llama3.2', // Ollama server models
-            dexto: 'anthropic/claude-4.5-sonnet', // Dexto gateway (OpenRouter model format)
+            'dexto-nova': 'anthropic/claude-4.5-sonnet', // Dexto gateway (OpenRouter model format)
         };
 
         return {
-            systemPrompt: 'You are a helpful assistant for testing purposes.',
-            llm: {
+            systemPrompt: SystemPromptConfigSchema.parse(
+                'You are a helpful assistant for testing purposes.'
+            ),
+            llm: LLMConfigSchema.parse({
                 provider,
                 model: model || defaultModels[provider],
                 apiKey,
                 maxOutputTokens: 1000, // Enough for reasoning models (reasoning + answer)
                 temperature: 0,
                 maxIterations: 1,
-            },
-            mcpServers: {},
-            storage: {
-                cache: { type: 'in-memory' },
-                database: { type: 'in-memory' },
-                blob: { type: 'local', storePath: '/tmp/test-blobs' },
-            },
-            sessions: {
+            }),
+            agentId: 'test-agent',
+            mcpServers: ServersConfigSchema.parse({}),
+            sessions: SessionConfigSchema.parse({
                 maxSessions: 10,
                 sessionTTL: 60000,
-            },
-            logger: {
-                level: 'info',
-                transports: [{ type: 'console' }],
-            },
-            toolConfirmation: {
+            }),
+            permissions: PermissionsConfigSchema.parse({
                 mode: 'auto-approve', // Tests don't have interactive approval
                 timeout: 120000,
-            },
-            elicitation: {
+            }),
+            elicitation: ElicitationConfigSchema.parse({
                 enabled: false, // Tests don't handle elicitation
                 timeout: 120000,
-            },
+            }),
+            resources: ResourcesConfigSchema.parse([]),
+            prompts: PromptsSchema.parse([]),
         };
     },
 } as const;

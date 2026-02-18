@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Dexto API",
-    "version": "1.5.7",
+    "version": "1.6.0",
     "description": "OpenAPI spec for the Dexto REST API server"
   },
   "servers": [
@@ -37,6 +37,10 @@
     {
       "name": "sessions",
       "description": "Create and manage conversation sessions"
+    },
+    {
+      "name": "schedules",
+      "description": "Create and manage automation schedules"
     },
     {
       "name": "llm",
@@ -88,7 +92,7 @@
     },
     {
       "name": "tools",
-      "description": "List and inspect available tools from internal, custom, and MCP sources"
+      "description": "List and inspect available tools from local and MCP sources"
     },
     {
       "name": "models",
@@ -2825,7 +2829,7 @@
                         "bedrock",
                         "local",
                         "ollama",
-                        "dexto"
+                        "dexto-nova"
                       ],
                       "description": "LLM provider"
                     }
@@ -3156,7 +3160,7 @@
                             "bedrock",
                             "local",
                             "ollama",
-                            "dexto"
+                            "dexto-nova"
                           ],
                           "description": "LLM provider (e.g., 'openai', 'anthropic', 'google', 'groq')"
                         },
@@ -3167,7 +3171,8 @@
                         "maxIterations": {
                           "type": "integer",
                           "minimum": 0,
-                          "exclusiveMinimum": true
+                          "exclusiveMinimum": true,
+                          "description": "Max outer-loop tool-call iterations per agent turn"
                         },
                         "baseURL": {
                           "type": "string",
@@ -5524,7 +5529,7 @@
                               "additionalProperties": false,
                               "description": "Provider catalog entry with models and capabilities"
                             },
-                            "dexto": {
+                            "dexto-nova": {
                               "type": "object",
                               "properties": {
                                 "name": {
@@ -5807,7 +5812,7 @@
                           "bedrock",
                           "local",
                           "ollama",
-                          "dexto"
+                          "dexto-nova"
                         ],
                         "description": "LLM provider (e.g., 'openai', 'anthropic', 'google', 'groq')"
                       },
@@ -5929,7 +5934,7 @@
                             "bedrock",
                             "local",
                             "ollama",
-                            "dexto"
+                            "dexto-nova"
                           ],
                           "description": "LLM provider (e.g., 'openai', 'anthropic', 'google', 'groq')"
                         },
@@ -5940,7 +5945,8 @@
                         "maxIterations": {
                           "type": "integer",
                           "minimum": 0,
-                          "exclusiveMinimum": true
+                          "exclusiveMinimum": true,
+                          "description": "Max outer-loop tool-call iterations per agent turn"
                         },
                         "baseURL": {
                           "type": "string",
@@ -6062,7 +6068,7 @@
                               "ollama",
                               "local",
                               "vertex",
-                              "dexto"
+                              "dexto-nova"
                             ],
                             "default": "openai-compatible"
                           },
@@ -6157,7 +6163,7 @@
                       "ollama",
                       "local",
                       "vertex",
-                      "dexto"
+                      "dexto-nova"
                     ],
                     "default": "openai-compatible"
                   },
@@ -6249,7 +6255,7 @@
                             "ollama",
                             "local",
                             "vertex",
-                            "dexto"
+                            "dexto-nova"
                           ],
                           "default": "openai-compatible"
                         },
@@ -6398,7 +6404,7 @@
     "/api/llm/capabilities": {
       "get": {
         "summary": "Get Model Capabilities",
-        "description": "Returns the capabilities (supported file types) for a specific provider/model combination. Handles gateway providers (dexto, openrouter) by resolving to the underlying model capabilities.",
+        "description": "Returns the capabilities (supported file types) for a specific provider/model combination. Handles gateway providers (dexto-nova, openrouter) by resolving to the underlying model capabilities.",
         "tags": [
           "llm"
         ],
@@ -6423,7 +6429,7 @@
                 "bedrock",
                 "local",
                 "ollama",
-                "dexto"
+                "dexto-nova"
               ],
               "description": "LLM provider name"
             },
@@ -6471,7 +6477,7 @@
                         "bedrock",
                         "local",
                         "ollama",
-                        "dexto"
+                        "dexto-nova"
                       ],
                       "description": "Provider name"
                     },
@@ -6587,6 +6593,156 @@
                             "type": "string",
                             "nullable": true,
                             "description": "Optional session title"
+                          },
+                          "tokenUsage": {
+                            "type": "object",
+                            "properties": {
+                              "inputTokens": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Number of input tokens"
+                              },
+                              "outputTokens": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Number of output tokens"
+                              },
+                              "reasoningTokens": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Number of reasoning tokens"
+                              },
+                              "cacheReadTokens": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Number of cache read tokens"
+                              },
+                              "cacheWriteTokens": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Number of cache write tokens"
+                              },
+                              "totalTokens": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Total tokens used"
+                              }
+                            },
+                            "required": [
+                              "inputTokens",
+                              "outputTokens",
+                              "reasoningTokens",
+                              "cacheReadTokens",
+                              "cacheWriteTokens",
+                              "totalTokens"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Aggregate token usage across all models"
+                          },
+                          "estimatedCost": {
+                            "type": "number",
+                            "minimum": 0,
+                            "description": "Total estimated cost in USD across all models"
+                          },
+                          "modelStats": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "provider": {
+                                  "type": "string",
+                                  "description": "LLM provider identifier"
+                                },
+                                "model": {
+                                  "type": "string",
+                                  "description": "Model identifier"
+                                },
+                                "messageCount": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "description": "Number of messages using this model"
+                                },
+                                "tokenUsage": {
+                                  "type": "object",
+                                  "properties": {
+                                    "inputTokens": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "description": "Number of input tokens"
+                                    },
+                                    "outputTokens": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "description": "Number of output tokens"
+                                    },
+                                    "reasoningTokens": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "description": "Number of reasoning tokens"
+                                    },
+                                    "cacheReadTokens": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "description": "Number of cache read tokens"
+                                    },
+                                    "cacheWriteTokens": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "description": "Number of cache write tokens"
+                                    },
+                                    "totalTokens": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "description": "Total tokens used"
+                                    }
+                                  },
+                                  "required": [
+                                    "inputTokens",
+                                    "outputTokens",
+                                    "reasoningTokens",
+                                    "cacheReadTokens",
+                                    "cacheWriteTokens",
+                                    "totalTokens"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Token usage for this model"
+                                },
+                                "estimatedCost": {
+                                  "type": "number",
+                                  "minimum": 0,
+                                  "description": "Estimated cost in USD for this model"
+                                },
+                                "firstUsedAt": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "exclusiveMinimum": true,
+                                  "description": "First use timestamp (Unix ms)"
+                                },
+                                "lastUsedAt": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "exclusiveMinimum": true,
+                                  "description": "Last use timestamp (Unix ms)"
+                                }
+                              },
+                              "required": [
+                                "provider",
+                                "model",
+                                "messageCount",
+                                "tokenUsage",
+                                "estimatedCost",
+                                "firstUsedAt",
+                                "lastUsedAt"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Per-model statistics within a session"
+                            },
+                            "description": "Per-model usage statistics (for multi-model sessions)"
+                          },
+                          "workspaceId": {
+                            "type": "string",
+                            "nullable": true,
+                            "description": "Associated workspace ID, if any"
                           }
                         },
                         "required": [
@@ -6671,6 +6827,156 @@
                           "type": "string",
                           "nullable": true,
                           "description": "Optional session title"
+                        },
+                        "tokenUsage": {
+                          "type": "object",
+                          "properties": {
+                            "inputTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of input tokens"
+                            },
+                            "outputTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of output tokens"
+                            },
+                            "reasoningTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of reasoning tokens"
+                            },
+                            "cacheReadTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of cache read tokens"
+                            },
+                            "cacheWriteTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of cache write tokens"
+                            },
+                            "totalTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Total tokens used"
+                            }
+                          },
+                          "required": [
+                            "inputTokens",
+                            "outputTokens",
+                            "reasoningTokens",
+                            "cacheReadTokens",
+                            "cacheWriteTokens",
+                            "totalTokens"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Aggregate token usage across all models"
+                        },
+                        "estimatedCost": {
+                          "type": "number",
+                          "minimum": 0,
+                          "description": "Total estimated cost in USD across all models"
+                        },
+                        "modelStats": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "provider": {
+                                "type": "string",
+                                "description": "LLM provider identifier"
+                              },
+                              "model": {
+                                "type": "string",
+                                "description": "Model identifier"
+                              },
+                              "messageCount": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Number of messages using this model"
+                              },
+                              "tokenUsage": {
+                                "type": "object",
+                                "properties": {
+                                  "inputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of input tokens"
+                                  },
+                                  "outputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of output tokens"
+                                  },
+                                  "reasoningTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of reasoning tokens"
+                                  },
+                                  "cacheReadTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache read tokens"
+                                  },
+                                  "cacheWriteTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache write tokens"
+                                  },
+                                  "totalTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Total tokens used"
+                                  }
+                                },
+                                "required": [
+                                  "inputTokens",
+                                  "outputTokens",
+                                  "reasoningTokens",
+                                  "cacheReadTokens",
+                                  "cacheWriteTokens",
+                                  "totalTokens"
+                                ],
+                                "additionalProperties": false,
+                                "description": "Token usage for this model"
+                              },
+                              "estimatedCost": {
+                                "type": "number",
+                                "minimum": 0,
+                                "description": "Estimated cost in USD for this model"
+                              },
+                              "firstUsedAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "First use timestamp (Unix ms)"
+                              },
+                              "lastUsedAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "Last use timestamp (Unix ms)"
+                              }
+                            },
+                            "required": [
+                              "provider",
+                              "model",
+                              "messageCount",
+                              "tokenUsage",
+                              "estimatedCost",
+                              "firstUsedAt",
+                              "lastUsedAt"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Per-model statistics within a session"
+                          },
+                          "description": "Per-model usage statistics (for multi-model sessions)"
+                        },
+                        "workspaceId": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "Associated workspace ID, if any"
                         }
                       },
                       "required": [
@@ -6751,6 +7057,156 @@
                           "type": "string",
                           "nullable": true,
                           "description": "Optional session title"
+                        },
+                        "tokenUsage": {
+                          "type": "object",
+                          "properties": {
+                            "inputTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of input tokens"
+                            },
+                            "outputTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of output tokens"
+                            },
+                            "reasoningTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of reasoning tokens"
+                            },
+                            "cacheReadTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of cache read tokens"
+                            },
+                            "cacheWriteTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of cache write tokens"
+                            },
+                            "totalTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Total tokens used"
+                            }
+                          },
+                          "required": [
+                            "inputTokens",
+                            "outputTokens",
+                            "reasoningTokens",
+                            "cacheReadTokens",
+                            "cacheWriteTokens",
+                            "totalTokens"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Aggregate token usage across all models"
+                        },
+                        "estimatedCost": {
+                          "type": "number",
+                          "minimum": 0,
+                          "description": "Total estimated cost in USD across all models"
+                        },
+                        "modelStats": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "provider": {
+                                "type": "string",
+                                "description": "LLM provider identifier"
+                              },
+                              "model": {
+                                "type": "string",
+                                "description": "Model identifier"
+                              },
+                              "messageCount": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Number of messages using this model"
+                              },
+                              "tokenUsage": {
+                                "type": "object",
+                                "properties": {
+                                  "inputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of input tokens"
+                                  },
+                                  "outputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of output tokens"
+                                  },
+                                  "reasoningTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of reasoning tokens"
+                                  },
+                                  "cacheReadTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache read tokens"
+                                  },
+                                  "cacheWriteTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache write tokens"
+                                  },
+                                  "totalTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Total tokens used"
+                                  }
+                                },
+                                "required": [
+                                  "inputTokens",
+                                  "outputTokens",
+                                  "reasoningTokens",
+                                  "cacheReadTokens",
+                                  "cacheWriteTokens",
+                                  "totalTokens"
+                                ],
+                                "additionalProperties": false,
+                                "description": "Token usage for this model"
+                              },
+                              "estimatedCost": {
+                                "type": "number",
+                                "minimum": 0,
+                                "description": "Estimated cost in USD for this model"
+                              },
+                              "firstUsedAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "First use timestamp (Unix ms)"
+                              },
+                              "lastUsedAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "Last use timestamp (Unix ms)"
+                              }
+                            },
+                            "required": [
+                              "provider",
+                              "model",
+                              "messageCount",
+                              "tokenUsage",
+                              "estimatedCost",
+                              "firstUsedAt",
+                              "lastUsedAt"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Per-model statistics within a session"
+                          },
+                          "description": "Per-model usage statistics (for multi-model sessions)"
+                        },
+                        "workspaceId": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "Associated workspace ID, if any"
                         },
                         "history": {
                           "type": "integer",
@@ -6904,6 +7360,156 @@
                           "type": "string",
                           "nullable": true,
                           "description": "Optional session title"
+                        },
+                        "tokenUsage": {
+                          "type": "object",
+                          "properties": {
+                            "inputTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of input tokens"
+                            },
+                            "outputTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of output tokens"
+                            },
+                            "reasoningTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of reasoning tokens"
+                            },
+                            "cacheReadTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of cache read tokens"
+                            },
+                            "cacheWriteTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of cache write tokens"
+                            },
+                            "totalTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Total tokens used"
+                            }
+                          },
+                          "required": [
+                            "inputTokens",
+                            "outputTokens",
+                            "reasoningTokens",
+                            "cacheReadTokens",
+                            "cacheWriteTokens",
+                            "totalTokens"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Aggregate token usage across all models"
+                        },
+                        "estimatedCost": {
+                          "type": "number",
+                          "minimum": 0,
+                          "description": "Total estimated cost in USD across all models"
+                        },
+                        "modelStats": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "provider": {
+                                "type": "string",
+                                "description": "LLM provider identifier"
+                              },
+                              "model": {
+                                "type": "string",
+                                "description": "Model identifier"
+                              },
+                              "messageCount": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Number of messages using this model"
+                              },
+                              "tokenUsage": {
+                                "type": "object",
+                                "properties": {
+                                  "inputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of input tokens"
+                                  },
+                                  "outputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of output tokens"
+                                  },
+                                  "reasoningTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of reasoning tokens"
+                                  },
+                                  "cacheReadTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache read tokens"
+                                  },
+                                  "cacheWriteTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache write tokens"
+                                  },
+                                  "totalTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Total tokens used"
+                                  }
+                                },
+                                "required": [
+                                  "inputTokens",
+                                  "outputTokens",
+                                  "reasoningTokens",
+                                  "cacheReadTokens",
+                                  "cacheWriteTokens",
+                                  "totalTokens"
+                                ],
+                                "additionalProperties": false,
+                                "description": "Token usage for this model"
+                              },
+                              "estimatedCost": {
+                                "type": "number",
+                                "minimum": 0,
+                                "description": "Estimated cost in USD for this model"
+                              },
+                              "firstUsedAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "First use timestamp (Unix ms)"
+                              },
+                              "lastUsedAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "Last use timestamp (Unix ms)"
+                              }
+                            },
+                            "required": [
+                              "provider",
+                              "model",
+                              "messageCount",
+                              "tokenUsage",
+                              "estimatedCost",
+                              "firstUsedAt",
+                              "lastUsedAt"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Per-model statistics within a session"
+                          },
+                          "description": "Per-model usage statistics (for multi-model sessions)"
+                        },
+                        "workspaceId": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "Associated workspace ID, if any"
                         }
                       },
                       "required": [
@@ -7200,7 +7806,7 @@
                               "bedrock",
                               "local",
                               "ollama",
-                              "dexto"
+                              "dexto-nova"
                             ],
                             "description": "Provider identifier for assistant messages"
                           },
@@ -7422,6 +8028,156 @@
                           "type": "string",
                           "nullable": true,
                           "description": "Optional session title"
+                        },
+                        "tokenUsage": {
+                          "type": "object",
+                          "properties": {
+                            "inputTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of input tokens"
+                            },
+                            "outputTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of output tokens"
+                            },
+                            "reasoningTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of reasoning tokens"
+                            },
+                            "cacheReadTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of cache read tokens"
+                            },
+                            "cacheWriteTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of cache write tokens"
+                            },
+                            "totalTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Total tokens used"
+                            }
+                          },
+                          "required": [
+                            "inputTokens",
+                            "outputTokens",
+                            "reasoningTokens",
+                            "cacheReadTokens",
+                            "cacheWriteTokens",
+                            "totalTokens"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Aggregate token usage across all models"
+                        },
+                        "estimatedCost": {
+                          "type": "number",
+                          "minimum": 0,
+                          "description": "Total estimated cost in USD across all models"
+                        },
+                        "modelStats": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "provider": {
+                                "type": "string",
+                                "description": "LLM provider identifier"
+                              },
+                              "model": {
+                                "type": "string",
+                                "description": "Model identifier"
+                              },
+                              "messageCount": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Number of messages using this model"
+                              },
+                              "tokenUsage": {
+                                "type": "object",
+                                "properties": {
+                                  "inputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of input tokens"
+                                  },
+                                  "outputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of output tokens"
+                                  },
+                                  "reasoningTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of reasoning tokens"
+                                  },
+                                  "cacheReadTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache read tokens"
+                                  },
+                                  "cacheWriteTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache write tokens"
+                                  },
+                                  "totalTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Total tokens used"
+                                  }
+                                },
+                                "required": [
+                                  "inputTokens",
+                                  "outputTokens",
+                                  "reasoningTokens",
+                                  "cacheReadTokens",
+                                  "cacheWriteTokens",
+                                  "totalTokens"
+                                ],
+                                "additionalProperties": false,
+                                "description": "Token usage for this model"
+                              },
+                              "estimatedCost": {
+                                "type": "number",
+                                "minimum": 0,
+                                "description": "Estimated cost in USD for this model"
+                              },
+                              "firstUsedAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "First use timestamp (Unix ms)"
+                              },
+                              "lastUsedAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "Last use timestamp (Unix ms)"
+                              }
+                            },
+                            "required": [
+                              "provider",
+                              "model",
+                              "messageCount",
+                              "tokenUsage",
+                              "estimatedCost",
+                              "firstUsedAt",
+                              "lastUsedAt"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Per-model statistics within a session"
+                          },
+                          "description": "Per-model usage statistics (for multi-model sessions)"
+                        },
+                        "workspaceId": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "Associated workspace ID, if any"
                         },
                         "isBusy": {
                           "type": "boolean",
@@ -7853,7 +8609,7 @@
                                   "bedrock",
                                   "local",
                                   "ollama",
-                                  "dexto"
+                                  "dexto-nova"
                                 ],
                                 "description": "Provider identifier for assistant messages"
                               },
@@ -8271,7 +9027,7 @@
                                       "bedrock",
                                       "local",
                                       "ollama",
-                                      "dexto"
+                                      "dexto-nova"
                                     ],
                                     "description": "Provider identifier for assistant messages"
                                   },
@@ -8613,6 +9369,7 @@
                   "name",
                   "config"
                 ],
+                "additionalProperties": false,
                 "description": "Request body for adding or updating an MCP server"
               }
             }
@@ -8704,6 +9461,481 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/mcp/servers/{serverId}/config": {
+      "get": {
+        "summary": "Get MCP Server Config",
+        "description": "Retrieves the configuration for a specific MCP server",
+        "tags": [
+          "mcp"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The ID of the MCP server"
+            },
+            "required": true,
+            "description": "The ID of the MCP server",
+            "name": "serverId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Server configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Server name"
+                    },
+                    "config": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "stdio"
+                              ]
+                            },
+                            "enabled": {
+                              "type": "boolean",
+                              "default": true,
+                              "description": "Whether this server is enabled (disabled servers are not connected)"
+                            },
+                            "command": {
+                              "type": "string"
+                            },
+                            "args": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              },
+                              "default": [],
+                              "description": "Array of arguments for the command (e.g., ['script.js'])"
+                            },
+                            "env": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "string"
+                              },
+                              "default": {},
+                              "description": "Optional environment variables for the server process"
+                            },
+                            "timeout": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "exclusiveMinimum": true,
+                              "default": 30000
+                            },
+                            "connectionMode": {
+                              "type": "string",
+                              "enum": [
+                                "strict",
+                                "lenient"
+                              ],
+                              "default": "lenient"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "command"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "sse"
+                              ]
+                            },
+                            "enabled": {
+                              "type": "boolean",
+                              "default": true,
+                              "description": "Whether this server is enabled (disabled servers are not connected)"
+                            },
+                            "url": {
+                              "type": "string",
+                              "description": "URL for the SSE server endpoint"
+                            },
+                            "headers": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "string"
+                              },
+                              "default": {}
+                            },
+                            "timeout": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "exclusiveMinimum": true,
+                              "default": 30000
+                            },
+                            "connectionMode": {
+                              "type": "string",
+                              "enum": [
+                                "strict",
+                                "lenient"
+                              ],
+                              "default": "lenient"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "url"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "http"
+                              ]
+                            },
+                            "enabled": {
+                              "type": "boolean",
+                              "default": true,
+                              "description": "Whether this server is enabled (disabled servers are not connected)"
+                            },
+                            "url": {
+                              "type": "string",
+                              "description": "URL for the HTTP server"
+                            },
+                            "headers": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "string"
+                              },
+                              "default": {}
+                            },
+                            "timeout": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "exclusiveMinimum": true,
+                              "default": 30000
+                            },
+                            "connectionMode": {
+                              "type": "string",
+                              "enum": [
+                                "strict",
+                                "lenient"
+                              ],
+                              "default": "lenient"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "url"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ],
+                      "description": "Server configuration"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "config"
+                  ],
+                  "additionalProperties": false,
+                  "description": "MCP server configuration response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/api/mcp/servers/{serverId}": {
+      "put": {
+        "summary": "Update MCP Server",
+        "description": "Updates configuration for an existing MCP server",
+        "tags": [
+          "mcp"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The ID of the MCP server"
+            },
+            "required": true,
+            "description": "The ID of the MCP server",
+            "name": "serverId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "config": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "stdio"
+                            ]
+                          },
+                          "enabled": {
+                            "type": "boolean",
+                            "default": true,
+                            "description": "Whether this server is enabled (disabled servers are not connected)"
+                          },
+                          "command": {
+                            "type": "string"
+                          },
+                          "args": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "default": [],
+                            "description": "Array of arguments for the command (e.g., ['script.js'])"
+                          },
+                          "env": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "string"
+                            },
+                            "default": {},
+                            "description": "Optional environment variables for the server process"
+                          },
+                          "timeout": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "default": 30000
+                          },
+                          "connectionMode": {
+                            "type": "string",
+                            "enum": [
+                              "strict",
+                              "lenient"
+                            ],
+                            "default": "lenient"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "command"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "sse"
+                            ]
+                          },
+                          "enabled": {
+                            "type": "boolean",
+                            "default": true,
+                            "description": "Whether this server is enabled (disabled servers are not connected)"
+                          },
+                          "url": {
+                            "type": "string",
+                            "description": "URL for the SSE server endpoint"
+                          },
+                          "headers": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "string"
+                            },
+                            "default": {}
+                          },
+                          "timeout": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "default": 30000
+                          },
+                          "connectionMode": {
+                            "type": "string",
+                            "enum": [
+                              "strict",
+                              "lenient"
+                            ],
+                            "default": "lenient"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "url"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "http"
+                            ]
+                          },
+                          "enabled": {
+                            "type": "boolean",
+                            "default": true,
+                            "description": "Whether this server is enabled (disabled servers are not connected)"
+                          },
+                          "url": {
+                            "type": "string",
+                            "description": "URL for the HTTP server"
+                          },
+                          "headers": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "string"
+                            },
+                            "default": {}
+                          },
+                          "timeout": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "default": 30000
+                          },
+                          "connectionMode": {
+                            "type": "string",
+                            "enum": [
+                              "strict",
+                              "lenient"
+                            ],
+                            "default": "lenient"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "url"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ],
+                    "description": "The updated server configuration object"
+                  },
+                  "persistToAgent": {
+                    "type": "boolean",
+                    "description": "If true, saves the server to agent configuration file"
+                  }
+                },
+                "required": [
+                  "config"
+                ],
+                "additionalProperties": false,
+                "description": "Request body for updating an MCP server"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Server updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "description": "Connection status"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "Server name"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "name"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Server status response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove MCP Server",
+        "description": "Disconnects and removes an MCP server",
+        "tags": [
+          "mcp"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The ID of the MCP server"
+            },
+            "required": true,
+            "description": "The ID of the MCP server",
+            "name": "serverId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Disconnected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "disconnected"
+                      ],
+                      "description": "Disconnection status"
+                    },
+                    "id": {
+                      "type": "string",
+                      "description": "Server identifier"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "id"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Server disconnection response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
           }
         }
       }
@@ -8818,6 +10050,13 @@
                               }
                             },
                             "description": "JSON Schema for tool input parameters"
+                          },
+                          "_meta": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "nullable": true
+                            },
+                            "description": "Optional tool metadata (e.g., MCP Apps UI resource info)"
                           }
                         },
                         "required": [
@@ -8836,61 +10075,6 @@
                   ],
                   "additionalProperties": false,
                   "description": "List of tools from MCP server"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found"
-          }
-        }
-      }
-    },
-    "/api/mcp/servers/{serverId}": {
-      "delete": {
-        "summary": "Remove MCP Server",
-        "description": "Disconnects and removes an MCP server",
-        "tags": [
-          "mcp"
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "description": "The ID of the MCP server"
-            },
-            "required": true,
-            "description": "The ID of the MCP server",
-            "name": "serverId",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Disconnected",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "disconnected"
-                      ],
-                      "description": "Disconnection status"
-                    },
-                    "id": {
-                      "type": "string",
-                      "description": "Server identifier"
-                    }
-                  },
-                  "required": [
-                    "status",
-                    "id"
-                  ],
-                  "additionalProperties": false,
-                  "description": "Server disconnection response"
                 }
               }
             }
@@ -10895,6 +12079,1741 @@
         }
       }
     },
+    "/api/workspaces": {
+      "get": {
+        "summary": "List Workspaces",
+        "description": "Retrieves all known workspaces",
+        "tags": [
+          "workspaces"
+        ],
+        "responses": {
+          "200": {
+            "description": "List of workspaces",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "workspaces": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "Workspace identifier"
+                          },
+                          "path": {
+                            "type": "string",
+                            "description": "Workspace root path"
+                          },
+                          "name": {
+                            "type": "string",
+                            "nullable": true,
+                            "description": "Optional workspace display name"
+                          },
+                          "createdAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "description": "Creation timestamp (Unix ms)"
+                          },
+                          "lastActiveAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "description": "Last active timestamp (Unix ms)"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "path",
+                          "createdAt",
+                          "lastActiveAt"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Workspace metadata"
+                      },
+                      "description": "Workspace list"
+                    }
+                  },
+                  "required": [
+                    "workspaces"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/active": {
+      "get": {
+        "summary": "Get Active Workspace",
+        "description": "Returns the active workspace, if any",
+        "tags": [
+          "workspaces"
+        ],
+        "responses": {
+          "200": {
+            "description": "Active workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "workspace": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Workspace identifier"
+                        },
+                        "path": {
+                          "type": "string",
+                          "description": "Workspace root path"
+                        },
+                        "name": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "Optional workspace display name"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Creation timestamp (Unix ms)"
+                        },
+                        "lastActiveAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Last active timestamp (Unix ms)"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "path",
+                        "createdAt",
+                        "lastActiveAt"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Active workspace or null if none is set"
+                    }
+                  },
+                  "required": [
+                    "workspace"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Set Active Workspace",
+        "description": "Sets the active workspace for this runtime",
+        "tags": [
+          "workspaces"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Absolute workspace root path"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "Optional workspace display name"
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false,
+                "description": "Request body for setting the active workspace"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Active workspace updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "workspace": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Workspace identifier"
+                        },
+                        "path": {
+                          "type": "string",
+                          "description": "Workspace root path"
+                        },
+                        "name": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "Optional workspace display name"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Creation timestamp (Unix ms)"
+                        },
+                        "lastActiveAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Last active timestamp (Unix ms)"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "path",
+                        "createdAt",
+                        "lastActiveAt"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Updated active workspace"
+                    }
+                  },
+                  "required": [
+                    "workspace"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Clear Active Workspace",
+        "description": "Clears the active workspace for this runtime",
+        "tags": [
+          "workspaces"
+        ],
+        "responses": {
+          "200": {
+            "description": "Active workspace cleared",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "workspace": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Workspace identifier"
+                        },
+                        "path": {
+                          "type": "string",
+                          "description": "Workspace root path"
+                        },
+                        "name": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "Optional workspace display name"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Creation timestamp (Unix ms)"
+                        },
+                        "lastActiveAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Last active timestamp (Unix ms)"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "path",
+                        "createdAt",
+                        "lastActiveAt"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Active workspace or null if none is set"
+                    }
+                  },
+                  "required": [
+                    "workspace"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/schedules": {
+      "get": {
+        "summary": "List Schedules",
+        "description": "Retrieves all automation schedules",
+        "tags": [
+          "schedules"
+        ],
+        "responses": {
+          "200": {
+            "description": "List of schedules",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schedules": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "Schedule ID"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "Schedule name"
+                          },
+                          "cronExpression": {
+                            "type": "string",
+                            "description": "Cron expression"
+                          },
+                          "timezone": {
+                            "type": "string",
+                            "description": "Timezone for schedule"
+                          },
+                          "enabled": {
+                            "type": "boolean",
+                            "description": "Whether the schedule is enabled"
+                          },
+                          "task": {
+                            "type": "object",
+                            "properties": {
+                              "instruction": {
+                                "type": "string",
+                                "description": "Instruction to execute"
+                              },
+                              "metadata": {
+                                "type": "object",
+                                "additionalProperties": {
+                                  "nullable": true
+                                },
+                                "description": "Optional task metadata"
+                              }
+                            },
+                            "required": [
+                              "instruction"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Schedule task configuration"
+                          },
+                          "sessionMode": {
+                            "type": "string",
+                            "enum": [
+                              "ephemeral",
+                              "dedicated",
+                              "inherit",
+                              "fixed"
+                            ],
+                            "description": "Session context mode"
+                          },
+                          "sessionId": {
+                            "type": "string",
+                            "description": "Session ID when using fixed/inherit mode"
+                          },
+                          "workspacePath": {
+                            "type": "string",
+                            "description": "Workspace path override"
+                          },
+                          "createdAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "description": "Creation timestamp (Unix ms)"
+                          },
+                          "updatedAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "description": "Last update timestamp (Unix ms)"
+                          },
+                          "lastRunAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "description": "Last run timestamp (Unix ms)"
+                          },
+                          "nextRunAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "description": "Next run timestamp (Unix ms)"
+                          },
+                          "runCount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Total executions"
+                          },
+                          "successCount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Successful executions"
+                          },
+                          "failureCount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Failed executions"
+                          },
+                          "lastError": {
+                            "type": "string",
+                            "description": "Last execution error, if any"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "cronExpression",
+                          "timezone",
+                          "enabled",
+                          "task",
+                          "sessionMode",
+                          "createdAt",
+                          "updatedAt",
+                          "runCount",
+                          "successCount",
+                          "failureCount"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Automation schedule"
+                      },
+                      "description": "Schedule list"
+                    }
+                  },
+                  "required": [
+                    "schedules"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to list schedules",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scheduler tools are not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create Schedule",
+        "description": "Creates a new automation schedule",
+        "tags": [
+          "schedules"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Schedule name"
+                  },
+                  "instruction": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Instruction to run on schedule"
+                  },
+                  "cronExpression": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Cron expression"
+                  },
+                  "timezone": {
+                    "type": "string",
+                    "description": "Timezone for schedule"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "Whether the schedule is enabled"
+                  },
+                  "workspacePath": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Optional workspace path for scheduled runs"
+                  }
+                },
+                "required": [
+                  "name",
+                  "instruction",
+                  "cronExpression"
+                ],
+                "additionalProperties": false,
+                "description": "Request body for creating a schedule"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created schedule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schedule": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Schedule ID"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "Schedule name"
+                        },
+                        "cronExpression": {
+                          "type": "string",
+                          "description": "Cron expression"
+                        },
+                        "timezone": {
+                          "type": "string",
+                          "description": "Timezone for schedule"
+                        },
+                        "enabled": {
+                          "type": "boolean",
+                          "description": "Whether the schedule is enabled"
+                        },
+                        "task": {
+                          "type": "object",
+                          "properties": {
+                            "instruction": {
+                              "type": "string",
+                              "description": "Instruction to execute"
+                            },
+                            "metadata": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "nullable": true
+                              },
+                              "description": "Optional task metadata"
+                            }
+                          },
+                          "required": [
+                            "instruction"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Schedule task configuration"
+                        },
+                        "sessionMode": {
+                          "type": "string",
+                          "enum": [
+                            "ephemeral",
+                            "dedicated",
+                            "inherit",
+                            "fixed"
+                          ],
+                          "description": "Session context mode"
+                        },
+                        "sessionId": {
+                          "type": "string",
+                          "description": "Session ID when using fixed/inherit mode"
+                        },
+                        "workspacePath": {
+                          "type": "string",
+                          "description": "Workspace path override"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Creation timestamp (Unix ms)"
+                        },
+                        "updatedAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Last update timestamp (Unix ms)"
+                        },
+                        "lastRunAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Last run timestamp (Unix ms)"
+                        },
+                        "nextRunAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Next run timestamp (Unix ms)"
+                        },
+                        "runCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Total executions"
+                        },
+                        "successCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Successful executions"
+                        },
+                        "failureCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Failed executions"
+                        },
+                        "lastError": {
+                          "type": "string",
+                          "description": "Last execution error, if any"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "cronExpression",
+                        "timezone",
+                        "enabled",
+                        "task",
+                        "sessionMode",
+                        "createdAt",
+                        "updatedAt",
+                        "runCount",
+                        "successCount",
+                        "failureCount"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Automation schedule"
+                    }
+                  },
+                  "required": [
+                    "schedule"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Schedule limit reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to create schedule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scheduler tools are not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/schedules/{scheduleId}": {
+      "patch": {
+        "summary": "Update Schedule",
+        "description": "Updates an existing schedule",
+        "tags": [
+          "schedules"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Schedule ID"
+            },
+            "required": true,
+            "description": "Schedule ID",
+            "name": "scheduleId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Schedule name"
+                  },
+                  "instruction": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Instruction to run on schedule"
+                  },
+                  "cronExpression": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Cron expression"
+                  },
+                  "timezone": {
+                    "type": "string",
+                    "description": "Timezone for schedule"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "Whether the schedule is enabled"
+                  },
+                  "workspacePath": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Optional workspace path for scheduled runs"
+                  }
+                },
+                "additionalProperties": false,
+                "description": "Request body for updating a schedule"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated schedule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schedule": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Schedule ID"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "Schedule name"
+                        },
+                        "cronExpression": {
+                          "type": "string",
+                          "description": "Cron expression"
+                        },
+                        "timezone": {
+                          "type": "string",
+                          "description": "Timezone for schedule"
+                        },
+                        "enabled": {
+                          "type": "boolean",
+                          "description": "Whether the schedule is enabled"
+                        },
+                        "task": {
+                          "type": "object",
+                          "properties": {
+                            "instruction": {
+                              "type": "string",
+                              "description": "Instruction to execute"
+                            },
+                            "metadata": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "nullable": true
+                              },
+                              "description": "Optional task metadata"
+                            }
+                          },
+                          "required": [
+                            "instruction"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Schedule task configuration"
+                        },
+                        "sessionMode": {
+                          "type": "string",
+                          "enum": [
+                            "ephemeral",
+                            "dedicated",
+                            "inherit",
+                            "fixed"
+                          ],
+                          "description": "Session context mode"
+                        },
+                        "sessionId": {
+                          "type": "string",
+                          "description": "Session ID when using fixed/inherit mode"
+                        },
+                        "workspacePath": {
+                          "type": "string",
+                          "description": "Workspace path override"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Creation timestamp (Unix ms)"
+                        },
+                        "updatedAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Last update timestamp (Unix ms)"
+                        },
+                        "lastRunAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Last run timestamp (Unix ms)"
+                        },
+                        "nextRunAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Next run timestamp (Unix ms)"
+                        },
+                        "runCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Total executions"
+                        },
+                        "successCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Successful executions"
+                        },
+                        "failureCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Failed executions"
+                        },
+                        "lastError": {
+                          "type": "string",
+                          "description": "Last execution error, if any"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "cronExpression",
+                        "timezone",
+                        "enabled",
+                        "task",
+                        "sessionMode",
+                        "createdAt",
+                        "updatedAt",
+                        "runCount",
+                        "successCount",
+                        "failureCount"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Automation schedule"
+                    }
+                  },
+                  "required": [
+                    "schedule"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Schedule not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to update schedule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scheduler tools are not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Schedule",
+        "description": "Deletes an automation schedule",
+        "tags": [
+          "schedules"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Schedule ID"
+            },
+            "required": true,
+            "description": "Schedule ID",
+            "name": "scheduleId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Schedule deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean",
+                      "description": "Whether the schedule was deleted"
+                    }
+                  },
+                  "required": [
+                    "deleted"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Delete schedule response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Schedule not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to delete schedule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scheduler tools are not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/schedules/{scheduleId}/trigger": {
+      "post": {
+        "summary": "Trigger Schedule",
+        "description": "Runs a schedule immediately and waits for execution to complete (bounded by executionTimeout, default 5 minutes). Clients should set timeouts accordingly.",
+        "tags": [
+          "schedules"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Schedule ID"
+            },
+            "required": true,
+            "description": "Schedule ID",
+            "name": "scheduleId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Schedule triggered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "scheduled": {
+                      "type": "boolean",
+                      "description": "Whether the schedule was queued. Execution is omitted when false."
+                    },
+                    "execution": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Execution log ID"
+                        },
+                        "scheduleId": {
+                          "type": "string",
+                          "description": "Schedule ID"
+                        },
+                        "triggeredAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Trigger timestamp (Unix ms)"
+                        },
+                        "completedAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Completion timestamp (Unix ms)"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "success",
+                            "failed",
+                            "timeout"
+                          ],
+                          "description": "Execution status"
+                        },
+                        "duration": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Execution duration in ms"
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Execution error, if any"
+                        },
+                        "result": {
+                          "type": "string",
+                          "description": "Execution result, if any"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "scheduleId",
+                        "triggeredAt",
+                        "status"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Execution log (present when scheduled is true)"
+                    }
+                  },
+                  "required": [
+                    "scheduled"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Trigger schedule response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Schedule not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to trigger schedule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scheduler tools are not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/approvals": {
       "get": {
         "summary": "Get Pending Approvals",
@@ -12250,6 +15169,14 @@
                               "nullable": true
                             },
                             "description": "Optional metadata"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "default",
+                              "background"
+                            ],
+                            "description": "Optional queued message kind"
                           }
                         },
                         "required": [
@@ -12397,6 +15324,14 @@
                       }
                     ],
                     "description": "Message content - string for text, or ContentPart[] for multimodal"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "default",
+                      "background"
+                    ],
+                    "description": "Optional queued message kind"
                   }
                 },
                 "required": [
@@ -12735,7 +15670,7 @@
                 "bedrock",
                 "local",
                 "ollama",
-                "dexto"
+                "dexto-nova"
               ],
               "description": "LLM provider identifier"
             },
@@ -12772,7 +15707,7 @@
                         "bedrock",
                         "local",
                         "ollama",
-                        "dexto"
+                        "dexto-nova"
                       ],
                       "description": "Provider identifier"
                     },
@@ -12835,7 +15770,7 @@
                       "bedrock",
                       "local",
                       "ollama",
-                      "dexto"
+                      "dexto-nova"
                     ],
                     "description": "LLM provider identifier (e.g., openai, anthropic)"
                   },
@@ -12889,7 +15824,7 @@
                         "bedrock",
                         "local",
                         "ollama",
-                        "dexto"
+                        "dexto-nova"
                       ],
                       "description": "Provider for which the key was saved"
                     },
@@ -12915,7 +15850,7 @@
     "/api/tools": {
       "get": {
         "summary": "List All Tools",
-        "description": "Retrieves all available tools from all sources (internal, custom, and MCP servers)",
+        "description": "Retrieves all available tools from all sources (local and MCP)",
         "tags": [
           "tools"
         ],
@@ -12947,11 +15882,10 @@
                           "source": {
                             "type": "string",
                             "enum": [
-                              "internal",
-                              "custom",
+                              "local",
                               "mcp"
                             ],
-                            "description": "Source of the tool (internal, custom, or mcp)"
+                            "description": "Source of the tool (local or mcp)"
                           },
                           "serverName": {
                             "type": "string",
@@ -13023,6 +15957,13 @@
                               }
                             },
                             "description": "JSON Schema for tool input parameters"
+                          },
+                          "_meta": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "nullable": true
+                            },
+                            "description": "Optional tool metadata (e.g., MCP Apps UI resource info)"
                           }
                         },
                         "required": [
@@ -13040,13 +15981,9 @@
                       "type": "number",
                       "description": "Total number of tools"
                     },
-                    "internalCount": {
+                    "localCount": {
                       "type": "number",
-                      "description": "Number of internal tools"
-                    },
-                    "customCount": {
-                      "type": "number",
-                      "description": "Number of custom tools"
+                      "description": "Number of local tools"
                     },
                     "mcpCount": {
                       "type": "number",
@@ -13056,8 +15993,7 @@
                   "required": [
                     "tools",
                     "totalCount",
-                    "internalCount",
-                    "customCount",
+                    "localCount",
                     "mcpCount"
                   ],
                   "additionalProperties": false,
@@ -13071,14 +16007,14 @@
     },
     "/api/discovery": {
       "get": {
-        "summary": "Discover Available Providers and Tools",
-        "description": "Returns all registered providers (blob storage, database, compaction, custom tools) and available internal tools. Useful for building UIs that need to display configurable options.",
+        "summary": "Discover Available Factories and Tools",
+        "description": "Returns all available factories (storage, compaction, tools) for the currently active image.",
         "tags": [
           "discovery"
         ],
         "responses": {
           "200": {
-            "description": "Available providers grouped by category",
+            "description": "Available factories grouped by category",
             "content": {
               "application/json": {
                 "schema": {
@@ -13091,7 +16027,7 @@
                         "properties": {
                           "type": {
                             "type": "string",
-                            "description": "Provider type identifier"
+                            "description": "Factory type identifier"
                           },
                           "category": {
                             "type": "string",
@@ -13099,9 +16035,9 @@
                               "blob",
                               "database",
                               "compaction",
-                              "customTools"
+                              "tools"
                             ],
-                            "description": "Provider category"
+                            "description": "Factory category"
                           },
                           "metadata": {
                             "type": "object",
@@ -13112,19 +16048,19 @@
                               },
                               "description": {
                                 "type": "string",
-                                "description": "Provider description"
+                                "description": "Factory description"
                               }
                             },
-                            "description": "Optional metadata about the provider"
+                            "description": "Optional metadata about the factory"
                           }
                         },
                         "required": [
                           "type",
                           "category"
                         ],
-                        "description": "Information about a registered provider"
+                        "description": "Information about a registered factory"
                       },
-                      "description": "Blob storage providers"
+                      "description": "Blob storage factories"
                     },
                     "database": {
                       "type": "array",
@@ -13133,7 +16069,7 @@
                         "properties": {
                           "type": {
                             "type": "string",
-                            "description": "Provider type identifier"
+                            "description": "Factory type identifier"
                           },
                           "category": {
                             "type": "string",
@@ -13141,9 +16077,9 @@
                               "blob",
                               "database",
                               "compaction",
-                              "customTools"
+                              "tools"
                             ],
-                            "description": "Provider category"
+                            "description": "Factory category"
                           },
                           "metadata": {
                             "type": "object",
@@ -13154,19 +16090,19 @@
                               },
                               "description": {
                                 "type": "string",
-                                "description": "Provider description"
+                                "description": "Factory description"
                               }
                             },
-                            "description": "Optional metadata about the provider"
+                            "description": "Optional metadata about the factory"
                           }
                         },
                         "required": [
                           "type",
                           "category"
                         ],
-                        "description": "Information about a registered provider"
+                        "description": "Information about a registered factory"
                       },
-                      "description": "Database providers"
+                      "description": "Database factories"
                     },
                     "compaction": {
                       "type": "array",
@@ -13175,7 +16111,7 @@
                         "properties": {
                           "type": {
                             "type": "string",
-                            "description": "Provider type identifier"
+                            "description": "Factory type identifier"
                           },
                           "category": {
                             "type": "string",
@@ -13183,9 +16119,9 @@
                               "blob",
                               "database",
                               "compaction",
-                              "customTools"
+                              "tools"
                             ],
-                            "description": "Provider category"
+                            "description": "Factory category"
                           },
                           "metadata": {
                             "type": "object",
@@ -13196,28 +16132,28 @@
                               },
                               "description": {
                                 "type": "string",
-                                "description": "Provider description"
+                                "description": "Factory description"
                               }
                             },
-                            "description": "Optional metadata about the provider"
+                            "description": "Optional metadata about the factory"
                           }
                         },
                         "required": [
                           "type",
                           "category"
                         ],
-                        "description": "Information about a registered provider"
+                        "description": "Information about a registered factory"
                       },
-                      "description": "Compaction strategy providers"
+                      "description": "Compaction strategy factories"
                     },
-                    "customTools": {
+                    "toolFactories": {
                       "type": "array",
                       "items": {
                         "type": "object",
                         "properties": {
                           "type": {
                             "type": "string",
-                            "description": "Provider type identifier"
+                            "description": "Factory type identifier"
                           },
                           "category": {
                             "type": "string",
@@ -13225,9 +16161,9 @@
                               "blob",
                               "database",
                               "compaction",
-                              "customTools"
+                              "tools"
                             ],
-                            "description": "Provider category"
+                            "description": "Factory category"
                           },
                           "metadata": {
                             "type": "object",
@@ -13238,28 +16174,28 @@
                               },
                               "description": {
                                 "type": "string",
-                                "description": "Provider description"
+                                "description": "Factory description"
                               }
                             },
-                            "description": "Optional metadata about the provider"
+                            "description": "Optional metadata about the factory"
                           }
                         },
                         "required": [
                           "type",
                           "category"
                         ],
-                        "description": "Information about a registered provider"
+                        "description": "Information about a registered factory"
                       },
-                      "description": "Custom tool providers"
+                      "description": "Tool factories"
                     },
-                    "internalTools": {
+                    "builtinTools": {
                       "type": "array",
                       "items": {
                         "type": "object",
                         "properties": {
                           "name": {
                             "type": "string",
-                            "description": "Internal tool name identifier (e.g., \"search_history\", \"ask_user\")"
+                            "description": "Built-in tool name identifier (e.g., \"search_history\", \"ask_user\")"
                           },
                           "description": {
                             "type": "string",
@@ -13270,19 +16206,19 @@
                           "name",
                           "description"
                         ],
-                        "description": "Information about an internal tool"
+                        "description": "Information about a built-in tool"
                       },
-                      "description": "Internal tools available for configuration"
+                      "description": "Built-in tools available for configuration"
                     }
                   },
                   "required": [
                     "blob",
                     "database",
                     "compaction",
-                    "customTools",
-                    "internalTools"
+                    "toolFactories",
+                    "builtinTools"
                   ],
-                  "description": "Discovery response with providers grouped by category"
+                  "description": "Discovery response with factories grouped by category"
                 }
               }
             }

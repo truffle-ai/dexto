@@ -36,7 +36,7 @@ interface ProviderOption {
  * Provider configuration registry
  * Organized by category for better UX
  *
- * Note: dexto is NOT included here - it's a transparent routing layer,
+ * Note: dexto-nova is NOT included here - it's a transparent routing layer,
  * not a user-selectable provider. When logged into Dexto, requests are
  * automatically routed through the Dexto gateway.
  */
@@ -301,8 +301,16 @@ export async function selectProvider(): Promise<LLMProvider | '_back' | null> {
 /**
  * Get provider display name
  */
-export function getProviderDisplayName(provider: LLMProvider): string {
-    return PROVIDER_REGISTRY[provider]?.label || provider;
+export function getProviderDisplayName(provider: LLMProvider | string): string {
+    if (provider === 'dexto-nova') return 'Dexto Nova';
+    if (isLLMProvider(provider)) {
+        return PROVIDER_REGISTRY[provider]?.label || provider;
+    }
+    return provider;
+}
+
+function isLLMProvider(value: string): value is LLMProvider {
+    return (LLM_PROVIDERS as readonly string[]).includes(value);
 }
 
 /**

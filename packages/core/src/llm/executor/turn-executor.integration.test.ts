@@ -11,14 +11,14 @@ import { MemoryHistoryProvider } from '../../session/history/memory.js';
 import { MCPManager } from '../../mcp/manager.js';
 import { ApprovalManager } from '../../approval/manager.js';
 import { createLogger } from '../../logger/factory.js';
-import { createStorageManager, StorageManager } from '../../storage/storage-manager.js';
+import { StorageManager } from '../../storage/storage-manager.js';
 import { MemoryManager } from '../../memory/index.js';
 import { SystemPromptConfigSchema } from '../../systemPrompt/schemas.js';
+import { createInMemoryStorageManager } from '../../test-utils/in-memory-storage.js';
 import type { LanguageModel, ModelMessage } from 'ai';
 import type { LLMContext } from '../types.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
-import type { ValidatedStorageConfig } from '../../storage/schemas.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 
 // Only mock the AI SDK's streamText/generateText - everything else is real
 vi.mock('ai', async (importOriginal) => {
@@ -120,7 +120,7 @@ describe('TurnExecutor Integration Tests', () => {
     let agentEventBus: AgentEventBus;
     let resourceManager: ResourceManager;
     let messageQueue: MessageQueueService;
-    let logger: IDextoLogger;
+    let logger: Logger;
     let historyProvider: MemoryHistoryProvider;
     let mcpManager: MCPManager;
     let approvalManager: ApprovalManager;
@@ -146,28 +146,19 @@ describe('TurnExecutor Integration Tests', () => {
         sessionEventBus = new SessionEventBus();
 
         // Create real storage manager with in-memory backends
-        // Cast to ValidatedStorageConfig since we know test data is valid (avoids schema parsing overhead)
-        const storageConfig = {
-            cache: { type: 'in-memory' },
-            database: { type: 'in-memory' },
-            blob: {
-                type: 'in-memory',
-                maxBlobSize: 10 * 1024 * 1024,
-                maxTotalSize: 100 * 1024 * 1024,
-            },
-        } as unknown as ValidatedStorageConfig;
-        storageManager = await createStorageManager(storageConfig, logger);
+        storageManager = await createInMemoryStorageManager(logger);
 
         // Create real MCP manager
-        mcpManager = new MCPManager(logger);
+        mcpManager = new MCPManager(logger, agentEventBus);
 
         // Create real resource manager with proper wiring
         resourceManager = new ResourceManager(
             mcpManager,
             {
-                internalResourcesConfig: { enabled: false, resources: [] },
+                resourcesConfig: [],
                 blobStore: storageManager.getBlobStore(),
             },
+            agentEventBus,
             logger
         );
         await resourceManager.initialize();
@@ -180,7 +171,6 @@ describe('TurnExecutor Integration Tests', () => {
         const systemPromptConfig = SystemPromptConfigSchema.parse('You are a helpful assistant.');
         const systemPromptManager = new SystemPromptManager(
             systemPromptConfig,
-            '/tmp', // configDir - not used with inline prompts
             memoryManager,
             undefined, // memoriesConfig
             logger
@@ -213,7 +203,7 @@ describe('TurnExecutor Integration Tests', () => {
         // Create real approval manager
         approvalManager = new ApprovalManager(
             {
-                toolConfirmation: { mode: 'auto-approve', timeout: 120000 },
+                permissions: { mode: 'auto-approve', timeout: 120000 },
                 elicitation: { enabled: false, timeout: 120000 },
             },
             logger
@@ -233,7 +223,7 @@ describe('TurnExecutor Integration Tests', () => {
             'auto-approve',
             agentEventBus,
             { alwaysAllow: [], alwaysDeny: [] },
-            { internalToolsServices: {}, internalToolsConfig: [] },
+            [],
             logger
         );
         await toolManager.initialize();
@@ -633,7 +623,7 @@ describe('TurnExecutor Integration Tests', () => {
                 statusCode: 429,
                 responseHeaders: { 'retry-after': '60' },
                 responseBody: 'Rate limit exceeded',
-                url: 'https://api.openai.com/v1/chat/completions',
+                url: 'https://api.openai.com/v1/responses',
                 requestBodyValues: {},
                 isRetryable: true,
             });

@@ -3,8 +3,9 @@ import { Input } from '../../ui/input';
 import { LabelWithTooltip } from '../../ui/label-with-tooltip';
 import { Collapsible } from '../../ui/collapsible';
 import { Eye, EyeOff } from 'lucide-react';
-import { LLM_PROVIDERS, type AgentConfig } from '@dexto/core';
 import { useModelCapabilities } from '../../hooks/useLLM';
+import { LLM_PROVIDERS } from '@dexto/core';
+import type { AgentConfig } from '@dexto/agent-config';
 
 type LLMConfig = AgentConfig['llm'];
 
@@ -68,7 +69,7 @@ export function LLMConfigSection({
                         <option value="">Select provider...</option>
                         {LLM_PROVIDERS.map((p) => (
                             <option key={p} value={p}>
-                                {p}
+                                {p === 'dexto-nova' ? 'Dexto Nova' : p}
                             </option>
                         ))}
                     </select>

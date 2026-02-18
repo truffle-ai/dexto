@@ -1,11 +1,11 @@
 import { InMemoryAllowedToolsProvider } from './in-memory.js';
 import { StorageAllowedToolsProvider } from './storage.js';
-import type { IAllowedToolsProvider } from './types.js';
-import type { StorageManager } from '@core/storage/index.js';
+import type { AllowedToolsProvider } from './types.js';
+import type { StorageManager } from '../../../storage/index.js';
 import { ToolError } from '../../errors.js';
-import type { IDextoLogger } from '@core/logger/v2/types.js';
+import type { Logger } from '../../../logger/v2/types.js';
 
-// TODO: Re-evaluate storage + toolConfirmation config together to avoid duplication
+// TODO: Re-evaluate storage + permissions config together to avoid duplication
 // Currently we have:
 // - InMemoryAllowedToolsProvider with its own Map<string, boolean>
 // - StorageAllowedToolsProvider using config.storage.database
@@ -27,8 +27,8 @@ export type AllowedToolsConfig =
  */
 export function createAllowedToolsProvider(
     config: AllowedToolsConfig,
-    logger: IDextoLogger
-): IAllowedToolsProvider {
+    logger: Logger
+): AllowedToolsProvider {
     switch (config.type) {
         case 'memory':
             return new InMemoryAllowedToolsProvider();

@@ -1,43 +1,51 @@
 import { describe, it, expect } from 'vitest';
+import { loadImage } from '@dexto/agent-config';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 /**
- * Integration test to ensure image-local can be imported successfully.
- * This catches issues where generated code references renamed/missing exports.
+ * Integration test to ensure image-local can be imported successfully and
+ * satisfies the DextoImage contract.
  */
 describe('Image Local - Import Integration', () => {
-    it('should import image-local without errors', async () => {
-        // This will fail if the generated code has incorrect imports
-        const module = await import('@dexto/image-local');
+    it('loads as a valid DextoImage', async () => {
+        const metaResolve = (import.meta as unknown as { resolve?: (s: string) => string }).resolve;
+        const imageSpecifier = metaResolve
+            ? metaResolve('@dexto/image-local')
+            : pathToFileURL(
+                  path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'index.js')
+              ).href;
 
-        expect(module).toBeDefined();
-        expect(module.createAgent).toBeDefined();
-        expect(module.imageMetadata).toBeDefined();
-    });
+        const image = await loadImage(imageSpecifier);
 
-    it('should have correct registry exports', async () => {
-        const module = await import('@dexto/image-local');
+        expect(image.metadata.name).toBe('@dexto/image-local');
 
-        // Verify all registries are exported with correct names
-        expect(module.customToolRegistry).toBeDefined();
-        expect(module.pluginRegistry).toBeDefined();
-        expect(module.compactionRegistry).toBeDefined();
-        expect(module.blobStoreRegistry).toBeDefined();
-    });
+        const prompts = image.defaults?.prompts ?? [];
+        const planPrompt = prompts.find(
+            (p) => p.type === 'inline' && 'id' in p && p.id === 'dexto-plan-mode'
+        );
+        expect(planPrompt).toBeDefined();
+        expect(planPrompt).toMatchObject({
+            type: 'inline',
+            id: 'dexto-plan-mode',
+            'user-invocable': false,
+            'disable-model-invocation': true,
+        });
 
-    it('should not reference old registry names', async () => {
-        // Read the generated file to ensure no old names remain
-        const fs = await import('fs/promises');
-        const path = await import('path');
-        const { fileURLToPath } = await import('url');
+        expect(image.tools['builtin-tools']).toBeDefined();
+        expect(image.tools['filesystem-tools']).toBeDefined();
+        expect(image.tools['process-tools']).toBeDefined();
+        expect(image.tools['todo-tools']).toBeDefined();
+        expect(image.tools['plan-tools']).toBeDefined();
+        expect(image.tools['agent-spawner']).toBeDefined();
 
-        const currentDir = path.dirname(fileURLToPath(import.meta.url));
-        const distPath = path.resolve(currentDir, '../dist/index.js');
-        const content = await fs.readFile(distPath, 'utf-8');
+        expect(image.storage.blob['local']).toBeDefined();
+        expect(image.storage.database['sqlite']).toBeDefined();
+        expect(image.storage.cache['in-memory']).toBeDefined();
 
-        // Should not contain old name
-        expect(content).not.toContain('compressionRegistry');
+        expect(image.hooks['content-policy']).toBeDefined();
+        expect(image.hooks['response-sanitizer']).toBeDefined();
 
-        // Should contain new name
-        expect(content).toContain('compactionRegistry');
-    });
+        expect(image.logger).toBeDefined();
+    }, 60_000);
 });

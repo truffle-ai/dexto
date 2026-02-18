@@ -8,7 +8,8 @@ import {
     writePreferencesToAgent,
     type LLMOverrides,
 } from './writer.js';
-import { type AgentConfig, ErrorScope, ErrorType } from '@dexto/core';
+import { type AgentConfig } from '@dexto/agent-config';
+import { ErrorScope, ErrorType } from '@dexto/core';
 import { ConfigErrorCode } from './config/index.js';
 import { type GlobalPreferences } from './preferences/schemas.js';
 
@@ -37,7 +38,12 @@ describe('Config Writer', () => {
                 apiKey: '$OPENAI_API_KEY',
             },
             systemPrompt: 'You are a helpful assistant.',
-            internalTools: ['search_history'],
+            tools: [
+                {
+                    type: 'lifecycle-tools',
+                    enabledTools: ['search_history'],
+                },
+            ],
         };
 
         // Sample global preferences
@@ -58,6 +64,7 @@ describe('Config Writer', () => {
             },
             sounds: {
                 enabled: true,
+                onStartup: true,
                 onApprovalRequired: true,
                 onTaskComplete: true,
             },
@@ -117,10 +124,10 @@ describe('Config Writer', () => {
         it('should preserve complex nested structures', async () => {
             const complexConfig = {
                 ...sampleConfig,
-                tools: {
-                    bash: { maxOutputChars: 30000 },
-                    read: { maxLines: 2000, maxLineLength: 2000 },
-                },
+                tools: [
+                    { type: 'process-tools', maxOutputChars: 30000 },
+                    { type: 'filesystem-tools', maxLines: 2000, maxLineLength: 2000 },
+                ],
                 // Test deep nesting via mcpServers which supports complex structures
                 mcpServers: {
                     customServer: {

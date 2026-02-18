@@ -9,7 +9,8 @@
  * - resumeCommand: Shows interactive session selector
  * - renameCommand: Rename the current session
  *
- * Note: For headless CLI session management, see src/cli/commands/session-commands.ts
+ * Note: For non-interactive session subcommands (list, history, delete),
+ * see src/cli/commands/session-commands.ts
  */
 
 export { searchCommand, resumeCommand, renameCommand } from './session-commands.js';

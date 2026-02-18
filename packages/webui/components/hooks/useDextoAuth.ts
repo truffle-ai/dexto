@@ -4,7 +4,7 @@ import { queryKeys } from '@/lib/queryKeys';
 
 /**
  * Hook to fetch Dexto authentication status.
- * Returns whether dexto auth is enabled, user is authenticated, and can use dexto provider.
+ * Returns whether dexto auth is enabled, user is authenticated, and can use dexto-nova provider.
  */
 export function useDextoAuth(enabled: boolean = true) {
     return useQuery({

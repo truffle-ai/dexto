@@ -49,6 +49,8 @@ interface InputContainerProps {
     input: InputState;
     ui: UIState;
     session: SessionState;
+    /** If provided, auto-submits once when the UI is ready */
+    initialPrompt?: string | undefined;
     approval: ApprovalRequest | null;
     /** Queued messages waiting to be processed */
     queuedMessages: QueuedMessage[];
@@ -71,6 +73,8 @@ interface InputContainerProps {
     setTodos: React.Dispatch<React.SetStateAction<TodoItem[]>>;
     agent: DextoAgent;
     inputService: InputService;
+    /** Source agent config file path (if available) */
+    configFilePath: string | null;
     /** Optional keyboard scroll handler (for alternate buffer mode) */
     onKeyboardScroll?: (direction: 'up' | 'down') => void;
     /** Whether to stream chunks or wait for complete response (default: true) */
@@ -88,6 +92,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             input,
             ui,
             session,
+            initialPrompt,
             approval,
             queuedMessages,
             setInput,
@@ -102,6 +107,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             setTodos,
             agent,
             inputService,
+            configFilePath,
             onKeyboardScroll,
             useStreaming = true,
         },
@@ -109,6 +115,8 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
     ) {
         // Track pending session creation to prevent race conditions
         const sessionCreationPromiseRef = useRef<Promise<SessionCreationResult> | null>(null);
+
+        const didAutoSubmitInitialPromptRef = useRef(false);
 
         // Sound notification service from context
         const soundService = useSoundService();
@@ -515,7 +523,8 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                             parsed.command,
                             parsed.args || [],
                             agent,
-                            session.id || undefined
+                            session.id || undefined,
+                            configFilePath
                         );
 
                         if (result.type === 'output' && result.output) {
@@ -599,7 +608,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                                 {
                                     useStreaming,
                                     autoApproveEditsRef,
-                                    eventBus: agent.agentEventBus,
+                                    eventBus: agent,
                                     setTodos,
                                     ...(soundService && { soundService }),
                                 }
@@ -619,7 +628,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                             {
                                 id: generateMessageId('error'),
                                 role: 'system',
-                                content: `❌ Error: ${error instanceof Error ? error.message : String(error)}`,
+                                content: `Error: ${error instanceof Error ? error.message : String(error)}`,
                                 timestamp: new Date(),
                             },
                         ]);
@@ -680,7 +689,10 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                         let messageText = trimmed;
                         if (ui.planModeActive && !ui.planModeInitialized) {
                             try {
-                                const planSkill = await agent.resolvePrompt('plan', {});
+                                const planSkill = await agent.resolvePrompt(
+                                    'config:dexto-plan-mode',
+                                    {}
+                                );
                                 if (planSkill.text) {
                                     messageText = `<plan-mode>\n${planSkill.text}\n</plan-mode>\n\n${trimmed}`;
                                     // Mark plan mode as initialized after injection
@@ -688,7 +700,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                                 }
                             } catch {
                                 // Plan skill not found - continue without injection
-                                // This can happen if the plan-tools plugin is not enabled
+                                // This can happen if the agent config/image doesn't include `config:dexto-plan-mode`.
                             }
                         }
 
@@ -744,7 +756,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                             {
                                 useStreaming,
                                 autoApproveEditsRef,
-                                eventBus: agent.agentEventBus,
+                                eventBus: agent,
                                 setTodos,
                                 ...(soundService && { soundService }),
                             }
@@ -761,7 +773,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                             {
                                 id: generateMessageId('error'),
                                 role: 'system',
-                                content: `❌ Error: ${error instanceof Error ? error.message : String(error)}`,
+                                content: `Error: ${error instanceof Error ? error.message : String(error)}`,
                                 timestamp: new Date(),
                             },
                         ]);
@@ -797,6 +809,30 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 soundService,
             ]
         );
+
+        useEffect(() => {
+            if (!initialPrompt || didAutoSubmitInitialPromptRef.current) {
+                return;
+            }
+
+            didAutoSubmitInitialPromptRef.current = true;
+
+            handleSubmit(initialPrompt, true).catch((error) => {
+                agent.logger.error('InputContainer initial prompt submission failed', {
+                    error,
+                    initialPrompt,
+                });
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('error'),
+                        role: 'system',
+                        content: `Failed to submit initial prompt: ${error instanceof Error ? error.message : String(error)}`,
+                        timestamp: new Date(),
+                    },
+                ]);
+            });
+        }, [agent.logger, handleSubmit, initialPrompt, setMessages]);
 
         // Determine if main input should be active.
         // Important: The main input subscribes to keypress events directly (not via orchestrator),

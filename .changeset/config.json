@@ -5,6 +5,8 @@
   "fixed": [[
     "dexto",
     "@dexto/core",
+    "@dexto/storage",
+    "@dexto/agent-config",
     "@dexto/client-sdk",
     "@dexto/agent-management",
     "@dexto/analytics",
@@ -13,10 +15,15 @@
     "@dexto/webui",
     "@dexto/image-bundler",
     "@dexto/image-local",
+    "@dexto/image-logger-agent",
     "@dexto/tools-filesystem",
+    "@dexto/tools-builtins",
     "@dexto/tools-process",
     "@dexto/tools-todo",
-    "@dexto/tools-plan"
+    "@dexto/tools-plan",
+    "@dexto/tools-scheduler",
+    "@dexto/tools-lifecycle",
+    "@dexto/orchestration"
   ]],
   "linked": [],
   "access": "public",

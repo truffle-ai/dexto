@@ -1,4 +1,4 @@
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { ResourceError } from '../errors.js';
 import type { ResourceMetadata } from '../types.js';
@@ -10,9 +10,9 @@ import type { InternalResourceHandler, InternalResourceServices } from './types.
 export class BlobResourceHandler implements InternalResourceHandler {
     private config: ValidatedBlobResourceConfig;
     private blobStore: BlobStore;
-    private logger: IDextoLogger;
+    private logger: Logger;
 
-    constructor(config: ValidatedBlobResourceConfig, blobStore: BlobStore, logger: IDextoLogger) {
+    constructor(config: ValidatedBlobResourceConfig, blobStore: BlobStore, logger: Logger) {
         this.config = config;
         this.blobStore = blobStore;
         this.logger = logger.createChild(DextoLogComponent.RESOURCE);

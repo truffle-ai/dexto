@@ -1,7 +1,7 @@
 import path from 'path';
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
-import { selectOrExit, textOrExit, confirmOrExit } from '../utils/prompt-helpers.js';
+import { selectOrExit, textOrExit } from '../utils/prompt-helpers.js';
 import {
     promptForProjectName,
     createProjectDirectory,
@@ -9,13 +9,20 @@ import {
     createGitignore,
     initPackageJson,
     createTsconfigForImage,
+    getDextoVersionRange,
     installDependencies,
+    pinDextoPackageIfUnversioned,
     ensureDirectory,
 } from '../utils/scaffolding-utils.js';
 import {
     generateDextoImageFile,
     generateImageReadme,
     generateExampleTool,
+    generateExampleHook,
+    generateExampleCompaction,
+    generateExampleCacheFactory,
+    generateExampleDatabaseFactory,
+    generateExampleBlobStoreFactory,
 } from '../utils/template-engine.js';
 import fs from 'fs-extra';
 import { getExecutionContext } from '@dexto/agent-management';
@@ -46,10 +53,11 @@ export async function createImage(name?: string): Promise<string> {
     // Step 3: Starting point - new base or extend existing
     const startingPoint = await selectOrExit<'base' | 'extend'>(
         {
-            message: 'Starting point:',
+            message: 'How do you want to start?',
+            initialValue: 'extend',
             options: [
-                { value: 'base', label: 'New base image (build from scratch)' },
-                { value: 'extend', label: 'Extend existing image (add providers to base)' },
+                { value: 'extend', label: 'Extend existing image (Recommended)' },
+                { value: 'base', label: 'New image (from scratch)' },
             ],
         },
         'Image creation cancelled'
@@ -66,8 +74,6 @@ export async function createImage(name?: string): Promise<string> {
                         value: '@dexto/image-local',
                         label: '@dexto/image-local (local development)',
                     },
-                    { value: '@dexto/image-cloud', label: '@dexto/image-cloud (cloud production)' },
-                    { value: '@dexto/image-edge', label: '@dexto/image-edge (edge/serverless)' },
                     { value: 'custom', label: 'Custom npm package...' },
                 ],
             },
@@ -109,23 +115,11 @@ export async function createImage(name?: string): Promise<string> {
         'Image creation cancelled'
     );
 
-    // Step 6: Include example providers?
-    const includeExamples = await confirmOrExit(
-        {
-            message: 'Include example tool provider?',
-            initialValue: true,
-        },
-        'Image creation cancelled'
-    );
-
     // Start scaffolding
     const spinner = p.spinner();
     let projectPath: string | undefined;
 
     try {
-        // Save original cwd before changing directories (for resolving relative paths)
-        const originalCwd = process.cwd();
-
         // Create project directory
         projectPath = await createProjectDirectory(projectName, spinner);
 
@@ -135,24 +129,29 @@ export async function createImage(name?: string): Promise<string> {
         spinner.start('Setting up project structure...');
 
         // Create convention-based folders
-        await ensureDirectory('tools');
-        await ensureDirectory('blob-store');
-        await ensureDirectory('compression');
-        await ensureDirectory('plugins');
+        await ensureDirectory('tools/example-tool');
+        const exampleToolCode = generateExampleTool('example-tool');
+        await fs.writeFile('tools/example-tool/index.ts', exampleToolCode);
 
-        // Create .gitkeep files for empty directories
-        await fs.writeFile('blob-store/.gitkeep', '');
-        await fs.writeFile('compression/.gitkeep', '');
-        await fs.writeFile('plugins/.gitkeep', '');
+        await ensureDirectory('hooks/example-hook');
+        const exampleHookCode = generateExampleHook('example-hook');
+        await fs.writeFile('hooks/example-hook/index.ts', exampleHookCode);
 
-        // Create example tool if requested
-        if (includeExamples) {
-            await ensureDirectory('tools/example-tool');
-            const exampleToolCode = generateExampleTool('example-tool');
-            await fs.writeFile('tools/example-tool/index.ts', exampleToolCode);
-        } else {
-            await fs.writeFile('tools/.gitkeep', '');
-        }
+        await ensureDirectory('compaction/example-compaction');
+        const exampleCompactionCode = generateExampleCompaction('example-compaction');
+        await fs.writeFile('compaction/example-compaction/index.ts', exampleCompactionCode);
+
+        await ensureDirectory('storage/cache/example-cache');
+        const exampleCacheCode = generateExampleCacheFactory('example-cache');
+        await fs.writeFile('storage/cache/example-cache/index.ts', exampleCacheCode);
+
+        await ensureDirectory('storage/database/example-database');
+        const exampleDatabaseCode = generateExampleDatabaseFactory('example-database');
+        await fs.writeFile('storage/database/example-database/index.ts', exampleDatabaseCode);
+
+        await ensureDirectory('storage/blob/example-blob');
+        const exampleBlobCode = generateExampleBlobStoreFactory('example-blob');
+        await fs.writeFile('storage/blob/example-blob/index.ts', exampleBlobCode);
 
         spinner.message('Generating configuration files...');
 
@@ -206,30 +205,28 @@ export async function createImage(name?: string): Promise<string> {
         const executionContext = getExecutionContext();
         const isDextoSource = executionContext === 'dexto-source';
 
-        const coreVersion = isDextoSource ? 'workspace:*' : '^1.3.0';
-        const bundlerVersion = isDextoSource ? 'workspace:*' : '^1.3.0';
+        const versionRange = getDextoVersionRange();
+        const dextoDependencyVersion = isDextoSource ? 'workspace:*' : versionRange;
 
         // Determine dependencies based on whether extending
-        const dependencies: string[] = [`@dexto/core@${coreVersion}`, 'zod'];
+        const dependencies: string[] = [
+            `@dexto/core@${dextoDependencyVersion}`,
+            `@dexto/agent-config@${dextoDependencyVersion}`,
+            `@dexto/storage@${dextoDependencyVersion}`,
+            'zod@^3.25.0',
+        ];
         const devDependencies = [
             'typescript@^5.0.0',
             '@types/node@^20.0.0',
-            `@dexto/image-bundler@${bundlerVersion}`,
+            `@dexto/image-bundler@${dextoDependencyVersion}`,
         ];
 
         if (baseImage) {
-            // Resolve base image path if we're in dexto source
-            let resolvedBaseImage = baseImage;
-            if (isDextoSource && baseImage.startsWith('@dexto/image-')) {
-                // In dexto source, resolve official images to local workspace packages
-                // e.g., @dexto/image-local -> packages/image-local
-                const imagePkgName = baseImage.replace('@dexto/', '');
-                const imagePkgPath = path.resolve(originalCwd, 'packages', imagePkgName);
-                if (await fs.pathExists(imagePkgPath)) {
-                    resolvedBaseImage = imagePkgPath;
-                }
-            }
-            dependencies.push(resolvedBaseImage);
+            const baseImageDependency = pinDextoPackageIfUnversioned(
+                baseImage,
+                isDextoSource ? dextoDependencyVersion : versionRange
+            );
+            dependencies.push(baseImageDependency);
         }
 
         // Install dependencies (use pnpm in dexto source for workspace protocol support)
@@ -250,11 +247,28 @@ export async function createImage(name?: string): Promise<string> {
         console.log(
             `\n${chalk.gray('Add your custom providers to the convention-based folders:')}`
         );
-        console.log(`  ${chalk.gray('tools/')}       - Custom tool providers`);
-        console.log(`  ${chalk.gray('blob-store/')}  - Blob storage providers`);
-        console.log(`  ${chalk.gray('compression/')} - Compression strategies`);
-        console.log(`  ${chalk.gray('plugins/')}     - Plugin providers`);
-        console.log(`\n${chalk.gray('Learn more:')} https://docs.dexto.ai/docs/guides/images\n`);
+        console.log(`  ${chalk.gray('tools/')}            - Tool factories`);
+        console.log(`  ${chalk.gray('storage/blob/')}     - Blob storage factories`);
+        console.log(`  ${chalk.gray('storage/database/')} - Database factories`);
+        console.log(`  ${chalk.gray('storage/cache/')}    - Cache factories`);
+        console.log(`  ${chalk.gray('compaction/')}       - Compaction factories`);
+        console.log(`  ${chalk.gray('hooks/')}            - Hook factories`);
+
+        console.log(`\n${chalk.gray('Install into the Dexto CLI:')}`);
+        if (isDextoSource) {
+            console.log(`  ${chalk.gray('$')} dexto image install .`);
+            console.log(
+                chalk.dim(
+                    `  (linked install from local directory; workspace:* deps can't be installed into the global store)`
+                )
+            );
+        } else {
+            console.log(`  ${chalk.gray('$')} npm pack`);
+            console.log(`  ${chalk.gray('$')} dexto image install ./<generated-file>.tgz`);
+        }
+        console.log(`\n${chalk.gray('Use it in an agent YAML:')}`);
+        console.log(`  ${chalk.gray('image:')} '${projectName}'`);
+        console.log(`  ${chalk.gray('# or:')} dexto --image ${projectName}\n`);
     } catch (error) {
         if (spinner) {
             spinner.stop(chalk.red('✗ Failed to create image'));

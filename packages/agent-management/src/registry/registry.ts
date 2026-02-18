@@ -24,51 +24,11 @@ let cachedRegistry: LocalAgentRegistry | null = null;
 
 /**
  * Local agent registry implementation
+ * Loads and merges the bundled registry (shipped with the CLI bundle) with the user's custom
+ * registry under `~/.dexto`.
  *
- * TODO: ARCHITECTURAL REFACTOR - Move registry, preferences, and agent resolution to CLI
- *
- * PROBLEM: Registry operations are CLI concerns but live in Core, causing:
- * - Missing analytics for auto-install (when running `dexto`, registry installs agents but doesn't track)
- * - Wrong separation of concerns (Core = execution engine, not discovery/setup)
- * - Registry manages ~/.dexto/agents filesystem which is CLI-level setup
- *
- * THE RIGHT ARCHITECTURE:
- *
- * Move to CLI:
- * 1. Agent Registry (packages/core/src/agent/registry/) → packages/cli/src/registry/
- *    - installAgent(), uninstallAgent(), resolveAgent(), listAgents()
- *    - Can directly call capture() for analytics
- *    - Manages ~/.dexto/agents installation directory
- *
- * 2. Global Preferences (packages/core/src/preferences/) → packages/cli/src/preferences/
- *    - User's default LLM, model, default agent
- *    - Used by `dexto setup` command
- *    - Manages ~/.dexto/preferences.json
- *
- * 3. Agent Resolution (packages/core/src/config/agent-resolver.ts) → packages/cli/src/agent-resolver.ts
- *    - Discovery logic: check registry, trigger installs, apply preferences
- *    - Returns resolved config PATH to core
- *
- * Core keeps:
- * - config/loader.ts - Load YAML from path
- * - config/schemas.ts - Zod validation
- * - Agent execution (DextoAgent, LLM, tools, MCP)
- *
- * FLOW AFTER REFACTOR:
- * CLI index.ts:
- *   → CLI: resolveAgentPath() (discovery logic)
- *     → CLI: registry.resolveAgent()
- *       → CLI: registry.installAgent() if needed
- *       → CLI: capture('dexto_install_agent', ...) ✓ Natural!
- *   → Core: new DextoAgent(configPath) (just loads & runs)
- *
- * BENEFITS:
- * - Clear separation: CLI = setup/discovery, Core = execution
- * - Analytics naturally colocated with operations
- * - Core is portable (no CLI dependencies)
- * - No circular deps (CLI → Core, correct direction)
- *
- * ESTIMATE: ~3-4 hours (mostly moving code + updating imports)
+ * Hosts (CLI, server, apps) use this to resolve an agent ID to a concrete YAML path, then
+ * load/validate that YAML and instantiate a `DextoAgent` from the resolved config.
  */
 export class LocalAgentRegistry implements AgentRegistry {
     private _registry: Registry | null = null;

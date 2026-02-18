@@ -40,8 +40,8 @@ describe('getReasoningSupport', () => {
         });
     });
 
-    it('returns gateway support for dexto provider (OpenRouter-format IDs)', () => {
-        expect(getReasoningSupport('dexto', 'openai/gpt-5.2-codex')).toEqual({
+    it('returns gateway support for dexto-nova provider (OpenRouter-format IDs)', () => {
+        expect(getReasoningSupport('dexto-nova', 'openai/gpt-5.2-codex')).toEqual({
             capable: true,
             supportedPresets: ['auto', 'off', 'low', 'medium', 'high', 'max', 'xhigh'],
             supportsBudgetTokens: true,

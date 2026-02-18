@@ -4,15 +4,11 @@
     "baseUrl": ".",
     "rootDir": "src",
     "outDir": "dist",
+    "composite": true,
     "noEmit": false,
     "declaration": true,
     "declarationMap": true,
-    "emitDeclarationOnly": false,
-    "paths": {
-      "@dexto/core": ["../core/dist/index.d.ts"],
-      "@core/*": ["../core/dist/*"],
-      "@dexto/agent-management": ["../agent-management/dist/index.d.ts"]
-    }
+    "emitDeclarationOnly": false
   },
   "include": [
     "src/**/*"
@@ -23,5 +19,12 @@
     "**/*.integration.test.ts",
     "dist",
     "node_modules"
+  ],
+  "references": [
+    { "path": "../agent-config" },
+    { "path": "../agent-management" },
+    { "path": "../core" },
+    { "path": "../image-local" },
+    { "path": "../storage" }
   ]
 }

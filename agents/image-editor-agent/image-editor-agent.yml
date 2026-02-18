@@ -31,7 +31,7 @@ mcpServers:
       - truffle-ai-image-editor-mcp
     connectionMode: strict
 
-toolConfirmation:
+permissions:
   mode: "auto-approve"
   allowedToolsStorage: "memory"
 

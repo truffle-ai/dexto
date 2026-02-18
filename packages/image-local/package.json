@@ -1,6 +1,6 @@
 {
   "name": "@dexto/image-local",
-  "version": "1.5.7",
+  "version": "1.6.0",
   "description": "Local development base image for Dexto agents with filesystem and process tools",
   "type": "module",
   "main": "./dist/index.js",
@@ -12,7 +12,7 @@
     }
   },
   "scripts": {
-    "build": "tsx ../image-bundler/dist/cli.js build",
+    "build": "tsup",
     "test": "vitest run",
     "test:integ": "vitest run",
     "typecheck": "tsc --noEmit",
@@ -27,15 +27,21 @@
     "process"
   ],
   "dependencies": {
+    "@dexto/agent-config": "workspace:*",
     "@dexto/agent-management": "workspace:*",
     "@dexto/core": "workspace:*",
+    "@dexto/storage": "workspace:*",
+    "@dexto/tools-builtins": "workspace:*",
     "@dexto/tools-filesystem": "workspace:*",
+    "@dexto/tools-lifecycle": "workspace:*",
     "@dexto/tools-plan": "workspace:*",
     "@dexto/tools-process": "workspace:*",
-    "@dexto/tools-todo": "workspace:*"
+    "@dexto/tools-scheduler": "workspace:*",
+    "@dexto/tools-todo": "workspace:*",
+    "zod": "^3.25.0"
   },
   "devDependencies": {
-    "@dexto/image-bundler": "workspace:*",
+    "tsup": "^8.0.0",
     "typescript": "^5.3.3"
   },
   "files": [

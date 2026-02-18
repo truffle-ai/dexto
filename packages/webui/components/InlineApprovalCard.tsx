@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { AlertTriangle, Wrench } from 'lucide-react';
-import type { ApprovalEvent } from './ToolConfirmationHandler';
+import type { ApprovalEvent } from './ApprovalRequestHandler';
 import type { JSONSchema7 } from 'json-schema';
 import { ApprovalType } from '@dexto/core';
 
@@ -278,7 +278,7 @@ export function InlineApprovalCard({ approval, onApprove, onDeny }: InlineApprov
                         })()}
                     </div>
                 </div>
-            ) : approval.type === ApprovalType.TOOL_CONFIRMATION ? (
+            ) : approval.type === ApprovalType.TOOL_APPROVAL ? (
                 <div className="space-y-3 min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
                         <Wrench className="h-4 w-4 flex-shrink-0" />

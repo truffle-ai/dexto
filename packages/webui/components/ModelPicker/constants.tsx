@@ -21,7 +21,7 @@ export const PROVIDER_LOGOS: Record<LLMProvider, string> = {
     bedrock: '/logos/aws-color.svg',
     local: '', // Uses Bot icon fallback - local GGUF models via node-llama-cpp
     ollama: '/logos/ollama.svg', // Ollama server
-    dexto: '/logos/dexto/dexto_logo_icon.svg', // Dexto gateway - use Dexto logo
+    'dexto-nova': '/logos/dexto/dexto_logo_icon.svg', // Dexto gateway - use Dexto logo
 };
 
 // Provider pricing URLs (for quick access from Model Picker)
@@ -40,7 +40,7 @@ export const PROVIDER_PRICING_URLS: Partial<Record<LLMProvider, string>> = {
     vertex: 'https://cloud.google.com/vertex-ai/generative-ai/pricing',
     bedrock: 'https://aws.amazon.com/bedrock/pricing/',
     // TODO: make this a valid URL
-    dexto: 'https://dexto.ai/pricing',
+    'dexto-nova': 'https://dexto.ai/pricing',
     // 'openai-compatible' intentionally omitted (varies by vendor)
 };
 
@@ -77,7 +77,7 @@ export const COLORED_LOGOS: readonly LLMProvider[] = [
     'cohere',
     'anthropic',
     'vertex',
-    'dexto',
+    'dexto-nova',
 ] as const;
 
 // Helper to check if a logo needs dark mode inversion

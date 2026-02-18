@@ -7,9 +7,9 @@
 export type { ResourceSource, ResourceMetadata, ResourceProvider, ResourceSet } from './types.js';
 
 export type {
-    InternalResourcesConfig,
-    ValidatedInternalResourcesConfig,
-    ValidatedInternalResourceConfig,
+    ResourcesConfig,
+    ValidatedResourcesConfig,
+    ValidatedResourceConfig,
     ValidatedFileSystemResourceConfig,
     ValidatedBlobResourceConfig,
 } from './schemas.js';
@@ -20,7 +20,7 @@ export { ResourceErrorCodes } from './error-codes.js';
 
 // Internal resources provider and handlers
 export type { InternalResourceHandler, InternalResourceServices } from './handlers/types.js';
-export { InternalResourcesProvider } from './internal-provider.js';
+export { AgentResourcesProvider } from './agent-resources-provider.js';
 export {
     createInternalResourceHandler,
     getInternalResourceHandlerTypes,
@@ -59,8 +59,4 @@ export {
 } from './reference-parser.js';
 
 // Schemas and validation
-export {
-    InternalResourceConfigSchema,
-    InternalResourcesSchema,
-    isInternalResourcesEnabled,
-} from './schemas.js';
+export { ResourceConfigSchema, ResourcesConfigSchema } from './schemas.js';

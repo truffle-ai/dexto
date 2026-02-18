@@ -3,12 +3,15 @@
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync } from 'node:fs';
-import { dirname, join, resolve, relative, extname } from 'node:path';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { dirname, join, resolve, extname } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { validateImageDefinition } from '@dexto/core';
-import type { ImageDefinition } from '@dexto/core';
+import { validateImageDefinition } from './image-definition/validate-image-definition.js';
+import type { ImageDefinition } from './image-definition/types.js';
 import type { BundleOptions, BundleResult } from './types.js';
 import { generateEntryPoint } from './generator.js';
+import { build } from 'esbuild';
 import ts from 'typescript';
 
 /**
@@ -35,15 +38,15 @@ export async function bundle(options: BundleOptions): Promise<BundleResult> {
     // 3. Get core version (from package.json)
     const coreVersion = getCoreVersion();
 
-    // 3.5. Discover providers from convention-based folders
-    console.log(`🔍 Discovering providers from folders...`);
+    // 3.5. Discover factories from convention-based folders
+    console.log(`🔍 Discovering factories from folders...`);
     const imageDir = dirname(options.imagePath);
-    const discoveredProviders = discoverProviders(imageDir);
-    console.log(`✅ Discovered ${discoveredProviders.totalCount} provider(s)`);
+    const discoveredFactories = discoverFactories(imageDir, warnings);
+    console.log(`✅ Discovered ${discoveredFactories.totalCount} factory(ies)`);
 
     // 4. Generate code
     console.log(`🔨 Generating entry point...`);
-    const generated = generateEntryPoint(definition, coreVersion, discoveredProviders);
+    const generated = generateEntryPoint(definition, discoveredFactories);
 
     // 5. Ensure output directory exists
     const outDir = resolve(options.outDir);
@@ -51,24 +54,61 @@ export async function bundle(options: BundleOptions): Promise<BundleResult> {
         mkdirSync(outDir, { recursive: true });
     }
 
-    // 5.5. Compile provider category folders
-    console.log(`🔨 Compiling provider source files...`);
-    const categories = ['blob-store', 'tools', 'compaction', 'plugins'];
+    // 5.5. Compile factory folders
+    console.log(`🔨 Compiling factory source files...`);
     let compiledCount = 0;
 
-    for (const category of categories) {
-        const categoryDir = join(imageDir, category);
-        if (existsSync(categoryDir)) {
-            compileSourceFiles(categoryDir, join(outDir, category));
-            compiledCount++;
-        }
+    // tools/
+    const toolsDir = join(imageDir, 'tools');
+    if (existsSync(toolsDir)) {
+        compileSourceFiles(toolsDir, join(outDir, 'tools'));
+        compiledCount++;
+    }
+
+    // hooks/
+    const hooksDir = join(imageDir, 'hooks');
+    if (existsSync(hooksDir)) {
+        compileSourceFiles(hooksDir, join(outDir, 'hooks'));
+        compiledCount++;
+    }
+
+    // compaction/
+    const compactionDir = join(imageDir, 'compaction');
+    if (existsSync(compactionDir)) {
+        compileSourceFiles(compactionDir, join(outDir, 'compaction'));
+        compiledCount++;
+    }
+
+    // storage/blob/
+    const storageBlobDir = join(imageDir, 'storage', 'blob');
+    if (existsSync(storageBlobDir)) {
+        compileSourceFiles(storageBlobDir, join(outDir, 'storage', 'blob'));
+        compiledCount++;
+    }
+
+    // storage/database/
+    const storageDatabaseDir = join(imageDir, 'storage', 'database');
+    if (existsSync(storageDatabaseDir)) {
+        compileSourceFiles(storageDatabaseDir, join(outDir, 'storage', 'database'));
+        compiledCount++;
+    }
+
+    // storage/cache/
+    const storageCacheDir = join(imageDir, 'storage', 'cache');
+    if (existsSync(storageCacheDir)) {
+        compileSourceFiles(storageCacheDir, join(outDir, 'storage', 'cache'));
+        compiledCount++;
     }
 
     if (compiledCount > 0) {
         console.log(
-            `✅ Compiled ${compiledCount} provider categor${compiledCount === 1 ? 'y' : 'ies'}`
+            `✅ Compiled ${compiledCount} factory categor${compiledCount === 1 ? 'y' : 'ies'}`
         );
     }
+
+    // 5.6. Validate discovered factories export the required contract
+    console.log(`🔍 Validating factory exports...`);
+    await validateDiscoveredFactories(outDir, discoveredFactories);
 
     // 6. Write generated files
     const entryFile = join(outDir, 'index.js');
@@ -116,20 +156,35 @@ async function loadImageDefinition(imagePath: string): Promise<ImageDefinition> 
     }
 
     try {
-        // Convert to file:// URL for ESM import
-        const fileUrl = pathToFileURL(absolutePath).href;
+        const imageDir = dirname(absolutePath);
+        const tempDir = await mkdtemp(join(imageDir, '.dexto-image-definition-'));
+        const compiledPath = join(tempDir, 'dexto.image.mjs');
 
-        // Dynamic import
-        const module = await import(fileUrl);
+        try {
+            await build({
+                entryPoints: [absolutePath],
+                outfile: compiledPath,
+                bundle: true,
+                platform: 'node',
+                format: 'esm',
+                target: 'node20',
+                packages: 'external',
+                logLevel: 'silent',
+            });
 
-        // Get default export
-        const definition = module.default as ImageDefinition;
+            const module = await import(pathToFileURL(compiledPath).href);
 
-        if (!definition) {
-            throw new Error('Image file must have a default export');
+            // Get default export
+            const definition = module.default as ImageDefinition;
+
+            if (!definition) {
+                throw new Error('Image file must have a default export');
+            }
+
+            return definition;
+        } finally {
+            await rm(tempDir, { recursive: true, force: true });
         }
-
-        return definition;
     } catch (error) {
         if (error instanceof Error) {
             throw new Error(`Failed to load image definition: ${error.message}`);
@@ -143,15 +198,9 @@ async function loadImageDefinition(imagePath: string): Promise<ImageDefinition> 
  */
 function getCoreVersion(): string {
     try {
-        // Try to read from node_modules
-        const corePackageJson = join(process.cwd(), 'node_modules/@dexto/core/package.json');
-        if (existsSync(corePackageJson)) {
-            const pkg = JSON.parse(readFileSync(corePackageJson, 'utf-8'));
-            return pkg.version;
-        }
-
-        // Fallback to workspace version
-        return '1.0.0';
+        const require = createRequire(import.meta.url);
+        const pkg = require('@dexto/core/package.json') as { version?: unknown };
+        return typeof pkg.version === 'string' ? pkg.version : '1.0.0';
     } catch {
         return '1.0.0';
     }
@@ -277,85 +326,222 @@ function findTypeScriptFiles(dir: string): string[] {
 }
 
 /**
- * Provider discovery result for a single category
+ * Factory discovery result for a single category
  */
-export interface DiscoveredProviders {
-    blobStore: string[];
-    customTools: string[];
-    compaction: string[];
-    plugins: string[];
+export interface DiscoveredFactory {
+    type: string;
+    importPath: string;
+}
+
+export interface DiscoveredFactories {
+    tools: DiscoveredFactory[];
+    storage: {
+        blob: DiscoveredFactory[];
+        database: DiscoveredFactory[];
+        cache: DiscoveredFactory[];
+    };
+    hooks: DiscoveredFactory[];
+    compaction: DiscoveredFactory[];
     totalCount: number;
 }
 
 /**
- * Discover providers from convention-based folder structure
+ * Discover factories from convention-based folder structure
  *
  * Convention (folder-based with index.ts):
- *   tools/           - CustomToolProvider folders
- *     weather/       - Provider folder
- *       index.ts     - Provider implementation (auto-discovered)
+ *   tools/           - ToolFactory folders
+ *     weather/       - Factory folder
+ *       index.ts     - Factory implementation (auto-discovered)
  *       helpers.ts   - Optional helper files
  *       types.ts     - Optional type definitions
- *   blob-store/      - BlobStoreProvider folders
- *   compaction/      - CompactionProvider folders
- *   plugins/         - PluginProvider folders
+ *   compaction/      - CompactionFactory folders
+ *   hooks/           - HookFactory folders
+ *   storage/blob/    - BlobStoreFactory folders
+ *   storage/cache/   - CacheFactory folders
+ *   storage/database/ - DatabaseFactory folders
  *
  * Naming Convention (Node.js standard):
  *   <folder>/index.ts    - Auto-discovered and registered
  *   <folder>/other.ts    - Ignored unless imported by index.ts
  */
-function discoverProviders(imageDir: string): DiscoveredProviders {
-    const result: DiscoveredProviders = {
-        blobStore: [],
-        customTools: [],
+function discoverFactories(imageDir: string, warnings: string[]): DiscoveredFactories {
+    const result: DiscoveredFactories = {
+        tools: [],
+        storage: {
+            blob: [],
+            database: [],
+            cache: [],
+        },
+        hooks: [],
         compaction: [],
-        plugins: [],
         totalCount: 0,
     };
 
-    // Category mapping: folder name -> property name
-    const categories = {
-        'blob-store': 'blobStore',
-        tools: 'customTools',
-        compaction: 'compaction',
-        plugins: 'plugins',
-    } as const;
+    const discoverFolder = (options: {
+        srcDir: string;
+        importBase: string;
+        label: string;
+    }): DiscoveredFactory[] => {
+        const { srcDir, importBase, label } = options;
 
-    for (const [folderName, propName] of Object.entries(categories)) {
-        const categoryDir = join(imageDir, folderName);
-
-        if (!existsSync(categoryDir)) {
-            continue;
+        if (!existsSync(srcDir)) {
+            return [];
         }
 
-        // Find all provider folders (those with index.ts)
-        const providerFolders = readdirSync(categoryDir)
-            .filter((entry) => {
-                const entryPath = join(categoryDir, entry);
-                const stat = statSync(entryPath);
+        const factoryFolders = readdirSync(srcDir).filter((entry) => {
+            const entryPath = join(srcDir, entry);
+            const stat = statSync(entryPath);
+            if (!stat.isDirectory()) {
+                return false;
+            }
 
-                // Must be a directory
-                if (!stat.isDirectory()) {
-                    return false;
-                }
+            const indexPath = join(entryPath, 'index.ts');
+            return existsSync(indexPath);
+        });
 
-                // Must contain index.ts
-                const indexPath = join(entryPath, 'index.ts');
-                return existsSync(indexPath);
-            })
-            .map((folder) => {
-                // Return relative path for imports
-                return `./${folderName}/${folder}/index.js`;
-            });
-
-        if (providerFolders.length > 0) {
-            result[propName as keyof Omit<DiscoveredProviders, 'totalCount'>].push(
-                ...providerFolders
-            );
-            result.totalCount += providerFolders.length;
-            console.log(`   Found ${providerFolders.length} provider(s) in ${folderName}/`);
+        if (factoryFolders.length > 0) {
+            console.log(`   Found ${factoryFolders.length} factory(ies) in ${label}`);
         }
+
+        return factoryFolders.map((type) => ({
+            type,
+            importPath: `./${importBase}/${type}/index.js`,
+        }));
+    };
+
+    // tools/
+    result.tools = discoverFolder({
+        srcDir: join(imageDir, 'tools'),
+        importBase: 'tools',
+        label: 'tools/',
+    });
+
+    // hooks/
+    result.hooks = discoverFolder({
+        srcDir: join(imageDir, 'hooks'),
+        importBase: 'hooks',
+        label: 'hooks/',
+    });
+
+    // compaction/
+    result.compaction = discoverFolder({
+        srcDir: join(imageDir, 'compaction'),
+        importBase: 'compaction',
+        label: 'compaction/',
+    });
+
+    // storage/blob/
+    result.storage.blob = discoverFolder({
+        srcDir: join(imageDir, 'storage', 'blob'),
+        importBase: 'storage/blob',
+        label: 'storage/blob/',
+    });
+
+    // storage/database/
+    result.storage.database = discoverFolder({
+        srcDir: join(imageDir, 'storage', 'database'),
+        importBase: 'storage/database',
+        label: 'storage/database/',
+    });
+
+    // storage/cache/
+    result.storage.cache = discoverFolder({
+        srcDir: join(imageDir, 'storage', 'cache'),
+        importBase: 'storage/cache',
+        label: 'storage/cache/',
+    });
+
+    result.totalCount =
+        result.tools.length +
+        result.hooks.length +
+        result.compaction.length +
+        result.storage.blob.length +
+        result.storage.database.length +
+        result.storage.cache.length;
+
+    if (result.totalCount === 0) {
+        warnings.push(
+            'No factories discovered from convention folders. This image will not be able to resolve tools/storage unless it extends a base image.'
+        );
     }
 
     return result;
+}
+
+async function validateFactoryExport(options: {
+    outDir: string;
+    kind: string;
+    entry: DiscoveredFactory;
+}): Promise<void> {
+    const { outDir, kind, entry } = options;
+
+    const absolutePath = resolve(outDir, entry.importPath);
+    const fileUrl = pathToFileURL(absolutePath).href;
+
+    let module: unknown;
+    try {
+        module = await import(fileUrl);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(
+            `Failed to import ${kind} factory '${entry.type}' (${entry.importPath}): ${message}`
+        );
+    }
+
+    if (!module || typeof module !== 'object') {
+        throw new Error(
+            `Invalid ${kind} factory '${entry.type}' (${entry.importPath}): expected an object module export`
+        );
+    }
+
+    const factory = (module as Record<string, unknown>).factory;
+    if (!factory || typeof factory !== 'object') {
+        throw new Error(
+            `Invalid ${kind} factory '${entry.type}' (${entry.importPath}): missing 'factory' export`
+        );
+    }
+
+    const configSchema = (factory as Record<string, unknown>).configSchema;
+    const create = (factory as Record<string, unknown>).create;
+
+    const parse = (configSchema as { parse?: unknown } | null | undefined)?.parse;
+    if (!configSchema || typeof configSchema !== 'object' || typeof parse !== 'function') {
+        throw new Error(
+            `Invalid ${kind} factory '${entry.type}' (${entry.importPath}): factory.configSchema must be a Zod schema`
+        );
+    }
+
+    if (typeof create !== 'function') {
+        throw new Error(
+            `Invalid ${kind} factory '${entry.type}' (${entry.importPath}): factory.create must be a function`
+        );
+    }
+}
+
+async function validateDiscoveredFactories(
+    outDir: string,
+    discovered: DiscoveredFactories
+): Promise<void> {
+    const validations: Array<Promise<void>> = [];
+
+    for (const entry of discovered.tools) {
+        validations.push(validateFactoryExport({ outDir, kind: 'tool', entry }));
+    }
+    for (const entry of discovered.hooks) {
+        validations.push(validateFactoryExport({ outDir, kind: 'hook', entry }));
+    }
+    for (const entry of discovered.compaction) {
+        validations.push(validateFactoryExport({ outDir, kind: 'compaction', entry }));
+    }
+    for (const entry of discovered.storage.blob) {
+        validations.push(validateFactoryExport({ outDir, kind: 'storage.blob', entry }));
+    }
+    for (const entry of discovered.storage.database) {
+        validations.push(validateFactoryExport({ outDir, kind: 'storage.database', entry }));
+    }
+    for (const entry of discovered.storage.cache) {
+        validations.push(validateFactoryExport({ outDir, kind: 'storage.cache', entry }));
+    }
+
+    await Promise.all(validations);
 }

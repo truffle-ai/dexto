@@ -6,7 +6,7 @@ import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
 import { EventEmitter } from 'events';
 import { z } from 'zod';
 
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import { ApprovalStatus } from '../approval/types.js';
@@ -16,8 +16,8 @@ import type {
     ValidatedSseServerConfig,
     ValidatedHttpServerConfig,
 } from './schemas.js';
-import { ToolSet } from '../tools/types.js';
-import { IMCPClient, MCPResourceSummary, McpAuthProviderFactory } from './types.js';
+import type { ToolSet } from '../tools/types.js';
+import type { McpClient, MCPResourceSummary, McpAuthProviderFactory } from './types.js';
 import { MCPError } from './errors.js';
 import type {
     GetPromptResult,
@@ -36,10 +36,28 @@ import { hasActiveTelemetry, addBaggageAttributesToSpan } from '../telemetry/uti
 import { safeStringify } from '../utils/safe-stringify.js';
 
 // const DEFAULT_TIMEOUT = 60000; // Commented out or remove if not used elsewhere
+const UI_EXTENSION_NAME = 'io.modelcontextprotocol/ui';
+const UI_EXTENSION_MIME_TYPE = 'text/html;profile=mcp-app';
+
+type McpClientCapabilities = {
+    elicitation?: Record<string, unknown>;
+    extensions?: Record<string, { mimeTypes: string[] }>;
+};
+
+function buildClientCapabilities(): McpClientCapabilities {
+    return {
+        elicitation: {}, // Enable elicitation capability
+        extensions: {
+            [UI_EXTENSION_NAME]: {
+                mimeTypes: [UI_EXTENSION_MIME_TYPE],
+            },
+        },
+    };
+}
 /**
  * Wrapper on top of Client class provided in model context protocol SDK, to add additional metadata about the server
  */
-export class MCPClient extends EventEmitter implements IMCPClient {
+export class DextoMcpClient extends EventEmitter implements McpClient {
     private client: Client | null = null;
     private transport: any = null;
     private isConnected = false;
@@ -52,11 +70,11 @@ export class MCPClient extends EventEmitter implements IMCPClient {
     private serverAlias: string | null = null;
     private timeout: number = 60000; // Default timeout value
     private approvalManager: ApprovalManager | null = null; // Will be set by MCPManager
-    private logger: IDextoLogger;
+    private logger: Logger;
     private authProviderFactory: McpAuthProviderFactory | null = null;
     private currentAuthProvider: ReturnType<McpAuthProviderFactory> | null = null;
 
-    constructor(logger: IDextoLogger) {
+    constructor(logger: Logger) {
         super();
         this.logger = logger.createChild(DextoLogComponent.MCP);
     }
@@ -148,9 +166,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
                 version: '1.0.0',
             },
             {
-                capabilities: {
-                    elicitation: {}, // Enable elicitation capability
-                },
+                capabilities: buildClientCapabilities(),
             }
         );
 
@@ -214,9 +230,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
                 version: '1.0.0',
             },
             {
-                capabilities: {
-                    elicitation: {}, // Enable elicitation capability
-                },
+                capabilities: buildClientCapabilities(),
             }
         );
 
@@ -302,9 +316,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
         this.client = new Client(
             { name: 'Dexto-http-mcp-client', version: '1.0.0' },
             {
-                capabilities: {
-                    elicitation: {}, // Enable elicitation capability
-                },
+                capabilities: buildClientCapabilities(),
             }
         );
         try {
@@ -483,6 +495,7 @@ export class MCPClient extends EventEmitter implements IMCPClient {
                     tools[tool.name] = {
                         description: tool.description ?? '',
                         parameters: tool.inputSchema,
+                        _meta: tool._meta,
                     };
                 });
             } else {

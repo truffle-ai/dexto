@@ -82,7 +82,6 @@ export function Footer({
 
         refreshContext();
 
-        const bus = agent.agentEventBus;
         const controller = new AbortController();
         const { signal } = controller;
         const sessionEvents = [
@@ -106,7 +105,7 @@ export function Footer({
         };
 
         for (const eventName of sessionEvents) {
-            bus.on(eventName, handleEvent, { signal });
+            agent.on(eventName, handleEvent, { signal });
         }
 
         return () => {

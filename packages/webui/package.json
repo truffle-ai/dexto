@@ -1,6 +1,6 @@
 {
   "name": "@dexto/webui",
-  "version": "1.5.7",
+  "version": "1.6.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,8 +12,10 @@
   },
   "dependencies": {
     "@dexto/analytics": "workspace:*",
+    "@dexto/agent-config": "workspace:*",
     "@dexto/client-sdk": "workspace:*",
     "@dexto/core": "workspace:*",
+    "@dexto/storage": "workspace:*",
     "@dexto/registry": "workspace:*",
     "@mcp-ui/client": "^5.14.1",
     "@monaco-editor/react": "^4.7.0",

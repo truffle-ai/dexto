@@ -224,19 +224,19 @@ systemPrompt:
 **Event coordination** for inter-service communication.
 
 ### Event Types
-- **thinking** - AI is processing
-- **chunk** - Streaming response chunk
-- **toolCall** - Tool execution starting
-- **toolResult** - Tool execution completed  
-- **response** - Final response ready
+- **llm:thinking** - AI is processing
+- **llm:chunk** - Streaming response chunk
+- **llm:tool-call** - Tool execution starting
+- **llm:tool-result** - Tool execution completed
+- **llm:response** - Final response ready
 
 ### Usage Example
 ```typescript
-agent.agentEventBus.on('toolCall', (event) => {
+agent.on('llm:tool-call', (event) => {
   console.log(`Executing tool: ${event.toolName}`);
 });
 
-agent.agentEventBus.on('response', (event) => {
+agent.on('llm:response', (event) => {
   console.log(`Response: ${event.content}`);
 });
 ```
@@ -306,8 +306,8 @@ sessions:
   maxSessions: 100
   sessionTTL: 3600000
 
-# Tool confirmation
-toolConfirmation:
+# Permissions
+permissions:
   mode: auto
   timeout: 30000
 ```

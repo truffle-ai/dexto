@@ -9,7 +9,7 @@ import {
 import { MemoryError } from './errors.js';
 import { MemoryErrorCode } from './error-codes.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { nanoid } from 'nanoid';
 
@@ -33,11 +33,11 @@ const MEMORY_KEY_PREFIX = 'memory:item:';
  * context-aware retrieval.
  */
 export class MemoryManager {
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     constructor(
         private database: Database,
-        logger: IDextoLogger
+        logger: Logger
     ) {
         this.logger = logger.createChild(DextoLogComponent.MEMORY);
         this.logger.debug('MemoryManager initialized');

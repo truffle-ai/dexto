@@ -51,6 +51,10 @@ const PROVIDER_INFO: Record<
         keyUrl: 'https://openrouter.ai/keys',
         description: 'Multi-provider gateway',
     },
+    'dexto-nova': {
+        displayName: 'Dexto Nova',
+        description: 'Multi-provider gateway',
+    },
     glama: {
         displayName: 'Glama',
         keyUrl: 'https://glama.ai/settings/api-keys',

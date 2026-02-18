@@ -26,7 +26,7 @@ import {
 } from './contexts/index.js';
 
 // Sound notification
-import type { SoundNotificationService } from './utils/soundNotification.js';
+import type { SoundConfig, SoundNotificationService } from './utils/soundNotification.js';
 
 // Components
 import { ErrorBoundary } from './components/ErrorBoundary.js';
@@ -46,14 +46,23 @@ const USE_ALTERNATE_BUFFER = false;
 interface InkCLIProps {
     agent: DextoAgent;
     initialSessionId: string | null;
+    initialPrompt?: string | undefined;
     startupInfo: StartupInfo;
     soundService: SoundNotificationService | null;
+    configFilePath: string | null;
 }
 
 /**
  * Inner component that wraps the mode-specific component with providers
  */
-function InkCLIInner({ agent, initialSessionId, startupInfo, soundService }: InkCLIProps) {
+function InkCLIInner({
+    agent,
+    initialSessionId,
+    initialPrompt,
+    startupInfo,
+    soundService,
+    configFilePath,
+}: InkCLIProps) {
     // Selection hint callback for alternate buffer mode
     const [, setSelectionHintShown] = useState(false);
 
@@ -71,9 +80,11 @@ function InkCLIInner({ agent, initialSessionId, startupInfo, soundService }: Ink
                     <AlternateBufferCLI
                         agent={agent}
                         initialSessionId={initialSessionId}
+                        initialPrompt={initialPrompt}
                         startupInfo={startupInfo}
                         onSelectionAttempt={handleSelectionAttempt}
                         useStreaming={streaming}
+                        configFilePath={configFilePath}
                     />
                 </ScrollProvider>
             </SoundProvider>
@@ -86,8 +97,10 @@ function InkCLIInner({ agent, initialSessionId, startupInfo, soundService }: Ink
             <StaticCLI
                 agent={agent}
                 initialSessionId={initialSessionId}
+                initialPrompt={initialPrompt}
                 startupInfo={startupInfo}
                 useStreaming={streaming}
+                configFilePath={configFilePath}
             />
         </SoundProvider>
     );
@@ -104,8 +117,10 @@ function InkCLIInner({ agent, initialSessionId, startupInfo, soundService }: Ink
 export function InkCLIRefactored({
     agent,
     initialSessionId,
+    initialPrompt,
     startupInfo,
     soundService,
+    configFilePath,
 }: InkCLIProps) {
     return (
         <ErrorBoundary>
@@ -115,8 +130,10 @@ export function InkCLIRefactored({
                     <InkCLIInner
                         agent={agent}
                         initialSessionId={initialSessionId}
+                        initialPrompt={initialPrompt}
                         startupInfo={startupInfo}
                         soundService={soundService}
+                        configFilePath={configFilePath}
                     />
                 </MouseProvider>
             </KeypressProvider>
@@ -132,6 +149,10 @@ export interface InkCLIOptions {
     updateInfo?: { current: string; latest: string; updateCommand: string } | undefined;
     /** True if installed agents differ from bundled and user should sync */
     needsAgentSync?: boolean | undefined;
+    /** Source agent config file path (if available) */
+    configFilePath?: string | null | undefined;
+    /** If provided, auto-submits this prompt once the UI is ready */
+    initialPrompt?: string | undefined;
 }
 
 /**
@@ -157,47 +178,100 @@ export async function startInkCliRefactored(
         needsAgentSync: options.needsAgentSync,
     };
 
-    // Initialize sound service from preferences
-    const { SoundNotificationService } = await import('./utils/soundNotification.js');
-    const { globalPreferencesExist, loadGlobalPreferences } = await import(
-        '@dexto/agent-management'
-    );
+    // Load preferences helpers (non-fatal if unavailable)
+    let globalPreferencesExistFn: () => boolean = () => false;
+    let loadGlobalPreferencesFn: (() => Promise<{ sounds?: Partial<SoundConfig> }>) | null = null;
+    let agentPreferencesExistFn: (agentId: string) => boolean = () => false;
+    let loadAgentPreferencesFn:
+        | ((agentId: string) => Promise<{ tools?: { disabled?: string[] } }>)
+        | null = null;
+
+    try {
+        const agentManagement = await import('@dexto/agent-management');
+        globalPreferencesExistFn = agentManagement.globalPreferencesExist;
+        loadGlobalPreferencesFn = agentManagement.loadGlobalPreferences;
+        agentPreferencesExistFn = agentManagement.agentPreferencesExist;
+        loadAgentPreferencesFn = agentManagement.loadAgentPreferences;
+    } catch (error) {
+        agent.logger.debug(
+            `Preferences module could not be loaded: ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
 
     let soundService: SoundNotificationService | null = null;
     // Initialize sound config with defaults (enabled by default even without preferences file)
-    let soundConfig = {
+    let soundConfig: SoundConfig = {
         enabled: true,
+        onStartup: true,
+        startupSoundFile: undefined,
         onApprovalRequired: true,
+        approvalSoundFile: undefined,
         onTaskComplete: true,
+        completeSoundFile: undefined,
     };
-    // Override with user preferences if they exist
-    if (globalPreferencesExist()) {
+
+    // Initialize sound service from preferences (non-fatal)
+    try {
+        const { SoundNotificationService: SoundNotificationServiceImpl } = await import(
+            './utils/soundNotification.js'
+        );
+
+        // Override with user preferences if they exist
+        if (globalPreferencesExistFn() && loadGlobalPreferencesFn) {
+            try {
+                const preferences = await loadGlobalPreferencesFn();
+                soundConfig = {
+                    enabled: preferences.sounds?.enabled ?? soundConfig.enabled,
+                    onStartup: preferences.sounds?.onStartup ?? soundConfig.onStartup,
+                    startupSoundFile:
+                        preferences.sounds?.startupSoundFile ?? soundConfig.startupSoundFile,
+                    onApprovalRequired:
+                        preferences.sounds?.onApprovalRequired ?? soundConfig.onApprovalRequired,
+                    approvalSoundFile:
+                        preferences.sounds?.approvalSoundFile ?? soundConfig.approvalSoundFile,
+                    onTaskComplete:
+                        preferences.sounds?.onTaskComplete ?? soundConfig.onTaskComplete,
+                    completeSoundFile:
+                        preferences.sounds?.completeSoundFile ?? soundConfig.completeSoundFile,
+                };
+            } catch (error) {
+                // Continue with default sounds - this is non-critical functionality
+                agent.logger.debug(
+                    `Sound preferences could not be loaded: ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
+        }
+
+        // Always create the service so sound settings can be toggled at runtime (service gates playback by config)
+        soundService = new SoundNotificationServiceImpl(soundConfig);
+        soundService.playStartupSound();
+    } catch (error) {
+        agent.logger.debug(
+            `Sound initialization failed: ${error instanceof Error ? error.message : String(error)}`
+        );
+        soundService = null;
+    }
+
+    // Initialize tool preferences (per-agent)
+    if (agentPreferencesExistFn(agent.config.agentId) && loadAgentPreferencesFn) {
         try {
-            const preferences = await loadGlobalPreferences();
-            soundConfig = {
-                enabled: preferences.sounds?.enabled ?? soundConfig.enabled,
-                onApprovalRequired:
-                    preferences.sounds?.onApprovalRequired ?? soundConfig.onApprovalRequired,
-                onTaskComplete: preferences.sounds?.onTaskComplete ?? soundConfig.onTaskComplete,
-            };
+            const preferences = await loadAgentPreferencesFn(agent.config.agentId);
+            agent.setGlobalDisabledTools(preferences.tools?.disabled ?? []);
         } catch (error) {
-            // Log at debug level to help troubleshoot sound configuration issues
-            // Continue with default sounds - this is non-critical functionality
             agent.logger.debug(
-                `Sound preferences could not be loaded: ${error instanceof Error ? error.message : String(error)}`
+                `Agent tool preferences could not be loaded: ${error instanceof Error ? error.message : String(error)}`
             );
         }
-    }
-    if (soundConfig.enabled) {
-        soundService = new SoundNotificationService(soundConfig);
     }
 
     const inkApp = render(
         <InkCLIRefactored
             agent={agent}
             initialSessionId={initialSessionId}
+            initialPrompt={options.initialPrompt}
             startupInfo={startupInfo}
             soundService={soundService}
+            configFilePath={options.configFilePath ?? null}
         />,
         {
             exitOnCtrlC: false,

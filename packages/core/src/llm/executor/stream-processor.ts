@@ -6,7 +6,7 @@ import { truncateToolResult } from './tool-output-truncator.js';
 import { StreamProcessorResult } from './types.js';
 import { sanitizeToolResult } from '../../context/utils.js';
 import type { SanitizedToolResult } from '../../context/types.js';
-import { IDextoLogger } from '../../logger/v2/types.js';
+import { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { LLMProvider, ReasoningPreset, TokenUsage } from '../types.js';
 
@@ -21,6 +21,35 @@ type UsageLike = {
         cacheReadTokens?: number | undefined;
         cacheWriteTokens?: number | undefined;
     };
+};
+
+type FullStreamPart =
+    StreamTextResult<VercelToolSet, unknown>['fullStream'] extends AsyncIterable<infer Part>
+        ? Part
+        : never;
+
+// Defensive widenings: SDK v5 fields may drift between releases, so keep optional fallbacks.
+type ToolInputStartEvent = Extract<FullStreamPart, { type: 'tool-input-start' }> & {
+    toolCallId?: string;
+    toolName?: string;
+    id?: string;
+    name?: string;
+};
+
+type ToolInputDeltaEvent = Extract<FullStreamPart, { type: 'tool-input-delta' }> & {
+    toolCallId?: string;
+    toolName?: string;
+    inputTextDelta?: string;
+    argsTextDelta?: string;
+    delta?: string;
+    textDelta?: string;
+    id?: string;
+    name?: string;
+};
+
+type ToolInputEndEvent = Extract<FullStreamPart, { type: 'tool-input-end' }> & {
+    toolCallId?: string;
+    id?: string;
 };
 
 export interface StreamProcessorConfig {
@@ -41,13 +70,14 @@ export class StreamProcessor {
     private reasoningText: string = '';
     private reasoningMetadata: Record<string, unknown> | undefined;
     private accumulatedText: string = '';
-    private logger: IDextoLogger;
+    private logger: Logger;
     private hasStepUsage = false;
     /**
      * Track pending tool calls (added to context but no result yet).
      * On cancel/abort, we add synthetic "cancelled" results to maintain tool_use/tool_result pairing.
      */
     private pendingToolCalls: Map<string, { toolName: string }> = new Map();
+    private partialToolCalls: Map<string, { toolName: string; argsText: string }> = new Map();
 
     /**
      * @param contextManager Context manager for message persistence
@@ -57,7 +87,7 @@ export class StreamProcessor {
      * @param config Provider/model configuration
      * @param logger Logger instance
      * @param streaming If true, emits llm:chunk events. Default true.
-     * @param approvalMetadata Map of tool call IDs to approval metadata
+     * @param toolCallMetadata Map of tool call IDs to tool-call metadata (approval + display name)
      */
     constructor(
         private contextManager: ContextManager,
@@ -65,11 +95,15 @@ export class StreamProcessor {
         private resourceManager: ResourceManager,
         private abortSignal: AbortSignal,
         private config: StreamProcessorConfig,
-        logger: IDextoLogger,
+        logger: Logger,
         private streaming: boolean = true,
-        private approvalMetadata?: Map<
+        private toolCallMetadata?: Map<
             string,
-            { requireApproval: boolean; approvalStatus?: 'approved' | 'rejected' }
+            {
+                toolDisplayName?: string;
+                requireApproval?: boolean;
+                approvalStatus?: 'approved' | 'rejected';
+            }
         >
     ) {
         this.logger = logger.createChild(DextoLogComponent.EXECUTOR);
@@ -79,6 +113,52 @@ export class StreamProcessor {
         streamFn: () => StreamTextResult<VercelToolSet, unknown>
     ): Promise<StreamProcessorResult> {
         const stream = streamFn();
+
+        const handleToolInputStart = (evt: ToolInputStartEvent) => {
+            const toolCallId = evt.toolCallId ?? evt.id ?? undefined;
+            const toolName = evt.toolName ?? evt.name ?? 'unknown';
+            if (toolCallId) {
+                this.partialToolCalls.set(toolCallId, { toolName, argsText: '' });
+            }
+        };
+
+        const handleToolInputDelta = (evt: ToolInputDeltaEvent) => {
+            const toolCallId = evt.toolCallId ?? evt.id ?? undefined;
+            const toolName = evt.toolName ?? evt.name ?? 'unknown';
+            if (!toolCallId) return;
+            const entry = this.partialToolCalls.get(toolCallId) ?? { toolName, argsText: '' };
+            const deltaText =
+                evt.argsTextDelta ?? evt.inputTextDelta ?? evt.delta ?? evt.textDelta ?? '';
+            if (typeof deltaText === 'string' && deltaText.length > 0) {
+                entry.argsText += deltaText;
+                this.partialToolCalls.set(toolCallId, entry);
+                const parsed = tryParsePartialJson(entry.argsText);
+                if (parsed) {
+                    this.eventBus.emit('llm:tool-call-partial', {
+                        toolName: entry.toolName,
+                        args: parsed,
+                        callId: toolCallId,
+                    });
+                }
+            }
+        };
+
+        const handleToolInputEnd = (evt: ToolInputEndEvent) => {
+            const toolCallId = evt.toolCallId ?? evt.id ?? undefined;
+            const entry = toolCallId ? this.partialToolCalls.get(toolCallId) : undefined;
+            if (toolCallId && entry) {
+                const parsed = tryParsePartialJson(entry.argsText);
+                if (parsed) {
+                    this.eventBus.emit('llm:tool-call-partial', {
+                        toolName: entry.toolName,
+                        args: parsed,
+                        callId: toolCallId,
+                        isComplete: true,
+                    });
+                }
+                this.partialToolCalls.delete(toolCallId);
+            }
+        };
 
         try {
             for await (const event of stream.fullStream) {
@@ -132,6 +212,21 @@ export class StreamProcessor {
                         }
                         break;
 
+                    case 'tool-input-start': {
+                        handleToolInputStart(event);
+                        break;
+                    }
+
+                    case 'tool-input-delta': {
+                        handleToolInputDelta(event);
+                        break;
+                    }
+
+                    case 'tool-input-end': {
+                        handleToolInputEnd(event);
+                        break;
+                    }
+
                     case 'tool-call': {
                         // Create tool call record
                         if (!this.assistantMessageId) {
@@ -167,6 +262,7 @@ export class StreamProcessor {
                         this.pendingToolCalls.set(event.toolCallId, {
                             toolName: event.toolName,
                         });
+                        this.partialToolCalls.delete(event.toolCallId);
 
                         // NOTE: llm:tool-call is now emitted from ToolManager.executeTool() instead.
                         // This ensures correct event ordering - llm:tool-call arrives before approval:request.
@@ -200,35 +296,39 @@ export class StreamProcessor {
                         // Truncate
                         const truncated = truncateToolResult(sanitized);
 
-                        // Get approval metadata for this tool call
-                        const approval = this.approvalMetadata?.get(event.toolCallId);
+                        // Get tool-call metadata for this tool call
+                        const metadata = this.toolCallMetadata?.get(event.toolCallId);
 
                         // Persist to history (success status comes from truncated.meta.success)
                         await this.contextManager.addToolResult(
                             event.toolCallId,
                             event.toolName,
                             truncated, // Includes meta.success from sanitization
-                            approval // Only approval metadata if present
+                            metadata // Only tool-call metadata if present
                         );
 
                         this.eventBus.emit('llm:tool-result', {
                             toolName: event.toolName,
+                            ...(metadata?.toolDisplayName !== undefined && {
+                                toolDisplayName: metadata.toolDisplayName,
+                            }),
                             callId: event.toolCallId,
                             success: true,
                             sanitized: truncated,
                             rawResult: rawResult,
-                            ...(approval?.requireApproval !== undefined && {
-                                requireApproval: approval.requireApproval,
+                            ...(metadata?.requireApproval !== undefined && {
+                                requireApproval: metadata.requireApproval,
                             }),
-                            ...(approval?.approvalStatus !== undefined && {
-                                approvalStatus: approval.approvalStatus,
+                            ...(metadata?.approvalStatus !== undefined && {
+                                approvalStatus: metadata.approvalStatus,
                             }),
                         });
 
                         // Clean up approval metadata after use
-                        this.approvalMetadata?.delete(event.toolCallId);
+                        this.toolCallMetadata?.delete(event.toolCallId);
                         // Remove from pending (tool completed successfully)
                         this.pendingToolCalls.delete(event.toolCallId);
+                        this.partialToolCalls.delete(event.toolCallId);
                         break;
                     }
 
@@ -430,6 +530,7 @@ export class StreamProcessor {
                         });
                         // Remove from pending (tool failed but result was persisted)
                         this.pendingToolCalls.delete(event.toolCallId);
+                        this.partialToolCalls.delete(event.toolCallId);
                         break;
                     }
 
@@ -666,4 +767,71 @@ export class StreamProcessor {
 
         this.pendingToolCalls.clear();
     }
+}
+
+function tryParsePartialJson(input: string): Record<string, unknown> | null {
+    const trimmed = input.trim();
+    if (!trimmed) return null;
+    if (!trimmed.startsWith('{')) return null;
+
+    let repaired = trimmed;
+
+    let openBraces = 0;
+    let openBrackets = 0;
+    let inString = false;
+    let isEscaped = false;
+
+    for (let i = 0; i < repaired.length; i += 1) {
+        const char = repaired[i];
+        if (inString) {
+            if (isEscaped) {
+                isEscaped = false;
+                continue;
+            }
+            if (char === '\\') {
+                isEscaped = true;
+                continue;
+            }
+            if (char === '"') {
+                inString = false;
+            }
+            continue;
+        }
+
+        if (char === '"') {
+            inString = true;
+            continue;
+        }
+        if (char === '{') openBraces += 1;
+        if (char === '}') openBraces = Math.max(0, openBraces - 1);
+        if (char === '[') openBrackets += 1;
+        if (char === ']') openBrackets = Math.max(0, openBrackets - 1);
+    }
+
+    if (!inString) {
+        repaired = repaired.replace(/,\s*$/, '');
+    }
+    if (inString) {
+        if (isEscaped) {
+            repaired = repaired.slice(0, -1);
+        }
+        repaired += '"';
+    }
+    if (openBrackets > 0) {
+        repaired += ']'.repeat(openBrackets);
+    }
+    if (openBraces > 0) {
+        repaired += '}'.repeat(openBraces);
+    }
+
+    try {
+        const parsed = JSON.parse(repaired) as unknown;
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            return parsed as Record<string, unknown>;
+        }
+    } catch {
+        return null;
+    }
+
+    return null;
 }

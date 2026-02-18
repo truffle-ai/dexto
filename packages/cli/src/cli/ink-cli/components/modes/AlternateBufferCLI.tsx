@@ -31,6 +31,7 @@ import { StatusBar } from '../StatusBar.js';
 import { HistorySearchBar } from '../HistorySearchBar.js';
 import { Footer } from '../Footer.js';
 import { TodoPanel } from '../TodoPanel.js';
+import { BackgroundTasksPanel } from '../BackgroundTasksPanel.js';
 import {
     VirtualizedList,
     SCROLL_TO_ITEM_END,
@@ -47,7 +48,9 @@ type ListItem = { type: 'header' } | { type: 'message'; message: Message };
 interface AlternateBufferCLIProps {
     agent: DextoAgent;
     initialSessionId: string | null;
+    initialPrompt?: string | undefined;
     startupInfo: StartupInfo;
+    configFilePath: string | null;
     /** Callback when user attempts to select text (drag without Option key) */
     onSelectionAttempt?: () => void;
     /** Whether to stream chunks or wait for complete response */
@@ -57,7 +60,9 @@ interface AlternateBufferCLIProps {
 export function AlternateBufferCLI({
     agent,
     initialSessionId,
+    initialPrompt,
     startupInfo,
+    configFilePath,
     onSelectionAttempt,
     useStreaming = true,
 }: AlternateBufferCLIProps) {
@@ -315,6 +320,14 @@ export function AlternateBufferCLI({
                     hasTodos={todos.some((t) => t.status !== 'completed')}
                     planModeActive={ui.planModeActive}
                     autoApproveEdits={ui.autoApproveEdits}
+                    backgroundTasksRunning={ui.backgroundTasksRunning}
+                />
+
+                {/* Background tasks panel */}
+                <BackgroundTasksPanel
+                    tasks={ui.backgroundTasks}
+                    isExpanded={ui.backgroundTasksExpanded}
+                    isProcessing={ui.isProcessing}
                 />
 
                 {/* Todo panel - shown below status bar */}
@@ -343,6 +356,7 @@ export function AlternateBufferCLI({
                     input={input}
                     ui={ui}
                     session={session}
+                    initialPrompt={initialPrompt}
                     approval={approval}
                     queuedMessages={queuedMessages}
                     setInput={setInput}
@@ -359,6 +373,7 @@ export function AlternateBufferCLI({
                     inputService={inputService}
                     onKeyboardScroll={handleKeyboardScroll}
                     useStreaming={useStreaming}
+                    configFilePath={configFilePath}
                 />
 
                 <OverlayContainer
@@ -377,6 +392,7 @@ export function AlternateBufferCLI({
                     inputService={inputService}
                     buffer={buffer}
                     onSubmitPromptCommand={handleSubmitPromptCommand}
+                    configFilePath={configFilePath}
                 />
 
                 {/* Exit warning (Ctrl+C pressed once) - shown above footer */}

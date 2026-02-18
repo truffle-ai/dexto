@@ -4,15 +4,15 @@
  * Internal tool for reading file contents with size limits and pagination
  */
 
-import * as path from 'node:path';
 import { z } from 'zod';
-import { InternalTool, ToolExecutionContext, ApprovalType } from '@dexto/core';
-import type { FileDisplayData, ApprovalRequestDetails, ApprovalResponse } from '@dexto/core';
-import type { FileToolOptions } from './file-tool-types.js';
+import { defineTool } from '@dexto/core';
+import type { FileDisplayData, Tool, ToolExecutionContext } from '@dexto/core';
+import type { FileSystemServiceGetter } from './file-tool-types.js';
+import { createDirectoryAccessApprovalHandlers, resolveFilePath } from './directory-approval.js';
 
 const ReadFileInputSchema = z
     .object({
-        file_path: z.string().describe('Absolute path to the file to read'),
+        file_path: z.string().min(1).describe('Absolute path to the file to read'),
         limit: z
             .number()
             .int()
@@ -28,83 +28,40 @@ const ReadFileInputSchema = z
     })
     .strict();
 
-type ReadFileInput = z.input<typeof ReadFileInputSchema>;
-
 /**
  * Create the read_file internal tool with directory approval support
  */
-export function createReadFileTool(options: FileToolOptions): InternalTool {
-    const { fileSystemService, directoryApproval } = options;
-
-    // Store parent directory for use in onApprovalGranted callback
-    let pendingApprovalParentDir: string | undefined;
-
-    return {
+export function createReadFileTool(
+    getFileSystemService: FileSystemServiceGetter
+): Tool<typeof ReadFileInputSchema> {
+    return defineTool({
         id: 'read_file',
+        displayName: 'Read',
+        aliases: ['read'],
         description:
             'Read the contents of a file with optional pagination. Returns file content, line count, encoding, and whether the output was truncated. Use limit and offset parameters for large files to read specific sections. This tool is for reading files within allowed paths only.',
         inputSchema: ReadFileInputSchema,
 
-        /**
-         * Check if this read operation needs directory access approval.
-         * Returns custom approval request if the file is outside allowed paths.
-         */
-        getApprovalOverride: async (args: unknown): Promise<ApprovalRequestDetails | null> => {
-            const { file_path } = args as ReadFileInput;
-            if (!file_path) return null;
+        ...createDirectoryAccessApprovalHandlers({
+            toolName: 'read_file',
+            operation: 'read',
+            getFileSystemService,
+            resolvePaths: (input, fileSystemService) =>
+                resolveFilePath(fileSystemService.getWorkingDirectory(), input.file_path),
+        }),
 
-            // Check if path is within config-allowed paths (async for non-blocking symlink resolution)
-            const isAllowed = await fileSystemService.isPathWithinConfigAllowed(file_path);
-            if (isAllowed) {
-                return null; // Use normal tool confirmation
-            }
+        async execute(input, context: ToolExecutionContext) {
+            const resolvedFileSystemService = await getFileSystemService(context);
 
-            // Check if directory is already session-approved
-            if (directoryApproval?.isSessionApproved(file_path)) {
-                return null; // Already approved, use normal flow
-            }
-
-            // Need directory access approval
-            const absolutePath = path.resolve(file_path);
-            const parentDir = path.dirname(absolutePath);
-            pendingApprovalParentDir = parentDir;
-
-            return {
-                type: ApprovalType.DIRECTORY_ACCESS,
-                metadata: {
-                    path: absolutePath,
-                    parentDir,
-                    operation: 'read',
-                    toolName: 'read_file',
-                },
-            };
-        },
-
-        /**
-         * Handle approved directory access - remember the directory for session
-         */
-        onApprovalGranted: (response: ApprovalResponse): void => {
-            if (!directoryApproval || !pendingApprovalParentDir) return;
-
-            // Check if user wants to remember the directory
-            // Use type assertion to access rememberDirectory since response.data is a union type
-            const data = response.data as { rememberDirectory?: boolean } | undefined;
-            const rememberDirectory = data?.rememberDirectory ?? false;
-            directoryApproval.addApproved(
-                pendingApprovalParentDir,
-                rememberDirectory ? 'session' : 'once'
+            // Input is validated by provider before reaching here
+            const { file_path, limit, offset } = input;
+            const { path: resolvedPath } = resolveFilePath(
+                resolvedFileSystemService.getWorkingDirectory(),
+                file_path
             );
 
-            // Clear pending state
-            pendingApprovalParentDir = undefined;
-        },
-
-        execute: async (input: unknown, _context?: ToolExecutionContext) => {
-            // Input is validated by provider before reaching here
-            const { file_path, limit, offset } = input as ReadFileInput;
-
             // Read file using FileSystemService
-            const result = await fileSystemService.readFile(file_path, {
+            const result = await resolvedFileSystemService.readFile(resolvedPath, {
                 limit,
                 offset,
             });
@@ -112,7 +69,7 @@ export function createReadFileTool(options: FileToolOptions): InternalTool {
             // Build display data
             const _display: FileDisplayData = {
                 type: 'file',
-                path: file_path,
+                path: resolvedPath,
                 operation: 'read',
                 size: result.size,
                 lineCount: result.lines,
@@ -128,5 +85,5 @@ export function createReadFileTool(options: FileToolOptions): InternalTool {
                 _display,
             };
         },
-    };
+    });
 }

@@ -3,7 +3,7 @@ import { MessageQueueService } from './message-queue.js';
 import type { SessionEventBus } from '../events/index.js';
 import type { ContentPart } from '../context/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 
 // Create a mock SessionEventBus
 function createMockEventBus(): SessionEventBus {
@@ -18,7 +18,7 @@ function createMockEventBus(): SessionEventBus {
 
 describe('MessageQueueService', () => {
     let eventBus: SessionEventBus;
-    let logger: IDextoLogger;
+    let logger: Logger;
     let queue: MessageQueueService;
 
     beforeEach(() => {
@@ -121,6 +121,7 @@ describe('MessageQueueService', () => {
                 ids: expect.arrayContaining([expect.stringMatching(/^msg_/)]),
                 coalesced: true,
                 content: expect.any(Array),
+                messages: expect.any(Array),
             });
         });
 
@@ -134,6 +135,7 @@ describe('MessageQueueService', () => {
                 ids: expect.any(Array),
                 coalesced: false,
                 content: [{ type: 'text', text: 'solo' }],
+                messages: expect.any(Array),
             });
         });
     });
@@ -209,6 +211,22 @@ describe('MessageQueueService', () => {
                 image: 'base64img2',
                 mimeType: 'image/jpeg',
             });
+        });
+
+        it('should tag user messages in mixed batches', () => {
+            queue.enqueue({ content: [{ type: 'text', text: 'user note' }] });
+            queue.enqueue({
+                content: [{ type: 'text', text: 'bg payload' }],
+                kind: 'background',
+            });
+
+            const result = queue.dequeueAll();
+
+            expect(result?.combinedContent[0]).toEqual({
+                type: 'text',
+                text: 'User follow-up 1: user note',
+            });
+            expect(result?.combinedContent[2]).toEqual({ type: 'text', text: 'bg payload' });
         });
 
         it('should handle empty message content with placeholder', () => {

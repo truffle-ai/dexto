@@ -7,20 +7,18 @@ import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { SkillsContributor } from '../systemPrompt/contributors.js';
 import { ResourceManager, expandMessageReferences } from '../resources/index.js';
 import { expandBlobReferences } from '../context/utils.js';
+import { StorageManager } from '../storage/index.js';
 import type { InternalMessage } from '../context/types.js';
 import { PromptManager } from '../prompts/index.js';
 import type { PromptsConfig } from '../prompts/schemas.js';
 import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
 import type { SessionMetadata } from '../session/index.js';
-import { AgentServices } from '../utils/service-initializer.js';
-import { createLogger } from '../logger/factory.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
-import { DextoLogComponent } from '../logger/v2/types.js';
+import { AgentServices, type InitializeServicesOptions } from '../utils/service-initializer.js';
+import type { Logger } from '../logger/v2/types.js';
 import { Telemetry } from '../telemetry/telemetry.js';
 import { InstrumentClass } from '../telemetry/decorators.js';
 import { trace, context, propagation, type BaggageEntry } from '@opentelemetry/api';
-import { ValidatedLLMConfig, LLMUpdates, LLMUpdatesSchema } from '@core/llm/schemas.js';
 import { resolveAndValidateLLMConfig } from '../llm/resolver.js';
 import { validateInputForLLM } from '../llm/validation.js';
 import { LLMError } from '../llm/errors.js';
@@ -29,10 +27,10 @@ import { MCPError } from '../mcp/errors.js';
 import { MCPErrorCode } from '../mcp/error-codes.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { DextoValidationError } from '../errors/DextoValidationError.js';
-import { ensureOk } from '@core/errors/result-bridge.js';
-import { fail, zodToIssues } from '@core/utils/result.js';
+import { ensureOk } from '../errors/result-bridge.js';
+import { fail, zodToIssues } from '../utils/result.js';
 import { resolveAndValidateMcpServerConfig } from '../mcp/resolver.js';
-import type { McpServerConfig, McpServerStatus, McpConnectionStatus } from '@core/mcp/schemas.js';
+import type { McpServerConfig, McpServerStatus, McpConnectionStatus } from '../mcp/schemas.js';
 import {
     getSupportedProviders,
     getDefaultModelForProvider,
@@ -42,21 +40,35 @@ import {
 import type { ModelInfo } from '../llm/registry/index.js';
 import type { LLMProvider } from '../llm/types.js';
 import { createAgentServices } from '../utils/service-initializer.js';
-import type { AgentConfig, ValidatedAgentConfig, LLMValidationOptions } from './schemas.js';
-import { AgentConfigSchema, createAgentConfigSchema } from './schemas.js';
+import { LLMConfigSchema, LLMUpdatesSchema } from '../llm/schemas.js';
+import type { LLMUpdates, ValidatedLLMConfig } from '../llm/schemas.js';
+import { ServersConfigSchema } from '../mcp/schemas.js';
+import { MemoriesConfigSchema } from '../memory/schemas.js';
+import { PromptsSchema } from '../prompts/schemas.js';
+import { ResourcesConfigSchema } from '../resources/schemas.js';
+import { SessionConfigSchema } from '../session/schemas.js';
+import { SystemPromptConfigSchema } from '../systemPrompt/schemas.js';
+import { ElicitationConfigSchema, PermissionsConfigSchema } from '../tools/schemas.js';
+import { OtelConfigurationSchema } from '../telemetry/schemas.js';
+import { AgentCardSchema } from './schemas.js';
+import type { AgentRuntimeSettings, DextoAgentConfigInput } from './runtime-config.js';
 import {
     AgentEventBus,
     type AgentEventMap,
     type StreamingEvent,
     type StreamingEventName,
 } from '../events/index.js';
-import type { IMCPClient } from '../mcp/types.js';
-import type { ToolSet } from '../tools/types.js';
+import type { McpClient } from '../mcp/types.js';
+import type { Tool, ToolSet } from '../tools/types.js';
+import type { CompactionStrategy } from '../context/compaction/types.js';
 import { SearchService } from '../search/index.js';
 import type { SearchOptions, SearchResponse, SessionSearchResponse } from '../search/index.js';
-import { safeStringify } from '@core/utils/safe-stringify.js';
+import { safeStringify } from '../utils/safe-stringify.js';
 import { deriveHeuristicTitle, generateSessionTitle } from '../session/title-generator.js';
 import type { ApprovalHandler } from '../approval/types.js';
+import type { DextoAgentOptions } from './agent-options.js';
+import type { WorkspaceManager } from '../workspace/manager.js';
+import type { SetWorkspaceInput, WorkspaceContext } from '../workspace/types.js';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
@@ -65,6 +77,7 @@ const requiredServices: (keyof AgentServices)[] = [
     'agentEventBus',
     'stateManager',
     'sessionManager',
+    'workspaceManager',
     'searchService',
     'memoryManager',
 ];
@@ -103,7 +116,14 @@ export interface AgentEventSubscriber {
  * @example
  * ```typescript
  * // Create and start agent
- * const agent = new DextoAgent(config);
+ * // (Host layers parse/validate config and resolve DI services before constructing the agent.)
+ * const agent = new DextoAgent({
+ *   ...runtimeSettings, // validated AgentRuntimeSettings
+ *   logger,
+ *   storage,
+ *   tools,
+ *   hooks,
+ * });
  * await agent.start();
  *
  * // Process user messages
@@ -113,8 +133,8 @@ export interface AgentEventSubscriber {
  * await agent.switchLLM({ model: 'gpt-5' });
  *
  * // Manage sessions
- * const session = agent.createSession('user-123');
- * const response = await agent.run("Hello", undefined, 'user-123');
+ * const session = await agent.createSession('user-123');
+ * const response = await agent.run("Hello", undefined, undefined, session.id);
  *
  * // Connect MCP servers
  * await agent.addMcpServer('filesystem', { command: 'mcp-filesystem' });
@@ -135,6 +155,10 @@ export interface AgentEventSubscriber {
         'getConfig',
         'getEffectiveConfig',
         'registerSubscriber',
+        'on',
+        'once',
+        'off',
+        'emit',
         'ensureStarted',
     ],
 })
@@ -146,10 +170,11 @@ export class DextoAgent {
      */
     public readonly mcpManager!: MCPManager;
     public readonly systemPromptManager!: SystemPromptManager;
-    public readonly agentEventBus!: AgentEventBus;
+    private readonly agentEventBus: AgentEventBus;
     public readonly promptManager!: PromptManager;
     public readonly stateManager!: AgentStateManager;
     public readonly sessionManager!: SessionManager;
+    public readonly workspaceManager!: WorkspaceManager;
     public readonly toolManager!: ToolManager;
     public readonly resourceManager!: ResourceManager;
     public readonly memoryManager!: import('../memory/index.js').MemoryManager;
@@ -163,7 +188,7 @@ export class DextoAgent {
     private _isStopped: boolean = false;
 
     // Store config for async initialization (accessible before start() for setup)
-    public config: ValidatedAgentConfig;
+    public config: AgentRuntimeSettings;
 
     // Event subscribers (e.g., SSE, Webhook handlers)
     private eventSubscribers: Set<AgentEventSubscriber> = new Set();
@@ -180,65 +205,97 @@ export class DextoAgent {
     private activeStreamControllers: Map<string, AbortController> = new Map();
 
     // Host overrides for service initialization (e.g. session logger factory)
-    private serviceOverrides?: {
-        sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
-        mcpAuthProviderFactory?: import('../mcp/types.js').McpAuthProviderFactory | null;
-    };
+    private readonly overrides: InitializeServicesOptions;
+
+    // DI-provided local tools.
+    private readonly tools: Tool[];
+    private readonly compactionStrategy: CompactionStrategy | null;
 
     // Logger instance for this agent (dependency injection)
-    public readonly logger: IDextoLogger;
+    public readonly logger: Logger;
+
+    /**
+     * Validate + normalize runtime settings.
+     *
+     * This is the single validation boundary for programmatic (code-first) construction.
+     * Host layers may validate earlier (e.g. YAML parsing), but core always normalizes
+     * runtime settings before use.
+     */
+    public static validateConfig(options: DextoAgentConfigInput): AgentRuntimeSettings {
+        return {
+            agentId: options.agentId,
+            llm: LLMConfigSchema.parse(options.llm),
+            systemPrompt: SystemPromptConfigSchema.parse(options.systemPrompt),
+            mcpServers: ServersConfigSchema.parse(options.mcpServers ?? {}),
+            sessions: SessionConfigSchema.parse(options.sessions ?? {}),
+            permissions: PermissionsConfigSchema.parse(options.permissions ?? {}),
+            elicitation: ElicitationConfigSchema.parse(options.elicitation ?? {}),
+            resources: ResourcesConfigSchema.parse(options.resources ?? []),
+            prompts: PromptsSchema.parse(options.prompts),
+            ...(options.agentCard !== undefined && {
+                agentCard: AgentCardSchema.parse(options.agentCard),
+            }),
+            ...(options.greeting !== undefined && { greeting: options.greeting }),
+            ...(options.telemetry !== undefined && {
+                telemetry: OtelConfigurationSchema.parse(options.telemetry),
+            }),
+            ...(options.memories !== undefined && {
+                memories: MemoriesConfigSchema.parse(options.memories),
+            }),
+        };
+    }
 
     /**
      * Creates a DextoAgent instance.
      *
-     * @param config - Agent configuration (validated and enriched)
-     * @param configPath - Optional path to config file (for relative path resolution)
-     * @param options - Validation options
-     * @param options.strict - When true (default), enforces API key and baseURL requirements.
-     *                         When false, allows missing credentials for interactive configuration.
+     * Constructor options are DI-first:
+     * - runtime settings (validated + defaulted by core)
+     * - concrete services (logger/tools/hooks/storage backends)
+     * - optional internal service overrides (session logging, auth factories, etc.)
      */
-    constructor(
-        config: AgentConfig,
-        private configPath?: string,
-        options?: LLMValidationOptions & {
-            sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
-            mcpAuthProviderFactory?: import('../mcp/types.js').McpAuthProviderFactory | null;
-        }
-    ) {
-        // Validate and transform the input config using appropriate schema
-        const schema =
-            options?.strict === false
-                ? createAgentConfigSchema({ strict: false })
-                : AgentConfigSchema;
-        this.config = schema.parse(config);
+    constructor(options: DextoAgentOptions) {
+        const {
+            logger,
+            storage,
+            tools: toolsInput,
+            hooks: hooksInput,
+            compaction,
+            overrides: overridesInput,
+            ...runtimeSettings
+        } = options;
 
-        // Create logger instance for this agent
-        // agentId is set by CLI enrichment from agentCard.name or filename
-        this.logger = createLogger({
-            config: this.config.logger,
-            agentId: this.config.agentId,
-            component: DextoLogComponent.AGENT,
-        });
+        const tools = toolsInput ?? [];
+        const hooks = hooksInput ?? [];
 
-        // Capture host overrides to apply during start() when services are created.
-        const serviceOverrides: {
-            sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
-            mcpAuthProviderFactory?: import('../mcp/types.js').McpAuthProviderFactory | null;
-        } = {};
+        this.config = DextoAgent.validateConfig(runtimeSettings);
 
-        if (options?.sessionLoggerFactory) {
-            serviceOverrides.sessionLoggerFactory = options.sessionLoggerFactory;
-        }
-        if (options && 'mcpAuthProviderFactory' in options) {
-            serviceOverrides.mcpAuthProviderFactory = options.mcpAuthProviderFactory ?? null;
-        }
+        // Agent logger is always provided by the host (typically created from config).
+        this.logger = logger;
 
-        if (Object.keys(serviceOverrides).length > 0) {
-            this.serviceOverrides = serviceOverrides;
+        this.tools = tools;
+        this.compactionStrategy = compaction ?? null;
+
+        const overrides: InitializeServicesOptions = { ...(overridesInput ?? {}) };
+
+        if (overrides.storageManager === undefined) {
+            overrides.storageManager = new StorageManager(
+                {
+                    cache: storage.cache,
+                    database: storage.database,
+                    blobStore: storage.blob,
+                },
+                this.logger
+            );
         }
 
-        if (options?.mcpAuthProviderFactory) {
-            this.mcpAuthProviderFactory = options.mcpAuthProviderFactory;
+        if (overrides.hooks === undefined) {
+            overrides.hooks = hooks;
+        }
+
+        this.overrides = overrides;
+
+        if (overrides.mcpAuthProviderFactory !== undefined) {
+            this.mcpAuthProviderFactory = overrides.mcpAuthProviderFactory;
         }
 
         // Create event bus early so it's available for approval handler creation
@@ -267,10 +324,10 @@ export class DextoAgent {
             // Pass logger and eventBus to services for dependency injection
             const services = await createAgentServices(
                 this.config,
-                this.configPath,
                 this.logger,
                 this.agentEventBus,
-                this.serviceOverrides
+                this.overrides,
+                this.compactionStrategy
             );
 
             if (this.mcpAuthProviderFactory) {
@@ -289,12 +346,12 @@ export class DextoAgent {
             // Validate approval configuration
             // Handler is required for manual tool confirmation OR when elicitation is enabled
             const needsHandler =
-                this.config.toolConfirmation.mode === 'manual' || this.config.elicitation.enabled;
+                this.config.permissions.mode === 'manual' || this.config.elicitation.enabled;
 
             if (needsHandler && !this.approvalHandler) {
                 const reasons = [];
-                if (this.config.toolConfirmation.mode === 'manual') {
-                    reasons.push('tool confirmation mode is "manual"');
+                if (this.config.permissions.mode === 'manual') {
+                    reasons.push('permissions mode is "manual"');
                 }
                 if (this.config.elicitation.enabled) {
                     reasons.push('elicitation is enabled');
@@ -304,7 +361,7 @@ export class DextoAgent {
                     `An approval handler is required but not configured (${reasons.join(' and ')}).\n` +
                         'Either:\n' +
                         '  • Call agent.setApprovalHandler() before starting\n' +
-                        '  • Set toolConfirmation: { mode: "auto-approve" } or { mode: "auto-deny" }\n' +
+                        '  • Set permissions: { mode: "auto-approve" } or { mode: "auto-deny" }\n' +
                         '  • Disable elicitation: { enabled: false }'
                 );
             }
@@ -322,6 +379,7 @@ export class DextoAgent {
                 systemPromptManager: services.systemPromptManager,
                 stateManager: services.stateManager,
                 sessionManager: services.sessionManager,
+                workspaceManager: services.workspaceManager,
                 memoryManager: services.memoryManager,
                 services: services,
             });
@@ -340,16 +398,32 @@ export class DextoAgent {
             await promptManager.initialize();
             Object.assign(this, { promptManager });
 
-            // Set agent reference for custom tools (must be done before tool initialization)
-            // This allows custom tool providers to wire up bidirectional communication
-            services.toolManager.setAgent(this);
+            // Provide ToolExecutionContext to tools at runtime (late-binding to avoid init ordering cycles)
+            const toolExecutionStorage = {
+                blob: services.storageManager.getBlobStore(),
+                database: services.storageManager.getDatabase(),
+                cache: services.storageManager.getCache(),
+            };
+            const toolExecutionServices = {
+                approval: services.approvalManager,
+                search: services.searchService,
+                resources: services.resourceManager,
+                prompts: promptManager,
+                mcp: services.mcpManager,
+                taskForker: null,
+            };
+            services.toolManager.setToolExecutionContextFactory((baseContext) => ({
+                ...baseContext,
+                agent: this,
+                storage: toolExecutionStorage,
+                services: toolExecutionServices,
+            }));
 
-            // Set prompt manager for invoke_skill tool (must be done before tool initialization)
-            services.toolManager.setPromptManager(promptManager);
+            const agentTools = this.tools;
 
-            // Add skills contributor to system prompt if invoke_skill is enabled
-            // This lists available skills so the LLM knows what it can invoke
-            if (this.config.internalTools?.includes('invoke_skill')) {
+            // Add skills contributor to system prompt if invoke_skill is enabled.
+            // This lists available skills so the LLM knows what it can invoke.
+            if (agentTools.some((t) => t.id === 'invoke_skill')) {
                 const skillsContributor = new SkillsContributor(
                     'skills',
                     50, // Priority after memories (40) but before most other content
@@ -360,9 +434,9 @@ export class DextoAgent {
                 this.logger.debug('Added SkillsContributor to system prompt');
             }
 
-            // Initialize toolManager now that agent and promptManager references are set
-            // Custom tools need agent access for bidirectional communication
-            // invoke_skill tool needs promptManager access
+            services.toolManager.setTools(agentTools);
+
+            // Initialize toolManager after tools and context have been wired.
             await services.toolManager.initialize();
 
             // Initialize search service from services
@@ -420,16 +494,27 @@ export class DextoAgent {
                 shutdownErrors.push(new Error(`SessionManager cleanup failed: ${err.message}`));
             }
 
-            // 2. Clean up plugins (close file handles, connections, etc.)
-            // Do this before storage disconnect so plugins can flush state if needed
+            // 1.5 Clean up tool-managed resources (custom tool providers, subagents, etc.)
             try {
-                if (this.services?.pluginManager) {
-                    await this.services.pluginManager.cleanup();
-                    this.logger.debug('PluginManager cleaned up successfully');
+                if (this.toolManager) {
+                    await this.toolManager.cleanup();
+                    this.logger.debug('ToolManager cleaned up successfully');
                 }
             } catch (error) {
                 const err = error instanceof Error ? error : new Error(String(error));
-                shutdownErrors.push(new Error(`PluginManager cleanup failed: ${err.message}`));
+                shutdownErrors.push(new Error(`ToolManager cleanup failed: ${err.message}`));
+            }
+
+            // 2. Clean up hooks (close file handles, connections, etc.)
+            // Do this before storage disconnect so hooks can flush state if needed
+            try {
+                if (this.services?.hookManager) {
+                    await this.services.hookManager.cleanup();
+                    this.logger.debug('HookManager cleaned up successfully');
+                }
+            } catch (error) {
+                const err = error instanceof Error ? error : new Error(String(error));
+                shutdownErrors.push(new Error(`HookManager cleanup failed: ${err.message}`));
             }
 
             // 3. Disconnect all MCP clients
@@ -441,6 +526,17 @@ export class DextoAgent {
             } catch (error) {
                 const err = error instanceof Error ? error : new Error(String(error));
                 shutdownErrors.push(new Error(`MCPManager disconnect failed: ${err.message}`));
+            }
+
+            // 3.5 Clean up resource manager listeners
+            try {
+                if (this.resourceManager) {
+                    this.resourceManager.cleanup();
+                    this.logger.debug('ResourceManager cleaned up successfully');
+                }
+            } catch (error) {
+                const err = error instanceof Error ? error : new Error(String(error));
+                shutdownErrors.push(new Error(`ResourceManager cleanup failed: ${err.message}`));
             }
 
             // 4. Close storage backends
@@ -469,6 +565,8 @@ export class DextoAgent {
             } else {
                 this.logger.info('DextoAgent stopped successfully.');
             }
+
+            this.agentEventBus.emit('agent:stopped');
         } catch (error) {
             this.logger.error('Failed to stop DextoAgent', {
                 error: error instanceof Error ? error.message : String(error),
@@ -489,6 +587,44 @@ export class DextoAgent {
         if (this._isStarted) {
             subscriber.subscribe(this.agentEventBus);
         }
+    }
+
+    /**
+     * Convenience event subscription APIs (typed delegates to {@link AgentEventBus}).
+     *
+     * Prefer these over reaching into the internal event bus directly.
+     */
+    public on<K extends keyof AgentEventMap>(
+        event: K,
+        listener: AgentEventMap[K] extends void ? () => void : (payload: AgentEventMap[K]) => void,
+        options?: { signal?: AbortSignal }
+    ): this {
+        this.agentEventBus.on(event, listener, options);
+        return this;
+    }
+
+    public once<K extends keyof AgentEventMap>(
+        event: K,
+        listener: AgentEventMap[K] extends void ? () => void : (payload: AgentEventMap[K]) => void,
+        options?: { signal?: AbortSignal }
+    ): this {
+        this.agentEventBus.once(event, listener, options);
+        return this;
+    }
+
+    public off<K extends keyof AgentEventMap>(
+        event: K,
+        listener: AgentEventMap[K] extends void ? () => void : (payload: AgentEventMap[K]) => void
+    ): this {
+        this.agentEventBus.off(event, listener);
+        return this;
+    }
+
+    public emit<K extends keyof AgentEventMap>(
+        event: K,
+        ...args: AgentEventMap[K] extends void ? [] : [AgentEventMap[K]]
+    ): boolean {
+        return this.agentEventBus.emit(event, ...args);
     }
 
     /**
@@ -831,6 +967,15 @@ export class DextoAgent {
         };
         this.agentEventBus.on('llm:tool-call', toolCallListener, { signal: cleanupSignal });
         listeners.push({ event: 'llm:tool-call', listener: toolCallListener });
+
+        const toolCallPartialListener = (data: AgentEventMap['llm:tool-call-partial']) => {
+            if (data.sessionId !== sessionId) return;
+            eventQueue.push({ name: 'llm:tool-call-partial', ...data });
+        };
+        this.agentEventBus.on('llm:tool-call-partial', toolCallPartialListener, {
+            signal: cleanupSignal,
+        });
+        listeners.push({ event: 'llm:tool-call-partial', listener: toolCallPartialListener });
 
         const toolResultListener = (data: AgentEventMap['llm:tool-result']) => {
             if (data.sessionId !== sessionId) return;
@@ -1319,6 +1464,41 @@ export class DextoAgent {
         return !!streamController;
     }
 
+    // ============= WORKSPACE MANAGEMENT =============
+
+    /**
+     * Sets the active workspace for this runtime.
+     * The workspace context is persisted and emitted via the agent event bus.
+     */
+    public async setWorkspace(input: SetWorkspaceInput): Promise<WorkspaceContext> {
+        this.ensureStarted();
+        return await this.workspaceManager.setWorkspace(input);
+    }
+
+    /**
+     * Gets the currently active workspace, if any.
+     */
+    public async getWorkspace(): Promise<WorkspaceContext | undefined> {
+        this.ensureStarted();
+        return await this.workspaceManager.getWorkspace();
+    }
+
+    /**
+     * Clears the active workspace for this runtime.
+     */
+    public async clearWorkspace(): Promise<void> {
+        this.ensureStarted();
+        await this.workspaceManager.clearWorkspace();
+    }
+
+    /**
+     * Lists all known workspaces in storage.
+     */
+    public async listWorkspaces(): Promise<WorkspaceContext[]> {
+        this.ensureStarted();
+        return await this.workspaceManager.listWorkspaces();
+    }
+
     // ============= SESSION MANAGEMENT =============
 
     /**
@@ -1663,7 +1843,7 @@ export class DextoAgent {
         // Get full context estimate BEFORE compaction (includes system prompt, tools, messages)
         // This uses the same calculation as /context command for consistency
         const contributorContext = { mcpManager: this.mcpManager };
-        const tools = await llmService.getAllTools();
+        const tools = await llmService.getEnabledTools();
         const beforeEstimate = await contextManager.getContextTokenEstimate(
             contributorContext,
             tools
@@ -1678,7 +1858,11 @@ export class DextoAgent {
         });
 
         // Generate summary message(s)
-        const summaryMessages = await compactionStrategy.compact(history);
+        const summaryMessages = await compactionStrategy.compact(history, {
+            sessionId,
+            model: llmService.getLanguageModel(),
+            logger: session.logger,
+        });
 
         if (summaryMessages.length === 0) {
             this.logger.debug(`Compaction skipped for session ${sessionId} - nothing to compact`);
@@ -1801,7 +1985,7 @@ export class DextoAgent {
         // Get token estimate using ContextManager's method (single source of truth)
         const contributorContext = { mcpManager: this.mcpManager };
         const llmService = session.getLLMService();
-        const tools = await llmService.getAllTools();
+        const tools = await llmService.getEnabledTools();
 
         const tokenEstimate = await contextManager.getContextTokenEstimate(
             contributorContext,
@@ -1810,22 +1994,22 @@ export class DextoAgent {
 
         // Get raw history for hasSummary check
         const history = await contextManager.getHistory();
-        // Get the effective max context tokens (compaction threshold takes priority)
+        // Get the effective max context tokens from the configured compaction strategy (if any)
         const runtimeConfig = this.stateManager.getRuntimeConfig(sessionId);
-        const compactionConfig = runtimeConfig.compaction;
         const modelContextWindow = contextManager.getMaxInputTokens();
-        let maxContextTokens = modelContextWindow;
-
-        // Apply compaction config overrides (same logic as vercel.ts)
-        // 1. maxContextTokens caps the context window (e.g., use 50K even if model supports 200K)
-        if (compactionConfig?.maxContextTokens !== undefined) {
-            maxContextTokens = Math.min(maxContextTokens, compactionConfig.maxContextTokens);
-        }
-        // 2. thresholdPercent triggers compaction early (default 90% to avoid context rot)
-        const thresholdPercent = compactionConfig?.thresholdPercent ?? 0.9;
-        if (thresholdPercent < 1.0) {
-            maxContextTokens = Math.floor(maxContextTokens * thresholdPercent);
-        }
+        const compactionStrategy = this.compactionStrategy;
+        const compactionSettings = compactionStrategy?.getSettings();
+        const thresholdPercent =
+            compactionSettings && compactionSettings.enabled
+                ? compactionSettings.thresholdPercent
+                : 1.0;
+        const modelLimits = compactionStrategy
+            ? compactionStrategy.getModelLimits(modelContextWindow)
+            : { contextWindow: modelContextWindow };
+        const maxContextTokens =
+            thresholdPercent < 1.0
+                ? Math.floor(modelLimits.contextWindow * thresholdPercent)
+                : modelLimits.contextWindow;
 
         // Check if there's a summary in history (old isSummary or new isSessionSummary marker)
         const hasSummary = history.some(
@@ -2056,7 +2240,7 @@ export class DextoAgent {
     /**
      * Gets supported models for a specific provider.
      * Returns model information including metadata for the specified provider only.
-     * For gateway providers like 'dexto' with supportsAllRegistryModels, returns
+     * For gateway providers like 'dexto-nova' with supportsAllRegistryModels, returns
      * all models from all accessible providers with their original provider info.
      *
      * @param provider The provider to get models for
@@ -2183,6 +2367,88 @@ export class DextoAgent {
                 success: false,
                 error: errorMessage,
             });
+
+            throw MCPError.connectionFailed(name, errorMessage);
+        }
+    }
+
+    /**
+     * Updates an existing MCP server configuration and reconnects if needed.
+     * This is used when editing server params (timeout, headers, env, etc.).
+     *
+     * @param name The name of the server to update.
+     * @param config The updated configuration object.
+     * @throws MCPError if validation fails or reconnect fails.
+     */
+    public async updateMcpServer(name: string, config: McpServerConfig): Promise<void> {
+        this.ensureStarted();
+
+        const currentConfig = this.stateManager.getRuntimeConfig().mcpServers[name];
+        if (!currentConfig) {
+            throw MCPError.serverNotFound(name);
+        }
+
+        const existingServerNames = Object.keys(this.stateManager.getRuntimeConfig().mcpServers);
+        const validation = resolveAndValidateMcpServerConfig(name, config, existingServerNames);
+        const validatedConfig = ensureOk(validation, this.logger);
+
+        // Update runtime state first so the latest config is visible
+        this.stateManager.setMcpServer(name, validatedConfig);
+
+        const shouldEnable = validatedConfig.enabled !== false;
+        const hasClient = this.mcpManager.getClients().has(name);
+
+        if (!shouldEnable) {
+            if (hasClient) {
+                await this.mcpManager.removeClient(name);
+                await this.toolManager.refresh();
+            }
+            this.logger.info(`MCP server '${name}' updated (disabled)`);
+            return;
+        }
+
+        try {
+            if (hasClient) {
+                await this.mcpManager.removeClient(name);
+            }
+
+            await this.mcpManager.connectServer(name, validatedConfig);
+            await this.toolManager.refresh();
+
+            this.agentEventBus.emit('mcp:server-connected', { name, success: true });
+            this.agentEventBus.emit('tools:available-updated', {
+                tools: Object.keys(await this.toolManager.getAllTools()),
+                source: 'mcp',
+            });
+
+            this.logger.info(`MCP server '${name}' updated and reconnected successfully`);
+
+            const warnings = validation.issues.filter((i) => i.severity === 'warning');
+            if (warnings.length > 0) {
+                this.logger.warn(
+                    `MCP server updated with warnings: ${warnings.map((w) => w.message).join(', ')}`
+                );
+            }
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger.error(`Failed to update MCP server '${name}': ${errorMessage}`);
+
+            // Best-effort revert to previous config
+            this.stateManager.setMcpServer(name, currentConfig);
+            if (currentConfig.enabled !== false) {
+                try {
+                    await this.mcpManager.connectServer(name, currentConfig);
+                    await this.toolManager.refresh();
+                } catch (reconnectError) {
+                    const reconnectMsg =
+                        reconnectError instanceof Error
+                            ? reconnectError.message
+                            : String(reconnectError);
+                    this.logger.error(
+                        `Failed to restore MCP server '${name}' after update error: ${reconnectMsg}`
+                    );
+                }
+            }
 
             throw MCPError.connectionFailed(name, errorMessage);
         }
@@ -2386,11 +2652,111 @@ export class DextoAgent {
     }
 
     /**
+     * Gets tools enabled for LLM context (applies session overrides + global preferences).
+     */
+    public async getEnabledTools(sessionId?: string): Promise<ToolSet> {
+        this.ensureStarted();
+        if (sessionId !== undefined && (!sessionId || typeof sessionId !== 'string')) {
+            throw AgentError.apiValidationError('sessionId must be a non-empty string');
+        }
+        return this.toolManager.filterToolsForSession(
+            await this.toolManager.getAllTools(),
+            sessionId
+        );
+    }
+
+    /**
+     * Get global disabled tools (agent preferences).
+     */
+    public getGlobalDisabledTools(): string[] {
+        this.ensureStarted();
+        return this.toolManager.getGlobalDisabledTools();
+    }
+
+    /**
+     * Set global disabled tools (agent preferences).
+     */
+    public setGlobalDisabledTools(toolNames: string[]): void {
+        this.ensureStarted();
+        if (
+            !Array.isArray(toolNames) ||
+            toolNames.some((name) => !name || typeof name !== 'string')
+        ) {
+            throw AgentError.apiValidationError('toolNames must be an array of non-empty strings');
+        }
+        this.toolManager.setGlobalDisabledTools(toolNames);
+    }
+
+    /**
+     * Set session-level disabled tools (session override).
+     */
+    public setSessionDisabledTools(sessionId: string, toolNames: string[]): void {
+        this.ensureStarted();
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+        if (
+            !Array.isArray(toolNames) ||
+            toolNames.some((name) => !name || typeof name !== 'string')
+        ) {
+            throw AgentError.apiValidationError('toolNames must be an array of non-empty strings');
+        }
+        this.toolManager.setSessionDisabledTools(sessionId, toolNames);
+    }
+
+    /**
+     * Clear session-level disabled tools (session override).
+     */
+    public clearSessionDisabledTools(sessionId: string): void {
+        this.ensureStarted();
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+        this.toolManager.clearSessionDisabledTools(sessionId);
+    }
+
+    /**
+     * Get session-level auto-approve tools.
+     */
+    public getSessionAutoApproveTools(sessionId: string): string[] {
+        this.ensureStarted();
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+        return this.toolManager.getSessionUserAutoApproveTools(sessionId) ?? [];
+    }
+
+    /**
+     * Set session-level auto-approve tools (user selection).
+     */
+    public setSessionAutoApproveTools(sessionId: string, toolNames: string[]): void {
+        this.ensureStarted();
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+        if (
+            !Array.isArray(toolNames) ||
+            toolNames.some((name) => !name || typeof name !== 'string')
+        ) {
+            throw AgentError.apiValidationError('toolNames must be an array of non-empty strings');
+        }
+        this.toolManager.setSessionUserAutoApproveTools(sessionId, toolNames);
+    }
+
+    /**
      * Gets all connected MCP clients.
      * Used by the API layer to inspect client status.
      * @returns Map of client names to client instances
      */
-    public getMcpClients(): Map<string, IMCPClient> {
+    public getMcpClients(): Map<string, McpClient> {
         this.ensureStarted();
         return this.mcpManager.getClients();
     }
@@ -2701,128 +3067,18 @@ export class DextoAgent {
      * @returns The effective configuration object (validated with defaults applied)
      * @remarks Requires agent to be started. Use `agent.config` for pre-start access.
      */
-    public getEffectiveConfig(sessionId?: string): Readonly<ValidatedAgentConfig> {
+    public getEffectiveConfig(sessionId?: string): Readonly<AgentRuntimeSettings> {
         this.ensureStarted();
         return sessionId
             ? this.stateManager.getRuntimeConfig(sessionId)
             : this.stateManager.getRuntimeConfig();
     }
 
-    /**
-     * Gets the file path of the agent configuration currently in use.
-     * This returns the source agent file path, not session-specific overrides.
-     * @returns The path to the agent configuration file
-     * @throws AgentError if no config path is available
-     */
-    public getAgentFilePath(): string {
-        if (!this.configPath) {
-            throw AgentError.noConfigPath();
-        }
-        return this.configPath;
-    }
-
-    /**
-     * Reloads the agent configuration with a new config object.
-     * Validates the new config, detects what changed, and automatically
-     * restarts the agent if necessary to apply the changes.
-     *
-     * @param newConfig The new agent configuration to apply
-     * @returns Object containing whether agent was restarted and list of changes applied
-     * @throws Error if config is invalid or restart fails
-     *
-     * TODO: improve hot reload capabilites so that we don't always require a restart
-     */
-    public async reload(newConfig: AgentConfig): Promise<{
-        restarted: boolean;
-        changesApplied: string[];
-    }> {
-        this.logger.info('Reloading agent configuration');
-
-        const oldConfig = this.config;
-        const validated = AgentConfigSchema.parse(newConfig);
-
-        // Detect what changed
-        const changesApplied = this.detectConfigChanges(oldConfig, validated);
-
-        // Update the config reference
-        this.config = validated;
-
-        let restarted = false;
-        if (changesApplied.length > 0) {
-            this.logger.info(
-                `Configuration changed. Restarting agent to apply: ${changesApplied.join(', ')}`
-            );
-            await this.restart();
-            restarted = true;
-            this.logger.info('Agent restarted successfully with new configuration');
-        } else {
-            this.logger.info('Agent configuration reloaded successfully (no changes detected)');
-        }
-
-        return {
-            restarted,
-            changesApplied,
-        };
-    }
-
-    /**
-     * Detects configuration changes that require a full agent restart.
-     * Pure comparison logic - no file I/O.
-     * Returns an array of change descriptions.
-     *
-     * @param oldConfig Previous validated configuration
-     * @param newConfig New validated configuration
-     * @returns Array of restart-required change descriptions
-     */
-    public detectConfigChanges(
-        oldConfig: ValidatedAgentConfig,
-        newConfig: ValidatedAgentConfig
-    ): string[] {
-        const changes: string[] = [];
-
-        // Storage backend changes require restart
-        if (JSON.stringify(oldConfig.storage) !== JSON.stringify(newConfig.storage)) {
-            changes.push('Storage backend');
-        }
-
-        // Session config changes require restart (maxSessions, sessionTTL are readonly)
-        if (JSON.stringify(oldConfig.sessions) !== JSON.stringify(newConfig.sessions)) {
-            changes.push('Session configuration');
-        }
-
-        // System prompt changes require restart (PromptManager caches contributors)
-        if (JSON.stringify(oldConfig.systemPrompt) !== JSON.stringify(newConfig.systemPrompt)) {
-            changes.push('System prompt');
-        }
-
-        // Tool confirmation changes require restart (ConfirmationProvider caches config)
-        if (
-            JSON.stringify(oldConfig.toolConfirmation) !==
-            JSON.stringify(newConfig.toolConfirmation)
-        ) {
-            changes.push('Tool confirmation');
-        }
-
-        // Internal tools changes require restart (InternalToolsProvider caches config)
-        if (JSON.stringify(oldConfig.internalTools) !== JSON.stringify(newConfig.internalTools)) {
-            changes.push('Internal tools');
-        }
-
-        // MCP server changes require restart
-        if (JSON.stringify(oldConfig.mcpServers) !== JSON.stringify(newConfig.mcpServers)) {
-            changes.push('MCP servers');
-        }
-
-        // LLM configuration changes require restart
-        if (
-            oldConfig.llm.provider !== newConfig.llm.provider ||
-            oldConfig.llm.model !== newConfig.llm.model ||
-            oldConfig.llm.apiKey !== newConfig.llm.apiKey
-        ) {
-            changes.push('LLM configuration');
-        }
-
-        return changes;
+    public getMcpServerConfig(name: string): McpServerConfig | undefined {
+        this.ensureStarted();
+        const config = this.stateManager.getRuntimeConfig().mcpServers[name];
+        if (config) return config;
+        return this.mcpManager.getServerConfig(name);
     }
 
     // ============= APPROVAL HANDLER API =============
@@ -2830,7 +3086,7 @@ export class DextoAgent {
     /**
      * Set a custom approval handler for manual approval mode.
      *
-     * When `toolConfirmation.mode` is set to 'manual', an approval handler must be
+     * When `permissions.mode` is set to 'manual', an approval handler must be
      * provided to process tool confirmation requests. The handler will be called
      * whenever a tool execution requires user approval.
      *

@@ -4,26 +4,26 @@
 
 import type { z } from 'zod';
 import type {
-    ToolConfirmationMetadataSchema,
+    ToolApprovalMetadataSchema,
     CommandConfirmationMetadataSchema,
     ElicitationMetadataSchema,
     CustomApprovalMetadataSchema,
     DirectoryAccessMetadataSchema,
     BaseApprovalRequestSchema,
-    ToolConfirmationRequestSchema,
+    ToolApprovalRequestSchema,
     CommandConfirmationRequestSchema,
     ElicitationRequestSchema,
     CustomApprovalRequestSchema,
     DirectoryAccessRequestSchema,
     ApprovalRequestSchema,
     ApprovalRequestDetailsSchema,
-    ToolConfirmationResponseDataSchema,
+    ToolApprovalResponseDataSchema,
     CommandConfirmationResponseDataSchema,
     ElicitationResponseDataSchema,
     CustomApprovalResponseDataSchema,
     DirectoryAccessResponseDataSchema,
     BaseApprovalResponseSchema,
-    ToolConfirmationResponseSchema,
+    ToolApprovalResponseSchema,
     CommandConfirmationResponseSchema,
     ElicitationResponseSchema,
     CustomApprovalResponseSchema,
@@ -39,7 +39,7 @@ export enum ApprovalType {
      * Binary approval for tool execution
      * Metadata contains: toolName, args, description
      */
-    TOOL_CONFIRMATION = 'tool_confirmation',
+    TOOL_APPROVAL = 'tool_confirmation',
 
     /**
      * Binary approval for dangerous commands within an already-approved tool
@@ -102,10 +102,10 @@ export enum DenialReason {
 // ============================================================================
 
 /**
- * Tool confirmation specific metadata
- * Derived from ToolConfirmationMetadataSchema
+ * Tool approval specific metadata
+ * Derived from ToolApprovalMetadataSchema
  */
-export type ToolConfirmationMetadata = z.output<typeof ToolConfirmationMetadataSchema>;
+export type ToolApprovalMetadata = z.output<typeof ToolApprovalMetadataSchema>;
 
 /**
  * Command confirmation specific metadata
@@ -142,10 +142,10 @@ export type DirectoryAccessMetadata = z.output<typeof DirectoryAccessMetadataSch
 export type BaseApprovalRequest<_TMetadata = unknown> = z.output<typeof BaseApprovalRequestSchema>;
 
 /**
- * Tool confirmation request
- * Derived from ToolConfirmationRequestSchema
+ * Tool approval request
+ * Derived from ToolApprovalRequestSchema
  */
-export type ToolConfirmationRequest = z.output<typeof ToolConfirmationRequestSchema>;
+export type ToolApprovalRequest = z.output<typeof ToolApprovalRequestSchema>;
 
 /**
  * Command confirmation request
@@ -182,10 +182,10 @@ export type ApprovalRequest = z.output<typeof ApprovalRequestSchema>;
 // ============================================================================
 
 /**
- * Tool confirmation response data
- * Derived from ToolConfirmationResponseDataSchema
+ * Tool approval response data
+ * Derived from ToolApprovalResponseDataSchema
  */
-export type ToolConfirmationResponseData = z.output<typeof ToolConfirmationResponseDataSchema>;
+export type ToolApprovalResponseData = z.output<typeof ToolApprovalResponseDataSchema>;
 
 /**
  * Command confirmation response data
@@ -224,10 +224,10 @@ export type DirectoryAccessResponseData = z.output<typeof DirectoryAccessRespons
 export type BaseApprovalResponse<_TData = unknown> = z.output<typeof BaseApprovalResponseSchema>;
 
 /**
- * Tool confirmation response
- * Derived from ToolConfirmationResponseSchema
+ * Tool approval response
+ * Derived from ToolApprovalResponseSchema
  */
-export type ToolConfirmationResponse = z.output<typeof ToolConfirmationResponseSchema>;
+export type ToolApprovalResponse = z.output<typeof ToolApprovalResponseSchema>;
 
 /**
  * Command confirmation response

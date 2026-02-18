@@ -4,10 +4,12 @@
     "baseUrl": ".",
     "rootDir": "src",
     "outDir": "dist",
+    "composite": true,
     "noEmit": false,
     "declaration": true,
     "declarationMap": true
   },
   "include": ["src/**/*"],
-  "exclude": ["dist", "node_modules"]
+  "exclude": ["dist", "node_modules"],
+  "references": [{ "path": "../agent-config" }, { "path": "../core" }]
 }

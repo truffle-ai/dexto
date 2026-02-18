@@ -255,9 +255,9 @@ export function buildProviderOptions(
         }
     }
 
-    // OpenRouter gateway providers (OpenRouter/Dexto) use `providerOptions.openrouter`.
-    // Note: config.provider here is the Dexto provider (openrouter|dexto), not the upstream model.
-    if (provider === 'openrouter' || provider === 'dexto') {
+    // OpenRouter gateway providers (OpenRouter/Dexto Nova) use `providerOptions.openrouter`.
+    // Note: config.provider here is the Dexto provider (openrouter|dexto-nova), not the upstream model.
+    if (provider === 'openrouter' || provider === 'dexto-nova') {
         if (preset === 'auto') {
             // Default: request reasoning details when available; UI can decide whether to display.
             return { openrouter: { includeReasoning: true } };

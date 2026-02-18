@@ -5,7 +5,7 @@
  * lookup and lifecycle management capabilities.
  */
 
-import type { IDextoLogger } from '@dexto/core';
+import type { Logger } from '@dexto/core';
 import type { AgentHandle, AgentStatus, AgentFilter } from './types.js';
 import {
     DEFAULT_MAX_AGENTS,
@@ -17,9 +17,9 @@ import { RuntimeError } from './errors.js';
 export class AgentPool {
     private agents: Map<string, AgentHandle> = new Map();
     private config: ValidatedAgentRuntimeConfig;
-    private logger: IDextoLogger;
+    private logger: Logger;
 
-    constructor(config: Partial<ValidatedAgentRuntimeConfig>, logger: IDextoLogger) {
+    constructor(config: Partial<ValidatedAgentRuntimeConfig>, logger: Logger) {
         this.config = {
             maxAgents: config.maxAgents ?? DEFAULT_MAX_AGENTS,
             defaultTaskTimeout: config.defaultTaskTimeout ?? DEFAULT_TASK_TIMEOUT,

@@ -89,7 +89,7 @@ systemPrompt: |
   Response format: "I've connected you with [specialist]. [Complete specialist answer]"
 
 # Auto-approve tools for seamless delegation
-toolConfirmation:
+permissions:
   mode: auto-approve
   allowedToolsStorage: memory
 
@@ -275,7 +275,7 @@ The `chat_with_agent` tool enables one agent to execute another:
 Essential for smooth delegation:
 
 ```yaml
-toolConfirmation:
+permissions:
   mode: auto-approve        # No manual confirmation
   allowedToolsStorage: memory  # Session-only approvals
 ```

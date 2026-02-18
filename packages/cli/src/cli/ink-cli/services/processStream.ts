@@ -28,7 +28,7 @@ import type { Message, UIState, ToolStatus } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import { checkForSplit } from '../utils/streamSplitter.js';
-import { formatToolHeader } from '../utils/messageFormatting.js';
+import { formatToolHeader, shouldHideTool } from '../utils/messageFormatting.js';
 import { isAutoApprovableInEditMode } from '../utils/toolUtils.js';
 import { capture } from '../../../analytics/index.js';
 import chalk from 'chalk';
@@ -78,8 +78,8 @@ export interface ProcessStreamOptions {
     useStreaming?: boolean;
     /** Ref to check if "accept all edits" mode is enabled (reads .current for latest value) */
     autoApproveEditsRef: { current: boolean };
-    /** Event bus for emitting auto-approval responses */
-    eventBus: import('@dexto/core').AgentEventBus;
+    /** Event emitter for emitting auto-approval responses */
+    eventBus: Pick<import('@dexto/core').AgentEventBus, 'emit'>;
     /** Sound notification service for playing sounds on events */
     soundService?: import('../utils/soundNotification.js').SoundNotificationService;
     /** Optional setter for todos (from service:event todo updates) */
@@ -174,6 +174,26 @@ export async function processStream(
             .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
             .map((part) => part.text)
             .join('\n');
+    };
+
+    const formatQueuedMessagesForDisplay = (
+        messages: import('@dexto/core').QueuedMessage[]
+    ): string => {
+        const userMessages = messages.filter((message) => message.kind !== 'background');
+        if (userMessages.length === 0) {
+            return '';
+        }
+        if (userMessages.length === 1) {
+            return extractTextContent(userMessages[0]?.content ?? []) || '[attachment]';
+        }
+        return userMessages
+            .map((message, index) => {
+                const prefix =
+                    userMessages.length === 2 ? (index === 0 ? 'First' : 'Also') : `[${index + 1}]`;
+                const content = extractTextContent(message.content) || '[attachment]';
+                return `${prefix}: ${content}`;
+            })
+            .join('\n\n');
     };
 
     /**
@@ -597,6 +617,9 @@ export async function processStream(
                 }
 
                 case 'llm:tool-call': {
+                    if (shouldHideTool(event.toolName)) {
+                        break;
+                    }
                     debug.log('TOOL-CALL: state check', {
                         toolName: event.toolName,
                         hasMessageId: !!state.messageId,
@@ -666,10 +689,13 @@ export async function processStream(
                         : generateMessageId('tool');
 
                     // Format tool header using shared utility
-                    const { header: toolContent } = formatToolHeader(
-                        event.toolName,
-                        (event.args as Record<string, unknown>) || {}
-                    );
+                    const { header: toolContent } = formatToolHeader({
+                        toolName: event.toolName,
+                        args: (event.args as Record<string, unknown>) || {},
+                        ...(event.toolDisplayName !== undefined && {
+                            toolDisplayName: event.toolDisplayName,
+                        }),
+                    });
 
                     // Add description if present (dim styling, on new line)
                     let finalToolContent = toolContent;
@@ -699,6 +725,9 @@ export async function processStream(
                 }
 
                 case 'llm:tool-result': {
+                    if (shouldHideTool(event.toolName)) {
+                        break;
+                    }
                     // Extract structured display data and content from sanitized result
                     const sanitized = event.sanitized as SanitizedToolResult | undefined;
                     const toolDisplayData = sanitized?.meta?.display;
@@ -788,7 +817,7 @@ export async function processStream(
                 }
 
                 case 'llm:error': {
-                    const errorContent = buildErrorContent(event.error, '❌ Error: ');
+                    const errorContent = buildErrorContent(event.error, 'Error: ');
 
                     // Add error message to finalized
                     setMessages((prev) => [
@@ -891,6 +920,26 @@ export async function processStream(
                     //    before we add the next user message
                     finalizeAllPending();
 
+                    if (event.messages?.some((message) => message.kind === 'background')) {
+                        const userText = event.messages
+                            ? formatQueuedMessagesForDisplay(event.messages)
+                            : '';
+                        if (userText) {
+                            setMessages((prev) => [
+                                ...prev,
+                                {
+                                    id: generateMessageId('user'),
+                                    role: 'user' as const,
+                                    content: userText,
+                                    timestamp: new Date(),
+                                },
+                            ]);
+                        }
+                        setQueuedMessages([]);
+                        setUi((prev) => ({ ...prev, isProcessing: true }));
+                        break;
+                    }
+
                     // 2. Add user message directly to messages (not buffer)
                     //    The buffer approach doesn't work because llm:thinking
                     //    doesn't fire between queued message runs
@@ -938,8 +987,8 @@ export async function processStream(
                     const autoApproveEdits = options.autoApproveEditsRef.current;
                     const { eventBus } = options;
 
-                    if (autoApproveEdits && event.type === ApprovalTypeEnum.TOOL_CONFIRMATION) {
-                        // Type is narrowed - metadata is now ToolConfirmationMetadata
+                    if (autoApproveEdits && event.type === ApprovalTypeEnum.TOOL_APPROVAL) {
+                        // Type is narrowed - metadata is now ToolApprovalMetadata
                         const { toolName } = event.metadata;
 
                         if (isAutoApprovableInEditMode(toolName)) {
@@ -957,7 +1006,7 @@ export async function processStream(
                     // Manual approval needed - update tool status to 'pending_approval'
                     // Extract toolCallId based on approval type
                     const toolCallId =
-                        event.type === ApprovalTypeEnum.TOOL_CONFIRMATION
+                        event.type === ApprovalTypeEnum.TOOL_APPROVAL
                             ? event.metadata.toolCallId
                             : undefined;
                     if (toolCallId) {
@@ -967,7 +1016,7 @@ export async function processStream(
 
                     // Show approval UI (moved from useAgentEvents for ordering)
                     if (
-                        event.type === ApprovalTypeEnum.TOOL_CONFIRMATION ||
+                        event.type === ApprovalTypeEnum.TOOL_APPROVAL ||
                         event.type === ApprovalTypeEnum.COMMAND_CONFIRMATION ||
                         event.type === ApprovalTypeEnum.ELICITATION ||
                         event.type === ApprovalTypeEnum.DIRECTORY_ACCESS
@@ -1166,7 +1215,7 @@ export async function processStream(
             // Unexpected error, show to user
             clearPending();
 
-            const errorContent = buildErrorContent(error, '❌ Stream error: ');
+            const errorContent = buildErrorContent(error, 'Stream error: ');
 
             setMessages((prev) => [
                 ...prev,

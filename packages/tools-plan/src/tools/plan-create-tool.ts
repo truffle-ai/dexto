@@ -6,8 +6,9 @@
  */
 
 import { z } from 'zod';
-import type { InternalTool, ToolExecutionContext, FileDisplayData } from '@dexto/core';
-import type { PlanService } from '../plan-service.js';
+import { defineTool } from '@dexto/core';
+import type { Tool, ToolExecutionContext, FileDisplayData } from '@dexto/core';
+import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
 
 const PlanCreateInputSchema = z
@@ -21,14 +22,15 @@ const PlanCreateInputSchema = z
     })
     .strict();
 
-type PlanCreateInput = z.input<typeof PlanCreateInputSchema>;
-
 /**
  * Creates the plan_create tool
  */
-export function createPlanCreateTool(planService: PlanService): InternalTool {
-    return {
+export function createPlanCreateTool(
+    getPlanService: PlanServiceGetter
+): Tool<typeof PlanCreateInputSchema> {
+    return defineTool({
         id: 'plan_create',
+        displayName: 'Plan',
         description:
             'Create a new implementation plan for the current session. Shows the plan for approval before saving. Use markdown format for the plan content with clear steps and file references.',
         inputSchema: PlanCreateInputSchema,
@@ -36,58 +38,67 @@ export function createPlanCreateTool(planService: PlanService): InternalTool {
         /**
          * Generate preview for approval UI
          */
-        generatePreview: async (
-            input: unknown,
-            context?: ToolExecutionContext
-        ): Promise<FileDisplayData> => {
-            const { content } = input as PlanCreateInput;
+        generatePreview: async (input, context: ToolExecutionContext): Promise<FileDisplayData> => {
+            const { content } = input;
 
-            if (!context?.sessionId) {
+            if (!context.sessionId) {
                 throw PlanError.sessionIdRequired();
             }
 
+            const resolvedPlanService = await getPlanService(context);
+
             // Check if plan already exists
-            const exists = await planService.exists(context.sessionId);
+            const exists = await resolvedPlanService.exists(context.sessionId);
             if (exists) {
                 throw PlanError.planAlreadyExists(context.sessionId);
             }
 
             // Return preview for approval UI
             const lineCount = content.split('\n').length;
-            const planPath = planService.getPlanPath(context.sessionId);
+            const planPath = resolvedPlanService.getPlanPath(context.sessionId);
             return {
                 type: 'file',
                 path: planPath,
                 operation: 'create',
                 content,
-                size: content.length,
+                size: Buffer.byteLength(content, 'utf8'),
                 lineCount,
             };
         },
 
-        execute: async (input: unknown, context?: ToolExecutionContext) => {
-            const { title, content } = input as PlanCreateInput;
+        async execute(input, context: ToolExecutionContext) {
+            const { title, content } = input;
 
-            if (!context?.sessionId) {
+            if (!context.sessionId) {
                 throw PlanError.sessionIdRequired();
             }
 
-            const plan = await planService.create(context.sessionId, content, { title });
-            const planPath = planService.getPlanPath(context.sessionId);
+            const resolvedPlanService = await getPlanService(context);
+
+            // Keep consistent with generatePreview: fail early if plan already exists.
+            // (PlanService.create also guards this, but this keeps the control flow obvious.)
+            const exists = await resolvedPlanService.exists(context.sessionId);
+            if (exists) {
+                throw PlanError.planAlreadyExists(context.sessionId);
+            }
+
+            const plan = await resolvedPlanService.create(context.sessionId, content, { title });
+            const planPath = resolvedPlanService.getPlanPath(context.sessionId);
+            const _display: FileDisplayData = {
+                type: 'file',
+                path: planPath,
+                operation: 'create',
+                size: Buffer.byteLength(content, 'utf8'),
+                lineCount: content.split('\n').length,
+            };
 
             return {
                 success: true,
                 path: planPath,
                 status: plan.meta.status,
                 title: plan.meta.title,
-                _display: {
-                    type: 'file',
-                    path: planPath,
-                    operation: 'create',
-                    size: content.length,
-                    lineCount: content.split('\n').length,
-                } as FileDisplayData,
+                _display,
             };
         },
-    };
+    });
 }

@@ -1,11 +1,12 @@
 /**
  * Todo Write Tool
  *
- * Manages task lists for tracking agent progress and workflow organization
+ * Manages todo lists for tracking agent progress and workflow organization
  */
 
 import { z } from 'zod';
-import type { InternalTool, ToolExecutionContext } from '@dexto/core';
+import { defineTool } from '@dexto/core';
+import type { Tool, ToolExecutionContext } from '@dexto/core';
 import type { TodoService } from './todo-service.js';
 import { TODO_STATUS_VALUES } from './types.js';
 
@@ -54,15 +55,20 @@ const TodoWriteInputSchema = z
         }
     })
     .describe(
-        'Manage task list for current session. Replaces the entire todo list with the provided tasks.'
+        'Manage todo list for current session. Replaces the entire todo list with the provided items.'
     );
 
 /**
  * Create todo_write internal tool
  */
-export function createTodoWriteTool(todoService: TodoService): InternalTool {
-    return {
+export type TodoServiceGetter = (context: ToolExecutionContext) => Promise<TodoService>;
+
+export function createTodoWriteTool(
+    getTodoService: TodoServiceGetter
+): Tool<typeof TodoWriteInputSchema> {
+    return defineTool({
         id: 'todo_write',
+        displayName: 'Update Todos',
         description: `Track progress on multi-step tasks. Use for:
 - Implementation tasks with 3+ steps (features, refactors, bug fixes)
 - Tasks where the user asks for a plan or breakdown
@@ -73,15 +79,15 @@ Do NOT use for simple single-file edits, quick questions, or explanations.
 IMPORTANT: This replaces the entire todo list. Always include ALL tasks (pending, in_progress, completed). Only ONE task should be in_progress at a time. Update status as you work: pending → in_progress → completed.`,
         inputSchema: TodoWriteInputSchema,
 
-        execute: async (input: unknown, context?: ToolExecutionContext): Promise<unknown> => {
-            // Validate input against schema
-            const validatedInput = TodoWriteInputSchema.parse(input);
+        async execute(input, context: ToolExecutionContext): Promise<unknown> {
+            const resolvedTodoService = await getTodoService(context);
 
             // Use session_id from context, otherwise default
-            const sessionId = context?.sessionId ?? 'default';
+            const sessionId = context.sessionId ?? 'default';
 
             // Update todos in todo service
-            const result = await todoService.updateTodos(sessionId, validatedInput.todos);
+            await resolvedTodoService.initialize();
+            const result = await resolvedTodoService.updateTodos(sessionId, input.todos);
 
             // Count by status for summary
             const completed = result.todos.filter((t) => t.status === 'completed').length;
@@ -89,7 +95,7 @@ IMPORTANT: This replaces the entire todo list. Always include ALL tasks (pending
             const pending = result.todos.filter((t) => t.status === 'pending').length;
 
             // Return simple summary - TodoPanel shows full state
-            return `Updated tasks: ${completed}/${result.todos.length} completed${inProgress > 0 ? `, 1 in progress` : ''}${pending > 0 ? `, ${pending} pending` : ''}`;
+            return `Updated todos: ${completed}/${result.todos.length} completed${inProgress > 0 ? `, 1 in progress` : ''}${pending > 0 ? `, ${pending} pending` : ''}`;
         },
-    };
+    });
 }

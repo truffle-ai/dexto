@@ -18,7 +18,7 @@ import {
 } from './types.js';
 import { CommandValidator } from './command-validator.js';
 import { ProcessError } from './errors.js';
-import type { IDextoLogger } from '@dexto/core';
+import type { Logger } from '@dexto/core';
 import { DextoLogComponent } from '@dexto/core';
 
 const DEFAULT_TIMEOUT = 120000; // 2 minutes
@@ -41,8 +41,8 @@ interface BackgroundProcess {
 /**
  * ProcessService - Handles command execution and process management
  *
- * This service receives fully-validated configuration from the Process Tools Provider.
- * All defaults have been applied by the provider's schema, so the service trusts the config
+ * This service receives fully-validated configuration from the Process Tools Factory.
+ * All defaults have been applied by the factory's schema, so the service trusts the config
  * and uses it as-is without any fallback logic.
  *
  * TODO: Add tests for this class
@@ -53,16 +53,16 @@ export class ProcessService {
     private initialized: boolean = false;
     private initPromise: Promise<void> | null = null;
     private backgroundProcesses: Map<string, BackgroundProcess> = new Map();
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     /**
      * Create a new ProcessService with validated configuration.
      *
-     * @param config - Fully-validated configuration from provider schema.
+     * @param config - Fully-validated configuration from the factory schema.
      *                 All required fields have values, defaults already applied.
      * @param logger - Logger instance for this service
      */
-    constructor(config: ProcessConfig, logger: IDextoLogger) {
+    constructor(config: ProcessConfig, logger: Logger) {
         // Config is already fully validated with defaults applied - just use it
         this.config = config;
 
@@ -648,6 +648,17 @@ export class ProcessService {
      */
     getConfig(): Readonly<ProcessConfig> {
         return { ...this.config };
+    }
+
+    /**
+     * Update the working directory at runtime (e.g., when workspace changes).
+     */
+    setWorkingDirectory(workingDirectory: string): void {
+        const normalized = workingDirectory?.trim();
+        if (!normalized) return;
+        if (this.config.workingDirectory === normalized) return;
+        this.config = { ...this.config, workingDirectory: normalized };
+        this.logger.info(`ProcessService working directory set to ${normalized}`);
     }
 
     /**

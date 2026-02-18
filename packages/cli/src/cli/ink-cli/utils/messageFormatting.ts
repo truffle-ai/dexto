@@ -8,6 +8,31 @@ import os from 'os';
 import type { DextoAgent, InternalMessage, ContentPart, ToolCall } from '@dexto/core';
 import { isTextPart, isAssistantMessage, isToolMessage } from '@dexto/core';
 import type { Message } from '../state/types.js';
+
+const HIDDEN_TOOL_NAMES = new Set(['wait_for']);
+
+export function normalizeToolName(toolName: string): string {
+    if (toolName.startsWith('mcp--')) {
+        const trimmed = toolName.substring('mcp--'.length);
+        const parts = trimmed.split('--');
+        return parts.length >= 2 ? parts.slice(1).join('--') : trimmed;
+    }
+    return toolName;
+}
+
+export function shouldHideTool(toolName: string | undefined): boolean {
+    if (!toolName) {
+        return false;
+    }
+
+    return HIDDEN_TOOL_NAMES.has(normalizeToolName(toolName));
+}
+
+const backgroundCompletionRegex =
+    /<background-task-completion>[\s\S]*?<\/background-task-completion>/g;
+const stripBackgroundCompletion = (text: string): string =>
+    text.replace(backgroundCompletionRegex, '').replace('<background-task-completion>', '').trim();
+
 import { generateMessageId } from './idGenerator.js';
 
 /**
@@ -143,136 +168,36 @@ export function centerTruncatePath(filePath: string, maxWidth: number): string {
 }
 
 /**
- * Tool-specific display configuration.
- * Controls how each tool is displayed in the UI - name, which args to show, etc.
- */
-interface ToolDisplayConfig {
-    /** User-friendly display name */
-    displayName: string;
-    /** Which args to display, in order */
-    argsToShow: string[];
-    /** Primary arg shown without key name (first in argsToShow) */
-    primaryArg?: string;
-}
-
-/**
- * Per-tool display configurations.
- * Each tool specifies exactly which arguments to show and how.
- */
-const TOOL_CONFIGS: Record<string, ToolDisplayConfig> = {
-    // File tools - show file_path as primary
-    read_file: { displayName: 'Read', argsToShow: ['file_path'], primaryArg: 'file_path' },
-    write_file: { displayName: 'Write', argsToShow: ['file_path'], primaryArg: 'file_path' },
-    edit_file: { displayName: 'Update', argsToShow: ['file_path'], primaryArg: 'file_path' },
-
-    // Search tools - show pattern as primary, path as secondary
-    glob_files: {
-        displayName: 'Find files',
-        argsToShow: ['pattern', 'path'],
-        primaryArg: 'pattern',
-    },
-    grep_content: {
-        displayName: 'Search files',
-        argsToShow: ['pattern', 'path'],
-        primaryArg: 'pattern',
-    },
-
-    // Bash - show command only, skip description
-    bash_exec: { displayName: 'Bash', argsToShow: ['command'], primaryArg: 'command' },
-    bash_output: {
-        displayName: 'BashOutput',
-        argsToShow: ['process_id'],
-        primaryArg: 'process_id',
-    },
-    kill_process: { displayName: 'Kill', argsToShow: ['process_id'], primaryArg: 'process_id' },
-
-    // User interaction
-    ask_user: { displayName: 'Ask', argsToShow: ['question'], primaryArg: 'question' },
-
-    // Agent spawning - handled specially in formatToolHeader for dynamic agentId
-    spawn_agent: { displayName: 'Agent', argsToShow: ['task'], primaryArg: 'task' },
-
-    // Skill invocation - handled specially in formatToolHeader to show clean skill name
-    invoke_skill: { displayName: 'Skill', argsToShow: ['skill'], primaryArg: 'skill' },
-
-    plan_create: { displayName: 'Plan', argsToShow: [] },
-    plan_read: { displayName: 'Plan', argsToShow: [] },
-    plan_update: { displayName: 'Plan', argsToShow: [] },
-    plan_review: { displayName: 'Plan', argsToShow: [] },
-
-    todo_write: { displayName: 'UpdateTasks', argsToShow: [] },
-};
-
-/**
- * Gets the display config for a tool.
- * Handles internal-- prefix by stripping it before lookup.
- */
-function getToolConfig(toolName: string): ToolDisplayConfig | undefined {
-    // Try direct lookup first
-    if (TOOL_CONFIGS[toolName]) {
-        return TOOL_CONFIGS[toolName];
-    }
-    // Strip internal-- prefix and try again
-    if (toolName.startsWith('internal--')) {
-        const baseName = toolName.replace('internal--', '');
-        return TOOL_CONFIGS[baseName];
-    }
-
-    // Strip "custom--" prefix and try again
-    if (toolName.startsWith('custom--')) {
-        const baseName = toolName.replace('custom--', '');
-        return TOOL_CONFIGS[baseName];
-    }
-    return undefined;
-}
-
-/**
  * Gets a user-friendly display name for a tool.
- * Returns the friendly name if known, otherwise returns the original name
- * with any "internal--" prefix stripped.
- * MCP tools keep their server prefix for clarity (e.g., "mcp_server__tool").
+ * Returns the friendly name if known, otherwise returns a title-cased version.
+ * MCP tools keep their server prefix for clarity (e.g., "mcp--filesystem--read_file").
  */
+function toTitleCase(name: string): string {
+    return name
+        .replace(/[_-]+/g, ' ')
+        .split(' ')
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
+}
+
 export function getToolDisplayName(toolName: string): string {
-    const config = getToolConfig(toolName);
-    if (config) {
-        return config.displayName;
-    }
-    // Strip "internal--" prefix for unknown internal tools
-    if (toolName.startsWith('internal--')) {
-        return toolName.replace('internal--', '');
-    }
-    // Strip "custom--" prefix for custom tools
-    if (toolName.startsWith('custom--')) {
-        return toolName.replace('custom--', '');
-    }
-    // MCP tools: strip mcp-- or mcp__ prefix and server name for clean display
+    // MCP tools: strip `mcp--` prefix and server name for clean display
     if (toolName.startsWith('mcp--')) {
         const parts = toolName.split('--');
         if (parts.length >= 3) {
-            return parts.slice(2).join('--');
+            return toTitleCase(parts.slice(2).join('--'));
         }
-        return toolName.substring(5);
+        return toTitleCase(toolName.substring(5));
     }
-    if (toolName.startsWith('mcp__')) {
-        const parts = toolName.substring(5).split('__');
-        if (parts.length >= 2) {
-            return parts.slice(1).join('__');
-        }
-        return toolName.substring(5);
-    }
-    return toolName;
+    return toTitleCase(toolName);
 }
 
 /**
  * Gets the tool type badge for display.
- * Returns: 'internal', MCP server name, or 'custom'
+ * Returns: 'local' or MCP server name.
  */
 export function getToolTypeBadge(toolName: string): string {
-    // Internal tools
-    if (toolName.startsWith('internal--') || toolName.startsWith('internal__')) {
-        return 'internal';
-    }
-
     // MCP tools with server name
     if (toolName.startsWith('mcp--')) {
         const parts = toolName.split('--');
@@ -282,21 +207,7 @@ export function getToolTypeBadge(toolName: string): string {
         return 'MCP';
     }
 
-    if (toolName.startsWith('mcp__')) {
-        const parts = toolName.substring(5).split('__');
-        if (parts.length >= 2 && parts[0]) {
-            return `MCP: ${parts[0]}`; // Format: 'MCP: servername'
-        }
-        return 'MCP';
-    }
-
-    // Custom tools
-    if (toolName.startsWith('custom--')) {
-        return 'custom';
-    }
-
-    // Unknown - likely custom
-    return 'custom';
+    return 'local';
 }
 
 /**
@@ -319,23 +230,25 @@ export interface FormattedToolHeader {
  *
  * Handles special cases like spawn_agent (uses agentId as display name).
  *
- * @param toolName - Raw tool name (may include prefixes like "custom--")
+ * @param toolName - Tool name (local tool id or `mcp--...`)
  * @param args - Tool arguments object
  * @returns Formatted header components and full string
  */
-export function formatToolHeader(
-    toolName: string,
-    args: Record<string, unknown> = {}
-): FormattedToolHeader {
-    let displayName = getToolDisplayName(toolName);
+export function formatToolHeader(options: {
+    toolName: string;
+    args: Record<string, unknown>;
+    toolDisplayName?: string;
+}): FormattedToolHeader {
+    const { toolName, args, toolDisplayName } = options;
+
+    let displayName = toolDisplayName ?? getToolDisplayName(toolName);
     const argsFormatted = formatToolArgsForDisplay(toolName, args);
     const badge = getToolTypeBadge(toolName);
 
-    // Normalize tool name to handle all prefixes (internal--, custom--)
-    const normalizedToolName = toolName.replace(/^(?:internal--|custom--)/, '');
-
+    // TODO: Move tool-specific header formatting into tool display metadata, so the CLI doesn't
+    // need to special-case tool IDs here.
     // Special handling for spawn_agent: use agentId as display name
-    const isSpawnAgent = normalizedToolName === 'spawn_agent';
+    const isSpawnAgent = toolName === 'spawn_agent';
     if (isSpawnAgent && args.agentId) {
         const agentId = String(args.agentId);
         const agentLabel = agentId.replace(/-agent$/, '');
@@ -343,7 +256,7 @@ export function formatToolHeader(
     }
 
     // Special handling for invoke_skill: show skill as /skill-name
-    const isInvokeSkill = normalizedToolName === 'invoke_skill';
+    const isInvokeSkill = toolName === 'invoke_skill';
     if (isInvokeSkill && args.skill) {
         const skillName = String(args.skill);
         // Extract display name from skill identifier (e.g., "config:test-fork" -> "test-fork")
@@ -416,7 +329,6 @@ export function formatToolArgsForDisplay(toolName: string, args: Record<string, 
     const entries = Object.entries(args);
     if (entries.length === 0) return '';
 
-    const config = getToolConfig(toolName);
     const parts: string[] = [];
 
     /**
@@ -450,38 +362,20 @@ export function formatToolArgsForDisplay(toolName: string, args: Record<string, 
         return strValue.length > 40 ? strValue.slice(0, 37) + '...' : strValue;
     };
 
-    if (config) {
-        // Use tool-specific config
-        for (const argName of config.argsToShow) {
-            if (!(argName in args)) continue;
-            if (argName === 'description') continue; // Skip description field
-            if (parts.length >= 3) break;
+    // Generic formatting for all tools:
+    // - Prefer common "primary" args (path/command/pattern/question/etc.)
+    // - Show up to 3 args total
+    // - Skip description (it's shown separately in the UI when present)
+    for (const [key, value] of entries) {
+        if (key === 'description') continue;
+        if (parts.length >= 3) break;
 
-            const formattedValue = formatArgValue(argName, args[argName]);
+        const formattedValue = formatArgValue(key, value);
 
-            if (argName === config.primaryArg) {
-                // Primary arg without key name
-                parts.unshift(formattedValue);
-            } else {
-                // Secondary args with key name
-                parts.push(`${argName}: ${formattedValue}`);
-            }
-        }
-    } else {
-        // Fallback for unknown tools (MCP, etc.)
-        for (const [key, value] of entries) {
-            if (key === 'description') continue; // Skip description field
-            if (parts.length >= 3) break;
-
-            const formattedValue = formatArgValue(key, value);
-
-            if (FALLBACK_PRIMARY_ARGS.has(key) || PATH_ARGS.has(key)) {
-                // Primary arg without key name
-                parts.unshift(formattedValue);
-            } else {
-                // Other args with key name
-                parts.push(`${key}: ${formattedValue}`);
-            }
+        if (FALLBACK_PRIMARY_ARGS.has(key) || PATH_ARGS.has(key)) {
+            parts.unshift(formattedValue);
+        } else {
+            parts.push(`${key}: ${formattedValue}`);
         }
     }
 
@@ -558,7 +452,7 @@ export function createErrorMessage(error: Error | string): Message {
     return {
         id: generateMessageId('error'),
         role: 'system',
-        content: `❌ Error: ${content}`,
+        content: `Error: ${content}`,
         timestamp: new Date(),
     };
 }
@@ -605,9 +499,72 @@ function extractTextContent(content: ContentPart[] | null): string {
 /**
  * Generates a preview of tool result content for display
  */
+export function formatToolResultPreview(result: string): string {
+    try {
+        const parsed = JSON.parse(result) as {
+            status?: string;
+            taskId?: string;
+            count?: number;
+            tasks?: Array<{ status?: string; taskId?: string }>;
+            found?: boolean;
+            result?: string;
+        };
+
+        if (parsed.status === 'running' && parsed.taskId) {
+            return `Background task started (id: ${parsed.taskId})`;
+        }
+
+        if (parsed.found !== undefined && parsed.taskId) {
+            return parsed.found
+                ? `Task ${parsed.taskId} status: ${parsed.status ?? 'unknown'}`
+                : `Task ${parsed.taskId} not found`;
+        }
+
+        if (Array.isArray(parsed.tasks) && typeof parsed.count === 'number') {
+            const running = parsed.tasks.filter((task) => task.status === 'running').length;
+            return `Tasks: ${parsed.count} total${running > 0 ? ` • ${running} running` : ''}`;
+        }
+    } catch {
+        // fall through
+    }
+
+    const maxChars = 200;
+    if (result.length <= maxChars) {
+        return result;
+    }
+    return result.slice(0, maxChars) + '…';
+}
+
 function generateToolResultPreview(content: ContentPart[]): string {
     const textContent = extractTextContent(content);
     if (!textContent) return '';
+
+    try {
+        const parsed = JSON.parse(textContent) as {
+            status?: string;
+            taskId?: string;
+            count?: number;
+            tasks?: Array<{ status?: string; taskId?: string }>;
+            found?: boolean;
+        };
+
+        if (parsed.status === 'running' && parsed.taskId) {
+            return `Background task started (id: ${parsed.taskId})`;
+        }
+
+        if (Array.isArray(parsed.tasks) && typeof parsed.count === 'number') {
+            const running = parsed.tasks.filter((task) => task.status === 'running').length;
+            return `Tasks: ${parsed.count} total${running > 0 ? ` • ${running} running` : ''}`;
+        }
+
+        if (parsed.found !== undefined && parsed.taskId) {
+            return parsed.found
+                ? `Task ${parsed.taskId} status: ${parsed.status ?? 'unknown'}`
+                : `Task ${parsed.taskId} not found`;
+        }
+    } catch {
+        // Not JSON; fall through to raw text preview
+    }
 
     const lines = textContent.split('\n');
     const previewLines = lines.slice(0, 5);
@@ -647,11 +604,15 @@ export function convertHistoryToUIMessages(
 
         // Handle tool messages specially
         if (isToolMessage(msg)) {
+            if (shouldHideTool(msg.name)) {
+                return;
+            }
+
             // Look up the original tool call to get args
             const toolCall = toolCallMap.get(msg.toolCallId);
 
             // Format tool name
-            const displayName = getToolDisplayName(msg.name);
+            const displayName = msg.toolDisplayName ?? getToolDisplayName(msg.name);
 
             // Format args if we have them
             let toolContent = displayName;
@@ -696,7 +657,8 @@ export function convertHistoryToUIMessages(
 
         // Handle assistant messages - skip those with only tool calls (no text content)
         if (isAssistantMessage(msg)) {
-            const textContent = extractTextContent(msg.content);
+            let textContent = extractTextContent(msg.content);
+            textContent = stripBackgroundCompletion(textContent);
 
             // Skip if no text content (message was just tool calls)
             if (!textContent) return;
@@ -712,6 +674,7 @@ export function convertHistoryToUIMessages(
 
         // Handle other messages (user, system)
         let textContent = extractTextContent(msg.content);
+        textContent = stripBackgroundCompletion(textContent);
 
         // Skip empty messages
         if (!textContent) return;

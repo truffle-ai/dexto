@@ -439,7 +439,6 @@ describe('Marketplace Operations', () => {
                 }
                 return [];
             });
-            // @ts-expect-error - Mock implementation type doesn't match overloaded function signature
             vi.mocked(tryLoadManifest).mockImplementation((p: string): PluginManifest | null => {
                 if (p === '/marketplace/plugins/my-plugin') {
                     return { name: 'my-plugin', description: 'A plugin' };

@@ -3,25 +3,26 @@ import { ChatSession } from './chat-session.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { AgentEventBus } from '../events/index.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
-import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
+import type { ValidatedLLMConfig } from '../llm/schemas.js';
 import type { StorageManager } from '../storage/index.js';
-import type { PluginManager } from '../plugins/manager.js';
+import type { HookManager } from '../hooks/manager.js';
 import { SessionError } from './errors.js';
 import type { TokenUsage } from '../llm/types.js';
+import type { CompactionStrategy } from '../context/compaction/types.js';
 export type SessionLoggerFactory = (options: {
-    baseLogger: IDextoLogger;
+    baseLogger: Logger;
     agentId: string;
     sessionId: string;
-}) => IDextoLogger;
+}) => Logger;
 
 function defaultSessionLoggerFactory(options: {
-    baseLogger: IDextoLogger;
+    baseLogger: Logger;
     agentId: string;
     sessionId: string;
-}): IDextoLogger {
+}): Logger {
     // Default behavior (no filesystem assumptions): just a child logger.
     // Hosts (CLI/server) can inject a SessionLoggerFactory that writes to a file.
     return options.baseLogger.createChild(DextoLogComponent.SESSION);
@@ -33,6 +34,19 @@ function defaultSessionLoggerFactory(options: {
  */
 export type SessionTokenUsage = Required<TokenUsage>;
 
+/**
+ * Per-model statistics for tracking usage across multiple models within a session.
+ */
+export interface ModelStatistics {
+    provider: string;
+    model: string;
+    messageCount: number;
+    tokenUsage: SessionTokenUsage;
+    estimatedCost: number;
+    firstUsedAt: number;
+    lastUsedAt: number;
+}
+
 export interface SessionMetadata {
     createdAt: number;
     lastActivity: number;
@@ -40,6 +54,8 @@ export interface SessionMetadata {
     title?: string;
     tokenUsage?: SessionTokenUsage;
     estimatedCost?: number;
+    modelStats?: ModelStatistics[];
+    workspaceId?: string;
 }
 
 export interface SessionManagerConfig {
@@ -48,6 +64,8 @@ export interface SessionManagerConfig {
     /** Host hook for creating a session-scoped logger (e.g. file logger) */
     sessionLoggerFactory?: SessionLoggerFactory;
 }
+
+type PersistedLLMConfig = Omit<ValidatedLLMConfig, 'apiKey'>;
 
 export interface SessionData {
     id: string;
@@ -58,8 +76,10 @@ export interface SessionData {
     metadata?: Record<string, any>;
     tokenUsage?: SessionTokenUsage;
     estimatedCost?: number;
+    modelStats?: ModelStatistics[];
+    workspaceId?: string;
     /** Persisted LLM config override for this session */
-    llmOverride?: ValidatedLLMConfig;
+    llmOverride?: PersistedLLMConfig;
 }
 
 /**
@@ -89,7 +109,7 @@ export class SessionManager {
     private readonly pendingCreations = new Map<string, Promise<ChatSession>>();
     // Per-session mutex for token usage updates to prevent lost updates from concurrent calls
     private readonly tokenUsageLocks = new Map<string, Promise<void>>();
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     private readonly sessionLoggerFactory: SessionLoggerFactory;
 
@@ -101,11 +121,13 @@ export class SessionManager {
             agentEventBus: AgentEventBus;
             storageManager: StorageManager;
             resourceManager: import('../resources/index.js').ResourceManager;
-            pluginManager: PluginManager;
+            hookManager: HookManager;
             mcpManager: import('../mcp/manager.js').MCPManager;
+            compactionStrategy: CompactionStrategy | null;
+            workspaceManager?: import('../workspace/manager.js').WorkspaceManager;
         },
         config: SessionManagerConfig = {},
-        logger: IDextoLogger
+        logger: Logger
     ) {
         this.maxSessions = config.maxSessions ?? 100;
         this.sessionTTL = config.sessionTTL ?? 3600000; // 1 hour
@@ -254,11 +276,25 @@ export class SessionManager {
             });
 
             // Restore LLM override BEFORE session init so the service is created with correct config
+            // SECURITY: Re-resolve API key from environment when restoring (never persisted)
             const sessionData = await this.services.storageManager
                 .getDatabase()
                 .get<SessionData>(sessionKey);
             if (sessionData?.llmOverride) {
-                this.services.stateManager.updateLLM(sessionData.llmOverride, id);
+                const { resolveApiKeyForProvider } = await import('../utils/api-key-resolver.js');
+                const apiKey = resolveApiKeyForProvider(sessionData.llmOverride.provider);
+                if (!apiKey) {
+                    this.logger.warn(
+                        `Skipped LLM override restore for session ${id}: missing API key for provider ${sessionData.llmOverride.provider}`,
+                        { sessionId: id, provider: sessionData.llmOverride.provider }
+                    );
+                } else {
+                    const restoredConfig: ValidatedLLMConfig = {
+                        ...sessionData.llmOverride,
+                        apiKey,
+                    };
+                    this.services.stateManager.updateLLM(restoredConfig, id);
+                }
             }
 
             const session = new ChatSession(
@@ -280,12 +316,15 @@ export class SessionManager {
             throw SessionError.maxSessionsExceeded(activeSessionKeys.length, this.maxSessions);
         }
 
+        const workspace = await this.services.workspaceManager?.getWorkspace();
+
         // Create new session metadata first to "reserve" the session slot
         const sessionData: SessionData = {
             id,
             createdAt: Date.now(),
             lastActivity: Date.now(),
             messageCount: 0,
+            ...(workspace?.id !== undefined && { workspaceId: workspace.id }),
         };
 
         // Store session metadata in persistent storage immediately to claim the session
@@ -377,8 +416,24 @@ export class SessionManager {
                 });
 
                 // Restore LLM override BEFORE session init so the service is created with correct config
+                // SECURITY: Re-resolve API key from environment when restoring (never persisted)
                 if (sessionData.llmOverride) {
-                    this.services.stateManager.updateLLM(sessionData.llmOverride, sessionId);
+                    const { resolveApiKeyForProvider } = await import(
+                        '../utils/api-key-resolver.js'
+                    );
+                    const apiKey = resolveApiKeyForProvider(sessionData.llmOverride.provider);
+                    if (!apiKey) {
+                        this.logger.warn(
+                            `Skipped LLM override restore for session ${sessionId}: missing API key for provider ${sessionData.llmOverride.provider}`,
+                            { sessionId, provider: sessionData.llmOverride.provider }
+                        );
+                    } else {
+                        const restoredConfig: ValidatedLLMConfig = {
+                            ...sessionData.llmOverride,
+                            apiKey,
+                        };
+                        this.services.stateManager.updateLLM(restoredConfig, sessionId);
+                    }
                 }
 
                 const session = new ChatSession(
@@ -516,6 +571,8 @@ export class SessionManager {
             ...(sessionData.estimatedCost !== undefined && {
                 estimatedCost: sessionData.estimatedCost,
             }),
+            ...(sessionData.modelStats && { modelStats: sessionData.modelStats }),
+            ...(sessionData.workspaceId && { workspaceId: sessionData.workspaceId }),
         };
     }
 
@@ -575,11 +632,17 @@ export class SessionManager {
      * Called after each LLM response to update session-level totals.
      *
      * Uses per-session locking to prevent lost updates from concurrent calls.
+     *
+     * @param sessionId The session ID
+     * @param usage Token usage to accumulate
+     * @param cost Estimated cost for this usage
+     * @param modelInfo Optional model info for per-model tracking
      */
     public async accumulateTokenUsage(
         sessionId: string,
         usage: TokenUsage,
-        cost?: number
+        cost?: number,
+        modelInfo?: { provider: string; model: string }
     ): Promise<void> {
         await this.ensureInitialized();
 
@@ -595,6 +658,11 @@ export class SessionManager {
 
             if (!sessionData) return;
 
+            // Update per-model statistics if model info provided
+            if (modelInfo) {
+                this.updateModelStats(sessionData, usage, cost, modelInfo);
+            }
+
             // Initialize if needed
             if (!sessionData.tokenUsage) {
                 sessionData.tokenUsage = {
@@ -607,13 +675,8 @@ export class SessionManager {
                 };
             }
 
-            // Accumulate
-            sessionData.tokenUsage.inputTokens += usage.inputTokens ?? 0;
-            sessionData.tokenUsage.outputTokens += usage.outputTokens ?? 0;
-            sessionData.tokenUsage.reasoningTokens += usage.reasoningTokens ?? 0;
-            sessionData.tokenUsage.cacheReadTokens += usage.cacheReadTokens ?? 0;
-            sessionData.tokenUsage.cacheWriteTokens += usage.cacheWriteTokens ?? 0;
-            sessionData.tokenUsage.totalTokens += usage.totalTokens ?? 0;
+            // Accumulate aggregate totals using helper
+            this.accumulateTokensInto(sessionData.tokenUsage, usage);
 
             // Add cost if provided
             if (cost !== undefined) {
@@ -640,6 +703,76 @@ export class SessionManager {
                 this.tokenUsageLocks.delete(sessionKey);
             }
         }
+    }
+
+    /**
+     * Helper to accumulate token usage into a target SessionTokenUsage object.
+     * Used for both session-level and per-model token tracking.
+     */
+    private accumulateTokensInto(target: SessionTokenUsage, usage: TokenUsage): void {
+        target.inputTokens += usage.inputTokens ?? 0;
+        target.outputTokens += usage.outputTokens ?? 0;
+        target.reasoningTokens += usage.reasoningTokens ?? 0;
+        target.cacheReadTokens += usage.cacheReadTokens ?? 0;
+        target.cacheWriteTokens += usage.cacheWriteTokens ?? 0;
+        target.totalTokens += usage.totalTokens ?? 0;
+    }
+
+    /**
+     * Updates per-model statistics for a session.
+     * Finds or creates a model entry and accumulates tokens and cost.
+     *
+     * @private
+     */
+    private updateModelStats(
+        sessionData: SessionData,
+        usage: TokenUsage,
+        cost: number | undefined,
+        modelInfo: { provider: string; model: string }
+    ): void {
+        // Initialize modelStats array if needed
+        if (!sessionData.modelStats) {
+            sessionData.modelStats = [];
+        }
+
+        // Find or create model entry
+        let modelStat = sessionData.modelStats.find(
+            (s) => s.provider === modelInfo.provider && s.model === modelInfo.model
+        );
+
+        if (!modelStat) {
+            modelStat = {
+                provider: modelInfo.provider,
+                model: modelInfo.model,
+                messageCount: 0,
+                tokenUsage: {
+                    inputTokens: 0,
+                    outputTokens: 0,
+                    reasoningTokens: 0,
+                    cacheReadTokens: 0,
+                    cacheWriteTokens: 0,
+                    totalTokens: 0,
+                },
+                estimatedCost: 0,
+                firstUsedAt: Date.now(),
+                lastUsedAt: Date.now(),
+            };
+            sessionData.modelStats.push(modelStat);
+        }
+
+        // Accumulate tokens using helper
+        this.accumulateTokensInto(modelStat.tokenUsage, usage);
+
+        // Accumulate cost
+        if (cost !== undefined) {
+            modelStat.estimatedCost += cost;
+        }
+
+        // Increment message count
+        modelStat.messageCount += 1;
+
+        // Update last used timestamp
+        modelStat.lastUsedAt = Date.now();
     }
 
     /**
@@ -798,12 +931,15 @@ export class SessionManager {
         await session.switchLLM(newLLMConfig);
 
         // Persist the LLM override to storage so it survives restarts
+        // SECURITY: Don't persist API keys - they should be resolved from environment variables
         const sessionKey = `session:${sessionId}`;
         const sessionData = await this.services.storageManager
             .getDatabase()
             .get<SessionData>(sessionKey);
         if (sessionData) {
-            sessionData.llmOverride = newLLMConfig;
+            // Store everything except the API key
+            const { apiKey: _apiKey, ...configWithoutApiKey } = newLLMConfig;
+            sessionData.llmOverride = configWithoutApiKey;
             await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
             // Also update cache for consistency
             await this.services.storageManager

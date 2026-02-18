@@ -10,11 +10,17 @@
  * - /stats - Show system statistics
  * - /stream - Toggle streaming mode for LLM responses
  * - /reasoning - Configure reasoning visibility and budget tokens
+ * - /sounds - Configure sound notifications (interactive)
  */
 
 import chalk from 'chalk';
 import { logger, type DextoAgent } from '@dexto/core';
-import type { CommandDefinition, CommandHandlerResult, CommandContext } from '../command-parser.js';
+import {
+    overlayOnlyHandler,
+    type CommandDefinition,
+    type CommandHandlerResult,
+    type CommandContext,
+} from '../command-parser.js';
 import { formatForInkCli } from '../utils/format-output.js';
 import { CommandOutputHelper } from '../utils/command-output.js';
 import type { ConfigStyledData, StatsStyledData } from '../../../ink-cli/state/types.js';
@@ -93,37 +99,14 @@ export const systemCommands: CommandDefinition[] = [
         handler: async (
             _args: string[],
             agent: DextoAgent,
-            _ctx: CommandContext
+            ctx: CommandContext
         ): Promise<CommandHandlerResult> => {
             try {
                 const config = agent.getEffectiveConfig();
                 const servers = Object.keys(config.mcpServers || {});
+                const hooksEnabled = agent.services.hookManager.getHookNames();
 
-                // Get config file path (may not exist for programmatic agents)
-                let configFilePath: string | null = null;
-                try {
-                    configFilePath = agent.getAgentFilePath();
-                } catch {
-                    // No config file path available
-                }
-
-                // Get enabled plugins
-                const pluginsEnabled: string[] = [];
-                if (config.plugins) {
-                    // Check built-in plugins
-                    if (config.plugins.contentPolicy?.enabled) {
-                        pluginsEnabled.push('contentPolicy');
-                    }
-                    if (config.plugins.responseSanitizer?.enabled) {
-                        pluginsEnabled.push('responseSanitizer');
-                    }
-                    // Check custom plugins
-                    for (const plugin of config.plugins.custom || []) {
-                        if (plugin.enabled) {
-                            pluginsEnabled.push(plugin.name);
-                        }
-                    }
-                }
+                const configFilePath = ctx.configFilePath ?? null;
 
                 // Build styled data
                 const styledData: ConfigStyledData = {
@@ -132,14 +115,14 @@ export const systemCommands: CommandDefinition[] = [
                     model: config.llm.model,
                     maxTokens: config.llm.maxOutputTokens ?? null,
                     temperature: config.llm.temperature ?? null,
-                    toolConfirmationMode: config.toolConfirmation?.mode || 'auto',
+                    permissionsMode: config.permissions.mode,
                     maxSessions: config.sessions?.maxSessions?.toString() || 'Default',
                     sessionTTL: config.sessions?.sessionTTL
                         ? `${config.sessions.sessionTTL / 1000}s`
                         : 'Default',
                     mcpServers: servers,
                     promptsCount: config.prompts?.length || 0,
-                    pluginsEnabled,
+                    hooksEnabled,
                 };
 
                 // Build fallback text (no console.log - interferes with Ink rendering)
@@ -147,10 +130,11 @@ export const systemCommands: CommandDefinition[] = [
                     'Configuration:',
                     configFilePath ? `  Config: ${configFilePath}` : '',
                     `  LLM: ${config.llm.provider} / ${config.llm.model}`,
-                    `  Tool Confirmation: ${styledData.toolConfirmationMode}`,
+                    `  Permissions: ${styledData.permissionsMode}`,
                     `  Sessions: max=${styledData.maxSessions}, ttl=${styledData.sessionTTL}`,
                     `  MCP Servers: ${servers.length > 0 ? servers.join(', ') : 'none'}`,
                     `  Prompts: ${styledData.promptsCount}`,
+                    `  Hooks: ${hooksEnabled.length > 0 ? hooksEnabled.join(', ') : 'none'}`,
                 ].filter(Boolean);
 
                 return CommandOutputHelper.styled('config', styledData, fallbackLines.join('\n'));
@@ -259,13 +243,13 @@ export const systemCommands: CommandDefinition[] = [
         description: 'Configure reasoning display and budget tokens',
         usage: '/reasoning',
         category: 'Model',
-        handler: async (
-            _args: string[],
-            _agent: DextoAgent,
-            _ctx: CommandContext
-        ): Promise<boolean | string> => {
-            // Overlay is handled via commandOverlays.ts mapping
-            return true;
-        },
+        handler: overlayOnlyHandler,
+    },
+    {
+        name: 'sounds',
+        description: 'Configure sound notifications (interactive)',
+        usage: '/sounds',
+        category: 'System',
+        handler: overlayOnlyHandler,
     },
 ];

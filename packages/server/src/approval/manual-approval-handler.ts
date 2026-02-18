@@ -44,7 +44,7 @@ export function createManualApprovalHandler(coordinator: ApprovalCoordinator): A
     const handleApproval = (request: ApprovalRequest): Promise<ApprovalResponse> => {
         return new Promise<ApprovalResponse>((resolve) => {
             // Use per-request timeout (optional - undefined means no timeout)
-            // - Tool confirmations use config.toolConfirmation.timeout
+            // - Tool confirmations use config.permissions.timeout
             // - Elicitations use config.elicitation.timeout
             const effectiveTimeout = request.timeout;
 

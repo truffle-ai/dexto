@@ -1,45 +1,43 @@
 import { describe, it, expect } from 'vitest';
 import {
-    generateIndexForImage,
+    generateIndexForCodeFirstDI,
     generateDextoImageFile,
-    generateDextoConfigFile,
     generateImageReadme,
     generateExampleTool,
+    generateExampleHook,
+    generateExampleCompaction,
+    generateExampleCacheFactory,
+    generateExampleDatabaseFactory,
+    generateExampleBlobStoreFactory,
     generateAppReadme,
 } from './template-engine.js';
 
 describe('template-engine', () => {
-    describe('generateIndexForImage', () => {
-        it('should generate index.ts for image-based app', () => {
-            const result = generateIndexForImage({
+    describe('generateIndexForCodeFirstDI', () => {
+        it('should generate index.ts for programmatic app', () => {
+            const result = generateIndexForCodeFirstDI({
                 projectName: 'my-app',
                 packageName: 'my-app',
                 description: 'Test app',
-                imageName: '@dexto/image-local',
             });
 
-            expect(result).toContain("import { DextoAgent } from '@dexto/core'");
-            expect(result).toContain("import { loadAgentConfig } from '@dexto/agent-management'");
-            expect(result).toContain('Starting my-app');
-            expect(result).toContain(
-                "const config = await loadAgentConfig('./agents/default.yml')"
-            );
-            expect(result).toContain('const agent = new DextoAgent(config');
+            expect(result).toContain("import 'dotenv/config';");
+            expect(result).toContain('DextoAgent');
+            expect(result).toContain("from '@dexto/core';");
+            expect(result).toContain("from '@dexto/storage';");
+            expect(result).toContain('const agent = new DextoAgent({');
             expect(result).toContain('await agent.start()');
+            expect(result).toContain('await agent.generate(');
         });
 
-        it('should use image harness terminology in comments', () => {
-            const result = generateIndexForImage({
+        it('should mention programmatic config in comments', () => {
+            const result = generateIndexForCodeFirstDI({
                 projectName: 'my-app',
                 packageName: 'my-app',
                 description: 'Test app',
-                imageName: '@dexto/image-local',
             });
 
-            expect(result).toContain(
-                '// Create agent - providers already registered by image environment'
-            );
-            expect(result).toContain('// This auto-registers providers as a side-effect');
+            expect(result).toContain('// Standalone Dexto app (programmatic)');
         });
     });
 
@@ -52,11 +50,13 @@ describe('template-engine', () => {
                 imageName: 'my-image',
             });
 
-            expect(result).toContain("import { defineImage } from '@dexto/core'");
-            expect(result).toContain('export default defineImage({');
+            expect(result).toContain("import type { ImageDefinition } from '@dexto/image-bundler'");
+            expect(result).toContain('const image = {');
             expect(result).toContain("name: 'my-image'");
             expect(result).toContain("version: '1.0.0'");
             expect(result).toContain("description: 'Test image'");
+            expect(result).toContain('} satisfies ImageDefinition;');
+            expect(result).toContain('export default image;');
         });
 
         it('should include convention-based auto-discovery comments', () => {
@@ -67,12 +67,14 @@ describe('template-engine', () => {
             });
 
             expect(result).toContain(
-                '// Providers are AUTO-DISCOVERED from convention-based folders'
+                '// Factories are AUTO-DISCOVERED from convention-based folders'
             );
-            expect(result).toContain('//   tools/         - Custom tool providers');
-            expect(result).toContain('//   blob-store/    - Blob storage providers');
-            expect(result).toContain('//   compression/   - Compression strategy providers');
-            expect(result).toContain('//   plugins/       - Plugin providers');
+            expect(result).toContain('//   tools/<type>/index.ts');
+            expect(result).toContain('//   storage/blob/<type>/index.ts');
+            expect(result).toContain('//   storage/database/<type>/index.ts');
+            expect(result).toContain('//   storage/cache/<type>/index.ts');
+            expect(result).toContain('//   hooks/<type>/index.ts');
+            expect(result).toContain('//   compaction/<type>/index.ts');
         });
 
         it('should include extends field when baseImage provided', () => {
@@ -115,7 +117,23 @@ describe('template-engine', () => {
             expect(resultDefault).toContain("target: 'local-development'");
         });
 
-        it('should include default configurations', () => {
+        it('should include persistent storage defaults when baseImage is provided', () => {
+            const result = generateDextoImageFile({
+                projectName: 'my-image',
+                packageName: 'my-image',
+                description: 'Test image',
+                baseImage: '@dexto/image-local',
+            });
+
+            expect(result).toContain('defaults: {');
+            expect(result).toContain('storage: {');
+            expect(result).toContain("type: 'local'");
+            expect(result).toContain("type: 'sqlite'");
+            expect(result).toContain("type: 'in-memory'");
+            expect(result).toContain('logger: {');
+        });
+
+        it('should include example storage defaults when no baseImage is provided', () => {
             const result = generateDextoImageFile({
                 projectName: 'my-image',
                 packageName: 'my-image',
@@ -124,62 +142,10 @@ describe('template-engine', () => {
 
             expect(result).toContain('defaults: {');
             expect(result).toContain('storage: {');
-            expect(result).toContain("type: 'local'");
-            expect(result).toContain("type: 'sqlite'");
-            expect(result).toContain('logging: {');
-        });
-    });
-
-    describe('generateDextoConfigFile', () => {
-        it('should generate dexto.config.ts', () => {
-            const result = generateDextoConfigFile({
-                projectName: 'my-project',
-                packageName: 'my-project',
-                description: 'Test project',
-            });
-
-            expect(result).toContain('import {');
-            expect(result).toContain('blobStoreRegistry');
-            expect(result).toContain('customToolRegistry');
-            expect(result).toContain('compactionRegistry');
-            expect(result).toContain('pluginRegistry');
-            expect(result).toContain("} from '@dexto/core'");
-        });
-
-        it('should include project metadata', () => {
-            const result = generateDextoConfigFile({
-                projectName: 'my-project',
-                packageName: 'my-project',
-                description: 'Test project',
-            });
-
-            expect(result).toContain('export const projectConfig = {');
-            expect(result).toContain("name: 'my-project'");
-            expect(result).toContain("version: '1.0.0'");
-            expect(result).toContain("description: 'Test project'");
-        });
-
-        it('should include registerProviders function', () => {
-            const result = generateDextoConfigFile({
-                projectName: 'my-project',
-                packageName: 'my-project',
-                description: 'Test project',
-            });
-
-            expect(result).toContain('export function registerProviders() {');
-            expect(result).toContain('// Example: Register blob storage provider');
-            expect(result).toContain('// blobStoreRegistry.register(myBlobProvider)');
-        });
-
-        it('should include initialize and cleanup functions', () => {
-            const result = generateDextoConfigFile({
-                projectName: 'my-project',
-                packageName: 'my-project',
-                description: 'Test project',
-            });
-
-            expect(result).toContain('export async function initialize() {');
-            expect(result).toContain('export async function cleanup() {');
+            expect(result).toContain("type: 'example-blob'");
+            expect(result).toContain("type: 'example-database'");
+            expect(result).toContain("type: 'example-cache'");
+            expect(result).toContain('logger: {');
         });
     });
 
@@ -206,10 +172,10 @@ describe('template-engine', () => {
 
             expect(result).toContain('A **Dexto image**');
             expect(result).toContain('# Build the image');
-            expect(result).toContain('pnpm add my-image');
+            expect(result).toContain('dexto image install');
         });
 
-        it('should use harness terminology for runtime behavior', () => {
+        it('should describe the DextoImage contract', () => {
             const result = generateImageReadme({
                 projectName: 'my-image',
                 packageName: 'my-image',
@@ -217,9 +183,8 @@ describe('template-engine', () => {
                 imageName: 'my-image',
             });
 
-            expect(result).toContain('agent harness packaged as an npm module');
-            expect(result).toContain('complete runtime harness');
-            expect(result).toContain('The harness provides:');
+            expect(result).toContain('exports a typed `DextoImage`');
+            expect(result).toContain('plain object');
         });
 
         it('should include extends note when baseImage provided', () => {
@@ -244,10 +209,10 @@ describe('template-engine', () => {
 
             expect(result).toContain('pnpm run build');
             expect(result).toContain('dexto-bundle build');
-            expect(result).toContain('Discovers providers from convention-based folders');
+            expect(result).toContain('Discovers factories from convention-based folders');
         });
 
-        it('should include architecture explanation', () => {
+        it('should document convention folders', () => {
             const result = generateImageReadme({
                 projectName: 'my-image',
                 packageName: 'my-image',
@@ -255,9 +220,9 @@ describe('template-engine', () => {
                 imageName: 'my-image',
             });
 
-            expect(result).toContain('## Architecture');
-            expect(result).toContain('When imported, this image:');
-            expect(result).toContain('Auto-registers providers (side effect)');
+            expect(result).toContain('tools/<type>/');
+            expect(result).toContain('storage/blob/<type>/');
+            expect(result).toContain('compaction/<type>/');
         });
     });
 
@@ -266,18 +231,18 @@ describe('template-engine', () => {
             const result = generateExampleTool();
 
             expect(result).toContain("import { z } from 'zod'");
-            expect(result).toContain('import type { CustomToolProvider');
-            expect(result).toContain('InternalTool');
+            expect(result).toContain("import type { ToolFactory } from '@dexto/agent-config'");
+            expect(result).toContain('Tool');
             expect(result).toContain("type: z.literal('example-tool')");
-            expect(result).toContain('export const exampleToolProvider: CustomToolProvider');
+            expect(result).toContain('export const factory: ToolFactory');
         });
 
         it('should generate tool with custom name', () => {
             const result = generateExampleTool('weather-api');
 
             expect(result).toContain("type: z.literal('weather-api')");
-            expect(result).toContain('export const weatherApiProvider: CustomToolProvider');
-            expect(result).toContain("id: 'weatherApi'");
+            expect(result).toContain('export const factory: ToolFactory');
+            expect(result).toContain("id: 'weather-api'");
         });
 
         it('should include zod schemas', () => {
@@ -301,12 +266,28 @@ describe('template-engine', () => {
         it('should include create function with tool definition', () => {
             const result = generateExampleTool('test-tool');
 
-            expect(result).toContain('create: (config');
-            expect(result).toContain('context');
-            expect(result).toContain('InternalTool[]');
-            expect(result).toContain('const tool: InternalTool = {');
+            expect(result).toContain('create: (_config)');
+            expect(result).toContain('const tool: Tool = {');
             expect(result).toContain('inputSchema: z.object({');
-            expect(result).toContain('execute: async (input');
+            expect(result).toContain(
+                'execute: async (input: unknown, context: ToolExecutionContext)'
+            );
+        });
+    });
+
+    describe('example image factories', () => {
+        it('should generate minimal factories that export a `factory` constant', () => {
+            expect(generateExampleHook('example-hook')).toContain('export const factory');
+            expect(generateExampleCompaction('example-compaction')).toContain(
+                'export const factory'
+            );
+            expect(generateExampleCacheFactory('example-cache')).toContain('export const factory');
+            expect(generateExampleDatabaseFactory('example-database')).toContain(
+                'export const factory'
+            );
+            expect(generateExampleBlobStoreFactory('example-blob')).toContain(
+                'export const factory'
+            );
         });
     });
 
@@ -334,30 +315,6 @@ describe('template-engine', () => {
             expect(result).toContain('pnpm start');
         });
 
-        it('should include image section when using image', () => {
-            const result = generateAppReadme({
-                projectName: 'my-app',
-                packageName: 'my-app',
-                description: 'Test app',
-                imageName: '@dexto/image-local',
-            });
-
-            expect(result).toContain('## Image');
-            expect(result).toContain('This app uses the `@dexto/image-local` image');
-            expect(result).toContain('Pre-configured providers');
-            expect(result).toContain('Runtime orchestration');
-        });
-
-        it('should not include image section when not using image', () => {
-            const result = generateAppReadme({
-                projectName: 'my-app',
-                packageName: 'my-app',
-                description: 'Test app',
-            });
-
-            expect(result).not.toContain('## Image');
-        });
-
         it('should include project structure', () => {
             const result = generateAppReadme({
                 projectName: 'my-app',
@@ -367,7 +324,6 @@ describe('template-engine', () => {
 
             expect(result).toContain('## Project Structure');
             expect(result).toContain('src/');
-            expect(result).toContain('agents/');
         });
 
         it('should include configuration section', () => {
@@ -378,7 +334,8 @@ describe('template-engine', () => {
             });
 
             expect(result).toContain('## Configuration');
-            expect(result).toContain('agents/default.yml');
+            expect(result).toContain('src/index.ts');
+            expect(result).toContain('MCP');
         });
 
         it('should include learn more section', () => {

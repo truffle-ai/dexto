@@ -4,35 +4,21 @@
  * Validates plugin directory structure and manifest.
  * Checks for required files, valid JSON, and schema compliance.
  *
- * Supports two plugin formats:
- * - .claude-plugin/plugin.json: Claude Code compatible format
- * - .dexto-plugin/plugin.json: Dexto-native format with extended features (preferred)
+ * Supports Claude Code compatible plugins:
+ * - .claude-plugin/plugin.json
  */
 
 import * as path from 'path';
 import { existsSync, readFileSync, readdirSync } from 'fs';
-import { PluginManifestSchema, DextoPluginManifestSchema } from './schemas.js';
-import type {
-    PluginValidationResult,
-    PluginManifest,
-    DextoPluginManifest,
-    PluginFormat,
-} from './types.js';
-
-/**
- * Extended validation result with plugin format
- */
-export interface ExtendedPluginValidationResult extends PluginValidationResult {
-    /** Plugin format detected */
-    format?: PluginFormat;
-}
+import { PluginManifestSchema } from './schemas.js';
+import type { PluginValidationResult, PluginManifest } from './types.js';
 
 /**
  * Validates a plugin directory structure and manifest.
  *
  * Checks:
  * 1. Directory exists
- * 2. .dexto-plugin/plugin.json OR .claude-plugin/plugin.json exists (Dexto format preferred)
+ * 2. .claude-plugin/plugin.json exists
  * 3. plugin.json is valid JSON
  * 4. plugin.json matches schema (name is required)
  * 5. At least one command or skill exists (warning if none)
@@ -40,11 +26,10 @@ export interface ExtendedPluginValidationResult extends PluginValidationResult {
  * @param pluginPath Absolute or relative path to plugin directory
  * @returns Validation result with manifest (if valid), errors, and warnings
  */
-export function validatePluginDirectory(pluginPath: string): ExtendedPluginValidationResult {
+export function validatePluginDirectory(pluginPath: string): PluginValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
-    let manifest: PluginManifest | DextoPluginManifest | undefined;
-    let format: PluginFormat | undefined;
+    let manifest: PluginManifest | undefined;
 
     // Resolve to absolute path
     const absolutePath = path.isAbsolute(pluginPath) ? pluginPath : path.resolve(pluginPath);
@@ -55,27 +40,12 @@ export function validatePluginDirectory(pluginPath: string): ExtendedPluginValid
         return { valid: false, errors, warnings };
     }
 
-    // Check for plugin manifest (prefer .dexto-plugin over .claude-plugin)
-    const dextoPluginDir = path.join(absolutePath, '.dexto-plugin');
-    const claudePluginDir = path.join(absolutePath, '.claude-plugin');
-
-    let manifestPath: string;
-    if (existsSync(dextoPluginDir)) {
-        manifestPath = path.join(dextoPluginDir, 'plugin.json');
-        format = 'dexto';
-    } else if (existsSync(claudePluginDir)) {
-        manifestPath = path.join(claudePluginDir, 'plugin.json');
-        format = 'claude-code';
-    } else {
-        errors.push('Missing .dexto-plugin or .claude-plugin directory');
-        return { valid: false, errors, warnings };
-    }
+    // Check for plugin manifest
+    const manifestPath = path.join(absolutePath, '.claude-plugin', 'plugin.json');
 
     // Check plugin.json exists
     if (!existsSync(manifestPath)) {
-        errors.push(
-            `Missing ${format === 'dexto' ? '.dexto-plugin' : '.claude-plugin'}/plugin.json`
-        );
+        errors.push('Missing .claude-plugin/plugin.json');
         return { valid: false, errors, warnings };
     }
 
@@ -93,9 +63,7 @@ export function validatePluginDirectory(pluginPath: string): ExtendedPluginValid
             return { valid: false, errors, warnings };
         }
 
-        // Validate against appropriate schema
-        const schema = format === 'dexto' ? DextoPluginManifestSchema : PluginManifestSchema;
-        const result = schema.safeParse(parsed);
+        const result = PluginManifestSchema.safeParse(parsed);
         if (!result.success) {
             const issues = result.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`);
             errors.push(`Schema validation failed: ${issues.join('; ')}`);
@@ -141,7 +109,6 @@ export function validatePluginDirectory(pluginPath: string): ExtendedPluginValid
     return {
         valid: errors.length === 0,
         manifest,
-        format,
         errors,
         warnings,
     };
@@ -185,47 +152,17 @@ function checkDirectoryHasSkills(skillsDir: string): boolean {
 }
 
 /**
- * Result of manifest loading with format information
- */
-export interface LoadedManifestResult {
-    manifest: PluginManifest | DextoPluginManifest;
-    format: PluginFormat;
-}
-
-/**
  * Attempts to load and validate a plugin manifest from a directory.
  * Returns null if the manifest doesn't exist, is invalid JSON, or fails schema validation.
- *
- * Checks for .dexto-plugin first (preferred), then falls back to .claude-plugin.
  *
  * This is a shared utility used by discover-plugins, list-plugins, and import-plugin.
  *
  * @param pluginPath Absolute path to the plugin directory
- * @returns Validated manifest with format or null if not a valid plugin
+ * @returns Validated manifest or null if not a valid plugin
  */
-export function tryLoadManifest(pluginPath: string): PluginManifest | null;
-export function tryLoadManifest(
-    pluginPath: string,
-    returnFormat: true
-): LoadedManifestResult | null;
-export function tryLoadManifest(
-    pluginPath: string,
-    returnFormat?: boolean
-): PluginManifest | LoadedManifestResult | null {
-    // Check for .dexto-plugin first (preferred), then .claude-plugin
-    const dextoManifestPath = path.join(pluginPath, '.dexto-plugin', 'plugin.json');
-    const claudeManifestPath = path.join(pluginPath, '.claude-plugin', 'plugin.json');
-
-    let manifestPath: string;
-    let format: PluginFormat;
-
-    if (existsSync(dextoManifestPath)) {
-        manifestPath = dextoManifestPath;
-        format = 'dexto';
-    } else if (existsSync(claudeManifestPath)) {
-        manifestPath = claudeManifestPath;
-        format = 'claude-code';
-    } else {
+export function tryLoadManifest(pluginPath: string): PluginManifest | null {
+    const manifestPath = path.join(pluginPath, '.claude-plugin', 'plugin.json');
+    if (!existsSync(manifestPath)) {
         return null;
     }
 
@@ -233,16 +170,10 @@ export function tryLoadManifest(
         const content = readFileSync(manifestPath, 'utf-8');
         const parsed = JSON.parse(content);
 
-        // Use appropriate schema based on format
-        const schema = format === 'dexto' ? DextoPluginManifestSchema : PluginManifestSchema;
-        const result = schema.safeParse(parsed);
+        const result = PluginManifestSchema.safeParse(parsed);
 
         if (!result.success) {
             return null;
-        }
-
-        if (returnFormat) {
-            return { manifest: result.data, format };
         }
         return result.data;
     } catch {

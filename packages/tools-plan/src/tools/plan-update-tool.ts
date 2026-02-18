@@ -7,8 +7,9 @@
 
 import { z } from 'zod';
 import { createPatch } from 'diff';
-import type { InternalTool, ToolExecutionContext, DiffDisplayData } from '@dexto/core';
-import type { PlanService } from '../plan-service.js';
+import { defineTool } from '@dexto/core';
+import type { Tool, ToolExecutionContext, DiffDisplayData } from '@dexto/core';
+import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
 
 const PlanUpdateInputSchema = z
@@ -16,8 +17,6 @@ const PlanUpdateInputSchema = z
         content: z.string().describe('Updated plan content in markdown format'),
     })
     .strict();
-
-type PlanUpdateInput = z.input<typeof PlanUpdateInputSchema>;
 
 /**
  * Generate diff preview for plan update
@@ -45,9 +44,12 @@ function generateDiffPreview(
 /**
  * Creates the plan_update tool
  */
-export function createPlanUpdateTool(planService: PlanService): InternalTool {
-    return {
+export function createPlanUpdateTool(
+    getPlanService: PlanServiceGetter
+): Tool<typeof PlanUpdateInputSchema> {
+    return defineTool({
         id: 'plan_update',
+        displayName: 'Update Plan',
         description:
             'Update the existing implementation plan for this session. Shows a diff preview for approval before saving. The plan must already exist (use plan_create first).',
         inputSchema: PlanUpdateInputSchema,
@@ -55,36 +57,35 @@ export function createPlanUpdateTool(planService: PlanService): InternalTool {
         /**
          * Generate diff preview for approval UI
          */
-        generatePreview: async (
-            input: unknown,
-            context?: ToolExecutionContext
-        ): Promise<DiffDisplayData> => {
-            const { content: newContent } = input as PlanUpdateInput;
+        generatePreview: async (input, context: ToolExecutionContext): Promise<DiffDisplayData> => {
+            const resolvedPlanService = await getPlanService(context);
+            const { content: newContent } = input;
 
-            if (!context?.sessionId) {
+            if (!context.sessionId) {
                 throw PlanError.sessionIdRequired();
             }
 
             // Read existing plan
-            const existing = await planService.read(context.sessionId);
+            const existing = await resolvedPlanService.read(context.sessionId);
             if (!existing) {
                 throw PlanError.planNotFound(context.sessionId);
             }
 
             // Generate diff preview
-            const planPath = planService.getPlanPath(context.sessionId);
+            const planPath = resolvedPlanService.getPlanPath(context.sessionId);
             return generateDiffPreview(planPath, existing.content, newContent);
         },
 
-        execute: async (input: unknown, context?: ToolExecutionContext) => {
-            const { content } = input as PlanUpdateInput;
+        async execute(input, context: ToolExecutionContext) {
+            const resolvedPlanService = await getPlanService(context);
+            const { content } = input;
 
-            if (!context?.sessionId) {
+            if (!context.sessionId) {
                 throw PlanError.sessionIdRequired();
             }
 
-            const result = await planService.update(context.sessionId, content);
-            const planPath = planService.getPlanPath(context.sessionId);
+            const result = await resolvedPlanService.update(context.sessionId, content);
+            const planPath = resolvedPlanService.getPlanPath(context.sessionId);
 
             return {
                 success: true,
@@ -93,5 +94,5 @@ export function createPlanUpdateTool(planService: PlanService): InternalTool {
                 _display: generateDiffPreview(planPath, result.oldContent, result.newContent),
             };
         },
-    };
+    });
 }

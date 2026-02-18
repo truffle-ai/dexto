@@ -5,13 +5,7 @@
  * Supports structured logging, component-based categorization, and per-agent isolation.
  */
 
-import type {
-    IDextoLogger,
-    ILoggerTransport,
-    LogEntry,
-    LogLevel,
-    DextoLogComponent,
-} from './types.js';
+import type { Logger, LoggerTransport, LogEntry, LogLevel, DextoLogComponent } from './types.js';
 
 export interface DextoLoggerConfig {
     /** Minimum log level to record */
@@ -23,7 +17,7 @@ export interface DextoLoggerConfig {
     /** Optional session ID for associating logs with a session */
     sessionId?: string;
     /** Transport instances */
-    transports: ILoggerTransport[];
+    transports: LoggerTransport[];
     /** Shared level reference (internal - for child loggers to share parent's level) */
     _levelRef?: { value: LogLevel };
 }
@@ -31,13 +25,13 @@ export interface DextoLoggerConfig {
 /**
  * DextoLogger - Multi-transport logger with structured logging
  */
-export class DextoLogger implements IDextoLogger {
+export class DextoLogger implements Logger {
     /** Shared level reference - allows parent and all children to share the same level */
     private levelRef: { value: LogLevel };
     private component: DextoLogComponent;
     private agentId: string;
     private sessionId: string | undefined;
-    private transports: ILoggerTransport[];
+    private transports: LoggerTransport[];
 
     // Log level hierarchy for filtering
     // Following Winston convention: lower number = more severe

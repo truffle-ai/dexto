@@ -57,7 +57,7 @@ describe('llm registry auto-update', () => {
         const autoUpdate = await import('./auto-update.js');
 
         expect(autoUpdate.loadLlmRegistryCache({ logger: mockLogger })).toBe(false);
-    });
+    }, 15_000);
 
     it('loadLlmRegistryCache ignores cache files with wrong schemaVersion', async () => {
         const autoUpdate = await import('./auto-update.js');

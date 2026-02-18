@@ -5,12 +5,12 @@
  * Used when logging needs to be completely suppressed (e.g., sub-agents).
  */
 
-import type { ILoggerTransport, LogEntry } from '../types.js';
+import type { LoggerTransport, LogEntry } from '../types.js';
 
 /**
  * SilentTransport - Discards all log entries
  */
-export class SilentTransport implements ILoggerTransport {
+export class SilentTransport implements LoggerTransport {
     write(_entry: LogEntry): void {
         // Intentionally do nothing - discard all logs
     }

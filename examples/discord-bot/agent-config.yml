@@ -47,9 +47,9 @@ mcpServers:
     type: http
     url: https://mcp.exa.ai/mcp
 
-# Tool Confirmation Configuration
-# Discord bots auto-approve tool calls, so we disable confirmation
-toolConfirmation:
+# Permissions Configuration
+# Discord bots auto-approve tool calls, so we disable approvals
+permissions:
   mode: auto-approve
   allowedToolsStorage: memory
 

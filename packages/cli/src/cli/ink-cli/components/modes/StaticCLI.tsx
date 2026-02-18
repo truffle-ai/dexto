@@ -37,6 +37,7 @@ import { StatusBar } from '../StatusBar.js';
 import { HistorySearchBar } from '../HistorySearchBar.js';
 import { Footer } from '../Footer.js';
 import { TodoPanel } from '../TodoPanel.js';
+import { BackgroundTasksPanel } from '../BackgroundTasksPanel.js';
 
 // Containers
 import { InputContainer, type InputContainerHandle } from '../../containers/InputContainer.js';
@@ -45,7 +46,9 @@ import { OverlayContainer } from '../../containers/OverlayContainer.js';
 interface StaticCLIProps {
     agent: DextoAgent;
     initialSessionId: string | null;
+    initialPrompt?: string | undefined;
     startupInfo: StartupInfo;
+    configFilePath: string | null;
     /** Whether to stream chunks or wait for complete response */
     useStreaming?: boolean;
 }
@@ -53,7 +56,9 @@ interface StaticCLIProps {
 export function StaticCLI({
     agent,
     initialSessionId,
+    initialPrompt,
     startupInfo,
+    configFilePath,
     useStreaming = true,
 }: StaticCLIProps) {
     // Use shared CLI state (no keyboard scroll in Static mode)
@@ -220,6 +225,14 @@ export function StaticCLI({
                     hasTodos={todos.some((t) => t.status !== 'completed')}
                     planModeActive={ui.planModeActive}
                     autoApproveEdits={ui.autoApproveEdits}
+                    backgroundTasksRunning={ui.backgroundTasksRunning}
+                />
+
+                {/* Background tasks panel */}
+                <BackgroundTasksPanel
+                    tasks={ui.backgroundTasks}
+                    isExpanded={ui.backgroundTasksExpanded}
+                    isProcessing={ui.isProcessing}
                 />
 
                 {/* Todo panel - shown below status bar */}
@@ -238,6 +251,7 @@ export function StaticCLI({
                     input={input}
                     ui={ui}
                     session={session}
+                    initialPrompt={initialPrompt}
                     approval={approval}
                     queuedMessages={queuedMessages}
                     setInput={setInput}
@@ -253,6 +267,7 @@ export function StaticCLI({
                     agent={agent}
                     inputService={inputService}
                     useStreaming={useStreaming}
+                    configFilePath={configFilePath}
                 />
 
                 <OverlayContainer
@@ -272,6 +287,7 @@ export function StaticCLI({
                     buffer={buffer}
                     refreshStatic={refreshStatic}
                     onSubmitPromptCommand={handleSubmitPromptCommand}
+                    configFilePath={configFilePath}
                 />
 
                 {/* Exit warning (Ctrl+C pressed once) - shown above footer */}

@@ -14,28 +14,159 @@
  * exactly as they would when users install from npm.
  */
 import { execSync, spawn, ChildProcess } from 'child_process';
-import { existsSync, rmSync, mkdirSync, writeFileSync } from 'fs';
+import { existsSync, rmSync, mkdirSync, writeFileSync, readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 
 const REGISTRY_URL = 'http://localhost:4873';
 const VERDACCIO_CONFIG_DIR = join(process.cwd(), '.verdaccio');
 
-// Packages in dependency order (dependencies first)
-const PACKAGES = [
-    { name: '@dexto/analytics', path: 'packages/analytics' },
-    { name: '@dexto/core', path: 'packages/core' },
-    { name: '@dexto/registry', path: 'packages/registry' },
-    { name: '@dexto/tools-filesystem', path: 'packages/tools-filesystem' },
-    { name: '@dexto/tools-process', path: 'packages/tools-process' },
-    { name: '@dexto/tools-todo', path: 'packages/tools-todo' },
-    { name: '@dexto/tools-plan', path: 'packages/tools-plan' },
-    { name: '@dexto/image-local', path: 'packages/image-local' },
-    { name: '@dexto/agent-management', path: 'packages/agent-management' },
-    { name: '@dexto/server', path: 'packages/server' },
-    { name: 'dexto', path: 'packages/cli' },
-];
-
 let verdaccioProcess: ChildProcess | null = null;
+
+type WorkspacePackage = {
+    name: string;
+    dir: string;
+    private: boolean;
+    dependencies: Record<string, string>;
+    optionalDependencies: Record<string, string>;
+};
+
+function readJsonFile(filePath: string): unknown {
+    return JSON.parse(readFileSync(filePath, 'utf-8'));
+}
+
+function getWorkspacePackages(rootDir: string): Map<string, WorkspacePackage> {
+    const packagesDir = join(rootDir, 'packages');
+    const entries = existsSync(packagesDir)
+        ? readdirSync(packagesDir, { withFileTypes: true })
+        : [];
+
+    const map = new Map<string, WorkspacePackage>();
+    for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        const pkgDir = join(packagesDir, entry.name);
+        const pkgJsonPath = join(pkgDir, 'package.json');
+        if (!existsSync(pkgJsonPath)) continue;
+
+        const raw = readJsonFile(pkgJsonPath);
+        if (!raw || typeof raw !== 'object') continue;
+
+        const pkg = raw as Record<string, unknown>;
+        const name = typeof pkg.name === 'string' ? pkg.name : undefined;
+        if (!name) continue;
+
+        map.set(name, {
+            name,
+            dir: join('packages', entry.name),
+            private: pkg.private === true,
+            dependencies:
+                pkg.dependencies && typeof pkg.dependencies === 'object'
+                    ? (pkg.dependencies as Record<string, string>)
+                    : {},
+            optionalDependencies:
+                pkg.optionalDependencies && typeof pkg.optionalDependencies === 'object'
+                    ? (pkg.optionalDependencies as Record<string, string>)
+                    : {},
+        });
+    }
+
+    return map;
+}
+
+function resolvePublishPlan(rootDir: string): WorkspacePackage[] {
+    const packages = getWorkspacePackages(rootDir);
+    const rootPackage = packages.get('dexto');
+    if (!rootPackage) {
+        throw new Error("Could not find workspace package 'dexto' in ./packages");
+    }
+
+    const needed = new Set<string>();
+    const stack = ['dexto'];
+    while (stack.length > 0) {
+        const name = stack.pop();
+        if (!name || needed.has(name)) continue;
+
+        const pkg = packages.get(name);
+        if (!pkg) {
+            throw new Error(`Workspace dependency '${name}' not found under ./packages`);
+        }
+        if (pkg.private) {
+            throw new Error(
+                `Workspace dependency '${name}' is marked private and cannot be published to the local registry`
+            );
+        }
+
+        needed.add(name);
+
+        const depNames = new Set([
+            ...Object.keys(pkg.dependencies),
+            ...Object.keys(pkg.optionalDependencies),
+        ]);
+        for (const depName of depNames) {
+            if (packages.has(depName)) {
+                stack.push(depName);
+            }
+        }
+    }
+
+    // Build dependency graph within the closure
+    const indegree = new Map<string, number>();
+    const dependents = new Map<string, Set<string>>();
+
+    for (const name of needed) {
+        indegree.set(name, 0);
+        dependents.set(name, new Set());
+    }
+
+    for (const name of needed) {
+        const pkg = packages.get(name);
+        if (!pkg) continue;
+        const depNames = new Set([
+            ...Object.keys(pkg.dependencies),
+            ...Object.keys(pkg.optionalDependencies),
+        ]);
+
+        for (const depName of depNames) {
+            if (!needed.has(depName)) continue;
+
+            // name depends on depName
+            indegree.set(name, (indegree.get(name) ?? 0) + 1);
+            dependents.get(depName)?.add(name);
+        }
+    }
+
+    const queue: string[] = [];
+    for (const [name, deg] of indegree.entries()) {
+        if (deg === 0) queue.push(name);
+    }
+    queue.sort();
+
+    const ordered: WorkspacePackage[] = [];
+    while (queue.length > 0) {
+        const name = queue.shift();
+        if (!name) break;
+
+        const pkg = packages.get(name);
+        if (pkg) ordered.push(pkg);
+
+        for (const dep of dependents.get(name) ?? []) {
+            const next = (indegree.get(dep) ?? 0) - 1;
+            indegree.set(dep, next);
+            if (next === 0) {
+                queue.push(dep);
+                queue.sort();
+            }
+        }
+    }
+
+    if (ordered.length !== needed.size) {
+        const remaining = [...needed].filter((n) => (indegree.get(n) ?? 0) > 0).sort();
+        throw new Error(
+            `Could not compute publish order (cycle detected). Remaining: ${remaining.join(', ')}`
+        );
+    }
+
+    return ordered;
+}
 
 function sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -192,10 +323,12 @@ async function main() {
         }
         console.log('  ✓ Registry ready');
 
+        const publishPlan = resolvePublishPlan(rootDir);
+
         // Publish all packages
         console.log('📦 Publishing packages to local registry...');
-        for (const pkg of PACKAGES) {
-            publishPackage(pkg);
+        for (const pkg of publishPlan) {
+            publishPackage({ name: pkg.name, path: pkg.dir });
         }
         console.log('  ✓ All packages published');
 

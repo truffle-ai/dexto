@@ -4,14 +4,15 @@ import type { AgentCard } from '@dexto/core';
 import { DextoAgent, createAgentCard, logger, AgentError } from '@dexto/core';
 import {
     loadAgentConfig,
-    enrichAgentConfig,
     deriveDisplayName,
     getAgentRegistry,
     AgentFactory,
     globalPreferencesExist,
     loadGlobalPreferences,
+    createDextoAgentFromConfig,
 } from '@dexto/agent-management';
 import { applyUserPreferences } from '../config/cli-overrides.js';
+import { createFileSessionLoggerFactory } from '../utils/session-logger-factory.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import {
     createDextoApp,
@@ -30,34 +31,7 @@ import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
 
 const DEFAULT_AGENT_VERSION = '1.0.0';
 
-/**
- * Load image dynamically based on config and environment
- * Priority: Config image field > Environment variable > Default
- * Images are optional, but default to image-local for convenience
- *
- * @returns Image metadata including bundled plugins, or null if image has no metadata export
- */
-async function loadImageForConfig(config: {
-    image?: string | undefined;
-}): Promise<{ bundledPlugins?: string[] } | null> {
-    const imageName = config.image || process.env.DEXTO_IMAGE || '@dexto/image-local';
-
-    try {
-        const imageModule = await import(imageName);
-        logger.debug(`Loaded image: ${imageName}`);
-
-        // Extract metadata if available (built images export imageMetadata)
-        if (imageModule.imageMetadata) {
-            return imageModule.imageMetadata;
-        }
-
-        return null;
-    } catch (err) {
-        const errorMsg = `Failed to load image '${imageName}': ${err instanceof Error ? err.message : String(err)}`;
-        logger.error(errorMsg);
-        throw new Error(errorMsg);
-    }
-}
+const sessionLoggerFactory = createFileSessionLoggerFactory();
 
 /**
  * List all agents (installed and available)
@@ -121,18 +95,13 @@ async function createAgentFromId(agentId: string): Promise<DextoAgent> {
             }
         }
 
-        // Load image to get bundled plugins
-        const imageMetadata = await loadImageForConfig(config);
-
-        // Enrich config with per-agent paths and bundled plugins
-        const enrichedConfig = enrichAgentConfig(config, agentPath, {
-            logLevel: 'info', // Server uses info-level logging for visibility
-            bundledPlugins: imageMetadata?.bundledPlugins || [],
-        });
-
-        // Create agent instance
         logger.info(`Creating agent: ${agentId} from ${agentPath}`);
-        return new DextoAgent(enrichedConfig, agentPath);
+        return await createDextoAgentFromConfig({
+            config,
+            configPath: agentPath,
+            enrichOptions: { logLevel: 'info' },
+            overrides: { sessionLoggerFactory },
+        });
     } catch (error) {
         throw new Error(
             `Failed to create agent '${agentId}': ${error instanceof Error ? error.message : String(error)}`
@@ -171,12 +140,14 @@ export async function initializeHonoApi(
     agentCardOverride?: Partial<AgentCard>,
     listenPort?: number,
     agentId?: string,
+    configFilePath?: string,
     webRoot?: string,
     webUIConfig?: WebUIRuntimeConfig
 ): Promise<HonoInitializationResult> {
     // Declare before registering shutdown hook to avoid TDZ on signals
     let activeAgent: DextoAgent = agent;
     let activeAgentId: string | undefined = agentId || 'coding-agent';
+    let activeAgentConfigPath: string | undefined = configFilePath;
     let isSwitchingAgent = false;
     registerGracefulShutdown(() => activeAgent);
 
@@ -207,9 +178,9 @@ export async function initializeHonoApi(
     async function wireServicesToAgent(agent: DextoAgent): Promise<void> {
         logger.debug('Wiring services to agent...');
 
-        // Subscribe to event bus (methods handle aborting previous subscriptions)
-        webhookSubscriber.subscribe(agent.agentEventBus);
-        sseSubscriber.subscribe(agent.agentEventBus);
+        // Register subscribers (DextoAgent handles (re-)subscription on start/restart)
+        agent.registerSubscriber(webhookSubscriber);
+        agent.registerSubscriber(sseSubscriber);
         // Note: ApprovalCoordinator doesn't subscribe to agent event bus
         // It's a separate coordination channel between handler and server
     }
@@ -254,6 +225,7 @@ export async function initializeHonoApi(
     async function performAgentSwitch(
         newAgent: DextoAgent,
         agentId: string,
+        agentConfigPath: string | undefined,
         bridge: ReturnType<typeof createNodeServer>
     ) {
         logger.info('Preparing new agent for switch...');
@@ -267,11 +239,11 @@ export async function initializeHonoApi(
         const previousAgent = activeAgent;
         activeAgent = newAgent;
         activeAgentId = agentId;
+        activeAgentConfigPath = agentConfigPath;
 
         // Set approval handler if manual mode OR elicitation enabled (before start() for validation)
         const needsHandler =
-            newAgent.config.toolConfirmation?.mode === 'manual' ||
-            newAgent.config.elicitation.enabled;
+            newAgent.config.permissions.mode === 'manual' || newAgent.config.elicitation.enabled;
 
         if (needsHandler) {
             logger.debug('Setting up manual approval handler for new agent...');
@@ -319,6 +291,7 @@ export async function initializeHonoApi(
         isSwitchingAgent = true;
 
         let newAgent: DextoAgent | undefined;
+        let newAgentConfigPath: string | undefined;
         try {
             // 1. SHUTDOWN OLD TELEMETRY FIRST (before creating new agent)
             logger.info('Shutting down telemetry for agent switch...');
@@ -326,10 +299,12 @@ export async function initializeHonoApi(
             await Telemetry.shutdownGlobal();
 
             // 2. Create new agent from registry (will initialize fresh telemetry in createAgentServices)
+            const registry = getAgentRegistry();
+            newAgentConfigPath = await registry.resolveAgent(agentId, true);
             newAgent = await createAgentFromId(agentId);
 
             // 3. Use common switch logic (register subscribers, start agent, stop previous)
-            return await performAgentSwitch(newAgent, agentId, bridge);
+            return await performAgentSwitch(newAgent, agentId, newAgentConfigPath, bridge);
         } catch (error) {
             logger.error(
                 `Failed to switch to agent '${agentId}': ${
@@ -388,24 +363,19 @@ export async function initializeHonoApi(
                 }
             }
 
-            // 3. Load image first to get bundled plugins
-            const imageMetadata = await loadImageForConfig(config);
-
-            // 3.5. Enrich config with per-agent paths and bundled plugins from image
-            const enrichedConfig = enrichAgentConfig(config, filePath, {
-                logLevel: 'info', // Server uses info-level logging for visibility
-                bundledPlugins: imageMetadata?.bundledPlugins || [],
+            // 3. Create new agent instance (will initialize fresh telemetry in createAgentServices)
+            newAgent = await createDextoAgentFromConfig({
+                config,
+                configPath: filePath,
+                enrichOptions: { logLevel: 'info' },
+                overrides: { sessionLoggerFactory },
             });
 
-            // 4. Create new agent instance directly (will initialize fresh telemetry in createAgentServices)
-            newAgent = new DextoAgent(enrichedConfig, filePath);
+            // 4. Use enriched agentId (derived from config or filename during enrichment)
+            const agentId = newAgent.config.agentId;
 
-            // 5. Use enriched agentId (derived from config or filename during enrichment)
-            // enrichAgentConfig always sets agentId, so it's safe to assert non-null
-            const agentId = enrichedConfig.agentId!;
-
-            // 6. Use common switch logic (register subscribers, start agent, stop previous)
-            return await performAgentSwitch(newAgent, agentId, bridge);
+            // 5. Use common switch logic (register subscribers, start agent, stop previous)
+            return await performAgentSwitch(newAgent, agentId, filePath, bridge);
         } catch (error) {
             logger.error(
                 `Failed to switch to agent from path '${filePath}': ${
@@ -439,6 +409,7 @@ export async function initializeHonoApi(
         return activeAgent;
     };
     const getAgentCard = () => agentCardData;
+    const getAgentConfigPath = (_ctx: Context): string | undefined => activeAgentConfigPath;
 
     // Declare bridge variable that will be set later
     let bridgeRef: ReturnType<typeof createNodeServer> | null = null;
@@ -447,6 +418,7 @@ export async function initializeHonoApi(
     const app = createDextoApp({
         apiPrefix: '/api',
         getAgent,
+        getAgentConfigPath,
         getAgentCard,
         approvalCoordinator,
         webhookSubscriber,
@@ -502,8 +474,7 @@ export async function initializeHonoApi(
 
     // Set approval handler for initial agent if manual mode OR elicitation enabled (before start() for validation)
     const needsHandler =
-        activeAgent.config.toolConfirmation?.mode === 'manual' ||
-        activeAgent.config.elicitation.enabled;
+        activeAgent.config.permissions.mode === 'manual' || activeAgent.config.elicitation.enabled;
 
     if (needsHandler) {
         logger.debug('Setting up manual approval handler for initial agent...');
@@ -550,6 +521,7 @@ export async function startHonoApiServer(
     port = 3000,
     agentCardOverride?: Partial<AgentCard>,
     agentId?: string,
+    configFilePath?: string,
     webRoot?: string,
     webUIConfig?: WebUIRuntimeConfig
 ): Promise<{
@@ -561,6 +533,7 @@ export async function startHonoApiServer(
         agentCardOverride,
         port,
         agentId,
+        configFilePath,
         webRoot,
         webUIConfig
     );

@@ -11,7 +11,7 @@ import {
     findDextoSourceRoot,
     findDextoProjectRoot,
 } from './execution-context.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 
 /**
  * Standard path resolver for logs/db/config/anything in dexto projects
@@ -67,14 +67,27 @@ export function getDextoPath(type: string, filename?: string, startPath?: string
 }
 
 /**
- * Global path resolver that ALWAYS returns paths in the user's home directory
- * Used for agent registry and other global-only resources that should not be project-relative
+ * Global path resolver for user-global resources that should not be project-relative.
+ *
+ * Dev mode support:
+ * - dexto-source + DEXTO_DEV_MODE=true: Use repo-local `.dexto` (isolated testing)
+ * - otherwise: Use global `~/.dexto` (user experience)
  * @param type Path type (agents, cache, etc.)
  * @param filename Optional filename to append
  * @returns Absolute path to the global location (~/.dexto/...)
  */
 export function getDextoGlobalPath(type: string, filename?: string): string {
-    // ALWAYS return global path, ignore project context
+    const isDevMode = process.env.DEXTO_DEV_MODE === 'true';
+    if (isDevMode && getExecutionContext() === 'dexto-source') {
+        const sourceRoot = findDextoSourceRoot();
+        if (!sourceRoot) {
+            throw new Error('Not in dexto source context');
+        }
+
+        const devBasePath = path.join(sourceRoot, '.dexto', type);
+        return filename ? path.join(devBasePath, filename) : devBasePath;
+    }
+
     const basePath = path.join(homedir(), '.dexto', type);
     return filename ? path.join(basePath, filename) : basePath;
 }
@@ -139,7 +152,7 @@ export function findPackageRoot(startPath: string = process.cwd()): string | nul
  * Ensure ~/.dexto directory exists for global storage
  */
 export async function ensureDextoGlobalDirectory(): Promise<void> {
-    const dextoDir = path.join(homedir(), '.dexto');
+    const dextoDir = getDextoGlobalPath('');
     try {
         await fs.mkdir(dextoDir, { recursive: true });
     } catch (error) {
@@ -158,7 +171,7 @@ export async function ensureDextoGlobalDirectory(): Promise<void> {
  * @param logger Optional logger instance for logging
  * @returns Absolute path to .env file for saving
  */
-export function getDextoEnvPath(startPath: string = process.cwd(), logger?: IDextoLogger): string {
+export function getDextoEnvPath(startPath: string = process.cwd(), logger?: Logger): string {
     const context = getExecutionContext(startPath);
     let envPath = '';
     switch (context) {

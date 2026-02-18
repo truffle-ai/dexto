@@ -1,11 +1,10 @@
 import { randomUUID } from 'crypto';
-import { VercelMessageFormatter } from '@core/llm/formatters/vercel.js';
+import { VercelMessageFormatter } from '../llm/formatters/vercel.js';
 import { LLMContext } from '../llm/types.js';
 import type { InternalMessage, AssistantMessage, ToolCall } from './types.js';
 import { isSystemMessage, isUserMessage, isAssistantMessage, isToolMessage } from './types.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
-import { eventBus } from '../events/index.js';
 import {
     expandBlobReferences,
     isLikelyBase64String,
@@ -16,7 +15,7 @@ import {
 import type { SanitizedToolResult } from './types.js';
 import { DynamicContributorContext } from '../systemPrompt/types.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
-import { IConversationHistoryProvider } from '@core/session/history/types.js';
+import type { ConversationHistoryProvider } from '../session/history/types.js';
 import { ContextError } from './errors.js';
 import { ValidatedLLMConfig } from '../llm/schemas.js';
 
@@ -75,7 +74,7 @@ export class ContextManager<TMessage = unknown> {
      */
     private lastCallMessageCount: number | null = null;
 
-    private historyProvider: IConversationHistoryProvider;
+    private historyProvider: ConversationHistoryProvider;
     private readonly sessionId: string;
 
     /**
@@ -85,7 +84,7 @@ export class ContextManager<TMessage = unknown> {
      */
     private resourceManager: import('../resources/index.js').ResourceManager;
 
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     /**
      * Creates a new ContextManager instance
@@ -103,10 +102,10 @@ export class ContextManager<TMessage = unknown> {
         formatter: VercelMessageFormatter,
         systemPromptManager: SystemPromptManager,
         maxInputTokens: number,
-        historyProvider: IConversationHistoryProvider,
+        historyProvider: ConversationHistoryProvider,
         sessionId: string,
         resourceManager: import('../resources/index.js').ResourceManager,
-        logger: IDextoLogger
+        logger: Logger
     ) {
         this.llmConfig = llmConfig;
         this.formatter = formatter;
@@ -200,7 +199,7 @@ export class ContextManager<TMessage = unknown> {
                 );
 
                 // Emit event to invalidate resource cache so uploaded images appear in @ autocomplete
-                eventBus.emit('resource:cache-invalidated', {
+                this.resourceManager.emitCacheInvalidated({
                     resourceUri: blobRef.uri,
                     serverName: 'internal',
                     action: 'blob_stored',
@@ -787,6 +786,7 @@ export class ContextManager<TMessage = unknown> {
         metadata?: {
             requireApproval?: boolean;
             approvalStatus?: 'approved' | 'rejected';
+            toolDisplayName?: string;
         }
     ): Promise<void> {
         if (!toolCallId || !name) {
@@ -811,6 +811,9 @@ export class ContextManager<TMessage = unknown> {
             content: sanitizedResult.content,
             toolCallId,
             name,
+            ...(metadata?.toolDisplayName !== undefined && {
+                toolDisplayName: metadata.toolDisplayName,
+            }),
             // Success status comes from sanitizedResult.meta (single source of truth)
             success: sanitizedResult.meta.success,
             // Persist display data for rich rendering on session resume

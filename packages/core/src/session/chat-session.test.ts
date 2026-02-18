@@ -1,7 +1,7 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ChatSession } from './chat-session.js';
-import { type ValidatedLLMConfig } from '@core/llm/schemas.js';
-import { LLMConfigSchema } from '@core/llm/schemas.js';
+import { type ValidatedLLMConfig } from '../llm/schemas.js';
+import { LLMConfigSchema } from '../llm/schemas.js';
 
 // Mock all dependencies
 vi.mock('./history/factory.js', () => ({
@@ -9,18 +9,6 @@ vi.mock('./history/factory.js', () => ({
 }));
 vi.mock('../llm/services/factory.js', () => ({
     createLLMService: vi.fn(),
-    createVercelModel: vi.fn(),
-}));
-vi.mock('../context/compaction/index.js', () => ({
-    createCompactionStrategy: vi.fn(),
-    compactionRegistry: {
-        register: vi.fn(),
-        get: vi.fn(),
-        has: vi.fn(),
-        getTypes: vi.fn(),
-        getAll: vi.fn(),
-        clear: vi.fn(),
-    },
 }));
 vi.mock('../llm/registry/index.js', async (importOriginal) => {
     const actual = (await importOriginal()) as typeof import('../llm/registry/index.js');
@@ -40,15 +28,12 @@ vi.mock('../logger/index.js', () => ({
 }));
 
 import { createDatabaseHistoryProvider } from './history/factory.js';
-import { createLLMService, createVercelModel } from '../llm/services/factory.js';
-import { createCompactionStrategy } from '../context/compaction/index.js';
+import { createLLMService } from '../llm/services/factory.js';
 import { getEffectiveMaxInputTokens } from '../llm/registry/index.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 
 const mockCreateDatabaseHistoryProvider = vi.mocked(createDatabaseHistoryProvider);
 const mockCreateLLMService = vi.mocked(createLLMService);
-const mockCreateVercelModel = vi.mocked(createVercelModel);
-const mockCreateCompactionStrategy = vi.mocked(createCompactionStrategy);
 const mockGetEffectiveMaxInputTokens = vi.mocked(getEffectiveMaxInputTokens);
 
 describe('ChatSession', () => {
@@ -168,6 +153,7 @@ describe('ChatSession', () => {
                 on: vi.fn(),
                 off: vi.fn(),
             },
+            compactionStrategy: null,
             storageManager: mockStorageManager,
             resourceManager: {
                 getBlobStore: vi.fn(),
@@ -177,8 +163,8 @@ describe('ChatSession', () => {
             toolManager: {
                 getAllTools: vi.fn().mockReturnValue([]),
             },
-            pluginManager: {
-                executePlugins: vi.fn().mockImplementation(async (_point, payload) => payload),
+            hookManager: {
+                executeHooks: vi.fn().mockImplementation(async (_point, payload) => payload),
                 cleanup: vi.fn(),
             },
             sessionManager: {
@@ -189,8 +175,6 @@ describe('ChatSession', () => {
         // Set up factory mocks
         mockCreateDatabaseHistoryProvider.mockReturnValue(mockHistoryProvider);
         mockCreateLLMService.mockReturnValue(mockLLMService);
-        mockCreateVercelModel.mockReturnValue('mock-model' as any);
-        mockCreateCompactionStrategy.mockResolvedValue(null); // No compaction for tests
         mockGetEffectiveMaxInputTokens.mockReturnValue(128000);
 
         // Create ChatSession instance
@@ -298,8 +282,7 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager,
                 mockLogger,
-                null, // compaction strategy
-                undefined // compaction config
+                null // compaction strategy
             );
         });
 
@@ -325,8 +308,7 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager,
                 mockLogger,
-                null, // compaction strategy
-                undefined // compaction config
+                null // compaction strategy
             );
         });
 
@@ -443,8 +425,7 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager, // ResourceManager parameter
                 mockLogger, // Logger parameter
-                null, // compaction strategy
-                undefined // compaction config
+                null // compaction strategy
             );
 
             // Verify session-specific history provider creation
@@ -452,6 +433,241 @@ describe('ChatSession', () => {
                 mockDatabase,
                 sessionId,
                 expect.any(Object) // Logger object
+            );
+        });
+    });
+
+    describe('Multi-Model Token Tracking', () => {
+        beforeEach(async () => {
+            // Mock accumulateTokenUsage to track calls
+            mockServices.sessionManager.accumulateTokenUsage = vi.fn().mockResolvedValue(undefined);
+            await chatSession.init();
+        });
+
+        test('should use payload provider/model for token accumulation', async () => {
+            const payloadProvider = 'anthropic';
+            const payloadModel = 'claude-4-opus-20250514';
+
+            // Emit llm:response with provider/model in payload
+            chatSession.eventBus.emit('llm:response', {
+                content: 'Test response',
+                provider: payloadProvider,
+                model: payloadModel,
+                tokenUsage: {
+                    inputTokens: 100,
+                    outputTokens: 50,
+                    totalTokens: 150,
+                },
+            });
+
+            // Wait for async handler
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            // Should call accumulateTokenUsage with payload provider/model
+            expect(mockServices.sessionManager.accumulateTokenUsage).toHaveBeenCalledWith(
+                sessionId,
+                expect.objectContaining({
+                    inputTokens: 100,
+                    outputTokens: 50,
+                    totalTokens: 150,
+                }),
+                expect.any(Number), // cost
+                expect.objectContaining({
+                    provider: payloadProvider,
+                    model: payloadModel,
+                })
+            );
+        });
+
+        test('should fall back to llmConfig when payload lacks provider/model', async () => {
+            // Emit llm:response WITHOUT provider/model in payload
+            chatSession.eventBus.emit('llm:response', {
+                content: 'Test response',
+                tokenUsage: {
+                    inputTokens: 100,
+                    outputTokens: 50,
+                    totalTokens: 150,
+                },
+            });
+
+            // Wait for async handler
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            // Should call accumulateTokenUsage with llmConfig provider/model
+            expect(mockServices.sessionManager.accumulateTokenUsage).toHaveBeenCalledWith(
+                sessionId,
+                expect.objectContaining({
+                    inputTokens: 100,
+                    outputTokens: 50,
+                    totalTokens: 150,
+                }),
+                expect.any(Number), // cost
+                expect.objectContaining({
+                    provider: mockLLMConfig.provider,
+                    model: mockLLMConfig.model,
+                })
+            );
+        });
+
+        test('should calculate cost using payload model for accurate multi-model tracking', async () => {
+            const payloadProvider = 'anthropic';
+            const payloadModel = 'claude-4-opus-20250514';
+
+            // Emit llm:response with different model than llmConfig
+            chatSession.eventBus.emit('llm:response', {
+                content: 'Test response',
+                provider: payloadProvider,
+                model: payloadModel,
+                tokenUsage: {
+                    inputTokens: 1000,
+                    outputTokens: 500,
+                    totalTokens: 1500,
+                },
+            });
+
+            // Wait for async handler
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            // Should use payload model for pricing (not llmConfig)
+            // This ensures correct cost attribution when switching models
+            expect(mockServices.sessionManager.accumulateTokenUsage).toHaveBeenCalledWith(
+                sessionId,
+                expect.any(Object),
+                expect.any(Number), // Cost calculated for payload model
+                expect.objectContaining({
+                    provider: payloadProvider,
+                    model: payloadModel,
+                })
+            );
+        });
+
+        test('should handle token accumulation errors gracefully', async () => {
+            // Mock accumulateTokenUsage to throw error
+            mockServices.sessionManager.accumulateTokenUsage = vi
+                .fn()
+                .mockRejectedValue(new Error('Storage error'));
+
+            // Emit llm:response
+            chatSession.eventBus.emit('llm:response', {
+                content: 'Test response',
+                tokenUsage: {
+                    inputTokens: 100,
+                    outputTokens: 50,
+                    totalTokens: 150,
+                },
+            });
+
+            // Wait for async handler
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            // Should log warning but not throw (fire-and-forget pattern)
+            expect(mockLogger.warn).toHaveBeenCalledWith(
+                expect.stringContaining('Failed to accumulate token usage')
+            );
+        });
+
+        test('should not accumulate tokens when tokenUsage is missing', async () => {
+            // Emit llm:response without tokenUsage
+            chatSession.eventBus.emit('llm:response', {
+                content: 'Test response',
+            });
+
+            // Wait for async handler
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            // Should NOT call accumulateTokenUsage
+            expect(mockServices.sessionManager.accumulateTokenUsage).not.toHaveBeenCalled();
+        });
+
+        test('should handle multiple models in same session', async () => {
+            // First model: OpenAI GPT-4
+            chatSession.eventBus.emit('llm:response', {
+                content: 'Response from GPT-4',
+                provider: 'openai',
+                model: 'gpt-4',
+                tokenUsage: {
+                    inputTokens: 100,
+                    outputTokens: 50,
+                    totalTokens: 150,
+                },
+            });
+
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            // Second model: Anthropic Claude
+            chatSession.eventBus.emit('llm:response', {
+                content: 'Response from Claude',
+                provider: 'anthropic',
+                model: 'claude-4-opus-20250514',
+                tokenUsage: {
+                    inputTokens: 200,
+                    outputTokens: 100,
+                    totalTokens: 300,
+                },
+            });
+
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            // Third model: Back to OpenAI
+            chatSession.eventBus.emit('llm:response', {
+                content: 'Another response from GPT-4',
+                provider: 'openai',
+                model: 'gpt-4',
+                tokenUsage: {
+                    inputTokens: 50,
+                    outputTokens: 25,
+                    totalTokens: 75,
+                },
+            });
+
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            // Should have been called 3 times with correct models
+            expect(mockServices.sessionManager.accumulateTokenUsage).toHaveBeenCalledTimes(3);
+
+            // First call: OpenAI
+            expect(mockServices.sessionManager.accumulateTokenUsage).toHaveBeenNthCalledWith(
+                1,
+                sessionId,
+                expect.objectContaining({
+                    inputTokens: 100,
+                    outputTokens: 50,
+                }),
+                expect.any(Number),
+                expect.objectContaining({
+                    provider: 'openai',
+                    model: 'gpt-4',
+                })
+            );
+
+            // Second call: Anthropic
+            expect(mockServices.sessionManager.accumulateTokenUsage).toHaveBeenNthCalledWith(
+                2,
+                sessionId,
+                expect.objectContaining({
+                    inputTokens: 200,
+                    outputTokens: 100,
+                }),
+                expect.any(Number),
+                expect.objectContaining({
+                    provider: 'anthropic',
+                    model: 'claude-4-opus-20250514',
+                })
+            );
+
+            // Third call: OpenAI again
+            expect(mockServices.sessionManager.accumulateTokenUsage).toHaveBeenNthCalledWith(
+                3,
+                sessionId,
+                expect.objectContaining({
+                    inputTokens: 50,
+                    outputTokens: 25,
+                }),
+                expect.any(Number),
+                expect.objectContaining({
+                    provider: 'openai',
+                    model: 'gpt-4',
+                })
             );
         });
     });

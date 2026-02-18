@@ -86,7 +86,6 @@ export function useAgentEvents({
     }>({ active: false, sessionId: null, messageId: null });
 
     useEffect(() => {
-        const bus = agent.agentEventBus;
         const controller = new AbortController();
         const { signal } = controller;
 
@@ -98,7 +97,7 @@ export function useAgentEvents({
         // approval UI showed before text messages were added.
 
         // Handle model switch
-        bus.on(
+        agent.on(
             'llm:switched',
             (payload) => {
                 if (payload.newConfig?.model) {
@@ -114,8 +113,98 @@ export function useAgentEvents({
             { signal }
         );
 
+        agent.on(
+            'service:event',
+            (payload) => {
+                if (payload.service !== 'orchestration' || payload.event !== 'tasks-updated') {
+                    return;
+                }
+                if (payload.sessionId && payload.sessionId !== currentSessionId) {
+                    return;
+                }
+
+                const data = payload.data as {
+                    tasks?: Array<{
+                        taskId: string;
+                        status: 'running' | 'completed' | 'failed' | 'cancelled';
+                        description?: string;
+                        toolName?: string;
+                    }>;
+                    runningCount?: number;
+                };
+
+                if (data.tasks) {
+                    setUi((prev) => {
+                        const runningCount =
+                            typeof data.runningCount === 'number'
+                                ? data.runningCount
+                                : prev.backgroundTasksRunning;
+                        return {
+                            ...prev,
+                            backgroundTasks: data.tasks ?? prev.backgroundTasks,
+                            backgroundTasksRunning: runningCount,
+                        };
+                    });
+                } else if (typeof data.runningCount === 'number') {
+                    setUi((prev) => ({
+                        ...prev,
+                        backgroundTasksRunning: data.runningCount ?? prev.backgroundTasksRunning,
+                    }));
+                }
+            },
+            { signal }
+        );
+
+        agent.on(
+            'tool:background',
+            (payload) => {
+                if (payload.sessionId !== currentSessionId) {
+                    return;
+                }
+                const messageId = `tool-${payload.toolCallId}`;
+                setMessages((prev) =>
+                    prev.map((message) => {
+                        if (message.id !== messageId) {
+                            return message;
+                        }
+                        return {
+                            ...message,
+                            toolStatus: 'running',
+                            toolResult: 'Background task started',
+                            isBackground: true,
+                        };
+                    })
+                );
+            },
+            { signal }
+        );
+
+        agent.on(
+            'tool:background-completed',
+            (payload) => {
+                if (payload.sessionId !== currentSessionId) {
+                    return;
+                }
+                const messageId = `tool-${payload.toolCallId}`;
+                setMessages((prev) =>
+                    prev.map((message) => {
+                        if (message.id !== messageId) {
+                            return message;
+                        }
+                        return {
+                            ...message,
+                            toolStatus: 'finished',
+                            toolResult: 'Background task completed',
+                            isBackground: true,
+                        };
+                    })
+                );
+            },
+            { signal }
+        );
+
         // Handle conversation reset
-        bus.on(
+        agent.on(
             'session:reset',
             () => {
                 setMessages([]);
@@ -128,7 +217,7 @@ export function useAgentEvents({
         );
 
         // Handle session creation (e.g., from /new command)
-        bus.on(
+        agent.on(
             'session:created',
             (payload) => {
                 if (payload.switchTo) {
@@ -189,7 +278,7 @@ export function useAgentEvents({
         // Handle context cleared (from /clear command)
         // Keep messages visible for user reference - only context sent to LLM is cleared
         // Just clean up any pending approvals/overlays/queued messages
-        bus.on(
+        agent.on(
             'context:cleared',
             () => {
                 setApproval(null);
@@ -202,7 +291,7 @@ export function useAgentEvents({
 
         // Handle context compacting (from /compact command or auto-compaction)
         // Single source of truth - handles both manual /compact and auto-compaction during streaming
-        bus.on(
+        agent.on(
             'context:compacting',
             (payload) => {
                 if (payload.sessionId !== currentSessionId) return;
@@ -213,7 +302,7 @@ export function useAgentEvents({
 
         // Handle context compacted
         // Single source of truth - shows notification for all compaction (manual and auto)
-        bus.on(
+        agent.on(
             'context:compacted',
             (payload) => {
                 if (payload.sessionId !== currentSessionId) return;
@@ -247,7 +336,7 @@ export function useAgentEvents({
         );
 
         // Handle message queued - fetch full queue state from agent
-        bus.on(
+        agent.on(
             'message:queued',
             (payload) => {
                 if (!payload.sessionId) return;
@@ -265,7 +354,7 @@ export function useAgentEvents({
         );
 
         // Handle message removed from queue
-        bus.on(
+        agent.on(
             'message:removed',
             (payload) => {
                 setQueuedMessages((prev) => prev.filter((m) => m.id !== payload.id));
@@ -283,7 +372,7 @@ export function useAgentEvents({
         // ============================================================================
 
         // Handle external trigger invocation (scheduler, A2A, API)
-        bus.on(
+        agent.on(
             'run:invoke',
             (payload) => {
                 // Only handle if this is for the current session
@@ -350,7 +439,7 @@ export function useAgentEvents({
         );
 
         // Handle streaming chunks for external triggers
-        bus.on(
+        agent.on(
             'llm:chunk',
             (payload) => {
                 // Only handle if this is for an active external trigger
@@ -382,7 +471,7 @@ export function useAgentEvents({
         );
 
         // Handle LLM thinking for external triggers
-        bus.on(
+        agent.on(
             'llm:thinking',
             (payload) => {
                 if (
@@ -398,7 +487,7 @@ export function useAgentEvents({
         );
 
         // Handle run completion for external triggers
-        bus.on(
+        agent.on(
             'run:complete',
             (payload) => {
                 // Only handle if this is for an active external trigger

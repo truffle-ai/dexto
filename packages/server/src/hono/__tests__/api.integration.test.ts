@@ -140,7 +140,7 @@ describe('Hono API Integration Tests', () => {
             const res = await httpRequest(
                 testServer.baseUrl,
                 'GET',
-                '/api/llm/capabilities?provider=dexto&model=openai/gpt-5.2-codex'
+                '/api/llm/capabilities?provider=dexto-nova&model=openai/gpt-5.2-codex'
             );
             expect(res.status).toBe(200);
 

@@ -118,11 +118,36 @@ importers:
         specifier: ^1.25.2
         version: 1.25.2(hono@4.10.4)(zod@3.25.76)
 
-  packages/agent-management:
+  packages/agent-config:
     dependencies:
       '@dexto/core':
         specifier: workspace:*
         version: link:../core
+      '@dexto/storage':
+        specifier: workspace:*
+        version: link:../storage
+      zod:
+        specifier: ^3.25.0
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^22.13.5
+        version: 22.19.0
+
+  packages/agent-management:
+    dependencies:
+      '@dexto/agent-config':
+        specifier: workspace:*
+        version: link:../agent-config
+      '@dexto/core':
+        specifier: workspace:*
+        version: link:../core
+      '@dexto/orchestration':
+        specifier: workspace:*
+        version: link:../orchestration
+      '@dexto/tools-builtins':
+        specifier: workspace:*
+        version: link:../tools-builtins
       yaml:
         specifier: ^2.7.1
         version: 2.8.1
@@ -151,6 +176,9 @@ importers:
       '@clack/prompts':
         specifier: ^0.10.1
         version: 0.10.1
+      '@dexto/agent-config':
+        specifier: workspace:*
+        version: link:../agent-config
       '@dexto/agent-management':
         specifier: workspace:*
         version: link:../agent-management
@@ -163,12 +191,18 @@ importers:
       '@dexto/image-local':
         specifier: workspace:*
         version: link:../image-local
+      '@dexto/image-logger-agent':
+        specifier: workspace:*
+        version: link:../image-logger-agent
       '@dexto/registry':
         specifier: workspace:*
         version: link:../registry
       '@dexto/server':
         specifier: workspace:*
         version: link:../server
+      '@dexto/storage':
+        specifier: workspace:*
+        version: link:../storage
       '@modelcontextprotocol/sdk':
         specifier: ^1.25.2
         version: 1.25.2(hono@4.10.4)(zod@3.25.76)
@@ -430,6 +464,9 @@ importers:
 
   packages/image-bundler:
     dependencies:
+      '@dexto/agent-config':
+        specifier: workspace:*
+        version: link:../agent-config
       '@dexto/core':
         specifier: workspace:*
         version: link:../core
@@ -455,28 +492,84 @@ importers:
 
   packages/image-local:
     dependencies:
+      '@dexto/agent-config':
+        specifier: workspace:*
+        version: link:../agent-config
       '@dexto/agent-management':
         specifier: workspace:*
         version: link:../agent-management
       '@dexto/core':
         specifier: workspace:*
         version: link:../core
+      '@dexto/storage':
+        specifier: workspace:*
+        version: link:../storage
+      '@dexto/tools-builtins':
+        specifier: workspace:*
+        version: link:../tools-builtins
       '@dexto/tools-filesystem':
         specifier: workspace:*
         version: link:../tools-filesystem
+      '@dexto/tools-lifecycle':
+        specifier: workspace:*
+        version: link:../tools-lifecycle
       '@dexto/tools-plan':
         specifier: workspace:*
         version: link:../tools-plan
       '@dexto/tools-process':
         specifier: workspace:*
         version: link:../tools-process
+      '@dexto/tools-scheduler':
+        specifier: workspace:*
+        version: link:../tools-scheduler
       '@dexto/tools-todo':
         specifier: workspace:*
         version: link:../tools-todo
+      zod:
+        specifier: ^3.25.0
+        version: 3.25.76
     devDependencies:
-      '@dexto/image-bundler':
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.0(jiti@2.5.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.2)(yaml@2.8.2)
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.2
+
+  packages/image-logger-agent:
+    dependencies:
+      '@dexto/agent-config':
         specifier: workspace:*
-        version: link:../image-bundler
+        version: link:../agent-config
+      '@dexto/core':
+        specifier: workspace:*
+        version: link:../core
+      '@dexto/image-local':
+        specifier: workspace:*
+        version: link:../image-local
+      zod:
+        specifier: ^3.25.0
+        version: 3.25.76
+    devDependencies:
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.0(jiti@2.5.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.2)(yaml@2.8.2)
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.2
+
+  packages/orchestration:
+    dependencies:
+      '@dexto/core':
+        specifier: workspace:*
+        version: link:../core
+      zod:
+        specifier: ^3.25.0
+        version: 3.25.76
+    devDependencies:
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.0(jiti@2.5.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.2)(yaml@2.8.2)
       typescript:
         specifier: ^5.3.3
         version: 5.9.2
@@ -492,6 +585,9 @@ importers:
 
   packages/server:
     dependencies:
+      '@dexto/agent-config':
+        specifier: workspace:*
+        version: link:../agent-config
       '@dexto/agent-management':
         specifier: workspace:*
         version: link:../agent-management
@@ -501,6 +597,12 @@ importers:
       '@dexto/image-local':
         specifier: workspace:*
         version: link:../image-local
+      '@dexto/storage':
+        specifier: workspace:*
+        version: link:../storage
+      '@dexto/tools-scheduler':
+        specifier: workspace:*
+        version: link:../tools-scheduler
       '@hono/node-server':
         specifier: 1.19.5
         version: 1.19.5(hono@4.10.4)
@@ -527,8 +629,58 @@ importers:
         specifier: ^3.25.0
         version: 3.25.76
 
+  packages/storage:
+    dependencies:
+      '@dexto/core':
+        specifier: workspace:*
+        version: link:../core
+      better-sqlite3:
+        specifier: ^11.10.0
+        version: 11.10.0
+      ioredis:
+        specifier: ^5.7.0
+        version: 5.7.0
+      pg:
+        specifier: ^8.15.4
+        version: 8.16.3
+      zod:
+        specifier: ^3.25.0
+        version: 3.25.76
+    devDependencies:
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.0(jiti@2.5.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.2)(yaml@2.8.2)
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.2
+
+  packages/tools-builtins:
+    dependencies:
+      '@dexto/agent-config':
+        specifier: workspace:*
+        version: link:../agent-config
+      '@dexto/core':
+        specifier: workspace:*
+        version: link:../core
+      undici:
+        specifier: ^7.22.0
+        version: 7.22.0
+      zod:
+        specifier: ^3.25.0
+        version: 3.25.76
+    devDependencies:
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.0(jiti@2.5.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.2)(yaml@2.8.2)
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.2
+
   packages/tools-filesystem:
     dependencies:
+      '@dexto/agent-config':
+        specifier: workspace:*
+        version: link:../agent-config
       '@dexto/core':
         specifier: workspace:*
         version: link:../core
@@ -558,8 +710,33 @@ importers:
         specifier: ^5.3.3
         version: 5.9.2
 
+  packages/tools-lifecycle:
+    dependencies:
+      '@dexto/agent-config':
+        specifier: workspace:*
+        version: link:../agent-config
+      '@dexto/core':
+        specifier: workspace:*
+        version: link:../core
+      zod:
+        specifier: ^3.25.0
+        version: 3.25.76
+    devDependencies:
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.0(jiti@2.5.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.2)(yaml@2.8.2)
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.2
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@edge-runtime/vm@3.2.0)(@types/node@22.19.0)(lightningcss@1.30.1)
+
   packages/tools-plan:
     dependencies:
+      '@dexto/agent-config':
+        specifier: workspace:*
+        version: link:../agent-config
       '@dexto/core':
         specifier: workspace:*
         version: link:../core
@@ -588,6 +765,9 @@ importers:
 
   packages/tools-process:
     dependencies:
+      '@dexto/agent-config':
+        specifier: workspace:*
+        version: link:../agent-config
       '@dexto/core':
         specifier: workspace:*
         version: link:../core
@@ -602,8 +782,36 @@ importers:
         specifier: ^5.3.3
         version: 5.9.2
 
+  packages/tools-scheduler:
+    dependencies:
+      '@dexto/agent-config':
+        specifier: workspace:*
+        version: link:../agent-config
+      '@dexto/core':
+        specifier: workspace:*
+        version: link:../core
+      cron-parser:
+        specifier: ^4.9.0
+        version: 4.9.0
+      node-cron:
+        specifier: ^4.2.1
+        version: 4.2.1
+      zod:
+        specifier: ^3.25.0
+        version: 3.25.76
+    devDependencies:
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.0(jiti@2.5.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.2)(yaml@2.8.2)
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.2
+
   packages/tools-todo:
     dependencies:
+      '@dexto/agent-config':
+        specifier: workspace:*
+        version: link:../agent-config
       '@dexto/core':
         specifier: workspace:*
         version: link:../core
@@ -626,6 +834,9 @@ importers:
 
   packages/webui:
     dependencies:
+      '@dexto/agent-config':
+        specifier: workspace:*
+        version: link:../agent-config
       '@dexto/analytics':
         specifier: workspace:*
         version: link:../analytics
@@ -638,6 +849,9 @@ importers:
       '@dexto/registry':
         specifier: workspace:*
         version: link:../registry
+      '@dexto/storage':
+        specifier: workspace:*
+        version: link:../storage
       '@mcp-ui/client':
         specifier: ^5.14.1
         version: 5.14.1(@preact/signals-core@1.12.1)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(zod@3.25.76)
@@ -3611,6 +3825,10 @@ packages:
   create-require@1.1.1:
     resolution: {integrity: sha512-dcKFX3jn0MpIaXjisoRvexIJVEKzaq7z2rZKxf+MSr9TkdmHmsU4m2lcLojrj/FHl8mk5VxMmYA+ftRkP/3oKQ==}
 
+  cron-parser@4.9.0:
+    resolution: {integrity: sha512-p0SaNjrHOnQeR8/VnfGbmg9te2kfyYSQ7Sc/j/6DtPL3JQvKxmjO9TSjNFpujqV3vEYYBvNNvXSxzyksBWAx1Q==}
+    engines: {node: '>=12.0.0'}
+
   cross-env@7.0.3:
     resolution: {integrity: sha512-+/HKd6EgcQCJGh2PSjZuUitQBQynKor4wrFbRg4DtAgS1aWO+gU52xpH7M9ScGgXSYmAVS9bIJ8EzuaGw0oNAw==}
     engines: {node: '>=10.14', npm: '>=6', yarn: '>=1'}
@@ -4234,16 +4452,19 @@ packages:
 
   glob@10.4.5:
     resolution: {integrity: sha512-7Bv8RF0k6xjo7d4A/PxYLbUCfb6c+Vpd2/mB2yRDlew7Jb5hEXiCD9ibfO7wpk8i4sevK6DFny9h7EYbM3/sHg==}
+    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
     hasBin: true
 
   glob@11.0.3:
     resolution: {integrity: sha512-2Nim7dha1KVkaiF4q6Dj+ngPPMdfvLJEOpZk/jKiUAkqKebpGAWQXAq9z1xu9HKu5lWfqw/FASuccEjyznjPaA==}
     engines: {node: 20 || >=22}
+    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
     hasBin: true
 
   glob@11.1.0:
     resolution: {integrity: sha512-vuNwKSaKiqm7g0THUBu2x7ckSs3XJLXE+2ssL7/MfTGPLLcrJQ/4Uq1CjPTtO5cCIiRxqvN6Twy1qOwhL0Xjcw==}
     engines: {node: 20 || >=22}
+    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
     hasBin: true
 
   globals@14.0.0:
@@ -4885,6 +5106,10 @@ packages:
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
+  luxon@3.7.2:
+    resolution: {integrity: sha512-vtEhXh/gNjI9Yg1u4jX/0YVPMvxzHuGgCm6tC5kZyb08yjGWGnqAjGJvcXbqQR2P3MyMEFnRbpcdFS6PBcLqew==}
+    engines: {node: '>=12'}
+
   magic-string@0.30.18:
     resolution: {integrity: sha512-yi8swmWbO17qHhwIBNeeZxTceJMeBvWJaId6dyvTSOwTipqeHhMhOrz6513r1sOKnpvQ7zkhlG8tPrpilwTxHQ==}
 
@@ -5220,6 +5445,10 @@ packages:
   node-abi@3.75.0:
     resolution: {integrity: sha512-OhYaY5sDsIka7H7AtijtI9jwGYLyl29eQn/W623DiN/MIv5sUqc4g7BIDThX+gb7di9f6xK02nkp8sdfFWZLTg==}
     engines: {node: '>=10'}
+
+  node-cron@4.2.1:
+    resolution: {integrity: sha512-lgimEHPE/QDgFlywTd8yTR61ptugX3Qer29efeyWw2rv259HtGBNn1vZVmp8lB9uo9wC0t/AT4iGqXxia+CJFg==}
+    engines: {node: '>=6.0.0'}
 
   node-domexception@1.0.0:
     resolution: {integrity: sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==}
@@ -6193,6 +6422,7 @@ packages:
   tar@7.4.3:
     resolution: {integrity: sha512-5S7Va8hKfV7W5U6g3aYxXmlPoZVAwUMy9AOKyF2fVuZa2UD3qZjg578OrLRt8PcNN1PleVaL/5/yYATNL0ICUw==}
     engines: {node: '>=18'}
+    deprecated: Old versions of tar are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
 
   term-size@2.2.1:
     resolution: {integrity: sha512-wK0Ri4fOGjv/XPy8SBHZChl8CM7uMc5VML7SqiQ0zG7+J5Vr+RMQDoHa2CNT6KHUnTGIXH34UDMkPzAUyapBZg==}
@@ -6440,6 +6670,10 @@ packages:
 
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
+
+  undici@7.22.0:
+    resolution: {integrity: sha512-RqslV2Us5BrllB+JeiZnK4peryVTndy9Dnqq62S3yYRRTj0tFQCwEniUy2167skdGOy3vqRzEvl1Dm4sV2ReDg==}
+    engines: {node: '>=20.18.1'}
 
   unified@11.0.5:
     resolution: {integrity: sha512-xKvGhPWw3k84Qjh8bI3ZeJjqnyadK+GEFtazSfZv/rKeTkTjOJho6mFqh2SM96iIcZokxiOpg78GazTSg8+KHA==}
@@ -7208,7 +7442,7 @@ snapshots:
       '@babel/parser': 7.28.5
       '@babel/template': 7.27.2
       '@babel/types': 7.28.5
-      debug: 4.4.1
+      debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
 
@@ -9939,6 +10173,10 @@ snapshots:
 
   create-require@1.1.1: {}
 
+  cron-parser@4.9.0:
+    dependencies:
+      luxon: 3.7.2
+
   cross-env@7.0.3:
     dependencies:
       cross-spawn: 7.0.6
@@ -11324,6 +11562,8 @@ snapshots:
     dependencies:
       react: 19.1.1
 
+  luxon@3.7.2: {}
+
   magic-string@0.30.18:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.5.5
@@ -11822,6 +12062,8 @@ snapshots:
   node-abi@3.75.0:
     dependencies:
       semver: 7.7.3
+
+  node-cron@4.2.1: {}
 
   node-domexception@1.0.0: {}
 
@@ -13164,6 +13406,8 @@ snapshots:
     optional: true
 
   undici-types@6.21.0: {}
+
+  undici@7.22.0: {}
 
   unified@11.0.5:
     dependencies:

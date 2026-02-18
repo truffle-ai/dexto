@@ -110,7 +110,7 @@ const agent = new DextoAgent({
     model: 'gpt-5',
     apiKey: process.env.OPENAI_API_KEY
   },
-  toolConfirmation: { mode: 'auto-approve' },
+  permissions: { mode: 'auto-approve' },
   mcpServers: {
     filesystem: {
       type: 'stdio',
@@ -241,16 +241,16 @@ The SDK provides real-time events for monitoring and integration:
 
 ```typescript
 // Listen to agent-wide events
-agent.agentEventBus.on('mcp:server-connected', (data) => {
+agent.on('mcp:server-connected', (data) => {
   console.log(`✅ Connected to ${data.name}`);
 });
 
 // Listen to conversation events
-agent.agentEventBus.on('llm:thinking', (data) => {
+agent.on('llm:thinking', (data) => {
   console.log(`🤔 Agent thinking... (session: ${data.sessionId})`);
 });
 
-agent.agentEventBus.on('llm:tool-call', (data) => {
+agent.on('llm:tool-call', (data) => {
   console.log(`🔧 Using tool: ${data.toolName}`);
 });
 ```
@@ -286,13 +286,13 @@ class ChatApplication {
   async initialize() {
     this.agent = new DextoAgent({
       llm: { provider: 'openai', model: 'gpt-5', apiKey: process.env.OPENAI_API_KEY },
-      toolConfirmation: { mode: 'auto-approve' },
+      permissions: { mode: 'auto-approve' },
       mcpServers: { /* your tools */ }
     });
     await this.agent.start();
 
     // Set up event monitoring
-    this.agent.agentEventBus.on('llm:response', (data) => {
+    this.agent.on('llm:response', (data) => {
       this.broadcastToUser(data.sessionId, data.content);
     });
   }
@@ -472,7 +472,7 @@ const agent = new DextoAgent(config);
 await agent.start();
 
 // Handle MCP connection failures
-agent.agentEventBus.on('mcp:server-connected', (data) => {
+agent.on('mcp:server-connected', (data) => {
   if (!data.success) {
     console.warn(`⚠️ ${data.name} unavailable: ${data.error}`);
     // Continue without this capability
@@ -480,7 +480,7 @@ agent.agentEventBus.on('mcp:server-connected', (data) => {
 });
 
 // Handle LLM errors
-agent.agentEventBus.on('llm:error', (data) => {
+agent.on('llm:error', (data) => {
   if (data.recoverable) {
     console.log('🔄 Retrying request...');
   } else {
@@ -496,7 +496,7 @@ agent.agentEventBus.on('llm:error', (data) => {
 try {
   const agent = new DextoAgent({
     llm: primaryLLMConfig,
-    toolConfirmation: { mode: 'auto-approve' },
+    permissions: { mode: 'auto-approve' },
     mcpServers: allServers
   });
   await agent.start();
@@ -545,11 +545,11 @@ await agent.start();
 
 ```typescript
 // Log all tool executions
-agent.agentEventBus.on('llm:tool-call', (data) => {
+agent.on('llm:tool-call', (data) => {
   console.log(`[${data.sessionId}] Tool: ${data.toolName}`, data.args);
 });
 
-agent.agentEventBus.on('llm:tool-result', (data) => {
+agent.on('llm:tool-result', (data) => {
   if (data.success) {
     console.log(`[${data.sessionId}] ✅ ${data.toolName} completed`, data.sanitized);
   } else {

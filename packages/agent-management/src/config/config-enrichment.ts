@@ -14,7 +14,7 @@
  */
 
 import { getDextoPath } from '../utils/path.js';
-import type { AgentConfig } from '@dexto/core';
+import type { AgentConfig } from '@dexto/agent-config';
 import * as path from 'path';
 import { discoverCommandPrompts, discoverAgentInstructionFile } from './discover-prompts.js';
 import {
@@ -256,30 +256,10 @@ export function enrichAgentConfig(
                     ...(loaded.mcpConfig.mcpServers as typeof enriched.mcpServers),
                 };
             }
-
-            // Auto-add custom tool providers declared by Dexto-native plugins
-            // These are added to customTools config if not already explicitly configured
-            if (loaded.customToolProviders.length > 0) {
-                for (const providerType of loaded.customToolProviders) {
-                    // Check if already configured in customTools
-                    const alreadyConfigured = enriched.customTools?.some(
-                        (tool) =>
-                            typeof tool === 'object' && tool !== null && tool.type === providerType
-                    );
-
-                    if (!alreadyConfigured) {
-                        enriched.customTools = enriched.customTools ?? [];
-                        // Add with default config (just the type)
-                        enriched.customTools.push({ type: providerType } as Record<
-                            string,
-                            unknown
-                        >);
-                    }
-                }
-            }
         }
 
-        // Discover standalone skills from ~/.dexto/skills/ and <cwd>/.dexto/skills/
+        // Discover standalone skills from ~/.agents/skills/, ~/.dexto/skills/,
+        // <cwd>/.agents/skills/, and <cwd>/.dexto/skills/
         // These are bare skill directories with SKILL.md files (not full plugins)
         // Unlike plugin commands, standalone skills don't need namespace prefixing -
         // the id from frontmatter or directory name is used directly.
@@ -303,9 +283,12 @@ export function enrichAgentConfig(
         }
     }
 
+    const shouldDiscoverAgentInstructions =
+        config.agentFile?.discoverInCwd !== undefined ? config.agentFile.discoverInCwd : true;
+
     // Discover agent instruction file (AGENTS.md, CLAUDE.md, GEMINI.md) in cwd
     // Add as a file contributor to system prompt if found
-    const instructionFile = discoverAgentInstructionFile();
+    const instructionFile = shouldDiscoverAgentInstructions ? discoverAgentInstructionFile() : null;
     if (instructionFile) {
         // Add file contributor to system prompt config
         // Use a low priority (5) so it runs early but after any base prompt

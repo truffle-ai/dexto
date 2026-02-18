@@ -222,7 +222,7 @@ export const generalCommands: CommandDefinition[] = [
                 const newSessionId = newSession.id;
 
                 // Emit session:created to switch the CLI to the new session
-                agent.agentEventBus.emit('session:created', {
+                agent.emit('session:created', {
                     sessionId: newSessionId,
                     switchTo: true,
                 });
@@ -499,7 +499,7 @@ export const generalCommands: CommandDefinition[] = [
                         name: 'Global',
                         shortcuts: [
                             { keys: 'Ctrl+C', description: 'Clear input, then exit (press twice)' },
-                            { keys: 'Ctrl+T', description: 'Toggle task list (show/hide tasks)' },
+                            { keys: 'Ctrl+T', description: 'Toggle todo list (show/hide todos)' },
                             { keys: 'Escape', description: 'Cancel processing / close overlay' },
                         ],
                     },

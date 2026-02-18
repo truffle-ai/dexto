@@ -63,7 +63,7 @@ export interface CliCommandTimeoutEvent extends CliCommandBaseEvent {
 export type CliCommandEvent = CliCommandStartEvent | CliCommandEndEvent | CliCommandTimeoutEvent;
 
 export interface PromptEvent {
-    mode: 'cli' | 'headless';
+    mode: 'cli';
     provider: string;
     model: string;
 }
@@ -73,7 +73,7 @@ export interface SetupEvent {
     model: string;
     hadApiKeyBefore?: boolean;
     setupMode: 'interactive' | 'non-interactive';
-    setupVariant?: 'quick-start' | 'custom' | 'dexto';
+    setupVariant?: 'quick-start' | 'custom' | 'dexto-nova';
     defaultMode?: string;
     hasBaseURL?: boolean;
     apiKeySkipped?: boolean;

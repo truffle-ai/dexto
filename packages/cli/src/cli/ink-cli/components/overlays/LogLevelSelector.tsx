@@ -30,7 +30,7 @@ interface LogLevelOption {
 
 // Log levels matching DextoLogger's supported levels
 const LOG_LEVELS: { level: string; description: string; icon: string }[] = [
-    { level: 'error', description: 'Errors only', icon: '❌' },
+    { level: 'error', description: 'Errors only', icon: '!' },
     { level: 'warn', description: 'Warnings and above', icon: '⚠️' },
     { level: 'info', description: 'Info and above (default)', icon: 'ℹ️' },
     { level: 'debug', description: 'Debug information', icon: '🔍' },

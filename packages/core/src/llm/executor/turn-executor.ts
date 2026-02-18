@@ -16,14 +16,14 @@ import { ToolSet } from '../../tools/types.js';
 import { StreamProcessor } from './stream-processor.js';
 import { ExecutorResult } from './types.js';
 import { buildProviderOptions } from './provider-options.js';
-import {
+import type {
     TokenUsage,
-    type LLMReasoningConfig,
+    LLMReasoningConfig,
     LLMContext,
-    type LLMProvider,
-    type ReasoningPreset,
+    LLMProvider,
+    ReasoningPreset,
 } from '../types.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import type { SessionEventBus, LLMFinishReason } from '../../events/index.js';
 import type { ResourceManager } from '../../resources/index.js';
@@ -37,9 +37,8 @@ import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '../../errors/types.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { toError } from '../../utils/error-conversion.js';
-import { isOverflow, type ModelLimits } from '../../context/compaction/overflow.js';
-import { ReactiveOverflowStrategy } from '../../context/compaction/strategies/reactive-overflow.js';
-import type { ICompactionStrategy } from '../../context/compaction/types.js';
+import type { CompactionStrategy } from '../../context/compaction/types.js';
+import type { ModelLimits } from '../../context/compaction/overflow.js';
 
 /**
  * Static cache for tool support validation.
@@ -66,20 +65,24 @@ const LOCAL_PROVIDERS: readonly LLMProvider[] = ['ollama', 'local'] as const;
  * A "step" = ONE LLM call + ALL tool executions from that call.
  */
 export class TurnExecutor {
-    private logger: IDextoLogger;
+    private logger: Logger;
     /**
      * Per-step abort controller. Created fresh for each iteration of the loop.
      * This allows soft cancel (abort current step) while still continuing with queued messages.
      */
     private stepAbortController: AbortController;
-    private compactionStrategy: ICompactionStrategy | null = null;
+    private compactionStrategy: CompactionStrategy | null = null;
     /**
-     * Map to track approval metadata by toolCallId.
-     * Used to pass approval info from tool execution to result persistence.
+     * Map to track tool-call metadata by toolCallId.
+     * Used to pass execution-time info (approval + display name) to result persistence.
      */
-    private approvalMetadata = new Map<
+    private toolCallMetadata = new Map<
         string,
-        { requireApproval: boolean; approvalStatus?: 'approved' | 'rejected' }
+        {
+            toolDisplayName?: string;
+            requireApproval?: boolean;
+            approvalStatus?: 'approved' | 'rejected';
+        }
     >();
 
     constructor(
@@ -98,12 +101,11 @@ export class TurnExecutor {
             reasoning?: LLMReasoningConfig | undefined;
         },
         private llmContext: LLMContext,
-        logger: IDextoLogger,
+        logger: Logger,
         private messageQueue: MessageQueueService,
         private modelLimits?: ModelLimits,
         private externalSignal?: AbortSignal,
-        compactionStrategy?: ICompactionStrategy | null,
-        private compactionThresholdPercent: number = 1.0
+        compactionStrategy: CompactionStrategy | null = null
     ) {
         this.logger = logger.createChild(DextoLogComponent.EXECUTOR);
         // Initial controller - will be replaced per-step in execute()
@@ -114,14 +116,7 @@ export class TurnExecutor {
         // - Soft cancel: aborts current step, but queue can continue with fresh controller
         // - Hard cancel (external aborted + clearQueue): checked explicitly in loop
 
-        // Use provided compaction strategy, or fallback to default behavior
-        if (compactionStrategy !== undefined) {
-            // Explicitly provided (could be null to disable, or a strategy instance)
-            this.compactionStrategy = compactionStrategy;
-        } else if (modelLimits) {
-            // Backward compatibility: create default strategy if model limits are provided
-            this.compactionStrategy = new ReactiveOverflowStrategy(model, {}, this.logger);
-        }
+        this.compactionStrategy = compactionStrategy;
     }
 
     /**
@@ -233,7 +228,12 @@ export class TurnExecutor {
                 // 4. PRE-CHECK: Estimate tokens and compact if over threshold BEFORE LLM call
                 // This ensures we never make an oversized call and avoids unnecessary compaction on stop steps
                 // Uses the same formula as /context overlay: lastInput + lastOutput + newMessagesEstimate
-                const toolDefinitions = supportsTools ? await this.toolManager.getAllTools() : {};
+                const toolDefinitions = supportsTools
+                    ? this.toolManager.filterToolsForSession(
+                          await this.toolManager.getAllTools(),
+                          this.sessionId
+                      )
+                    : {};
                 let estimatedTokens = await this.contextManager.getEstimatedNextInputTokens(
                     prepared.systemPrompt,
                     prepared.preparedHistory,
@@ -306,7 +306,7 @@ export class TurnExecutor {
                             return bedrock?.reasoningConfig?.budgetTokens;
                         }
                         case 'openrouter':
-                        case 'dexto': {
+                        case 'dexto-nova': {
                             const openrouter = providerOptions['openrouter'] as
                                 | { reasoning?: { max_tokens?: number } }
                                 | undefined;
@@ -333,7 +333,7 @@ export class TurnExecutor {
                     this.getStreamProcessorConfig(estimatedTokens, reasoningForStream),
                     this.logger,
                     streaming,
-                    this.approvalMetadata
+                    this.toolCallMetadata
                 );
 
                 const result = await streamProcessor.process(() =>
@@ -634,7 +634,10 @@ export class TurnExecutor {
      * - StreamProcessor handles persistence via tool-result events
      */
     private async createTools(): Promise<VercelToolSet> {
-        const tools: ToolSet = await this.toolManager.getAllTools();
+        const tools: ToolSet = this.toolManager.filterToolsForSession(
+            await this.toolManager.getAllTools(),
+            this.sessionId
+        );
 
         return Object.fromEntries(
             Object.entries(tools).map(([name, tool]) => [
@@ -696,19 +699,37 @@ export class TurnExecutor {
                                         abortSignal
                                     );
 
-                                    // Store approval metadata for later retrieval by StreamProcessor
-                                    if (executionResult.requireApproval !== undefined) {
-                                        const metadata: {
-                                            requireApproval: boolean;
+                                    const metadata:
+                                        | {
+                                              toolDisplayName?: string;
+                                              requireApproval?: boolean;
+                                              approvalStatus?: 'approved' | 'rejected';
+                                          }
+                                        | undefined = (() => {
+                                        const meta: {
+                                            toolDisplayName?: string;
+                                            requireApproval?: boolean;
                                             approvalStatus?: 'approved' | 'rejected';
-                                        } = {
-                                            requireApproval: executionResult.requireApproval,
-                                        };
-                                        if (executionResult.approvalStatus !== undefined) {
-                                            metadata.approvalStatus =
-                                                executionResult.approvalStatus;
+                                        } = {};
+
+                                        if (executionResult.toolDisplayName !== undefined) {
+                                            meta.toolDisplayName = executionResult.toolDisplayName;
                                         }
-                                        this.approvalMetadata.set(options.toolCallId, metadata);
+
+                                        // Store approval metadata for later retrieval by StreamProcessor
+                                        if (executionResult.requireApproval !== undefined) {
+                                            meta.requireApproval = executionResult.requireApproval;
+                                            if (executionResult.approvalStatus !== undefined) {
+                                                meta.approvalStatus =
+                                                    executionResult.approvalStatus;
+                                            }
+                                        }
+
+                                        return Object.keys(meta).length > 0 ? meta : undefined;
+                                    })();
+
+                                    if (metadata) {
+                                        this.toolCallMetadata.set(options.toolCallId, metadata);
                                     }
 
                                     // Return just the raw result for Vercel SDK
@@ -1006,12 +1027,7 @@ export class TurnExecutor {
         if (!this.modelLimits || !this.compactionStrategy) {
             return false;
         }
-        // Use the overflow logic with threshold to trigger compaction earlier
-        return isOverflow(
-            { inputTokens: estimatedTokens },
-            this.modelLimits,
-            this.compactionThresholdPercent
-        );
+        return this.compactionStrategy.shouldCompact(estimatedTokens, this.modelLimits);
     }
 
     /**
@@ -1025,12 +1041,7 @@ export class TurnExecutor {
         if (!this.modelLimits || !this.compactionStrategy) {
             return false;
         }
-        // Use the same overflow logic but with actual tokens from API
-        return isOverflow(
-            { inputTokens: actualTokens },
-            this.modelLimits,
-            this.compactionThresholdPercent
-        );
+        return this.compactionStrategy.shouldCompact(actualTokens, this.modelLimits);
     }
 
     /**
@@ -1075,7 +1086,11 @@ export class TurnExecutor {
         });
 
         // Generate summary message(s) - this makes an LLM call
-        const summaryMessages = await this.compactionStrategy.compact(history);
+        const summaryMessages = await this.compactionStrategy.compact(history, {
+            sessionId: this.sessionId,
+            model: this.model,
+            logger: this.logger,
+        });
 
         if (summaryMessages.length === 0) {
             // Compaction returned empty - nothing to summarize (e.g., already compacted)

@@ -1,4 +1,4 @@
-import type { InternalMessage } from '@core/context/types.js';
+import type { InternalMessage } from '../../context/types.js';
 
 /**
  * Session-scoped conversation history provider.
@@ -8,7 +8,7 @@ import type { InternalMessage } from '@core/context/types.js';
  * the flush() method should be called at turn boundaries to ensure all updates
  * are persisted to durable storage.
  */
-export interface IConversationHistoryProvider {
+export type ConversationHistoryProvider = {
     /** Load the full message history for this session */
     getHistory(): Promise<InternalMessage[]>;
 
@@ -27,4 +27,4 @@ export interface IConversationHistoryProvider {
      * Implementations without caching can make this a no-op.
      */
     flush(): Promise<void>;
-}
+};

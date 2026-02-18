@@ -32,6 +32,8 @@ interface StatusBarProps {
     planModeActive?: boolean;
     /** Whether accept all edits mode is active */
     autoApproveEdits?: boolean;
+    /** Number of running background tasks */
+    backgroundTasksRunning?: number;
 }
 
 /**
@@ -54,13 +56,19 @@ export function StatusBar({
     hasTodos = false,
     planModeActive = false,
     autoApproveEdits = false,
+    backgroundTasksRunning = 0,
 }: StatusBarProps) {
+    const animationsActive = isProcessing && !isAwaitingApproval && !copyModeEnabled;
+
     // Cycle through witty phrases while processing (not during compacting)
-    const { phrase } = usePhraseCycler({ isActive: isProcessing && !isCompacting });
+    const { phrase } = usePhraseCycler({ isActive: animationsActive && !isCompacting });
     // Track elapsed time during processing
-    const { formatted: elapsedTime, elapsedMs } = useElapsedTime({ isActive: isProcessing });
+    const { formatted: elapsedTime, elapsedMs } = useElapsedTime({
+        isActive: animationsActive,
+        intervalMs: 1000,
+    });
     // Track token usage during processing
-    const { formatted: tokenCount } = useTokenCounter({ agent, isActive: isProcessing });
+    const { formatted: tokenCount } = useTokenCounter({ agent, isActive: animationsActive });
     // Only show time after 30 seconds
     const showTime = elapsedMs >= 30000;
 
@@ -85,17 +93,25 @@ export function StatusBar({
         return null;
     }
 
-    // Build the task toggle hint based on state
+    // Build the todo toggle hint based on state
     const todoHint = hasTodos
         ? todoExpanded
-            ? 'ctrl+t to hide tasks'
-            : 'ctrl+t to show tasks'
+            ? 'ctrl+t to hide todos'
+            : 'ctrl+t to show todos'
         : null;
+
+    const backgroundHint = backgroundTasksRunning > 0 ? 'ctrl+b to view bg tasks' : null;
 
     // Show compacting state - yellow/orange color to indicate context management
     if (isCompacting) {
         const metaParts: string[] = [];
         if (showTime) metaParts.push(`(${elapsedTime})`);
+        if (backgroundTasksRunning > 0) {
+            metaParts.push(
+                `${backgroundTasksRunning} bg task${backgroundTasksRunning > 1 ? 's' : ''}`
+            );
+        }
+        if (backgroundHint) metaParts.push(backgroundHint);
         metaParts.push('Esc to cancel');
         if (todoHint) metaParts.push(todoHint);
         const metaContent = metaParts.join(' • ');
@@ -124,6 +140,12 @@ export function StatusBar({
         const metaParts: string[] = [];
         if (showTime) metaParts.push(`(${elapsedTime})`);
         if (tokenCount) metaParts.push(tokenCount);
+        if (backgroundTasksRunning > 0) {
+            metaParts.push(
+                `${backgroundTasksRunning} bg task${backgroundTasksRunning > 1 ? 's' : ''}`
+            );
+        }
+        if (backgroundHint) metaParts.push(backgroundHint);
         metaParts.push('Esc to cancel');
         if (todoHint) metaParts.push(todoHint);
         const metaContent = metaParts.join(' • ');
@@ -151,6 +173,10 @@ export function StatusBar({
     const metaParts: string[] = [];
     if (showTime) metaParts.push(`(${elapsedTime})`);
     if (tokenCount) metaParts.push(tokenCount);
+    if (backgroundTasksRunning > 0) {
+        metaParts.push(`${backgroundTasksRunning} bg task${backgroundTasksRunning > 1 ? 's' : ''}`);
+    }
+    if (backgroundHint) metaParts.push(backgroundHint);
     metaParts.push('Esc to cancel');
     if (todoHint) metaParts.push(todoHint);
     const metaContent = metaParts.join(' • ');

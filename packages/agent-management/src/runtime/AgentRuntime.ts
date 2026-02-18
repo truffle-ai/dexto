@@ -15,8 +15,7 @@
  */
 
 import { randomUUID } from 'crypto';
-import { DextoAgent, type IDextoLogger, type GenerateResponse } from '@dexto/core';
-import { enrichAgentConfig } from '../config/index.js';
+import type { Logger, GenerateResponse } from '@dexto/core';
 import { AgentPool } from './AgentPool.js';
 import { RuntimeError } from './errors.js';
 import type {
@@ -27,6 +26,7 @@ import type {
     AgentFilter,
 } from './types.js';
 import { AgentRuntimeConfigSchema, type ValidatedAgentRuntimeConfig } from './schemas.js';
+import { createDextoAgentFromConfig } from '../agent-creation.js';
 
 /**
  * Options for creating an AgentRuntime
@@ -35,13 +35,13 @@ export interface AgentRuntimeOptions {
     /** Runtime configuration */
     config?: AgentRuntimeConfig;
     /** Logger instance */
-    logger: IDextoLogger;
+    logger: Logger;
 }
 
 export class AgentRuntime {
     private pool: AgentPool;
     private config: ValidatedAgentRuntimeConfig;
-    private logger: IDextoLogger;
+    private logger: Logger;
 
     constructor(options: AgentRuntimeOptions) {
         // Validate and apply defaults
@@ -76,19 +76,12 @@ export class AgentRuntime {
         }
 
         try {
-            // Enrich the config with runtime paths
-            // Skip plugin discovery for subagents to avoid duplicate warnings
-            const enrichedConfig = enrichAgentConfig(
-                config.agentConfig,
-                undefined, // No config path
-                { isInteractiveCli: false, skipPluginDiscovery: true }
-            );
-
-            // Override agentId in enriched config
-            enrichedConfig.agentId = agentId;
-
-            // Create the agent
-            const agent = new DextoAgent(enrichedConfig);
+            const agent = await createDextoAgentFromConfig({
+                config: config.agentConfig,
+                enrichOptions: { isInteractiveCli: false, skipPluginDiscovery: true },
+                agentIdOverride: agentId,
+                agentContext: 'subagent',
+            });
 
             // Create the handle (status: starting)
             const sessionId = `session-${randomUUID().slice(0, 8)}`;
@@ -161,8 +154,9 @@ export class AgentRuntime {
 
         try {
             // Create timeout promise
+            let timeoutId: ReturnType<typeof setTimeout> | undefined;
             const timeoutPromise = new Promise<never>((_, reject) => {
-                setTimeout(() => {
+                timeoutId = setTimeout(() => {
                     reject(RuntimeError.taskTimeout(agentId, taskTimeout));
                 }, taskTimeout);
             });
@@ -170,10 +164,17 @@ export class AgentRuntime {
             // Execute the task with timeout
             const generatePromise = handle.agent.generate(task, handle.sessionId);
 
-            const response = (await Promise.race([
-                generatePromise,
-                timeoutPromise,
-            ])) as GenerateResponse;
+            let response: GenerateResponse;
+            try {
+                response = (await Promise.race([
+                    generatePromise,
+                    timeoutPromise,
+                ])) as GenerateResponse;
+            } finally {
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                }
+            }
 
             // Update status back to idle
             this.pool.updateStatus(agentId, 'idle');

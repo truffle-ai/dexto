@@ -8,13 +8,14 @@
  * - Request Changes: Provide feedback for iteration
  * - Reject: Reject the plan entirely
  *
- * Uses the tool confirmation pattern (not elicitation) so the user
+ * Uses the tool approval pattern (not elicitation) so the user
  * can see the full plan content before deciding.
  */
 
 import { z } from 'zod';
-import type { InternalTool, ToolExecutionContext, FileDisplayData } from '@dexto/core';
-import type { PlanService } from '../plan-service.js';
+import { defineTool } from '@dexto/core';
+import type { Tool, ToolExecutionContext, FileDisplayData } from '@dexto/core';
+import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
 
 const PlanReviewInputSchema = z
@@ -26,16 +27,17 @@ const PlanReviewInputSchema = z
     })
     .strict();
 
-type PlanReviewInput = z.input<typeof PlanReviewInputSchema>;
-
 /**
  * Creates the plan_review tool
  *
- * @param planService - Service for plan operations
+ * @param getPlanService - Getter for the plan service
  */
-export function createPlanReviewTool(planService: PlanService): InternalTool {
-    return {
+export function createPlanReviewTool(
+    getPlanService: PlanServiceGetter
+): Tool<typeof PlanReviewInputSchema> {
+    return defineTool({
         id: 'plan_review',
+        displayName: 'Review Plan',
         description:
             'Request user review of the current plan. Shows the full plan content for review with options to approve, request changes, or reject. Use after creating or updating a plan to get user approval before implementation.',
         inputSchema: PlanReviewInputSchema,
@@ -44,18 +46,16 @@ export function createPlanReviewTool(planService: PlanService): InternalTool {
          * Generate preview showing the plan content for review.
          * The ApprovalPrompt component detects plan_review and shows custom options.
          */
-        generatePreview: async (
-            input: unknown,
-            context?: ToolExecutionContext
-        ): Promise<FileDisplayData> => {
-            const { summary } = input as PlanReviewInput;
+        generatePreview: async (input, context: ToolExecutionContext): Promise<FileDisplayData> => {
+            const resolvedPlanService = await getPlanService(context);
+            const { summary } = input;
 
-            if (!context?.sessionId) {
+            if (!context.sessionId) {
                 throw PlanError.sessionIdRequired();
             }
 
             // Read the current plan
-            const plan = await planService.read(context.sessionId);
+            const plan = await resolvedPlanService.read(context.sessionId);
             if (!plan) {
                 throw PlanError.planNotFound(context.sessionId);
             }
@@ -67,7 +67,7 @@ export function createPlanReviewTool(planService: PlanService): InternalTool {
             }
 
             const lineCount = displayContent.split('\n').length;
-            const planPath = planService.getPlanPath(context.sessionId);
+            const planPath = resolvedPlanService.getPlanPath(context.sessionId);
             return {
                 type: 'file',
                 path: planPath,
@@ -78,21 +78,22 @@ export function createPlanReviewTool(planService: PlanService): InternalTool {
             };
         },
 
-        execute: async (_input: unknown, context?: ToolExecutionContext) => {
+        async execute(_input, context: ToolExecutionContext) {
+            const resolvedPlanService = await getPlanService(context);
             // Tool execution means user approved the plan (selected Approve or Approve + Accept Edits)
             // Request Changes and Reject are handled as denials in the approval flow
-            if (!context?.sessionId) {
+            if (!context.sessionId) {
                 throw PlanError.sessionIdRequired();
             }
 
             // Read plan to verify it still exists
-            const plan = await planService.read(context.sessionId);
+            const plan = await resolvedPlanService.read(context.sessionId);
             if (!plan) {
                 throw PlanError.planNotFound(context.sessionId);
             }
 
             // Update plan status to approved
-            await planService.updateMeta(context.sessionId, { status: 'approved' });
+            await resolvedPlanService.updateMeta(context.sessionId, { status: 'approved' });
 
             return {
                 approved: true,
@@ -100,5 +101,5 @@ export function createPlanReviewTool(planService: PlanService): InternalTool {
                 planStatus: 'approved',
             };
         },
-    };
+    });
 }

@@ -1,6 +1,6 @@
 {
   "name": "@dexto/tools-plan",
-  "version": "1.5.7",
+  "version": "1.6.0",
   "description": "Implementation planning tools with session-linked plans",
   "type": "module",
   "main": "./dist/index.js",
@@ -12,9 +12,7 @@
     }
   },
   "files": [
-    "dist",
-    ".dexto-plugin",
-    "skills"
+    "dist"
   ],
   "scripts": {
     "build": "tsc",
@@ -24,6 +22,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@dexto/agent-config": "workspace:*",
     "@dexto/core": "workspace:*",
     "diff": "^7.0.0",
     "zod": "^3.24.1"

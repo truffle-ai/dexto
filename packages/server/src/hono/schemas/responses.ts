@@ -221,16 +221,45 @@ export {
 } from '@dexto/core';
 
 // Tool schemas
-export { ToolConfirmationConfigSchema } from '@dexto/core';
+export { PermissionsConfigSchema } from '@dexto/core';
 
 // Resource schemas
-export { InternalResourceConfigSchema } from '@dexto/core';
+export { ResourceConfigSchema } from '@dexto/core';
 
 // ============================================================================
 // New schemas for types that don't have Zod equivalents in core
 // ============================================================================
 
 // --- Session Schemas ---
+
+export const SessionTokenUsageSchema = z
+    .object({
+        inputTokens: z.number().int().nonnegative().describe('Number of input tokens'),
+        outputTokens: z.number().int().nonnegative().describe('Number of output tokens'),
+        reasoningTokens: z.number().int().nonnegative().describe('Number of reasoning tokens'),
+        cacheReadTokens: z.number().int().nonnegative().describe('Number of cache read tokens'),
+        cacheWriteTokens: z.number().int().nonnegative().describe('Number of cache write tokens'),
+        totalTokens: z.number().int().nonnegative().describe('Total tokens used'),
+    })
+    .strict()
+    .describe('Session-level token usage (all fields required for cumulative totals)');
+
+export const ModelStatisticsSchema = z
+    .object({
+        provider: z.string().describe('LLM provider identifier'),
+        model: z.string().describe('Model identifier'),
+        messageCount: z
+            .number()
+            .int()
+            .nonnegative()
+            .describe('Number of messages using this model'),
+        tokenUsage: SessionTokenUsageSchema.describe('Token usage for this model'),
+        estimatedCost: z.number().nonnegative().describe('Estimated cost in USD for this model'),
+        firstUsedAt: z.number().int().positive().describe('First use timestamp (Unix ms)'),
+        lastUsedAt: z.number().int().positive().describe('Last use timestamp (Unix ms)'),
+    })
+    .strict()
+    .describe('Per-model statistics within a session');
 
 export const SessionMetadataSchema = z
     .object({
@@ -253,11 +282,99 @@ export const SessionMetadataSchema = z
             .nonnegative()
             .describe('Total number of messages in session'),
         title: z.string().optional().nullable().describe('Optional session title'),
+        tokenUsage: SessionTokenUsageSchema.optional().describe(
+            'Aggregate token usage across all models'
+        ),
+        estimatedCost: z
+            .number()
+            .nonnegative()
+            .optional()
+            .describe('Total estimated cost in USD across all models'),
+        modelStats: z
+            .array(ModelStatisticsSchema)
+            .optional()
+            .describe('Per-model usage statistics (for multi-model sessions)'),
+        workspaceId: z.string().optional().nullable().describe('Associated workspace ID, if any'),
     })
     .strict()
     .describe('Session metadata');
 
+export type SessionTokenUsage = z.output<typeof SessionTokenUsageSchema>;
+export type ModelStatistics = z.output<typeof ModelStatisticsSchema>;
 export type SessionMetadata = z.output<typeof SessionMetadataSchema>;
+
+// --- Workspace Schemas ---
+
+export const WorkspaceSchema = z
+    .object({
+        id: z.string().describe('Workspace identifier'),
+        path: z.string().describe('Workspace root path'),
+        name: z.string().optional().nullable().describe('Optional workspace display name'),
+        createdAt: z.number().int().positive().describe('Creation timestamp (Unix ms)'),
+        lastActiveAt: z.number().int().positive().describe('Last active timestamp (Unix ms)'),
+    })
+    .strict()
+    .describe('Workspace metadata');
+
+export type Workspace = z.output<typeof WorkspaceSchema>;
+
+// --- Schedule Schemas ---
+
+export const ScheduleTaskSchema = z
+    .object({
+        instruction: z.string().describe('Instruction to execute'),
+        metadata: z.record(z.unknown()).optional().describe('Optional task metadata'),
+    })
+    .strict()
+    .describe('Schedule task definition');
+
+export const ScheduleSchema = z
+    .object({
+        id: z.string().describe('Schedule ID'),
+        name: z.string().describe('Schedule name'),
+        cronExpression: z.string().describe('Cron expression'),
+        timezone: z.string().describe('Timezone for schedule'),
+        enabled: z.boolean().describe('Whether the schedule is enabled'),
+        task: ScheduleTaskSchema.describe('Schedule task configuration'),
+        sessionMode: z
+            .enum(['ephemeral', 'dedicated', 'inherit', 'fixed'])
+            .describe('Session context mode'),
+        sessionId: z.string().optional().describe('Session ID when using fixed/inherit mode'),
+        workspacePath: z.string().optional().describe('Workspace path override'),
+        createdAt: z.number().int().positive().describe('Creation timestamp (Unix ms)'),
+        updatedAt: z.number().int().positive().describe('Last update timestamp (Unix ms)'),
+        lastRunAt: z.number().int().positive().optional().describe('Last run timestamp (Unix ms)'),
+        nextRunAt: z.number().int().positive().optional().describe('Next run timestamp (Unix ms)'),
+        runCount: z.number().int().nonnegative().describe('Total executions'),
+        successCount: z.number().int().nonnegative().describe('Successful executions'),
+        failureCount: z.number().int().nonnegative().describe('Failed executions'),
+        lastError: z.string().optional().describe('Last execution error, if any'),
+    })
+    .strict()
+    .describe('Automation schedule');
+
+export type Schedule = z.output<typeof ScheduleSchema>;
+
+export const ExecutionLogSchema = z
+    .object({
+        id: z.string().describe('Execution log ID'),
+        scheduleId: z.string().describe('Schedule ID'),
+        triggeredAt: z.number().int().positive().describe('Trigger timestamp (Unix ms)'),
+        completedAt: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe('Completion timestamp (Unix ms)'),
+        status: z.enum(['pending', 'success', 'failed', 'timeout']).describe('Execution status'),
+        duration: z.number().int().nonnegative().optional().describe('Execution duration in ms'),
+        error: z.string().optional().describe('Execution error, if any'),
+        result: z.string().optional().describe('Execution result, if any'),
+    })
+    .strict()
+    .describe('Schedule execution log');
+
+export type ExecutionLog = z.output<typeof ExecutionLogSchema>;
 
 // --- Search Schemas ---
 

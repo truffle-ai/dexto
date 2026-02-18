@@ -1,7 +1,0 @@
-{
-  "name": "plan-tools",
-  "version": "0.1.0",
-  "description": "Implementation planning tools with session-linked plans. Create, read, and update plans tied to your session.",
-  "author": "Dexto",
-  "customToolProviders": ["plan-tools"]
-}

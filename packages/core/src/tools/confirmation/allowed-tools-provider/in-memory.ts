@@ -1,6 +1,6 @@
-import type { IAllowedToolsProvider } from './types.js';
+import type { AllowedToolsProvider } from './types.js';
 
-export class InMemoryAllowedToolsProvider implements IAllowedToolsProvider {
+export class InMemoryAllowedToolsProvider implements AllowedToolsProvider {
     /**
      * Map key is sessionId (undefined => global approvals). Value is a set of
      * approved tool names.

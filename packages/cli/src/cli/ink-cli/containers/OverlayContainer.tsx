@@ -5,6 +5,7 @@
 
 import React, { useCallback, useRef, useImperativeHandle, forwardRef, useState } from 'react';
 import { Box } from 'ink';
+import path from 'path';
 import type { DextoAgent, McpServerConfig, McpServerStatus, McpServerType } from '@dexto/core';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
 import type { Key } from '../hooks/useInputOrchestrator.js';
@@ -38,6 +39,9 @@ import LogLevelSelector, {
 import StreamSelector, {
     type StreamSelectorHandle,
 } from '../components/overlays/StreamSelector.js';
+import SoundsSelector, {
+    type SoundsSelectorHandle,
+} from '../components/overlays/SoundsSelector.js';
 import ToolBrowser, { type ToolBrowserHandle } from '../components/overlays/ToolBrowser.js';
 import McpServerList, {
     type McpServerListHandle,
@@ -69,7 +73,13 @@ import McpCustomWizard, {
 import CustomModelWizard, {
     type CustomModelWizardHandle,
 } from '../components/overlays/CustomModelWizard.js';
-import type { CustomModel, ListedPlugin } from '@dexto/agent-management';
+import {
+    getProviderKeyStatus,
+    loadGlobalPreferences,
+    updateGlobalPreferences,
+    type CustomModel,
+    type ListedPlugin,
+} from '@dexto/agent-management';
 import ApiKeyInput, { type ApiKeyInputHandle } from '../components/overlays/ApiKeyInput.js';
 import SearchOverlay, { type SearchOverlayHandle } from '../components/overlays/SearchOverlay.js';
 import PromptList, {
@@ -144,6 +154,8 @@ interface OverlayContainerProps {
     agent: DextoAgent;
     inputService: InputService;
     buffer: TextBuffer;
+    /** Source agent config file path (if available) */
+    configFilePath: string | null;
     /** Callback to refresh static content (clear terminal and force re-render) */
     refreshStatic?: () => void;
     /** Callback to submit a prompt command through the normal streaming flow */
@@ -170,13 +182,12 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             agent,
             inputService,
             buffer,
+            configFilePath,
             refreshStatic,
             onSubmitPromptCommand,
         },
         ref
     ) {
-        const eventBus = agent.agentEventBus;
-
         // Refs to overlay components for input handling
         const approvalRef = useRef<ApprovalPromptHandle>(null);
         const slashAutocompleteRef = useRef<SlashCommandAutocompleteHandle>(null);
@@ -186,6 +197,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const sessionSelectorRef = useRef<SessionSelectorHandle>(null);
         const logLevelSelectorRef = useRef<LogLevelSelectorHandle>(null);
         const streamSelectorRef = useRef<StreamSelectorHandle>(null);
+        const soundsSelectorRef = useRef<SoundsSelectorHandle>(null);
         const toolBrowserRef = useRef<ToolBrowserHandle>(null);
         const mcpServerListRef = useRef<McpServerListHandle>(null);
         const mcpServerActionsRef = useRef<McpServerActionsHandle>(null);
@@ -212,6 +224,26 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         // State for selected plugin (for plugin-actions overlay)
         const [selectedPlugin, setSelectedPlugin] = useState<ListedPlugin | null>(null);
         const marketplaceAddPromptRef = useRef<MarketplaceAddPromptHandle>(null);
+
+        const getConfigFilePathOrWarn = useCallback(
+            (action: string): string | null => {
+                if (configFilePath) {
+                    return configFilePath;
+                }
+
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: `⚠️ Cannot ${action}: this agent is not file-backed (no config path).`,
+                        timestamp: new Date(),
+                    },
+                ]);
+                return null;
+            },
+            [configFilePath, setMessages]
+        );
 
         // Expose handleInput method via ref - routes to appropriate overlay
         useImperativeHandle(
@@ -243,6 +275,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             return logLevelSelectorRef.current?.handleInput(inputStr, key) ?? false;
                         case 'stream-selector':
                             return streamSelectorRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'sounds-selector':
+                            return soundsSelectorRef.current?.handleInput(inputStr, key) ?? false;
                         case 'tool-browser':
                             return toolBrowserRef.current?.handleInput(inputStr, key) ?? false;
                         case 'mcp-server-list':
@@ -342,7 +376,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 enableAcceptEditsMode?: boolean;
                 rememberDirectory?: boolean;
             }) => {
-                if (!approval || !eventBus) return;
+                if (!approval) return;
 
                 // Enable "accept all edits" mode if requested
                 if (options.enableAcceptEditsMode) {
@@ -352,12 +386,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 // Auto-disable plan mode when plan_create or plan_review is approved
                 // This signals the transition from planning phase to execution phase
                 const toolName = approval.metadata.toolName as string | undefined;
-                const isPlanTool =
-                    toolName === 'plan_create' ||
-                    toolName === 'plan_review' ||
-                    toolName === 'custom--plan_create' ||
-                    toolName === 'custom--plan_review';
-                if (isPlanTool) {
+                if (toolName === 'plan_create' || toolName === 'plan_review') {
                     setUi((prev) => ({
                         ...prev,
                         planModeActive: false,
@@ -365,7 +394,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     }));
                 }
 
-                eventBus.emit('approval:response', {
+                agent.emit('approval:response', {
                     approvalId: approval.approvalId,
                     status: ApprovalStatus.APPROVED,
                     sessionId: approval.sessionId,
@@ -379,19 +408,19 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                 completeApproval();
             },
-            [approval, eventBus, completeApproval, setUi]
+            [approval, agent, completeApproval, setUi]
         );
 
         const handleDeny = useCallback(
             (feedback?: string) => {
-                if (!approval || !eventBus) return;
+                if (!approval) return;
 
                 // Include user feedback in the denial message if provided
                 const message = feedback
                     ? `User requested changes: ${feedback}`
                     : 'User denied the tool execution';
 
-                eventBus.emit('approval:response', {
+                agent.emit('approval:response', {
                     approvalId: approval.approvalId,
                     status: ApprovalStatus.DENIED,
                     sessionId: approval.sessionId,
@@ -401,13 +430,13 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                 completeApproval();
             },
-            [approval, eventBus, completeApproval]
+            [approval, agent, completeApproval]
         );
 
         const handleCancelApproval = useCallback(() => {
-            if (!approval || !eventBus) return;
+            if (!approval) return;
 
-            eventBus.emit('approval:response', {
+            agent.emit('approval:response', {
                 approvalId: approval.approvalId,
                 status: ApprovalStatus.CANCELLED,
                 sessionId: approval.sessionId,
@@ -416,7 +445,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             });
 
             completeApproval();
-        }, [approval, eventBus, completeApproval]);
+        }, [approval, agent, completeApproval]);
 
         // Helper: Check if error is due to missing API key
         const isApiKeyMissingError = (error: unknown): LLMProvider | null => {
@@ -435,7 +464,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             return null;
         };
 
-        // Handle model selection
+        // Handle model selection (session-only)
         const handleModelSelect = useCallback(
             async (
                 provider: string,
@@ -444,9 +473,11 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 baseURL?: string,
                 reasoningPreset?: ReasoningPreset
             ) => {
-                // Pre-check: Dexto provider requires OAuth login AND API key
+                // Session-only switch (default is set via explicit action)
+
+                // Pre-check: Dexto Nova provider requires OAuth login AND API key
                 // Check BEFORE closing the overlay so user can pick a different model
-                if (provider === 'dexto') {
+                if (provider === 'dexto-nova') {
                     try {
                         const { canUseDextoProvider } = await import('../../utils/dexto-setup.js');
                         const canUse = await canUseDextoProvider();
@@ -457,7 +488,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                     id: generateMessageId('system'),
                                     role: 'system',
                                     content:
-                                        '❌ Cannot switch to Dexto model - authentication required. Run /login to authenticate.',
+                                        'Cannot switch to Dexto Nova model - authentication required. Run /login to authenticate.',
                                     timestamp: new Date(),
                                 },
                             ]);
@@ -470,7 +501,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             {
                                 id: generateMessageId('error'),
                                 role: 'system',
-                                content: `❌ Failed to verify Dexto auth: ${error instanceof Error ? error.message : String(error)}`,
+                                content: `Failed to verify Dexto Nova auth: ${error instanceof Error ? error.message : String(error)}`,
                                 timestamp: new Date(),
                             },
                         ]);
@@ -529,6 +560,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                 provider: missingProvider,
                                 model,
                                 ...(displayName && { displayName }),
+                                ...(baseURL && { baseURL }),
+                                ...(reasoningPreset && { reasoningPreset }),
                             },
                         }));
                         setMessages((prev) => [
@@ -548,13 +581,135 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ Failed to switch model: ${error instanceof Error ? error.message : String(error)}`,
+                            content: `Failed to switch model: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
                 }
             },
             [setUi, setInput, setMessages, setSession, agent, session.id, buffer]
+        );
+
+        const handleSetDefaultModel = useCallback(
+            async (
+                provider: LLMProvider,
+                model: string,
+                displayName?: string,
+                baseURL?: string,
+                reasoningPreset?: ReasoningPreset
+            ) => {
+                try {
+                    let providerEnvVar: string | undefined;
+                    try {
+                        const providerKeyStatus = await getProviderKeyStatus(provider);
+                        providerEnvVar = providerKeyStatus?.envVar;
+                    } catch (error) {
+                        agent.logger.debug(
+                            `Failed to resolve provider API key env var: ${
+                                error instanceof Error ? error.message : String(error)
+                            }`
+                        );
+                    }
+
+                    let existing = null;
+                    try {
+                        existing = await loadGlobalPreferences();
+                    } catch {
+                        existing = null;
+                    }
+
+                    const existingReasoning = existing?.llm.reasoning;
+                    const nextReasoning =
+                        reasoningPreset !== undefined
+                            ? { ...(existingReasoning ?? {}), preset: reasoningPreset }
+                            : existingReasoning;
+
+                    type GlobalLLMPreferences = Awaited<
+                        ReturnType<typeof loadGlobalPreferences>
+                    >['llm'];
+
+                    const preferencesUpdate: GlobalLLMPreferences = {
+                        provider,
+                        model,
+                        ...(baseURL ? { baseURL } : {}),
+                        ...(nextReasoning ? { reasoning: nextReasoning } : {}),
+                    };
+
+                    // Only preserve the API key if the provider hasn't changed
+                    // If provider changed, use the new provider's env var
+                    if (existing?.llm.provider === provider && existing?.llm.apiKey) {
+                        preferencesUpdate.apiKey = existing.llm.apiKey;
+                    } else if (providerEnvVar) {
+                        preferencesUpdate.apiKey = '$' + providerEnvVar;
+                    }
+
+                    await updateGlobalPreferences({
+                        llm: preferencesUpdate,
+                    });
+
+                    try {
+                        await agent.switchLLM(
+                            {
+                                provider: provider as LLMProvider,
+                                model,
+                                ...(baseURL ? { baseURL } : {}),
+                                ...(nextReasoning ? { reasoning: nextReasoning } : {}),
+                            },
+                            session.id || undefined
+                        );
+                        setSession((prev) => ({ ...prev, modelName: displayName || model }));
+
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('system'),
+                                role: 'system',
+                                content: `✅ Default model set to ${displayName || model} (${provider})`,
+                                timestamp: new Date(),
+                            },
+                        ]);
+                    } catch (error) {
+                        const missingProvider = isApiKeyMissingError(error);
+                        if (missingProvider) {
+                            setUi((prev) => ({
+                                ...prev,
+                                activeOverlay: 'api-key-input',
+                                pendingModelSwitch: {
+                                    provider: missingProvider,
+                                    model,
+                                    ...(displayName && { displayName }),
+                                    ...(baseURL && { baseURL }),
+                                    ...(reasoningPreset !== undefined && { reasoningPreset }),
+                                },
+                            }));
+                            setMessages((prev) => [
+                                ...prev,
+                                {
+                                    id: generateMessageId('system'),
+                                    role: 'system',
+                                    content: `🔑 API key required for ${provider}`,
+                                    timestamp: new Date(),
+                                },
+                            ]);
+                            return;
+                        }
+                        throw error;
+                    }
+                } catch (error) {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('error'),
+                            role: 'system',
+                            content: `Failed to set default model: ${
+                                error instanceof Error ? error.message : String(error)
+                            }`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                }
+            },
+            [agent, setMessages, setSession, setUi, session.id]
         );
 
         // State for editing custom model
@@ -663,7 +818,14 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     ]);
 
                     await agent.switchLLM(
-                        { provider: pending.provider as LLMProvider, model: pending.model },
+                        {
+                            provider: pending.provider as LLMProvider,
+                            model: pending.model,
+                            ...(pending.baseURL && { baseURL: pending.baseURL }),
+                            ...(pending.reasoningPreset !== undefined && {
+                                reasoning: { preset: pending.reasoningPreset },
+                            }),
+                        },
                         session.id || undefined
                     );
 
@@ -685,7 +847,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ Failed to switch model: ${error instanceof Error ? error.message : String(error)}`,
+                            content: `Failed to switch model: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -837,7 +999,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ Failed to switch session: ${error instanceof Error ? error.message : String(error)}`,
+                            content: `Failed to switch session: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -933,7 +1095,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ ${error instanceof Error ? error.message : String(error)}`,
+                            content: `${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -1028,7 +1190,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ ${error instanceof Error ? error.message : String(error)}`,
+                            content: `${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -1060,9 +1222,21 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 const atIndex = input.value.lastIndexOf('@');
                 if (atIndex >= 0) {
                     const before = input.value.slice(0, atIndex + 1);
-                    const uriParts = resource.uri.split('/');
-                    const reference =
-                        resource.name || uriParts[uriParts.length - 1] || resource.uri;
+                    const uriParts = resource.uri.split(/[\\/]/);
+                    let reference = resource.name || uriParts[uriParts.length - 1] || resource.uri;
+
+                    // If it's an absolute path, use relative path as reference to be more descriptive and less bulky
+                    const rawUri = resource.uri.replace(/^(fs|file):\/\//, ''); // Stripped prefix
+                    if (path.isAbsolute(rawUri)) {
+                        try {
+                            const relativePath = path.relative(process.cwd(), rawUri);
+                            // Prioritize relative path for local files to avoid ambiguity
+                            reference = relativePath;
+                        } catch {
+                            // Keep fallback if relative fails
+                        }
+                    }
+
                     const newValue = `${before}${reference} `;
                     buffer.setText(newValue);
                     setInput((prev) => ({ ...prev, value: newValue }));
@@ -1096,7 +1270,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     },
                 ]);
             },
-            [setUi, setInput, setMessages, agent, buffer]
+            [setUi, setInput, setMessages, agent, buffer, getConfigFilePathOrWarn]
         );
 
         // Handle stream mode selection
@@ -1254,12 +1428,11 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         const { updateMcpServerField } = await import('@dexto/agent-management');
 
                         // Persist to config file AFTER successful enable/disable
-                        await updateMcpServerField(
-                            agent.getAgentFilePath(),
-                            server.name,
-                            'enabled',
-                            newEnabled
-                        );
+                        const agentPath = getConfigFilePathOrWarn('persist MCP server settings');
+                        if (!agentPath) {
+                            return;
+                        }
+                        await updateMcpServerField(agentPath, server.name, 'enabled', newEnabled);
 
                         setMessages((prev) => [
                             ...prev,
@@ -1287,7 +1460,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             {
                                 id: generateMessageId('error'),
                                 role: 'system',
-                                content: `❌ Failed to ${action.type} server: ${errorMessage}`,
+                                content: `Failed to ${action.type} server: ${errorMessage}`,
                                 timestamp: new Date(),
                             },
                         ]);
@@ -1320,7 +1493,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             {
                                 id: generateMessageId('error'),
                                 role: 'system',
-                                content: `❌ Failed to authenticate server: ${error instanceof Error ? error.message : String(error)}`,
+                                content: `Failed to authenticate server: ${error instanceof Error ? error.message : String(error)}`,
                                 timestamp: new Date(),
                             },
                         ]);
@@ -1343,7 +1516,10 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         );
 
                         // Persist to config file using surgical removal
-                        await removeMcpServerFromConfig(agent.getAgentFilePath(), server.name);
+                        const agentPath = getConfigFilePathOrWarn('persist MCP server deletion');
+                        if (agentPath) {
+                            await removeMcpServerFromConfig(agentPath, server.name);
+                        }
 
                         // Also disconnect if connected
                         try {
@@ -1367,7 +1543,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             {
                                 id: generateMessageId('error'),
                                 role: 'system',
-                                content: `❌ Failed to delete server: ${error instanceof Error ? error.message : String(error)}`,
+                                content: `Failed to delete server: ${error instanceof Error ? error.message : String(error)}`,
                                 timestamp: new Date(),
                             },
                         ]);
@@ -1454,7 +1630,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('system'),
                             role: 'system',
-                            content: `❌ Failed to connect: ${error instanceof Error ? error.message : String(error)}`,
+                            content: `Failed to connect: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -1545,7 +1721,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('system'),
                             role: 'system',
-                            content: `❌ Failed to connect: ${error instanceof Error ? error.message : String(error)}`,
+                            content: `Failed to connect: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -1622,13 +1798,14 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                         // Refresh prompts to remove uninstalled plugin skills
                         try {
-                            const newConfig = await reloadAgentConfigFromFile(
-                                agent.getAgentFilePath()
+                            const agentPath = getConfigFilePathOrWarn(
+                                'refresh prompts after plugin uninstall'
                             );
-                            const enrichedConfig = enrichAgentConfig(
-                                newConfig,
-                                agent.getAgentFilePath()
-                            );
+                            if (!agentPath) {
+                                return;
+                            }
+                            const newConfig = await reloadAgentConfigFromFile(agentPath);
+                            const enrichedConfig = enrichAgentConfig(newConfig, agentPath);
                             await agent.refreshPrompts(enrichedConfig.prompts);
                         } catch {
                             // Non-critical: prompts will refresh on next agent restart
@@ -1649,7 +1826,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     setUi((prev) => ({ ...prev, isProcessing: false }));
                 }
             },
-            [setUi, setMessages, agent]
+            [setUi, setMessages, agent, getConfigFilePathOrWarn]
         );
 
         // Handle marketplace browser actions
@@ -1674,11 +1851,14 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         const { reloadAgentConfigFromFile, enrichAgentConfig } = await import(
                             '@dexto/agent-management'
                         );
-                        const newConfig = await reloadAgentConfigFromFile(agent.getAgentFilePath());
-                        const enrichedConfig = enrichAgentConfig(
-                            newConfig,
-                            agent.getAgentFilePath()
+                        const agentPath = getConfigFilePathOrWarn(
+                            'refresh prompts after plugin install'
                         );
+                        if (!agentPath) {
+                            return;
+                        }
+                        const newConfig = await reloadAgentConfigFromFile(agentPath);
+                        const enrichedConfig = enrichAgentConfig(newConfig, agentPath);
                         await agent.refreshPrompts(enrichedConfig.prompts);
                     } catch (error) {
                         // Non-critical: prompts will refresh on next agent restart
@@ -1686,7 +1866,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     }
                 }
             },
-            [setUi, setMessages, agent]
+            [setUi, setMessages, agent, getConfigFilePathOrWarn]
         );
 
         // Handle marketplace add completion
@@ -1768,7 +1948,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ ${error instanceof Error ? error.message : String(error)}`,
+                            content: `${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -1946,15 +2126,24 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         const { reloadAgentConfigFromFile, enrichAgentConfig } = await import(
                             '@dexto/agent-management'
                         );
-                        const newConfig = await reloadAgentConfigFromFile(agent.getAgentFilePath());
-                        const enrichedConfig = enrichAgentConfig(
-                            newConfig,
-                            agent.getAgentFilePath()
+                        const agentPath = getConfigFilePathOrWarn(
+                            'refresh prompts after creating shared prompt'
                         );
+                        if (!agentPath) {
+                            return;
+                        }
+                        const newConfig = await reloadAgentConfigFromFile(agentPath);
+                        const enrichedConfig = enrichAgentConfig(newConfig, agentPath);
                         await agent.refreshPrompts(enrichedConfig.prompts);
                     } else {
                         // Create in agent's prompts directory
-                        const agentDir = dirname(agent.getAgentFilePath());
+                        const agentPath = getConfigFilePathOrWarn(
+                            'create prompt in agent prompts directory'
+                        );
+                        if (!agentPath) {
+                            return;
+                        }
+                        const agentDir = dirname(agentPath);
                         const promptsDir = join(agentDir, 'prompts');
                         filePath = join(promptsDir, `${data.name}.md`);
                         await mkdir(promptsDir, { recursive: true });
@@ -1966,17 +2155,14 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             reloadAgentConfigFromFile,
                             enrichAgentConfig,
                         } = await import('@dexto/agent-management');
-                        await addPromptToAgentConfig(agent.getAgentFilePath(), {
+                        await addPromptToAgentConfig(agentPath, {
                             type: 'file',
                             file: `\${{dexto.agent_dir}}/prompts/${data.name}.md`,
                         });
 
                         // Reload config from disk, enrich to include discovered commands, then refresh
-                        const newConfig = await reloadAgentConfigFromFile(agent.getAgentFilePath());
-                        const enrichedConfig = enrichAgentConfig(
-                            newConfig,
-                            agent.getAgentFilePath()
-                        );
+                        const newConfig = await reloadAgentConfigFromFile(agentPath);
+                        const enrichedConfig = enrichAgentConfig(newConfig, agentPath);
                         await agent.refreshPrompts(enrichedConfig.prompts);
                     }
 
@@ -1995,13 +2181,21 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ Failed to create prompt: ${error instanceof Error ? error.message : String(error)}`,
+                            content: `Failed to create prompt: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
                 }
             },
-            [ui.promptAddWizard?.scope, setUi, setInput, setMessages, buffer, agent]
+            [
+                ui.promptAddWizard?.scope,
+                setUi,
+                setInput,
+                setMessages,
+                buffer,
+                agent,
+                getConfigFilePathOrWarn,
+            ]
         );
 
         // Handle prompt delete
@@ -2023,13 +2217,18 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     const { deletePromptByMetadata, reloadAgentConfigFromFile, enrichAgentConfig } =
                         await import('@dexto/agent-management');
 
+                    const agentPath = getConfigFilePathOrWarn('delete prompt');
+                    if (!agentPath) {
+                        return;
+                    }
+
                     // Use the higher-level delete function that handles file + config
                     // Pass full metadata including originalId for inline prompt deletion
                     const promptMetadata = deletable.prompt.metadata as
                         | { filePath?: string; originalId?: string }
                         | undefined;
                     const result = await deletePromptByMetadata(
-                        agent.getAgentFilePath(),
+                        agentPath,
                         {
                             name: deletable.prompt.name,
                             metadata: {
@@ -2045,8 +2244,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     }
 
                     // Reload config from disk, enrich to include discovered commands, then refresh
-                    const newConfig = await reloadAgentConfigFromFile(agent.getAgentFilePath());
-                    const enrichedConfig = enrichAgentConfig(newConfig, agent.getAgentFilePath());
+                    const newConfig = await reloadAgentConfigFromFile(agentPath);
+                    const enrichedConfig = enrichAgentConfig(newConfig, agentPath);
                     await agent.refreshPrompts(enrichedConfig.prompts);
 
                     setMessages((prev) => [
@@ -2071,7 +2270,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ Failed to delete prompt: ${error instanceof Error ? error.message : String(error)}`,
+                            content: `Failed to delete prompt: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -2083,7 +2282,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     }));
                 }
             },
-            [setUi, setMessages, agent]
+            [setUi, setMessages, agent, getConfigFilePathOrWarn]
         );
 
         // Handle prompt add wizard close
@@ -2151,7 +2350,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ Failed to rename session: ${error instanceof Error ? error.message : String(error)}`,
+                            content: `Failed to rename session: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -2217,6 +2416,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             ref={modelSelectorRef}
                             isVisible={true}
                             onSelectModel={handleModelSelect}
+                            onSetDefaultModel={handleSetDefaultModel}
                             onClose={handleClose}
                             onAddCustomModel={handleAddCustomModel}
                             onEditCustomModel={handleEditCustomModel}
@@ -2282,6 +2482,17 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     </Box>
                 )}
 
+                {/* Sounds selector */}
+                {ui.activeOverlay === 'sounds-selector' && (
+                    <Box marginTop={1}>
+                        <SoundsSelector
+                            ref={soundsSelectorRef}
+                            isVisible={true}
+                            onClose={handleClose}
+                        />
+                    </Box>
+                )}
+
                 {/* Tool browser */}
                 {ui.activeOverlay === 'tool-browser' && (
                     <Box marginTop={1}>
@@ -2290,6 +2501,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             isVisible={true}
                             onClose={handleClose}
                             agent={agent}
+                            sessionId={session.id}
                         />
                     </Box>
                 )}

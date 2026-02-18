@@ -51,6 +51,9 @@ function createSetters() {
         promptAddWizard: null,
         autoApproveEdits: false,
         todoExpanded: true,
+        backgroundTasksRunning: 0,
+        backgroundTasksExpanded: false,
+        backgroundTasks: [],
         planModeActive: false,
         planModeInitialized: false,
     });

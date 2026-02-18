@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import { ConfigPromptProvider } from './config-prompt-provider.js';
-import type { ValidatedAgentConfig } from '../../agent/schemas.js';
+import type { AgentRuntimeSettings } from '../../agent/runtime-config.js';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { createSilentMockLogger } from '../../logger/v2/test-utils.js';
@@ -10,8 +10,8 @@ const FIXTURES_DIR = join(__dirname, '__fixtures__');
 
 const mockLogger = createSilentMockLogger();
 
-function makeAgentConfig(prompts: any[]): ValidatedAgentConfig {
-    return { prompts } as ValidatedAgentConfig;
+function makeAgentConfig(prompts: any[]): AgentRuntimeSettings {
+    return { prompts } as unknown as AgentRuntimeSettings;
 }
 
 describe('ConfigPromptProvider', () => {
@@ -411,6 +411,27 @@ describe('ConfigPromptProvider', () => {
             });
         });
 
+        test('does not treat argument name fields as prompt ids', async () => {
+            const config = makeAgentConfig([
+                {
+                    type: 'file',
+                    file: join(FIXTURES_DIR, 'arguments-frontmatter.md'),
+                    showInStarters: false,
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, mockLogger);
+            const result = await provider.listPrompts();
+
+            expect(result.prompts).toHaveLength(1);
+            expect(result.prompts[0]).toMatchObject({
+                name: 'config:arguments-frontmatter',
+                displayName: 'arguments-frontmatter',
+                title: 'Code Review',
+                source: 'config',
+            });
+        });
+
         test('gets file prompt content', async () => {
             const config = makeAgentConfig([
                 {
@@ -585,8 +606,8 @@ describe('ConfigPromptProvider', () => {
         });
     });
 
-    describe('Claude Code tool name normalization', () => {
-        test('normalizes Claude Code tool names to Dexto format (case-insensitive)', async () => {
+    describe('allowed-tools passthrough', () => {
+        test('preserves allowed-tools from file prompts', async () => {
             const config = makeAgentConfig([
                 {
                     type: 'file',
@@ -598,19 +619,11 @@ describe('ConfigPromptProvider', () => {
             const provider = new ConfigPromptProvider(config, mockLogger);
             const def = await provider.getPromptDefinition('config:skill-with-tools');
 
-            // Should normalize: bash, Read, WRITE, edit -> Dexto names
-            // Should preserve: custom--keep_as_is (already Dexto format)
             expect(def).not.toBeNull();
-            expect(def!.allowedTools).toEqual([
-                'custom--bash_exec',
-                'custom--read_file',
-                'custom--write_file',
-                'custom--edit_file',
-                'custom--keep_as_is',
-            ]);
+            expect(def!.allowedTools).toEqual(['bash', 'Read', 'WRITE', 'edit', 'keep_as_is']);
         });
 
-        test('normalizes inline prompt allowed-tools', async () => {
+        test('preserves allowed-tools from inline prompts', async () => {
             const config = makeAgentConfig([
                 {
                     type: 'inline',
@@ -626,9 +639,9 @@ describe('ConfigPromptProvider', () => {
 
             expect(def).not.toBeNull();
             expect(def!.allowedTools).toEqual([
-                'custom--bash_exec',
-                'custom--grep_content',
-                'custom--glob_files',
+                'BASH',
+                'Grep',
+                'glob',
                 'mcp--some_server', // MCP tools pass through unchanged
             ]);
         });
@@ -640,7 +653,7 @@ describe('ConfigPromptProvider', () => {
                     id: 'unknown-tools',
                     title: 'Unknown Tools',
                     prompt: 'Test prompt',
-                    'allowed-tools': ['unknown_tool', 'another-custom', 'internal--foo'],
+                    'allowed-tools': ['unknown_tool', 'another-custom', 'legacy--foo'],
                 },
             ]);
 
@@ -648,7 +661,7 @@ describe('ConfigPromptProvider', () => {
             const def = await provider.getPromptDefinition('config:unknown-tools');
 
             expect(def).not.toBeNull();
-            expect(def!.allowedTools).toEqual(['unknown_tool', 'another-custom', 'internal--foo']);
+            expect(def!.allowedTools).toEqual(['unknown_tool', 'another-custom', 'legacy--foo']);
         });
     });
 });

@@ -140,7 +140,7 @@ const maskFormat = winston.format((info) => {
     return info;
 });
 
-export interface LoggerOptions {
+export interface GlobalLoggerOptions {
     level?: string;
     silent?: boolean;
     logToConsole?: boolean;
@@ -156,13 +156,13 @@ const getDefaultLogLevel = (): string => {
     return 'info';
 };
 
-export class Logger {
+export class GlobalLogger {
     private logger: winston.Logger;
     private isSilent: boolean = false;
     private logFilePath: string | null = null;
     private logToConsole: boolean = false;
 
-    constructor(options: LoggerOptions = {}) {
+    constructor(options: GlobalLoggerOptions = {}) {
         this.isSilent = options.silent || false;
 
         // Initialize transports synchronously
@@ -184,7 +184,7 @@ export class Logger {
         });
     }
 
-    private initializeTransports(options: LoggerOptions) {
+    private initializeTransports(options: GlobalLoggerOptions) {
         // Check if console logging should be enabled for Winston logs
         // Default to false (file-only logging), enable only when explicitly requested
         const logToConsole = options.logToConsole ?? process.env.DEXTO_LOG_TO_CONSOLE === 'true';
@@ -199,7 +199,7 @@ export class Logger {
         }
     }
 
-    private createTransports(_options: LoggerOptions): winston.transport[] {
+    private createTransports(_options: GlobalLoggerOptions): winston.transport[] {
         const transports: winston.transport[] = [];
 
         // Add console transport if enabled
@@ -549,4 +549,4 @@ export class Logger {
 }
 
 // Export a default instance with log level from environment
-export const logger = new Logger();
+export const logger = new GlobalLogger();

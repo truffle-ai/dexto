@@ -1,7 +1,21 @@
 import { describe, test, expect, beforeEach, afterEach } from 'vitest';
 import { DextoAgent } from '../agent/DextoAgent.js';
-import type { AgentConfig } from '@core/agent/schemas.js';
+import type { AgentRuntimeSettings } from '../agent/runtime-config.js';
+import { SystemPromptConfigSchema } from '../systemPrompt/schemas.js';
+import { LLMConfigSchema } from '../llm/schemas.js';
+import { LoggerConfigSchema } from '../logger/index.js';
+import { SessionConfigSchema } from './schemas.js';
+import { PermissionsConfigSchema, ElicitationConfigSchema } from '../tools/schemas.js';
+import { ResourcesConfigSchema } from '../resources/schemas.js';
+import { PromptsSchema } from '../prompts/schemas.js';
+import { createLogger } from '../logger/factory.js';
 import type { SessionData } from './session-manager.js';
+import { ServersConfigSchema } from '../mcp/schemas.js';
+import {
+    createInMemoryBlobStore,
+    createInMemoryCache,
+    createInMemoryDatabase,
+} from '../test-utils/in-memory-storage.js';
 
 /**
  * Full end-to-end integration tests for chat history preservation.
@@ -10,34 +24,49 @@ import type { SessionData } from './session-manager.js';
 describe('Session Integration: Chat History Preservation', () => {
     let agent: DextoAgent;
 
-    const testConfig: AgentConfig = {
-        systemPrompt: 'You are a helpful assistant.',
-        llm: {
+    const testSettings: AgentRuntimeSettings = {
+        systemPrompt: SystemPromptConfigSchema.parse('You are a helpful assistant.'),
+        llm: LLMConfigSchema.parse({
             provider: 'openai',
             model: 'gpt-5-mini',
             apiKey: 'test-key-123',
-        },
-        mcpServers: {},
-        sessions: {
+        }),
+        agentId: 'integration-test-agent',
+        mcpServers: ServersConfigSchema.parse({}),
+        sessions: SessionConfigSchema.parse({
             maxSessions: 10,
             sessionTTL: 100, // 100ms for fast testing
-        },
-        logger: {
-            level: 'warn',
-            transports: [{ type: 'console', colorize: false }],
-        },
-        toolConfirmation: {
+        }),
+        permissions: PermissionsConfigSchema.parse({
             mode: 'auto-approve',
             timeout: 120000,
-        },
-        elicitation: {
+        }),
+        elicitation: ElicitationConfigSchema.parse({
             enabled: false,
             timeout: 120000,
-        },
+        }),
+        resources: ResourcesConfigSchema.parse([]),
+        prompts: PromptsSchema.parse([]),
     };
 
     beforeEach(async () => {
-        agent = new DextoAgent(testConfig);
+        const loggerConfig = LoggerConfigSchema.parse({
+            level: 'warn',
+            transports: [{ type: 'console', colorize: false }],
+        });
+        const logger = createLogger({ config: loggerConfig, agentId: testSettings.agentId });
+
+        agent = new DextoAgent({
+            ...testSettings,
+            logger,
+            storage: {
+                blob: createInMemoryBlobStore(),
+                database: createInMemoryDatabase(),
+                cache: createInMemoryCache(),
+            },
+            tools: [],
+            hooks: [],
+        });
         await agent.start();
     });
 
@@ -220,4 +249,416 @@ describe('Session Integration: Chat History Preservation', () => {
 
     // Note: Activity-based expiry prevention test removed due to timing complexities
     // The core functionality (chat history preservation) is thoroughly tested above
+});
+
+describe('Session Integration: Multi-Model Token Tracking', () => {
+    let agent: DextoAgent;
+
+    const testSettings: AgentRuntimeSettings = {
+        systemPrompt: SystemPromptConfigSchema.parse('You are a helpful assistant.'),
+        llm: LLMConfigSchema.parse({
+            provider: 'openai',
+            model: 'gpt-5-mini',
+            apiKey: 'test-key-123',
+        }),
+        agentId: 'token-tracking-test-agent',
+        mcpServers: ServersConfigSchema.parse({}),
+        sessions: SessionConfigSchema.parse({}),
+        permissions: PermissionsConfigSchema.parse({
+            mode: 'auto-approve',
+            timeout: 120000,
+        }),
+        elicitation: ElicitationConfigSchema.parse({
+            enabled: false,
+            timeout: 120000,
+        }),
+        resources: ResourcesConfigSchema.parse([]),
+        prompts: PromptsSchema.parse([]),
+    };
+
+    beforeEach(async () => {
+        const loggerConfig = LoggerConfigSchema.parse({
+            level: 'warn',
+            transports: [{ type: 'console', colorize: false }],
+        });
+        const logger = createLogger({ config: loggerConfig, agentId: testSettings.agentId });
+
+        agent = new DextoAgent({
+            ...testSettings,
+            logger,
+            storage: {
+                blob: createInMemoryBlobStore(),
+                database: createInMemoryDatabase(),
+                cache: createInMemoryCache(),
+            },
+            tools: [],
+            hooks: [],
+        });
+        await agent.start();
+    });
+
+    afterEach(async () => {
+        if (agent.isStarted()) {
+            await agent.stop();
+        }
+    });
+
+    test('should accumulate token usage for a single model', async () => {
+        const sessionId = 'single-model-session';
+        await agent.createSession(sessionId);
+
+        const sessionManager = agent.sessionManager;
+        const tokenUsage = {
+            inputTokens: 100,
+            outputTokens: 50,
+            reasoningTokens: 0,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
+            totalTokens: 150,
+        };
+
+        await sessionManager.accumulateTokenUsage(sessionId, tokenUsage, 0.015, {
+            provider: 'openai',
+            model: 'gpt-4',
+        });
+
+        const metadata = await sessionManager.getSessionMetadata(sessionId);
+
+        expect(metadata?.tokenUsage).toEqual(tokenUsage);
+        expect(metadata?.estimatedCost).toBe(0.015);
+        expect(metadata?.modelStats).toHaveLength(1);
+        expect(metadata?.modelStats?.[0]).toMatchObject({
+            provider: 'openai',
+            model: 'gpt-4',
+            messageCount: 1,
+            tokenUsage,
+            estimatedCost: 0.015,
+        });
+    });
+
+    test('should track multiple models and verify totals match sum of all models', async () => {
+        const sessionId = 'multi-model-session';
+        await agent.createSession(sessionId);
+
+        const sessionManager = agent.sessionManager;
+
+        // Define multiple model usages with complete token breakdown
+        const usages = [
+            {
+                provider: 'openai',
+                model: 'gpt-4',
+                tokenUsage: {
+                    inputTokens: 100,
+                    outputTokens: 50,
+                    reasoningTokens: 10,
+                    cacheReadTokens: 20,
+                    cacheWriteTokens: 5,
+                    totalTokens: 150,
+                },
+                cost: 0.015,
+            },
+            {
+                provider: 'anthropic',
+                model: 'claude-4-opus-20250514',
+                tokenUsage: {
+                    inputTokens: 200,
+                    outputTokens: 100,
+                    reasoningTokens: 30,
+                    cacheReadTokens: 50,
+                    cacheWriteTokens: 10,
+                    totalTokens: 300,
+                },
+                cost: 0.03,
+            },
+            {
+                provider: 'openai',
+                model: 'gpt-4',
+                tokenUsage: {
+                    inputTokens: 50,
+                    outputTokens: 25,
+                    reasoningTokens: 5,
+                    cacheReadTokens: 10,
+                    cacheWriteTokens: 2,
+                    totalTokens: 75,
+                },
+                cost: 0.008,
+            },
+        ];
+
+        // Accumulate all usages
+        for (const usage of usages) {
+            await sessionManager.accumulateTokenUsage(sessionId, usage.tokenUsage, usage.cost, {
+                provider: usage.provider,
+                model: usage.model,
+            });
+        }
+
+        const metadata = await sessionManager.getSessionMetadata(sessionId);
+
+        // Calculate expected totals across all models
+        const expectedTotals = {
+            inputTokens: 350, // 100 + 200 + 50
+            outputTokens: 175, // 50 + 100 + 25
+            reasoningTokens: 45, // 10 + 30 + 5
+            cacheReadTokens: 80, // 20 + 50 + 10
+            cacheWriteTokens: 17, // 5 + 10 + 2
+            totalTokens: 525, // 150 + 300 + 75
+        };
+        const expectedCost = 0.053; // 0.015 + 0.03 + 0.008
+
+        // Verify session-level totals match sum of all models
+        expect(metadata?.tokenUsage).toEqual(expectedTotals);
+        expect(metadata?.estimatedCost).toBeCloseTo(expectedCost, 10);
+
+        // Should have 2 unique model entries
+        expect(metadata?.modelStats).toHaveLength(2);
+
+        // Verify individual model stats
+        const openaiStats = metadata?.modelStats?.find(
+            (s) => s.provider === 'openai' && s.model === 'gpt-4'
+        );
+        expect(openaiStats).toMatchObject({
+            provider: 'openai',
+            model: 'gpt-4',
+            messageCount: 2, // Used twice
+            tokenUsage: {
+                inputTokens: 150, // 100 + 50
+                outputTokens: 75, // 50 + 25
+                reasoningTokens: 15, // 10 + 5
+                cacheReadTokens: 30, // 20 + 10
+                cacheWriteTokens: 7, // 5 + 2
+                totalTokens: 225, // 150 + 75
+            },
+            estimatedCost: 0.023, // 0.015 + 0.008
+        });
+
+        const anthropicStats = metadata?.modelStats?.find(
+            (s) => s.provider === 'anthropic' && s.model === 'claude-4-opus-20250514'
+        );
+        expect(anthropicStats).toMatchObject({
+            provider: 'anthropic',
+            model: 'claude-4-opus-20250514',
+            messageCount: 1,
+            tokenUsage: {
+                inputTokens: 200,
+                outputTokens: 100,
+                reasoningTokens: 30,
+                cacheReadTokens: 50,
+                cacheWriteTokens: 10,
+                totalTokens: 300,
+            },
+            estimatedCost: 0.03,
+        });
+
+        // ============================================================================
+        // CRITICAL VERIFICATION: Verify accounting accuracy
+        // ============================================================================
+        // This section ensures that:
+        // 1. Each model's individual tokens are correctly tracked
+        // 2. Session-level totals exactly match the sum of all model totals
+        // ============================================================================
+
+        // Sum up all model stats manually
+        const summedFromModels = metadata?.modelStats?.reduce(
+            (acc, model) => ({
+                inputTokens: acc.inputTokens + model.tokenUsage.inputTokens,
+                outputTokens: acc.outputTokens + model.tokenUsage.outputTokens,
+                reasoningTokens: acc.reasoningTokens + model.tokenUsage.reasoningTokens,
+                cacheReadTokens: acc.cacheReadTokens + model.tokenUsage.cacheReadTokens,
+                cacheWriteTokens: acc.cacheWriteTokens + model.tokenUsage.cacheWriteTokens,
+                totalTokens: acc.totalTokens + model.tokenUsage.totalTokens,
+            }),
+            {
+                inputTokens: 0,
+                outputTokens: 0,
+                reasoningTokens: 0,
+                cacheReadTokens: 0,
+                cacheWriteTokens: 0,
+                totalTokens: 0,
+            }
+        );
+
+        // ASSERTION 1: Session totals MUST equal sum of all model stats
+        expect(metadata?.tokenUsage).toEqual(summedFromModels);
+
+        // ASSERTION 2: Verify each token field individually
+        expect(metadata?.tokenUsage?.inputTokens).toBe(
+            openaiStats!.tokenUsage.inputTokens + anthropicStats!.tokenUsage.inputTokens
+        );
+        expect(metadata?.tokenUsage?.outputTokens).toBe(
+            openaiStats!.tokenUsage.outputTokens + anthropicStats!.tokenUsage.outputTokens
+        );
+        expect(metadata?.tokenUsage?.reasoningTokens).toBe(
+            openaiStats!.tokenUsage.reasoningTokens + anthropicStats!.tokenUsage.reasoningTokens
+        );
+        expect(metadata?.tokenUsage?.cacheReadTokens).toBe(
+            openaiStats!.tokenUsage.cacheReadTokens + anthropicStats!.tokenUsage.cacheReadTokens
+        );
+        expect(metadata?.tokenUsage?.cacheWriteTokens).toBe(
+            openaiStats!.tokenUsage.cacheWriteTokens + anthropicStats!.tokenUsage.cacheWriteTokens
+        );
+        expect(metadata?.tokenUsage?.totalTokens).toBe(
+            openaiStats!.tokenUsage.totalTokens + anthropicStats!.tokenUsage.totalTokens
+        );
+
+        // ASSERTION 3: Costs also sum correctly
+        const summedCost =
+            metadata?.modelStats?.reduce((acc, model) => acc + model.estimatedCost, 0) || 0;
+        expect(metadata?.estimatedCost).toBeCloseTo(summedCost, 10);
+        expect(metadata?.estimatedCost).toBeCloseTo(
+            openaiStats!.estimatedCost + anthropicStats!.estimatedCost,
+            10
+        );
+
+        // ASSERTION 4: Message counts sum correctly
+        const totalMessages =
+            metadata?.modelStats?.reduce((acc, model) => acc + model.messageCount, 0) || 0;
+        expect(totalMessages).toBe(3); // 2 openai + 1 anthropic
+    });
+
+    test('should handle optional token fields correctly', async () => {
+        const sessionId = 'optional-tokens-session';
+        await agent.createSession(sessionId);
+
+        const sessionManager = agent.sessionManager;
+
+        // Usage with only required fields
+        await sessionManager.accumulateTokenUsage(
+            sessionId,
+            {
+                inputTokens: 100,
+                outputTokens: 50,
+            },
+            0.015,
+            { provider: 'openai', model: 'gpt-4' }
+        );
+
+        const metadata = await sessionManager.getSessionMetadata(sessionId);
+
+        expect(metadata?.tokenUsage).toEqual({
+            inputTokens: 100,
+            outputTokens: 50,
+            reasoningTokens: 0,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
+            totalTokens: 0,
+        });
+    });
+
+    test('should handle reasoning and cache tokens', async () => {
+        const sessionId = 'advanced-tokens-session';
+        await agent.createSession(sessionId);
+
+        const sessionManager = agent.sessionManager;
+
+        await sessionManager.accumulateTokenUsage(
+            sessionId,
+            {
+                inputTokens: 1000,
+                outputTokens: 500,
+                reasoningTokens: 200,
+                cacheReadTokens: 5000,
+                cacheWriteTokens: 1000,
+                totalTokens: 2700,
+            },
+            0.15,
+            { provider: 'anthropic', model: 'claude-4-opus-20250514' }
+        );
+
+        const metadata = await sessionManager.getSessionMetadata(sessionId);
+
+        expect(metadata?.tokenUsage).toEqual({
+            inputTokens: 1000,
+            outputTokens: 500,
+            reasoningTokens: 200,
+            cacheReadTokens: 5000,
+            cacheWriteTokens: 1000,
+            totalTokens: 2700,
+        });
+    });
+
+    test('should update model timestamps correctly', async () => {
+        const sessionId = 'timestamp-session';
+        await agent.createSession(sessionId);
+
+        const sessionManager = agent.sessionManager;
+
+        const firstCallTime = Date.now();
+        await sessionManager.accumulateTokenUsage(
+            sessionId,
+            { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+            0.015,
+            { provider: 'openai', model: 'gpt-4' }
+        );
+
+        // Wait a bit
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        const secondCallTime = Date.now();
+        await sessionManager.accumulateTokenUsage(
+            sessionId,
+            { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+            0.015,
+            { provider: 'openai', model: 'gpt-4' }
+        );
+
+        const metadata = await sessionManager.getSessionMetadata(sessionId);
+        const modelStats = metadata?.modelStats?.[0];
+
+        expect(modelStats?.firstUsedAt).toBeGreaterThanOrEqual(firstCallTime);
+        expect(modelStats?.firstUsedAt).toBeLessThan(secondCallTime);
+        expect(modelStats?.lastUsedAt).toBeGreaterThanOrEqual(secondCallTime);
+    });
+
+    test('should handle accumulation without cost', async () => {
+        const sessionId = 'no-cost-session';
+        await agent.createSession(sessionId);
+
+        const sessionManager = agent.sessionManager;
+
+        await sessionManager.accumulateTokenUsage(
+            sessionId,
+            { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+            undefined, // No cost provided
+            { provider: 'openai', model: 'gpt-4' }
+        );
+
+        const metadata = await sessionManager.getSessionMetadata(sessionId);
+
+        expect(metadata?.estimatedCost).toBeUndefined();
+        expect(metadata?.modelStats?.[0]?.estimatedCost).toBe(0);
+    });
+
+    test('should handle concurrent token accumulation with mutex', async () => {
+        const sessionId = 'concurrent-session';
+        await agent.createSession(sessionId);
+
+        const sessionManager = agent.sessionManager;
+
+        // Fire multiple concurrent accumulations
+        const promises = Array.from({ length: 10 }, () =>
+            sessionManager.accumulateTokenUsage(
+                sessionId,
+                { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+                0.001,
+                { provider: 'openai', model: 'gpt-4' }
+            )
+        );
+
+        await Promise.all(promises);
+
+        const metadata = await sessionManager.getSessionMetadata(sessionId);
+
+        // Should have exactly 10 messages worth of tokens (no lost updates)
+        expect(metadata?.tokenUsage).toEqual({
+            inputTokens: 100, // 10 * 10
+            outputTokens: 50, // 10 * 5
+            reasoningTokens: 0,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
+            totalTokens: 150, // 10 * 15
+        });
+        expect(metadata?.modelStats?.[0]?.messageCount).toBe(10);
+        expect(metadata?.estimatedCost).toBeCloseTo(0.01, 5); // 10 * 0.001
+    });
 });

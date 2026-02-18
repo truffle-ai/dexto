@@ -80,16 +80,13 @@ export * from './approval/index.js';
 // Memory
 export * from './memory/index.js';
 
-// Plugins
-export * from './plugins/index.js';
+// Hooks
+export * from './hooks/index.js';
+
+// Workspace
+export * from './workspace/index.js';
 
 // Telemetry
 export * from './telemetry/index.js';
-
-// Providers
-export * from './providers/index.js';
-
-// Base Image Infrastructure
-export * from './image/index.js';
 
 // Note: Blob types, schemas, and errors are exported from './storage/index.js'

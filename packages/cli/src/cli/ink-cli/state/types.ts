@@ -4,7 +4,13 @@
  */
 
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
-import type { ToolDisplayData, ContentPart, McpConnectionStatus, McpServerType } from '@dexto/core';
+import type {
+    ToolDisplayData,
+    ContentPart,
+    McpConnectionStatus,
+    McpServerType,
+    ReasoningPreset,
+} from '@dexto/core';
 
 /**
  * Update information for version check
@@ -62,12 +68,12 @@ export interface ConfigStyledData {
     model: string;
     maxTokens: number | null;
     temperature: number | null;
-    toolConfirmationMode: string;
+    permissionsMode: string;
     maxSessions: string;
     sessionTTL: string;
     mcpServers: string[];
     promptsCount: number;
-    pluginsEnabled: string[];
+    hooksEnabled: string[];
 }
 
 export interface StatsStyledData {
@@ -330,6 +336,7 @@ export type OverlayType =
     | 'mcp-custom-wizard'
     | 'log-level-selector'
     | 'stream-selector'
+    | 'sounds-selector'
     | 'session-subcommand-selector'
     | 'api-key-input'
     | 'search'
@@ -370,6 +377,8 @@ export interface PendingModelSwitch {
     provider: string;
     model: string;
     displayName?: string;
+    baseURL?: string;
+    reasoningPreset?: ReasoningPreset;
 }
 
 /**
@@ -418,6 +427,13 @@ export interface UIState {
     promptAddWizard: PromptAddWizardState | null; // Prompt add wizard state
     autoApproveEdits: boolean; // True when edit mode is on (auto-approve edit_file/write_file)
     todoExpanded: boolean; // True when todo list is expanded (shows all tasks), false when collapsed (shows current task only)
+    backgroundTasksRunning: number; // Count of running background tasks
+    backgroundTasksExpanded: boolean; // True when background task list is expanded
+    backgroundTasks: Array<{
+        taskId: string;
+        status: 'running' | 'completed' | 'failed' | 'cancelled';
+        description?: string;
+    }>; // Snapshot of background tasks
     // Plan mode state (Shift+Tab toggle)
     planModeActive: boolean; // True when plan mode indicator is shown
     planModeInitialized: boolean; // True after first message sent in plan mode (prevents re-injection)

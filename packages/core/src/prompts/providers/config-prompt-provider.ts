@@ -1,9 +1,9 @@
 import type { PromptProvider, PromptInfo, PromptDefinition, PromptListResult } from '../types.js';
 import type { GetPromptResult } from '@modelcontextprotocol/sdk/types.js';
-import type { ValidatedAgentConfig } from '../../agent/schemas.js';
+import type { AgentRuntimeSettings } from '../../agent/runtime-config.js';
 import type { InlinePrompt, FilePrompt, PromptsConfig } from '../schemas.js';
 import { PromptsSchema } from '../schemas.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { PromptError } from '../errors.js';
 import { expandPlaceholders } from '../utils.js';
@@ -11,41 +11,6 @@ import { assertValidPromptName } from '../name-validation.js';
 import { readFile, realpath } from 'fs/promises';
 import { existsSync } from 'fs';
 import { basename, dirname, relative, sep } from 'path';
-
-/**
- * Mapping from Claude Code tool names to Dexto tool names.
- * Used for .claude/commands/ compatibility.
- *
- * Claude Code uses short names like "bash", "read", "write" in allowed-tools.
- * Dexto uses prefixed names like "custom--bash_exec", "custom--read_file".
- *
- * Keys are lowercase for case-insensitive lookup.
- *
- * TODO: Add additional Claude Code tool mappings as needed (e.g., list, search, run, notebook, etc.)
- */
-const CLAUDE_CODE_TOOL_MAP: Record<string, string> = {
-    // Bash/process tools
-    bash: 'custom--bash_exec',
-
-    // Filesystem tools
-    read: 'custom--read_file',
-    write: 'custom--write_file',
-    edit: 'custom--edit_file',
-    glob: 'custom--glob_files',
-    grep: 'custom--grep_content',
-
-    // Internal tools
-    task: 'internal--delegate_task',
-};
-
-/**
- * Normalize tool names from Claude Code format to Dexto format.
- * Uses case-insensitive lookup for Claude Code tool names.
- * Unknown tools are passed through unchanged.
- */
-function normalizeAllowedTools(tools: string[]): string[] {
-    return tools.map((tool) => CLAUDE_CODE_TOOL_MAP[tool.toLowerCase()] ?? tool);
-}
 
 /**
  * Config Prompt Provider - Unified provider for prompts from agent configuration
@@ -61,9 +26,9 @@ export class ConfigPromptProvider implements PromptProvider {
     private promptsCache: PromptInfo[] = [];
     private promptContent: Map<string, string> = new Map();
     private cacheValid: boolean = false;
-    private logger: IDextoLogger;
+    private logger: Logger;
 
-    constructor(agentConfig: ValidatedAgentConfig, logger: IDextoLogger) {
+    constructor(agentConfig: AgentRuntimeSettings, logger: Logger) {
         this.logger = logger.createChild(DextoLogComponent.PROMPT);
         this.prompts = agentConfig.prompts;
         this.buildPromptsCache();
@@ -217,9 +182,7 @@ export class ConfigPromptProvider implements PromptProvider {
             // Claude Code compatibility fields
             disableModelInvocation: prompt['disable-model-invocation'],
             userInvocable: prompt['user-invocable'],
-            allowedTools: prompt['allowed-tools']
-                ? normalizeAllowedTools(prompt['allowed-tools'])
-                : undefined,
+            allowedTools: prompt['allowed-tools'],
             model: prompt.model,
             context: prompt.context,
             agent: prompt.agent,
@@ -287,9 +250,7 @@ export class ConfigPromptProvider implements PromptProvider {
                 prompt['disable-model-invocation'] ?? parsed.disableModelInvocation;
             const userInvocable = prompt['user-invocable'] ?? parsed.userInvocable;
             const rawAllowedTools = prompt['allowed-tools'] ?? parsed.allowedTools;
-            const allowedTools = rawAllowedTools
-                ? normalizeAllowedTools(rawAllowedTools)
-                : undefined;
+            const allowedTools = rawAllowedTools ?? undefined;
             const model = prompt.model ?? parsed.model;
             const context = prompt.context ?? parsed.context;
             const agent = prompt.agent ?? parsed.agent;
@@ -391,6 +352,8 @@ export class ConfigPromptProvider implements PromptProvider {
                 contentBody = lines.slice(frontmatterEnd + 1).join('\n');
 
                 for (const line of frontmatterLines) {
+                    const trimmed = line.trimStart();
+
                     const match = (key: string) => {
                         const regex = new RegExp(`${key}:\\s*(?:['"](.+)['"]|(.+))`);
                         const m = line.match(regex);
@@ -404,40 +367,43 @@ export class ConfigPromptProvider implements PromptProvider {
                         return undefined;
                     };
 
-                    if (line.includes('id:')) {
+                    if (trimmed.startsWith('id:')) {
                         const val = match('id');
                         if (val) id = val;
-                    } else if (line.includes('name:') && !line.includes('display-name:')) {
+                    } else if (
+                        trimmed.startsWith('name:') &&
+                        !trimmed.startsWith('display-name:')
+                    ) {
                         // Claude Code SKILL.md uses 'name:' instead of 'id:'
                         // Only use if id hasn't been explicitly set via 'id:' field
                         const val = match('name');
                         if (val && id === defaultId) id = val;
-                    } else if (line.includes('title:')) {
+                    } else if (trimmed.startsWith('title:')) {
                         const val = match('title');
                         if (val) title = val;
-                    } else if (line.includes('description:')) {
+                    } else if (trimmed.startsWith('description:')) {
                         const val = match('description');
                         if (val) description = val;
-                    } else if (line.includes('category:')) {
+                    } else if (trimmed.startsWith('category:')) {
                         const val = match('category');
                         if (val) category = val;
-                    } else if (line.includes('priority:')) {
+                    } else if (trimmed.startsWith('priority:')) {
                         const val = match('priority');
                         if (val) priority = parseInt(val, 10);
-                    } else if (line.includes('argument-hint:')) {
+                    } else if (trimmed.startsWith('argument-hint:')) {
                         const val = match('argument-hint');
                         if (val) argumentHint = val;
-                    } else if (line.includes('disable-model-invocation:')) {
+                    } else if (trimmed.startsWith('disable-model-invocation:')) {
                         disableModelInvocation = matchBool('disable-model-invocation');
-                    } else if (line.includes('user-invocable:')) {
+                    } else if (trimmed.startsWith('user-invocable:')) {
                         userInvocable = matchBool('user-invocable');
-                    } else if (line.includes('model:')) {
+                    } else if (trimmed.startsWith('model:')) {
                         const val = match('model');
                         if (val) model = val;
-                    } else if (line.includes('context:')) {
+                    } else if (trimmed.startsWith('context:')) {
                         const val = match('context');
                         if (val === 'fork' || val === 'inline') context = val;
-                    } else if (line.includes('agent:')) {
+                    } else if (trimmed.startsWith('agent:')) {
                         const val = match('agent');
                         if (val) agent = val;
                     }

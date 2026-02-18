@@ -1,12 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
-import {
-    logger,
-    safeStringify,
-    AgentConfigSchema,
-    type LLMProvider,
-    zodToIssues,
-} from '@dexto/core';
+import { AgentConfigSchema } from '@dexto/agent-config';
+import { AgentError, logger, safeStringify, type LLMProvider, zodToIssues } from '@dexto/core';
 import {
     getPrimaryApiKeyEnvVar,
     saveProviderApiKey,
@@ -22,6 +17,7 @@ import { promises as fs } from 'fs';
 import { DextoValidationError, AgentErrorCode, ErrorScope, ErrorType } from '@dexto/core';
 import { AgentRegistryEntrySchema } from '../schemas/responses.js';
 import type { Context } from 'hono';
+import type { GetAgentConfigPathFn } from '../index.js';
 type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
 /**
@@ -236,9 +232,20 @@ export type AgentsRouterContext = {
     getActiveAgentId: () => string | undefined;
 };
 
-export function createAgentsRouter(getAgent: GetAgentFn, context: AgentsRouterContext) {
+export function createAgentsRouter(
+    getAgent: GetAgentFn,
+    context: AgentsRouterContext,
+    getAgentConfigPath: GetAgentConfigPathFn
+) {
     const app = new OpenAPIHono();
     const { switchAgentById, switchAgentByPath, resolveAgentInfo, getActiveAgentId } = context;
+    const resolveAgentConfigPath = async (ctx: Context): Promise<string> => {
+        const configPath = await getAgentConfigPath(ctx);
+        if (!configPath) {
+            throw AgentError.noConfigPath();
+        }
+        return configPath;
+    };
 
     const listRoute = createRoute({
         method: 'get',
@@ -698,8 +705,7 @@ export function createAgentsRouter(getAgent: GetAgentFn, context: AgentsRouterCo
             }
         })
         .openapi(getPathRoute, async (ctx) => {
-            const agent = await getAgent(ctx);
-            const agentPath = agent.getAgentFilePath();
+            const agentPath = await resolveAgentConfigPath(ctx);
 
             const relativePath = path.basename(agentPath);
             const ext = path.extname(agentPath);
@@ -713,10 +719,8 @@ export function createAgentsRouter(getAgent: GetAgentFn, context: AgentsRouterCo
             });
         })
         .openapi(getConfigRoute, async (ctx) => {
-            const agent = await getAgent(ctx);
-
             // Get the agent file path being used
-            const agentPath = agent.getAgentFilePath();
+            const agentPath = await resolveAgentConfigPath(ctx);
 
             // Read raw YAML from file (not expanded env vars)
             const yamlContent = await fs.readFile(agentPath, 'utf-8');
@@ -742,14 +746,22 @@ export function createAgentsRouter(getAgent: GetAgentFn, context: AgentsRouterCo
             let parsed;
             try {
                 parsed = yamlParse(yaml);
-            } catch (parseError: any) {
+            } catch (parseError: unknown) {
+                const message =
+                    parseError instanceof Error ? parseError.message : String(parseError);
+                const linePos =
+                    typeof parseError === 'object' && parseError !== null && 'linePos' in parseError
+                        ? (parseError as { linePos?: Array<{ line?: number; col?: number }> })
+                              .linePos
+                        : undefined;
+
                 return ctx.json({
                     valid: false,
                     errors: [
                         {
-                            line: parseError.linePos?.[0]?.line || 1,
-                            column: parseError.linePos?.[0]?.col || 1,
-                            message: parseError.message,
+                            line: linePos?.[0]?.line ?? 1,
+                            column: linePos?.[0]?.col ?? 1,
+                            message,
                             code: 'YAML_PARSE_ERROR',
                         },
                     ],
@@ -814,18 +826,19 @@ export function createAgentsRouter(getAgent: GetAgentFn, context: AgentsRouterCo
             });
         })
         .openapi(saveConfigRoute, async (ctx) => {
-            const agent = await getAgent(ctx);
             const { yaml } = ctx.req.valid('json');
 
             // Validate YAML syntax first
             let parsed;
             try {
                 parsed = yamlParse(yaml);
-            } catch (parseError: any) {
+            } catch (parseError: unknown) {
+                const message =
+                    parseError instanceof Error ? parseError.message : String(parseError);
                 throw new DextoValidationError([
                     {
                         code: AgentErrorCode.INVALID_CONFIG,
-                        message: `Invalid YAML syntax: ${parseError.message}`,
+                        message: `Invalid YAML syntax: ${message}`,
                         scope: ErrorScope.AGENT,
                         type: ErrorType.USER,
                         severity: 'error',
@@ -847,7 +860,7 @@ export function createAgentsRouter(getAgent: GetAgentFn, context: AgentsRouterCo
             }
 
             // Get target file path for enrichment
-            const agentPath = agent.getAgentFilePath();
+            const agentPath = await resolveAgentConfigPath(ctx);
 
             // Enrich config with defaults/paths before validation (same as validation endpoint)
             const enriched = enrichAgentConfig(parsed, agentPath);
@@ -875,22 +888,9 @@ export function createAgentsRouter(getAgent: GetAgentFn, context: AgentsRouterCo
                 // Write new config
                 await fs.writeFile(agentPath, yaml, 'utf-8');
 
-                // Load from file (agent-management's job)
-                const newConfig = await reloadAgentConfigFromFile(agentPath);
-
-                // Enrich config before reloading into agent (core expects enriched config with paths)
-                const enrichedConfig = enrichAgentConfig(newConfig, agentPath);
-
-                // Reload into agent (core's job - handles restart automatically)
-                const reloadResult = await agent.reload(enrichedConfig);
-
-                if (reloadResult.restarted) {
-                    logger.info(
-                        `Agent restarted to apply changes: ${reloadResult.changesApplied.join(', ')}`
-                    );
-                } else if (reloadResult.changesApplied.length === 0) {
-                    logger.info('Configuration saved (no changes detected)');
-                }
+                // Re-create the agent from the updated file and switch to it.
+                // Core has no file path concerns or reload semantics.
+                await switchAgentByPath(agentPath);
 
                 // Clean up backup file after successful save
                 await fs.unlink(backupPath).catch(() => {
@@ -903,11 +903,9 @@ export function createAgentsRouter(getAgent: GetAgentFn, context: AgentsRouterCo
                     ok: true as const,
                     path: agentPath,
                     reloaded: true,
-                    restarted: reloadResult.restarted,
-                    changesApplied: reloadResult.changesApplied,
-                    message: reloadResult.restarted
-                        ? 'Configuration saved and applied successfully (agent restarted)'
-                        : 'Configuration saved successfully (no changes detected)',
+                    restarted: true,
+                    changesApplied: ['restart'],
+                    message: 'Configuration saved and applied successfully (agent restarted)',
                 });
             } catch (error) {
                 // Restore backup on error
@@ -920,7 +918,24 @@ export function createAgentsRouter(getAgent: GetAgentFn, context: AgentsRouterCo
         .openapi(exportConfigRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('query');
-            const config = agent.getEffectiveConfig(sessionId);
+            const agentPath = await resolveAgentConfigPath(ctx);
+
+            // Start from file config (host concern) and overlay runtime-effective settings.
+            // This keeps DI surface fields (tools/storage/logger/hooks/image/agentFile) from the file,
+            // while reflecting session-specific changes like LLM model switches.
+            const fileConfig = await reloadAgentConfigFromFile(agentPath);
+            const enrichedConfig = enrichAgentConfig(fileConfig, agentPath);
+            const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
+            const effectiveSettings = agent.getEffectiveConfig(sessionId);
+
+            const config = {
+                ...validatedConfig,
+                ...effectiveSettings,
+                llm: {
+                    ...validatedConfig.llm,
+                    ...effectiveSettings.llm,
+                },
+            };
 
             // Redact sensitive values
             const maskedConfig = {

@@ -1,10 +1,11 @@
 /**
  * Standalone Skill Discovery
  *
- * Discovers standalone skills from ~/.dexto/skills/ directory.
+ * Discovers standalone skills from ~/.agents/skills/ and ~/.dexto/skills/ directories.
  * These are different from plugin skills - they're just directories containing a SKILL.md file.
  *
  * Structure:
+ * ~/.agents/skills/
  * ~/.dexto/skills/
  * └── skill-name/
  *     ├── SKILL.md          (required - the skill prompt)
@@ -34,8 +35,10 @@ export interface DiscoveredSkill {
  * Discovers standalone skills from standard locations.
  *
  * Search Locations:
- * 1. <cwd>/.dexto/skills/*    (project)
- * 2. ~/.dexto/skills/*        (user)
+ * 1. <cwd>/.agents/skills/*   (project)
+ * 2. <cwd>/.dexto/skills/*    (project)
+ * 3. ~/.agents/skills/*       (user)
+ * 4. ~/.dexto/skills/*        (user)
  *
  * @param projectPath Optional project path (defaults to cwd)
  * @returns Array of discovered skills
@@ -90,12 +93,16 @@ export function discoverStandaloneSkills(projectPath?: string): DiscoveredSkill[
     };
 
     // === Project skills ===
-    // 1. Dexto project skills: <cwd>/.dexto/skills/
+    // 1. Agents project skills: <cwd>/.agents/skills/
+    scanSkillsDir(path.join(cwd, '.agents', 'skills'), 'project');
+    // 2. Dexto project skills: <cwd>/.dexto/skills/
     scanSkillsDir(path.join(cwd, '.dexto', 'skills'), 'project');
 
     // === User skills ===
-    // 2. Dexto user skills: ~/.dexto/skills/
+    // 3. Agents user skills: ~/.agents/skills/
+    // 4. Dexto user skills: ~/.dexto/skills/
     if (homeDir) {
+        scanSkillsDir(path.join(homeDir, '.agents', 'skills'), 'user');
         scanSkillsDir(path.join(homeDir, '.dexto', 'skills'), 'user');
     }
 
@@ -113,7 +120,9 @@ export function getSkillSearchPaths(): string[] {
     const cwd = process.cwd();
 
     return [
+        path.join(cwd, '.agents', 'skills'),
         path.join(cwd, '.dexto', 'skills'),
+        homeDir ? path.join(homeDir, '.agents', 'skills') : '',
         homeDir ? path.join(homeDir, '.dexto', 'skills') : '',
     ].filter(Boolean);
 }

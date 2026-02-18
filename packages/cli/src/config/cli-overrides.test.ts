@@ -4,7 +4,7 @@ import {
     applyUserPreferences,
     type CLIConfigOverrides,
 } from './cli-overrides.js';
-import type { AgentConfig } from '@dexto/core';
+import type { AgentConfig } from '@dexto/agent-config';
 // Note: applyUserPreferences accepts Partial<GlobalPreferences> since it only uses the llm field
 
 function clone<T>(obj: T): T {
@@ -26,7 +26,7 @@ describe('CLI Overrides', () => {
             model: 'gpt-5',
             apiKey: 'file-api-key',
         },
-        toolConfirmation: {
+        permissions: {
             mode: 'manual',
             timeout: 120000,
             allowedToolsStorage: 'storage',
@@ -102,8 +102,8 @@ describe('CLI Overrides', () => {
             expect(result.mcpServers.test.command).toBe('node');
             expect(result.mcpServers.test.args).toEqual(['agent-server.js']);
         }
-        expect(result.toolConfirmation?.timeout).toBe(120000);
-        expect(result.toolConfirmation?.allowedToolsStorage).toBe('storage');
+        expect(result.permissions?.timeout).toBe(120000);
+        expect(result.permissions?.allowedToolsStorage).toBe('storage');
     });
 
     test('handles undefined values in overrides gracefully', () => {
@@ -119,15 +119,15 @@ describe('CLI Overrides', () => {
         expect(result.llm.apiKey).toBe('file-api-key'); // Original (undefined ignored)
     });
 
-    test('sets tool confirmation mode to auto-approve when override enabled', () => {
+    test('sets permissions mode to auto-approve when override enabled', () => {
         const cliOverrides: CLIConfigOverrides = {
             autoApprove: true,
         };
 
         const result = applyCLIOverrides(clone(baseConfig), cliOverrides);
 
-        expect(result.toolConfirmation?.mode).toBe('auto-approve');
-        expect(result.toolConfirmation?.timeout).toBe(120000); // Existing fields preserved
+        expect(result.permissions?.mode).toBe('auto-approve');
+        expect(result.permissions?.timeout).toBe(120000); // Existing fields preserved
     });
 });
 
@@ -157,10 +157,10 @@ describe('applyUserPreferences', () => {
         expect(result.llm.apiKey).toBe('$OPENAI_API_KEY');
     });
 
-    test('applies dexto provider preferences', () => {
+    test('applies dexto-nova provider preferences', () => {
         const preferences = {
             llm: {
-                provider: 'dexto' as const,
+                provider: 'dexto-nova' as const,
                 model: 'anthropic/claude-sonnet-4',
                 apiKey: '$DEXTO_API_KEY',
             },
@@ -168,7 +168,7 @@ describe('applyUserPreferences', () => {
 
         const result = applyUserPreferences(clone(baseAgentConfig), preferences);
 
-        expect(result.llm.provider).toBe('dexto');
+        expect(result.llm.provider).toBe('dexto-nova');
         expect(result.llm.model).toBe('anthropic/claude-sonnet-4');
         expect(result.llm.apiKey).toBe('$DEXTO_API_KEY');
     });

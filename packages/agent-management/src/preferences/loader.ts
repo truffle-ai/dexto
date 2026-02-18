@@ -3,11 +3,17 @@
 import { existsSync } from 'fs';
 import { promises as fs } from 'fs';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
+import path from 'path';
 import { getDextoGlobalPath } from '../utils/path.js';
 import { logger } from '@dexto/core';
 import { DextoValidationError, DextoRuntimeError } from '@dexto/core';
 import type { LLMProvider, LLMReasoningConfig } from '@dexto/core';
-import { GlobalPreferencesSchema, type GlobalPreferences } from './schemas.js';
+import {
+    AgentPreferencesSchema,
+    GlobalPreferencesSchema,
+    type AgentPreferences,
+    type GlobalPreferences,
+} from './schemas.js';
 import { PREFERENCES_FILE } from './constants.js';
 import { PreferenceError } from './errors.js';
 
@@ -57,13 +63,164 @@ const PREFERENCES_FILE_HEADER = `# Dexto Global Preferences
 # Documentation: https://dexto.dev/docs/configuration/preferences
 #
 # Sound Notifications:
-#   Dexto plays sounds for approval requests and task completion.
-#   To customize sounds, place audio files in ~/.dexto/sounds/:
-#     - approval.wav (or .mp3, .ogg, .aiff, .m4a) - played when tool approval is needed
-#     - complete.wav (or .mp3, .ogg, .aiff, .m4a) - played when agent finishes a task
-#   Set sounds.enabled: false to disable all sounds.
+#   Dexto plays sounds for CLI startup, approval requests, and task completion.
+#   Configure which events play sounds:
+#     sounds.enabled: true|false
+#     sounds.onStartup: true|false
+#     sounds.onApprovalRequired: true|false
+#     sounds.onTaskComplete: true|false
+#
+#   Select sound files (paths are relative to ~/.dexto/sounds):
+#     sounds.startupSoundFile: builtins/startup.wav
+#     sounds.approvalSoundFile: builtins/coin.wav
+#     sounds.completeSoundFile: builtins/success.wav
+#
+#   Tip: Use the /sounds overlay to preview and pick sounds.
+#
+#   To use custom sounds, copy files into ~/.dexto/sounds/ (subfolders ok) and set the *SoundFile
+#   keys to a relative path. Supported audio formats vary by OS (Windows reliably supports .wav).
 
 `;
+
+/**
+ * Header comment for agent preferences file
+ */
+const AGENT_PREFERENCES_FILE_HEADER = `# Dexto Agent Preferences
+# Stored per-agent to customize runtime behavior without changing base config.
+# Tool control:
+#   tools.disabled: list of tool names to exclude from LLM context.
+
+`;
+
+/**
+ * Resolve the agent preferences file path for an agent ID.
+ */
+export function getAgentPreferencesPath(agentId: string): string {
+    if (!agentId || typeof agentId !== 'string') {
+        throw PreferenceError.invalidAgentId(String(agentId));
+    }
+
+    const trimmedId = agentId.trim();
+    if (!trimmedId) {
+        throw PreferenceError.invalidAgentId(agentId);
+    }
+
+    const hasSeparators = trimmedId.includes('/') || trimmedId.includes('\\');
+    if (hasSeparators || trimmedId !== path.basename(trimmedId)) {
+        throw PreferenceError.invalidAgentId(agentId);
+    }
+
+    const allowedPattern = /^[a-zA-Z0-9_-]+$/;
+    if (!allowedPattern.test(trimmedId)) {
+        throw PreferenceError.invalidAgentId(agentId);
+    }
+
+    const filename = `${trimmedId}.preferences.yml`;
+    return getDextoGlobalPath(path.join('agents', filename));
+}
+
+/**
+ * Load agent preferences from ~/.dexto/agents/<agentId>.preferences.yml
+ */
+export async function loadAgentPreferences(agentId: string): Promise<AgentPreferences> {
+    const preferencesPath = getAgentPreferencesPath(agentId);
+
+    if (!existsSync(preferencesPath)) {
+        throw PreferenceError.fileNotFound(preferencesPath);
+    }
+
+    try {
+        const fileContent = await fs.readFile(preferencesPath, 'utf-8');
+        const rawPreferences = parseYaml(fileContent);
+
+        const validation = AgentPreferencesSchema.safeParse(rawPreferences);
+        if (!validation.success) {
+            throw PreferenceError.validationFailed(validation.error);
+        }
+
+        logger.debug(`Loaded agent preferences from: ${preferencesPath}`);
+        return validation.data;
+    } catch (error) {
+        if (error instanceof DextoValidationError || error instanceof DextoRuntimeError) {
+            throw error;
+        }
+
+        throw PreferenceError.fileReadError(
+            preferencesPath,
+            error instanceof Error ? error.message : String(error)
+        );
+    }
+}
+
+/**
+ * Save agent preferences to ~/.dexto/agents/<agentId>.preferences.yml
+ */
+export async function saveAgentPreferences(
+    agentId: string,
+    preferences: AgentPreferences
+): Promise<void> {
+    const preferencesPath = getAgentPreferencesPath(agentId);
+
+    const validation = AgentPreferencesSchema.safeParse(preferences);
+    if (!validation.success) {
+        throw PreferenceError.validationFailed(validation.error);
+    }
+
+    try {
+        logger.debug(`Saving agent preferences to: ${preferencesPath}`);
+
+        await fs.mkdir(path.dirname(preferencesPath), { recursive: true });
+
+        const yamlContent = stringifyYaml(preferences, {
+            indent: 2,
+            lineWidth: 100,
+            minContentWidth: 20,
+        });
+
+        await fs.writeFile(preferencesPath, AGENT_PREFERENCES_FILE_HEADER + yamlContent, 'utf-8');
+
+        logger.debug(
+            `✓ Saved agent preferences ${JSON.stringify(preferences)} to: ${preferencesPath}`
+        );
+    } catch (error) {
+        throw PreferenceError.fileWriteError(
+            preferencesPath,
+            error instanceof Error ? error.message : String(error)
+        );
+    }
+}
+
+/**
+ * Check if agent preferences exist (for first-time detection)
+ */
+export function agentPreferencesExist(agentId: string): boolean {
+    const preferencesPath = getAgentPreferencesPath(agentId);
+    return existsSync(preferencesPath);
+}
+
+/**
+ * Update agent preferences with partial updates
+ */
+export async function updateAgentPreferences(
+    agentId: string,
+    updates: Partial<AgentPreferences>
+): Promise<AgentPreferences> {
+    const existing = await loadAgentPreferences(agentId);
+    const merged = {
+        ...existing,
+        ...updates,
+        tools: updates.tools ? { ...existing.tools, ...updates.tools } : existing.tools,
+    };
+
+    const validation = AgentPreferencesSchema.safeParse(merged);
+    if (!validation.success) {
+        throw PreferenceError.validationFailed(validation.error);
+    }
+
+    await saveAgentPreferences(agentId, validation.data);
+
+    return validation.data;
+}
 
 /**
  * Save global preferences to ~/.dexto/preferences.yml
@@ -144,8 +301,12 @@ export interface CreatePreferencesOptions {
     /** Sound notification preferences */
     sounds?: {
         enabled?: boolean;
+        onStartup?: boolean;
+        startupSoundFile?: string;
         onApprovalRequired?: boolean;
+        approvalSoundFile?: string;
         onTaskComplete?: boolean;
+        completeSoundFile?: string;
     };
 }
 
@@ -187,8 +348,18 @@ export function createInitialPreferences(options: CreatePreferencesOptions): Glo
         },
         sounds: {
             enabled: options.sounds?.enabled ?? true,
+            onStartup: options.sounds?.onStartup ?? true,
+            ...(options.sounds?.startupSoundFile
+                ? { startupSoundFile: options.sounds.startupSoundFile }
+                : {}),
             onApprovalRequired: options.sounds?.onApprovalRequired ?? true,
+            ...(options.sounds?.approvalSoundFile
+                ? { approvalSoundFile: options.sounds.approvalSoundFile }
+                : {}),
             onTaskComplete: options.sounds?.onTaskComplete ?? true,
+            ...(options.sounds?.completeSoundFile
+                ? { completeSoundFile: options.sounds.completeSoundFile }
+                : {}),
         },
     };
 }

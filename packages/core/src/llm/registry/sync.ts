@@ -258,7 +258,7 @@ function buildModelsFromModelsDevProvider(params: {
             'llm_registry_models_dev_provider_missing',
             ErrorScope.LLM,
             ErrorType.THIRD_PARTY,
-            `models.dev provider '${spec.modelsDevProviderId}' not found (needed for dexto provider '${spec.provider}')`,
+            `models.dev provider '${spec.modelsDevProviderId}' not found (needed for dexto-nova provider '${spec.provider}')`,
             { modelsDevProviderId: spec.modelsDevProviderId, provider: spec.provider }
         );
     }
@@ -426,7 +426,7 @@ export function buildModelsByProviderFromParsedSources(params: {
             .sort((a, b) => a.name.localeCompare(b.name)),
         local: [],
         ollama: [],
-        dexto: [],
+        'dexto-nova': [],
     };
 
     return modelsByProvider;

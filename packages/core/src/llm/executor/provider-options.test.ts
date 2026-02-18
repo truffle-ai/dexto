@@ -202,7 +202,7 @@ describe('buildProviderOptions', () => {
         });
     });
 
-    describe('openrouter/dexto', () => {
+    describe('openrouter/dexto-nova', () => {
         it('requests reasoning by default (auto)', () => {
             expect(
                 buildProviderOptions({
@@ -216,7 +216,7 @@ describe('buildProviderOptions', () => {
         it('maps off to includeReasoning=false', () => {
             expect(
                 buildProviderOptions({
-                    provider: 'dexto',
+                    provider: 'dexto-nova',
                     model: 'openai/gpt-5.2-codex',
                     reasoning: { preset: 'off' },
                 })
@@ -256,7 +256,7 @@ describe('buildProviderOptions', () => {
         it('maps xhigh to xhigh for codex models (best-effort passthrough)', () => {
             expect(
                 buildProviderOptions({
-                    provider: 'dexto',
+                    provider: 'dexto-nova',
                     model: 'openai/gpt-5.2-codex',
                     reasoning: { preset: 'xhigh' },
                 })

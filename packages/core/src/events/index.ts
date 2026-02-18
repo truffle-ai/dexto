@@ -1,8 +1,9 @@
 import { EventEmitter } from 'events';
 import type { LLMProvider, ReasoningPreset } from '../llm/types.js';
-import { ValidatedAgentConfig } from '../agent/schemas.js';
+import type { AgentRuntimeSettings } from '../agent/runtime-config.js';
 import type { ApprovalRequest, ApprovalResponse } from '../approval/types.js';
 import type { SanitizedToolResult } from '../context/types.js';
+import type { WorkspaceContext } from '../workspace/types.js';
 
 /**
  * LLM finish reason - why the LLM stopped generating
@@ -31,6 +32,7 @@ export const AGENT_EVENT_NAMES = [
     'session:title-updated',
     'session:override-set',
     'session:override-cleared',
+    'workspace:changed',
     'mcp:server-connected',
     'mcp:server-added',
     'mcp:server-removed',
@@ -48,6 +50,9 @@ export const AGENT_EVENT_NAMES = [
     'approval:request',
     'approval:response',
     'run:invoke',
+    'agent:stopped',
+    'tool:background',
+    'tool:background-completed',
 ] as const;
 
 /**
@@ -58,6 +63,7 @@ export const SESSION_EVENT_NAMES = [
     'llm:chunk',
     'llm:response',
     'llm:tool-call',
+    'llm:tool-call-partial',
     'llm:tool-result',
     'llm:error',
     'llm:switched',
@@ -99,6 +105,7 @@ export const STREAMING_EVENTS = [
     'llm:chunk',
     'llm:response',
     'llm:tool-call',
+    'llm:tool-call-partial',
     'llm:tool-result',
     'llm:error',
     'llm:unsupported-input',
@@ -247,6 +254,11 @@ export interface AgentEventMap {
         sessionId: string;
     };
 
+    /** Fired when the active workspace changes */
+    'workspace:changed': {
+        workspace: WorkspaceContext | null;
+    };
+
     // MCP events
     /** Fired when MCP server connection succeeds or fails */
     'mcp:server-connected': {
@@ -300,6 +312,13 @@ export interface AgentEventMap {
     'tools:available-updated': {
         tools: string[];
         source: 'mcp' | 'builtin';
+    };
+
+    /** Fired when enabled/disabled tools list updates */
+    'tools:enabled-updated': {
+        scope: 'global' | 'session';
+        sessionId?: string;
+        disabledTools: string[];
     };
 
     /**
@@ -360,14 +379,29 @@ export interface AgentEventMap {
     /** LLM service requested a tool call */
     'llm:tool-call': {
         toolName: string;
+        /** Optional user-facing name for the tool (UI convenience) */
+        toolDisplayName?: string;
         args: Record<string, any>;
         callId?: string;
+        sessionId: string;
+    };
+
+    /** LLM service streamed partial tool input */
+    'llm:tool-call-partial': {
+        toolName: string;
+        /** Optional user-facing name for the tool (UI convenience) */
+        toolDisplayName?: string;
+        args: Record<string, any>;
+        callId?: string;
+        isComplete?: boolean;
         sessionId: string;
     };
 
     /** LLM service returned a tool result */
     'llm:tool-result': {
         toolName: string;
+        /** Optional user-facing name for the tool (UI convenience) */
+        toolDisplayName?: string;
         callId?: string;
         success: boolean;
         /** Sanitized result - present when success=true */
@@ -463,6 +497,8 @@ export interface AgentEventMap {
         /** Combined content of all dequeued messages (for UI display) */
         content: import('../context/types.js').ContentPart[];
         sessionId: string;
+        /** Raw dequeued messages (optional) */
+        messages?: import('../session/types.js').QueuedMessage[];
     };
 
     /** Queued message was removed from queue */
@@ -495,7 +531,7 @@ export interface AgentEventMap {
 
     /** Fired when agent state is exported as config */
     'state:exported': {
-        config: ValidatedAgentConfig;
+        config: AgentRuntimeSettings;
     };
 
     /** Fired when agent state is reset to baseline */
@@ -536,7 +572,36 @@ export interface AgentEventMap {
         /** Arbitrary event data - service-specific payload */
         data: Record<string, unknown>;
     };
+
+    /**
+     * Fired when a tool is executed in background.
+     * Used by orchestration layer to register the task.
+     */
+    'tool:background': {
+        toolName: string;
+        toolCallId: string;
+        sessionId: string;
+        description?: string;
+        promise: Promise<unknown>;
+        timeoutMs?: number;
+        notifyOnComplete?: boolean;
+    };
+
+    /**
+     * Fired when a background tool has completed registration.
+     */
+    'tool:background-completed': {
+        toolCallId: string;
+        sessionId: string;
+    };
+
+    /**
+     * Fired when the agent is fully stopped.
+     */
+    'agent:stopped': void;
 }
+
+export type ToolBackgroundEvent = AgentEventMap['tool:background'];
 
 /**
  * Session-level events - these occur within individual sessions without session context
@@ -576,13 +641,27 @@ export interface SessionEventMap {
     /** LLM service requested a tool call */
     'llm:tool-call': {
         toolName: string;
+        /** Optional user-facing name for the tool (UI convenience) */
+        toolDisplayName?: string;
         args: Record<string, any>;
         callId?: string;
+    };
+
+    /** LLM service streamed partial tool input */
+    'llm:tool-call-partial': {
+        toolName: string;
+        /** Optional user-facing name for the tool (UI convenience) */
+        toolDisplayName?: string;
+        args: Record<string, any>;
+        callId?: string;
+        isComplete?: boolean;
     };
 
     /** LLM service returned a tool result */
     'llm:tool-result': {
         toolName: string;
+        /** Optional user-facing name for the tool (UI convenience) */
+        toolDisplayName?: string;
         callId?: string;
         success: boolean;
         /** Sanitized result - present when success=true */
@@ -663,6 +742,8 @@ export interface SessionEventMap {
         coalesced: boolean;
         /** Combined content of all dequeued messages (for UI display) */
         content: import('../context/types.js').ContentPart[];
+        /** Raw dequeued messages (optional) */
+        messages?: import('../session/types.js').QueuedMessage[];
     };
 
     /** Queued message was removed from queue */
@@ -883,6 +964,14 @@ export class BaseTypedEventEmitter<TEventMap extends Record<string, any>> {
         this._emitter.off(event as string, listener);
         return this;
     }
+
+    /**
+     * Configure max listeners for this event bus to avoid noisy warnings when many subscribers exist.
+     */
+    setMaxListeners(count: number): this {
+        this._emitter.setMaxListeners(count);
+        return this;
+    }
 }
 
 /**
@@ -903,4 +992,4 @@ export class TypedEventEmitter extends BaseTypedEventEmitter<AgentEventMap> {}
 /**
  * Global shared event bus (backward compatibility)
  */
-export const eventBus = new TypedEventEmitter();
+export const eventBus = new TypedEventEmitter().setMaxListeners(200);

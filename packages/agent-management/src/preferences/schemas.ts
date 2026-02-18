@@ -128,16 +128,52 @@ export const PreferenceSetupSchema = z
 export const PreferenceSoundsSchema = z
     .object({
         enabled: z.boolean().default(true).describe('Enable sound notifications (default: true)'),
+        onStartup: z
+            .boolean()
+            .default(true)
+            .describe('Play sound when the interactive CLI starts (default: true)'),
+        startupSoundFile: z
+            .string()
+            .min(1)
+            .optional()
+            .describe('Startup sound file path relative to ~/.dexto/sounds (optional)'),
         onApprovalRequired: z
             .boolean()
             .default(true)
             .describe(
                 'Play sound when tool approval is required (default: true when sounds enabled)'
             ),
+        approvalSoundFile: z
+            .string()
+            .min(1)
+            .optional()
+            .describe('Approval sound file path relative to ~/.dexto/sounds (optional)'),
         onTaskComplete: z
             .boolean()
             .default(true)
             .describe('Play sound when agent task completes (default: true when sounds enabled)'),
+        completeSoundFile: z
+            .string()
+            .min(1)
+            .optional()
+            .describe('Completion sound file path relative to ~/.dexto/sounds (optional)'),
+    })
+    .strict();
+
+export const AgentToolPreferencesSchema = z
+    .object({
+        disabled: z
+            .array(NonEmptyTrimmed)
+            .default([])
+            .describe('Tool names disabled for this agent (default: none)'),
+    })
+    .strict();
+
+export const AgentPreferencesSchema = z
+    .object({
+        tools: AgentToolPreferencesSchema.default({ disabled: [] }).describe(
+            'Tool availability preferences'
+        ),
     })
     .strict();
 
@@ -162,4 +198,6 @@ export type PreferenceLLM = z.output<typeof PreferenceLLMSchema>;
 export type PreferenceDefaults = z.output<typeof PreferenceDefaultsSchema>;
 export type PreferenceSetup = z.output<typeof PreferenceSetupSchema>;
 export type PreferenceSounds = z.output<typeof PreferenceSoundsSchema>;
+export type AgentToolPreferences = z.output<typeof AgentToolPreferencesSchema>;
+export type AgentPreferences = z.output<typeof AgentPreferencesSchema>;
 export type GlobalPreferences = z.output<typeof GlobalPreferencesSchema>;

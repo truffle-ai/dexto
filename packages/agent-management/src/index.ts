@@ -16,7 +16,14 @@ export {
     type GlobalPreferencesUpdates,
     type CreatePreferencesOptions,
 } from './preferences/loader.js';
-export type { GlobalPreferences } from './preferences/schemas.js';
+export type { GlobalPreferences, AgentPreferences } from './preferences/schemas.js';
+export {
+    loadAgentPreferences,
+    saveAgentPreferences,
+    updateAgentPreferences,
+    agentPreferencesExist,
+    getAgentPreferencesPath,
+} from './preferences/loader.js';
 export { PreferenceError, PreferenceErrorCode } from './preferences/errors.js';
 
 // Agent resolver
@@ -44,6 +51,26 @@ export {
 
 // Static API for agent management
 export { AgentFactory, type CreateAgentOptions } from './AgentFactory.js';
+export { createDextoAgentFromConfig } from './agent-creation.js';
+
+// Image store (global CLI image resolution)
+export {
+    getDefaultImageStoreDir,
+    getImageRegistryPath,
+    getImagePackagesDir,
+    getImagePackageInstallDir,
+    loadImageRegistry,
+    saveImageRegistry,
+    parseImageSpecifier,
+    isFileLikeImageSpecifier,
+    resolveFileLikeImageSpecifierToPath,
+    resolveFileLikeImageSpecifierToFileUrl,
+    resolveImageEntryFileFromStore,
+    setActiveImageVersion,
+    removeImageFromStore,
+    type ImageRegistryFile,
+    type ImageSpecifierParts,
+} from './images/image-store.js';
 
 // Path utilities (duplicated from core for short-term compatibility)
 export {
@@ -163,8 +190,8 @@ export {
 // Multi-Agent Runtime
 export * from './runtime/index.js';
 
-// Agent Spawner Tool Provider
-export * from './tool-provider/index.js';
+// Agent Spawner Tools Factory
+export * from './tool-factories/agent-spawner/index.js';
 
 // Claude Code Plugin Loader
 export {

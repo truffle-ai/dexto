@@ -1,0 +1,39 @@
+import type { DextoImage, HookFactory } from '@dexto/agent-config';
+import imageLocal from '@dexto/image-local';
+import { z } from 'zod';
+import { createRequire } from 'node:module';
+import { RequestLoggerHook } from './hooks/request-logger.js';
+
+const require = createRequire(import.meta.url);
+const packageJson = require('../package.json') as { name?: string; version?: string };
+
+const requestLoggerConfigSchema = z
+    .object({
+        type: z.literal('request-logger'),
+        logDir: z.string().optional(),
+        logFileName: z.string().optional(),
+    })
+    .strict();
+
+const requestLoggerFactory: HookFactory<z.output<typeof requestLoggerConfigSchema>> = {
+    configSchema: requestLoggerConfigSchema,
+    create: (_config) => new RequestLoggerHook(),
+};
+
+const imageLoggerAgent: DextoImage = {
+    ...imageLocal,
+    metadata: {
+        name: packageJson.name ?? '@dexto/image-logger-agent',
+        version: packageJson.version ?? '0.0.0',
+        description:
+            'Example image for the Logger Agent (adds request-logger hook which logs requests)',
+        target: 'local-development',
+        constraints: ['filesystem-required'],
+    },
+    hooks: {
+        ...imageLocal.hooks,
+        'request-logger': requestLoggerFactory,
+    },
+};
+
+export default imageLoggerAgent;

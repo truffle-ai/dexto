@@ -16,12 +16,11 @@ import { LanguageModel } from 'ai';
 import { SessionEventBus } from '../../events/index.js';
 import { createCohere } from '@ai-sdk/cohere';
 import { createLocalLanguageModel } from '../providers/local/ai-sdk-adapter.js';
-import type { IConversationHistoryProvider } from '../../session/history/types.js';
+import type { ConversationHistoryProvider } from '../../session/history/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 import { requiresApiKey } from '../registry/index.js';
 import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
-import type { CompactionConfigInput } from '../../context/compaction/schemas.js';
 
 // Dexto Gateway headers for usage tracking
 const DEXTO_GATEWAY_HEADERS = {
@@ -66,7 +65,8 @@ export function createVercelModel(
     switch (provider.toLowerCase()) {
         case 'openai': {
             // Regular OpenAI - strict compatibility, no baseURL
-            return createOpenAI({ apiKey: apiKey ?? '' })(model);
+            // Explicitly use the Responses API (default in AI SDK 5+).
+            return createOpenAI({ apiKey: apiKey ?? '' }).responses(model);
         }
         case 'openai-compatible': {
             const compatibleBaseURL =
@@ -121,13 +121,13 @@ export function createVercelModel(
             const glamaBaseURL = 'https://glama.ai/api/gateway/openai/v1';
             return createOpenAI({ apiKey: apiKey ?? '', baseURL: glamaBaseURL }).chat(model);
         }
-        case 'dexto': {
+        case 'dexto-nova': {
             // Dexto Gateway - OpenAI-compatible proxy with per-request billing
             // Routes through api.dexto.ai to OpenRouter, deducts from user balance
             // Requires DEXTO_API_KEY from `dexto login`
             //
             // Model IDs are in OpenRouter format (e.g., 'anthropic/claude-sonnet-4-5-20250929')
-            // Users explicitly choose `provider: dexto` in their config
+            // Users explicitly choose `provider: dexto-nova` in their config
             //
             // Note: 402 "insufficient credits" errors are handled in turn-executor.ts mapProviderError()
             const dextoBaseURL = 'https://api.dexto.ai/v1';
@@ -271,13 +271,12 @@ export function createLLMService(
     config: ValidatedLLMConfig,
     toolManager: ToolManager,
     systemPromptManager: SystemPromptManager,
-    historyProvider: IConversationHistoryProvider,
+    historyProvider: ConversationHistoryProvider,
     sessionEventBus: SessionEventBus,
     sessionId: string,
     resourceManager: import('../../resources/index.js').ResourceManager,
-    logger: IDextoLogger,
-    compactionStrategy?: import('../../context/compaction/types.js').ICompactionStrategy | null,
-    compactionConfig?: CompactionConfigInput
+    logger: Logger,
+    compactionStrategy?: import('../../context/compaction/types.js').CompactionStrategy | null
 ): VercelLLMService {
     const model = createVercelModel(config, { sessionId });
 
@@ -291,7 +290,6 @@ export function createLLMService(
         sessionId,
         resourceManager,
         logger,
-        compactionStrategy,
-        compactionConfig
+        compactionStrategy
     );
 }

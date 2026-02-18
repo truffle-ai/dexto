@@ -6,9 +6,11 @@
 
 import * as path from 'node:path';
 import { z } from 'zod';
-import { InternalTool, ToolExecutionContext, ApprovalType } from '@dexto/core';
-import type { SearchDisplayData, ApprovalRequestDetails, ApprovalResponse } from '@dexto/core';
-import type { FileToolOptions } from './file-tool-types.js';
+import { defineTool } from '@dexto/core';
+import type { SearchDisplayData } from '@dexto/core';
+import type { Tool, ToolExecutionContext } from '@dexto/core';
+import type { FileSystemServiceGetter } from './file-tool-types.js';
+import { createDirectoryAccessApprovalHandlers } from './directory-approval.js';
 
 const GlobFilesInputSchema = z
     .object({
@@ -29,85 +31,44 @@ const GlobFilesInputSchema = z
     })
     .strict();
 
-type GlobFilesInput = z.input<typeof GlobFilesInputSchema>;
-
 /**
  * Create the glob_files internal tool with directory approval support
  */
-export function createGlobFilesTool(options: FileToolOptions): InternalTool {
-    const { fileSystemService, directoryApproval } = options;
-
-    // Store search directory for use in onApprovalGranted callback
-    let pendingApprovalSearchDir: string | undefined;
-
-    return {
+export function createGlobFilesTool(
+    getFileSystemService: FileSystemServiceGetter
+): Tool<typeof GlobFilesInputSchema> {
+    return defineTool({
         id: 'glob_files',
+        displayName: 'Find Files',
+        aliases: ['glob'],
         description:
             'Find files matching a glob pattern. Supports standard glob syntax like **/*.js for recursive matches, *.ts for files in current directory, and src/**/*.tsx for nested paths. Returns array of file paths with metadata (size, modified date). Results are limited to allowed paths only.',
         inputSchema: GlobFilesInputSchema,
 
-        /**
-         * Check if this glob operation needs directory access approval.
-         * Returns custom approval request if the search directory is outside allowed paths.
-         */
-        getApprovalOverride: async (args: unknown): Promise<ApprovalRequestDetails | null> => {
-            const { path: searchPath } = args as GlobFilesInput;
+        ...createDirectoryAccessApprovalHandlers({
+            toolName: 'glob_files',
+            operation: 'read',
+            getFileSystemService,
+            resolvePaths: (input, fileSystemService) => {
+                const baseDir = fileSystemService.getWorkingDirectory();
+                const searchDir = path.resolve(baseDir, input.path || '.');
+                return { path: searchDir, parentDir: searchDir };
+            },
+        }),
 
-            // Resolve the search directory using the same base the service uses
-            // This ensures approval decisions align with actual execution context
-            const baseDir = fileSystemService.getWorkingDirectory();
-            const searchDir = path.resolve(baseDir, searchPath || '.');
+        async execute(input, context: ToolExecutionContext) {
+            const resolvedFileSystemService = await getFileSystemService(context);
 
-            // Check if path is within config-allowed paths
-            const isAllowed = await fileSystemService.isPathWithinConfigAllowed(searchDir);
-            if (isAllowed) {
-                return null; // Use normal tool confirmation
-            }
-
-            // Check if directory is already session-approved
-            if (directoryApproval?.isSessionApproved(searchDir)) {
-                return null; // Already approved, use normal flow
-            }
-
-            // Need directory access approval
-            pendingApprovalSearchDir = searchDir;
-
-            return {
-                type: ApprovalType.DIRECTORY_ACCESS,
-                metadata: {
-                    path: searchDir,
-                    parentDir: searchDir,
-                    operation: 'search',
-                    toolName: 'glob_files',
-                },
-            };
-        },
-
-        /**
-         * Handle approved directory access - remember the directory for session
-         */
-        onApprovalGranted: (response: ApprovalResponse): void => {
-            if (!directoryApproval || !pendingApprovalSearchDir) return;
-
-            // Check if user wants to remember the directory
-            const data = response.data as { rememberDirectory?: boolean } | undefined;
-            const rememberDirectory = data?.rememberDirectory ?? false;
-            directoryApproval.addApproved(
-                pendingApprovalSearchDir,
-                rememberDirectory ? 'session' : 'once'
-            );
-
-            // Clear pending state
-            pendingApprovalSearchDir = undefined;
-        },
-
-        execute: async (input: unknown, _context?: ToolExecutionContext) => {
             // Input is validated by provider before reaching here
-            const { pattern, path, max_results } = input as GlobFilesInput;
+            const { pattern, path: searchPath, max_results } = input;
+
+            // Resolve the search directory consistently with getApprovalOverride
+            const baseDir = resolvedFileSystemService.getWorkingDirectory();
+            const resolvedSearchPath = path.resolve(baseDir, searchPath || '.');
 
             // Search for files using FileSystemService
-            const result = await fileSystemService.globFiles(pattern, {
-                cwd: path,
+            const result = await resolvedFileSystemService.globFiles(pattern, {
+                cwd: resolvedSearchPath,
                 maxResults: max_results,
                 includeMetadata: true,
             });
@@ -136,5 +97,5 @@ export function createGlobFilesTool(options: FileToolOptions): InternalTool {
                 _display,
             };
         },
-    };
+    });
 }

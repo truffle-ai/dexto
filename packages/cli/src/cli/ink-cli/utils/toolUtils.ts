@@ -7,14 +7,7 @@
  * Used for "accept all edits" mode which auto-approves these tools.
  */
 export function isEditWriteTool(toolName: string | undefined): boolean {
-    return (
-        toolName === 'internal--edit_file' ||
-        toolName === 'internal--write_file' ||
-        toolName === 'custom--write_file' ||
-        toolName === 'custom--edit_file' ||
-        toolName === 'edit_file' ||
-        toolName === 'write_file'
-    );
+    return toolName === 'edit_file' || toolName === 'write_file';
 }
 
 /**
@@ -23,11 +16,7 @@ export function isEditWriteTool(toolName: string | undefined): boolean {
  * (typically marking tasks as complete during implementation).
  */
 export function isPlanUpdateTool(toolName: string | undefined): boolean {
-    return (
-        toolName === 'plan_update' ||
-        toolName === 'custom--plan_update' ||
-        toolName === 'internal--plan_update'
-    );
+    return toolName === 'plan_update';
 }
 
 /**

@@ -1,7 +1,7 @@
 {
   "name": "@dexto/tools-process",
-  "version": "1.5.7",
-  "description": "Process tools provider for Dexto agents",
+  "version": "1.6.0",
+  "description": "Process tools factory for Dexto agents",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -24,6 +24,7 @@
     "shell"
   ],
   "dependencies": {
+    "@dexto/agent-config": "workspace:*",
     "@dexto/core": "workspace:*",
     "zod": "^3.25.0"
   },

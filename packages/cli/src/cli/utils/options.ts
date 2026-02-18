@@ -11,7 +11,7 @@ import chalk from 'chalk';
 export function validateCliOptions(opts: any): void {
     const allProviders = getSupportedProviders();
     const supportedProviders = allProviders
-        .filter((p) => p !== 'dexto' || isDextoAuthEnabled())
+        .filter((p) => p !== 'dexto-nova' || isDextoAuthEnabled())
         .map((p) => p.toLowerCase());
 
     // Base schema for primitive shape

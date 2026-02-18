@@ -11,15 +11,35 @@ import type { LLMProvider } from './types.js';
  * - IDs are validated in tests to ensure they exist (so curated UI/onboarding doesn’t silently go empty).
  */
 export const CURATED_MODEL_IDS_BY_PROVIDER: Partial<Record<LLMProvider, string[]>> = {
-    openai: ['gpt-5', 'gpt-5-mini', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4o', 'o4-mini', 'o3-mini'],
+    openai: [
+        'gpt-5.2',
+        'gpt-5.2-chat-latest',
+        'gpt-5.2-pro',
+        'gpt-5.2-codex',
+        'gpt-5',
+        'gpt-5-mini',
+        'gpt-4.1',
+        'gpt-4.1-mini',
+        'gpt-4o',
+    ],
     anthropic: [
         'claude-opus-4-5-20251101',
         'claude-sonnet-4-5-20250929',
         'claude-sonnet-4-20250514',
         'claude-haiku-4-5-20251001',
     ],
-    google: ['gemini-3-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'],
-    vertex: ['gemini-3-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'],
+    google: [
+        'gemini-3-pro-preview',
+        'gemini-3-flash-preview',
+        'gemini-2.5-pro',
+        'gemini-2.5-flash',
+    ],
+    vertex: [
+        'gemini-3-pro-preview',
+        'gemini-3-flash-preview',
+        'gemini-2.5-pro',
+        'gemini-2.5-flash',
+    ],
     xai: ['grok-4', 'grok-3', 'grok-3-mini'],
     groq: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'qwen-qwq-32b'],
     cohere: ['command-a-03-2025', 'command-r-plus-08-2024', 'command-r-08-2024'],
@@ -30,7 +50,7 @@ export const CURATED_MODEL_IDS_BY_PROVIDER: Partial<Record<LLMProvider, string[]
         'anthropic.claude-haiku-4-5-20251001-v1:0',
         'amazon.nova-pro-v1:0',
     ],
-    dexto: [
+    'dexto-nova': [
         'anthropic/claude-haiku-4.5',
         'anthropic/claude-sonnet-4.5',
         'anthropic/claude-opus-4.5',

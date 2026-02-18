@@ -266,7 +266,7 @@ describe('EventBus Integration', () => {
             bus.dispatch({
                 name: 'approval:request',
                 sessionId: 'test-session',
-                type: ApprovalType.TOOL_CONFIRMATION,
+                type: ApprovalType.TOOL_APPROVAL,
                 approvalId: 'approval-123',
                 timeout: 30000,
                 timestamp: new Date(),
@@ -286,7 +286,7 @@ describe('EventBus Integration', () => {
             bus.dispatch({
                 name: 'approval:request',
                 sessionId: 'test-session',
-                type: ApprovalType.TOOL_CONFIRMATION,
+                type: ApprovalType.TOOL_APPROVAL,
                 approvalId: 'approval-123',
                 timeout: 30000,
                 timestamp: new Date(),
@@ -314,7 +314,7 @@ describe('EventBus Integration', () => {
             bus.dispatch({
                 name: 'approval:request',
                 sessionId: 'test-session',
-                type: ApprovalType.TOOL_CONFIRMATION,
+                type: ApprovalType.TOOL_APPROVAL,
                 approvalId: 'approval-456',
                 timeout: 30000,
                 timestamp: new Date(),
@@ -376,6 +376,13 @@ describe('EventBus Integration', () => {
                 ids: ['queued-1'],
                 coalesced: false,
                 content: [{ type: 'text', text: 'Hello from queue' }],
+                messages: [
+                    {
+                        id: 'queued-1',
+                        content: [{ type: 'text', text: 'Hello from queue' }],
+                        queuedAt: Date.now(),
+                    },
+                ],
             });
 
             const sessionState = useChatStore.getState().getSessionState('test-session');
@@ -394,6 +401,16 @@ describe('EventBus Integration', () => {
                 content: [
                     { type: 'text', text: 'Check this image' },
                     { type: 'image', image: 'base64data', mimeType: 'image/png' },
+                ],
+                messages: [
+                    {
+                        id: 'queued-2',
+                        content: [
+                            { type: 'text', text: 'Check this image' },
+                            { type: 'image', image: 'base64data', mimeType: 'image/png' },
+                        ],
+                        queuedAt: Date.now(),
+                    },
                 ],
             });
 
@@ -420,6 +437,21 @@ describe('EventBus Integration', () => {
                         data: 'filedata',
                         mimeType: 'text/plain',
                         filename: 'test.txt',
+                    },
+                ],
+                messages: [
+                    {
+                        id: 'queued-3',
+                        content: [
+                            { type: 'text', text: 'Here is the file' },
+                            {
+                                type: 'file',
+                                data: 'filedata',
+                                mimeType: 'text/plain',
+                                filename: 'test.txt',
+                            },
+                        ],
+                        queuedAt: Date.now(),
                     },
                 ],
             });

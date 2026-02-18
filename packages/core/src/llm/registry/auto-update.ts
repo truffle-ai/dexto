@@ -3,14 +3,14 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { getDextoGlobalPath } from '../../utils/path.js';
 import { logger as defaultLogger } from '../../logger/logger.js';
-import type { IDextoLogger } from '../../logger/v2/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 import type { LLMProvider } from '../types.js';
 import { LLM_PROVIDERS } from '../types.js';
 import { LLM_REGISTRY } from './index.js';
 import type { ModelInfo } from './index.js';
 import { buildModelsByProviderFromRemote } from './sync.js';
 
-type LogLike = Pick<IDextoLogger, 'debug' | 'info' | 'warn' | 'error'>;
+type LogLike = Pick<Logger, 'debug' | 'info' | 'warn' | 'error'>;
 
 const CACHE_SUBDIR = 'cache';
 const CACHE_FILENAME = 'llm-registry-models.json';

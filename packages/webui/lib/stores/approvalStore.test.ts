@@ -7,7 +7,7 @@ import { ApprovalType, ApprovalStatus } from '@dexto/core';
 function createTestApprovalRequest(overrides: Partial<ApprovalRequest> = {}): ApprovalRequest {
     return {
         approvalId: `approval-${Math.random().toString(36).slice(2, 11)}`,
-        type: ApprovalType.TOOL_CONFIRMATION,
+        type: ApprovalType.TOOL_APPROVAL,
         sessionId: 'test-session',
         timeout: 30000,
         timestamp: new Date(),

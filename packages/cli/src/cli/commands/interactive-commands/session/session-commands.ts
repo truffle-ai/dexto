@@ -9,7 +9,7 @@
  * - search: Opens interactive search overlay
  * - rename: Rename the current session
  *
- * Note: For headless CLI session management (list, history, delete),
+ * Note: For non-interactive session subcommands (list, history, delete),
  * see src/cli/commands/session-commands.ts
  */
 
@@ -20,7 +20,7 @@ import type { CommandDefinition, CommandContext } from '../command-parser.js';
 /**
  * Resume command - shows interactive session selector
  * Note: In interactive CLI, this always shows the selector (args ignored)
- * For headless CLI, use `dexto -r <sessionId>` instead
+ * Tip: To start the interactive CLI directly in a session, use `dexto --resume <sessionId>`.
  */
 export const resumeCommand: CommandDefinition = {
     name: 'resume',

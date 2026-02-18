@@ -1,7 +1,7 @@
 {
   "name": "@dexto/tools-todo",
-  "version": "1.5.7",
-  "description": "Todo/task tracking tools provider for Dexto agents",
+  "version": "1.6.0",
+  "description": "Todo/task tracking tools factory for Dexto agents",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -23,6 +23,7 @@
     "task-tracking"
   ],
   "dependencies": {
+    "@dexto/agent-config": "workspace:*",
     "@dexto/core": "workspace:*",
     "nanoid": "^5.0.9",
     "zod": "^3.25.0"

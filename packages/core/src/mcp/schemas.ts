@@ -1,6 +1,6 @@
 import { MCPErrorCode } from './error-codes.js';
-import { ErrorScope, ErrorType } from '@core/errors/types.js';
-import { EnvExpandedString, RequiredEnvURL } from '@core/utils/result.js';
+import { ErrorScope, ErrorType } from '../errors/types.js';
+import { EnvExpandedString, RequiredEnvURL } from '../utils/result.js';
 import { z } from 'zod';
 
 export const MCP_SERVER_TYPES = ['stdio', 'sse', 'http'] as const;
@@ -121,10 +121,10 @@ export const McpServerConfigSchema = z
 export type McpServerConfig = z.input<typeof McpServerConfigSchema>;
 export type ValidatedMcpServerConfig = z.output<typeof McpServerConfigSchema>;
 
-export const ServerConfigsSchema = z
+export const ServersConfigSchema = z
     .record(McpServerConfigSchema)
     .describe('A dictionary of server configurations, keyed by server name')
-    .brand<'ValidatedServerConfigs'>();
+    .brand<'ValidatedServersConfig'>();
 
-export type ServerConfigs = z.input<typeof ServerConfigsSchema>;
-export type ValidatedServerConfigs = z.output<typeof ServerConfigsSchema>;
+export type ServersConfig = z.input<typeof ServersConfigSchema>;
+export type ValidatedServersConfig = z.output<typeof ServersConfigSchema>;

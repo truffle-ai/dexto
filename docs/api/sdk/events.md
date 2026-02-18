@@ -627,9 +627,9 @@ import { DextoAgent, INTEGRATION_EVENTS } from '@dexto/core';
 const agent = new DextoAgent(config);
 await agent.start();
 
-// Listen to all integration events via the event bus
+// Listen to all integration events
 INTEGRATION_EVENTS.forEach((eventName) => {
-  agent.agentEventBus.on(eventName, (payload) => {
+  agent.on(eventName, (payload) => {
     console.log(`[${eventName}]`, payload);
     
     // Send to your monitoring/analytics system
@@ -647,12 +647,11 @@ const agent = new DextoAgent(config);
 await agent.start();
 
 // Listen to internal events for advanced debugging
-agent.agentEventBus.on('resource:cache-invalidated', (payload) => {
+agent.on('resource:cache-invalidated', (payload) => {
   console.log('Cache invalidated:', payload);
 });
 
-agent.agentEventBus.on('state:exported', (payload) => {
+agent.on('state:exported', (payload) => {
   console.log('State exported:', payload.config);
 });
 ```
-

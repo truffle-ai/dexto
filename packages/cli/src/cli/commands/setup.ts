@@ -2,6 +2,7 @@
 
 import chalk from 'chalk';
 import { z } from 'zod';
+import open from 'open';
 import {
     getDefaultModelForProvider,
     LLM_PROVIDERS,
@@ -23,6 +24,10 @@ import {
     updateGlobalPreferences,
     setActiveModel,
     isDextoAuthEnabled,
+    loadCustomModels,
+    saveCustomModel,
+    deleteCustomModel,
+    type CustomModel,
     type CreatePreferencesOptions,
 } from '@dexto/agent-management';
 import { interactiveApiKeySetup, hasApiKeyConfigured } from '../utils/api-key-setup.js';
@@ -42,6 +47,8 @@ import {
 import { requiresSetup } from '../utils/setup-utils.js';
 import { canUseDextoProvider } from '../utils/dexto-setup.js';
 import { handleBrowserLogin } from './auth/login.js';
+import { loadAuth, getDextoApiClient } from '../auth/index.js';
+import { DEXTO_CREDITS_URL } from '../auth/constants.js';
 import * as p from '@clack/prompts';
 import { logger } from '@dexto/core';
 import { capture } from '../../analytics/index.js';
@@ -276,6 +283,11 @@ async function handleQuickStart(
                     hint: 'Free, ultra-fast',
                 },
                 {
+                    value: 'openrouter' as const,
+                    label: `${chalk.green('●')} OpenRouter (Free)`,
+                    hint: 'Use free-tier models via OpenRouter',
+                },
+                {
                     value: 'local' as const,
                     label: `${chalk.cyan('●')} Local Models`,
                     hint: 'Free, private, runs on your machine',
@@ -352,11 +364,63 @@ async function handleQuickStart(
             return 'completed';
         }
 
-        // Cloud provider flow (google or groq)
+        // Cloud provider flow (google, groq, openrouter)
         const provider: LLMProvider = quickProvider;
-        const model =
-            getDefaultModelForProvider(provider) ||
-            (provider === 'google' ? 'gemini-2.5-pro' : 'llama-3.3-70b-versatile');
+        let model: string;
+        if (provider === 'openrouter') {
+            const selected = await p.select({
+                message: 'Select a model for OpenRouter',
+                options: [
+                    {
+                        value: 'openrouter/free' as const,
+                        label: 'OpenRouter Free Models',
+                        hint: 'Free-tier access via OpenRouter',
+                    },
+                    {
+                        value: 'custom' as const,
+                        label: 'Enter a model ID',
+                        hint: 'e.g., anthropic/claude-3.5-sonnet',
+                    },
+                    { value: '_back' as const, label: chalk.gray('← Back'), hint: 'Return' },
+                ],
+            });
+
+            if (p.isCancel(selected) || selected === '_back') {
+                if (options.onCancel === 'exit') {
+                    p.cancel('Setup cancelled');
+                    return 'cancelled';
+                }
+                continue;
+            }
+
+            if (selected === 'openrouter/free') {
+                model = 'openrouter/free';
+            } else {
+                const modelInput = await p.text({
+                    message: 'Enter model name for OpenRouter',
+                    placeholder: 'e.g., anthropic/claude-3.5-sonnet',
+                    validate: (value) => {
+                        const trimmed = typeof value === 'string' ? value.trim() : '';
+                        if (!trimmed) return 'Model name is required';
+                        return undefined;
+                    },
+                });
+
+                if (p.isCancel(modelInput)) {
+                    if (options.onCancel === 'exit') {
+                        p.cancel('Setup cancelled');
+                        return 'cancelled';
+                    }
+                    continue;
+                }
+
+                model = modelInput.trim();
+            }
+        } else {
+            model =
+                getDefaultModelForProvider(provider) ||
+                (provider === 'google' ? 'gemini-2.5-pro' : 'llama-3.3-70b-versatile');
+        }
         const apiKeyVar = getProviderEnvVar(provider);
         let apiKeySkipped = false;
 
@@ -450,13 +514,24 @@ async function handleQuickStart(
  * Dexto setup flow - login if needed, select model, save preferences
  *
  * Config storage:
- * - provider: 'dexto' (the gateway provider)
+ * - provider: 'dexto-nova' (the gateway provider)
  * - model: OpenRouter-style ID (e.g., 'anthropic/claude-haiku-4.5')
  *
  * Runtime handles routing requests through the Dexto gateway to the underlying provider.
  */
-async function handleDextoProviderSetup(): Promise<void> {
-    console.log(chalk.magenta('\n★ Dexto Setup\n'));
+async function handleDextoProviderSetup(
+    options: { exitOnCancel?: boolean } = {}
+): Promise<boolean> {
+    const exitOnCancel = options.exitOnCancel ?? true;
+    const abort = (message: string, exitCode: number = 0): false => {
+        p.cancel(message);
+        if (exitOnCancel) {
+            process.exit(exitCode);
+        }
+        return false;
+    };
+
+    console.log(chalk.magenta('\n★ Dexto Nova Setup\n'));
 
     // Check if user already has DEXTO_API_KEY
     const hasKey = await canUseDextoProvider();
@@ -474,8 +549,7 @@ async function handleDextoProviderSetup(): Promise<void> {
         });
 
         if (p.isCancel(shouldLogin) || !shouldLogin) {
-            p.cancel('Setup cancelled');
-            process.exit(0);
+            return abort('Setup cancelled');
         }
 
         try {
@@ -485,23 +559,51 @@ async function handleDextoProviderSetup(): Promise<void> {
                 p.log.error(
                     'API key provisioning failed. Please try again or use `dexto setup` with a different provider.'
                 );
-                process.exit(1);
+                return abort('Setup cancelled', 1);
             }
             p.log.success('Login successful! Continuing with setup...');
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             p.log.error(`Login failed: ${errorMessage}`);
-            p.cancel('Setup cancelled - login required for Dexto');
-            process.exit(1);
+            return abort('Setup cancelled - login required for Dexto', 1);
         }
     } else {
-        p.log.success('Already logged in to Dexto');
+        const auth = await loadAuth();
+        const userLabel = auth?.email || auth?.userId || 'unknown';
+        p.log.success(`Logged in to Dexto as: ${userLabel}`);
+    }
+
+    const balance = await getCreditsBalance();
+    if (balance !== null) {
+        p.note(`$${balance.toFixed(2)} remaining`, 'Dexto Nova balance');
+    }
+
+    const shouldOpenCredits = await p.confirm({
+        message: 'Want to buy or top up Dexto Nova credits now?',
+        initialValue: false,
+    });
+
+    if (p.isCancel(shouldOpenCredits)) {
+        return abort('Setup cancelled');
+    }
+
+    if (shouldOpenCredits) {
+        await openCreditsPage();
+
+        const continueSetup = await p.confirm({
+            message: 'Continue choosing a model?',
+            initialValue: true,
+        });
+
+        if (p.isCancel(continueSetup) || !continueSetup) {
+            return abort('Setup cancelled');
+        }
     }
 
     // Model selection - show popular models in OpenRouter format
     // NOTE: This list is intentionally hardcoded (not from registry) to include
     // curated hints for onboarding UX. Keep model IDs in sync with:
-    // packages/core/src/llm/registry/index.ts (LLM_REGISTRY.dexto.models)
+    // packages/core/src/llm/registry/index.ts (LLM_REGISTRY['dexto-nova'].models)
     const model = await p.select({
         message: 'Select a model to start with',
         options: [
@@ -574,12 +676,11 @@ async function handleDextoProviderSetup(): Promise<void> {
     });
 
     if (p.isCancel(model)) {
-        p.cancel('Setup cancelled');
-        process.exit(0);
+        return abort('Setup cancelled');
     }
 
-    // Dexto setup always uses 'dexto' provider with OpenRouter model IDs
-    const provider: LLMProvider = 'dexto';
+    // Dexto setup always uses 'dexto-nova' provider with OpenRouter model IDs
+    const provider: LLMProvider = 'dexto-nova';
 
     // Cast model to string (prompts library typing)
     const selectedModel = model as string;
@@ -590,11 +691,10 @@ async function handleDextoProviderSetup(): Promise<void> {
     const defaultMode = await selectDefaultMode();
 
     if (defaultMode === null) {
-        p.cancel('Setup cancelled');
-        process.exit(0);
+        return abort('Setup cancelled');
     }
 
-    // Save preferences with explicit dexto provider and OpenRouter model ID
+    // Save preferences with explicit dexto-nova provider and OpenRouter model ID
     const preferences = createInitialPreferences({
         provider,
         model: selectedModel,
@@ -610,11 +710,34 @@ async function handleDextoProviderSetup(): Promise<void> {
         provider,
         model: selectedModel,
         setupMode: 'interactive',
-        setupVariant: 'dexto',
+        setupVariant: 'dexto-nova',
         defaultMode,
     });
 
     await showSetupComplete(provider, selectedModel, defaultMode, false);
+    return true;
+}
+
+async function openCreditsPage(): Promise<void> {
+    try {
+        await open(DEXTO_CREDITS_URL);
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        p.log.warn(`Unable to open browser: ${errorMessage}`);
+        p.log.info(`Open this link to buy credits: ${DEXTO_CREDITS_URL}`);
+    }
+}
+
+async function getCreditsBalance(): Promise<number | null> {
+    try {
+        const auth = await loadAuth();
+        if (!auth?.dextoApiKey) return null;
+        const apiClient = getDextoApiClient();
+        const usage = await apiClient.getUsageSummary(auth.dextoApiKey);
+        return usage.credits_usd;
+    } catch {
+        return null;
+    }
 }
 
 /**
@@ -622,7 +745,7 @@ async function handleDextoProviderSetup(): Promise<void> {
  * Users can go back to previous steps to change their selections.
  */
 async function handleInteractiveSetup(_options: CLISetupOptions): Promise<void> {
-    console.log(chalk.cyan('\n🗿 Dexto Setup\n'));
+    console.log(chalk.cyan('\n🗿 Dexto Nova Setup\n'));
 
     p.intro(chalk.cyan("Let's configure your AI agent"));
 
@@ -664,13 +787,13 @@ async function handleInteractiveSetup(_options: CLISetupOptions): Promise<void> 
  * Wizard Step: Setup Type (Quick Start vs Custom)
  */
 async function wizardStepSetupType(state: SetupWizardState): Promise<SetupWizardState> {
-    // Build options list - only show Dexto Credits when feature is enabled
+    // Build options list - only show Dexto Nova when feature is enabled
     const options: Array<{ value: string; label: string; hint: string }> = [];
 
     if (isDextoAuthEnabled()) {
         options.push({
-            value: 'dexto',
-            label: `${chalk.magenta('★')} Dexto Credits`,
+            value: 'dexto-nova',
+            label: `${chalk.magenta('★')} Dexto Nova`,
             hint: 'All models, one account - login to get started (recommended)',
         });
     }
@@ -698,8 +821,8 @@ async function wizardStepSetupType(state: SetupWizardState): Promise<SetupWizard
         process.exit(0);
     }
 
-    if (setupType === 'dexto') {
-        // Handle Dexto Credits flow - login if needed, then proceed to model selection
+    if (setupType === 'dexto-nova') {
+        // Handle Dexto Nova flow - login if needed, then proceed to model selection
         await handleDextoProviderSetup();
         return { ...state, step: 'complete', quickStartHandled: true };
     }
@@ -782,12 +905,13 @@ async function wizardStepModel(state: SetupWizardState): Promise<SetupWizardStat
     }
 
     // Cloud provider model selection with back option
-    const model = await selectModelWithBack(provider);
+    const selection = await selectModelWithBack(provider);
 
-    if (model === '_back') {
+    if (selection === '_back') {
         return { ...state, step: 'provider', model: undefined, baseURL: undefined };
     }
 
+    const model = selection.model;
     // Check if model supports reasoning effort
     const nextStep = isReasoningCapableModel(model) ? 'reasoning' : 'apiKey';
     return { ...state, step: nextStep, model, baseURL };
@@ -908,11 +1032,67 @@ async function wizardStepMode(state: SetupWizardState): Promise<SetupWizardState
 /**
  * Select model with back option
  */
-async function selectModelWithBack(provider: LLMProvider): Promise<string | '_back'> {
+async function selectModelWithBack(
+    provider: LLMProvider
+): Promise<{ model: string; isCustomSelection?: boolean } | '_back'> {
     const providerInfo = LLM_REGISTRY[provider];
 
     if (providerInfo?.models && providerInfo.models.length > 0) {
         const curatedModels = getCuratedModelsForProvider(provider);
+
+        if (provider === 'openrouter') {
+            const curatedOptions = curatedModels
+                .slice(0, 8)
+                .filter((m) => m.name !== 'openrouter/free')
+                .map((m) => ({
+                    value: m.name,
+                    label: m.displayName || m.name,
+                }));
+
+            if (supportsCustomModels(provider)) {
+                p.log.info(chalk.gray('Tip: You can add or edit custom models via /model'));
+
+                const manageCustomModels = await p.confirm({
+                    message: 'Manage custom models now?',
+                    initialValue: false,
+                });
+
+                if (p.isCancel(manageCustomModels)) {
+                    return '_back';
+                }
+
+                if (manageCustomModels) {
+                    const customModel = await handleCustomModelManagement(provider);
+                    if (customModel) {
+                        return { model: customModel, isCustomSelection: true };
+                    }
+                }
+            }
+
+            const result = await p.select({
+                message: `Select a model for ${getProviderDisplayName(provider)}`,
+                options: [
+                    {
+                        value: 'openrouter/free' as const,
+                        label: 'OpenRouter Free Models',
+                        hint: '(recommended)',
+                    },
+                    ...curatedOptions,
+                    {
+                        value: '_back' as const,
+                        label: chalk.gray('← Back'),
+                        hint: 'Change provider',
+                    },
+                ],
+            });
+
+            if (p.isCancel(result)) {
+                return '_back';
+            }
+
+            return { model: result as string };
+        }
+
         const defaultModel =
             curatedModels.find((m) => m.default) ??
             providerInfo.models.find((m) => m.default) ??
@@ -932,7 +1112,23 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
             }));
 
         if (supportsCustomModels(provider)) {
-            p.log.info(chalk.gray('Tip: You can add custom model IDs later via /models'));
+            p.log.info(chalk.gray('Tip: You can add or edit custom models via /model'));
+
+            const manageCustomModels = await p.confirm({
+                message: 'Manage custom models now?',
+                initialValue: false,
+            });
+
+            if (p.isCancel(manageCustomModels)) {
+                return '_back';
+            }
+
+            if (manageCustomModels) {
+                const customModel = await handleCustomModelManagement(provider);
+                if (customModel) {
+                    return { model: customModel, isCustomSelection: true };
+                }
+            }
         }
 
         const result = await p.select({
@@ -956,7 +1152,7 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
             return '_back';
         }
 
-        return result as string | '_back';
+        return { model: result as string };
     }
 
     // For providers that accept any model, show text input with back hint
@@ -966,7 +1162,8 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
         message: `Enter model name for ${getProviderDisplayName(provider)}`,
         placeholder: defaultModel || 'e.g., gpt-4-turbo',
         validate: (value) => {
-            if (!value.trim()) return 'Model name is required';
+            const trimmed = typeof value === 'string' ? value.trim() : '';
+            if (!trimmed) return 'Model name is required';
             return undefined;
         },
     });
@@ -975,12 +1172,292 @@ async function selectModelWithBack(provider: LLMProvider): Promise<string | '_ba
         return '_back';
     }
 
-    return model as string;
+    return { model: typeof model === 'string' ? model.trim() : '' };
 }
 
 /**
  * Select default mode with back option
  */
+async function handleCustomModelManagement(providerOverride?: LLMProvider): Promise<string | null> {
+    const models = await loadCustomModels();
+
+    const choices = [
+        { value: 'add' as const, label: 'Add custom model' },
+        ...(models.length > 0 ? [{ value: 'edit' as const, label: 'Edit custom model' }] : []),
+        ...(models.length > 0 ? [{ value: 'delete' as const, label: 'Delete custom model' }] : []),
+        { value: 'back' as const, label: 'Back' },
+    ];
+
+    const action = await p.select({
+        message: 'Custom models',
+        options: choices,
+    });
+
+    if (p.isCancel(action) || action === 'back') {
+        return null;
+    }
+
+    if (action === 'add') {
+        const created = await runCustomModelWizard(null, providerOverride);
+        return created?.name ?? null;
+    }
+
+    if (action === 'edit') {
+        const selected = await selectCustomModel(models);
+        if (!selected) {
+            return null;
+        }
+        const updated = await runCustomModelWizard(selected, providerOverride);
+        return updated?.name ?? null;
+    }
+
+    if (action === 'delete') {
+        const model = await selectCustomModel(models);
+        if (!model) {
+            return null;
+        }
+        const confirm = await p.confirm({
+            message: `Delete custom model "${model.displayName || model.name}"?`,
+            initialValue: false,
+        });
+        if (p.isCancel(confirm) || !confirm) {
+            return null;
+        }
+        await deleteCustomModel(model.name);
+        p.log.success(`Deleted ${model.displayName || model.name}`);
+        return null;
+    }
+
+    return null;
+}
+
+async function selectCustomModel(models: CustomModel[]): Promise<CustomModel | null> {
+    if (models.length === 0) {
+        p.log.info('No custom models available.');
+        return null;
+    }
+
+    const selection = await p.select({
+        message: 'Select a custom model',
+        options: models.map((model) => ({
+            value: model.name,
+            label: model.displayName || model.name,
+        })),
+    });
+
+    if (p.isCancel(selection)) {
+        return null;
+    }
+
+    return models.find((model) => model.name === selection) ?? null;
+}
+
+async function runCustomModelWizard(
+    initialModel?: CustomModel | null,
+    providerOverride?: LLMProvider
+): Promise<CustomModel | null> {
+    const values = await promptCustomModelValues(initialModel ?? null, providerOverride);
+    if (!values) {
+        return null;
+    }
+
+    const model: CustomModel = {
+        name: values.name,
+        provider: values.provider,
+        ...(values.baseURL ? { baseURL: values.baseURL } : {}),
+        ...(values.displayName ? { displayName: values.displayName } : {}),
+        ...(values.maxInputTokens ? { maxInputTokens: values.maxInputTokens } : {}),
+        ...(values.apiKey ? { apiKey: values.apiKey } : {}),
+        ...(values.filePath ? { filePath: values.filePath } : {}),
+        ...(values.reasoningPreset ? { reasoning: { preset: values.reasoningPreset } } : {}),
+    };
+
+    await saveCustomModel(model);
+    if (initialModel && initialModel.name !== model.name) {
+        await deleteCustomModel(initialModel.name);
+    }
+    p.log.success(`${initialModel ? 'Updated' : 'Saved'} ${model.displayName || model.name}`);
+    return model;
+}
+
+async function promptCustomModelValues(
+    initialModel: CustomModel | null,
+    providerOverride?: LLMProvider
+): Promise<{
+    name: string;
+    provider: CustomModel['provider'];
+    baseURL?: string;
+    displayName?: string;
+    maxInputTokens?: number;
+    apiKey?: string;
+    filePath?: string;
+    reasoningPreset?: ReasoningPreset;
+} | null> {
+    const providers = [
+        'openai-compatible',
+        'openrouter',
+        'litellm',
+        'glama',
+        'bedrock',
+        'ollama',
+        'local',
+        'vertex',
+        ...(isDextoAuthEnabled() ? ['dexto-nova'] : []),
+    ] as const;
+
+    const effectiveProvider = initialModel?.provider ?? providerOverride;
+
+    let provider: CustomModel['provider'] | symbol;
+    if (effectiveProvider) {
+        provider = effectiveProvider as CustomModel['provider'];
+    } else {
+        provider = (await p.select({
+            message: 'Custom model provider',
+            options: providers.map((value) => ({ value, label: value })),
+            initialValue: 'openai-compatible',
+        })) as CustomModel['provider'] | symbol;
+
+        if (p.isCancel(provider)) {
+            return null;
+        }
+    }
+
+    const name = await p.text({
+        message: 'Model name',
+        initialValue: initialModel?.name ?? '',
+        validate: (value) => {
+            const trimmed = typeof value === 'string' ? value.trim() : '';
+            return trimmed ? undefined : 'Model name is required';
+        },
+    });
+
+    if (p.isCancel(name)) {
+        return null;
+    }
+
+    const trimmedName = typeof name === 'string' ? name.trim() : '';
+    if (provider === 'openrouter' || provider === 'glama' || provider === 'dexto-nova') {
+        const isValidFormat = trimmedName.includes('/');
+        if (!isValidFormat) {
+            p.log.warn('Model name should include a provider prefix, e.g. anthropic/claude-3.5');
+        }
+    }
+
+    const displayName = await p.text({
+        message: 'Display name (optional)',
+        initialValue: initialModel?.displayName ?? '',
+    });
+
+    if (p.isCancel(displayName)) {
+        return null;
+    }
+
+    let baseURL: string | undefined;
+    if (provider === 'openai-compatible' || provider === 'litellm') {
+        const baseURLInput = await p.text({
+            message: 'Base URL',
+            initialValue: initialModel?.baseURL?.trim() ?? '',
+            validate: (value) => {
+                const trimmed = typeof value === 'string' ? value.trim() : '';
+                if (!trimmed) return 'Base URL is required';
+                try {
+                    new URL(trimmed);
+                    return undefined;
+                } catch {
+                    return 'Base URL must be a valid URL';
+                }
+            },
+        });
+        if (p.isCancel(baseURLInput)) {
+            return null;
+        }
+        const baseURLValue = typeof baseURLInput === 'string' ? baseURLInput.trim() : '';
+        baseURL = baseURLValue || undefined;
+    }
+
+    const maxInputTokensInput = await p.text({
+        message: 'Max input tokens (optional)',
+        initialValue: initialModel?.maxInputTokens?.toString() ?? '',
+        validate: (value) => {
+            const trimmed = typeof value === 'string' ? value.trim() : '';
+            if (!trimmed) return undefined;
+            const parsed = Number(value);
+            if (!Number.isInteger(parsed) || parsed <= 0) {
+                return 'Enter a positive integer';
+            }
+            return undefined;
+        },
+    });
+
+    if (p.isCancel(maxInputTokensInput)) {
+        return null;
+    }
+
+    let apiKey: string | undefined;
+    if (provider !== 'bedrock' && provider !== 'vertex') {
+        const apiKeyInput = await p.text({
+            message: 'API key (optional)',
+            initialValue: initialModel?.apiKey ?? '',
+        });
+
+        if (p.isCancel(apiKeyInput)) {
+            return null;
+        }
+
+        const apiKeyValue = typeof apiKeyInput === 'string' ? apiKeyInput.trim() : '';
+        apiKey = apiKeyValue || undefined;
+    }
+
+    let filePath: string | undefined;
+    if (provider === 'local') {
+        const filePathInput = await p.text({
+            message: 'GGUF file path',
+            initialValue: initialModel?.filePath ?? '',
+            validate: (value) => {
+                const trimmed = typeof value === 'string' ? value.trim() : '';
+                if (!trimmed) return 'File path is required';
+                if (!trimmed.toLowerCase().endsWith('.gguf')) {
+                    return 'File path must end with .gguf';
+                }
+                return undefined;
+            },
+        });
+        if (p.isCancel(filePathInput)) {
+            return null;
+        }
+        const filePathValue = typeof filePathInput === 'string' ? filePathInput.trim() : '';
+        filePath = filePathValue || undefined;
+    }
+
+    let reasoningPreset: ReasoningPreset | undefined;
+    if (isReasoningCapableModel(trimmedName)) {
+        const preset = await selectReasoningPreset();
+        if (preset === null) {
+            return null;
+        }
+        // Keep the custom model config minimal: only store an override when not auto.
+        if (preset !== 'auto') {
+            reasoningPreset = preset;
+        }
+    }
+
+    const trimmedDisplayName = typeof displayName === 'string' ? displayName.trim() : '';
+    const trimmedApiKey = typeof apiKey === 'string' ? apiKey.trim() : '';
+    const trimmedMaxInputTokens =
+        typeof maxInputTokensInput === 'string' ? maxInputTokensInput.trim() : '';
+
+    return {
+        name: trimmedName,
+        provider,
+        ...(baseURL ? { baseURL } : {}),
+        ...(trimmedDisplayName ? { displayName: trimmedDisplayName } : {}),
+        ...(trimmedMaxInputTokens ? { maxInputTokens: Number(trimmedMaxInputTokens) } : {}),
+        ...(trimmedApiKey ? { apiKey: trimmedApiKey } : {}),
+        ...(filePath ? { filePath } : {}),
+        ...(reasoningPreset ? { reasoningPreset } : {}),
+    };
+}
+
 async function selectDefaultModeWithBack(): Promise<
     'cli' | 'web' | 'server' | 'discord' | 'telegram' | 'mcp' | '_back'
 > {
@@ -1146,40 +1623,53 @@ async function showSettingsMenu(): Promise<void> {
             p.note(currentConfig, 'Current Configuration');
         }
 
+        const currentProviderLabel = currentPrefs?.llm.provider ?? 'not set';
+        const currentModelLabel = currentPrefs?.llm.model || 'not set';
+
+        const options: Array<{ value: string; label: string; hint: string }> = [
+            {
+                value: 'model',
+                label: 'Change model',
+                hint: `Currently: ${currentProviderLabel} / ${currentModelLabel}`,
+            },
+            {
+                value: 'mode',
+                label: 'Change default mode',
+                hint: `Currently: ${currentPrefs?.defaults.defaultMode || 'web'}`,
+            },
+            {
+                value: 'apikey',
+                label: 'Update API key',
+                hint: 'Re-enter your API key',
+            },
+            {
+                value: 'reset',
+                label: 'Reset to defaults',
+                hint: 'Start fresh with a new configuration',
+            },
+            {
+                value: 'file',
+                label: 'View preferences file',
+                hint: 'See where your settings are stored',
+            },
+            {
+                value: 'exit',
+                label: 'Exit',
+                hint: 'Done making changes',
+            },
+        ];
+
+        if (isDextoAuthEnabled()) {
+            options.splice(2, 0, {
+                value: 'credits',
+                label: 'Buy Dexto Nova credits',
+                hint: 'Open billing page in your browser',
+            });
+        }
+
         const action = await p.select({
             message: 'What would you like to do?',
-            options: [
-                {
-                    value: 'model',
-                    label: 'Change model',
-                    hint: `Currently: ${currentPrefs?.llm.provider || 'not set'} / ${currentPrefs?.llm.model || 'not set'}`,
-                },
-                {
-                    value: 'mode',
-                    label: 'Change default mode',
-                    hint: `Currently: ${currentPrefs?.defaults.defaultMode || 'web'}`,
-                },
-                {
-                    value: 'apikey',
-                    label: 'Update API key',
-                    hint: 'Re-enter your API key',
-                },
-                {
-                    value: 'reset',
-                    label: 'Reset to defaults',
-                    hint: 'Start fresh with a new configuration',
-                },
-                {
-                    value: 'file',
-                    label: 'View preferences file',
-                    hint: 'See where your settings are stored',
-                },
-                {
-                    value: 'exit',
-                    label: 'Exit',
-                    hint: 'Done making changes',
-                },
-            ],
+            options,
         });
 
         // Exit conditions
@@ -1195,6 +1685,9 @@ async function showSettingsMenu(): Promise<void> {
                 break;
             case 'mode':
                 await changeDefaultMode();
+                break;
+            case 'credits':
+                await openCreditsPage();
                 break;
             case 'apikey':
                 await updateApiKey(currentPrefs?.llm.provider);
@@ -1230,8 +1723,8 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
             message: 'Choose your model source',
             options: [
                 {
-                    value: 'dexto',
-                    label: `${chalk.magenta('★')} Dexto Credits`,
+                    value: 'dexto-nova',
+                    label: `${chalk.magenta('★')} Dexto Nova`,
                     hint: 'All models, one account',
                 },
                 {
@@ -1247,9 +1740,12 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
             return;
         }
 
-        if (providerChoice === 'dexto') {
+        if (providerChoice === 'dexto-nova') {
             // Use the same Dexto setup flow as first-time setup
-            await handleDextoProviderSetup();
+            const completed = await handleDextoProviderSetup({ exitOnCancel: false });
+            if (!completed) {
+                return;
+            }
             return;
         }
 
@@ -1602,6 +2098,56 @@ async function selectModel(provider: LLMProvider): Promise<string | null> {
     // For providers with a fixed model list
     if (providerInfo?.models && providerInfo.models.length > 0) {
         const curatedModels = getCuratedModelsForProvider(provider);
+
+        if (provider === 'openrouter') {
+            const curatedOptions = curatedModels
+                .slice(0, 8)
+                .filter((m) => m.name !== 'openrouter/free')
+                .map((m) => ({
+                    value: m.name,
+                    label: m.displayName || m.name,
+                }));
+
+            if (supportsCustomModels(provider)) {
+                p.log.info(chalk.gray('Tip: You can add or edit custom models via /model'));
+
+                const manageCustomModels = await p.confirm({
+                    message: 'Manage custom models now?',
+                    initialValue: false,
+                });
+
+                if (p.isCancel(manageCustomModels)) {
+                    return null;
+                }
+
+                if (manageCustomModels) {
+                    const customModel = await handleCustomModelManagement(provider);
+                    if (customModel) {
+                        return customModel;
+                    }
+                }
+            }
+
+            const selected = await p.select({
+                message: `Select a model for ${getProviderDisplayName(provider)}`,
+                options: [
+                    {
+                        value: 'openrouter/free' as const,
+                        label: 'OpenRouter Free Models',
+                        hint: '(recommended)',
+                    },
+                    ...curatedOptions,
+                ],
+                initialValue: 'openrouter/free',
+            });
+
+            if (p.isCancel(selected)) {
+                return null;
+            }
+
+            return selected as string;
+        }
+
         const defaultModel =
             curatedModels.find((m) => m.default) ??
             providerInfo.models.find((m) => m.default) ??
@@ -1620,7 +2166,23 @@ async function selectModel(provider: LLMProvider): Promise<string | null> {
             }));
 
         if (supportsCustomModels(provider)) {
-            p.log.info(chalk.gray('Tip: You can add custom model IDs later via /models'));
+            p.log.info(chalk.gray('Tip: You can add or edit custom models via /model'));
+
+            const manageCustomModels = await p.confirm({
+                message: 'Manage custom models now?',
+                initialValue: false,
+            });
+
+            if (p.isCancel(manageCustomModels)) {
+                return null;
+            }
+
+            if (manageCustomModels) {
+                const customModel = await handleCustomModelManagement(provider);
+                if (customModel) {
+                    return customModel;
+                }
+            }
         }
 
         const selected = await p.select({
@@ -1649,7 +2211,8 @@ async function selectModel(provider: LLMProvider): Promise<string | null> {
         placeholder:
             provider === 'openrouter' ? 'e.g., anthropic/claude-3.5-sonnet' : 'e.g., llama-3-70b',
         validate: (value) => {
-            if (!value || value.trim().length === 0) {
+            const trimmed = typeof value === 'string' ? value.trim() : '';
+            if (!trimmed) {
                 return 'Model name is required';
             }
             return undefined;
@@ -1657,6 +2220,10 @@ async function selectModel(provider: LLMProvider): Promise<string | null> {
     });
 
     if (p.isCancel(modelInput)) {
+        return null;
+    }
+
+    if (typeof modelInput !== 'string') {
         return null;
     }
 
@@ -1681,11 +2248,12 @@ async function promptForBaseURL(provider: LLMProvider): Promise<string | null> {
         message: `Enter base URL for ${getProviderDisplayName(provider)}`,
         placeholder,
         validate: (value) => {
-            if (!value || value.trim().length === 0) {
+            const trimmed = typeof value === 'string' ? value.trim() : '';
+            if (!trimmed) {
                 return 'Base URL is required for this provider';
             }
             try {
-                new URL(value.trim());
+                new URL(trimmed);
             } catch {
                 return 'Please enter a valid URL';
             }
@@ -1697,7 +2265,7 @@ async function promptForBaseURL(provider: LLMProvider): Promise<string | null> {
         return null;
     }
 
-    return baseURL.trim();
+    return typeof baseURL === 'string' ? baseURL.trim() : '';
 }
 
 /**

@@ -1,17 +1,16 @@
 import { createDatabaseHistoryProvider } from './history/factory.js';
-import { createLLMService, createVercelModel } from '../llm/services/factory.js';
-import { createCompactionStrategy } from '../context/compaction/index.js';
-import type { ContextManager } from '@core/context/index.js';
-import type { IConversationHistoryProvider } from './history/types.js';
+import { createLLMService } from '../llm/services/factory.js';
+import type { ContextManager } from '../context/index.js';
+import type { ConversationHistoryProvider } from './history/types.js';
 import type { VercelLLMService } from '../llm/services/vercel.js';
 import type { SystemPromptManager } from '../systemPrompt/manager.js';
 import type { ToolManager } from '../tools/tool-manager.js';
-import type { ValidatedLLMConfig } from '@core/llm/schemas.js';
+import type { ValidatedLLMConfig } from '../llm/schemas.js';
 import type { AgentStateManager } from '../agent/state-manager.js';
 import type { StorageManager } from '../storage/index.js';
-import type { PluginManager } from '../plugins/manager.js';
+import type { HookManager } from '../hooks/manager.js';
 import type { MCPManager } from '../mcp/manager.js';
-import type { BeforeLLMRequestPayload, BeforeResponsePayload } from '../plugins/types.js';
+import type { BeforeLLMRequestPayload, BeforeResponsePayload } from '../hooks/types.js';
 import {
     SessionEventBus,
     AgentEventBus,
@@ -19,14 +18,15 @@ import {
     SessionEventName,
     SessionEventMap,
 } from '../events/index.js';
-import type { IDextoLogger } from '../logger/v2/types.js';
+import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
-import { PluginErrorCode } from '../plugins/error-codes.js';
+import { HookErrorCode } from '../hooks/error-codes.js';
 import type { InternalMessage, ContentPart } from '../context/types.js';
 import type { UserMessageInput } from './message-queue.js';
 import type { ContentInput } from '../agent/types.js';
 import { getModelPricing, calculateCost } from '../llm/registry/index.js';
+import type { CompactionStrategy } from '../context/compaction/types.js';
 
 /**
  * Represents an isolated conversation session within a Dexto agent.
@@ -90,7 +90,7 @@ export class ChatSession {
      * History provider that persists conversation messages.
      * Shared across LLM switches to maintain conversation continuity.
      */
-    private historyProvider!: IConversationHistoryProvider;
+    private historyProvider!: ConversationHistoryProvider;
 
     /**
      * Handles AI model interactions, tool execution, and response generation for this session.
@@ -118,7 +118,7 @@ export class ChatSession {
      */
     private currentRunController: AbortController | null = null;
 
-    public readonly logger: IDextoLogger;
+    public readonly logger: Logger;
 
     /**
      * Creates a new ChatSession instance.
@@ -140,12 +140,13 @@ export class ChatSession {
             agentEventBus: AgentEventBus;
             storageManager: StorageManager;
             resourceManager: import('../resources/index.js').ResourceManager;
-            pluginManager: PluginManager;
+            hookManager: HookManager;
             mcpManager: MCPManager;
             sessionManager: import('./session-manager.js').SessionManager;
+            compactionStrategy: CompactionStrategy | null;
         },
         public readonly id: string,
-        logger: IDextoLogger
+        logger: Logger
     ) {
         this.logger = logger.createChild(DextoLogComponent.SESSION);
         // Create session-specific event bus
@@ -209,17 +210,24 @@ export class ChatSession {
     private setupTokenAccumulation(): void {
         this.tokenAccumulatorListener = (payload: SessionEventMap['llm:response']) => {
             if (payload.tokenUsage) {
-                // Calculate cost if pricing is available
-                let cost: number | undefined;
                 const llmConfig = this.services.stateManager.getLLMConfig(this.id);
-                const pricing = getModelPricing(llmConfig.provider, llmConfig.model);
+
+                // Extract model info from payload (preferred) or fall back to config
+                const modelInfo = {
+                    provider: payload.provider ?? llmConfig.provider,
+                    model: payload.model ?? llmConfig.model,
+                };
+
+                // Calculate cost if pricing is available (using the actual model from payload)
+                let cost: number | undefined;
+                const pricing = getModelPricing(modelInfo.provider, modelInfo.model);
                 if (pricing) {
                     cost = calculateCost(payload.tokenUsage, pricing);
                 }
 
                 // Fire and forget - don't block the event flow
                 this.services.sessionManager
-                    .accumulateTokenUsage(this.id, payload.tokenUsage, cost)
+                    .accumulateTokenUsage(this.id, payload.tokenUsage, cost, modelInfo)
                     .catch((err) => {
                         this.logger.warn(
                             `Failed to accumulate token usage: ${err instanceof Error ? err.message : String(err)}`
@@ -247,12 +255,7 @@ export class ChatSession {
             this.logger
         );
 
-        // Create model and compaction strategy from config
-        const model = createVercelModel(llmConfig);
-        const compactionStrategy = await createCompactionStrategy(runtimeConfig.compaction, {
-            logger: this.logger,
-            model,
-        });
+        const compactionStrategy = this.services.compactionStrategy;
 
         // Create session-specific LLM service
         // The service will create its own properly-typed ContextManager internally
@@ -265,8 +268,7 @@ export class ChatSession {
             this.id,
             this.services.resourceManager, // Pass ResourceManager for blob storage
             this.logger, // Pass logger for dependency injection
-            compactionStrategy, // Pass compaction strategy
-            runtimeConfig.compaction // Pass compaction config for threshold settings
+            compactionStrategy // Pass compaction strategy
         );
 
         this.logger.debug(`ChatSession ${this.id}: Services initialized with storage`);
@@ -366,8 +368,8 @@ export class ChatSession {
             : this.currentRunController.signal;
 
         try {
-            // Execute beforeLLMRequest plugins
-            // For backward compatibility, extract first image/file for plugin payload
+            // Execute beforeLLMRequest hooks
+            // Extract first image/file for the hook payload.
             const textContent = textParts.map((p) => p.text).join('\n');
             const firstImage = imageParts[0] as
                 | { type: 'image'; image: string; mimeType?: string }
@@ -394,7 +396,7 @@ export class ChatSession {
                 sessionId: this.id,
             };
 
-            const modifiedBeforePayload = await this.services.pluginManager.executePlugins(
+            const modifiedBeforePayload = await this.services.hookManager.executeHooks(
                 'beforeLLMRequest',
                 beforeLLMPayload,
                 {
@@ -407,7 +409,7 @@ export class ChatSession {
                 }
             );
 
-            // Apply plugin text modifications to the first text part
+            // Apply hook text modifications to the first text part
             let modifiedParts = [...parts];
             if (modifiedBeforePayload.text !== textContent && textParts.length > 0) {
                 // Replace text parts with modified text
@@ -418,7 +420,7 @@ export class ChatSession {
             // Call LLM service stream
             const streamResult = await this.llmService.stream(modifiedParts, { signal });
 
-            // Execute beforeResponse plugins
+            // Execute beforeResponse hooks
             const llmConfig = this.services.stateManager.getLLMConfig(this.id);
             const beforeResponsePayload: BeforeResponsePayload = {
                 content: streamResult.text,
@@ -427,7 +429,7 @@ export class ChatSession {
                 sessionId: this.id,
             };
 
-            const modifiedResponsePayload = await this.services.pluginManager.executePlugins(
+            const modifiedResponsePayload = await this.services.hookManager.executeHooks(
                 'beforeResponse',
                 beforeResponsePayload,
                 {
@@ -483,11 +485,11 @@ export class ChatSession {
                 return { text: '' };
             }
 
-            // Check if this is a plugin blocking error
+            // Check if this is a hook blocking error
             if (
                 error instanceof DextoRuntimeError &&
-                error.code === PluginErrorCode.PLUGIN_BLOCKED_EXECUTION &&
-                error.scope === ErrorScope.PLUGIN &&
+                error.code === HookErrorCode.HOOK_BLOCKED_EXECUTION &&
+                error.scope === ErrorScope.HOOK &&
                 error.type === ErrorType.FORBIDDEN
             ) {
                 // Save the blocked interaction to history
@@ -632,15 +634,8 @@ export class ChatSession {
      */
     public async switchLLM(newLLMConfig: ValidatedLLMConfig): Promise<void> {
         try {
-            // Get compression config for this session
-            const runtimeConfig = this.services.stateManager.getRuntimeConfig(this.id);
-
-            // Create model and compaction strategy from config
-            const model = createVercelModel(newLLMConfig);
-            const compactionStrategy = await createCompactionStrategy(runtimeConfig.compaction, {
-                logger: this.logger,
-                model,
-            });
+            // Reuse the agent-provided compaction strategy (if any)
+            const compactionStrategy = this.services.compactionStrategy;
 
             // Create new LLM service with new config but SAME history provider
             // The service will create its own new ContextManager internally
@@ -653,8 +648,7 @@ export class ChatSession {
                 this.id,
                 this.services.resourceManager,
                 this.logger,
-                compactionStrategy, // Pass compaction strategy
-                runtimeConfig.compaction // Pass compaction config for threshold settings
+                compactionStrategy // Pass compaction strategy
             );
 
             // Replace the LLM service

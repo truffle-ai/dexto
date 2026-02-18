@@ -1,13 +1,13 @@
 /**
  * @dexto/tools-filesystem
  *
- * FileSystem tools provider for Dexto agents.
+ * FileSystem tools factory for Dexto agents.
  * Provides file operation tools: read, write, edit, glob, grep.
  */
 
-// Main provider export
-export { fileSystemToolsProvider } from './tool-provider.js';
-export type { FileToolOptions, DirectoryApprovalCallbacks } from './file-tool-types.js';
+// Main factory export (image-compatible)
+export { fileSystemToolsFactory } from './tool-factory.js';
+export type { FileSystemServiceGetter } from './file-tool-types.js';
 
 // Service and utilities (for advanced use cases)
 export { FileSystemService } from './filesystem-service.js';

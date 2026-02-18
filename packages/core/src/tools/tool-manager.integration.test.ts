@@ -4,12 +4,11 @@ import { MCPManager } from '../mcp/manager.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { ToolErrorCode } from './error-codes.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
-import type { InternalToolsServices } from './internal-tools/registry.js';
-import type { InternalToolsConfig } from './schemas.js';
-import type { IMCPClient } from '../mcp/types.js';
+import { z } from 'zod';
+import type { McpClient } from '../mcp/types.js';
 import { AgentEventBus } from '../events/index.js';
 import { ApprovalManager } from '../approval/manager.js';
-import type { IAllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
+import type { AllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 
 // Mock logger
@@ -27,11 +26,78 @@ vi.mock('../logger/index.js', () => ({
 describe('ToolManager Integration Tests', () => {
     let mcpManager: MCPManager;
     let approvalManager: ApprovalManager;
-    let allowedToolsProvider: IAllowedToolsProvider;
-    let internalToolsServices: InternalToolsServices;
-    let internalToolsConfig: InternalToolsConfig;
+    let allowedToolsProvider: AllowedToolsProvider;
     let mockAgentEventBus: AgentEventBus;
+    let mockSearchService: {
+        searchMessages: ReturnType<typeof vi.fn>;
+        searchSessions: ReturnType<typeof vi.fn>;
+    };
+    let internalSearchHistoryTool: any;
     const mockLogger = createMockLogger();
+
+    const SearchHistoryInputSchema = z.object({
+        query: z.string().describe('The search query to find in conversation history'),
+        mode: z
+            .enum(['messages', 'sessions'])
+            .describe(
+                'Search mode: "messages" searches for individual messages, "sessions" finds sessions containing the query'
+            ),
+        sessionId: z
+            .string()
+            .optional()
+            .describe('Optional: limit search to a specific session (only for mode="messages")'),
+        role: z
+            .enum(['user', 'assistant', 'system', 'tool'])
+            .optional()
+            .describe('Optional: filter by message role (only for mode="messages")'),
+        limit: z
+            .number()
+            .optional()
+            .default(20)
+            .describe(
+                'Optional: maximum number of results to return (default: 20, only for mode="messages")'
+            ),
+        offset: z
+            .number()
+            .optional()
+            .default(0)
+            .describe('Optional: offset for pagination (default: 0, only for mode="messages")'),
+    });
+
+    type SearchServiceLike = {
+        searchMessages: (query: string, options: Record<string, unknown>) => Promise<unknown>;
+        searchSessions: (query: string) => Promise<unknown>;
+    };
+
+    function createSearchHistoryTool(searchService: SearchServiceLike) {
+        return {
+            id: 'search_history',
+            description:
+                'Search through conversation history across sessions. Use mode="messages" to search for specific messages, or mode="sessions" to find sessions containing the query.',
+            inputSchema: SearchHistoryInputSchema,
+            execute: async (input: unknown) => {
+                const { query, mode, sessionId, role, limit, offset } = input as {
+                    query: string;
+                    mode: 'messages' | 'sessions';
+                    sessionId?: string;
+                    role?: 'user' | 'assistant' | 'system' | 'tool';
+                    limit?: number;
+                    offset?: number;
+                };
+
+                if (mode === 'messages') {
+                    const searchOptions: Record<string, unknown> = {};
+                    if (sessionId !== undefined) searchOptions.sessionId = sessionId;
+                    if (role !== undefined) searchOptions.role = role;
+                    if (limit !== undefined) searchOptions.limit = limit;
+                    if (offset !== undefined) searchOptions.offset = offset;
+                    return await searchService.searchMessages(query, searchOptions);
+                }
+
+                return await searchService.searchSessions(query);
+            },
+        };
+    }
 
     beforeEach(() => {
         // Create real MCPManager
@@ -49,7 +115,7 @@ describe('ToolManager Integration Tests', () => {
         // Create ApprovalManager in auto-approve mode for integration tests
         approvalManager = new ApprovalManager(
             {
-                toolConfirmation: {
+                permissions: {
                     mode: 'auto-approve',
                     timeout: 120000,
                 },
@@ -69,24 +135,19 @@ describe('ToolManager Integration Tests', () => {
         } as any;
 
         // Mock SearchService for internal tools
-        const mockSearchService = {
+        mockSearchService = {
             searchMessages: vi
                 .fn()
                 .mockResolvedValue([{ id: '1', content: 'test message', role: 'user' }]),
             searchSessions: vi.fn().mockResolvedValue([{ id: 'session1', title: 'Test Session' }]),
-        } as any;
-
-        internalToolsServices = {
-            searchService: mockSearchService,
         };
-
-        internalToolsConfig = ['search_history'];
+        internalSearchHistoryTool = createSearchHistoryTool(mockSearchService);
     });
 
     describe('End-to-End Tool Execution', () => {
         it('should execute MCP tools through the complete pipeline', async () => {
             // Create mock MCP client
-            const mockClient: IMCPClient = {
+            const mockClient: McpClient = {
                 getTools: vi.fn().mockResolvedValue({
                     test_tool: {
                         name: 'test_tool',
@@ -112,10 +173,7 @@ describe('ToolManager Integration Tests', () => {
                 'auto-approve',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                {
-                    internalToolsServices: {},
-                    internalToolsConfig: [],
-                },
+                [],
                 mockLogger
             );
             await toolManager.initialize();
@@ -131,8 +189,8 @@ describe('ToolManager Integration Tests', () => {
             expect(result).toEqual({ result: 'mcp tool result' });
         });
 
-        it('should execute internal tools through the complete pipeline', async () => {
-            // Create ToolManager with internal tools
+        it('should execute local tools through the complete pipeline', async () => {
+            // Create ToolManager with local tools
             const toolManager = new ToolManager(
                 mcpManager,
                 approvalManager,
@@ -140,23 +198,21 @@ describe('ToolManager Integration Tests', () => {
                 'auto-approve',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                {
-                    internalToolsServices,
-                    internalToolsConfig,
-                },
+                [internalSearchHistoryTool],
                 mockLogger
             );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
 
             await toolManager.initialize();
 
-            // Execute internal tool
+            // Execute local tool
             const result = await toolManager.executeTool(
-                'internal--search_history',
+                'search_history',
                 { query: 'test query', mode: 'messages' },
                 'test-call-id'
             );
 
-            expect(internalToolsServices.searchService?.searchMessages).toHaveBeenCalledWith(
+            expect(mockSearchService.searchMessages).toHaveBeenCalledWith(
                 'test query',
                 expect.objectContaining({
                     limit: 20, // Default from Zod schema
@@ -168,9 +224,9 @@ describe('ToolManager Integration Tests', () => {
             });
         });
 
-        it('should work with both MCP and internal tools together', async () => {
+        it('should work with both MCP and local tools together', async () => {
             // Set up MCP tool
-            const mockClient: IMCPClient = {
+            const mockClient: McpClient = {
                 getTools: vi.fn().mockResolvedValue({
                     file_read: {
                         name: 'file_read',
@@ -186,7 +242,7 @@ describe('ToolManager Integration Tests', () => {
             mcpManager.registerClient('file-server', mockClient);
             await (mcpManager as any).updateClientCache('file-server', mockClient);
 
-            // Create ToolManager with both MCP and internal tools
+            // Create ToolManager with both MCP and local tools
             const toolManager = new ToolManager(
                 mcpManager,
                 approvalManager,
@@ -194,22 +250,27 @@ describe('ToolManager Integration Tests', () => {
                 'auto-approve',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                {
-                    internalToolsServices,
-                    internalToolsConfig,
-                },
+                [internalSearchHistoryTool],
                 mockLogger
             );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
 
             await toolManager.initialize();
 
-            // Get all tools - should include both types with proper prefixing
+            // Get all tools - should include both MCP and local tools
             const allTools = await toolManager.getAllTools();
 
             expect(allTools['mcp--file_read']).toBeDefined();
-            expect(allTools['internal--search_history']).toBeDefined();
+            expect(allTools['search_history']).toBeDefined();
             expect(allTools['mcp--file_read']?.description).toContain('(via MCP servers)');
-            expect(allTools['internal--search_history']?.description).toContain('(internal tool)');
+            expect(allTools['search_history']?.description).toContain(
+                'Search through conversation'
+            );
+
+            const mcpParams = allTools['mcp--file_read']?.parameters as {
+                properties?: Record<string, unknown>;
+            };
+            expect(mcpParams.properties?.__meta).toBeDefined();
 
             // Execute both types
             const mcpResult = await toolManager.executeTool(
@@ -217,14 +278,14 @@ describe('ToolManager Integration Tests', () => {
                 { path: '/test' },
                 'test-call-id-1'
             );
-            const internalResult = await toolManager.executeTool(
-                'internal--search_history',
+            const localResult = await toolManager.executeTool(
+                'search_history',
                 { query: 'search test', mode: 'sessions' },
                 'test-call-id-2'
             );
 
             expect(mcpResult).toEqual({ result: 'file content' });
-            expect(internalResult).toEqual({
+            expect(localResult).toEqual({
                 result: [{ id: 'session1', title: 'Test Session' }],
             });
         });
@@ -234,7 +295,7 @@ describe('ToolManager Integration Tests', () => {
         it('should work with auto-approve mode', async () => {
             const autoApproveManager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-approve',
                         timeout: 120000,
                     },
@@ -245,7 +306,7 @@ describe('ToolManager Integration Tests', () => {
                 },
                 mockLogger
             );
-            const mockClient: IMCPClient = {
+            const mockClient: McpClient = {
                 getTools: vi.fn().mockResolvedValue({
                     test_tool: {
                         name: 'test_tool',
@@ -269,10 +330,7 @@ describe('ToolManager Integration Tests', () => {
                 'auto-approve',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                {
-                    internalToolsServices: {},
-                    internalToolsConfig: [],
-                },
+                [],
                 mockLogger
             );
             const result = await toolManager.executeTool('mcp--test_tool', {}, 'test-call-id');
@@ -283,7 +341,7 @@ describe('ToolManager Integration Tests', () => {
         it('should work with auto-deny mode', async () => {
             const autoDenyManager = new ApprovalManager(
                 {
-                    toolConfirmation: {
+                    permissions: {
                         mode: 'auto-deny',
                         timeout: 120000,
                     },
@@ -294,7 +352,7 @@ describe('ToolManager Integration Tests', () => {
                 },
                 mockLogger
             );
-            const mockClient: IMCPClient = {
+            const mockClient: McpClient = {
                 getTools: vi.fn().mockResolvedValue({
                     test_tool: {
                         name: 'test_tool',
@@ -318,10 +376,7 @@ describe('ToolManager Integration Tests', () => {
                 'auto-deny',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                {
-                    internalToolsServices: {},
-                    internalToolsConfig: [],
-                },
+                [],
                 mockLogger
             );
 
@@ -339,7 +394,7 @@ describe('ToolManager Integration Tests', () => {
 
     describe('Error Scenarios and Recovery', () => {
         it('should handle MCP client failures gracefully', async () => {
-            const failingClient: IMCPClient = {
+            const failingClient: McpClient = {
                 getTools: vi.fn().mockRejectedValue(new Error('MCP connection failed')),
                 callTool: vi.fn(),
                 listPrompts: vi.fn().mockResolvedValue([]),
@@ -355,54 +410,23 @@ describe('ToolManager Integration Tests', () => {
                 'auto-approve',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                {
-                    internalToolsServices,
-                    internalToolsConfig,
-                },
+                [internalSearchHistoryTool],
                 mockLogger
             );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
 
             await toolManager.initialize();
 
             // Should still return internal tools even if MCP fails
             const allTools = await toolManager.getAllTools();
-            expect(allTools['internal--search_history']).toBeDefined();
+            expect(allTools['search_history']).toBeDefined();
             expect(Object.keys(allTools).filter((name) => name.startsWith('mcp--'))).toHaveLength(
                 0
             );
         });
 
-        it('should handle internal tools initialization failures gracefully', async () => {
-            // Mock services that will cause tool initialization to fail
-            const failingServices: InternalToolsServices = {
-                // Missing searchService - should cause search_history tool to be skipped
-            };
-
-            const toolManager = new ToolManager(
-                mcpManager,
-                approvalManager,
-                allowedToolsProvider,
-                'auto-approve',
-                mockAgentEventBus,
-                { alwaysAllow: [], alwaysDeny: [] },
-                {
-                    internalToolsServices: failingServices,
-                    internalToolsConfig,
-                },
-                mockLogger
-            );
-
-            await toolManager.initialize();
-
-            const allTools = await toolManager.getAllTools();
-            // Should not have any internal tools since searchService is missing
-            expect(
-                Object.keys(allTools).filter((name) => name.startsWith('internal--'))
-            ).toHaveLength(0);
-        });
-
         it('should handle tool execution failures properly', async () => {
-            const failingClient: IMCPClient = {
+            const failingClient: McpClient = {
                 getTools: vi.fn().mockResolvedValue({
                     failing_tool: {
                         name: 'failing_tool',
@@ -425,10 +449,7 @@ describe('ToolManager Integration Tests', () => {
                 'auto-approve',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                {
-                    internalToolsServices: {},
-                    internalToolsConfig: [],
-                },
+                [],
                 mockLogger
             );
 
@@ -437,16 +458,12 @@ describe('ToolManager Integration Tests', () => {
             ).rejects.toThrow(Error);
         });
 
-        it('should handle internal tool execution failures properly', async () => {
+        it('should handle local tool execution failures properly', async () => {
             // Mock SearchService to throw error
             const failingSearchService = {
                 searchMessages: vi.fn().mockRejectedValue(new Error('Search service failed')),
                 searchSessions: vi.fn().mockRejectedValue(new Error('Search service failed')),
             } as any;
-
-            const failingServices: InternalToolsServices = {
-                searchService: failingSearchService,
-            };
 
             const toolManager = new ToolManager(
                 mcpManager,
@@ -455,18 +472,16 @@ describe('ToolManager Integration Tests', () => {
                 'auto-approve',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                {
-                    internalToolsServices: failingServices,
-                    internalToolsConfig,
-                },
+                [createSearchHistoryTool(failingSearchService)],
                 mockLogger
             );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
 
             await toolManager.initialize();
 
             await expect(
                 toolManager.executeTool(
-                    'internal--search_history',
+                    'search_history',
                     { query: 'test', mode: 'messages' },
                     'test-call-id'
                 )
@@ -476,7 +491,7 @@ describe('ToolManager Integration Tests', () => {
 
     describe('Performance and Caching', () => {
         it('should cache tool discovery results efficiently', async () => {
-            const mockClient: IMCPClient = {
+            const mockClient: McpClient = {
                 getTools: vi.fn().mockResolvedValue({
                     test_tool: {
                         name: 'test_tool',
@@ -503,10 +518,7 @@ describe('ToolManager Integration Tests', () => {
                 'auto-approve',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                {
-                    internalToolsServices,
-                    internalToolsConfig,
-                },
+                [],
                 mockLogger
             );
 
@@ -523,7 +535,7 @@ describe('ToolManager Integration Tests', () => {
         });
 
         it('should refresh cache when requested', async () => {
-            const mockClient: IMCPClient = {
+            const mockClient: McpClient = {
                 getTools: vi.fn().mockResolvedValue({
                     test_tool: {
                         name: 'test_tool',
@@ -548,10 +560,7 @@ describe('ToolManager Integration Tests', () => {
                 'auto-approve',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                {
-                    internalToolsServices: {},
-                    internalToolsConfig: [],
-                },
+                [],
                 mockLogger
             );
 
@@ -574,7 +583,7 @@ describe('ToolManager Integration Tests', () => {
 
     describe('Session ID Handling', () => {
         it('should pass sessionId through the complete execution pipeline', async () => {
-            const mockClient: IMCPClient = {
+            const mockClient: McpClient = {
                 getTools: vi.fn().mockResolvedValue({
                     test_tool: {
                         name: 'test_tool',
@@ -597,12 +606,10 @@ describe('ToolManager Integration Tests', () => {
                 'auto-approve',
                 mockAgentEventBus,
                 { alwaysAllow: [], alwaysDeny: [] },
-                {
-                    internalToolsServices,
-                    internalToolsConfig,
-                },
+                [internalSearchHistoryTool],
                 mockLogger
             );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
 
             await toolManager.initialize();
 
@@ -616,9 +623,9 @@ describe('ToolManager Integration Tests', () => {
                 sessionId
             );
 
-            // Execute internal tool with sessionId
+            // Execute local tool with sessionId
             await toolManager.executeTool(
-                'internal--search_history',
+                'search_history',
                 { query: 'test', mode: 'messages' },
                 'test-call-id-2',
                 sessionId
@@ -627,8 +634,8 @@ describe('ToolManager Integration Tests', () => {
             // Verify MCP tool received sessionId (note: MCPManager doesn't use sessionId in callTool currently)
             expect(mockClient.callTool).toHaveBeenCalledWith('test_tool', { param: 'value' });
 
-            // Verify internal tool was called with proper defaults
-            expect(internalToolsServices.searchService?.searchMessages).toHaveBeenCalledWith(
+            // Verify local tool was called with proper defaults
+            expect(mockSearchService.searchMessages).toHaveBeenCalledWith(
                 'test',
                 expect.objectContaining({
                     limit: 20, // Default from Zod schema

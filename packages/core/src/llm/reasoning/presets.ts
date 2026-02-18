@@ -45,7 +45,7 @@ export function getReasoningSupport(provider: LLMProvider, model: string): Reaso
         case 'bedrock':
         case 'google':
         case 'openrouter':
-        case 'dexto': {
+        case 'dexto-nova': {
             // These providers support a budget-based paradigm and/or low|medium|high effort.
             // If the model isn't reasoning-capable, keep only base knobs (auto/off).
             const presets: ReasoningPreset[] = capable

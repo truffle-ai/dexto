@@ -4,6 +4,7 @@
 // Runtime utilities (actually used by client packages)
 export { toError } from './utils/error-conversion.js'; // Used by webui package
 export { zodToIssues } from './utils/result.js'; // Used by client-sdk package
+export { EnvExpandedString } from './utils/result.js'; // Used by @dexto/storage schemas in browser bundles
 export { ErrorScope, ErrorType } from './errors/types.js'; // Used by client-sdk package
 
 // Type-only exports (used as types, no runtime overhead)
@@ -54,16 +55,15 @@ export {
     DEFAULT_MCP_CONNECTION_MODE,
 } from './mcp/schemas.js';
 
-// Storage types and constants (used by webui)
-export type { CacheType, DatabaseType } from './storage/schemas.js';
-export { CACHE_TYPES, DATABASE_TYPES } from './storage/schemas.js';
+// Storage errors (used by @dexto/storage schemas in browser bundles)
+export { StorageErrorCode } from './storage/error-codes.js';
 
-// Tool confirmation types and constants (used by webui)
-export type { ToolConfirmationMode, AllowedToolsStorageType } from './tools/schemas.js';
+// Tool permissions types and constants (used by webui)
+export type { PermissionsMode, AllowedToolsStorageType } from './tools/schemas.js';
 export {
-    TOOL_CONFIRMATION_MODES,
+    PERMISSIONS_MODES,
     ALLOWED_TOOLS_STORAGE_TYPES,
-    DEFAULT_TOOL_CONFIRMATION_MODE,
+    DEFAULT_PERMISSIONS_MODE,
     DEFAULT_ALLOWED_TOOLS_STORAGE,
 } from './tools/schemas.js';
 
@@ -74,8 +74,8 @@ export type { ApprovalRequest, ApprovalResponse } from './approval/types.js';
 // Session types (used by CLI package)
 export type { SessionMetadata } from './session/session-manager.js';
 
-// Agent types (used by webui for form configuration)
-export type { AgentConfig, ValidatedAgentConfig } from './agent/schemas.js';
+// Workspace types (used by client-sdk/webui)
+export type { WorkspaceContext, SetWorkspaceInput } from './workspace/types.js';
 
 // System prompt types and constants (used by webui)
 export { PROMPT_GENERATOR_SOURCES } from './systemPrompt/registry.js';

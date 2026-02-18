@@ -168,7 +168,7 @@ storage:
     maxTotalSize: 1073741824  # 1GB total storage
     cleanupAfterDays: 30
 
-toolConfirmation:
+permissions:
   mode: auto-approve
   # timeout: omitted = infinite wait
   allowedToolsStorage: memory

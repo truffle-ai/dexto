@@ -1,68 +1,24 @@
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 import {
-    InternalToolsSchema,
-    ToolConfirmationConfigSchema,
+    PermissionsConfigSchema,
     ToolPoliciesSchema,
-    type InternalToolsConfig,
-    type ToolConfirmationConfig,
-    type ValidatedToolConfirmationConfig,
+    type PermissionsConfig,
+    type ValidatedPermissionsConfig,
     type ToolPolicies,
 } from './schemas.js';
 
-// safeParse for invalid test cases to check exact error codes
-// parse for valid test cases for less boilerplate
-describe('InternalToolsSchema', () => {
-    describe('Array Validation', () => {
-        it('should accept empty array as default', () => {
-            const result = InternalToolsSchema.parse([]);
-            expect(result).toEqual([]);
-        });
-
-        it('should accept valid internal tool names', () => {
-            const result = InternalToolsSchema.parse(['search_history']);
-            expect(result).toEqual(['search_history']);
-        });
-
-        it('should reject invalid tool names', () => {
-            const result = InternalToolsSchema.safeParse(['invalid-tool']);
-            expect(result.success).toBe(false);
-            expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_enum_value);
-            expect(result.error?.issues[0]?.path).toEqual([0]);
-        });
-        // TODO: update when more valid tools are added
-        it('should accept multiple valid tools', () => {
-            const result = InternalToolsSchema.parse(['search_history']);
-            expect(result).toHaveLength(1);
-        });
-    });
-
-    describe('Default Values', () => {
-        it('should apply default empty array when undefined', () => {
-            const result = InternalToolsSchema.parse(undefined);
-            expect(result).toEqual([]);
-        });
-    });
-
-    describe('Type Safety', () => {
-        it('should have correct type inference', () => {
-            const result: InternalToolsConfig = InternalToolsSchema.parse([]);
-            expect(Array.isArray(result)).toBe(true);
-        });
-    });
-});
-
-describe('ToolConfirmationConfigSchema', () => {
+describe('PermissionsConfigSchema', () => {
     describe('Field Validation', () => {
         it('should validate mode enum values', () => {
             const validModes = ['manual', 'auto-approve', 'auto-deny'];
 
             validModes.forEach((mode) => {
-                const result = ToolConfirmationConfigSchema.parse({ mode });
+                const result = PermissionsConfigSchema.parse({ mode });
                 expect(result.mode).toBe(mode);
             });
 
-            const invalidResult = ToolConfirmationConfigSchema.safeParse({ mode: 'invalid' });
+            const invalidResult = PermissionsConfigSchema.safeParse({ mode: 'invalid' });
             expect(invalidResult.success).toBe(false);
             expect(invalidResult.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_enum_value);
             expect(invalidResult.error?.issues[0]?.path).toEqual(['mode']);
@@ -70,28 +26,28 @@ describe('ToolConfirmationConfigSchema', () => {
 
         it('should validate timeout as positive integer', () => {
             // Negative should fail
-            let result = ToolConfirmationConfigSchema.safeParse({ timeout: -1 });
+            let result = PermissionsConfigSchema.safeParse({ timeout: -1 });
             expect(result.success).toBe(false);
             expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.too_small);
             expect(result.error?.issues[0]?.path).toEqual(['timeout']);
 
             // Zero should fail
-            result = ToolConfirmationConfigSchema.safeParse({ timeout: 0 });
+            result = PermissionsConfigSchema.safeParse({ timeout: 0 });
             expect(result.success).toBe(false);
             expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.too_small);
             expect(result.error?.issues[0]?.path).toEqual(['timeout']);
 
             // Float should fail
-            result = ToolConfirmationConfigSchema.safeParse({ timeout: 1.5 });
+            result = PermissionsConfigSchema.safeParse({ timeout: 1.5 });
             expect(result.success).toBe(false);
             expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_type);
             expect(result.error?.issues[0]?.path).toEqual(['timeout']);
 
             // Valid values should pass
-            const valid1 = ToolConfirmationConfigSchema.parse({ timeout: 1000 });
+            const valid1 = PermissionsConfigSchema.parse({ timeout: 1000 });
             expect(valid1.timeout).toBe(1000);
 
-            const valid2 = ToolConfirmationConfigSchema.parse({ timeout: 120000 });
+            const valid2 = PermissionsConfigSchema.parse({ timeout: 120000 });
             expect(valid2.timeout).toBe(120000);
         });
 
@@ -99,11 +55,11 @@ describe('ToolConfirmationConfigSchema', () => {
             const validStorage = ['memory', 'storage'];
 
             validStorage.forEach((allowedToolsStorage) => {
-                const result = ToolConfirmationConfigSchema.parse({ allowedToolsStorage });
+                const result = PermissionsConfigSchema.parse({ allowedToolsStorage });
                 expect(result.allowedToolsStorage).toBe(allowedToolsStorage);
             });
 
-            const invalidResult = ToolConfirmationConfigSchema.safeParse({
+            const invalidResult = PermissionsConfigSchema.safeParse({
                 allowedToolsStorage: 'invalid',
             });
             expect(invalidResult.success).toBe(false);
@@ -114,7 +70,7 @@ describe('ToolConfirmationConfigSchema', () => {
 
     describe('Default Values', () => {
         it('should apply all field defaults for empty object', () => {
-            const result = ToolConfirmationConfigSchema.parse({});
+            const result = PermissionsConfigSchema.parse({});
 
             // Note: timeout is now optional with no default (undefined = infinite wait)
             expect(result).toEqual({
@@ -129,7 +85,7 @@ describe('ToolConfirmationConfigSchema', () => {
         });
 
         it('should apply field defaults for partial config', () => {
-            const result1 = ToolConfirmationConfigSchema.parse({ mode: 'auto-approve' });
+            const result1 = PermissionsConfigSchema.parse({ mode: 'auto-approve' });
             // timeout is optional - undefined when not specified
             expect(result1).toEqual({
                 mode: 'auto-approve',
@@ -140,7 +96,7 @@ describe('ToolConfirmationConfigSchema', () => {
                 },
             });
 
-            const result2 = ToolConfirmationConfigSchema.parse({ timeout: 15000 });
+            const result2 = PermissionsConfigSchema.parse({ timeout: 15000 });
             expect(result2).toEqual({
                 mode: 'auto-approve',
                 timeout: 15000,
@@ -151,7 +107,7 @@ describe('ToolConfirmationConfigSchema', () => {
                 },
             });
 
-            const result3 = ToolConfirmationConfigSchema.parse({ allowedToolsStorage: 'memory' });
+            const result3 = PermissionsConfigSchema.parse({ allowedToolsStorage: 'memory' });
             // timeout is optional - undefined when not specified
             expect(result3).toEqual({
                 mode: 'auto-approve',
@@ -174,7 +130,7 @@ describe('ToolConfirmationConfigSchema', () => {
                 },
             };
 
-            const result = ToolConfirmationConfigSchema.parse(config);
+            const result = PermissionsConfigSchema.parse(config);
             expect(result).toEqual(config);
         });
     });
@@ -182,23 +138,23 @@ describe('ToolConfirmationConfigSchema', () => {
     describe('Edge Cases', () => {
         it('should handle boundary timeout values', () => {
             // Very small valid value
-            const small = ToolConfirmationConfigSchema.parse({ timeout: 1 });
+            const small = PermissionsConfigSchema.parse({ timeout: 1 });
             expect(small.timeout).toBe(1);
 
             // Large timeout value
-            const large = ToolConfirmationConfigSchema.parse({ timeout: 300000 }); // 5 minutes
+            const large = PermissionsConfigSchema.parse({ timeout: 300000 }); // 5 minutes
             expect(large.timeout).toBe(300000);
         });
 
         it('should reject non-string mode values', () => {
             // Number should fail
-            let result = ToolConfirmationConfigSchema.safeParse({ mode: 123 });
+            let result = PermissionsConfigSchema.safeParse({ mode: 123 });
             expect(result.success).toBe(false);
             expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_type);
             expect(result.error?.issues[0]?.path).toEqual(['mode']);
 
             // Null should fail
-            result = ToolConfirmationConfigSchema.safeParse({ mode: null });
+            result = PermissionsConfigSchema.safeParse({ mode: null });
             expect(result.success).toBe(false);
             expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_type);
             expect(result.error?.issues[0]?.path).toEqual(['mode']);
@@ -206,13 +162,13 @@ describe('ToolConfirmationConfigSchema', () => {
 
         it('should reject non-numeric timeout values', () => {
             // String should fail
-            let result = ToolConfirmationConfigSchema.safeParse({ timeout: 'abc' });
+            let result = PermissionsConfigSchema.safeParse({ timeout: 'abc' });
             expect(result.success).toBe(false);
             expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_type);
             expect(result.error?.issues[0]?.path).toEqual(['timeout']);
 
             // Null should fail
-            result = ToolConfirmationConfigSchema.safeParse({ timeout: null });
+            result = PermissionsConfigSchema.safeParse({ timeout: null });
             expect(result.success).toBe(false);
             expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.invalid_type);
             expect(result.error?.issues[0]?.path).toEqual(['timeout']);
@@ -226,7 +182,7 @@ describe('ToolConfirmationConfigSchema', () => {
                 unknownField: 'should fail',
             };
 
-            const result = ToolConfirmationConfigSchema.safeParse(configWithExtra);
+            const result = PermissionsConfigSchema.safeParse(configWithExtra);
             expect(result.success).toBe(false);
             expect(result.error?.issues[0]?.code).toBe(z.ZodIssueCode.unrecognized_keys);
         });
@@ -235,21 +191,21 @@ describe('ToolConfirmationConfigSchema', () => {
     describe('Type Safety', () => {
         it('should have correct input and output types', () => {
             // Input type allows optional fields (due to defaults)
-            const input: ToolConfirmationConfig = {};
-            const inputPartial: ToolConfirmationConfig = { mode: 'auto-approve' };
-            const inputFull: ToolConfirmationConfig = {
+            const input: PermissionsConfig = {};
+            const inputPartial: PermissionsConfig = { mode: 'auto-approve' };
+            const inputFull: PermissionsConfig = {
                 mode: 'manual',
                 timeout: 30000,
                 allowedToolsStorage: 'storage',
             };
 
-            expect(() => ToolConfirmationConfigSchema.parse(input)).not.toThrow();
-            expect(() => ToolConfirmationConfigSchema.parse(inputPartial)).not.toThrow();
-            expect(() => ToolConfirmationConfigSchema.parse(inputFull)).not.toThrow();
+            expect(() => PermissionsConfigSchema.parse(input)).not.toThrow();
+            expect(() => PermissionsConfigSchema.parse(inputPartial)).not.toThrow();
+            expect(() => PermissionsConfigSchema.parse(inputFull)).not.toThrow();
         });
 
         it('should produce validated output type', () => {
-            const result: ValidatedToolConfirmationConfig = ToolConfirmationConfigSchema.parse({});
+            const result: ValidatedPermissionsConfig = PermissionsConfigSchema.parse({});
 
             // Output type guarantees required fields are present
             expect(typeof result.mode).toBe('string');
@@ -258,8 +214,9 @@ describe('ToolConfirmationConfigSchema', () => {
             expect(result.timeout).toBeUndefined();
 
             // When timeout is provided, it should be a positive number
-            const resultWithTimeout: ValidatedToolConfirmationConfig =
-                ToolConfirmationConfigSchema.parse({ timeout: 60000 });
+            const resultWithTimeout: ValidatedPermissionsConfig = PermissionsConfigSchema.parse({
+                timeout: 60000,
+            });
             expect(typeof resultWithTimeout.timeout).toBe('number');
             expect(resultWithTimeout.timeout).toBeGreaterThan(0);
         });
@@ -277,7 +234,7 @@ describe('ToolConfirmationConfigSchema', () => {
                 },
             };
 
-            const result = ToolConfirmationConfigSchema.parse(interactiveConfig);
+            const result = PermissionsConfigSchema.parse(interactiveConfig);
             expect(result).toEqual(interactiveConfig);
         });
 
@@ -292,7 +249,7 @@ describe('ToolConfirmationConfigSchema', () => {
                 },
             };
 
-            const result = ToolConfirmationConfigSchema.parse(autoApproveConfig);
+            const result = PermissionsConfigSchema.parse(autoApproveConfig);
             expect(result).toEqual(autoApproveConfig);
         });
 
@@ -307,7 +264,7 @@ describe('ToolConfirmationConfigSchema', () => {
                 },
             };
 
-            const result = ToolConfirmationConfigSchema.parse(strictConfig);
+            const result = PermissionsConfigSchema.parse(strictConfig);
             expect(result).toEqual(strictConfig);
         });
 
@@ -317,12 +274,12 @@ describe('ToolConfirmationConfigSchema', () => {
                 timeout: 30000,
                 allowedToolsStorage: 'storage' as const,
                 toolPolicies: {
-                    alwaysAllow: ['internal--ask_user', 'mcp--filesystem--read_file'],
+                    alwaysAllow: ['ask_user', 'mcp--filesystem--read_file'],
                     alwaysDeny: ['mcp--filesystem--delete_file'],
                 },
             };
 
-            const result = ToolConfirmationConfigSchema.parse(configWithPolicies);
+            const result = PermissionsConfigSchema.parse(configWithPolicies);
             expect(result).toEqual(configWithPolicies);
             expect(result.toolPolicies?.alwaysAllow).toHaveLength(2);
             expect(result.toolPolicies?.alwaysDeny).toHaveLength(1);
@@ -345,13 +302,10 @@ describe('ToolPoliciesSchema', () => {
 
         it('should accept valid tool names in alwaysAllow', () => {
             const result = ToolPoliciesSchema.parse({
-                alwaysAllow: ['internal--ask_user', 'mcp--filesystem--read_file'],
+                alwaysAllow: ['ask_user', 'mcp--filesystem--read_file'],
                 alwaysDeny: [],
             });
-            expect(result.alwaysAllow).toEqual([
-                'internal--ask_user',
-                'mcp--filesystem--read_file',
-            ]);
+            expect(result.alwaysAllow).toEqual(['ask_user', 'mcp--filesystem--read_file']);
         });
 
         it('should accept valid tool names in alwaysDeny', () => {
@@ -367,7 +321,7 @@ describe('ToolPoliciesSchema', () => {
 
         it('should accept both lists populated', () => {
             const result = ToolPoliciesSchema.parse({
-                alwaysAllow: ['internal--ask_user'],
+                alwaysAllow: ['ask_user'],
                 alwaysDeny: ['mcp--filesystem--delete_file'],
             });
             expect(result.alwaysAllow).toHaveLength(1);
@@ -470,7 +424,7 @@ describe('ToolPoliciesSchema', () => {
         it('should handle safe development configuration', () => {
             const devPolicies = {
                 alwaysAllow: [
-                    'internal--ask_user',
+                    'ask_user',
                     'mcp--filesystem--read_file',
                     'mcp--filesystem--list_directory',
                 ],
@@ -483,7 +437,7 @@ describe('ToolPoliciesSchema', () => {
 
         it('should handle production security configuration', () => {
             const prodPolicies = {
-                alwaysAllow: ['internal--ask_user'],
+                alwaysAllow: ['ask_user'],
                 alwaysDeny: [
                     'mcp--filesystem--delete_file',
                     'mcp--playwright--execute_script',
@@ -497,7 +451,7 @@ describe('ToolPoliciesSchema', () => {
 
         it('should handle minimal allow-only policy', () => {
             const allowOnlyPolicy = {
-                alwaysAllow: ['internal--ask_user', 'mcp--filesystem--read_file'],
+                alwaysAllow: ['ask_user', 'mcp--filesystem--read_file'],
                 alwaysDeny: [],
             };
 
