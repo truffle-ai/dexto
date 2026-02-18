@@ -2,7 +2,7 @@
 
 This repo is reviewed by automated agents (including CodeRabbit). This file is the source of truth for repo-wide conventions and review expectations.
 
-**Package manager: pnpm** (do not use npm/yarn)
+**Package manager: Bun** (do not use pnpm/npm/yarn)
 
 ## Code Quality Requirements
 
@@ -120,9 +120,9 @@ Dexto’s supported models live in core and are primarily sourced from `models.d
 
 - **Registry source of truth:** `packages/core/src/llm/registry/index.ts` (consumes the generated snapshot + any manual overlays).
 - **Generated snapshot:** `packages/core/src/llm/registry/models.generated.ts` (generated from `models.dev` via `scripts/sync-llm-registry.ts`).
-  - Update: `pnpm run sync-llm-registry`
-  - Verify clean repo (CI-style): `pnpm run sync-llm-registry:check`
-- **Gateway transform validation:** `packages/core/src/llm/registry/index.test.ts` includes a full-sweep check that our native→OpenRouter ID transform still matches the committed OpenRouter catalog snapshot (runs in `pnpm test`; catches naming drift like Anthropic dotted versions or Gemini `-001`).
+  - Update: `bun run sync-llm-registry`
+  - Verify clean repo (CI-style): `bun run sync-llm-registry:check`
+- **Gateway transform validation:** `packages/core/src/llm/registry/index.test.ts` includes a full-sweep check that our native→OpenRouter ID transform still matches the committed OpenRouter catalog snapshot (runs in `bun run test`; catches naming drift like Anthropic dotted versions or Gemini `-001`).
 - **Manual overlays / missing models:** `packages/core/src/llm/registry/models.manual.ts` (e.g. models missing capability metadata upstream).
 - **Curation for UI/onboarding:** `packages/core/src/llm/curation-config.ts` (explicit curated model IDs; used by `/llm/catalog?scope=curated` and default pickers).
 - **Runtime auto-update (Node-only):** `packages/core/src/llm/registry/auto-update.ts` caches a fetched registry at `~/.dexto/cache/llm-registry-models.json` (disable with `DEXTO_LLM_REGISTRY_DISABLE_FETCH=1`).
@@ -193,7 +193,7 @@ Use standardized helpers from: `packages/core/src/utils/result.ts`
 
 Update process:
 1. Modify route definitions / Zod schemas in `packages/server/src/hono/routes/*.ts`
-2. Run `pnpm run sync-openapi-docs`
+2. Run `bun run sync-openapi-docs`
 3. Verify the generated output includes your changes
 
 ## Logging
@@ -254,9 +254,9 @@ Test types:
 Test location: Co-locate tests with source files (e.g., `foo.ts` → `foo.test.ts` in same directory).
 
 Common commands:
-- `pnpm test`
-- `pnpm run test:unit`
-- `pnpm run test:integ`
+- `bun run test`
+- `bun run test:unit`
+- `bun run test:integ`
 
 When fixing bugs, add regression coverage where feasible.
 
