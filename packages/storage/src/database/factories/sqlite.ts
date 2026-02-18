@@ -34,7 +34,7 @@ export const sqliteDatabaseFactory: DatabaseFactory<SqliteDatabaseConfig> = {
                 throw StorageError.dependencyNotInstalled(
                     'SQLite',
                     'better-sqlite3',
-                    'bun add better-sqlite3'
+                    'npm install better-sqlite3 (or: bun add better-sqlite3)'
                 );
             }
             throw error;

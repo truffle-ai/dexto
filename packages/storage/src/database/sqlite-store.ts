@@ -5,16 +5,30 @@ import type { Logger } from '@dexto/core';
 import { DextoLogComponent, StorageError } from '@dexto/core';
 import type { SqliteDatabaseConfig } from './schemas.js';
 
+type SqliteStatement = {
+    get(...params: unknown[]): unknown;
+    all(...params: unknown[]): unknown[];
+    run(...params: unknown[]): unknown;
+};
+
+type SqliteDriver = {
+    exec(sql: string): void;
+    prepare(sql: string): SqliteStatement;
+    close(): void;
+};
+
+type SqliteDatabaseConstructor = new (filename: string, options?: unknown) => SqliteDriver;
+
 // Dynamic import for bun:sqlite / better-sqlite3 (Node fallback)
-let BunSqliteDatabase: any;
-let BetterSqlite3Database: any;
+let BunSqliteDatabase: SqliteDatabaseConstructor | undefined;
+let BetterSqlite3Database: SqliteDatabaseConstructor | undefined;
 
 /**
  * SQLite database store for local development and production.
  * Implements the Database interface with proper schema and connection handling.
  */
 export class SQLiteStore implements Database {
-    private db: any | null = null; // Database.Database
+    private db: SqliteDriver | null = null;
     private dbPath: string;
     private config: SqliteDatabaseConfig;
     private logger: Logger;
@@ -27,11 +41,12 @@ export class SQLiteStore implements Database {
     }
 
     private initializeTables(): void {
+        const db = this.getDb();
         this.logger.debug('SQLite initializing database schema...');
 
         try {
             // Create key-value table
-            this.db.exec(`
+            db.exec(`
                 CREATE TABLE IF NOT EXISTS kv_store (
                     key TEXT PRIMARY KEY,
                     value TEXT NOT NULL,
@@ -41,7 +56,7 @@ export class SQLiteStore implements Database {
             `);
 
             // Create list table for append operations
-            this.db.exec(`
+            db.exec(`
                 CREATE TABLE IF NOT EXISTS list_store (
                     key TEXT NOT NULL,
                     value TEXT NOT NULL,
@@ -52,7 +67,7 @@ export class SQLiteStore implements Database {
             `);
 
             // Create indexes for better performance
-            this.db.exec(`
+            db.exec(`
                 CREATE INDEX IF NOT EXISTS idx_kv_store_key ON kv_store(key);
                 CREATE INDEX IF NOT EXISTS idx_list_store_key ON list_store(key);
                 CREATE INDEX IF NOT EXISTS idx_list_store_sequence ON list_store(key, sequence);
@@ -112,7 +127,9 @@ export class SQLiteStore implements Database {
             if (!BunSqliteDatabase) {
                 try {
                     const module = await import('bun:sqlite');
-                    BunSqliteDatabase = (module as any).Database;
+                    BunSqliteDatabase = (
+                        module as unknown as { Database: SqliteDatabaseConstructor }
+                    ).Database;
                 } catch (error: unknown) {
                     throw StorageError.connectionFailed(
                         `Failed to import bun:sqlite: ${error instanceof Error ? error.message : String(error)}`
@@ -120,6 +137,8 @@ export class SQLiteStore implements Database {
                 }
             }
 
+            // bun:sqlite does not support better-sqlite3-style `timeout`/`verbose` constructor options.
+            // If we need timeout-like behavior, we should use `PRAGMA busy_timeout = ...` instead.
             this.db = new BunSqliteDatabase(this.dbPath, {
                 readonly,
                 create: !fileMustExist,
@@ -128,14 +147,15 @@ export class SQLiteStore implements Database {
             if (!BetterSqlite3Database) {
                 try {
                     const module = await import('better-sqlite3');
-                    BetterSqlite3Database = (module as any).default || module;
+                    BetterSqlite3Database = ((module as unknown as { default?: unknown }).default ||
+                        module) as SqliteDatabaseConstructor;
                 } catch (error: unknown) {
                     const err = error as NodeJS.ErrnoException;
                     if (err.code === 'ERR_MODULE_NOT_FOUND') {
                         throw StorageError.dependencyNotInstalled(
                             'SQLite',
                             'better-sqlite3',
-                            'bun add better-sqlite3'
+                            'npm install better-sqlite3 (or: bun add better-sqlite3)'
                         );
                     }
                     throw StorageError.connectionFailed(
@@ -165,8 +185,10 @@ export class SQLiteStore implements Database {
             });
         }
 
+        const db = this.getDb();
+
         // Enable WAL mode for better concurrency (works for both bun:sqlite and better-sqlite3)
-        this.db.exec('PRAGMA journal_mode = WAL');
+        db.exec('PRAGMA journal_mode = WAL');
         this.logger.debug('SQLite enabled WAL mode for better concurrency');
 
         // Create tables if they don't exist
@@ -192,9 +214,9 @@ export class SQLiteStore implements Database {
 
     // Core operations
     async get<T>(key: string): Promise<T | undefined> {
-        this.checkConnection();
+        const db = this.getDb();
         try {
-            const row = this.db.prepare('SELECT value FROM kv_store WHERE key = ?').get(key) as
+            const row = db.prepare('SELECT value FROM kv_store WHERE key = ?').get(key) as
                 | { value: string }
                 | undefined;
             return row ? JSON.parse(row.value) : undefined;
@@ -208,14 +230,12 @@ export class SQLiteStore implements Database {
     }
 
     async set<T>(key: string, value: T): Promise<void> {
-        this.checkConnection();
+        const db = this.getDb();
         try {
             const serialized = JSON.stringify(value);
-            this.db
-                .prepare(
-                    'INSERT OR REPLACE INTO kv_store (key, value, updated_at) VALUES (?, ?, ?)'
-                )
-                .run(key, serialized, Date.now());
+            db.prepare(
+                'INSERT OR REPLACE INTO kv_store (key, value, updated_at) VALUES (?, ?, ?)'
+            ).run(key, serialized, Date.now());
         } catch (error) {
             throw StorageError.writeFailed(
                 'set',
@@ -226,10 +246,10 @@ export class SQLiteStore implements Database {
     }
 
     async delete(key: string): Promise<void> {
-        this.checkConnection();
+        const db = this.getDb();
         try {
-            this.db.prepare('DELETE FROM kv_store WHERE key = ?').run(key);
-            this.db.prepare('DELETE FROM list_store WHERE key = ?').run(key);
+            db.prepare('DELETE FROM kv_store WHERE key = ?').run(key);
+            db.prepare('DELETE FROM list_store WHERE key = ?').run(key);
         } catch (error) {
             throw StorageError.deleteFailed(
                 'delete',
@@ -241,13 +261,13 @@ export class SQLiteStore implements Database {
 
     // List operations
     async list(prefix: string): Promise<string[]> {
-        this.checkConnection();
+        const db = this.getDb();
         try {
             // Get keys from both tables
-            const kvKeys = this.db
+            const kvKeys = db
                 .prepare('SELECT key FROM kv_store WHERE key LIKE ?')
                 .all(`${prefix}%`) as { key: string }[];
-            const listKeys = this.db
+            const listKeys = db
                 .prepare('SELECT DISTINCT key FROM list_store WHERE key LIKE ?')
                 .all(`${prefix}%`) as { key: string }[];
 
@@ -267,17 +287,15 @@ export class SQLiteStore implements Database {
     }
 
     async append<T>(key: string, item: T): Promise<void> {
-        this.checkConnection();
+        const db = this.getDb();
         try {
             const serialized = JSON.stringify(item);
 
             // Use atomic subquery to calculate next sequence and insert in single statement
             // This eliminates race conditions under WAL mode
-            this.db
-                .prepare(
-                    'INSERT INTO list_store (key, value, sequence) VALUES (?, ?, (SELECT COALESCE(MAX(sequence), 0) + 1 FROM list_store WHERE key = ?))'
-                )
-                .run(key, serialized, key);
+            db.prepare(
+                'INSERT INTO list_store (key, value, sequence) VALUES (?, ?, (SELECT COALESCE(MAX(sequence), 0) + 1 FROM list_store WHERE key = ?))'
+            ).run(key, serialized, key);
         } catch (error) {
             throw StorageError.writeFailed(
                 'append',
@@ -288,9 +306,9 @@ export class SQLiteStore implements Database {
     }
 
     async getRange<T>(key: string, start: number, count: number): Promise<T[]> {
-        this.checkConnection();
+        const db = this.getDb();
         try {
-            const rows = this.db
+            const rows = db
                 .prepare(
                     'SELECT value FROM list_store WHERE key = ? ORDER BY sequence ASC LIMIT ? OFFSET ?'
                 )
@@ -308,16 +326,17 @@ export class SQLiteStore implements Database {
 
     // Schema management
 
-    private checkConnection(): void {
+    private getDb(): SqliteDriver {
         if (!this.db) {
             throw StorageError.notConnected('SQLiteStore');
         }
+
+        return this.db;
     }
 
     // Maintenance operations
     async vacuum(): Promise<void> {
-        this.checkConnection();
-        this.db.exec('VACUUM');
+        this.getDb().exec('VACUUM');
     }
 
     async getStats(): Promise<{
@@ -325,15 +344,15 @@ export class SQLiteStore implements Database {
         listCount: number;
         dbSize: number;
     }> {
-        this.checkConnection();
+        const db = this.getDb();
 
-        const kvCount = this.db.prepare('SELECT COUNT(*) as count FROM kv_store').get() as {
+        const kvCount = db.prepare('SELECT COUNT(*) as count FROM kv_store').get() as {
             count: number;
         };
-        const listCount = this.db.prepare('SELECT COUNT(*) as count FROM list_store').get() as {
+        const listCount = db.prepare('SELECT COUNT(*) as count FROM list_store').get() as {
             count: number;
         };
-        const dbSize = this.db
+        const dbSize = db
             .prepare(
                 'SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()'
             )
