@@ -36,6 +36,7 @@
     "@dexto/tools-lifecycle": "workspace:*",
     "@dexto/tools-plan": "workspace:*",
     "@dexto/tools-process": "workspace:*",
+    "@dexto/tools-scheduler": "workspace:*",
     "@dexto/tools-todo": "workspace:*",
     "zod": "^3.25.0"
   },
