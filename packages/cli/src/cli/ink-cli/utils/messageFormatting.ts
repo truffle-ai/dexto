@@ -317,6 +317,12 @@ const PATH_ARGS = new Set(['file_path', 'path']);
 const NEVER_TRUNCATE_ARGS = new Set(['url', 'task', 'pattern', 'question']);
 
 /**
+ * Arguments that should be omitted from tool headers.
+ * These are either large blobs (e.g., content/schema) or internal metadata.
+ */
+const OMITTED_ARGS = new Set(['__meta', 'content', 'schema']);
+
+/**
  * Formats tool arguments for display.
  * Format: ToolName(primary_arg) or ToolName(primary_arg, key: value)
  *
@@ -368,6 +374,7 @@ export function formatToolArgsForDisplay(toolName: string, args: Record<string, 
     // - Skip description (it's shown separately in the UI when present)
     for (const [key, value] of entries) {
         if (key === 'description') continue;
+        if (OMITTED_ARGS.has(key)) continue;
         if (parts.length >= 3) break;
 
         const formattedValue = formatArgValue(key, value);

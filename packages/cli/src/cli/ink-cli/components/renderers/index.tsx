@@ -61,7 +61,9 @@ export function ToolResultRenderer({ display, content, maxLines }: ToolResultRen
             );
 
         case 'file':
-            return <FileRenderer data={displayData} />;
+            return (
+                <FileRenderer data={displayData} {...(maxLines !== undefined && { maxLines })} />
+            );
 
         case 'generic':
         default:

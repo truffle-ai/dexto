@@ -34,6 +34,7 @@ function generateDiffPreview(
 
     return {
         type: 'diff',
+        title: 'Update Plan',
         unified,
         filename: filePath,
         additions,

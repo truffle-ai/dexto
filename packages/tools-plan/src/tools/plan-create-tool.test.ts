@@ -76,6 +76,7 @@ describe('plan_create tool', () => {
             )) as FileDisplayData;
 
             expect(preview.type).toBe('file');
+            expect(preview.title).toBe('Create Plan');
             expect(preview.operation).toBe('create');
             // Path is now absolute, check it ends with the expected suffix
             expect(preview.path).toContain(sessionId);
@@ -188,6 +189,7 @@ describe('plan_create tool', () => {
 
             expect(result._display).toBeDefined();
             expect(result._display.type).toBe('file');
+            expect(result._display.title).toBe('Create Plan');
             expect(result._display.operation).toBe('create');
             expect(result._display.lineCount).toBe(2);
         });

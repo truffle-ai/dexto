@@ -68,6 +68,7 @@ function generateDiffPreview(
 
     return {
         type: 'diff',
+        title: 'Update file',
         unified,
         filename: filePath,
         additions,
@@ -140,6 +141,7 @@ export function createWriteFileTool(
                     const lineCount = content.split('\n').length;
                     const preview: FileDisplayData = {
                         type: 'file',
+                        title: 'Create file',
                         path: resolvedPath,
                         operation: 'create',
                         size: Buffer.byteLength(content, 'utf8'),
@@ -231,10 +233,12 @@ export function createWriteFileTool(
                 const lineCount = content.split('\n').length;
                 _display = {
                     type: 'file',
+                    title: 'Create file',
                     path: resolvedPath,
                     operation: 'create',
                     size: result.bytesWritten,
                     lineCount,
+                    content,
                 };
             } else {
                 // File overwrite - generate diff using shared helper

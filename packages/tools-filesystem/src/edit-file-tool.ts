@@ -59,6 +59,7 @@ function generateDiffPreview(
 
     return {
         type: 'diff',
+        title: 'Update file',
         unified,
         filename: filePath,
         additions,

@@ -70,6 +70,7 @@ export function createPlanReviewTool(
             const planPath = resolvedPlanService.getPlanPath(context.sessionId);
             return {
                 type: 'file',
+                title: 'Review Plan',
                 path: planPath,
                 operation: 'read', // 'read' indicates this is for viewing, not creating/modifying
                 content: displayContent,

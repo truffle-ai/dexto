@@ -30,6 +30,8 @@ export type ToolDisplayData =
  */
 export interface DiffDisplayData {
     type: 'diff';
+    /** Optional UI title for this display (e.g., "Update file") */
+    title?: string;
     /** Unified diff string (output of `diff` package's createPatch) */
     unified: string;
     /** Path to the file that was modified */
@@ -50,6 +52,8 @@ export interface DiffDisplayData {
  */
 export interface ShellDisplayData {
     type: 'shell';
+    /** Optional UI title for this display (e.g., "Bash") */
+    title?: string;
     /** The command that was executed */
     command: string;
     /** Exit code from the command (0 = success) */
@@ -70,6 +74,8 @@ export interface ShellDisplayData {
  */
 export interface SearchDisplayData {
     type: 'search';
+    /** Optional UI title for this display */
+    title?: string;
     /** The search pattern used */
     pattern: string;
     /** Array of match results */
@@ -100,6 +106,8 @@ export interface SearchMatch {
  */
 export interface FileDisplayData {
     type: 'file';
+    /** Optional UI title for this display (e.g., "Create file") */
+    title?: string;
     /** Path to the file */
     path: string;
     /** Type of operation performed */
@@ -120,6 +128,8 @@ export interface FileDisplayData {
  */
 export interface GenericDisplayData {
     type: 'generic';
+    /** Optional UI title for this display */
+    title?: string;
 }
 
 // =============================================================================

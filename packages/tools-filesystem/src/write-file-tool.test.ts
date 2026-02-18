@@ -97,6 +97,7 @@ describe('write_file tool', () => {
             );
             expect(preview).toBeDefined();
             expect(preview?.type).toBe('diff');
+            expect((preview as any).title).toBe('Update file');
 
             // Execute without modifying file (should succeed)
             const result = (await tool.execute(
@@ -200,14 +201,17 @@ describe('write_file tool', () => {
             expect(preview).toBeDefined();
             expect(preview?.type).toBe('file');
             expect((preview as any).operation).toBe('create');
+            expect((preview as any).title).toBe('Create file');
 
             // Execute (file still doesn't exist - should succeed)
             const result = (await tool.execute(
                 parsedInput,
                 createToolContext(mockLogger, { toolCallId })
-            )) as { success: boolean };
+            )) as { success: boolean; _display?: unknown };
 
             expect(result.success).toBe(true);
+            expect((result._display as any)?.title).toBe('Create file');
+            expect((result._display as any)?.content).toBe('brand new content');
 
             // Verify file was created
             const content = await fs.readFile(testFile, 'utf-8');
