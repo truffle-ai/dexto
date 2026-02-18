@@ -201,10 +201,13 @@ export async function initDexto(
 
 /** Adds notes for users to get started with their new initialized Dexto project */
 export async function postInitDexto(directory: string) {
+    const examplePath = path.join(directory, 'dexto', 'dexto-example.ts');
     const nextSteps = [
-        `1. Run the example: ${chalk.cyan(`bun ${path.join(directory, 'dexto', 'dexto-example.ts')}`)}`,
+        `1. Run the example (TypeScript):`,
+        `   - with Bun: ${chalk.cyan(`bun ${examplePath}`)}`,
+        `   - with Node: ${chalk.cyan(`npx tsx ${examplePath}`)}`,
         `2. Add/update your API key(s) in ${chalk.cyan('.env')}`,
-        `3. Customize the agent in ${chalk.cyan(path.join(directory, 'dexto', 'dexto-example.ts'))}`,
+        `3. Customize the agent in ${chalk.cyan(examplePath)}`,
         `4. Read more about Dexto: ${chalk.cyan('https://github.com/truffle-ai/dexto')}`,
     ].join('\n');
     p.note(nextSteps, chalk.rgb(255, 165, 0)('Next steps:'));

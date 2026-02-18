@@ -114,7 +114,7 @@ function copyAgents(): void {
 }
 
 // Run the script
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.main) {
     try {
         copyAgents();
     } catch (error) {

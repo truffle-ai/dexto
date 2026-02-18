@@ -221,7 +221,7 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateInf
  * displayUpdateNotification({
  *   current: '1.5.4',
  *   latest: '1.6.0',
- *   updateCommand: 'bun add -g dexto@latest'
+ *   updateCommand: 'npm i -g dexto@latest'
  * });
  * ```
  */
