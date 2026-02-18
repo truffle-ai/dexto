@@ -647,6 +647,8 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                         setSelectedIndex(0);
                         return;
                     }
+                } catch (err) {
+                    setError(err instanceof Error ? err.message : String(err));
                 } finally {
                     setIsApplying(false);
                 }
