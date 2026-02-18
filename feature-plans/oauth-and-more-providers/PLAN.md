@@ -547,11 +547,28 @@ Implementation note (important):
 - [ ] **1.5.2 Ingest OpenRouter live model catalog during sync**
   - Deliverables:
     - During `sync-llm-*`, fetch OpenRouter’s live `/models` and merge it into our OpenRouter model list.
+      - Reference implementation: `~/Projects/external/pi-mono/packages/ai/scripts/generate-models.ts` (`fetchOpenRouterModels()`)
     - Define merge precedence for shared fields (context length, pricing, etc.) and how we represent models missing metadata.
+    - Prefer a deterministic merge strategy that preserves a path to “all models”:
+      - Use models.dev as the baseline metadata (modalities, attachment, tool_call, etc.) when present.
+      - Use OpenRouter live for completeness (model existence), `context_length`, and pricing.
+      - De-dupe by model ID; keep the first-seen model as authoritative (pi’s approach: models.dev takes priority, gateway fills gaps).
+      - Reference: `~/Projects/external/pi-mono/packages/ai/scripts/generate-models.ts` (dedup section).
   - Exit:
     - Our OpenRouter model picker/catalog can include models that exist in OpenRouter but not in models.dev.
 
-- [ ] **1.5.3 Decide/implement “ancient model” visibility as a scope (optional)**
+- [ ] **1.5.3 Ingest Vercel AI Gateway live model catalog during sync**
+  - Deliverables:
+    - During `sync-llm-*`, fetch Vercel AI Gateway’s live model catalog and merge it into the `vercel` provider model list.
+      - Endpoint (as used by pi): `https://ai-gateway.vercel.sh/v1/models`
+      - Reference implementation: `~/Projects/external/pi-mono/packages/ai/scripts/generate-models.ts` (`fetchAiGatewayModels()`)
+    - Filter to “agent-capable” models for curated pickers by default:
+      - pi’s heuristic: include only models whose `tags` include `tool-use`.
+    - Normalize metadata into our registry shape (pricing per 1M tokens, supported file types, context/max tokens).
+  - Exit:
+    - Dexto can surface Vercel AI Gateway models in the catalog without relying on models.dev’s snapshot (and can track deltas over time).
+
+- [ ] **1.5.4 Decide/implement “ancient model” visibility as a scope (optional)**
   - Deliverables:
     - Add an explicit “hide deprecated/hide old” scope to catalog endpoints/pickers (do not assume upstream filtering).
     - Use `status === "deprecated"` where present; optionally use `release_date`/`last_updated` thresholds for models.dev-derived catalogs.

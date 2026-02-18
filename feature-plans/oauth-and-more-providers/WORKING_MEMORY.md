@@ -25,7 +25,7 @@
 ### Plan
 - Review the direction update in `feature-plans/oauth-and-more-providers/UPDATED_DIRECTION.md`.
 - Confirm the rebaselined tasklist in `feature-plans/oauth-and-more-providers/PLAN.md` (new Phase 1.5 for gateway catalogs; fix `/connect` multi-profile overwrite).
-- Once aligned, proceed with **1.3.1** (multi-profile UX) and **1.5.2** (OpenRouter live catalog ingestion) in that order.
+- Once aligned, proceed with **1.3.1** (multi-profile UX) and then Phase 1.5 gateway ingestion (**1.5.2** OpenRouter, **1.5.3** Vercel AI Gateway) in that order.
 
 ### Notes
 _Log findings, issues, and progress here as you work._

@@ -30,7 +30,7 @@
 | UV-10 | Manual smoke: `/connect` UX | Requires local interactive runs | Phase 1+ | Open | Verify connect flow UX: create/switch default profiles, no secret leakage, file permissions are correct. |
 | UV-11 | Manual smoke: OpenAI OAuth runtime behavior | Requires real OAuth account + network | Phase 3 | Open | Verify token refresh + request rewrite works end-to-end (including Responses API behavior). |
 | UV-12 | Manual smoke: WebUI parity | Requires running WebUI | Phase 7 | Open | Verify WebUI reflects method-based auth and doesn’t regress existing API key settings. |
-| UV-13 | “Ancient model” visibility policy | Product UX / defaults | 1.5.3 | Open | Decide whether we should ship an explicit time-window filter (eg “hide models older than X months”), and if so, which metadata to trust (`release_date`, `last_updated`, `status`). |
+| UV-13 | “Ancient model” visibility policy | Product UX / defaults | 1.5.4 | Open | Decide whether we should ship an explicit time-window filter (eg “hide models older than X months”), and if so, which metadata to trust (`release_date`, `last_updated`, `status`). |
 
 ---
 

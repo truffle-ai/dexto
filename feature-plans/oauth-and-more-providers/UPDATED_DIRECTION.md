@@ -42,7 +42,7 @@ So: “OpenCode doesn’t list some OpenRouter models” is not a transport limi
 pi does not rely on a single upstream catalog. It generates a merged model list from multiple sources:
 - models.dev fetch + normalization
 - OpenRouter fetch + normalization
-- Additional gateway catalogs (eg “AI Gateway”) fetch + normalization
+- Additional gateway catalogs (eg Vercel AI Gateway) fetch + normalization
 
 Reference:
 - `~/Projects/external/pi-mono/packages/ai/scripts/generate-models.ts`
@@ -66,6 +66,26 @@ Notes:
 - Dexto already has a runtime OpenRouter validator/cache (TTL + throttle) at:
   - `packages/core/src/llm/providers/openrouter-model-registry.ts`
 - That runtime cache is great for “is this ID valid?”, but it doesn’t automatically improve our *static* model picker/catalog unless we integrate it into our registry generation or expose it as a dynamic catalog endpoint.
+
+### 2.3 Also ingest Vercel AI Gateway’s live model catalog
+
+pi also fetches Vercel AI Gateway’s model catalog and treats it as a first-class source:
+- Endpoint: `https://ai-gateway.vercel.sh/v1/models`
+- Reference: `~/Projects/external/pi-mono/packages/ai/scripts/generate-models.ts` (`fetchAiGatewayModels()`)
+
+This matters for the same reason as OpenRouter:
+- models.dev may be stale or curated compared to the live gateway catalog.
+- We can keep our core transport surface small, but still keep a path to “all models” by ingesting gateway catalogs separately.
+
+### 2.4 Deterministic merge + de-dupe strategy (keep the path to “all models”)
+
+pi’s merge strategy is intentionally simple and stable:
+- Merge sources in a fixed order (models.dev first).
+- De-dupe by `(provider, modelId)`.
+- Keep the first-seen model as authoritative (so models.dev wins when both have an entry; gateway sources fill gaps).
+
+Reference:
+- `~/Projects/external/pi-mono/packages/ai/scripts/generate-models.ts` (section “Group by provider and deduplicate by model ID”).
 
 ## 3) “Minimal transports” is still a viable base (with a clear path to pi parity)
 
@@ -125,4 +145,3 @@ We should update the plan’s next phases to include:
 - LLM factory refactor:
   - table-driven “boring providers” based on `npm` + `api` baseURL
   - keep explicit code only for real exceptions (dexto-nova, openrouter, bedrock, vertex, oauth URL rewrites, local/ollama)
-
