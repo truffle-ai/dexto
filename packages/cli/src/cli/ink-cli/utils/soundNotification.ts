@@ -42,6 +42,15 @@ const BUNDLED_STARTUP_SOUND_PATH = fileURLToPath(
     new URL('../../assets/sounds/startup.wav', import.meta.url)
 );
 
+export function getDefaultSoundSpec(soundType: SoundType): string | null {
+    if (soundType === 'startup') {
+        return BUNDLED_STARTUP_SOUND_PATH;
+    }
+
+    const platformSounds = PLATFORM_SOUNDS[platform()];
+    return platformSounds?.[soundType] ?? null;
+}
+
 /**
  * Get custom sound path from ~/.dexto/sounds/
  */
@@ -110,6 +119,10 @@ function playSound(soundPath: string): void {
             playTerminalBell();
         }
     });
+}
+
+export function playSoundFile(soundPath: string): void {
+    playSound(soundPath);
 }
 
 /**

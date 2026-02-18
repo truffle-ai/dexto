@@ -33,6 +33,7 @@ export interface BaseSelectorProps<T> {
     borderColor?: string;
     onTab?: (item: T) => void; // Optional Tab key handler
     supportsTab?: boolean; // Whether to show Tab in instructions
+    instructionsOverride?: string; // Optional instruction text override
 }
 
 export interface BaseSelectorHandle {
@@ -59,6 +60,7 @@ function BaseSelectorInner<T>(
         borderColor = 'cyan',
         onTab,
         supportsTab = false,
+        instructionsOverride,
     }: BaseSelectorProps<T>,
     ref: React.Ref<BaseSelectorHandle>
 ) {
@@ -190,9 +192,11 @@ function BaseSelectorInner<T>(
     }
 
     // Build instruction text based on features
-    const instructions = supportsTab
-        ? '↑↓ navigate, Tab load, Enter select, Esc close'
-        : '↑↓ navigate, Enter select, Esc close';
+    const instructions =
+        instructionsOverride ??
+        (supportsTab
+            ? '↑↓ navigate, Tab load, Enter select, Esc close'
+            : '↑↓ navigate, Enter select, Esc close');
 
     return (
         <Box flexDirection="column">

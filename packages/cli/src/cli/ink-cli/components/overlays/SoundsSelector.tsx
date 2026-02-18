@@ -27,8 +27,10 @@ import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
 import {
     CUSTOM_SOUND_EXTENSIONS,
+    getDefaultSoundSpec,
     getCustomSoundPath,
     playNotificationSound,
+    playSoundFile,
     type SoundConfig,
     type SoundType,
 } from '../../utils/soundNotification.js';
@@ -52,7 +54,6 @@ export interface SoundsSelectorHandle {
 interface BuiltinSound {
     id: string;
     name: string;
-    description: string;
     filename: string;
 }
 
@@ -60,79 +61,66 @@ const BUILTIN_SOUNDS: BuiltinSound[] = [
     {
         id: 'blow',
         name: 'Blow',
-        description: 'Airy macOS-style alert',
         filename: 'blow.wav',
     },
     {
         id: 'coin',
         name: 'Coin',
-        description: 'Quick retro coin blip',
         filename: 'coin.wav',
     },
     {
         id: 'confirm',
         name: 'Confirm',
-        description: 'Short confirm click',
         filename: 'confirm.wav',
     },
     {
         id: 'ping',
         name: 'Ping',
-        description: 'Sharp UI ping',
         filename: 'ping.wav',
     },
     {
         id: 'powerup',
         name: 'Power Up',
-        description: 'Upward chiptune sweep',
         filename: 'powerup.wav',
     },
     {
         id: 'chime',
         name: 'Chime',
-        description: 'Soft two-note chime',
         filename: 'chime.wav',
     },
     {
         id: 'levelup',
         name: 'Level Up',
-        description: 'Triad level-up jingle',
         filename: 'levelup.wav',
     },
     {
         id: 'boot',
         name: 'Boot',
-        description: 'Console-style startup beep',
         filename: 'boot.wav',
     },
     {
         id: 'startup',
         name: 'Startup',
-        description: 'Classic handheld startup jingle',
         filename: 'startup.wav',
     },
     {
         id: 'glass',
         name: 'Glass',
-        description: 'Glass ping macOS-style alert',
         filename: 'glass.wav',
     },
     {
         id: 'success',
         name: 'Success',
-        description: 'Bright completion jingle',
         filename: 'success.wav',
     },
     {
         id: 'win',
         name: 'Win',
-        description: 'Spacey win flourish',
         filename: 'win.wav',
     },
     {
         id: 'treasure',
         name: 'Treasure Chest',
-        description: 'Classic chest-open fanfare',
         filename: 'treasure.wav',
     },
 ];
@@ -142,39 +130,21 @@ type SoundSelection = { kind: 'system' } | { kind: 'builtin'; id: string } | { k
 type ViewMode = 'main' | 'pick-startup' | 'pick-approval' | 'pick-complete';
 
 type MainItem =
-    | {
-          type: 'toggle';
-          id: keyof SoundConfig;
-          label: string;
-          description: string;
-          icon: string;
-          value: boolean;
-      }
+    | { type: 'enabled'; id: 'enabled' }
     | {
           type: 'pick';
           id: 'pick-startup' | 'pick-approval' | 'pick-complete';
           soundType: SoundType;
           label: string;
-          description: string;
-          icon: string;
-      }
-    | {
-          type: 'action';
-          id: 'test-startup' | 'test-approval' | 'test-complete' | 'reset-custom' | 'show-folder';
-          label: string;
-          description: string;
-          icon: string;
       };
 
 type PickItem =
-    | { type: 'system-default'; id: 'system-default'; label: string; description: string }
-    | {
-          type: 'builtin';
-          id: string;
-          label: string;
-          description: string;
-          isCurrent: boolean;
-      };
+    | { type: 'default'; id: 'default'; label: string; isCurrent: boolean }
+    | { type: 'builtin'; id: string; label: string; isCurrent: boolean };
+
+function isPickItem(item: MainItem | PickItem): item is PickItem {
+    return item.type === 'default' || item.type === 'builtin';
+}
 
 const DEFAULT_CONFIG: SoundConfig = {
     enabled: true,
@@ -183,22 +153,13 @@ const DEFAULT_CONFIG: SoundConfig = {
     onTaskComplete: true,
 };
 
-function soundConfigUpdate<K extends keyof SoundConfig>(
-    key: K,
-    value: SoundConfig[K]
-): Partial<SoundConfig> {
-    return { [key]: value } as Pick<SoundConfig, K>;
-}
-
 function selectionLabel(
     soundType: SoundType,
     selection: SoundSelection,
     builtinSounds: ReadonlyArray<Pick<BuiltinSound, 'id' | 'name'>>
 ): string {
-    if (selection.kind === 'system') {
-        return soundType === 'startup' ? 'Startup (default)' : 'System default';
-    }
-    if (selection.kind === 'custom') return 'Custom file';
+    if (selection.kind === 'system') return soundType === 'startup' ? 'Startup' : 'System';
+    if (selection.kind === 'custom') return 'Custom';
     const builtin = builtinSounds.find((s) => s.id === selection.id);
     return builtin?.name ?? selection.id;
 }
@@ -250,13 +211,17 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
 
         const baseSelectorRef = useRef<BaseSelectorHandle>(null);
         const builtinBuffersRef = useRef<Map<string, Buffer>>(new Map());
+        const applyConfigUpdateRef = useRef<(partial: Partial<SoundConfig>) => Promise<void>>(
+            async () => {}
+        );
+        const pickItemsRef = useRef<PickItem[]>([]);
+        const previewPickItemRef = useRef<(item: PickItem) => void>(() => {});
 
         const [viewMode, setViewMode] = useState<ViewMode>('main');
         const [selectedIndex, setSelectedIndex] = useState(0);
         const [isLoading, setIsLoading] = useState(false);
         const [isApplying, setIsApplying] = useState(false);
         const [error, setError] = useState<string | null>(null);
-        const [status, setStatus] = useState<string | null>(null);
         const [canPersistPreferences, setCanPersistPreferences] = useState(false);
         const [config, setConfig] = useState<SoundConfig>(DEFAULT_CONFIG);
         const [approvalSelection, setApprovalSelection] = useState<SoundSelection>({
@@ -279,19 +244,39 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
             }
             setViewMode('main');
             setSelectedIndex(0);
-            setStatus(null);
             setError(null);
         }, [onClose, viewMode]);
 
-        // Forward handleInput to BaseSelector
         useImperativeHandle(
             ref,
             () => ({
                 handleInput: (input: string, key: Key): boolean => {
+                    if (!isVisible) return false;
+
+                    // Main view: allow ←/→ to toggle the master sounds setting (On/Off)
+                    if (viewMode === 'main' && selectedIndex === 0) {
+                        if (key.leftArrow || key.rightArrow) {
+                            const nextEnabled = Boolean(key.rightArrow);
+                            if (configRef.current.enabled !== nextEnabled) {
+                                void applyConfigUpdateRef.current({ enabled: nextEnabled });
+                            }
+                            return true;
+                        }
+                    }
+
+                    // Pick view: allow Space to preview the selected sound
+                    if (viewMode !== 'main' && input === ' ') {
+                        const item = pickItemsRef.current[selectedIndex];
+                        if (item) {
+                            previewPickItemRef.current(item);
+                        }
+                        return true;
+                    }
+
                     return baseSelectorRef.current?.handleInput(input, key) ?? false;
                 },
             }),
-            []
+            [isVisible, selectedIndex, viewMode]
         );
 
         const builtinSoundPaths = useMemo(() => {
@@ -324,7 +309,6 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
             setIsLoading(true);
             setIsApplying(false);
             setError(null);
-            setStatus(null);
             setViewMode('main');
             setSelectedIndex(0);
 
@@ -389,101 +373,30 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
             };
         }, [isVisible, builtinSoundPaths, refreshSelections, soundService]);
 
-        const mainItems: MainItem[] = useMemo(() => {
-            return [
-                {
-                    type: 'toggle',
-                    id: 'enabled',
-                    label: `Sounds: ${config.enabled ? 'Enabled' : 'Disabled'}`,
-                    description: 'Master toggle for all sound notifications',
-                    icon: config.enabled ? '🔊' : '🔇',
-                    value: config.enabled,
-                },
-                {
-                    type: 'toggle',
-                    id: 'onStartup',
-                    label: `On startup: ${config.onStartup ? 'On' : 'Off'}`,
-                    description: 'Play a sound when the interactive CLI starts',
-                    icon: '🚀',
-                    value: config.onStartup,
-                },
-                {
-                    type: 'toggle',
-                    id: 'onApprovalRequired',
-                    label: `On approval required: ${config.onApprovalRequired ? 'On' : 'Off'}`,
-                    description: 'Play a sound when tool approval is needed',
-                    icon: '🧠',
-                    value: config.onApprovalRequired,
-                },
-                {
-                    type: 'toggle',
-                    id: 'onTaskComplete',
-                    label: `On task complete: ${config.onTaskComplete ? 'On' : 'Off'}`,
-                    description: 'Play a sound when the agent finishes a task',
-                    icon: '✅',
-                    value: config.onTaskComplete,
-                },
+        const mainItems: MainItem[] = useMemo(
+            () => [
+                { type: 'enabled', id: 'enabled' },
                 {
                     type: 'pick',
                     id: 'pick-startup',
                     soundType: 'startup',
-                    label: `Select startup sound (${selectionLabel('startup', startupSelection, builtinSoundPaths)})`,
-                    description: 'Choose a built-in sound or reset to default',
-                    icon: '🎬',
+                    label: 'startup sound',
                 },
                 {
                     type: 'pick',
                     id: 'pick-approval',
                     soundType: 'approval',
-                    label: `Select approval sound (${selectionLabel('approval', approvalSelection, builtinSoundPaths)})`,
-                    description: 'Choose a built-in sound or reset to system default',
-                    icon: '🔔',
+                    label: 'approval sound',
                 },
                 {
                     type: 'pick',
                     id: 'pick-complete',
                     soundType: 'complete',
-                    label: `Select completion sound (${selectionLabel('complete', completeSelection, builtinSoundPaths)})`,
-                    description: 'Choose a built-in sound or reset to system default',
-                    icon: '🏁',
+                    label: 'completion sound',
                 },
-                {
-                    type: 'action',
-                    id: 'test-startup',
-                    label: 'Test startup sound',
-                    description: 'Plays the current startup sound (ignores enabled toggles)',
-                    icon: '▶️',
-                },
-                {
-                    type: 'action',
-                    id: 'test-approval',
-                    label: 'Test approval sound',
-                    description: 'Plays the current approval sound (ignores enabled toggles)',
-                    icon: '▶️',
-                },
-                {
-                    type: 'action',
-                    id: 'test-complete',
-                    label: 'Test completion sound',
-                    description: 'Plays the current completion sound (ignores enabled toggles)',
-                    icon: '▶️',
-                },
-                {
-                    type: 'action',
-                    id: 'reset-custom',
-                    label: 'Reset custom sounds (defaults)',
-                    description: 'Removes custom sound files from ~/.dexto/sounds/',
-                    icon: '♻️',
-                },
-                {
-                    type: 'action',
-                    id: 'show-folder',
-                    label: 'Show sounds folder',
-                    description: 'Displays the path to ~/.dexto/sounds/',
-                    icon: '📁',
-                },
-            ];
-        }, [approvalSelection, builtinSoundPaths, completeSelection, config, startupSelection]);
+            ],
+            []
+        );
 
         const pickSoundType: SoundType | null =
             viewMode === 'pick-startup'
@@ -506,19 +419,15 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
 
             const items: PickItem[] = [
                 {
-                    type: 'system-default',
-                    id: 'system-default',
-                    label: pickSoundType === 'startup' ? 'Startup (default)' : 'System default',
-                    description:
-                        pickSoundType === 'startup'
-                            ? 'Use the bundled default startup sound'
-                            : 'Use the platform default notification sound',
+                    type: 'default',
+                    id: 'default',
+                    label: 'Default',
+                    isCurrent: current.kind === 'system',
                 },
                 ...builtinSoundPaths.map((sound) => ({
                     type: 'builtin' as const,
                     id: sound.id,
                     label: sound.name,
-                    description: sound.description,
                     isCurrent: current.kind === 'builtin' && current.id === sound.id,
                 })),
             ];
@@ -532,6 +441,8 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
             startupSelection,
         ]);
 
+        pickItemsRef.current = pickItems;
+
         const items = viewMode === 'main' ? mainItems : pickItems;
 
         const applyConfigUpdate = useCallback(
@@ -543,15 +454,11 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                 soundService?.setConfig(partial);
 
                 if (!canPersistPreferences) {
-                    setStatus(
-                        'Updated for this session (run `dexto setup` to persist preferences).'
-                    );
                     return;
                 }
 
                 try {
                     await updateGlobalPreferences({ sounds: partial });
-                    setStatus('Saved preferences.');
                 } catch (err) {
                     setConfig(previousConfig);
                     soundService?.setConfig(previousConfig);
@@ -560,6 +467,8 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
             },
             [canPersistPreferences, soundService]
         );
+
+        applyConfigUpdateRef.current = applyConfigUpdate;
 
         const setBuiltinSound = useCallback(
             async (soundType: SoundType, soundId: string) => {
@@ -579,7 +488,6 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
 
                 await refreshSelections();
                 playNotificationSound(soundType);
-                setStatus(`Set ${soundType} sound to: ${builtin.name}`);
             },
             [builtinSoundPaths, refreshSelections]
         );
@@ -589,36 +497,39 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                 await removeCustomSoundFiles(soundType);
                 await refreshSelections();
                 playNotificationSound(soundType);
-                setStatus(
-                    soundType === 'startup'
-                        ? 'Reset startup sound to default.'
-                        : `Reset ${soundType} sound to system default.`
-                );
             },
             [refreshSelections]
         );
 
-        const resetAllCustomSounds = useCallback(async () => {
-            await Promise.all([
-                removeCustomSoundFiles('startup'),
-                removeCustomSoundFiles('approval'),
-                removeCustomSoundFiles('complete'),
-            ]);
-            await refreshSelections();
-            setStatus('Reset custom sounds to defaults.');
-        }, [refreshSelections]);
+        const previewPickItem = useCallback(
+            (item: PickItem) => {
+                if (!pickSoundType) return;
+
+                if (item.type === 'default') {
+                    const spec = getDefaultSoundSpec(pickSoundType);
+                    if (spec) playSoundFile(spec);
+                    return;
+                }
+
+                const builtin = builtinSoundPaths.find((s) => s.id === item.id);
+                if (builtin) {
+                    playSoundFile(builtin.absPath);
+                }
+            },
+            [builtinSoundPaths, pickSoundType]
+        );
+
+        previewPickItemRef.current = previewPickItem;
 
         const handleSelect = useCallback(
             async (item: MainItem | PickItem) => {
                 if (isApplying || isLoading) return;
                 setIsApplying(true);
                 setError(null);
-                setStatus(null);
 
                 try {
-                    if (item.type === 'toggle') {
-                        const nextValue = !configRef.current[item.id];
-                        await applyConfigUpdate(soundConfigUpdate(item.id, nextValue));
+                    if (item.type === 'enabled') {
+                        await applyConfigUpdate({ enabled: !configRef.current.enabled });
                         return;
                     }
 
@@ -628,33 +539,7 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                         return;
                     }
 
-                    if (item.type === 'action') {
-                        if (item.id === 'test-startup') {
-                            playNotificationSound('startup');
-                            setStatus('Played startup sound.');
-                            return;
-                        }
-                        if (item.id === 'test-approval') {
-                            playNotificationSound('approval');
-                            setStatus('Played approval sound.');
-                            return;
-                        }
-                        if (item.id === 'test-complete') {
-                            playNotificationSound('complete');
-                            setStatus('Played completion sound.');
-                            return;
-                        }
-                        if (item.id === 'reset-custom') {
-                            await resetAllCustomSounds();
-                            return;
-                        }
-                        if (item.id === 'show-folder') {
-                            setStatus(`Sounds folder: ${getDextoGlobalPath('sounds')}`);
-                            return;
-                        }
-                    }
-
-                    if (item.type === 'system-default') {
+                    if (item.type === 'default') {
                         if (!pickSoundType) return;
                         await setSystemDefaultSound(pickSoundType);
                         setViewMode('main');
@@ -678,7 +563,6 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                 isApplying,
                 isLoading,
                 pickSoundType,
-                resetAllCustomSounds,
                 setBuiltinSound,
                 setSystemDefaultSound,
             ]
@@ -686,90 +570,63 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
 
         const formatItem = useCallback(
             (item: MainItem | PickItem, isSelected: boolean) => {
-                if ('type' in item && item.type === 'toggle') {
-                    const marker = item.value ? '✓' : ' ';
+                if (item.type === 'enabled') {
                     return (
                         <>
-                            <Text>{item.icon} </Text>
                             <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
-                                [{marker}] {item.label}
+                                sounds:{' '}
                             </Text>
-                            <Text color={isSelected ? 'white' : 'gray'}> - {item.description}</Text>
+                            <Text inverse={config.enabled} bold={config.enabled}>
+                                On
+                            </Text>
+                            <Text> </Text>
+                            <Text inverse={!config.enabled} bold={!config.enabled}>
+                                Off
+                            </Text>
                         </>
                     );
                 }
 
-                if ('type' in item && item.type === 'pick') {
+                if (item.type === 'pick') {
+                    const selection =
+                        item.soundType === 'startup'
+                            ? startupSelection
+                            : item.soundType === 'approval'
+                              ? approvalSelection
+                              : completeSelection;
+                    const currentLabel = selectionLabel(
+                        item.soundType,
+                        selection,
+                        builtinSoundPaths
+                    );
+
                     return (
-                        <>
-                            <Text>{item.icon} </Text>
-                            <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
-                                {item.label}
-                            </Text>
-                            <Text color={isSelected ? 'white' : 'gray'}> - {item.description}</Text>
-                        </>
+                        <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
+                            {item.label}: {currentLabel}
+                        </Text>
                     );
                 }
 
-                if ('type' in item && item.type === 'action') {
+                if (item.type === 'default' || item.type === 'builtin') {
                     return (
                         <>
-                            <Text>{item.icon} </Text>
                             <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
                                 {item.label}
                             </Text>
-                            <Text color={isSelected ? 'white' : 'gray'}> - {item.description}</Text>
-                        </>
-                    );
-                }
-
-                if ('type' in item && item.type === 'system-default') {
-                    const isCurrent =
-                        pickSoundType === 'startup'
-                            ? startupSelection.kind === 'system'
-                            : pickSoundType === 'approval'
-                              ? approvalSelection.kind === 'system'
-                              : pickSoundType === 'complete'
-                                ? completeSelection.kind === 'system'
-                                : false;
-                    return (
-                        <>
-                            <Text>{pickSoundType === 'startup' ? '📦 ' : '🖥️ '}</Text>
-                            <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
-                                {item.label}
-                            </Text>
-                            <Text color={isSelected ? 'white' : 'gray'}> - {item.description}</Text>
-                            {isCurrent && (
-                                <Text color="green" bold>
-                                    {' '}
-                                    ✓
-                                </Text>
-                            )}
-                        </>
-                    );
-                }
-
-                if ('type' in item && item.type === 'builtin') {
-                    return (
-                        <>
-                            <Text>🎮 </Text>
-                            <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
-                                {item.label}
-                            </Text>
-                            <Text color={isSelected ? 'white' : 'gray'}> - {item.description}</Text>
-                            {item.isCurrent && (
-                                <Text color="green" bold>
-                                    {' '}
-                                    ✓
-                                </Text>
-                            )}
+                            {item.isCurrent && <Text color="green"> *</Text>}
                         </>
                     );
                 }
 
                 return null;
             },
-            [approvalSelection.kind, completeSelection.kind, pickSoundType, startupSelection.kind]
+            [
+                approvalSelection,
+                builtinSoundPaths,
+                completeSelection,
+                config.enabled,
+                startupSelection,
+            ]
         );
 
         const title =
@@ -792,29 +649,29 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                     selectedIndex={selectedIndex}
                     onSelectIndex={setSelectedIndex}
                     onSelect={(item) => void handleSelect(item as MainItem | PickItem)}
+                    onTab={(item) => {
+                        if (isPickItem(item as MainItem | PickItem)) {
+                            previewPickItem(item as PickItem);
+                        }
+                    }}
+                    supportsTab={viewMode !== 'main'}
                     onClose={closeOrBack}
                     formatItem={formatItem}
                     title={title}
+                    instructionsOverride={
+                        viewMode === 'main'
+                            ? '↑↓ navigate, ←→ toggle, Enter select, Esc close'
+                            : '↑↓ navigate, Tab/Space preview, Enter select, Esc back'
+                    }
                     borderColor="magenta"
                     emptyMessage="No options available"
                 />
 
-                <Box marginTop={1} flexDirection="column">
-                    {!canPersistPreferences && (
-                        <Text color="yellow">
-                            ⚠️ Preferences file not found. Toggle changes won't persist (run `dexto
-                            setup`).
-                        </Text>
-                    )}
-                    {isApplying && <Text color="gray">Applying…</Text>}
-                    {status && <Text color="green">✅ {status}</Text>}
-                    {error && <Text color="red">❌ {error}</Text>}
-                    {!status && !error && !isApplying && (
-                        <Text color="gray">
-                            Tip: Built-in sounds are copied to {getDextoGlobalPath('sounds')}
-                        </Text>
-                    )}
-                </Box>
+                {error && (
+                    <Box marginTop={1}>
+                        <Text color="red">{error}</Text>
+                    </Box>
+                )}
             </Box>
         );
     }
