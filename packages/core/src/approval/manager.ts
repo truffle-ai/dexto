@@ -213,7 +213,7 @@ export class ApprovalManager {
      */
     private getDirectoryApprovalKeys(directory: string): string[] {
         const resolved = path.resolve(directory);
-        const real = tryRealpathSync(resolved);
+        const real = tryRealpathSyncWithExistingParent(resolved);
         if (real && real !== resolved) {
             return [resolved, real];
         }
