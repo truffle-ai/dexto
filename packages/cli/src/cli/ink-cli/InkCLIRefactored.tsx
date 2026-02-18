@@ -213,6 +213,11 @@ export async function startInkCliRefactored(
         }
     }
 
+    // Import exit handler before render to avoid race condition
+    const { registerExitHandler } = await import(
+        '../commands/interactive-commands/exit-handler.js'
+    );
+
     const inkApp = render(
         <InkCLIRefactored
             agent={agent}
@@ -229,10 +234,7 @@ export async function startInkCliRefactored(
         }
     );
 
-    // Register exit handler so commands can trigger graceful exit
-    const { registerExitHandler } = await import(
-        '../commands/interactive-commands/exit-handler.js'
-    );
+    // Register exit handler immediately after render (synchronous, before any await)
     registerExitHandler(() => inkApp.unmount());
 
     await inkApp.waitUntilExit();
@@ -311,7 +313,7 @@ export async function startInkCliRefactored(
                         '\n'
                 );
 
-                if (modelStat.estimatedCost > 0) {
+                if (modelStat.estimatedCost !== undefined) {
                     process.stdout.write(
                         chalk.gray(
                             `      Cost:               ${formatCost(modelStat.estimatedCost)}`
@@ -321,7 +323,7 @@ export async function startInkCliRefactored(
             }
         }
 
-        // Token usage
+        // Token usage - label depends on whether multi-model was shown
         if (exitStats.tokenUsage) {
             const {
                 inputTokens,
@@ -339,7 +341,11 @@ export async function startInkCliRefactored(
                     ? ((cacheReadTokens / totalInputWithCache) * 100).toFixed(1)
                     : '0.0';
 
-            process.stdout.write(chalk.gray('\n  Token Usage:') + '\n');
+            const tokenSectionLabel =
+                exitStats.modelStats && exitStats.modelStats.length > 1
+                    ? '\n  Total Token Usage:'
+                    : '\n  Token Usage:';
+            process.stdout.write(chalk.gray(tokenSectionLabel) + '\n');
             process.stdout.write(
                 chalk.gray(`    Input tokens:       ${inputTokens.toLocaleString()}`) + '\n'
             );
