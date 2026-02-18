@@ -10,7 +10,7 @@ import { eventBus } from '@/lib/events/EventBus.js';
 import { useChatStore } from '@/lib/stores/chatStore.js';
 import type { Session } from './useSessions.js';
 import type { Attachment } from '../../lib/attachment-types.js';
-import { buildContentParts } from '../../lib/attachment-utils.js';
+import { resolveMessageContent } from '../../lib/attachment-utils.js';
 
 // Tool result types
 export interface ToolResultError {
@@ -266,17 +266,13 @@ export function useChat(
             lastUserMessageIdRef.current = userId;
             lastMessageIdRef.current = userId; // Track for error anchoring
 
-            // Build content parts array from text and attachments
-            const contentParts = buildContentParts(content, attachments);
+            const messageContent = resolveMessageContent(content, attachments);
 
             // Store message with full content array if multimodal, otherwise just text
             useChatStore.getState().addMessage(sessionId, {
                 id: userId,
                 role: 'user',
-                content:
-                    contentParts.length === 1 && contentParts[0]?.type === 'text'
-                        ? content // Simple text-only case
-                        : contentParts, // Multimodal: store full array
+                content: messageContent,
                 createdAt: Date.now(),
                 sessionId,
             });
@@ -289,10 +285,7 @@ export function useChat(
                 // The 'stream' flag only controls whether chunks update UI incrementally
                 const responsePromise = client.api['message-stream'].$post({
                     json: {
-                        content:
-                            contentParts.length === 1 && contentParts[0]?.type === 'text'
-                                ? content // Simple text-only case: send as string
-                                : contentParts, // Multimodal: send as array
+                        content: messageContent,
                         sessionId,
                     },
                 });

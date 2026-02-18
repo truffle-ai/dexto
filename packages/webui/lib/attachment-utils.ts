@@ -130,3 +130,20 @@ export function buildContentParts(text?: string, attachments?: Attachment[]): Co
 
     return contentParts;
 }
+
+/**
+ * Resolve the message content to send/store.
+ * Collapses a single text-only part back to a plain string; keeps the full
+ * ContentPart array for multimodal messages.
+ *
+ * @param text - Optional text content
+ * @param attachments - Optional array of attachments
+ * @returns Plain string for text-only messages, ContentPart[] for multimodal
+ */
+export function resolveMessageContent(
+    text?: string,
+    attachments?: Attachment[]
+): string | ContentPart[] {
+    const parts = buildContentParts(text, attachments);
+    return parts.length === 1 && parts[0]?.type === 'text' ? (text ?? '') : parts;
+}

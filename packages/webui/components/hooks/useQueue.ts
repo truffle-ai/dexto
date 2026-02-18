@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { client } from '@/lib/client';
 import { queryKeys } from '@/lib/queryKeys';
 import type { Attachment } from '../../lib/attachment-types.js';
-import { buildContentParts } from '../../lib/attachment-utils.js';
+import { resolveMessageContent } from '../../lib/attachment-utils.js';
 
 /**
  * Hook to fetch queued messages for a session
@@ -47,16 +47,10 @@ export function useQueueMessage() {
             message?: string;
             attachments?: Attachment[];
         }) => {
-            // Build content parts array from text and attachments
-            const contentParts = buildContentParts(message, attachments);
-
             const response = await client.api.queue[':sessionId'].$post({
                 param: { sessionId },
                 json: {
-                    content:
-                        contentParts.length === 1 && contentParts[0]?.type === 'text'
-                            ? message! // Simple text-only case: send as string
-                            : contentParts, // Multimodal: send as array
+                    content: resolveMessageContent(message, attachments),
                 },
             });
             if (!response.ok) {
