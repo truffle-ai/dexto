@@ -6,11 +6,26 @@ import { createRequire } from 'module';
 import { executeWithTimeout } from './execute.js';
 import { textOrExit } from './prompt-helpers.js';
 
+declare const DEXTO_CLI_VERSION: string | undefined;
+
 const require = createRequire(import.meta.url);
-const cliPackageJson = require('../../../package.json') as { version?: string };
+
+function resolveDextoCliVersionFromPackageJson(): string | undefined {
+    try {
+        const cliPackageJson = require('../../../package.json') as { version?: unknown };
+        return typeof cliPackageJson.version === 'string' ? cliPackageJson.version : undefined;
+    } catch {
+        return undefined;
+    }
+}
 
 export function getDextoCliVersion(): string {
-    const version = process.env.DEXTO_CLI_VERSION ?? cliPackageJson.version;
+    const version =
+        process.env.DEXTO_CLI_VERSION ??
+        (typeof DEXTO_CLI_VERSION === 'string' && DEXTO_CLI_VERSION.length > 0
+            ? DEXTO_CLI_VERSION
+            : undefined) ??
+        resolveDextoCliVersionFromPackageJson();
     if (!version) {
         throw new Error('Could not determine dexto CLI version');
     }

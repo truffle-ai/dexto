@@ -1,0 +1,26 @@
+{
+  "name": "dexto",
+  "version": "1.5.8",
+  "description": "Dexto CLI (npm wrapper that launches the prebuilt binary for your platform)",
+  "private": false,
+  "type": "module",
+  "bin": {
+    "dexto": "./bin/dexto.cjs"
+  },
+  "optionalDependencies": {
+    "dexto-darwin-arm64": "workspace:*",
+    "dexto-darwin-x64": "workspace:*",
+    "dexto-linux-arm64": "workspace:*",
+    "dexto-linux-arm64-musl": "workspace:*",
+    "dexto-linux-x64": "workspace:*",
+    "dexto-linux-x64-musl": "workspace:*",
+    "dexto-win32-x64": "workspace:*"
+  },
+  "files": [
+    "bin",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

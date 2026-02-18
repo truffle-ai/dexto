@@ -42,11 +42,34 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const packageJson = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf-8')) as {
-    version: string;
-};
+declare const DEXTO_CLI_VERSION: string | undefined;
+
+function resolveDextoVersion(): string {
+    if (process.env.DEXTO_CLI_VERSION && process.env.DEXTO_CLI_VERSION.length > 0) {
+        return process.env.DEXTO_CLI_VERSION;
+    }
+
+    if (typeof DEXTO_CLI_VERSION === 'string' && DEXTO_CLI_VERSION.length > 0) {
+        return DEXTO_CLI_VERSION;
+    }
+
+    try {
+        const __filename = fileURLToPath(import.meta.url);
+        const __dirname = dirname(__filename);
+        const pkg = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf-8')) as {
+            version?: unknown;
+        };
+        if (typeof pkg.version === 'string' && pkg.version.length > 0) {
+            return pkg.version;
+        }
+    } catch {
+        // ignore
+    }
+
+    throw new Error('Could not determine @dexto/server version');
+}
+
+const dextoVersion = resolveDextoVersion();
 
 // Dummy context for type inference and runtime fallback
 // Used when running in single-agent mode (CLI, Docker, etc.) where multi-agent
@@ -200,7 +223,7 @@ export function createDextoApp(options: CreateDextoAppOptions) {
         openapi: '3.0.0',
         info: {
             title: 'Dexto API',
-            version: packageJson.version,
+            version: dextoVersion,
             description: 'OpenAPI spec for the Dexto REST API server',
         },
         servers: [

@@ -16,15 +16,54 @@ import * as querystring from 'querystring';
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
 import { logger } from '@dexto/core';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './constants.js';
 
 // Track active OAuth callback servers by port for cleanup
 const oauthStateStore = new Map<number, string>();
 
+function resolveCliAssetPath(fileName: string): string | undefined {
+    const candidates: string[] = [];
+
+    // 1) Normal (non-compiled) build output on disk: dist/cli/assets/...
+    try {
+        const authDir = path.dirname(fileURLToPath(import.meta.url));
+        candidates.push(path.resolve(authDir, '../assets', fileName));
+    } catch {
+        // ignore
+    }
+
+    // 2) NPM wrapper / exotic setups: binary package root injected via env
+    if (process.env.DEXTO_PACKAGE_ROOT) {
+        candidates.push(
+            path.resolve(process.env.DEXTO_PACKAGE_ROOT, 'dist', 'cli', 'assets', fileName)
+        );
+    }
+
+    // 3) Compiled binary: assume <pkgRoot>/bin/dexto(.exe) and assets at <pkgRoot>/dist/cli/assets
+    try {
+        const execDir = path.dirname(process.execPath);
+        candidates.push(path.resolve(execDir, '..', 'dist', 'cli', 'assets', fileName));
+    } catch {
+        // ignore
+    }
+
+    for (const candidate of candidates) {
+        if (existsSync(candidate)) return candidate;
+    }
+
+    return undefined;
+}
+
 const DEXTO_LOGO_DATA_URL = (() => {
     try {
-        const svg = readFileSync(new URL('../assets/dexto-logo.svg', import.meta.url), 'utf-8');
+        const logoPath = resolveCliAssetPath('dexto-logo.svg');
+        if (!logoPath) {
+            throw new Error('Could not resolve asset path');
+        }
+        const svg = readFileSync(logoPath, 'utf-8');
         return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
     } catch (error) {
         logger.warn(

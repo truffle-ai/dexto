@@ -163,13 +163,35 @@ export function resolveBundledScript(scriptPath: string): string {
     const fromEnv = tryRoots([envRoot]);
     if (fromEnv) return fromEnv;
 
-    // 1) Try to resolve from installed CLI package root (global/local install)
+    // 1) Compiled binary: attempt to resolve relative to the executable location.
+    // We assume the executable lives at: <pkgRoot>/bin/dexto(.exe)
+    // and assets live at: <pkgRoot>/dist/...
+    try {
+        const execPath = process.execPath;
+        if (typeof execPath === 'string' && execPath.length > 0) {
+            const execDir = path.dirname(execPath);
+            const pkgRoot = path.resolve(execDir, '..');
+            const fromExec = tryRoots([pkgRoot]);
+            if (fromExec) return fromExec;
+        }
+    } catch {
+        // ignore, fall through
+    }
+
+    // 2) Try to resolve from installed CLI package root (global/local install / monorepo workspace)
     try {
         const require = createRequire(import.meta.url);
-        const pkgJson = require.resolve('dexto/package.json');
-        const pkgRoot = path.dirname(pkgJson);
-        const fromPkg = tryRoots([pkgRoot]);
-        if (fromPkg) return fromPkg;
+        const pkgNames = ['@dexto/cli', 'dexto'];
+        for (const pkgName of pkgNames) {
+            try {
+                const pkgJson = require.resolve(`${pkgName}/package.json`);
+                const pkgRoot = path.dirname(pkgJson);
+                const fromPkg = tryRoots([pkgRoot]);
+                if (fromPkg) return fromPkg;
+            } catch {
+                // ignore and try the next package name
+            }
+        }
     } catch {
         // ignore, fall through to dev/project resolution
     }

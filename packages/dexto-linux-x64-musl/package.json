@@ -1,0 +1,21 @@
+{
+  "name": "dexto-linux-x64-musl",
+  "version": "1.5.8",
+  "private": false,
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "libc": [
+    "musl"
+  ],
+  "files": [
+    "bin",
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "dexto-linux-x64",
+  "version": "1.5.8",
+  "private": false,
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "libc": [
+    "glibc"
+  ],
+  "files": [
+    "bin",
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

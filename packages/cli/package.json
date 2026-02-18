@@ -1,7 +1,8 @@
 {
-  "name": "dexto",
+  "name": "@dexto/cli",
   "version": "1.5.8",
   "type": "module",
+  "private": true,
   "bin": {
     "dexto": "./dist/index.js"
   },
@@ -62,6 +63,7 @@
   "devDependencies": {
     "@types/react": "^19.0.0",
     "@types/ws": "^8.5.11",
+    "react-devtools-core": "^7.0.1",
     "type-fest": "^4.26.1"
   },
   "files": [

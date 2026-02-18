@@ -4,6 +4,13 @@
   "commit": false,
   "fixed": [[
     "dexto",
+    "dexto-darwin-arm64",
+    "dexto-darwin-x64",
+    "dexto-linux-arm64",
+    "dexto-linux-arm64-musl",
+    "dexto-linux-x64",
+    "dexto-linux-x64-musl",
+    "dexto-win32-x64",
     "@dexto/core",
     "@dexto/storage",
     "@dexto/agent-config",

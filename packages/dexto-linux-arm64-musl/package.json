@@ -1,0 +1,21 @@
+{
+  "name": "dexto-linux-arm64-musl",
+  "version": "1.5.8",
+  "private": false,
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "libc": [
+    "musl"
+  ],
+  "files": [
+    "bin",
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

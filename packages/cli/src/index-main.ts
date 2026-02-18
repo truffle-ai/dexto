@@ -8,12 +8,36 @@ import { initAnalytics, capture, getWebUIAnalyticsConfig } from './analytics/ind
 import { withAnalytics, safeExit, ExitSignal } from './analytics/wrapper.js';
 import { createFileSessionLoggerFactory } from './utils/session-logger-factory.js';
 
-// Use createRequire to import package.json without experimental warning
-const require = createRequire(import.meta.url);
-const pkg = require('../package.json');
+declare const DEXTO_CLI_VERSION: string | undefined;
+
+function resolveCliVersion(): string {
+    if (process.env.DEXTO_CLI_VERSION && process.env.DEXTO_CLI_VERSION.length > 0) {
+        return process.env.DEXTO_CLI_VERSION;
+    }
+
+    // Bun build --compile injects this via --define for standalone binaries.
+    if (typeof DEXTO_CLI_VERSION === 'string' && DEXTO_CLI_VERSION.length > 0) {
+        return DEXTO_CLI_VERSION;
+    }
+
+    // Dev / non-compiled: resolve from the local package.json.
+    try {
+        const require = createRequire(import.meta.url);
+        const pkg = require('../package.json') as { version?: unknown };
+        if (typeof pkg?.version === 'string' && pkg.version.length > 0) {
+            return pkg.version;
+        }
+    } catch {
+        // ignore
+    }
+
+    throw new Error('Could not determine dexto CLI version');
+}
 
 // Set CLI version for Dexto Gateway usage tracking
-process.env.DEXTO_CLI_VERSION = pkg.version;
+const cliVersion = resolveCliVersion();
+process.env.DEXTO_CLI_VERSION = cliVersion;
+const appVersion = cliVersion;
 
 // Populate DEXTO_API_KEY for Dexto gateway routing
 // Resolution order in getDextoApiKey():
@@ -132,11 +156,11 @@ const program = new Command();
 setImageImporter((specifier) => importImageModule(specifier));
 
 // Initialize analytics early (no-op if disabled)
-await initAnalytics({ appVersion: pkg.version });
+await initAnalytics({ appVersion });
 
 // Start version check early (non-blocking)
 // We'll check the result later and display notification for interactive modes
-const versionCheckPromise = checkForUpdates(pkg.version);
+const versionCheckPromise = checkForUpdates(appVersion);
 
 // Start self-updating LLM registry refresh (models.dev + OpenRouter mapping).
 // Uses a cached snapshot on disk and refreshes in the background.
@@ -146,7 +170,7 @@ startLlmRegistryAutoUpdate();
 program
     .name('dexto')
     .description('AI-powered CLI and WebUI for interacting with MCP servers.')
-    .version(pkg.version, '-v, --version', 'output the current version')
+    .version(appVersion, '-v, --version', 'output the current version')
     .option('-a, --agent <id|path>', 'Agent ID or path to agent config file')
     .option('-p, --prompt <text>', 'Start the interactive CLI and immediately run the prompt')
     .option('-s, --strict', 'Require all server connections to succeed')

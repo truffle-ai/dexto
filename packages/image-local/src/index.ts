@@ -33,8 +33,31 @@ import { planToolsFactory } from '@dexto/tools-plan';
 import { lifecycleToolsFactory } from '@dexto/tools-lifecycle';
 import { agentSpawnerToolsFactory } from '@dexto/agent-management';
 
-const require = createRequire(import.meta.url);
-const packageJson = require('../package.json') as { name?: string; version?: string };
+declare const DEXTO_CLI_VERSION: string | undefined;
+
+function resolveImageVersion(): string {
+    if (process.env.DEXTO_CLI_VERSION && process.env.DEXTO_CLI_VERSION.length > 0) {
+        return process.env.DEXTO_CLI_VERSION;
+    }
+
+    if (typeof DEXTO_CLI_VERSION === 'string' && DEXTO_CLI_VERSION.length > 0) {
+        return DEXTO_CLI_VERSION;
+    }
+
+    try {
+        const require = createRequire(import.meta.url);
+        const pkg = require('../package.json') as { version?: unknown };
+        if (typeof pkg.version === 'string' && pkg.version.length > 0) {
+            return pkg.version;
+        }
+    } catch {
+        // ignore
+    }
+
+    throw new Error('Could not determine @dexto/image-local version');
+}
+
+const imageVersion = resolveImageVersion();
 
 const contentPolicyConfigSchema = z
     .object({
@@ -91,8 +114,8 @@ const reactiveOverflowCompactionFactory: CompactionFactory<ReactiveOverflowCompa
 
 const imageLocal: DextoImage = {
     metadata: {
-        name: packageJson.name ?? '@dexto/image-local',
-        version: packageJson.version ?? '0.0.0',
+        name: '@dexto/image-local',
+        version: imageVersion,
         description: 'Local development image with filesystem and process tools',
         target: 'local-development',
         constraints: ['filesystem-required', 'offline-capable'],
