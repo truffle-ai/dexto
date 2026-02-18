@@ -835,8 +835,10 @@ export default function MessageList({
                                                                         idx,
                                                                     });
                                                                 } else if (isImagePart(part)) {
-                                                                    const src =
-                                                                        resolveMediaSrc(part);
+                                                                    const src = resolveMediaSrc(
+                                                                        part,
+                                                                        toolResourceStates
+                                                                    );
                                                                     if (
                                                                         src &&
                                                                         isSafeMediaUrl(src, 'image')
@@ -916,8 +918,7 @@ export default function MessageList({
                                                                                         action
                                                                                     ) => {
                                                                                         console.log(
-                                                                                            'MCP-UI Action:',
-                                                                                            action
+                                                                                            `MCP-UI Action: ${action}`
                                                                                         );
                                                                                     }}
                                                                                 />
@@ -1014,7 +1015,8 @@ export default function MessageList({
                                                                                 ) {
                                                                                     const src =
                                                                                         resolveMediaSrc(
-                                                                                            filePart
+                                                                                            filePart,
+                                                                                            toolResourceStates
                                                                                         );
                                                                                     return (
                                                                                         <div
@@ -1377,7 +1379,7 @@ export default function MessageList({
                                                 resource={uiResource.resource}
                                                 onAction={(action) => {
                                                     // Log UI actions for debugging
-                                                    console.log('MCP-UI Action:', action);
+                                                    console.log(`MCP-UI Action: ${action}`);
                                                 }}
                                             />
                                         </div>
