@@ -10,7 +10,6 @@
 
 import { existsSync } from 'fs';
 import { isAbsolute, normalize, resolve, sep } from 'path';
-import { platform } from 'os';
 import { fileURLToPath } from 'node:url';
 import { execFile } from 'child_process';
 import { getDextoGlobalPath } from '@dexto/agent-management';
@@ -33,6 +32,8 @@ function getSoundFileKey(soundType: SoundType): SoundFileKey {
 }
 
 function resolvePathWithinSoundsDir(soundPath: string): string | null {
+    if (soundPath.trim().length === 0) return null;
+
     const soundsDir = normalize(getDextoGlobalPath('sounds'));
 
     const resolved = isAbsolute(soundPath) ? normalize(soundPath) : resolve(soundsDir, soundPath);
@@ -74,7 +75,7 @@ export function getDefaultSoundSpec(soundType: SoundType): string | null {
         return BUNDLED_STARTUP_SOUND_PATH;
     }
 
-    const platformSounds = PLATFORM_SOUNDS[platform()];
+    const platformSounds = PLATFORM_SOUNDS[process.platform];
     return platformSounds?.[soundType] ?? null;
 }
 
@@ -82,10 +83,8 @@ export function getDefaultSoundSpec(soundType: SoundType): string | null {
  * Play a sound file using platform-specific command
  */
 function playSound(soundPath: string): void {
-    const currentPlatform = platform();
-
     const execOrBell = (cmd: string, args: string[], onError?: () => void) => {
-        execFile(cmd, args, { timeout: 5000 }, (error) => {
+        execFile(cmd, args, { windowsHide: true }, (error) => {
             if (!error) return;
             if (onError) {
                 onError();
@@ -95,7 +94,7 @@ function playSound(soundPath: string): void {
         });
     };
 
-    switch (currentPlatform) {
+    switch (process.platform) {
         case 'darwin': {
             execOrBell('afplay', [soundPath]);
             return;
@@ -164,6 +163,25 @@ function playTerminalBell(): void {
     process.stdout.write('\x07');
 }
 
+function resolveNotificationSoundSpec(soundType: SoundType, config?: SoundConfig): string | null {
+    const configuredRelativePath = config?.[getSoundFileKey(soundType)];
+    if (configuredRelativePath) {
+        const resolved = resolvePathWithinSoundsDir(configuredRelativePath);
+        if (resolved && existsSync(resolved)) {
+            return resolved;
+        }
+    }
+
+    const defaultSpec = getDefaultSoundSpec(soundType);
+    if (!defaultSpec) return null;
+
+    if (process.platform === 'win32') {
+        return defaultSpec;
+    }
+
+    return existsSync(defaultSpec) ? defaultSpec : null;
+}
+
 /**
  * Play a notification sound
  *
@@ -182,53 +200,13 @@ function playTerminalBell(): void {
  * ```
  */
 export function playNotificationSound(soundType: SoundType, config?: SoundConfig): void {
-    const currentPlatform = platform();
-
-    // Check for configured sound file first (path is relative to the Dexto sounds directory)
-    if (config) {
-        const configuredRelativePath = config[getSoundFileKey(soundType)];
-        if (configuredRelativePath) {
-            const resolved = resolvePathWithinSoundsDir(configuredRelativePath);
-            if (resolved && existsSync(resolved)) {
-                playSound(resolved);
-                return;
-            }
-        }
-    }
-
-    // Startup defaults to the bundled sound (not a platform system sound)
-    if (soundType === 'startup') {
-        if (existsSync(BUNDLED_STARTUP_SOUND_PATH)) {
-            playSound(BUNDLED_STARTUP_SOUND_PATH);
-        } else {
-            playTerminalBell();
-        }
+    const soundSpec = resolveNotificationSoundSpec(soundType, config);
+    if (!soundSpec) {
+        playTerminalBell();
         return;
     }
 
-    // Use platform default
-    const platformSounds = PLATFORM_SOUNDS[currentPlatform];
-    if (platformSounds) {
-        const defaultSound = platformSounds[soundType];
-        if (defaultSound) {
-            // For macOS and Linux, check if file exists
-            if (currentPlatform !== 'win32') {
-                if (existsSync(defaultSound)) {
-                    playSound(defaultSound);
-                } else {
-                    // File doesn't exist, use bell
-                    playTerminalBell();
-                }
-            } else {
-                // Windows uses system sound names
-                playSound(defaultSound);
-            }
-            return;
-        }
-    }
-
-    // Fallback to terminal bell
-    playTerminalBell();
+    playSound(soundSpec);
 }
 
 /**
@@ -300,26 +278,4 @@ export class SoundNotificationService {
             playNotificationSound('complete', this.config);
         }
     }
-}
-
-/**
- * Singleton instance for global use
- * Initialize with loadGlobalPreferences() in CLI startup
- */
-let globalSoundService: SoundNotificationService | null = null;
-
-/**
- * Get the global sound notification service
- * @returns The global service, or null if not initialized
- */
-export function getSoundService(): SoundNotificationService | null {
-    return globalSoundService;
-}
-
-/**
- * Initialize the global sound service with configuration
- */
-export function initializeSoundService(config: SoundConfig): SoundNotificationService {
-    globalSoundService = new SoundNotificationService(config);
-    return globalSoundService;
 }

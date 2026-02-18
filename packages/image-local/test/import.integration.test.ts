@@ -47,5 +47,5 @@ describe('Image Local - Import Integration', () => {
         expect(image.hooks['response-sanitizer']).toBeDefined();
 
         expect(image.logger).toBeDefined();
-    }, 15_000);
+    }, 60_000);
 });

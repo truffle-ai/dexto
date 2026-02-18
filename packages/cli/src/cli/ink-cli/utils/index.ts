@@ -36,8 +36,6 @@ export { generateMessageId } from './idGenerator.js';
 export {
     playNotificationSound,
     SoundNotificationService,
-    initializeSoundService,
-    getSoundService,
     type SoundType,
     type SoundConfig,
 } from './soundNotification.js';
