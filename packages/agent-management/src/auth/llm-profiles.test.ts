@@ -23,7 +23,11 @@ describe('llm-profiles store', () => {
     });
 
     afterEach(async () => {
-        process.env.HOME = previousHome;
+        if (previousHome === undefined) {
+            delete process.env.HOME;
+        } else {
+            process.env.HOME = previousHome;
+        }
         await fs.rm(tempHomeDir, { recursive: true, force: true });
     });
 
@@ -32,6 +36,32 @@ describe('llm-profiles store', () => {
         expect(store.version).toBe(1);
         expect(store.defaults).toEqual({});
         expect(store.profiles).toEqual({});
+    });
+
+    it('backs up a corrupt store file and returns an empty store', async () => {
+        const filePath = getLlmAuthProfilesPath();
+        await fs.mkdir(path.dirname(filePath), { recursive: true });
+
+        const corrupt = '{not-json';
+        await fs.writeFile(filePath, corrupt, { encoding: 'utf-8' });
+
+        const store = await loadLlmAuthProfilesStore();
+        expect(store.defaults).toEqual({});
+        expect(store.profiles).toEqual({});
+
+        await expect(fs.stat(filePath)).rejects.toMatchObject({ code: 'ENOENT' });
+
+        const dir = path.dirname(filePath);
+        const entries = await fs.readdir(dir);
+        const backups = entries.filter((e) => e.startsWith('llm-profiles.json.corrupt.'));
+        expect(backups).toHaveLength(1);
+
+        const backupPath = path.join(dir, backups[0]!);
+        const backupContent = await fs.readFile(backupPath, 'utf-8');
+        expect(backupContent).toBe(corrupt);
+
+        const stat = await fs.stat(backupPath);
+        expect(stat.mode & 0o777).toBe(0o600);
     });
 
     it('upserts profiles, forces permissions, and tracks defaults', async () => {

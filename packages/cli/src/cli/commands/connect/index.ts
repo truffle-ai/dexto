@@ -195,7 +195,10 @@ export async function handleConnectCommand(options?: { interactive?: boolean }):
                     accessToken: tokens.accessToken,
                     refreshToken: tokens.refreshToken,
                     expiresAt,
-                    ...(accountId ? { metadata: { accountId } } : {}),
+                    metadata: {
+                        clientId,
+                        ...(accountId ? { accountId } : {}),
+                    },
                 },
             });
             await setDefaultLlmAuthProfile({ providerId: provider.providerId, profileId });
@@ -256,6 +259,7 @@ export async function handleConnectCommand(options?: { interactive?: boolean }):
                     expiresAt: tokens.expiresAt,
                     metadata: {
                         region,
+                        clientId,
                         ...(tokens.resourceUrl ? { resourceUrl: tokens.resourceUrl } : {}),
                     },
                 },

@@ -41,8 +41,26 @@ function upsertAuthHeader(headers: globalThis.Headers, value: string): void {
     headers.set('authorization', value);
 }
 
-function mergeHeaders(initHeaders: RequestInit['headers']): globalThis.Headers {
-    return new globalThis.Headers(initHeaders);
+function isRequest(value: unknown): value is globalThis.Request {
+    return typeof globalThis.Request !== 'undefined' && value instanceof globalThis.Request;
+}
+
+function mergeHeaders(params: {
+    requestInput: RequestInfo | URL;
+    initHeaders: RequestInit['headers'] | undefined;
+}): globalThis.Headers {
+    const headers = new globalThis.Headers();
+
+    if (isRequest(params.requestInput)) {
+        params.requestInput.headers.forEach((value, key) => headers.set(key, value));
+    }
+
+    if (params.initHeaders) {
+        const init = new globalThis.Headers(params.initHeaders);
+        init.forEach((value, key) => headers.set(key, value));
+    }
+
+    return headers;
 }
 
 function isOauthCredential(
@@ -121,13 +139,27 @@ function normalizeAnthropicBaseUrl(url: string): string {
     return `${trimmed}/v1`;
 }
 
-async function refreshOpenAiOauthTokens(refreshToken: string): Promise<{
+function toSafeErrorText(text: string): string {
+    const trimmed = text.trim();
+    if (!trimmed) return '';
+    const singleLine = trimmed.replace(/\s+/g, ' ');
+    const maxLen = 500;
+    if (singleLine.length <= maxLen) return singleLine;
+    return `${singleLine.slice(0, maxLen)}…`;
+}
+
+async function refreshOpenAiOauthTokens(params: {
+    refreshToken: string;
+    clientIdFromProfile?: string | undefined;
+}): Promise<{
     accessToken: string;
     refreshToken: string;
     expiresAt: number;
     accountId: string | null;
 }> {
-    const clientId = process.env.DEXTO_OPENAI_CODEX_OAUTH_CLIENT_ID?.trim();
+    const clientId =
+        process.env.DEXTO_OPENAI_CODEX_OAUTH_CLIENT_ID?.trim() ||
+        params.clientIdFromProfile?.trim();
     if (!clientId) {
         throw new Error('Missing DEXTO_OPENAI_CODEX_OAUTH_CLIENT_ID');
     }
@@ -137,7 +169,7 @@ async function refreshOpenAiOauthTokens(refreshToken: string): Promise<{
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({
             grant_type: 'refresh_token',
-            refresh_token: refreshToken,
+            refresh_token: params.refreshToken,
             client_id: clientId,
         }).toString(),
         signal: AbortSignal.timeout(15_000),
@@ -145,8 +177,9 @@ async function refreshOpenAiOauthTokens(refreshToken: string): Promise<{
 
     if (!response.ok) {
         const text = await response.text().catch(() => '');
+        const safe = toSafeErrorText(text);
         throw new Error(
-            `OpenAI OAuth refresh failed (${response.status}): ${text || response.statusText}`
+            `OpenAI OAuth refresh failed (${response.status}): ${safe || response.statusText}`
         );
     }
 
@@ -170,7 +203,7 @@ async function refreshOpenAiOauthTokens(refreshToken: string): Promise<{
 
     return {
         accessToken: data.access_token,
-        refreshToken: data.refresh_token ?? refreshToken,
+        refreshToken: data.refresh_token ?? params.refreshToken,
         expiresAt: Date.now() + expiresInSec * 1000,
         accountId,
     };
@@ -179,6 +212,7 @@ async function refreshOpenAiOauthTokens(refreshToken: string): Promise<{
 async function refreshMiniMaxPortalOauthTokens(params: {
     region: 'cn' | 'global';
     refreshToken: string;
+    clientIdFromProfile?: string | undefined;
 }): Promise<{
     accessToken: string;
     refreshToken: string;
@@ -186,7 +220,9 @@ async function refreshMiniMaxPortalOauthTokens(params: {
     resourceUrl?: string;
     notificationMessage?: string;
 }> {
-    const clientId = process.env.DEXTO_MINIMAX_PORTAL_OAUTH_CLIENT_ID?.trim();
+    const clientId =
+        process.env.DEXTO_MINIMAX_PORTAL_OAUTH_CLIENT_ID?.trim() ||
+        params.clientIdFromProfile?.trim();
     if (!clientId) {
         throw new Error('Missing DEXTO_MINIMAX_PORTAL_OAUTH_CLIENT_ID');
     }
@@ -215,8 +251,9 @@ async function refreshMiniMaxPortalOauthTokens(params: {
     }
 
     if (!response.ok) {
+        const safe = toSafeErrorText(text);
         throw new Error(
-            `MiniMax OAuth refresh failed (${response.status}): ${text || response.statusText}`
+            `MiniMax OAuth refresh failed (${response.status}): ${safe || response.statusText}`
         );
     }
 
@@ -268,7 +305,10 @@ async function refreshOauthProfileIfNeeded(profile: LlmAuthProfile): Promise<Llm
         if (latest.credential.expiresAt > Date.now() + safetyWindowMs) return;
 
         if (latest.providerId === 'openai' && latest.methodId === 'oauth_codex') {
-            const refreshed = await refreshOpenAiOauthTokens(latest.credential.refreshToken);
+            const refreshed = await refreshOpenAiOauthTokens({
+                refreshToken: latest.credential.refreshToken,
+                clientIdFromProfile: latest.credential.metadata?.clientId,
+            });
             const nextCred: Extract<LlmAuthCredential, { type: 'oauth' }> = {
                 ...latest.credential,
                 accessToken: refreshed.accessToken,
@@ -304,6 +344,7 @@ async function refreshOauthProfileIfNeeded(profile: LlmAuthProfile): Promise<Llm
             const refreshed = await refreshMiniMaxPortalOauthTokens({
                 region,
                 refreshToken: latest.credential.refreshToken,
+                clientIdFromProfile: latest.credential.metadata?.clientId,
             });
 
             const nextCred: Extract<LlmAuthCredential, { type: 'oauth' }> = {
@@ -343,7 +384,7 @@ function buildOAuthFetchWrapper(params: {
     extraHeaders?: Record<string, string> | undefined;
 }): typeof fetch {
     return async (requestInput, init) => {
-        const headers = mergeHeaders(init?.headers);
+        const headers = mergeHeaders({ requestInput, initHeaders: init?.headers });
 
         // Remove any SDK-injected auth header (dummy key).
         removeAuthHeader(headers);
