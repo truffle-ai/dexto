@@ -1,12 +1,13 @@
 # Provider Coverage Snapshot (Dexto vs OpenClaw vs OpenCode)
 
-Date: **2026-02-17**
+Date: **2026-02-18**
 
 This file is a concrete snapshot of **provider IDs** across the three relevant codebases, so we can reason about “what can be supported” without hand-waving.
 
 Notes:
 - This is intentionally “flat”: it lists IDs, not UX, auth methods, or transports.
 - OpenCode’s list is primarily **models.dev provider IDs** (which is why it’s huge).
+- models.dev’s **gateway provider** catalogs (notably OpenRouter) can be intentionally curated; consumers like OpenCode will not necessarily show OpenRouter’s full live `/models` surface.
 - OpenClaw and OpenCode can support additional “custom providers” via config; those are not enumerable and are not included here.
 
 ---
@@ -98,14 +99,14 @@ codex-cli
 
 ## OpenCode (reference)
 
-Source of truth (base list): models.dev provider IDs (as of 2026-02-17): `https://models.dev/api.json`
+Source of truth (base list): models.dev provider IDs (as of 2026-02-18): `https://models.dev/api.json`
 
 Additional OpenCode-specific provider IDs:
 - OpenCode adds `github-copilot-enterprise` by cloning the models.dev `github-copilot` provider:
   - `~/Projects/external/opencode/packages/opencode/src/provider/provider.ts` (search for “Copilot Enterprise”)
 
-Count (models.dev providers): **91**  
-Count (OpenCode effective providers incl. enterprise): **92**
+Count (models.dev providers): **94**  
+Count (OpenCode effective providers incl. enterprise): **95**
 
 ```text
 302ai
@@ -122,6 +123,7 @@ baseten
 berget
 cerebras
 chutes
+cloudferro-sherlock
 cloudflare-ai-gateway
 cloudflare-workers-ai
 cohere
@@ -176,6 +178,8 @@ ovhcloud
 perplexity
 poe
 privatemode-ai
+qihang-ai
+qiniu-ai
 requesty
 sap-ai-core
 scaleway

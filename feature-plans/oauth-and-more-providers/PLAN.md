@@ -6,9 +6,13 @@ This plan updates Dexto onboarding/login flows to support **multiple login metho
 
 **Owner verification list:** [`USER_VERIFICATION.md`](./USER_VERIFICATION.md) tracks **owner-only** decisions and manual checks we deliberately defer while implementing. **Add an entry whenever you discover an unresolved decision or an environment-dependent verification.** Clear the list before shipping.
 
+**Direction update (2026-02-18):** [`UPDATED_DIRECTION.md`](./UPDATED_DIRECTION.md) captures verified upstream observations (OpenRouter catalog completeness, no release-date filtering in OpenCode) and the updated direction (pi-style multi-source registry + transport mapping).
+
 Primary references:
 - **OpenClaw** (`~/Projects/external/openclaw`) — onboarding wizard + auth profiles + provider auth plugins.
 - **OpenCode** (`~/Projects/external/opencode`) — `/connect` UX + models.dev-backed provider catalog + plugin auth methods.
+- **pi-mono** (`~/Projects/external/pi-mono`) — model registry generation (multi-source) + explicit `api`/transport discriminators.
+- **models.dev** (`~/Projects/external/models.dev`) — provider/model metadata source (and clarifies when catalogs are curated vs exhaustive).
 - Provider coverage snapshot (exact provider IDs): [`PROVIDER_COVERAGE.md`](./PROVIDER_COVERAGE.md)
 
 ---
@@ -54,6 +58,7 @@ Known complications / gaps:
   - OAuth tokens should be refreshable without forcing the user to re-login.
   - The LLM factory should be able to apply provider-specific runtime options (headers/fetch/baseURL) depending on the active auth method.
 - Keep **models.dev as the model registry source of truth** (we already do).
+- **Additionally ingest gateway catalogs** (starting with OpenRouter `/models`) during sync, because models.dev may intentionally curate gateway providers.
 - Use models.dev metadata to reduce churn when expanding supported providers/models (connect UI list, env-var expectations, curated defaults).
 
 ---
@@ -493,21 +498,21 @@ Implementation note (important):
 ### Phase 1 — Scaffolding + API surface (API keys + profile plumbing)
 > **Goal:** ship a first working `/connect` for API-key methods + a stable server API surface for WebUI parity.
 
-- [ ] **1.1 Add LLM profile store in `@dexto/agent-management`**
+- [x] **1.1 Add LLM profile store in `@dexto/agent-management`**
   - Deliverables:
     - Read/write `llm-profiles.json` (or chosen store) with `0o600` files and atomic writes.
     - List/upsert/delete profiles; set per-provider default.
   - Exit:
     - Unit coverage for parsing + write safety + basic CRUD.
 
-- [ ] **1.2 Add server routes for methods/profiles/defaults/status**
+- [x] **1.2 Add server routes for methods/profiles/defaults/status**
   - Deliverables:
     - Hono routes in `packages/server/src/hono/routes/` for methods, profiles, defaults, status.
     - Keep `/llm/key` working; decide whether to alias/migrate it.
   - Exit:
     - Routes return stable JSON shapes and secrets are never returned.
 
-- [ ] **1.3 Add CLI interactive `/connect` (API key methods first)**
+- [x] **1.3 Add CLI interactive `/connect` (API key methods first)**
   - Deliverables:
     - New interactive command in `packages/cli/src/cli/commands/interactive-commands/`.
     - Flow: choose provider → choose method → complete method → set default.
@@ -515,11 +520,43 @@ Implementation note (important):
   - Exit:
     - Manual CLI smoke: connect an API-key provider, set default, and confirm Dexto can run using it.
 
+- [ ] **1.3.1 Finish multi-profile UX (no overwrite)**
+  - Deliverables:
+    - `/connect` can create **multiple profiles per provider+method** (prompt for a label, generate a unique `profileId`, and do not overwrite existing credentials).
+    - `/connect` can list existing profiles for a provider and switch the default without re-auth.
+    - `/connect` can delete a profile (and clears defaults that point at it).
+  - Exit:
+    - Manual CLI smoke: connect the same provider twice (two profiles), switch defaults, run each successfully.
+
 - [ ] **1.4 Route `dexto setup` through the same connect logic**
   - Deliverables:
     - `dexto setup` reuses `/connect` internals rather than duplicating provider auth prompts.
   - Exit:
     - Setup path still works for Dexto login and at least one BYOK provider.
+
+### Phase 1.5 — Model/provider registry sources (models.dev + gateway catalogs)
+> **Goal:** make our catalog source choices explicit (pi-style), and ensure “gateway providers” are not artificially limited by models.dev curation.
+
+- [ ] **1.5.1 Generate a provider snapshot from models.dev (offline, committed)**
+  - Deliverables:
+    - Extend the sync script to output a `providers.generated.ts` snapshot (provider id/name/env/doc/npm/api).
+    - Consume this snapshot for `/connect` provider metadata (labels, env hints, docs links), so the connect UI isn’t hand-maintained.
+  - Exit:
+    - Regenerated snapshots are stable and reviewed in git; no secrets.
+
+- [ ] **1.5.2 Ingest OpenRouter live model catalog during sync**
+  - Deliverables:
+    - During `sync-llm-*`, fetch OpenRouter’s live `/models` and merge it into our OpenRouter model list.
+    - Define merge precedence for shared fields (context length, pricing, etc.) and how we represent models missing metadata.
+  - Exit:
+    - Our OpenRouter model picker/catalog can include models that exist in OpenRouter but not in models.dev.
+
+- [ ] **1.5.3 Decide/implement “ancient model” visibility as a scope (optional)**
+  - Deliverables:
+    - Add an explicit “hide deprecated/hide old” scope to catalog endpoints/pickers (do not assume upstream filtering).
+    - Use `status === "deprecated"` where present; optionally use `release_date`/`last_updated` thresholds for models.dev-derived catalogs.
+  - Exit:
+    - UX can opt into a time-window filter without losing access to older IDs (still selectable via search / explicit ID).
 
 ### Phase 2 — Provider presets + “more providers” foundation (MiniMax / Z.AI / Moonshot / Kimi)
 > **Goal:** make these providers connectable + runnable with minimal per-provider work, leveraging models.dev metadata and OpenAI-compatible presets where possible.

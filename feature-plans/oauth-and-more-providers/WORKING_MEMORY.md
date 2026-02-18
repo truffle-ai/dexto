@@ -18,22 +18,23 @@
 
 ## Current Task
 
-**Task:** **Owner verification — UV-1..UV-* (plan gate)**
+**Task:** **Owner review — Updated direction + tasklist rebase**
 **Status:** _Waiting on owner_
 **Branch:** `oauth-provider-revamp`
 
 ### Plan
-- Review `feature-plans/oauth-and-more-providers/USER_VERIFICATION.md` and resolve key decisions (storage layout, provider ID strategy, config surface).
-- Once UV items are cleared (or explicitly deferred), start Phase 0 tasks in `PLAN.md`.
+- Review the direction update in `feature-plans/oauth-and-more-providers/UPDATED_DIRECTION.md`.
+- Confirm the rebaselined tasklist in `feature-plans/oauth-and-more-providers/PLAN.md` (new Phase 1.5 for gateway catalogs; fix `/connect` multi-profile overwrite).
+- Once aligned, proceed with **1.3.1** (multi-profile UX) and **1.5.2** (OpenRouter live catalog ingestion) in that order.
 
 ### Notes
 _Log findings, issues, and progress here as you work._
 
-2026-02-17:
-- Imported the OAuth provider plan into this worktree and refactored it to the `PLAN.md` + `WORKING_MEMORY.md` + `USER_VERIFICATION.md` paradigm.
-- Tasklist re-written with numbered tasks and explicit exit criteria.
-- Read through OpenCode/OpenClaw reference implementations and updated `PLAN.md` with concrete file-path pointers for OAuth flows, storage shapes, and two-phase authorize/callback APIs.
-- Pulled concrete models.dev provider metadata (provider IDs, base URLs, env vars, recommended SDKs) and updated `PLAN.md` to include an actionable diff for MiniMax / Z.AI / Zhipu / Moonshot / Kimi Code. Key finding: models.dev treats MiniMax + Kimi Code as **Anthropic-compatible**, while Dexto today assumes MiniMax is OpenAI-compatible.
+2026-02-18:
+- Verified OpenCode has **no release-date (“last 6 months”) catalog filter**; the picker is Favorites + Recent (last used) and hides deprecated models.
+- Verified OpenCode’s OpenRouter model list is **limited by models.dev curation** (not OpenRouter’s live `/models`).
+- Added `UPDATED_DIRECTION.md` and updated `PLAN.md` to adopt a pi-style multi-source model registry direction (models.dev baseline + gateway catalogs, starting with OpenRouter).
+- Phase 1 scaffolding exists in-repo (profiles store + runtime resolver + server routes + CLI `/connect`), but `/connect` still overwrites profiles because `profileId` is fixed to `${providerId}:${methodId}`.
 
 ---
 
@@ -59,7 +60,10 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 
 | Task | Title | Date | Notes |
 |------|-------|------|-------|
-| _TBD_ |  |  |  |
+| 1.1 | LLM profile store (`llm-profiles.json`) | 2026-02-18 | Implemented file-backed multi-profile store + defaults + tests. |
+| 1.2 | Server routes for connect providers/profiles/defaults | 2026-02-18 | Added `packages/server/src/hono/routes/llm-connect.ts` (redacted profiles). |
+| 1.3 | CLI interactive `/connect` | 2026-02-18 | Added `/connect` flow + initial OAuth method scaffolding; still needs multi-profile IDs. |
+| — | Direction + tasklist rebase | 2026-02-18 | Added `UPDATED_DIRECTION.md`; updated tasklist to include gateway catalog ingestion. |
 
 ---
 
@@ -67,8 +71,9 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| Phase 0 — Decisions + interface design | Not started | — |
-| Phase 1 — Scaffolding + API surface | Not started | — |
+| Phase 0 — Decisions + interface design | Partial | Several decisions are implemented but still tracked in `USER_VERIFICATION.md` for owner confirmation. |
+| Phase 1 — Scaffolding + API surface | Completed | Profiles store + runtime resolver + server routes + CLI `/connect` landed. |
+| Phase 1.5 — Model/provider registry sources | Not started | Add OpenRouter live catalog ingestion + provider snapshot generation. |
 | Phase 2 — Provider presets + more providers | Not started | — |
 | Phase 3 — OpenAI ChatGPT OAuth (Codex) | Not started | — |
 | Phase 4 — MiniMax Portal OAuth | Not started | — |
