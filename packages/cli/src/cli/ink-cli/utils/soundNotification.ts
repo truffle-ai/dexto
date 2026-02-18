@@ -9,13 +9,42 @@
 
 import { exec } from 'child_process';
 import { existsSync } from 'fs';
-import { join } from 'path';
+import { isAbsolute, join, normalize, resolve, sep } from 'path';
 import { homedir, platform } from 'os';
 import { fileURLToPath } from 'node:url';
 
 export type SoundType = 'startup' | 'approval' | 'complete';
 
 export const CUSTOM_SOUND_EXTENSIONS = ['.wav', '.mp3', '.ogg', '.aiff', '.m4a'] as const;
+
+type SoundFileKey = 'startupSoundFile' | 'approvalSoundFile' | 'completeSoundFile';
+
+function getSoundFileKey(soundType: SoundType): SoundFileKey {
+    switch (soundType) {
+        case 'startup':
+            return 'startupSoundFile';
+        case 'approval':
+            return 'approvalSoundFile';
+        case 'complete':
+            return 'completeSoundFile';
+    }
+}
+
+function getDextoSoundsDir(): string {
+    return join(homedir(), '.dexto', 'sounds');
+}
+
+function resolvePathWithinSoundsDir(soundPath: string): string | null {
+    const soundsDir = normalize(getDextoSoundsDir());
+
+    const resolved = isAbsolute(soundPath) ? normalize(soundPath) : resolve(soundsDir, soundPath);
+
+    if (resolved === soundsDir || resolved.startsWith(soundsDir + sep)) {
+        return resolved;
+    }
+
+    return null;
+}
 
 /**
  * Platform-specific default sound paths
@@ -55,7 +84,7 @@ export function getDefaultSoundSpec(soundType: SoundType): string | null {
  * Get custom sound path from ~/.dexto/sounds/
  */
 export function getCustomSoundPath(soundType: SoundType): string | null {
-    const dextoSoundsDir = join(homedir(), '.dexto', 'sounds');
+    const dextoSoundsDir = getDextoSoundsDir();
 
     for (const ext of CUSTOM_SOUND_EXTENSIONS) {
         const customPath = join(dextoSoundsDir, `${soundType}${ext}`);
@@ -149,8 +178,20 @@ function playTerminalBell(): void {
  * playNotificationSound('startup');
  * ```
  */
-export function playNotificationSound(soundType: SoundType): void {
+export function playNotificationSound(soundType: SoundType, config?: SoundConfig): void {
     const currentPlatform = platform();
+
+    // Check for configured sound file first (relative to ~/.dexto/sounds)
+    if (config) {
+        const configuredRelativePath = config[getSoundFileKey(soundType)];
+        if (configuredRelativePath) {
+            const resolved = resolvePathWithinSoundsDir(configuredRelativePath);
+            if (resolved && existsSync(resolved)) {
+                playSound(resolved);
+                return;
+            }
+        }
+    }
 
     // Check for custom sound first
     const customSound = getCustomSoundPath(soundType);
@@ -203,8 +244,11 @@ export function playNotificationSound(soundType: SoundType): void {
 export interface SoundConfig {
     enabled: boolean;
     onStartup: boolean;
+    startupSoundFile?: string | undefined;
     onApprovalRequired: boolean;
+    approvalSoundFile?: string | undefined;
     onTaskComplete: boolean;
+    completeSoundFile?: string | undefined;
 }
 
 /**
@@ -239,7 +283,7 @@ export class SoundNotificationService {
      */
     playStartupSound(): void {
         if (this.config.enabled && this.config.onStartup) {
-            playNotificationSound('startup');
+            playNotificationSound('startup', this.config);
         }
     }
 
@@ -248,7 +292,7 @@ export class SoundNotificationService {
      */
     playApprovalSound(): void {
         if (this.config.enabled && this.config.onApprovalRequired) {
-            playNotificationSound('approval');
+            playNotificationSound('approval', this.config);
         }
     }
 
@@ -257,7 +301,7 @@ export class SoundNotificationService {
      */
     playCompleteSound(): void {
         if (this.config.enabled && this.config.onTaskComplete) {
-            playNotificationSound('complete');
+            playNotificationSound('complete', this.config);
         }
     }
 }

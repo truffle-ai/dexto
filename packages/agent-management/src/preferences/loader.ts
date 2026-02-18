@@ -292,8 +292,11 @@ export interface CreatePreferencesOptions {
     sounds?: {
         enabled?: boolean;
         onStartup?: boolean;
+        startupSoundFile?: string;
         onApprovalRequired?: boolean;
+        approvalSoundFile?: string;
         onTaskComplete?: boolean;
+        completeSoundFile?: string;
     };
 }
 
@@ -336,8 +339,17 @@ export function createInitialPreferences(options: CreatePreferencesOptions): Glo
         sounds: {
             enabled: options.sounds?.enabled ?? true,
             onStartup: options.sounds?.onStartup ?? true,
+            ...(options.sounds?.startupSoundFile
+                ? { startupSoundFile: options.sounds.startupSoundFile }
+                : {}),
             onApprovalRequired: options.sounds?.onApprovalRequired ?? true,
+            ...(options.sounds?.approvalSoundFile
+                ? { approvalSoundFile: options.sounds.approvalSoundFile }
+                : {}),
             onTaskComplete: options.sounds?.onTaskComplete ?? true,
+            ...(options.sounds?.completeSoundFile
+                ? { completeSoundFile: options.sounds.completeSoundFile }
+                : {}),
         },
     };
 }

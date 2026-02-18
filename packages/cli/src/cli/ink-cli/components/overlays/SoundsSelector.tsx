@@ -2,10 +2,8 @@
  * SoundsSelector Component
  * Interactive overlay for configuring sound notifications and selecting built-in sounds.
  *
- * Built-in sounds are copied into ~/.dexto/sounds/ as:
- * - startup.wav
- * - approval.wav
- * - complete.wav
+ * Built-in sounds are copied into ~/.dexto/sounds/builtins/ and selected via preferences.yml
+ * using paths relative to ~/.dexto/sounds (e.g., builtins/coin.wav).
  *
  * This reuses the existing sound resolution logic in soundNotification.ts.
  */
@@ -125,7 +123,7 @@ const BUILTIN_SOUNDS: BuiltinSound[] = [
     },
 ];
 
-type SoundSelection = { kind: 'system' } | { kind: 'builtin'; id: string } | { kind: 'custom' };
+type SoundSelection = { kind: 'system' } | { kind: 'file'; relativePath: string };
 
 type ViewMode = 'main' | 'pick-startup' | 'pick-approval' | 'pick-complete';
 type PickAction = 'listen' | 'select';
@@ -164,15 +162,32 @@ function getSoundEnabledKey(
     }
 }
 
-function selectionLabel(
-    soundType: SoundType,
-    selection: SoundSelection,
-    builtinSounds: ReadonlyArray<Pick<BuiltinSound, 'id' | 'name'>>
-): string {
+function getSoundFileKey(
+    soundType: SoundType
+): 'startupSoundFile' | 'approvalSoundFile' | 'completeSoundFile' {
+    switch (soundType) {
+        case 'startup':
+            return 'startupSoundFile';
+        case 'approval':
+            return 'approvalSoundFile';
+        case 'complete':
+            return 'completeSoundFile';
+    }
+}
+
+function selectionLabel(soundType: SoundType, selection: SoundSelection): string {
     if (selection.kind === 'system') return soundType === 'startup' ? 'Startup' : 'System';
-    if (selection.kind === 'custom') return 'Custom';
-    const builtin = builtinSounds.find((s) => s.id === selection.id);
-    return builtin?.name ?? selection.id;
+
+    const normalizedRelative = selection.relativePath.replaceAll('\\', '/');
+    const builtinFilename = normalizedRelative.startsWith('builtins/')
+        ? normalizedRelative.slice('builtins/'.length)
+        : null;
+    if (builtinFilename) {
+        const builtin = BUILTIN_SOUNDS.find((s) => s.filename === builtinFilename);
+        if (builtin) return builtin.name;
+    }
+
+    return path.parse(normalizedRelative).name;
 }
 
 async function safeUnlink(filePath: string): Promise<void> {
@@ -193,27 +208,24 @@ async function removeCustomSoundFiles(soundType: SoundType): Promise<void> {
     );
 }
 
-async function resolveSelection(
-    soundType: SoundType,
-    builtinBuffers: Map<string, Buffer>
-): Promise<SoundSelection> {
-    const customPath = getCustomSoundPath(soundType);
-    if (!customPath) return { kind: 'system' };
-
-    let customBuffer: Buffer;
-    try {
-        customBuffer = await fs.readFile(customPath);
-    } catch {
-        return { kind: 'system' };
+function resolveSelection(soundType: SoundType, config: SoundConfig): SoundSelection {
+    const configuredRelativePath = config[getSoundFileKey(soundType)];
+    if (configuredRelativePath) {
+        return { kind: 'file', relativePath: configuredRelativePath };
     }
 
-    for (const [id, builtinBuffer] of builtinBuffers.entries()) {
-        if (builtinBuffer.equals(customBuffer)) {
-            return { kind: 'builtin', id };
-        }
+    const legacyCustomPath = getCustomSoundPath(soundType);
+    if (legacyCustomPath) {
+        const soundsDir = getDextoGlobalPath('sounds');
+        const relative = path.relative(soundsDir, legacyCustomPath);
+        const normalized =
+            relative.startsWith('..') || path.isAbsolute(relative)
+                ? path.basename(legacyCustomPath)
+                : relative.split(path.sep).join('/');
+        return { kind: 'file', relativePath: normalized };
     }
 
-    return { kind: 'custom' };
+    return { kind: 'system' };
 }
 
 const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
@@ -221,7 +233,6 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
         const soundService = useSoundService();
 
         const baseSelectorRef = useRef<BaseSelectorHandle>(null);
-        const builtinBuffersRef = useRef<Map<string, Buffer>>(new Map());
 
         const [viewMode, setViewMode] = useState<ViewMode>('main');
         const [selectedIndex, setSelectedIndex] = useState(0);
@@ -286,16 +297,10 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
             }));
         }, []);
 
-        const refreshSelections = useCallback(async () => {
-            const builtinBuffers = builtinBuffersRef.current;
-            const [nextStartup, nextApproval, nextComplete] = await Promise.all([
-                resolveSelection('startup', builtinBuffers),
-                resolveSelection('approval', builtinBuffers),
-                resolveSelection('complete', builtinBuffers),
-            ]);
-            setStartupSelection(nextStartup);
-            setApprovalSelection(nextApproval);
-            setCompleteSelection(nextComplete);
+        const refreshSelections = useCallback((nextConfig: SoundConfig) => {
+            setStartupSelection(resolveSelection('startup', nextConfig));
+            setApprovalSelection(resolveSelection('approval', nextConfig));
+            setCompleteSelection(resolveSelection('complete', nextConfig));
         }, []);
 
         // Load preferences + built-in sounds when becoming visible
@@ -322,11 +327,14 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                         nextConfig = {
                             enabled: preferences.sounds?.enabled ?? nextConfig.enabled,
                             onStartup: preferences.sounds?.onStartup ?? nextConfig.onStartup,
+                            startupSoundFile: preferences.sounds?.startupSoundFile,
                             onApprovalRequired:
                                 preferences.sounds?.onApprovalRequired ??
                                 nextConfig.onApprovalRequired,
+                            approvalSoundFile: preferences.sounds?.approvalSoundFile,
                             onTaskComplete:
                                 preferences.sounds?.onTaskComplete ?? nextConfig.onTaskComplete,
+                            completeSoundFile: preferences.sounds?.completeSoundFile,
                         };
                     } catch (err) {
                         // Non-fatal: allow selection changes, but toggles won't persist
@@ -339,20 +347,10 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                     }
                 }
 
-                // Preload built-in sound buffers for quick comparisons
-                const builtinBuffers = new Map<string, Buffer>();
-                await Promise.all(
-                    builtinSoundPaths.map(async (sound) => {
-                        const buffer = await fs.readFile(sound.absPath);
-                        builtinBuffers.set(sound.id, buffer);
-                    })
-                );
-                builtinBuffersRef.current = builtinBuffers;
-
                 if (!cancelled) {
                     setConfig(nextConfig);
                     soundService?.setConfig(nextConfig);
-                    await refreshSelections();
+                    refreshSelections(nextConfig);
                 }
             };
 
@@ -416,6 +414,8 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                       : completeSelection;
             const enabledKey = getSoundEnabledKey(pickSoundType);
             const isEnabled = config[enabledKey];
+            const normalizedRelative =
+                current.kind === 'file' ? current.relativePath.replaceAll('\\', '/') : null;
 
             const items: PickItem[] = [
                 {
@@ -434,7 +434,9 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                     type: 'builtin' as const,
                     id: sound.id,
                     label: sound.name,
-                    isCurrent: isEnabled && current.kind === 'builtin' && current.id === sound.id,
+                    isCurrent:
+                        isEnabled &&
+                        normalizedRelative === path.posix.join('builtins', sound.filename),
                 })),
             ];
 
@@ -457,6 +459,7 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
 
                 setConfig(nextConfig);
                 soundService?.setConfig(partial);
+                refreshSelections(nextConfig);
 
                 if (!canPersistPreferences) {
                     return;
@@ -467,41 +470,30 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                 } catch (err) {
                     setConfig(previousConfig);
                     soundService?.setConfig(previousConfig);
+                    refreshSelections(previousConfig);
                     setError(err instanceof Error ? err.message : String(err));
                 }
             },
-            [canPersistPreferences, soundService]
+            [canPersistPreferences, refreshSelections, soundService]
         );
 
-        const setBuiltinSound = useCallback(
-            async (soundType: SoundType, soundId: string) => {
+        const ensureBuiltinSoundFile = useCallback(
+            async (soundId: string): Promise<string> => {
                 const soundsDir = getDextoGlobalPath('sounds');
-                await fs.mkdir(soundsDir, { recursive: true });
+                const builtinsDir = path.join(soundsDir, 'builtins');
+                await fs.mkdir(builtinsDir, { recursive: true });
 
                 const builtin = builtinSoundPaths.find((s) => s.id === soundId);
                 if (!builtin) {
                     throw new Error(`Unknown built-in sound: ${soundId}`);
                 }
 
-                // Ensure only one custom file exists for this sound type
-                await removeCustomSoundFiles(soundType);
-
-                const destPath = path.join(soundsDir, `${soundType}.wav`);
+                const destPath = path.join(builtinsDir, builtin.filename);
                 await fs.copyFile(builtin.absPath, destPath);
 
-                await refreshSelections();
-                playNotificationSound(soundType);
+                return path.posix.join('builtins', builtin.filename);
             },
-            [builtinSoundPaths, refreshSelections]
-        );
-
-        const setSystemDefaultSound = useCallback(
-            async (soundType: SoundType) => {
-                await removeCustomSoundFiles(soundType);
-                await refreshSelections();
-                playNotificationSound(soundType);
-            },
-            [refreshSelections]
+            [builtinSoundPaths]
         );
 
         const previewPickItem = useCallback(
@@ -548,6 +540,7 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                     if (item.type === 'off' || item.type === 'default' || item.type === 'builtin') {
                         if (!pickSoundType) return;
                         const enabledKey = getSoundEnabledKey(pickSoundType);
+                        const fileKey = getSoundFileKey(pickSoundType);
 
                         if (pickAction === 'listen') {
                             previewPickItem(item);
@@ -561,15 +554,28 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                             return;
                         }
 
-                        // Selecting any sound enables the event
-                        if (!configRef.current[enabledKey]) {
-                            await applyConfigUpdate({ [enabledKey]: true });
-                        }
-
                         if (item.type === 'default') {
-                            await setSystemDefaultSound(pickSoundType);
+                            await removeCustomSoundFiles(pickSoundType);
+                            const partial: Partial<SoundConfig> = {
+                                [enabledKey]: true,
+                                [fileKey]: undefined,
+                            };
+                            await applyConfigUpdate(partial);
+                            playNotificationSound(pickSoundType, {
+                                ...configRef.current,
+                                ...partial,
+                            });
                         } else {
-                            await setBuiltinSound(pickSoundType, item.id);
+                            const relativePath = await ensureBuiltinSoundFile(item.id);
+                            const partial: Partial<SoundConfig> = {
+                                [enabledKey]: true,
+                                [fileKey]: relativePath,
+                            };
+                            await applyConfigUpdate(partial);
+                            playNotificationSound(pickSoundType, {
+                                ...configRef.current,
+                                ...partial,
+                            });
                         }
 
                         setViewMode('main');
@@ -587,8 +593,7 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                 pickAction,
                 pickSoundType,
                 previewPickItem,
-                setBuiltinSound,
-                setSystemDefaultSound,
+                ensureBuiltinSoundFile,
             ]
         );
 
@@ -621,7 +626,7 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                               ? approvalSelection
                               : completeSelection;
                     const currentLabel = enabled
-                        ? selectionLabel(item.soundType, selection, builtinSoundPaths)
+                        ? selectionLabel(item.soundType, selection)
                         : 'Off';
 
                     return (

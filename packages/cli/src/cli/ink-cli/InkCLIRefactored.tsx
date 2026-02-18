@@ -26,7 +26,7 @@ import {
 } from './contexts/index.js';
 
 // Sound notification
-import type { SoundNotificationService } from './utils/soundNotification.js';
+import type { SoundConfig, SoundNotificationService } from './utils/soundNotification.js';
 
 // Components
 import { ErrorBoundary } from './components/ErrorBoundary.js';
@@ -189,11 +189,14 @@ export async function startInkCliRefactored(
 
     let soundService: SoundNotificationService | null = null;
     // Initialize sound config with defaults (enabled by default even without preferences file)
-    let soundConfig = {
+    let soundConfig: SoundConfig = {
         enabled: true,
         onStartup: true,
+        startupSoundFile: undefined,
         onApprovalRequired: true,
+        approvalSoundFile: undefined,
         onTaskComplete: true,
+        completeSoundFile: undefined,
     };
     // Override with user preferences if they exist
     if (globalPreferencesExist()) {
@@ -202,9 +205,15 @@ export async function startInkCliRefactored(
             soundConfig = {
                 enabled: preferences.sounds?.enabled ?? soundConfig.enabled,
                 onStartup: preferences.sounds?.onStartup ?? soundConfig.onStartup,
+                startupSoundFile:
+                    preferences.sounds?.startupSoundFile ?? soundConfig.startupSoundFile,
                 onApprovalRequired:
                     preferences.sounds?.onApprovalRequired ?? soundConfig.onApprovalRequired,
+                approvalSoundFile:
+                    preferences.sounds?.approvalSoundFile ?? soundConfig.approvalSoundFile,
                 onTaskComplete: preferences.sounds?.onTaskComplete ?? soundConfig.onTaskComplete,
+                completeSoundFile:
+                    preferences.sounds?.completeSoundFile ?? soundConfig.completeSoundFile,
             };
         } catch (error) {
             // Log at debug level to help troubleshoot sound configuration issues
