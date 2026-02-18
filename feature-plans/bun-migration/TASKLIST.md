@@ -42,8 +42,8 @@ Success criteria:
 - [x] Migrate release workflow to Bun (Changesets versioning + Bun-based publish)
 - [x] Convert docs site (Docusaurus) to Bun (`docs/bun.lock`, workflow)
 - [x] Add npm wrapper + platform binary packages so end users don’t need Bun installed
-- [ ] Release workflow: build platform binaries before publishing (`changeset:publish`)
-- [ ] Local production-like install: update `bun run install-cli(-fast)` to build binaries (at least `--single`) before publishing to verdaccio
+- [x] Release workflow: build platform binaries before publishing (`changeset:publish`)
+- [x] Local production-like install: update `bun run install-cli(-fast)` to build binaries (at least `--single`) before publishing to verdaccio (verdaccio `max_body_size` adjusted for binary payloads)
 - [ ] Remove remaining npm usage from default MCP server templates (at minimum `agents/agent-template.yml`): switch `npx` → `bunx` (decide whether to add `--bun`) and validate filesystem + playwright MCP servers still start.
 - [ ] Confirm CLI flows work and print Bun-first instructions (note: app/image scaffolds may require access to the `@dexto/*` registry when run outside `dexto-source`):
   - `dexto create-app`
