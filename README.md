@@ -103,7 +103,7 @@ npm install -g dexto
 
 # Or build from source
 git clone https://github.com/truffle-ai/dexto.git
-cd dexto && pnpm install && pnpm install-cli
+cd dexto && bun install && bun run install-cli
 ```
 
 ### Run

@@ -274,7 +274,7 @@ const AGENTS_TO_COPY = [
 - Directory agents should end with `/` (e.g., `'your-agent-name/'`)
 - Single-file agents should NOT have a trailing slash (e.g., `'your-agent.yml'`)
 - The script copies agents to `packages/cli/dist/agents/` during build
-- Run `pnpm run build` to test that your agent is properly copied
+- Run `bun run build` to test that your agent is properly copied
 
 **Criteria for registry acceptance:**
 - Solves a common, well-defined problem
@@ -316,17 +316,12 @@ const AGENTS_TO_COPY = [
 ### Install Dependencies
 
 ```bash
-# Enable Corepack (built into Node.js 16+)
-corepack enable
-
-# Install dependencies (uses correct pnpm version automatically)
-pnpm install
+# Install dependencies
+bun install
 
 # Build all packages
-pnpm run build
+bun run build
 ```
-
-**Note**: Corepack ensures everyone uses the same pnpm version (10.12.4) as specified in package.json.
 
 ### Development Workflow
 
@@ -334,10 +329,10 @@ For detailed development workflows, see [DEVELOPMENT.md](./DEVELOPMENT.md). Quic
 
 ```bash
 # Run development server with hot reload
-pnpm run dev
+bun run dev
 
 # Or create a global symlink for CLI development
-pnpm run link-cli
+bun run link-cli
 ```
 
 ## Making Changes
@@ -369,19 +364,19 @@ Before committing, ensure your code passes all checks:
 
 ```bash
 # Type checking
-pnpm run typecheck
+bun run typecheck
 
 # Run tests
-pnpm run test
+bun run test
 
 # Fix linting issues
-pnpm run lint:fix
+bun run lint:fix
 
 # Format code
-pnpm run format
+bun run format
 
 # Full validation (recommended before commits)
-pnpm run build:check
+bun run build:check
 ```
 
 ## Submitting a Pull Request
@@ -391,7 +386,7 @@ pnpm run build:check
 For any changes that affect functionality:
 
 ```bash
-pnpm changeset
+bun x changeset
 ```
 
 Follow the prompts to:

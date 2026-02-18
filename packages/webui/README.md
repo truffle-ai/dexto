@@ -39,8 +39,7 @@ lsof -ti:3000-3001 | xargs kill -9
 
 Go to repository root and run the server in dev mode:
 ```bash
-pnpm run dev
+bun run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to start testing your tools.
-

@@ -22,7 +22,6 @@ npm install @opentelemetry/sdk-node @opentelemetry/auto-instrumentations-node \
 npm install @opentelemetry/exporter-trace-otlp-grpc
 
 # Storage backends
-npm install better-sqlite3  # SQLite database
 npm install pg              # PostgreSQL database
 npm install ioredis         # Redis cache
 

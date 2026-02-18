@@ -13,7 +13,7 @@ This guide covers development workflows for working on the Dexto codebase.
 
 ## Project Structure
 
-Dexto is a monorepo using pnpm workspaces with the following structure:
+Dexto is a monorepo using Bun workspaces with the following structure:
 
 ```
 dexto/
@@ -35,7 +35,7 @@ dexto/
 
 ### Prerequisites
 - Node.js >= 20.0.0
-- pnpm (automatically managed via Corepack)
+- Bun >= 1.2.9
 
 ### Initial Setup
 ```bash
@@ -43,14 +43,11 @@ dexto/
 git clone https://github.com/truffle-ai/dexto.git
 cd dexto
 
-# Enable Corepack (if not already enabled) - this picks pnpm version
-corepack enable
-
-# Install dependencies (Corepack will use the correct pnpm version)
-pnpm install
+# Install dependencies
+bun install
 
 # Build all packages
-pnpm run build
+bun run build
 ```
 
 ## Development Workflows
@@ -59,7 +56,7 @@ pnpm run build
 Best for frontend development with automatic reload:
 
 ```bash
-pnpm run dev
+bun run dev
 ```
 
 This command:
@@ -78,26 +75,30 @@ Best for CLI development with instant changes:
 
 ```bash
 # Create global symlink (full build with WebUI)
-pnpm run link-cli
+bun run link-cli
 
 # Create global symlink (fast, no WebUI)
-pnpm run link-cli-fast
+bun run link-cli-fast
 
 # Remove symlink
-pnpm run unlink-cli
+bun run unlink-cli
 ```
 
 Now `dexto` command uses your local development code directly.
+
+Notes:
+- The shim is created in Bun’s global bin directory: `$(bun pm bin -g)`.
+- If `dexto` still resolves to an older pnpm/npm-installed binary, make sure Bun’s bin comes first in your `PATH`.
 
 ### 3. Production-like Testing
 Test the actual installation experience:
 
 ```bash
 # Install globally from local build (full)
-pnpm run install-cli
+bun run install-cli
 
 # Install globally from local build (fast, no WebUI)
-pnpm run install-cli-fast
+bun run install-cli-fast
 ```
 
 This creates tarballs and installs them globally, simulating `npm install -g dexto`.
@@ -105,8 +106,8 @@ This creates tarballs and installs them globally, simulating `npm install -g dex
 ### Switching Between Workflows
 
 The `link-cli` and `install-cli` commands are mutually exclusive:
-- Running `link-cli` removes any npm installation
-- Running `install-cli` removes any pnpm symlink
+- Running `link-cli` removes any Bun global installation
+- Running `install-cli` removes any Bun global symlink
 - Use `unlink-cli` to remove everything
 
 ## Build Commands
@@ -114,24 +115,21 @@ The `link-cli` and `install-cli` commands are mutually exclusive:
 ### Complete Builds
 ```bash
 # Full build with cleaning
-pnpm run build
+bun run build
 
 # Build all packages without cleaning
-pnpm run build:all
+bun run build:all
 
 # Build with type checking
-pnpm run build:check
+bun run build:check
 ```
 
 ### Package-Specific Builds
 ```bash
 # Build individual packages
-pnpm run build:core
-pnpm run build:cli
-pnpm run build:webui
-
-# Build CLI and its dependencies only (no WebUI)
-pnpm run build:cli-only
+bun run build:core
+bun run build:cli
+bun run build:webui
 ```
 
 ### WebUI Embedding
@@ -139,7 +137,7 @@ The WebUI is embedded into the CLI's dist folder during build:
 
 ```bash
 # Embed WebUI into CLI dist (run after building WebUI)
-pnpm run embed-webui
+bun run embed-webui
 ```
 
 ## Testing
@@ -147,16 +145,16 @@ pnpm run embed-webui
 ### Automated Tests
 ```bash
 # Run all tests
-pnpm test
+bun run test
 
 # Run unit tests only
-pnpm run test:unit
+bun run test:unit
 
 # Run integration tests only
-pnpm run test:integ
+bun run test:integ
 
 # Run tests with coverage
-pnpm run test:ci
+bun run test:ci
 ```
 
 ### Manual testing
@@ -206,37 +204,37 @@ export DEXTO_DEV_MODE=true  # Use repo configs and local .dexto directory
 - **Preferences**: Skips global setup validation
 - **Use Case**: Isolated testing and development on Dexto itself
 
-**Note**: `pnpm run dev` automatically sets `DEXTO_DEV_MODE=true`, so the development server always uses repository configs and local storage.
+**Note**: `bun run dev` automatically sets `DEXTO_DEV_MODE=true`, so the development server always uses repository configs and local storage.
 
 ## Code Quality
 
 ### Type Checking
 ```bash
 # Type check all packages
-pnpm run typecheck
+bun run typecheck
 
 # Type check with file watching
-pnpm run typecheck:watch
+bun run typecheck:watch
 
 # Type check specific package
-pnpm run typecheck:core
+bun run typecheck:core
 ```
 
 ### Linting
 ```bash
 # Run linter
-pnpm run lint
+bun run lint
 
 # Fix linting issues
-pnpm run lint:fix
+bun run lint:fix
 ```
 
 ### Pre-commit Checks
 Before committing, always run:
 ```bash
-pnpm run build:check  # Typecheck + build
-pnpm test            # Run tests
-pnpm run lint        # Check linting
+bun run build:check  # Typecheck + build
+bun run test         # Run tests
+bun run lint         # Check linting
 ```
 
 ## Publishing
@@ -247,7 +245,7 @@ We use [Changesets](https://github.com/changesets/changesets) for version manage
 
 1. **Create a changeset** for your changes:
    ```bash
-   pnpm changeset
+   bun x changeset
    ```
 
 2. **Select packages** affected by your change
@@ -274,39 +272,39 @@ Publishing is automated via GitHub Actions:
 ### Clean Everything
 ```bash
 # Clean all build artifacts and caches
-pnpm run clean
+bun run clean
 
 # Clean storage only
-pnpm run clean:storage
+bun run clean:storage
 ```
 
 ### Start Production Server
 ```bash
 # Start the CLI (requires build first)
-pnpm start
+bun run start
 ```
 
 ### Working with Turbo
 
 Turbo commands run tasks across all packages:
 ```bash
-pnpm run repo:build      # Build all packages with Turbo
-pnpm run repo:test       # Test all packages with Turbo
-pnpm run repo:lint       # Lint all packages with Turbo
-pnpm run repo:typecheck  # Typecheck all packages with Turbo
+bun run repo:build      # Build all packages with Turbo
+bun run repo:test       # Test all packages with Turbo
+bun run repo:lint       # Lint all packages with Turbo
+bun run repo:typecheck  # Typecheck all packages with Turbo
 ```
 
 ## Troubleshooting
 
 ### Native Dependencies
-If you see errors about missing bindings (e.g., better-sqlite3):
+If you see errors about missing native bindings or blocked lifecycle scripts:
 ```bash
 # Reinstall dependencies
-pnpm install
+bun install
 
 # If that doesn't work, clean and reinstall
-pnpm run clean
-pnpm install
+bun run clean
+bun install
 ```
 
 ### Port Conflicts
@@ -316,17 +314,17 @@ Default ports:
 
 Set environment variables to use different ports:
 ```bash
-PORT=4000 API_PORT=4001 pnpm run dev
+PORT=4000 API_PORT=4001 bun run dev
 ```
 
 ### Global Command Not Found
 If `dexto` command is not found after linking:
 ```bash
 # Check global installations
-pnpm list -g
-npm list -g dexto --depth=0
+bun pm ls -g --depth=0
 
-# Verify PATH includes pnpm/npm global bin
+# Verify PATH includes Bun global bin
+bun pm bin -g
 echo $PATH
 ```
 

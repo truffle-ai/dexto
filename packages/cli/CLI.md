@@ -161,23 +161,23 @@ dexto --mode cli
 ### Hot Reload
 ```bash
 # Build and run dev server
-pnpm run dev
+bun run dev
 
 # Or just CLI
-pnpm run build:cli
+bun run build:cli
 dexto --mode cli
 ```
 
 ### Testing
 ```bash
 # Unit tests
-pnpm run test:unit
+bun run test:unit
 
 # Integration tests
-pnpm run test:integ
+bun run test:integ
 
 # All tests
-pnpm test
+bun run test
 ```
 
 ## See Also

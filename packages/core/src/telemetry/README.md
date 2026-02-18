@@ -85,7 +85,7 @@ Telemetry is already enabled in `agents/default-agent.yml`. To disable, set `ena
 
 ```bash
 # Run in CLI mode
-pnpm run dev
+bun run dev
 ```
 
 ### 4. Generate Traces
@@ -190,7 +190,7 @@ export class MyModule {
 - Click into a trace to see the full hierarchy
 
 **Build errors?**
-- Run `pnpm install` if dependencies are missing
+- Run `bun install` if dependencies are missing
 - Ensure you're on the `telemetry` branch
 
 ## Further Documentation

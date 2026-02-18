@@ -149,7 +149,7 @@ describe('handleMyNewEvent', () => {
 Run tests:
 
 ```bash
-pnpm test:unit packages/webui/lib/events/handlers.test.ts
+bun run test:unit -- packages/webui/lib/events/handlers.test.ts
 ```
 
 Each handler is tested in isolation to verify correct store updates.

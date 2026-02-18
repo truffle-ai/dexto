@@ -14,7 +14,7 @@ in an image (`DextoImage.storage.*`) and resolving config via `@dexto/agent-conf
   - Cache: `inMemoryCacheFactory`, `redisCacheFactory`
 - **Schemas** (for config parsing + UI):
   - Import from `@dexto/storage/schemas` for browser-safe schema-only exports.
-- **Concrete implementations** (Node runtime):
+- **Concrete implementations** (Bun runtime):
   - `LocalBlobStore`, `MemoryBlobStore`, `SQLiteStore`, `PostgresStore`, `RedisStore`, etc.
 
 ## Using factories in an image
@@ -62,7 +62,7 @@ image and validating against that factory’s `configSchema`.
 
 Some backends rely on optional peer dependencies:
 
-- SQLite: built-in `bun:sqlite` (Bun runtime) or `better-sqlite3` (Node runtime fallback)
+- SQLite: built-in `bun:sqlite` (Bun runtime)
 - Postgres: `pg`
 - Redis: `ioredis`
 
