@@ -19,7 +19,6 @@ import React, {
     forwardRef,
 } from 'react';
 import { Box, Text } from 'ink';
-import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
@@ -57,6 +56,12 @@ interface BuiltinSound {
 }
 
 const BUILTIN_SOUNDS: BuiltinSound[] = [
+    {
+        id: 'blow',
+        name: 'Blow',
+        description: 'Airy macOS-style alert',
+        filename: 'blow.wav',
+    },
     {
         id: 'coin',
         name: 'Coin',
@@ -100,10 +105,16 @@ const BUILTIN_SOUNDS: BuiltinSound[] = [
         filename: 'boot.wav',
     },
     {
-        id: 'gameboy',
-        name: 'Game Boy',
+        id: 'startup',
+        name: 'Startup',
         description: 'Classic handheld startup jingle',
-        filename: 'gameboy.wav',
+        filename: 'startup.wav',
+    },
+    {
+        id: 'glass',
+        name: 'Glass',
+        description: 'Glass ping macOS-style alert',
+        filename: 'glass.wav',
     },
     {
         id: 'success',
@@ -276,37 +287,12 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
         );
 
         const builtinSoundPaths = useMemo(() => {
-            const assetSounds = BUILTIN_SOUNDS.map((sound) => ({
+            return BUILTIN_SOUNDS.map((sound) => ({
                 ...sound,
                 absPath: fileURLToPath(
                     new URL(`../../../assets/sounds/${sound.filename}`, import.meta.url)
                 ),
-                destExt: '.wav',
             }));
-
-            const macOsDefaults =
-                process.platform === 'darwin'
-                    ? [
-                          {
-                              id: 'macos-blow',
-                              name: 'macOS Blow',
-                              description: 'System sound (Blow.aiff)',
-                              filename: 'Blow.aiff',
-                              absPath: '/System/Library/Sounds/Blow.aiff',
-                              destExt: '.aiff',
-                          },
-                          {
-                              id: 'macos-glass',
-                              name: 'macOS Glass',
-                              description: 'System sound (Glass.aiff)',
-                              filename: 'Glass.aiff',
-                              absPath: '/System/Library/Sounds/Glass.aiff',
-                              destExt: '.aiff',
-                          },
-                      ]
-                    : [];
-
-            return [...assetSounds, ...macOsDefaults].filter((sound) => existsSync(sound.absPath));
         }, []);
 
         const refreshSelections = useCallback(async () => {
@@ -538,7 +524,7 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                 // Ensure only one custom file exists for this sound type
                 await removeCustomSoundFiles(soundType);
 
-                const destPath = path.join(soundsDir, `${soundType}${builtin.destExt}`);
+                const destPath = path.join(soundsDir, `${soundType}.wav`);
                 await fs.copyFile(builtin.absPath, destPath);
 
                 await refreshSelections();

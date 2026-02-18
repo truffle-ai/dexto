@@ -11,12 +11,18 @@ This folder contains built-in sounds shipped with the Dexto CLI.
 - URL: https://freesound.org/s/341695/
 - Changes: none
 
-### `gameboy.wav`
+### `startup.wav`
 
 - Source: “Game Boy Classic - Startup Sound” by toumas (Freesound sound ID `610484`)
 - License: Creative Commons 0 (CC0)
 - URL: https://freesound.org/s/610484/
 - Changes: trimmed/processed for CLI use
+
+### `blow.wav`, `glass.wav`
+
+- Source: macOS system sounds (`/System/Library/Sounds/Blow.aiff`, `.../Glass.aiff`)
+- License: Apple system asset (verify redistribution rights before shipping publicly)
+- Changes: converted to PCM WAV for cross-platform playback
 
 ### `boot.wav`, `ping.wav`, `win.wav`
 
@@ -31,4 +37,3 @@ This folder contains built-in sounds shipped with the Dexto CLI.
 ## First-party
 
 Other sounds in this folder were created for Dexto.
-
