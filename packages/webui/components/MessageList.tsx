@@ -11,7 +11,7 @@ import {
     ToolResult,
 } from './hooks/useChat';
 import { isTextPart, isImagePart, isAudioPart, isFilePart, isUIResourcePart } from '../types';
-import type { TextPart, AudioPart, UIResourcePart } from '../types';
+import type { TextPart, AudioPart, FilePart, UIResourcePart } from '../types';
 import { getFileMediaKind } from '@dexto/core';
 import ErrorBanner from './ErrorBanner';
 import {
@@ -819,7 +819,7 @@ export default function MessageList({
                                                                 idx: number;
                                                             }> = [];
                                                             const otherParts: Array<{
-                                                                part: any;
+                                                                part: FilePart | AudioPart;
                                                                 idx: number;
                                                             }> = [];
 
