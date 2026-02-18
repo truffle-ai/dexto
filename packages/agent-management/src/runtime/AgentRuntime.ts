@@ -78,7 +78,11 @@ export class AgentRuntime {
         try {
             const agent = await createDextoAgentFromConfig({
                 config: config.agentConfig,
-                enrichOptions: { isInteractiveCli: false, skipPluginDiscovery: true },
+                enrichOptions: {
+                    isInteractiveCli: false,
+                    skipPluginDiscovery: true,
+                    forceStoragePaths: true,
+                },
                 agentIdOverride: agentId,
                 agentContext: 'subagent',
             });
