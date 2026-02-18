@@ -213,7 +213,7 @@ async function publishWithBun(
         args.push('--access', 'public');
     }
 
-    const result = await $`bun ${args}`.cwd(pkgDir).nothrow();
+    const result = await $`bun ${{ raw: args.map($.escape).join(' ') }}`.cwd(pkgDir).nothrow();
     if (result.exitCode === 0) {
         return 'published';
     }
@@ -284,7 +284,9 @@ async function main(): Promise<void> {
 
     if (publishedTags.length > 0) {
         console.log(`🏷️  Created ${publishedTags.length} tag(s). Pushing tags...`);
-        await $`git push --tags`;
+        for (const tagName of publishedTags) {
+            await $`git push origin ${tagName}`;
+        }
     } else {
         console.log('✅ Nothing new to publish.');
     }

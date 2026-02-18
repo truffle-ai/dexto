@@ -1,17 +1,17 @@
 #!/usr/bin/env bun
 
 /**
- * Installs the dexto CLI globally using a local npm registry (verdaccio).
- * This mimics exactly what `npm install -g dexto` does when published to npm.
+ * Installs the dexto CLI globally using a local registry (verdaccio).
+ * This mimics what `bun add -g dexto` does when published to the npm registry.
  *
  * Process:
  * 1. Start verdaccio (local npm registry) in background
  * 2. Publish all @dexto/* packages and dexto CLI to it
- * 3. Install dexto globally from local registry (npm resolves deps like production)
+ * 3. Install dexto globally from local registry (Bun resolves deps like production)
  * 4. Stop verdaccio and clean up
  *
  * This ensures peer dependencies resolve correctly through the dependency tree,
- * exactly as they would when users install from npm.
+ * exactly as they would when users install from the registry.
  */
 import { execSync, spawn, ChildProcess } from 'child_process';
 import { existsSync, rmSync, mkdirSync, writeFileSync, readdirSync, readFileSync } from 'fs';
@@ -278,9 +278,9 @@ function publishPackage(pkg: { name: string; path: string }) {
                 rmSync(npmrcPath);
             }
         }
-    } catch (error: any) {
+    } catch (error: unknown) {
         // Ignore "already published" errors
-        const stderr = error.stderr?.toString() || '';
+        const stderr = (error as { stderr?: Buffer })?.stderr?.toString() || '';
         if (!stderr.includes('cannot publish over')) {
             throw error;
         }
@@ -332,7 +332,7 @@ async function main() {
         }
         console.log('  ✓ All packages published');
 
-        // Uninstall existing global dexto (bun and npm)
+        // Uninstall existing global dexto
         console.log('🗑️  Removing existing global dexto...');
         let removedAny = false;
         try {
