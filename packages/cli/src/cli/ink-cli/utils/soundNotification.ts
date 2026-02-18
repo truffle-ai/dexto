@@ -4,20 +4,51 @@
  * Plays system sounds for CLI notifications like approval requests and task completion.
  * Uses platform-specific commands with fallback to terminal bell.
  *
- * Sound files should be placed in ~/.dexto/sounds/ or use system defaults.
+ * Sound files should be placed in the Dexto sounds directory (typically ~/.dexto/sounds/).
+ * In dexto source + DEXTO_DEV_MODE=true, this uses <repo>/.dexto/sounds/ for isolated dev.
  */
 
-import { exec } from 'child_process';
 import { existsSync } from 'fs';
-import { join } from 'path';
-import { homedir, platform } from 'os';
+import { isAbsolute, normalize, resolve, sep } from 'path';
+import { fileURLToPath } from 'node:url';
+import { execFile } from 'child_process';
+import { getDextoGlobalPath } from '@dexto/agent-management';
 
-export type SoundType = 'approval' | 'complete';
+export type SoundType = 'startup' | 'approval' | 'complete';
+
+export const CUSTOM_SOUND_EXTENSIONS = ['.wav', '.mp3', '.ogg', '.oga', '.aiff', '.m4a'] as const;
+
+type SoundFileKey = 'startupSoundFile' | 'approvalSoundFile' | 'completeSoundFile';
+
+function getSoundFileKey(soundType: SoundType): SoundFileKey {
+    switch (soundType) {
+        case 'startup':
+            return 'startupSoundFile';
+        case 'approval':
+            return 'approvalSoundFile';
+        case 'complete':
+            return 'completeSoundFile';
+    }
+}
+
+function resolvePathWithinSoundsDir(soundPath: string): string | null {
+    if (soundPath.trim().length === 0) return null;
+
+    const soundsDir = normalize(getDextoGlobalPath('sounds'));
+
+    const resolved = isAbsolute(soundPath) ? normalize(soundPath) : resolve(soundsDir, soundPath);
+
+    if (resolved === soundsDir || resolved.startsWith(soundsDir + sep)) {
+        return resolved;
+    }
+
+    return null;
+}
 
 /**
  * Platform-specific default sound paths
  */
-const PLATFORM_SOUNDS: Record<string, Record<SoundType, string>> = {
+const PLATFORM_SOUNDS: Record<string, Partial<Record<SoundType, string>>> = {
     darwin: {
         // macOS system sounds
         approval: '/System/Library/Sounds/Blow.aiff',
@@ -35,47 +66,56 @@ const PLATFORM_SOUNDS: Record<string, Record<SoundType, string>> = {
     },
 };
 
-/**
- * Get custom sound path from ~/.dexto/sounds/
- */
-function getCustomSoundPath(soundType: SoundType): string | null {
-    const dextoSoundsDir = join(homedir(), '.dexto', 'sounds');
-    const extensions = ['.wav', '.mp3', '.ogg', '.aiff', '.m4a'];
+const BUNDLED_STARTUP_SOUND_PATH = fileURLToPath(
+    new URL('../../assets/sounds/startup.wav', import.meta.url)
+);
 
-    for (const ext of extensions) {
-        const customPath = join(dextoSoundsDir, `${soundType}${ext}`);
-        if (existsSync(customPath)) {
-            return customPath;
-        }
+export function getDefaultSoundSpec(soundType: SoundType): string | null {
+    if (soundType === 'startup') {
+        return BUNDLED_STARTUP_SOUND_PATH;
     }
 
-    return null;
+    const platformSounds = PLATFORM_SOUNDS[process.platform];
+    return platformSounds?.[soundType] ?? null;
 }
 
 /**
  * Play a sound file using platform-specific command
  */
 function playSound(soundPath: string): void {
-    const currentPlatform = platform();
-
-    let command: string;
-
-    switch (currentPlatform) {
-        case 'darwin':
-            // macOS: use afplay
-            command = `afplay "${soundPath}"`;
-            break;
-
-        case 'linux':
-            // Linux: try paplay (PulseAudio), then aplay (ALSA)
-            if (soundPath.endsWith('.oga') || soundPath.endsWith('.ogg')) {
-                command = `paplay "${soundPath}" 2>/dev/null || ogg123 -q "${soundPath}" 2>/dev/null`;
-            } else {
-                command = `paplay "${soundPath}" 2>/dev/null || aplay -q "${soundPath}" 2>/dev/null`;
+    const execOrBell = (cmd: string, args: string[], onError?: () => void) => {
+        execFile(cmd, args, { windowsHide: true }, (error) => {
+            if (!error) return;
+            if (onError) {
+                onError();
+                return;
             }
-            break;
+            playTerminalBell();
+        });
+    };
 
-        case 'win32':
+    switch (process.platform) {
+        case 'darwin': {
+            execOrBell('afplay', [soundPath]);
+            return;
+        }
+
+        case 'linux': {
+            const lowerSoundPath = soundPath.toLowerCase();
+            const isOgg = lowerSoundPath.endsWith('.oga') || lowerSoundPath.endsWith('.ogg');
+            if (isOgg) {
+                execOrBell('paplay', [soundPath], () => {
+                    execOrBell('ogg123', ['-q', soundPath]);
+                });
+            } else {
+                execOrBell('paplay', [soundPath], () => {
+                    execOrBell('aplay', ['-q', soundPath]);
+                });
+            }
+            return;
+        }
+
+        case 'win32': {
             // Windows: use PowerShell with System.Media.SystemSounds
             // For Windows system sounds, soundPath is the sound name
             if (
@@ -83,27 +123,37 @@ function playSound(soundPath: string): void {
                     soundPath
                 )
             ) {
-                command = `powershell -c "[System.Media.SystemSounds]::${soundPath.replace('System', '')}.Play()"`;
-            } else {
-                // For custom files, use SoundPlayer
-                command = `powershell -c "(New-Object System.Media.SoundPlayer '${soundPath}').PlaySync()"`;
+                const systemSoundName = soundPath.replace('System', '');
+                execOrBell('powershell', [
+                    '-NoProfile',
+                    '-NonInteractive',
+                    '-Command',
+                    `[System.Media.SystemSounds]::${systemSoundName}.Play()`,
+                ]);
+                return;
             }
-            break;
 
-        default:
+            // For custom files, use SoundPlayer
+            execOrBell('powershell', [
+                '-NoProfile',
+                '-NonInteractive',
+                '-Command',
+                '& { param([string]$p) (New-Object System.Media.SoundPlayer $p).PlaySync() }',
+                soundPath,
+            ]);
+            return;
+        }
+
+        default: {
             // Fallback: try to use terminal bell
             playTerminalBell();
             return;
-    }
-
-    // Execute sound command asynchronously (fire and forget)
-    // Use 5s timeout to prevent hanging processes (e.g., audio device issues)
-    exec(command, { timeout: 5000 }, (error) => {
-        if (error) {
-            // Silently fall back to terminal bell on error
-            playTerminalBell();
         }
-    });
+    }
+}
+
+export function playSoundFile(soundPath: string): void {
+    playSound(soundPath);
 }
 
 /**
@@ -113,10 +163,29 @@ function playTerminalBell(): void {
     process.stdout.write('\x07');
 }
 
+function resolveNotificationSoundSpec(soundType: SoundType, config?: SoundConfig): string | null {
+    const configuredRelativePath = config?.[getSoundFileKey(soundType)];
+    if (configuredRelativePath) {
+        const resolved = resolvePathWithinSoundsDir(configuredRelativePath);
+        if (resolved && existsSync(resolved)) {
+            return resolved;
+        }
+    }
+
+    const defaultSpec = getDefaultSoundSpec(soundType);
+    if (!defaultSpec) return null;
+
+    if (process.platform === 'win32') {
+        return defaultSpec;
+    }
+
+    return existsSync(defaultSpec) ? defaultSpec : null;
+}
+
 /**
  * Play a notification sound
  *
- * @param soundType - Type of sound to play ('approval' or 'complete')
+ * @param soundType - Type of sound to play ('startup', 'approval', or 'complete')
  *
  * @example
  * ```typescript
@@ -125,41 +194,19 @@ function playTerminalBell(): void {
  *
  * // Play task complete sound
  * playNotificationSound('complete');
+ *
+ * // Play startup sound
+ * playNotificationSound('startup');
  * ```
  */
-export function playNotificationSound(soundType: SoundType): void {
-    const currentPlatform = platform();
-
-    // Check for custom sound first
-    const customSound = getCustomSoundPath(soundType);
-    if (customSound) {
-        playSound(customSound);
+export function playNotificationSound(soundType: SoundType, config?: SoundConfig): void {
+    const soundSpec = resolveNotificationSoundSpec(soundType, config);
+    if (!soundSpec) {
+        playTerminalBell();
         return;
     }
 
-    // Use platform default
-    const platformSounds = PLATFORM_SOUNDS[currentPlatform];
-    if (platformSounds) {
-        const defaultSound = platformSounds[soundType];
-        if (defaultSound) {
-            // For macOS and Linux, check if file exists
-            if (currentPlatform !== 'win32') {
-                if (existsSync(defaultSound)) {
-                    playSound(defaultSound);
-                } else {
-                    // File doesn't exist, use bell
-                    playTerminalBell();
-                }
-            } else {
-                // Windows uses system sound names
-                playSound(defaultSound);
-            }
-            return;
-        }
-    }
-
-    // Fallback to terminal bell
-    playTerminalBell();
+    playSound(soundSpec);
 }
 
 /**
@@ -170,8 +217,12 @@ export function playNotificationSound(soundType: SoundType): void {
  */
 export interface SoundConfig {
     enabled: boolean;
+    onStartup: boolean;
+    startupSoundFile?: string | undefined;
     onApprovalRequired: boolean;
+    approvalSoundFile?: string | undefined;
     onTaskComplete: boolean;
+    completeSoundFile?: string | undefined;
 }
 
 /**
@@ -202,11 +253,20 @@ export class SoundNotificationService {
     }
 
     /**
+     * Play CLI startup sound if enabled
+     */
+    playStartupSound(): void {
+        if (this.config.enabled && this.config.onStartup) {
+            playNotificationSound('startup', this.config);
+        }
+    }
+
+    /**
      * Play approval required sound if enabled
      */
     playApprovalSound(): void {
         if (this.config.enabled && this.config.onApprovalRequired) {
-            playNotificationSound('approval');
+            playNotificationSound('approval', this.config);
         }
     }
 
@@ -215,29 +275,7 @@ export class SoundNotificationService {
      */
     playCompleteSound(): void {
         if (this.config.enabled && this.config.onTaskComplete) {
-            playNotificationSound('complete');
+            playNotificationSound('complete', this.config);
         }
     }
-}
-
-/**
- * Singleton instance for global use
- * Initialize with loadGlobalPreferences() in CLI startup
- */
-let globalSoundService: SoundNotificationService | null = null;
-
-/**
- * Get the global sound notification service
- * @returns The global service, or null if not initialized
- */
-export function getSoundService(): SoundNotificationService | null {
-    return globalSoundService;
-}
-
-/**
- * Initialize the global sound service with configuration
- */
-export function initializeSoundService(config: SoundConfig): SoundNotificationService {
-    globalSoundService = new SoundNotificationService(config);
-    return globalSoundService;
 }

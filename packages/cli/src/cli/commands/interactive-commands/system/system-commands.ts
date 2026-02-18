@@ -13,7 +13,12 @@
 
 import chalk from 'chalk';
 import { logger, type DextoAgent } from '@dexto/core';
-import type { CommandDefinition, CommandHandlerResult, CommandContext } from '../command-parser.js';
+import {
+    overlayOnlyHandler,
+    type CommandDefinition,
+    type CommandHandlerResult,
+    type CommandContext,
+} from '../command-parser.js';
 import { formatForInkCli } from '../utils/format-output.js';
 import { CommandOutputHelper } from '../utils/command-output.js';
 import type { ConfigStyledData, StatsStyledData } from '../../../ink-cli/state/types.js';
@@ -230,5 +235,12 @@ export const systemCommands: CommandDefinition[] = [
             // Overlay is handled via commandOverlays.ts mapping
             return true;
         },
+    },
+    {
+        name: 'sounds',
+        description: 'Configure sound notifications (interactive)',
+        usage: '/sounds',
+        category: 'System',
+        handler: overlayOnlyHandler,
     },
 ];

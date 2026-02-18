@@ -35,6 +35,9 @@ import LogLevelSelector, {
 import StreamSelector, {
     type StreamSelectorHandle,
 } from '../components/overlays/StreamSelector.js';
+import SoundsSelector, {
+    type SoundsSelectorHandle,
+} from '../components/overlays/SoundsSelector.js';
 import ToolBrowser, { type ToolBrowserHandle } from '../components/overlays/ToolBrowser.js';
 import McpServerList, {
     type McpServerListHandle,
@@ -183,6 +186,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const sessionSelectorRef = useRef<SessionSelectorHandle>(null);
         const logLevelSelectorRef = useRef<LogLevelSelectorHandle>(null);
         const streamSelectorRef = useRef<StreamSelectorHandle>(null);
+        const soundsSelectorRef = useRef<SoundsSelectorHandle>(null);
         const toolBrowserRef = useRef<ToolBrowserHandle>(null);
         const mcpServerListRef = useRef<McpServerListHandle>(null);
         const mcpServerActionsRef = useRef<McpServerActionsHandle>(null);
@@ -258,6 +262,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             return logLevelSelectorRef.current?.handleInput(inputStr, key) ?? false;
                         case 'stream-selector':
                             return streamSelectorRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'sounds-selector':
+                            return soundsSelectorRef.current?.handleInput(inputStr, key) ?? false;
                         case 'tool-browser':
                             return toolBrowserRef.current?.handleInput(inputStr, key) ?? false;
                         case 'mcp-server-list':
@@ -2387,6 +2393,17 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             ref={streamSelectorRef}
                             isVisible={true}
                             onSelect={handleStreamSelect}
+                            onClose={handleClose}
+                        />
+                    </Box>
+                )}
+
+                {/* Sounds selector */}
+                {ui.activeOverlay === 'sounds-selector' && (
+                    <Box marginTop={1}>
+                        <SoundsSelector
+                            ref={soundsSelectorRef}
+                            isVisible={true}
                             onClose={handleClose}
                         />
                     </Box>
