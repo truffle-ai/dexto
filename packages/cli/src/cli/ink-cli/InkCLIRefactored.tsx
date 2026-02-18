@@ -212,9 +212,8 @@ export async function startInkCliRefactored(
             );
         }
     }
-    if (soundConfig.enabled) {
-        soundService = new SoundNotificationService(soundConfig);
-    }
+    // Always create the service so sound settings can be toggled at runtime (service gates playback by config)
+    soundService = new SoundNotificationService(soundConfig);
 
     // Initialize tool preferences (per-agent)
     if (agentPreferencesExist(agent.config.agentId)) {

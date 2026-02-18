@@ -14,6 +14,8 @@ import { homedir, platform } from 'os';
 
 export type SoundType = 'approval' | 'complete';
 
+export const CUSTOM_SOUND_EXTENSIONS = ['.wav', '.mp3', '.ogg', '.aiff', '.m4a'] as const;
+
 /**
  * Platform-specific default sound paths
  */
@@ -38,11 +40,10 @@ const PLATFORM_SOUNDS: Record<string, Record<SoundType, string>> = {
 /**
  * Get custom sound path from ~/.dexto/sounds/
  */
-function getCustomSoundPath(soundType: SoundType): string | null {
+export function getCustomSoundPath(soundType: SoundType): string | null {
     const dextoSoundsDir = join(homedir(), '.dexto', 'sounds');
-    const extensions = ['.wav', '.mp3', '.ogg', '.aiff', '.m4a'];
 
-    for (const ext of extensions) {
+    for (const ext of CUSTOM_SOUND_EXTENSIONS) {
         const customPath = join(dextoSoundsDir, `${soundType}${ext}`);
         if (existsSync(customPath)) {
             return customPath;
