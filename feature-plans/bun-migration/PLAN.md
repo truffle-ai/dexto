@@ -15,18 +15,18 @@ Last updated: 2026-02-18
 
 ## Split plan (PRs)
 
-- **PR 1 (this plan):** Bun migration (package manager + runtime) with functionality parity
+- **PR 1 (this plan):** Bun migration (package manager + runtime) with functionality parity + packaging so end users don’t need Bun installed
 - **PR 2 (follow-up):** Native TypeScript extensions + layered `~/.dexto` package root (DEXTO_DOTDEXTO intent) and any image-store redesign that naturally falls out of that
-- **PR 3 (optional follow-up):** Docs cleanups
+- **PR 3 (follow-up):** Installer work (e.g. `dexto.ai/install`) + docs cleanups
 
 ## Non-goals (PR 1)
 
 - Rewriting every example app to Bun (but we should keep them runnable).
 - Switching the test framework from Vitest to `bun test` (we can run Vitest under Bun).
-- Changing what gets published (but we should keep packages publishable).
+- Feature or behavior changes. Packaging changes are allowed only insofar as they preserve runtime parity (e.g. adding an npm wrapper + platform binary packages).
 - Implementing native TypeScript extension loading from layered `.dexto` roots (explicitly split to PR 2).
 - Redesigning/replacing the image store (explicitly split to PR 2).
-- Docs updates (DEVELOPMENT/CONTRIBUTING) (explicitly split to PR 3).
+- Broad documentation rewrites (explicitly split to PR 3).
 
 ## What stays the same (tooling)
 
@@ -40,17 +40,19 @@ Bun is replacing **pnpm/npm** for installs + running scripts, but it does **not*
 
 As of 2026-02-18 in `~/Projects/dexto-bun-migration`:
 
-- Root workspace is Bun-based (`packageManager: bun@1.2.9`) with `bun.lock`.
+- Root workspace is Bun-based (`packageManager: bun@1.3.5`) with `bun.lock`.
 - Docs site (`docs/`) is Bun-based (`docs/bun.lock`) and builds under Bun.
 - Repo scripts and entrypoints have been moved off hard `node`/`pnpm` invocations where it mattered for runtime.
 - SQLite persistence under Bun uses **`bun:sqlite`** (removed `better-sqlite3` runtime fallbacks entirely).
 - CI + release workflows have been migrated to Bun (GitHub Actions no longer run pnpm).
 - `bun run build`, `bun run typecheck`, and `bun run test` are green.
 - Root `package.json` scripts have been executed under Bun (excluding destructive Changesets scripts).
+- The published `dexto` CLI is now distributed as:
+  - `dexto` (Node/npm wrapper package)
+  - `dexto-<platform>` optional dependencies (contain the Bun-compiled binary + bundled runtime assets)
 
 Version note:
-- **Current pinned Bun:** `1.2.9` (known-good in this worktree)
-- We’re intentionally staying on `1.2.9` during this migration workstream.
+- **Current pinned Bun:** `1.3.5`
 
 ---
 
