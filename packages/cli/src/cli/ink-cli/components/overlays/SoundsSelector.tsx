@@ -2,8 +2,8 @@
  * SoundsSelector Component
  * Interactive overlay for configuring sound notifications and selecting built-in sounds.
  *
- * Built-in sounds are copied into ~/.dexto/sounds/builtins/ and selected via preferences.yml
- * using paths relative to ~/.dexto/sounds (e.g., builtins/coin.wav).
+ * Built-in sounds are copied into the Dexto sounds directory (typically ~/.dexto/sounds/builtins/)
+ * and selected via preferences.yml using paths relative to that directory (e.g., builtins/coin.wav).
  *
  * This reuses the existing sound resolution logic in soundNotification.ts.
  */

@@ -3,13 +3,17 @@ import { execFile } from 'child_process';
 import { SoundNotificationService, type SoundConfig } from './soundNotification.js';
 
 // Mock child_process execFile
-vi.mock('child_process', () => ({
-    execFile: vi.fn((_file, _args, _options, callback) => {
-        // Handle both (file, args, callback) and (file, args, options, callback) signatures
-        const cb = typeof _options === 'function' ? _options : callback;
-        if (cb) cb(null, '', '');
-    }),
-}));
+vi.mock('child_process', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('child_process')>();
+    return {
+        ...actual,
+        execFile: vi.fn((_file, _args, _options, callback) => {
+            // Handle both (file, args, callback) and (file, args, options, callback) signatures
+            const cb = typeof _options === 'function' ? _options : callback;
+            if (cb) cb(null, '', '');
+        }),
+    };
+});
 
 const mockedExecFile = vi.mocked(execFile);
 

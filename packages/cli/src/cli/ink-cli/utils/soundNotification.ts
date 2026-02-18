@@ -4,14 +4,16 @@
  * Plays system sounds for CLI notifications like approval requests and task completion.
  * Uses platform-specific commands with fallback to terminal bell.
  *
- * Sound files should be placed in ~/.dexto/sounds/ or use system defaults.
+ * Sound files should be placed in the Dexto sounds directory (typically ~/.dexto/sounds/).
+ * In dexto source + DEXTO_DEV_MODE=true, this uses <repo>/.dexto/sounds/ for isolated dev.
  */
 
 import { existsSync } from 'fs';
-import { isAbsolute, join, normalize, resolve, sep } from 'path';
-import { homedir, platform } from 'os';
+import { isAbsolute, normalize, resolve, sep } from 'path';
+import { platform } from 'os';
 import { fileURLToPath } from 'node:url';
 import { execFile } from 'child_process';
+import { getDextoGlobalPath } from '@dexto/agent-management';
 
 export type SoundType = 'startup' | 'approval' | 'complete';
 
@@ -30,12 +32,8 @@ function getSoundFileKey(soundType: SoundType): SoundFileKey {
     }
 }
 
-function getDextoSoundsDir(): string {
-    return join(homedir(), '.dexto', 'sounds');
-}
-
 function resolvePathWithinSoundsDir(soundPath: string): string | null {
-    const soundsDir = normalize(getDextoSoundsDir());
+    const soundsDir = normalize(getDextoGlobalPath('sounds'));
 
     const resolved = isAbsolute(soundPath) ? normalize(soundPath) : resolve(soundsDir, soundPath);
 
@@ -186,7 +184,7 @@ function playTerminalBell(): void {
 export function playNotificationSound(soundType: SoundType, config?: SoundConfig): void {
     const currentPlatform = platform();
 
-    // Check for configured sound file first (relative to ~/.dexto/sounds)
+    // Check for configured sound file first (path is relative to the Dexto sounds directory)
     if (config) {
         const configuredRelativePath = config[getSoundFileKey(soundType)];
         if (configuredRelativePath) {
