@@ -243,7 +243,19 @@ describe('buildProviderOptions', () => {
     });
 
     describe('google', () => {
-        it('maps presets into google.thinkingConfig', () => {
+        it('maps presets into google.thinkingConfig for Gemini 3 models', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'google',
+                    model: 'gemini-3-flash-preview',
+                    reasoning: { preset: 'medium' },
+                })
+            ).toEqual({
+                google: { thinkingConfig: { includeThoughts: true, thinkingLevel: 'medium' } },
+            });
+        });
+
+        it('omits thinkingLevel for Gemini 2.5 models', () => {
             expect(
                 buildProviderOptions({
                     provider: 'google',
@@ -251,7 +263,7 @@ describe('buildProviderOptions', () => {
                     reasoning: { preset: 'medium' },
                 })
             ).toEqual({
-                google: { thinkingConfig: { includeThoughts: true, thinkingLevel: 'medium' } },
+                google: { thinkingConfig: { includeThoughts: true } },
             });
         });
 

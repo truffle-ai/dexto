@@ -61,7 +61,11 @@ export function LLMConfigSection({
                         id="provider"
                         value={value.provider || ''}
                         onChange={(e) =>
-                            handleChange('provider', e.target.value as LLMConfig['provider'])
+                            onChange({
+                                ...value,
+                                provider: e.target.value as LLMConfig['provider'],
+                                reasoning: undefined,
+                            })
                         }
                         aria-invalid={!!errors['llm.provider']}
                         className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive"
@@ -89,7 +93,9 @@ export function LLMConfigSection({
                     <Input
                         id="model"
                         value={value.model || ''}
-                        onChange={(e) => handleChange('model', e.target.value)}
+                        onChange={(e) =>
+                            onChange({ ...value, model: e.target.value, reasoning: undefined })
+                        }
                         placeholder="e.g., gpt-5, claude-sonnet-4-5-20250929"
                         aria-invalid={!!errors['llm.model']}
                     />
@@ -313,7 +319,8 @@ export function LLMConfigSection({
                                 ))}
                         </select>
                         <p className="text-xs text-muted-foreground mt-1">
-                            Supported presets: {reasoningPresets.join(', ')}
+                            Supported presets:{' '}
+                            {reasoningPresets.filter((p) => p !== 'auto').join(', ')}
                         </p>
                     </div>
                 )}

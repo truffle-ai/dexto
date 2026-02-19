@@ -139,6 +139,17 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
     const [isSettingDefault, setIsSettingDefault] = useState(false); // Track if setting as default vs normal selection
     const [refreshVersion, setRefreshVersion] = useState(0);
 
+    const reasoningPresetOptions = useMemo(() => {
+        if (!pendingReasoningModel) return REASONING_PRESET_OPTIONS;
+        const support = getReasoningSupport(
+            pendingReasoningModel.provider,
+            pendingReasoningModel.name
+        );
+        return REASONING_PRESET_OPTIONS.filter((option) =>
+            support.supportedPresets.includes(option.value)
+        );
+    }, [pendingReasoningModel]);
+
     // Keep ref in sync
     selectedIndexRef.current = selectedIndex;
 
@@ -457,19 +468,23 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         return true;
                     }
                     if (key.upArrow) {
+                        if (reasoningPresetOptions.length === 0) return true;
                         setReasoningPresetIndex((prev) =>
-                            prev > 0 ? prev - 1 : REASONING_PRESET_OPTIONS.length - 1
+                            prev > 0 ? prev - 1 : reasoningPresetOptions.length - 1
                         );
                         return true;
                     }
                     if (key.downArrow) {
+                        if (reasoningPresetOptions.length === 0) return true;
                         setReasoningPresetIndex((prev) =>
-                            prev < REASONING_PRESET_OPTIONS.length - 1 ? prev + 1 : 0
+                            prev < reasoningPresetOptions.length - 1 ? prev + 1 : 0
                         );
                         return true;
                     }
                     if (key.return) {
-                        const selectedOption = REASONING_PRESET_OPTIONS[reasoningPresetIndex];
+                        const selectedOption =
+                            reasoningPresetOptions[reasoningPresetIndex] ??
+                            reasoningPresetOptions[0];
                         const reasoningPreset = selectedOption?.value ?? 'auto';
 
                         if (isSettingDefault) {
@@ -549,12 +564,16 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         const actionItem = currentItem as ModelOption;
 
                         // Check if reasoning-capable, show reasoning preset selection
-                        if (getReasoningSupport(actionItem.provider, actionItem.name).capable) {
+                        const support = getReasoningSupport(actionItem.provider, actionItem.name);
+                        if (support.capable) {
                             setPendingReasoningModel(actionItem);
                             setIsSettingDefault(true);
+                            const filteredOptions = REASONING_PRESET_OPTIONS.filter((option) =>
+                                support.supportedPresets.includes(option.value)
+                            );
                             const savedPreset = actionItem.reasoningPreset;
                             const savedIdx = savedPreset
-                                ? REASONING_PRESET_OPTIONS.findIndex((o) => o.value === savedPreset)
+                                ? filteredOptions.findIndex((o) => o.value === savedPreset)
                                 : -1;
                             setReasoningPresetIndex(savedIdx >= 0 ? savedIdx : 0);
                             return true;
@@ -702,14 +721,16 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
                         if (customModelAction === 'default') {
                             // Check if reasoning-capable, show reasoning preset selection
-                            if (getReasoningSupport(item.provider, item.name).capable) {
+                            const support = getReasoningSupport(item.provider, item.name);
+                            if (support.capable) {
                                 setPendingReasoningModel(item);
                                 setIsSettingDefault(true);
+                                const filteredOptions = REASONING_PRESET_OPTIONS.filter((option) =>
+                                    support.supportedPresets.includes(option.value)
+                                );
                                 const savedPreset = item.reasoningPreset;
                                 const savedIdx = savedPreset
-                                    ? REASONING_PRESET_OPTIONS.findIndex(
-                                          (o) => o.value === savedPreset
-                                      )
+                                    ? filteredOptions.findIndex((o) => o.value === savedPreset)
                                     : -1;
                                 setReasoningPresetIndex(savedIdx >= 0 ? savedIdx : 0);
                                 return true;
@@ -750,12 +771,16 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         }
 
                         // Normal selection - check if reasoning-capable
-                        if (getReasoningSupport(item.provider, item.name).capable) {
+                        const support = getReasoningSupport(item.provider, item.name);
+                        if (support.capable) {
                             // Show reasoning preset sub-step
                             setPendingReasoningModel(item);
+                            const filteredOptions = REASONING_PRESET_OPTIONS.filter((option) =>
+                                support.supportedPresets.includes(option.value)
+                            );
                             const savedPreset = item.reasoningPreset;
                             const savedIdx = savedPreset
-                                ? REASONING_PRESET_OPTIONS.findIndex((o) => o.value === savedPreset)
+                                ? filteredOptions.findIndex((o) => o.value === savedPreset)
                                 : -1;
                             setReasoningPresetIndex(savedIdx >= 0 ? savedIdx : 0);
                             return true;
@@ -817,7 +842,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 <Box paddingX={0} paddingY={0}>
                     <Text color="gray">{'─'.repeat(50)}</Text>
                 </Box>
-                {REASONING_PRESET_OPTIONS.map((option, index) => {
+                {reasoningPresetOptions.map((option, index) => {
                     const isSelected = index === reasoningPresetIndex;
                     return (
                         <Box key={option.value} paddingX={0} paddingY={0}>

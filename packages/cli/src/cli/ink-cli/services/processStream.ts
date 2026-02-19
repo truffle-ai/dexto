@@ -679,24 +679,42 @@ export async function processStream(
                         debug.log('TOOL-CALL: no pending message to finalize');
                     }
 
-                    // Non-streaming mode: add accumulated text as finalized message
-                    if (!useStreaming && state.nonStreamingAccumulatedText) {
-                        debug.log('TOOL-CALL: adding non-stream accumulated text', {
-                            len: state.nonStreamingAccumulatedText.length,
+                    // Non-streaming mode: add accumulated text/reasoning as finalized message
+                    // (Ordering fix: emit assistant content before the tool call)
+                    if (
+                        !useStreaming &&
+                        (state.nonStreamingAccumulatedText ||
+                            state.nonStreamingAccumulatedReasoning)
+                    ) {
+                        const content = state.nonStreamingAccumulatedText;
+                        const reasoning = state.nonStreamingAccumulatedReasoning || undefined;
+                        debug.log('TOOL-CALL: adding non-stream accumulated content', {
+                            contentLen: content.length,
+                            reasoningLen: reasoning?.length ?? 0,
                         });
-                        setMessages((prev) => [
-                            ...prev,
-                            {
-                                id: generateMessageId('assistant'),
-                                role: 'assistant',
-                                content: state.nonStreamingAccumulatedText,
-                                timestamp: new Date(),
-                                isStreaming: false,
-                            },
-                        ]);
+
+                        if (content || reasoning) {
+                            setMessages((prev) => [
+                                ...prev,
+                                {
+                                    id: generateMessageId('assistant'),
+                                    role: 'assistant',
+                                    content,
+                                    ...(reasoning ? { reasoning } : {}),
+                                    timestamp: new Date(),
+                                    isStreaming: false,
+                                },
+                            ]);
+                        }
+
+                        const hadText = !!content;
                         state.nonStreamingAccumulatedText = '';
+                        state.nonStreamingAccumulatedReasoning = '';
+
                         // Mark that we finalized text early - prevents duplicate in llm:response
-                        state.textFinalizedBeforeTool = true;
+                        if (hadText) {
+                            state.textFinalizedBeforeTool = true;
+                        }
                     }
 
                     const toolMessageId = event.callId

@@ -84,6 +84,25 @@ function mapPresetToLowMediumHigh(preset: ReasoningPreset): 'low' | 'medium' | '
     }
 }
 
+function mapPresetToGoogleThinkingLevel(
+    preset: ReasoningPreset
+): 'minimal' | 'low' | 'medium' | 'high' | undefined {
+    switch (preset) {
+        case 'low':
+            return 'low';
+        case 'medium':
+            return 'medium';
+        case 'high':
+        case 'max':
+        case 'xhigh':
+            return 'high';
+        case 'auto':
+        case 'off':
+        default:
+            return undefined;
+    }
+}
+
 function mapPresetToAnthropicEffort(
     preset: ReasoningPreset,
     model: string
@@ -217,6 +236,11 @@ export function buildProviderOptions(
 
     // Bedrock: reasoningConfig (provider-level, model-specific behavior handled by the SDK)
     if (provider === 'bedrock') {
+        const capable = isReasoningCapableModel(model, 'bedrock') || modelLower.includes('claude');
+        if (!capable) {
+            return { bedrock: {} };
+        }
+
         const maxReasoningEffort = mapPresetToLowMediumHigh(preset);
         return {
             bedrock: {
@@ -288,16 +312,20 @@ export function buildProviderOptions(
     if (provider === 'google' || (provider === 'vertex' && !modelLower.includes('claude'))) {
         const capable = isReasoningCapableModel(model, provider);
         const includeThoughts = preset !== 'off' && capable;
-        const thinkingLevel = includeThoughts ? mapPresetToGoogleThinkingLevel(preset) : undefined;
+        const isGemini3 = modelLower.includes('gemini-3');
+        const thinkingLevel =
+            includeThoughts && isGemini3 ? mapPresetToGoogleThinkingLevel(preset) : undefined;
         return {
             google: {
                 thinkingConfig: {
                     includeThoughts,
                     ...(includeThoughts &&
+                        isGemini3 &&
                         thinkingLevel !== undefined && {
                             thinkingLevel,
                         }),
                     ...(includeThoughts &&
+                        !isGemini3 &&
                         budgetTokens !== undefined && {
                             thinkingBudget: budgetTokens,
                         }),
@@ -370,23 +398,4 @@ export function buildProviderOptions(
     }
 
     return undefined;
-}
-
-function mapPresetToGoogleThinkingLevel(
-    preset: ReasoningPreset
-): 'minimal' | 'low' | 'medium' | 'high' | undefined {
-    switch (preset) {
-        case 'low':
-            return 'low';
-        case 'medium':
-            return 'medium';
-        case 'high':
-        case 'max':
-        case 'xhigh':
-            return 'high';
-        case 'off':
-            return 'minimal';
-        default:
-            return undefined;
-    }
 }
