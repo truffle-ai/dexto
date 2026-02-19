@@ -6530,6 +6530,7 @@
                         "supportedPresets",
                         "supportsBudgetTokens"
                       ],
+                      "additionalProperties": false,
                       "description": "Reasoning tuning capabilities (best-effort)"
                     }
                   },
