@@ -297,7 +297,7 @@ describe('buildProviderOptions', () => {
             expect(
                 buildProviderOptions({
                     provider: 'bedrock',
-                    model: 'anthropic.claude-3-7-sonnet-20250219-v1:0',
+                    model: 'anthropic.claude-haiku-4-5-20251001-v1:0',
                     reasoning: { preset: 'auto' },
                 })
             ).toEqual({ bedrock: {} });
@@ -307,10 +307,20 @@ describe('buildProviderOptions', () => {
             expect(
                 buildProviderOptions({
                     provider: 'bedrock',
-                    model: 'anthropic.claude-3-7-sonnet-20250219-v1:0',
+                    model: 'anthropic.claude-haiku-4-5-20251001-v1:0',
                     reasoning: { preset: 'off' },
                 })
             ).toEqual({ bedrock: { reasoningConfig: { type: 'disabled' } } });
+        });
+
+        it('does not send reasoningConfig for non-capable models', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'bedrock',
+                    model: 'anthropic.claude-3-7-sonnet-20250219-v1:0',
+                    reasoning: { preset: 'high' },
+                })
+            ).toEqual({ bedrock: {} });
         });
     });
 

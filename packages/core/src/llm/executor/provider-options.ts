@@ -236,7 +236,7 @@ export function buildProviderOptions(
 
     // Bedrock: reasoningConfig (provider-level, model-specific behavior handled by the SDK)
     if (provider === 'bedrock') {
-        const capable = isReasoningCapableModel(model, 'bedrock') || modelLower.includes('claude');
+        const capable = isReasoningCapableModel(model, 'bedrock');
         if (!capable) {
             return { bedrock: {} };
         }
