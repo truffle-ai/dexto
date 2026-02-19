@@ -162,6 +162,7 @@ export const MessageItem = memo(
         // Without width constraints, streaming content causes terminal blackout at ~50+ lines.
         // marginTop={1} for consistent spacing with tool messages
         if (message.role === 'assistant') {
+            const hasContent = message.content.trim().length > 0;
             const reasoningBlock =
                 showReasoning && message.reasoning ? (
                     <Box flexDirection="column" marginBottom={1}>
@@ -175,7 +176,7 @@ export const MessageItem = memo(
                 return (
                     <Box flexDirection="column" width={terminalWidth}>
                         {reasoningBlock}
-                        <MarkdownText>{message.content || ''}</MarkdownText>
+                        {hasContent ? <MarkdownText>{message.content}</MarkdownText> : null}
                     </Box>
                 );
             }
@@ -186,7 +187,9 @@ export const MessageItem = memo(
             return (
                 <Box flexDirection="column" marginTop={1} width={terminalWidth}>
                     {reasoningBlock}
-                    <MarkdownText bulletPrefix="⏺ ">{message.content || ''}</MarkdownText>
+                    {hasContent ? (
+                        <MarkdownText bulletPrefix="⏺ ">{message.content}</MarkdownText>
+                    ) : null}
                 </Box>
             );
         }
