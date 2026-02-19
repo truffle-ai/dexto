@@ -279,6 +279,21 @@ describe('buildProviderOptions', () => {
             ).toEqual({ openrouter: { includeReasoning: true } });
         });
 
+        it('applies budgetTokens even when preset is auto', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'openrouter',
+                    model: 'openai/gpt-5.2-codex',
+                    reasoning: { preset: 'auto', budgetTokens: 111 },
+                })
+            ).toEqual({
+                openrouter: {
+                    includeReasoning: true,
+                    reasoning: { enabled: true, max_tokens: 111 },
+                },
+            });
+        });
+
         it('maps off to includeReasoning=false', () => {
             expect(
                 buildProviderOptions({

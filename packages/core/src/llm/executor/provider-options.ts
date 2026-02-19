@@ -329,10 +329,22 @@ export function buildProviderOptions(
     if (provider === 'openrouter' || provider === 'dexto-nova') {
         const capable = isReasoningCapableModel(model);
 
+        if (preset === 'off') {
+            return { openrouter: { includeReasoning: false } };
+        }
+
         if (!capable) {
-            return preset === 'off'
-                ? { openrouter: { includeReasoning: false } }
-                : { openrouter: { includeReasoning: true } };
+            return { openrouter: { includeReasoning: true } };
+        }
+
+        // budgetTokens is an explicit override: apply it even when preset is 'auto'.
+        if (budgetTokens !== undefined) {
+            return {
+                openrouter: {
+                    includeReasoning: true,
+                    reasoning: { enabled: true, max_tokens: budgetTokens },
+                },
+            };
         }
 
         if (preset === 'auto') {
@@ -340,21 +352,12 @@ export function buildProviderOptions(
             return { openrouter: { includeReasoning: true } };
         }
 
-        if (preset === 'off') {
-            return { openrouter: { includeReasoning: false } };
-        }
-
         const effort = mapPresetToOpenRouterEffort(preset, model);
 
         return {
             openrouter: {
                 includeReasoning: true,
-                reasoning:
-                    budgetTokens !== undefined
-                        ? { enabled: true, max_tokens: budgetTokens }
-                        : effort !== undefined
-                          ? { enabled: true, effort }
-                          : undefined,
+                reasoning: effort !== undefined ? { enabled: true, effort } : undefined,
             },
         };
     }
