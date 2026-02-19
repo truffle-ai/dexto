@@ -378,6 +378,8 @@ export interface AgentEventMap {
         /** Optional user-facing name for the tool (UI convenience) */
         toolDisplayName?: string;
         args: Record<string, any>;
+        /** Optional user-facing description from tool call metadata (e.g., __meta.callDescription) */
+        callDescription?: string;
         callId?: string;
         sessionId: string;
     };
@@ -388,6 +390,8 @@ export interface AgentEventMap {
         /** Optional user-facing name for the tool (UI convenience) */
         toolDisplayName?: string;
         args: Record<string, any>;
+        /** Optional user-facing description from tool call metadata (e.g., __meta.callDescription) */
+        callDescription?: string;
         callId?: string;
         isComplete?: boolean;
         sessionId: string;
@@ -640,6 +644,8 @@ export interface SessionEventMap {
         /** Optional user-facing name for the tool (UI convenience) */
         toolDisplayName?: string;
         args: Record<string, any>;
+        /** Optional user-facing description from tool call metadata (e.g., __meta.callDescription) */
+        callDescription?: string;
         callId?: string;
     };
 
@@ -649,6 +655,8 @@ export interface SessionEventMap {
         /** Optional user-facing name for the tool (UI convenience) */
         toolDisplayName?: string;
         args: Record<string, any>;
+        /** Optional user-facing description from tool call metadata (e.g., __meta.callDescription) */
+        callDescription?: string;
         callId?: string;
         isComplete?: boolean;
     };

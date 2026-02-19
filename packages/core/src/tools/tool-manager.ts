@@ -860,6 +860,8 @@ export class ToolManager {
     ): Promise<import('./types.js').ToolExecutionResult> {
         const { toolArgs: rawToolArgs, meta } = extractToolCallMeta(args);
         let toolArgs = rawToolArgs;
+        const callDescription =
+            typeof meta.callDescription === 'string' ? meta.callDescription : undefined;
         const backgroundTasksEnabled = isBackgroundTasksEnabled();
         const toolDisplayName = this.agentTools.get(toolName)?.displayName;
 
@@ -880,6 +882,7 @@ export class ToolManager {
                 toolName,
                 ...(toolDisplayName !== undefined && { toolDisplayName }),
                 args: toolArgs,
+                ...(callDescription !== undefined && { callDescription }),
                 callId: toolCallId,
                 sessionId,
             });

@@ -273,6 +273,51 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
     });
 
     describe('Confirmation Flow Logic', () => {
+        it('should emit callDescription on llm:tool-call events when __meta.callDescription is provided', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+
+            const tool = defineTool({
+                id: 'typed',
+                description: 'Typed tool',
+                inputSchema: z
+                    .object({
+                        count: z.number().int(),
+                    })
+                    .strict(),
+                execute: vi.fn().mockResolvedValue('ok'),
+            });
+
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [tool],
+                mockLogger
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+
+            await toolManager.executeTool(
+                'typed',
+                { count: 5, __meta: { callDescription: 'Read test file' } },
+                'call-1',
+                'session-1'
+            );
+
+            expect(mockAgentEventBus.emit).toHaveBeenCalledWith(
+                'llm:tool-call',
+                expect.objectContaining({
+                    toolName: 'typed',
+                    args: { count: 5 },
+                    callDescription: 'Read test file',
+                    callId: 'call-1',
+                    sessionId: 'session-1',
+                })
+            );
+        });
+
         it('should validate local tool args before custom approvals and previews', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
 

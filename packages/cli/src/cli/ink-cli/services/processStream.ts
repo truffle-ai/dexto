@@ -621,11 +621,13 @@ export async function processStream(
                         }),
                     });
 
-                    // Add description if present (dim styling, on new line)
+                    // Add call description if present (dim styling, on new line)
+                    // NOTE: This should come from tool call metadata (e.g., __meta.callDescription),
+                    // not from tool args, to keep approval + history consistent.
                     let finalToolContent = toolContent;
-                    const description = event.args?.description;
-                    if (description && typeof description === 'string') {
-                        finalToolContent += `\n${chalk.dim(description)}`;
+                    const callDescription = event.callDescription;
+                    if (typeof callDescription === 'string' && callDescription.trim().length > 0) {
+                        finalToolContent += `\n${chalk.dim(callDescription)}`;
                     }
 
                     // Tool calls start in 'pending' state (don't know if approval needed yet)
