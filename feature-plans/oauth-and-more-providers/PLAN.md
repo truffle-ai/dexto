@@ -337,14 +337,16 @@ Reference implementations:
 ### 7.3 Server API (for WebUI + future remote clients)
 
 Add Hono routes in `packages/server/src/hono/routes/` analogous to the existing `/llm/key` surface:
-- `GET /llm/auth/methods` → per-provider supported methods (labels + kinds + requirements).
-- `GET /llm/auth/profiles` → list saved profiles (masked previews only) + per-provider defaults.
-- `POST /llm/auth/profiles` → upsert a profile (API-key, token) or store an OAuth result.
-- `POST /llm/auth/defaults` → set `defaults[providerId] = profileId`.
-- `POST /llm/auth/api-key` → store BYOK (existing `/llm/key` can remain; we can alias/migrate).
-- `POST /llm/auth/oauth/authorize` → returns `{ url, mode: auto|code, instructions, stateId }`.
-- `POST /llm/auth/oauth/callback` → completes OAuth (with optional `code`) and persists credential.
-- `GET /llm/auth/status` → per-provider connection status + which method is active (no secrets, masked previews only).
+- `GET /llm/connect/providers` → per-provider supported methods (labels + kinds + requirements).
+- `GET /llm/connect/profiles` → list saved profiles (masked previews only) + per-provider defaults.
+- `DELETE /llm/connect/profiles/{profileId}` → delete a profile and clear defaults pointing at it.
+- `POST /llm/connect/defaults` → set `defaults[providerId] = profileId` (or clear).
+
+Future expansions (when WebUI needs to *create* profiles or run OAuth via the server):
+- `POST /llm/connect/profiles` → upsert a profile (API-key, token) or store an OAuth result.
+- `POST /llm/connect/oauth/authorize` → returns `{ url, mode: auto|code, instructions, stateId }`.
+- `POST /llm/connect/oauth/callback` → completes OAuth (with optional `code`) and persists credential.
+- `GET /llm/connect/status` → per-provider connection status + which method is active (no secrets, masked previews only).
 
 Implementation note:
 - Even for CLI-only first pass, designing the API as a **two-phase authorize/callback** flow reduces later churn.
@@ -662,6 +664,11 @@ Implementation note (important):
 ### Phase 3 — OpenAI ChatGPT OAuth (Codex)
 > **Goal:** make OAuth a first-class method whose tokens affect runtime requests (not just storage).
 
+Status (scaffolding already exists in-repo):
+- Device-code CLI flow: `packages/cli/src/cli/commands/connect/openai-codex.ts`
+- Profile persistence: `packages/agent-management/src/auth/llm-profiles.ts`
+- Refresh + runtime overrides (baseURL + fetch wrapper): `packages/agent-management/src/auth/runtime-auth-resolver.ts`
+
 - [ ] **3.0 Re-audit upstream Codex OAuth implementations (edge cases)**
   - Deliverables:
     - Re-read and extract any “must copy” edge cases (PKCE/device-code details, callback state verification, request rewrite behavior, account header extraction):
@@ -672,29 +679,35 @@ Implementation note (important):
   - Exit:
     - Edge-case checklist captured in working memory; Phase 3 tasks incorporate any required deltas.
 
-- [ ] **3.1 Implement OpenAI OAuth authorize/callback flows + persistence**
+- [ ] **3.1 Productionize OpenAI Codex OAuth (device-code first)**
   - Deliverables:
-    - Dexto-owned OpenAI OAuth app config (client ID + allowed redirect URIs) and a safe place to store the client ID (non-secret) in-repo.
-    - OAuth flow helper that supports local browser callback and headless/device-code paths.
-    - Persist token + refresh metadata in the profile store.
+    - Dexto-owned OpenAI OAuth app config (client ID + allowlisting/redirect URIs policy) and a safe place to store the client ID (non-secret) in-repo.
+    - Ensure the connect method is **model-scoped** to Codex-capable models (or represented as a separate provider/preset) so it cannot become the default for unrelated OpenAI models.
+    - Persist token + refresh metadata in the profile store (already implemented; harden + verify).
     - Allowlist-aware error handling + UX (clear message + fallback to API key).
   - Exit:
-    - Manual OAuth connect succeeds (for allowlisted accounts); token is stored; secrets are not logged.
+    - Manual OAuth connect succeeds (for allowlisted accounts); token is stored; secrets are not logged; default semantics cannot “poison” normal OpenAI usage.
 
-- [ ] **3.2 Implement refresh token logic**
+- [ ] **3.2 Harden refresh token logic (existing)**
   - Deliverables:
     - Refresh on expiry with safe concurrent refresh behavior.
   - Exit:
     - Unit tests cover refresh success/failure and persistence updates.
 
-- [ ] **3.3 Implement runtime wiring in `packages/core/src/llm/services/factory.ts`**
+- [ ] **3.3 Harden runtime wiring + request rewrite behavior (existing)**
   - Deliverables:
     - Provider-specific runtime overrides for OpenAI OAuth (headers/fetch/baseURL/URL rewrite as needed).
+    - Ensure any rewrite behavior is gated to the Codex OAuth method and Codex-scoped models.
   - Exit:
     - Regression tests cover request rewrite correctness (unit-level; network mocked).
 
 ### Phase 4 — MiniMax Portal OAuth (device-code/PKCE)
 > **Goal:** add a second OAuth method (MiniMax) to validate the method registry + refresh patterns beyond OpenAI.
+
+Status (scaffolding already exists in-repo):
+- Device-code CLI flow: `packages/cli/src/cli/commands/connect/minimax-portal.ts`
+- Profile persistence: `packages/agent-management/src/auth/llm-profiles.ts`
+- Refresh + runtime overrides (resource URL/baseURL + fetch wrapper): `packages/agent-management/src/auth/runtime-auth-resolver.ts`
 
 - [ ] **4.0 Re-audit upstream MiniMax Portal OAuth implementations (edge cases)**
   - Deliverables:
@@ -706,17 +719,17 @@ Implementation note (important):
   - Exit:
     - Edge-case checklist captured in working memory; Phase 4 tasks incorporate any required deltas.
 
-- [ ] **4.1 Implement MiniMax OAuth authorize/callback flows + persistence**
+- [ ] **4.1 Productionize MiniMax Portal OAuth (device-code first)**
   - Deliverables:
     - Dexto-owned MiniMax OAuth app config (client ID + allowed redirect URIs) OR explicit confirmation that the public client ID we reference is intended for third-party clients.
-    - Device-code/PKCE-style flow modeled after OpenClaw’s implementation:
+    - Device-code flow modeled after OpenClaw’s implementation:
       - `~/Projects/external/openclaw/extensions/minimax-portal-auth/oauth.ts`
       - `~/Projects/external/openclaw/extensions/minimax-portal-auth/index.ts`
-    - Persist token + refresh metadata in the profile store.
+    - Persist token + refresh metadata in the profile store (already implemented; harden + verify).
   - Exit:
     - Manual MiniMax OAuth connect succeeds; token is stored; secrets are not logged.
 
-- [ ] **4.2 Implement refresh token logic + runtime usage**
+- [ ] **4.2 Harden refresh token logic + runtime usage (existing)**
   - Exit:
     - Confirm the runtime auth material needed by MiniMax (bearer token vs derived API key) and implement refresh accordingly.
 

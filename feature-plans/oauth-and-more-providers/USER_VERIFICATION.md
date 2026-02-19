@@ -30,6 +30,7 @@
 | UV-11 | Manual smoke: OpenAI OAuth runtime behavior | Requires real OAuth account + network | Phase 3 | Open | Verify token refresh + request rewrite works end-to-end (including Responses API behavior). |
 | UV-12 | Manual smoke: WebUI parity | Requires running WebUI | Phase 7 | Open | Verify WebUI reflects method-based auth and doesn’t regress existing API key settings. |
 | UV-13 | “Ancient model” visibility policy | Product UX / defaults | 1.5.4 | Open | Decide whether we should ship an explicit time-window filter (eg “hide models older than X months”), and if so, which metadata to trust (`release_date`, `last_updated`, `status`). |
+| UV-14 | Codex OAuth model scope + default semantics | Product UX + avoids breaking non-Codex OpenAI usage | 3.1 | Open | Decide whether Codex OAuth is (a) model-gated within `openai`, or (b) represented as a separate provider/preset (e.g. `openai-codex`). Ensure setting it as a default cannot affect unrelated OpenAI models. |
 
 ---
 
