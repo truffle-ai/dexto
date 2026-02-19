@@ -42,7 +42,7 @@ The intended architecture (post Phase 1.5/2.3):
   - `provider.api` (when present) → baseURL
   - `provider.env` / `provider.doc` → connect UX hints
 
-This keeps a clear path to “all providers” without turning `LLM_PROVIDERS` into a 94-item enum.
+This keeps a clear path to “all providers” while keeping runtime code small; it’s fine if `LLM_PROVIDERS` becomes a 94-item union **as long as it’s generated** (not hand-maintained).
 
 ---
 
@@ -297,4 +297,3 @@ cloudflare-ai-gateway
 ```text
 venice
 ```
-

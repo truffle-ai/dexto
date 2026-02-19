@@ -87,6 +87,16 @@ pi’s merge strategy is intentionally simple and stable:
 Reference:
 - `~/Projects/external/pi-mono/packages/ai/scripts/generate-models.ts` (section “Group by provider and deduplicate by model ID”).
 
+### 2.5 Provider identity: models.dev provider IDs are canonical (no back-compat)
+
+Decision (owner): treat **models.dev provider IDs** as our canonical, user-facing provider IDs.
+
+Implications:
+- Expand core’s `LLMProvider` to include all models.dev provider IDs (generated from the provider snapshot).
+- Deprecate/remove Dexto-local legacy IDs (e.g. `glm`, `vertex`, `bedrock`) in favor of models.dev IDs (e.g. `zhipuai`, `google-vertex`, `amazon-bedrock`).
+- Keep a small Dexto-only overlay for providers that are not on models.dev (e.g. `dexto-nova`, `openai-compatible`, `local`, `ollama`).
+- No aliases/backward compatibility required: breaking config changes are acceptable.
+
 ## 3) “Minimal transports” is still a viable base (with a clear path to pi parity)
 
 The earlier “minimal transports” statement refers to the **request-shape layer** (which SDK surface we target), not the size of the model catalog.

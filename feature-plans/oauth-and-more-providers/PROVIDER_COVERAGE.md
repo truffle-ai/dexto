@@ -16,26 +16,36 @@ Notes:
 
 Source of truth: `packages/core/src/llm/types.ts` (`LLM_PROVIDERS`)
 
-Count: **17**
+Count: **27**
 
 ```text
+openai
+openai-compatible
 anthropic
-bedrock
+google
+groq
+xai
 cohere
 dexto-nova
 glama
 glm
-google
-groq
 litellm
 local
 minimax
+minimax-cn
+minimax-coding-plan
+minimax-cn-coding-plan
+moonshotai
+moonshotai-cn
 ollama
-openai
-openai-compatible
 openrouter
 vertex
-xai
+bedrock
+kimi-for-coding
+zhipuai
+zhipuai-coding-plan
+zai
+zai-coding-plan
 ```
 
 ---

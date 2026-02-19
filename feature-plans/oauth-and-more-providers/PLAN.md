@@ -27,7 +27,7 @@ Ground truth in the repo today:
 - **Provider key storage helpers** live in `@dexto/agent-management`:
   - `packages/agent-management/src/utils/api-key-store.ts` (`saveProviderApiKey()`, `getProviderKeyStatus()`, Bedrock special-casing)
   - `packages/agent-management/src/utils/api-key-resolver.ts` (env var resolution mirror)
-- **Dexto account login** state lives in `~/.dexto/auth.json` (see `packages/cli/src/cli/auth/service.ts` and `packages/agent-management/src/utils/dexto-auth.ts`). The CLI loads `DEXTO_API_KEY` from this file early (`packages/cli/src/index-main.ts`) for `dexto-nova` routing.
+- **Dexto account login** state lives in `~/.dexto/auth/dexto.json` (see `packages/cli/src/cli/auth/service.ts` and `packages/agent-management/src/utils/dexto-auth.ts`). The CLI loads `DEXTO_API_KEY` from this file early (`packages/cli/src/index-main.ts`) for `dexto-nova` routing.
 
 We want:
 - **Per-provider auth method selection** (e.g. OpenAI: ChatGPT OAuth *or* API key).
@@ -38,9 +38,10 @@ Known complications / gaps:
 - **OpenAI Codex OAuth may require allowlisting** (expected failure mode for many accounts). We must implement it with graceful fallback messaging to API key mode.
 - **OAuth client IDs / redirect URIs are product-critical**. We must use Dexto-owned OAuth app credentials (don’t copy OpenCode/OpenClaw client IDs). Redirect URIs must be registered; some providers may require allowlisting for our app.
 - **Anthropic setup-token viability is uncertain** (we should implement until proven infeasible, then gate/remove).
-- **Provider IDs are currently fixed** (`LLM_PROVIDERS` enum in `packages/core/src/llm/types.ts`). Supporting `moonshot`, `zai`, `minimax-cn`, etc. as first-class providers requires either:
-  - expanding the enum + LLM factory support, or
-  - treating them as `openai-compatible` presets (provider-specific baseURL + env-var naming) without adding new provider IDs.
+- **Provider IDs are currently fixed** (`LLM_PROVIDERS` in `packages/core/src/llm/types.ts`), but our direction is **models.dev-driven provider IDs**:
+  - Treat **models.dev provider IDs** as canonical “first-class” providers (e.g. `deepseek`, `zhipuai`, `zai`, `moonshotai`, `minimax-cn`, …).
+  - `LLM_PROVIDERS` / `LLMProvider` should be **generated from the models.dev provider snapshot** (plus a small Dexto-only overlay like `dexto-nova`, `openai-compatible`, `ollama`, `local`).
+  - **Backward compatibility is explicitly not required** for legacy provider IDs (e.g. `glm`, `vertex`, `bedrock`) or legacy auth storage.
 
 ---
 
@@ -203,7 +204,7 @@ Key takeaways to borrow:
 - Fixed provider enum: `packages/core/src/llm/types.ts` (`LLM_PROVIDERS`)
 - API key resolution: `packages/core/src/utils/api-key-resolver.ts`, `packages/agent-management/src/utils/api-key-resolver.ts`
 - Persisted API keys (writes `.env`): `packages/agent-management/src/utils/api-key-store.ts`, server route `packages/server/src/hono/routes/key.ts`
-- Dexto login state (for `dexto-nova`): `packages/cli/src/cli/auth/service.ts` (writes `~/.dexto/auth.json`), env injection `packages/cli/src/index-main.ts`
+- Dexto login state (for `dexto-nova`): `packages/cli/src/cli/auth/service.ts` (writes `~/.dexto/auth/dexto.json`), env injection `packages/cli/src/index-main.ts`
 
 ### 6.2 OpenCode today (reference)
 - Auth storage (`auth.json`, `0o600`): `~/Projects/external/opencode/packages/opencode/src/auth/index.ts`
@@ -226,16 +227,16 @@ Key takeaways to borrow:
 |---|---|---|---|---|
 | `openai` | OAuth (ChatGPT Pro/Plus browser + headless) + API key (`~/Projects/external/opencode/packages/opencode/src/plugin/codex.ts`) | `openai-codex` (OAuth), `openai-api-key` (API key) (`~/Projects/external/openclaw/src/commands/auth-choice-options.ts`) | API key via env vars (`OPENAI_API_KEY`, `OPENAI_KEY`) | API key + Codex OAuth (browser + headless), allowlist-aware UX + runtime request rewrite |
 | `anthropic` | API key | `token` / `setup-token` (paste), `apiKey` (API key) (`~/Projects/external/openclaw/src/commands/auth-choice.apply.anthropic.ts`) | API key via env vars (`ANTHROPIC_API_KEY`, etc.) | API key + setup-token (implement; gate/remove if infeasible) |
-| `minimax` | API key (models.dev provider ID `minimax`, `minimax-coding-plan`) | `minimax-portal` (OAuth), plus API key presets (`minimax-api`, `minimax-api-key-cn`, `minimax-api-lightning`) (`~/Projects/external/openclaw/src/commands/auth-choice-options.ts`, `~/Projects/external/openclaw/extensions/minimax-portal-auth/oauth.ts`, `~/Projects/external/openclaw/src/commands/onboard-auth.config-minimax.ts`) | Provider exists (`minimax`) but current runtime assumes OpenAI-compatible baseURL (`packages/core/src/llm/services/factory.ts`) | API key presets (global/CN + coding-plan variants) + MiniMax Portal OAuth method; align runtime transport with models.dev + OpenClaw endpoint variants |
-| `moonshotai` (Kimi) | API key (models.dev provider IDs `moonshotai`, `moonshotai-cn`) | `moonshot-api-key` (global), `moonshot-api-key-cn` (CN) (`~/Projects/external/openclaw/src/commands/auth-choice-options.ts`) | Not first-class provider ID; can be used via `openai-compatible` manually | Add Moonshot presets (global + CN) with models.dev provider IDs and OpenClaw baseURL constants; optionally add a first-class provider ID (Phase 0.2) |
-| `kimi-for-coding` (Kimi Code) | API key (models.dev provider ID `kimi-for-coding`) | `kimi-code-api-key` (API key) (`~/Projects/external/openclaw/src/commands/auth-choice.apply.api-providers.ts`) | Not supported | Add Kimi Code preset (Anthropic-compatible) + API key connect method; ensure runtime can target Anthropic-compatible endpoints |
-| `zhipuai` (GLM / BigModel) | API key (models.dev provider IDs `zhipuai`, `zhipuai-coding-plan`) | (OpenClaw’s “CN” Z.AI endpoints point at `open.bigmodel.cn`) (`~/Projects/external/openclaw/src/commands/onboard-auth.models.ts`) | Supported as provider `glm` with fixed baseURL `https://open.bigmodel.cn/api/paas/v4` (`packages/core/src/llm/services/factory.ts`) | Add presets for Zhipu base URLs (standard + coding plan), and decide whether to alias `glm` ↔ `zhipuai` in UX/config (Phase 0.2) |
-| `zai` (Z.AI) | API key (models.dev provider IDs `zai`, `zai-coding-plan`) | `zai-*` endpoint presets (`zai-coding-global`, `zai-coding-cn`, `zai-global`, `zai-cn`) (`~/Projects/external/openclaw/src/commands/auth-choice-options.ts`, `~/Projects/external/openclaw/src/commands/onboard-auth.models.ts`) | Not first-class (closest is `glm` for `open.bigmodel.cn`) | Add Z.AI presets and decide env var mapping (`ZHIPU_API_KEY` per models.dev vs `ZAI_API_KEY` per OpenClaw) (Phase 0.2) |
-| `bedrock` | (API key/creds) | (N/A) | AWS chain in factory; bearer token is recognized in status helpers (`packages/agent-management/src/utils/api-key-store.ts`) | `/connect` guidance + explicit method choices |
-| `vertex` | ADC | (N/A) | ADC-only (`GOOGLE_VERTEX_PROJECT`, etc.) | `/connect` guidance + status surface |
+| `minimax` | API key (models.dev provider ID `minimax`, `minimax-coding-plan`) | `minimax-portal` (OAuth), plus API key presets (`minimax-api`, `minimax-api-key-cn`, `minimax-api-lightning`) (`~/Projects/external/openclaw/src/commands/auth-choice-options.ts`, `~/Projects/external/openclaw/extensions/minimax-portal-auth/oauth.ts`, `~/Projects/external/openclaw/src/commands/onboard-auth.config-minimax.ts`) | First-class providers (`minimax*`); runtime uses Anthropic-compatible baseURLs (models.dev-aligned) (`packages/core/src/llm/services/factory.ts`) | Keep models.dev baseURLs as the default; optionally expose OpenAI-compatible variants as explicit presets if we decide they’re valuable |
+| `moonshotai` (Kimi) | API key (models.dev provider IDs `moonshotai`, `moonshotai-cn`) | `moonshot-api-key` (global), `moonshot-api-key-cn` (CN) (`~/Projects/external/openclaw/src/commands/auth-choice-options.ts`) | First-class providers (`moonshotai`, `moonshotai-cn`) | Generate provider IDs from models.dev; keep baseURL + env hints sourced from snapshot |
+| `kimi-for-coding` (Kimi Code) | API key (models.dev provider ID `kimi-for-coding`) | `kimi-code-api-key` (API key) (`~/Projects/external/openclaw/src/commands/auth-choice.apply.api-providers.ts`) | First-class provider (`kimi-for-coding`) | Keep models.dev-aligned Anthropic-compatible baseURL + API key method |
+| `zhipuai` (GLM / BigModel) | API key (models.dev provider IDs `zhipuai`, `zhipuai-coding-plan`) | (OpenClaw’s “CN” Z.AI endpoints point at `open.bigmodel.cn`) (`~/Projects/external/openclaw/src/commands/onboard-auth.models.ts`) | First-class providers (`zhipuai`, `zhipuai-coding-plan`); legacy `glm` should be removed | Align fully to models.dev provider IDs; no aliases/back-compat required |
+| `zai` (Z.AI) | API key (models.dev provider IDs `zai`, `zai-coding-plan`) | `zai-*` endpoint presets (`zai-coding-global`, `zai-coding-cn`, `zai-global`, `zai-cn`) (`~/Projects/external/openclaw/src/commands/auth-choice-options.ts`, `~/Projects/external/openclaw/src/commands/onboard-auth.models.ts`) | First-class providers (`zai`, `zai-coding-plan`) | Decide env var accept/display policy (models.dev `ZHIPU_API_KEY` vs OpenClaw `ZAI_API_KEY` variants) |
+| `amazon-bedrock` | (API key/creds) | (N/A) | AWS chain in factory; bearer token is recognized in status helpers (`packages/agent-management/src/utils/api-key-store.ts`) | Rename provider ID to models.dev’s `amazon-bedrock`; keep `/connect` guidance + explicit method choices |
+| `google-vertex` | ADC | (N/A) | ADC-only (`GOOGLE_VERTEX_PROJECT`, etc.) | Rename provider ID to models.dev’s `google-vertex`; keep `/connect` guidance + status surface |
 | `openrouter` | API key | `openrouter-api-key` | API key env var | Add profiles + `/connect` UX + status |
 | `litellm` | API key + baseURL | `litellm-api-key` | API key env var + baseURL required | Add profiles + `/connect` UX for baseURL + key |
-| `dexto-nova` | (N/A) | (N/A) | Dexto login (`~/.dexto/auth.json` → `DEXTO_API_KEY`) | Move to new auth store + expose status/methods via API |
+| `dexto-nova` | (N/A) | (N/A) | Dexto login (`~/.dexto/auth/dexto.json` → `DEXTO_API_KEY`) | Expose status/methods via API; keep auth store under `~/.dexto/auth/` |
 
 ### 6.4.1 Additional OAuth/token methods in prior art (useful references; not required for v1 unless requested)
 
@@ -254,12 +255,12 @@ This is the “actionable diff” for GLM/Z.AI, MiniMax, and Kimi/Moonshot. It�
 
 | Ecosystem | models.dev (provider IDs → baseURL/API + env + SDK hint) | OpenClaw (provider IDs/choices → baseURL + env) | Dexto today (provider → baseURL + env) | Implication for this plan |
 |---|---|---|---|---|
-| **MiniMax** | `minimax` → `https://api.minimax.io/anthropic/v1`, `MINIMAX_API_KEY`, `@ai-sdk/anthropic` | `minimax` OpenAI-compatible: `DEFAULT_MINIMAX_BASE_URL = https://api.minimax.io/v1` (`onboard-auth.models.ts`); Anthropic-compatible: `MINIMAX_API_BASE_URL = https://api.minimax.io/anthropic`, `MINIMAX_CN_API_BASE_URL = https://api.minimaxi.com/anthropic` (`onboard-auth.config-minimax.ts`); env: `MINIMAX_API_KEY` / `MINIMAX_OAUTH_TOKEN` (`model-auth.ts`) | `minimax` → `https://api.minimax.chat/v1` + `MINIMAX_API_KEY` (`packages/core/src/llm/services/factory.ts`, `packages/core/src/utils/api-key-resolver.ts`) | MiniMax has **multiple official surfaces** (OpenAI-compatible vs Anthropic-compatible vs Portal OAuth). Our presets must choose a default and also expose variants. Expect we’ll need an **Anthropic-compatible runtime path** for models.dev alignment (and/or keep OpenAI-compatible as an optional preset). |
-| **MiniMax (CN)** | `minimax-cn` → `https://api.minimaxi.com/anthropic/v1`, `MINIMAX_API_KEY`, `@ai-sdk/anthropic` | `minimax-api-key-cn` choice uses `api.minimaxi.com` (`auth-choice-options.ts`) + `MINIMAX_CN_API_BASE_URL` (`onboard-auth.config-minimax.ts`) | no first-class CN preset | Add CN preset(s) and make region explicit in `/connect`. |
-| **Moonshot (Kimi)** | `moonshotai` → `https://api.moonshot.ai/v1`, `MOONSHOT_API_KEY`, `@ai-sdk/openai-compatible`; `moonshotai-cn` → `https://api.moonshot.cn/v1` | `moonshot` provider: `MOONSHOT_BASE_URL`, `MOONSHOT_CN_BASE_URL` (`onboard-auth.models.ts` / `onboard-auth.config-core.ts`); env: `MOONSHOT_API_KEY` (`model-auth.ts`) | not first-class; can be used via `openai-compatible` if user supplies `baseURL` + key | Moonshot is a clean **OpenAI-compatible preset**. We should ship both baseURLs + a small curated model list. |
-| **Kimi Code / “for coding”** | `kimi-for-coding` → `https://api.kimi.com/coding/v1`, `KIMI_API_KEY`, `@ai-sdk/anthropic` | `kimi-coding` provider + `kimi-code-api-key` choice (`auth-choice.apply.api-providers.ts`); env: `KIMI_API_KEY` / `KIMICODE_API_KEY` (`model-auth.ts`) | not supported | This is an **Anthropic-compatible preset** (not OpenAI-compatible). Plan should include an Anthropic-compatible runtime transport/preset path. |
-| **Zhipu AI (GLM / BigModel)** | `zhipuai` → `https://open.bigmodel.cn/api/paas/v4`, `ZHIPU_API_KEY`, `@ai-sdk/openai-compatible`; `zhipuai-coding-plan` → `https://open.bigmodel.cn/api/coding/paas/v4` | OpenClaw’s “CN” Z.AI endpoints also point at `open.bigmodel.cn` (`onboard-auth.models.ts`); env: `ZHIPU_API_KEY` (`model-auth.ts`) | `glm` → `https://open.bigmodel.cn/api/paas/v4` + `ZHIPU_API_KEY` | Dexto’s `glm` is already close to models.dev’s `zhipuai`. We should decide whether to alias/rename for consistency and add coding-plan presets. |
-| **Z.AI (GLM / global)** | `zai` → `https://api.z.ai/api/paas/v4`, `ZHIPU_API_KEY`, `@ai-sdk/openai-compatible`; `zai-coding-plan` → `https://api.z.ai/api/coding/paas/v4` | OpenClaw uses baseURLs `api.z.ai` + `open.bigmodel.cn` variants (`onboard-auth.models.ts`), but env mapping differs: `ZAI_API_KEY` / `Z_AI_API_KEY` for `zai` (`model-auth.ts`) | no first-class; closest is `glm` | We need an owner decision: accept both env var schemes and/or prefer models.dev’s `ZHIPU_API_KEY`. Connect UX should make this explicit to avoid surprise. |
+| **MiniMax** | `minimax` → `https://api.minimax.io/anthropic/v1`, `MINIMAX_API_KEY`, `@ai-sdk/anthropic` | `minimax` OpenAI-compatible: `DEFAULT_MINIMAX_BASE_URL = https://api.minimax.io/v1` (`onboard-auth.models.ts`); Anthropic-compatible: `MINIMAX_API_BASE_URL = https://api.minimax.io/anthropic`, `MINIMAX_CN_API_BASE_URL = https://api.minimaxi.com/anthropic` (`onboard-auth.config-minimax.ts`); env: `MINIMAX_API_KEY` / `MINIMAX_OAUTH_TOKEN` (`model-auth.ts`) | `minimax` → `https://api.minimax.io/anthropic/v1` + `MINIMAX_API_KEY` (`packages/core/src/llm/services/factory.ts`, `packages/core/src/utils/api-key-resolver.ts`) | MiniMax has **multiple official surfaces** (OpenAI-compatible vs Anthropic-compatible vs Portal OAuth). We default to models.dev’s Anthropic-compatible baseURL; decide whether we also ship OpenAI-compatible variants as explicit (optional) presets. |
+| **MiniMax (CN)** | `minimax-cn` → `https://api.minimaxi.com/anthropic/v1`, `MINIMAX_API_KEY`, `@ai-sdk/anthropic` | `minimax-api-key-cn` choice uses `api.minimaxi.com` (`auth-choice-options.ts`) + `MINIMAX_CN_API_BASE_URL` (`onboard-auth.config-minimax.ts`) | `minimax-cn` → `https://api.minimaxi.com/anthropic/v1` + `MINIMAX_API_KEY` | Keep region explicit in `/connect` and decide whether we also ship OpenAI-compatible variants as explicit presets. |
+| **Moonshot (Kimi)** | `moonshotai` → `https://api.moonshot.ai/v1`, `MOONSHOT_API_KEY`, `@ai-sdk/openai-compatible`; `moonshotai-cn` → `https://api.moonshot.cn/v1` | `moonshot` provider: `MOONSHOT_BASE_URL`, `MOONSHOT_CN_BASE_URL` (`onboard-auth.models.ts` / `onboard-auth.config-core.ts`); env: `MOONSHOT_API_KEY` (`model-auth.ts`) | `moonshotai` / `moonshotai-cn` → baseURLs + `MOONSHOT_API_KEY` | Clean OpenAI-compatible presets; ensure provider IDs + baseURLs are generated from models.dev snapshot and keep a small curated model list. |
+| **Kimi Code / “for coding”** | `kimi-for-coding` → `https://api.kimi.com/coding/v1`, `KIMI_API_KEY`, `@ai-sdk/anthropic` | `kimi-coding` provider + `kimi-code-api-key` choice (`auth-choice.apply.api-providers.ts`); env: `KIMI_API_KEY` / `KIMICODE_API_KEY` (`model-auth.ts`) | `kimi-for-coding` → `https://api.kimi.com/coding/v1` + `KIMI_API_KEY` | Anthropic-compatible preset (not OpenAI-compatible). Ensure runtime transport/preset path stays explicit. |
+| **Zhipu AI (GLM / BigModel)** | `zhipuai` → `https://open.bigmodel.cn/api/paas/v4`, `ZHIPU_API_KEY`, `@ai-sdk/openai-compatible`; `zhipuai-coding-plan` → `https://open.bigmodel.cn/api/coding/paas/v4` | OpenClaw’s “CN” Z.AI endpoints also point at `open.bigmodel.cn` (`onboard-auth.models.ts`); env: `ZHIPU_API_KEY` (`model-auth.ts`) | `zhipuai` → `https://open.bigmodel.cn/api/paas/v4` + `ZHIPU_API_KEY` (legacy `glm` should be removed) | Adopt models.dev provider IDs as canonical; no `glm` alias/back-compat. |
+| **Z.AI (GLM / global)** | `zai` → `https://api.z.ai/api/paas/v4`, `ZHIPU_API_KEY`, `@ai-sdk/openai-compatible`; `zai-coding-plan` → `https://api.z.ai/api/coding/paas/v4` | OpenClaw uses baseURLs `api.z.ai` + `open.bigmodel.cn` variants (`onboard-auth.models.ts`), but env mapping differs: `ZAI_API_KEY` / `Z_AI_API_KEY` for `zai` (`model-auth.ts`) | `zai` → `https://api.z.ai/api/paas/v4` + `ZHIPU_API_KEY` | We need an owner decision: accept both env var schemes and/or prefer models.dev’s `ZHIPU_API_KEY`. Connect UX should make this explicit to avoid surprise. |
 
 ---
 
@@ -444,11 +445,10 @@ Implementation note (important):
 | `minimax` / `minimax-cn` | API key, MiniMax Portal OAuth, CN presets | models.dev indicates Anthropic-compatible baseURLs; OpenClaw also supports OpenAI-compatible variants. We should ship presets for both and choose a default. |
 | `moonshotai` / `moonshotai-cn` | API key, global/CN presets | OpenAI-compatible; models.dev provides canonical baseURLs + env var hints; OpenClaw presets also exist. |
 | `kimi-for-coding` | API key | Anthropic-compatible preset (distinct from Moonshot). |
-| `zhipuai` / `zhipuai-coding-plan` | API key, endpoint presets | OpenAI-compatible; likely aliases Dexto’s current `glm` (owner decision). |
+| `zhipuai` / `zhipuai-coding-plan` | API key, endpoint presets | OpenAI-compatible; canonical models.dev IDs (no `glm` alias/back-compat). |
 | `zai` / `zai-coding-plan` | API key, endpoint presets | OpenAI-compatible; env var mapping differs between models.dev and OpenClaw (Phase 0.2). |
-| `glm` | API key | Existing Dexto provider; decide whether it becomes an alias to `zhipuai` or remains as-is (Phase 0.2). |
-| `bedrock` | AWS chain, bearer token | Make bearer-token connect UX explicit; keep “chain” guidance. |
-| `vertex` | ADC | Expose a “connect” flow that teaches `gcloud auth application-default login` + required env vars. |
+| `amazon-bedrock` | AWS chain, bearer token | Make bearer-token connect UX explicit; keep “chain” guidance. |
+| `google-vertex` | ADC | Expose a “connect” flow that teaches `gcloud auth application-default login` + required env vars. |
 | `openrouter` | API key | Already. |
 | `litellm` | API key + baseURL | Already via setup/custom model. |
 | `openai-compatible` | API key + baseURL + custom models | Already via custom model wizard; integrate with /connect for the provider-level credential if desired. |
@@ -469,9 +469,11 @@ Implementation note (important):
   - Exit:
     - `USER_VERIFICATION.md` contains the resolved decision and any explicit follow-ups.
 
-- [ ] **0.2 Decide provider identity + preset strategy (models.dev-driven)**
+- [x] **0.2 Decide provider identity + preset strategy (models.dev-driven)**
   - Deliverables:
-    - Decide whether our user-facing provider IDs should align with **models.dev provider IDs** (example set: `moonshotai`, `moonshotai-cn`, `zai`, `zai-coding-plan`, `zhipuai`, `zhipuai-coding-plan`, `minimax`, `minimax-cn`, `kimi-for-coding`) vs remain “Dexto-local” (`glm`, `minimax`, etc.) with aliases.
+    - **Decision:** user-facing provider IDs align with **models.dev provider IDs** (no Dexto-local aliases/back-compat).
+      - Deprecate/remove legacy IDs like `glm`, `vertex`, `bedrock` in favor of models.dev IDs (`zhipuai`, `google-vertex`, `amazon-bedrock`, …).
+      - Make `LLM_PROVIDERS` / `LLMProvider` **generated from models.dev** (plus a small Dexto-only overlay like `dexto-nova`, `openai-compatible`, `ollama`, `local`).
     - Define “preset” behavior (the core abstraction for “more providers”):
       - which **transport** a preset uses (`openai-compatible` vs `anthropic-compatible` vs first-class SDK),
       - which baseURL variants exist (global/CN, coding-plan vs standard),
@@ -541,6 +543,7 @@ Implementation note (important):
 - [ ] **1.5.1 Generate a provider snapshot from models.dev (offline, committed)**
   - Deliverables:
     - Extend the sync script to output a `providers.generated.ts` snapshot (provider id/name/env/doc/npm/api).
+    - Generate `LLM_PROVIDERS` / `LLMProvider` from this snapshot (plus a small Dexto-only overlay), so core types don’t require hand-maintained provider lists.
     - Consume this snapshot for `/connect` provider metadata (labels, env hints, docs links), so the connect UI isn’t hand-maintained.
   - Exit:
     - Regenerated snapshots are stable and reviewed in git; no secrets.
@@ -585,7 +588,7 @@ Implementation note (important):
       - `modelsDevProviderId` (string, e.g. `moonshotai-cn`)
       - `transport` (e.g. `openai-compatible` vs `anthropic-compatible` vs first-class SDK)
       - `baseURL` (from models.dev `provider.api` when present, or curated override)
-      - `envVars` (from models.dev `provider.env` + any Dexto aliases)
+      - `envVars` (from models.dev `provider.env` + any additional accepted env vars we choose to support)
       - `docUrl` (from models.dev `provider.doc`, optional)
       - `defaultModel` + curated model list (optional)
     - Initial curated presets (at minimum):
@@ -599,13 +602,13 @@ Implementation note (important):
     - `/connect` can show these providers/methods and persist profiles for API-key methods.
 
 - [ ] **2.2 Implement chosen runtime strategy for new providers**
-  - Deliverables (based on Phase 0.2 decision):
-    - **If first-class providers:** extend `packages/core/src/llm/types.ts` (`LLM_PROVIDERS`), `packages/core/src/llm/services/factory.ts` (provider switch), and API-key env var mapping so the models.dev-aligned IDs (e.g. `moonshotai`, `zai`, `zhipuai`, `minimax-cn`, `kimi-for-coding`) can run without “custom model” hacks.
-    - **If preset-based (recommended for breadth):**
-      - ensure profiles carry `transport + baseURL + modelsDevProviderId` so runtime can choose the correct SDK surface:
-        - OpenAI-compatible: `createOpenAI({ baseURL }).chat(...)`
-        - Anthropic-compatible: `createAnthropic({ baseURL }).messages(...)` (or a dedicated `anthropic-compatible` driver if we don’t want to change `anthropic`)
-      - ensure models.dev provider IDs still show up in UX even if runtime uses a shared driver (`openai-compatible`, `anthropic-compatible`).
+  - Deliverables:
+    - Treat models.dev provider IDs as first-class throughout:
+      - `LLM_PROVIDERS` / `LLMProvider` generated from models.dev provider snapshot (+ Dexto-only overlay).
+      - Remove deprecated Dexto-local provider IDs (no aliases/back-compat required).
+    - Keep runtime scalable (avoid 94+ switch-cases):
+      - Route “boring providers” via a **transport mapping** keyed by models.dev `provider.npm` (and `provider.api` for baseURL).
+      - Keep bespoke code paths only for true exceptions (`dexto-nova`, `openrouter`, `local`/`ollama`, cloud auth providers, OAuth rewrite cases).
   - Exit:
     - Manual smoke: connect + run at least one model for each preset ecosystem (MiniMax / Z.AI / Zhipu / Moonshot / Kimi Code).
 
