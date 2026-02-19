@@ -310,7 +310,10 @@ Backwards compatibility:
 - We will require the user to re-login to populate `~/.dexto/auth/dexto.json` (optionally we can add a one-time import command later, but it is not required for v1).
 
 `llm-profiles.json` should support:
-- Multiple saved profiles per provider, keyed by `profileId` like `${providerId}:${name}` (examples: `openai:work`, `openai:codex-oauth`, `openrouter:team`).
+- **Deterministic “auth slots”** per provider+method (no custom naming in v1):
+  - `profileId = ${providerId}:${methodId}` (e.g. `openai:api_key`, `openai:oauth_codex`).
+  - Display label is the method label (no user-defined profile names).
+  - Future (optional): if we ever need *multiple* API keys for the same method, extend with a numeric suffix (e.g. `openai:api_key:2`) without introducing free-form naming.
 - A per-provider default pointer so most users never touch agent config:
   - `defaults[providerId] = profileId`
 - Profile credential modes (`api_key`, `oauth`, `token`, …) with refresh metadata for OAuth (`expiresAt`, `refreshToken`, optional account/org ids).
@@ -358,9 +361,9 @@ Reference server API:
 - Flow:
   1) pick provider (curated list first + search; align with `LLM_REGISTRY` curated scope)
   2) choose action:
-     - connect **new** profile, or
+     - connect/replace the **method slot**, or
      - switch **default** profile (if profiles exist), or
-     - manage profiles (remove/rename) (optional v1)
+     - manage profiles (remove) (optional v1)
   3) for “connect new profile”: show supported methods for that provider
   4) run method flow:
      - API key: paste, optional verify, store
@@ -530,11 +533,16 @@ Implementation note (important):
 
 - [ ] **1.3.1 Finish multi-profile UX (no overwrite)**
   - Deliverables:
-    - `/connect` can create **multiple profiles per provider+method** (prompt for a label, generate a unique `profileId`, and do not overwrite existing credentials).
-    - `/connect` can list existing profiles for a provider and switch the default without re-auth.
-    - `/connect` can delete a profile (and clears defaults that point at it).
+    - `/connect` uses **deterministic auth slots** (`profileId = ${providerId}:${methodId}`) and does **not** ask the user to name profiles.
+    - `/connect` lists existing method slots for a provider and lets the user:
+      - set default to an existing slot (no re-auth),
+      - replace credentials for an existing slot (explicit confirmation),
+      - delete a slot (and clears defaults that point at it).
   - Exit:
-    - Manual CLI smoke: connect the same provider twice (two profiles), switch defaults, run each successfully.
+    - Manual CLI smoke:
+      - connect a provider with multiple methods (e.g. OpenAI) to create 2 slots (API key + OAuth),
+      - switch defaults between existing slots without re-auth,
+      - attempt to reconnect an existing slot and confirm it prompts before replacing.
 
 - [ ] **1.4 Route `dexto setup` through the same connect logic**
   - Deliverables:

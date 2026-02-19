@@ -143,7 +143,9 @@ Shipped building blocks:
 
 - `/connect` currently overwrites credentials because `profileId` is fixed to `${providerId}:${methodId}`:
   - Source: `packages/cli/src/cli/commands/connect/index.ts`
-  - We need true multi-profile support (prompt for profile label/name, generate stable IDs, and allow switching defaults without re-auth).
+  - We need “auth slot” UX: keep deterministic IDs, but **don’t silently overwrite**.
+    - Allow switching defaults without re-auth by selecting an existing slot.
+    - If the slot already exists, prompt the user to replace credentials (explicit confirm) vs keep existing.
 
 ## 5) Changes this implies for the tasklist
 

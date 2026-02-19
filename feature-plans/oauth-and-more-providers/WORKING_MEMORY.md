@@ -32,8 +32,8 @@ Repo context:
 
 ### Plan
 - Review the direction update in `feature-plans/oauth-and-more-providers/UPDATED_DIRECTION.md`.
-- Confirm the rebaselined tasklist in `feature-plans/oauth-and-more-providers/PLAN.md` (new Phase 1.5 for gateway catalogs; fix `/connect` multi-profile overwrite).
-- Once aligned, proceed with **1.3.1** (multi-profile UX) and then Phase 1.5 gateway ingestion (**1.5.2** OpenRouter, **1.5.3** Vercel AI Gateway) in that order.
+- Confirm the rebaselined tasklist in `feature-plans/oauth-and-more-providers/PLAN.md` (new Phase 1.5 for gateway catalogs; fix `/connect` “auth slot” overwrite prompts + default switching).
+- Once aligned, proceed with **1.3.1** (auth slot UX) and then Phase 1.5 gateway ingestion (**1.5.2** OpenRouter, **1.5.3** Vercel AI Gateway) in that order.
 
 ### Notes
 _Log findings, issues, and progress here as you work._
@@ -43,6 +43,7 @@ _Log findings, issues, and progress here as you work._
 - Verified OpenCode’s OpenRouter model list is **limited by models.dev curation** (not OpenRouter’s live `/models`).
 - Added `UPDATED_DIRECTION.md` and updated `PLAN.md` to adopt a pi-style multi-source model registry direction (models.dev baseline + gateway catalogs, starting with OpenRouter).
 - Phase 1 scaffolding exists in-repo (profiles store + runtime resolver + server routes + CLI `/connect`), but `/connect` still overwrites profiles because `profileId` is fixed to `${providerId}:${methodId}`.
+  - Keep deterministic IDs, but add UX to avoid silent overwrites (explicit replace confirmation + “switch default to existing slot”).
 
 ---
 
@@ -70,7 +71,7 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 |------|-------|------|-------|
 | 1.1 | LLM profile store (`llm-profiles.json`) | 2026-02-18 | Implemented file-backed multi-profile store + defaults + tests. |
 | 1.2 | Server routes for connect providers/profiles/defaults | 2026-02-18 | Added `packages/server/src/hono/routes/llm-connect.ts` (redacted profiles). |
-| 1.3 | CLI interactive `/connect` | 2026-02-18 | Added `/connect` flow + initial OAuth method scaffolding; still needs multi-profile IDs. |
+| 1.3 | CLI interactive `/connect` | 2026-02-18 | Added `/connect` flow + initial OAuth method scaffolding; still needs auth slot management (no silent overwrite + switch default without re-auth). |
 | — | Direction + tasklist rebase | 2026-02-18 | Added `UPDATED_DIRECTION.md`; updated tasklist to include gateway catalog ingestion. |
 
 ---
