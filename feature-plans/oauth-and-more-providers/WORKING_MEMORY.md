@@ -14,9 +14,17 @@
 5. **If you discover something unexpected:** Add it to "Open Questions / Blockers" or "Key Decisions."
 6. **When you discover owner-only decisions or manual checks:** Add/update an item in `USER_VERIFICATION.md` (and mark items resolved when done).
 
+Repo context:
+- Worktree: `~/Projects/dexto-worktrees/oauth-provider-revamp` (branch: `oauth-provider-revamp`).
+- `feature-plans/` is gitignored for untracked files. Stage commits with `git add -f feature-plans/...`.
+
 ---
 
 ## Current Task
+
+**Next planned work (post-merge with “reasoning toggles” branch):**
+- Implement Phase **1.5.1** provider snapshot generation and use it to generate `LLM_PROVIDERS` / `LLMProvider` (models.dev canonical IDs + small Dexto-only overlay).
+- When expanding provider IDs to models.dev, ensure **reasoning presets** remain correct by keying reasoning/provider-options on the same transport mapping (`provider.npm` → transport kind), not on a small hardcoded provider enum.
 
 **Task:** **Owner review — Updated direction + tasklist rebase**
 **Status:** _Waiting on owner_

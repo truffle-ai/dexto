@@ -16,6 +16,10 @@ Primary references:
 - Provider coverage snapshot (exact provider IDs): [`PROVIDER_COVERAGE.md`](./PROVIDER_COVERAGE.md)
 - Provider grouping by `provider.npm` (transport mapping roadmap): [`NPM_TRANSPORT_COVERAGE.md`](./NPM_TRANSPORT_COVERAGE.md)
 
+Repo context:
+- Worktree: `~/Projects/dexto-worktrees/oauth-provider-revamp` (branch: `oauth-provider-revamp`, based off `main`).
+- `feature-plans/` is gitignored for untracked files. Stage commits with `git add -f feature-plans/...` (avoid `git add .` / `git add -A`).
+
 ---
 
 ## 1. Problem
@@ -42,6 +46,7 @@ Known complications / gaps:
   - Treat **models.dev provider IDs** as canonical “first-class” providers (e.g. `deepseek`, `zhipuai`, `zai`, `moonshotai`, `minimax-cn`, …).
   - `LLM_PROVIDERS` / `LLMProvider` should be **generated from the models.dev provider snapshot** (plus a small Dexto-only overlay like `dexto-nova`, `openai-compatible`, `ollama`, `local`).
   - **Backward compatibility is explicitly not required** for legacy provider IDs (e.g. `glm`, `vertex`, `bedrock`) or legacy auth storage.
+- **Reasoning toggles alignment:** we have a parallel “reasoning toggles” effort (reasoning presets + harness/CLI toggles). Once `LLMProvider` expands to models.dev provider IDs, reasoning logic must be keyed by **transport kind** (derived from models.dev `provider.npm`), not by a small hardcoded provider enum, so that reasoning presets apply to the full provider set.
 
 ---
 
@@ -622,6 +627,9 @@ Implementation note (important):
       - save API key
       - use models.dev `provider.api` as baseURL
       - run via the shared OpenAI-compatible driver
+    - Align reasoning preset support with the same transport mapping:
+      - Update provider-options/reasoning logic to branch on **transport kind** (derived from `provider.npm`) instead of provider IDs, so reasoning presets work across all models.dev providers (e.g. `deepseek` should behave like an OpenAI-compatible transport).
+      - Ensure the LLM factory’s chosen SDK provider keying matches provider-options keys (so providerOptions actually apply).
   - Exit:
     - `/connect` can add an API-key profile for *any* models.dev provider whose `provider.npm` maps to an implemented transport, without adding per-provider code.
 
