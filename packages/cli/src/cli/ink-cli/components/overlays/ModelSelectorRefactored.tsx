@@ -617,50 +617,11 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                             setPendingDeleteConfirm(false);
                             return true;
                         }
-
-                        const actionItem = currentItem as ModelOption;
-
-                        // Check if reasoning-capable, show reasoning effort selection
-                        if (isReasoningCapableModel(actionItem.name)) {
-                            setPendingReasoningModel(actionItem);
-                            setIsSettingDefault(true);
-                            setReasoningEffortIndex(0); // Default to 'Auto'
-                            return true;
-                        }
-
-                        clearActionState();
-                        void (async () => {
-                            await onSetDefaultModel(
-                                actionItem.provider,
-                                actionItem.name,
-                                actionItem.displayName,
-                                actionItem.baseURL,
-                                actionItem.reasoningEffort
-                            );
-                            setRefreshVersion((prev) => prev + 1);
-                            onClose(); // Close overlay after setting default
-                        })();
                         return true;
                     }
 
                     if (customModelAction === 'delete') {
-                        if (pendingDeleteConfirm) {
-                            if (deleteTimeoutRef.current) {
-                                clearTimeout(deleteTimeoutRef.current);
-                                deleteTimeoutRef.current = null;
-                            }
-                            clearActionState();
-                            void handleDeleteCustomModel(currentItem as ModelOption);
-                        } else {
-                            setPendingDeleteConfirm(true);
-                            if (deleteTimeoutRef.current) {
-                                clearTimeout(deleteTimeoutRef.current);
-                            }
-                            deleteTimeoutRef.current = setTimeout(() => {
-                                setPendingDeleteConfirm(false);
-                                deleteTimeoutRef.current = null;
-                            }, 3000);
-                        }
+                        // Use Enter for delete confirmation/execution to avoid accidental deletes.
                         return true;
                     }
                 }
@@ -954,7 +915,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
     if (isLoading) {
         detailLine = 'Loading models…';
     } else if (customModelAction === 'delete' && pendingDeleteConfirm) {
-        detailLine = 'Confirm delete: press → or Enter again';
+        detailLine = 'Confirm delete: press Enter again';
     } else if (customModelAction) {
         const label =
             customModelAction === 'edit'
@@ -1051,16 +1012,69 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                               return (
                                   <Box
                                       key={`${item.provider}-${item.name}-${item.isCustom ? 'custom' : 'registry'}`}
+                                      flexDirection="row"
                                       paddingX={0}
                                       paddingY={0}
                                   >
-                                      <Text
-                                          color={isSelected ? 'cyan' : 'gray'}
-                                          bold={isSelected}
-                                          wrap="truncate-end"
-                                      >
-                                          {prefix} {name} ({providerDisplay})
-                                      </Text>
+                                      <Box flexGrow={1}>
+                                          <Text
+                                              color={isSelected ? 'cyan' : 'gray'}
+                                              bold={isSelected}
+                                              wrap="truncate-end"
+                                          >
+                                              {prefix} {name} ({providerDisplay})
+                                          </Text>
+                                      </Box>
+                                      {isSelected && (
+                                          <Box flexDirection="row" marginLeft={1}>
+                                              {item.isCustom && (
+                                                  <>
+                                                      <Text
+                                                          color={
+                                                              customModelAction === 'edit'
+                                                                  ? 'green'
+                                                                  : 'gray'
+                                                          }
+                                                          bold={customModelAction === 'edit'}
+                                                          inverse={customModelAction === 'edit'}
+                                                      >
+                                                          {' '}
+                                                          Edit{' '}
+                                                      </Text>
+                                                      <Text> </Text>
+                                                  </>
+                                              )}
+                                              <Text
+                                                  color={
+                                                      customModelAction === 'default'
+                                                          ? 'cyan'
+                                                          : 'gray'
+                                                  }
+                                                  bold={customModelAction === 'default'}
+                                                  inverse={customModelAction === 'default'}
+                                              >
+                                                  {' '}
+                                                  Set as Default{' '}
+                                              </Text>
+                                              {item.isCustom && (
+                                                  <>
+                                                      <Text> </Text>
+                                                      <Text
+                                                          color={
+                                                              customModelAction === 'delete'
+                                                                  ? 'red'
+                                                                  : 'gray'
+                                                          }
+                                                          bold={customModelAction === 'delete'}
+                                                          inverse={customModelAction === 'delete'}
+                                                      >
+                                                          {' '}
+                                                          Delete{' '}
+                                                      </Text>
+                                                  </>
+                                              )}
+                                          </Box>
+                                      )}
                                   </Box>
                               );
                           })}

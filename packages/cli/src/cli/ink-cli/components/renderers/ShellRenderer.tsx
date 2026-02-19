@@ -22,8 +22,6 @@ interface ShellRendererProps {
  * Shows just the output, "(No content)" for empty results.
  */
 export function ShellRenderer({ data, maxLines = 5 }: ShellRendererProps) {
-    const commandLines = data.command.split('\n');
-
     // Prefer stdout; fall back to stderr if stdout is empty/undefined
     const output = data.stdout && data.stdout.length > 0 ? data.stdout : data.stderr || '';
 
@@ -33,13 +31,6 @@ export function ShellRenderer({ data, maxLines = 5 }: ShellRendererProps) {
 
     return (
         <Box flexDirection="column">
-            {commandLines.map((line, i) => (
-                <Text key={i} color="yellowBright" wrap="wrap">
-                    {i === 0 ? '  ⎿ $ ' : '      '}
-                    {line}
-                </Text>
-            ))}
-
             {data.isBackground && <Text color="gray">{'    '}(background)</Text>}
 
             {outputLines.length === 0 ? (
