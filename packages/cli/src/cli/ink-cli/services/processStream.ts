@@ -650,13 +650,28 @@ export async function processStream(
                             });
                             // Mark that we finalized text early - prevents duplicate in llm:response
                             state.textFinalizedBeforeTool = true;
+                            // Explicitly reset reasoning tracking (was preserved via msg spread in finalizeMessage)
+                            state.reasoning = '';
+                            state.reasoningFinalized = true;
                         } else {
-                            // Empty pending message (first chunk had no content) - remove it
-                            // This prevents empty bullets when LLM/SDK sends empty initial chunk
-                            debug.log('TOOL-CALL: removing empty pending message', {
-                                messageId: state.messageId,
-                            });
-                            removeFromPending(state.messageId);
+                            const hasReasoning = !state.reasoningFinalized && !!state.reasoning;
+                            if (hasReasoning) {
+                                // Model reasoned then called a tool directly (no text) — preserve reasoning
+                                finalizeMessage(state.messageId, {
+                                    content: '',
+                                    reasoning: state.reasoning,
+                                    isStreaming: false,
+                                });
+                                state.reasoning = '';
+                                state.reasoningFinalized = true;
+                            } else {
+                                // Empty pending message (first chunk had no content) - remove it
+                                // This prevents empty bullets when LLM/SDK sends empty initial chunk
+                                debug.log('TOOL-CALL: removing empty pending message', {
+                                    messageId: state.messageId,
+                                });
+                                removeFromPending(state.messageId);
+                            }
                         }
                         state.messageId = null;
                         state.content = '';

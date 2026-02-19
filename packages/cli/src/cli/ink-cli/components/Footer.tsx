@@ -94,9 +94,14 @@ export function Footer({
             'session:reset',
         ] as const;
 
-        const handleEvent = (payload: { sessionId?: string; sessionIds?: string[] }) => {
-            // Most session events include sessionId. llm:switched includes sessionIds[].
+        const handleEvent = (payload: { sessionId?: string }) => {
+            // Most session events include sessionId.
             if (payload.sessionId && payload.sessionId !== sessionId) return;
+            refreshContext();
+        };
+
+        const handleLlmSwitched = (payload: { sessionIds?: string[] }) => {
+            // llm:switched includes sessionIds[].
             if (payload.sessionIds && !payload.sessionIds.includes(sessionId)) return;
             refreshContext();
             // Force a re-render so the footer always reflects the current LLM config
@@ -105,7 +110,11 @@ export function Footer({
         };
 
         for (const eventName of sessionEvents) {
-            agent.on(eventName, handleEvent, { signal });
+            if (eventName === 'llm:switched') {
+                agent.on(eventName, handleLlmSwitched, { signal });
+            } else {
+                agent.on(eventName, handleEvent, { signal });
+            }
         }
 
         return () => {

@@ -7,11 +7,12 @@ import {
     acceptsAnyModel,
     supportsCustomModels,
     supportsBaseURL,
+    LLM_PROVIDERS,
+    REASONING_PRESETS,
+    NonEmptyTrimmed,
+    ErrorType,
 } from '@dexto/core';
-import { LLM_PROVIDERS, REASONING_PRESETS } from '@dexto/core';
-import { NonEmptyTrimmed } from '@dexto/core';
 import { PreferenceErrorCode } from './error-codes.js';
-import { ErrorType } from '@dexto/core';
 
 export const PreferenceLLMSchema = z
     .object({

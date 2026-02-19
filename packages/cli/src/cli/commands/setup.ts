@@ -7,6 +7,7 @@ import {
     getDefaultModelForProvider,
     LLM_PROVIDERS,
     LLM_REGISTRY,
+    REASONING_PRESETS,
     isValidProviderModel,
     getSupportedModels,
     acceptsAnyModel,
@@ -101,6 +102,31 @@ const SetupCommandSchema = z
 
 export type CLISetupOptions = z.output<typeof SetupCommandSchema>;
 export type CLISetupOptionsInput = z.input<typeof SetupCommandSchema>;
+
+const REASONING_PRESET_SELECT_META: Record<ReasoningPreset, { label: string; hint: string }> = {
+    auto: {
+        label: 'Auto (Recommended)',
+        hint: 'Let Dexto/provider choose an appropriate reasoning level',
+    },
+    off: { label: 'Off', hint: 'Disable reasoning (fastest)' },
+    low: { label: 'Low', hint: 'Light reasoning, faster responses' },
+    medium: { label: 'Medium', hint: 'Balanced reasoning' },
+    high: { label: 'High', hint: 'Thorough reasoning' },
+    max: { label: 'Max', hint: 'Maximize reasoning within provider limits' },
+    xhigh: { label: 'XHigh', hint: 'Extra high (only on some models, e.g. codex)' },
+};
+
+function getReasoningPresetSelectOptions(): {
+    value: ReasoningPreset;
+    label: string;
+    hint: string;
+}[] {
+    return REASONING_PRESETS.map((preset) => ({
+        value: preset,
+        label: REASONING_PRESET_SELECT_META[preset].label,
+        hint: REASONING_PRESET_SELECT_META[preset].hint,
+    }));
+}
 
 // ============================================================================
 // Setup Wizard Types and Helpers
@@ -929,25 +955,7 @@ async function wizardStepReasoning(state: SetupWizardState): Promise<SetupWizard
     const result = await p.select({
         message: 'Select reasoning preset',
         options: [
-            {
-                value: 'auto' as const,
-                label: 'Auto (Recommended)',
-                hint: 'Let Dexto/provider choose an appropriate reasoning level',
-            },
-            { value: 'off' as const, label: 'Off', hint: 'Disable reasoning (fastest)' },
-            { value: 'low' as const, label: 'Low', hint: 'Light reasoning, faster responses' },
-            { value: 'medium' as const, label: 'Medium', hint: 'Balanced reasoning' },
-            { value: 'high' as const, label: 'High', hint: 'Thorough reasoning' },
-            {
-                value: 'max' as const,
-                label: 'Max',
-                hint: 'Maximize reasoning within provider limits',
-            },
-            {
-                value: 'xhigh' as const,
-                label: 'XHigh',
-                hint: 'Extra high (only on some models, e.g. codex)',
-            },
+            ...getReasoningPresetSelectOptions(),
             { value: '_back' as const, label: chalk.gray('← Back'), hint: 'Change model' },
         ],
     });
@@ -1785,9 +1793,11 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
         // Ask for reasoning preset if applicable
         if (isReasoningCapableModel(model)) {
             const reasoningPreset = await selectReasoningPreset();
-            if (reasoningPreset !== null) {
-                llmUpdate.reasoning = { preset: reasoningPreset };
+            if (reasoningPreset === null) {
+                p.log.warn('Model change cancelled');
+                return;
             }
+            llmUpdate.reasoning = { preset: reasoningPreset };
         }
 
         await updateGlobalPreferences({ llm: llmUpdate });
@@ -1815,9 +1825,11 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
         // Ask for reasoning preset if applicable
         if (isReasoningCapableModel(model)) {
             const reasoningPreset = await selectReasoningPreset();
-            if (reasoningPreset !== null) {
-                llmUpdate.reasoning = { preset: reasoningPreset };
+            if (reasoningPreset === null) {
+                p.log.warn('Model change cancelled');
+                return;
             }
+            llmUpdate.reasoning = { preset: reasoningPreset };
         }
 
         await updateGlobalPreferences({ llm: llmUpdate });
@@ -1875,9 +1887,11 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
     // Ask for reasoning preset if applicable
     if (isReasoningCapableModel(model)) {
         const reasoningPreset = await selectReasoningPreset();
-        if (reasoningPreset !== null) {
-            llmUpdate.reasoning = { preset: reasoningPreset };
+        if (reasoningPreset === null) {
+            p.log.warn('Model change cancelled');
+            return;
         }
+        llmUpdate.reasoning = { preset: reasoningPreset };
     }
 
     await updateGlobalPreferences({ llm: llmUpdate });
@@ -2058,27 +2072,7 @@ async function selectDefaultMode(): Promise<
 async function selectReasoningPreset(): Promise<ReasoningPreset | null> {
     const preset = await p.select({
         message: 'Select reasoning preset',
-        options: [
-            {
-                value: 'auto' as const,
-                label: 'Auto (Recommended)',
-                hint: 'Let Dexto/provider choose an appropriate reasoning level',
-            },
-            { value: 'off' as const, label: 'Off', hint: 'Disable reasoning (fastest)' },
-            { value: 'low' as const, label: 'Low', hint: 'Light reasoning, faster responses' },
-            { value: 'medium' as const, label: 'Medium', hint: 'Balanced reasoning' },
-            { value: 'high' as const, label: 'High', hint: 'Thorough reasoning' },
-            {
-                value: 'max' as const,
-                label: 'Max',
-                hint: 'Maximize reasoning within provider limits',
-            },
-            {
-                value: 'xhigh' as const,
-                label: 'XHigh',
-                hint: 'Extra high (only on some models, e.g. codex)',
-            },
-        ],
+        options: getReasoningPresetSelectOptions(),
     });
 
     if (p.isCancel(preset)) {

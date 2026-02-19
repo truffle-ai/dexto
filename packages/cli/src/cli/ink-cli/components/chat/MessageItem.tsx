@@ -162,16 +162,19 @@ export const MessageItem = memo(
         // Without width constraints, streaming content causes terminal blackout at ~50+ lines.
         // marginTop={1} for consistent spacing with tool messages
         if (message.role === 'assistant') {
+            const reasoningBlock =
+                showReasoning && message.reasoning ? (
+                    <Box flexDirection="column" marginBottom={1}>
+                        <Text color="gray">Reasoning</Text>
+                        <MarkdownText color="gray">{message.reasoning}</MarkdownText>
+                    </Box>
+                ) : null;
+
             // Continuation messages: no indicator, just content
             if (message.isContinuation) {
                 return (
                     <Box flexDirection="column" width={terminalWidth}>
-                        {showReasoning && message.reasoning && (
-                            <Box flexDirection="column" marginBottom={1}>
-                                <Text color="gray">Reasoning</Text>
-                                <MarkdownText color="gray">{message.reasoning}</MarkdownText>
-                            </Box>
-                        )}
+                        {reasoningBlock}
                         <MarkdownText>{message.content || ''}</MarkdownText>
                     </Box>
                 );
@@ -182,12 +185,7 @@ export const MessageItem = memo(
             // This is simpler and avoids mid-word splitting issues with Ink's wrap
             return (
                 <Box flexDirection="column" marginTop={1} width={terminalWidth}>
-                    {showReasoning && message.reasoning && (
-                        <Box flexDirection="column" marginBottom={1}>
-                            <Text color="gray">Reasoning</Text>
-                            <MarkdownText color="gray">{message.reasoning}</MarkdownText>
-                        </Box>
-                    )}
+                    {reasoningBlock}
                     <MarkdownText bulletPrefix="⏺ ">{message.content || ''}</MarkdownText>
                 </Box>
             );

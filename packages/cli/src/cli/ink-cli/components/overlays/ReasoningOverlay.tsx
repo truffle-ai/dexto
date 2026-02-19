@@ -107,6 +107,14 @@ export const ReasoningOverlay = React.forwardRef<ReasoningOverlayHandle, Reasoni
             isSavingRef.current = false;
         }, [isVisible]);
 
+        useEffect(() => {
+            if (!isVisible) return;
+            setSelectedIndex((prev) => {
+                if (menuItems.length === 0) return 0;
+                return Math.min(prev, menuItems.length - 1);
+            });
+        }, [isVisible, menuItems.length]);
+
         const handleMenuSelect = useCallback(
             (item: MenuItem) => {
                 setError(null);

@@ -288,7 +288,11 @@ export function LLMConfigSection({
                         </LabelWithTooltip>
                         <select
                             id="reasoningPreset"
-                            value={value.reasoning?.preset || ''}
+                            value={
+                                value.reasoning?.preset === 'auto'
+                                    ? ''
+                                    : value.reasoning?.preset || ''
+                            }
                             onChange={(e) =>
                                 handleChange(
                                     'reasoning',

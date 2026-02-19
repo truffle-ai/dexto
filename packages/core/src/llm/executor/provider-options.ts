@@ -22,6 +22,11 @@ import {
     isAnthropicAdaptiveThinkingModel,
     isAnthropicOpus46Model,
 } from '../reasoning/anthropic-thinking.js';
+import {
+    coerceOpenAIReasoningEffort,
+    supportsOpenAIReasoningEffort,
+    type OpenAIReasoningEffort,
+} from '../reasoning/openai-reasoning-effort.js';
 
 export interface ProviderOptionsConfig {
     provider: LLMProvider;
@@ -103,9 +108,8 @@ function mapPresetToAnthropicEffort(
 }
 
 function supportsOpenRouterXHigh(model: string): boolean {
-    // Best-effort. opencode exposes xhigh for codex models through OpenRouter.
-    // We keep conservative and only enable for codex-like model IDs.
-    return model.toLowerCase().includes('codex');
+    // Best-effort. OpenRouter forwards reasoningEffort to OpenAI for OpenAI models.
+    return supportsOpenAIReasoningEffort(model, 'xhigh');
 }
 
 function mapPresetToOpenRouterEffort(
@@ -127,44 +131,27 @@ function mapPresetToOpenRouterEffort(
 function mapPresetToOpenAIReasoningEffort(
     preset: ReasoningPreset,
     model: string
-): 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | undefined {
+): OpenAIReasoningEffort | undefined {
     // OpenAI supports a fixed set of reasoning effort values, but availability varies per model.
-    // As of 2026-02-01, OpenAI documents: none|minimal|low|medium|high|xhigh, with model-specific
-    // constraints (e.g. some models do not support `none`, `gpt-5-pro` may only support `high`,
-    // and `xhigh` is only supported on certain newer models).
-    // Keep this mapping conservative and prefer deferring to OpenAI docs when adjusting defaults:
+    // Keep this mapping conservative and prefer deferring to OpenAI docs when adjusting behavior:
     // https://platform.openai.com/docs/api-reference/responses
     // If the model isn't reasoning-capable, never send reasoningEffort (the SDK will warn).
     if (!isReasoningCapableModel(model)) {
         return undefined;
     }
 
-    if (preset === 'auto') {
-        return getDefaultOpenAIReasoningEffort(model);
-    }
+    // Auto: omit the option to allow the provider/model default (varies by model).
+    if (preset === 'auto') return undefined;
 
-    if (preset === 'off') {
-        return 'none';
-    }
+    const requested: OpenAIReasoningEffort | undefined = (() => {
+        if (preset === 'off') return 'none';
+        if (preset === 'low' || preset === 'medium' || preset === 'high') return preset;
+        if (preset === 'xhigh' || preset === 'max') return 'xhigh';
+        return undefined;
+    })();
 
-    if (preset === 'low' || preset === 'medium' || preset === 'high') {
-        return preset;
-    }
-
-    if (preset === 'max') {
-        return supportsOpenAIXHigh(model) ? 'xhigh' : 'high';
-    }
-
-    if (preset === 'xhigh') {
-        return supportsOpenAIXHigh(model) ? 'xhigh' : 'high';
-    }
-
-    return undefined;
-}
-
-function supportsOpenAIXHigh(model: string): boolean {
-    // We only have reliable evidence for codex today; keep conservative.
-    return model.toLowerCase().includes('codex');
+    if (requested === undefined) return undefined;
+    return coerceOpenAIReasoningEffort(model, requested);
 }
 
 /**
@@ -300,13 +287,20 @@ export function buildProviderOptions(
     // Google / Vertex Gemini: thinkingConfig + tuning
     if (provider === 'google' || (provider === 'vertex' && !modelLower.includes('claude'))) {
         const capable = isReasoningCapableModel(model, provider);
-        const thinkingLevel = capable ? mapPresetToGoogleThinkingLevel(preset) : undefined;
+        const includeThoughts = preset !== 'off' && capable;
+        const thinkingLevel = includeThoughts ? mapPresetToGoogleThinkingLevel(preset) : undefined;
         return {
             google: {
                 thinkingConfig: {
-                    includeThoughts: preset !== 'off' && capable,
-                    ...(thinkingLevel !== undefined && { thinkingLevel }),
-                    ...(capable && budgetTokens !== undefined && { thinkingBudget: budgetTokens }),
+                    includeThoughts,
+                    ...(includeThoughts &&
+                        thinkingLevel !== undefined && {
+                            thinkingLevel,
+                        }),
+                    ...(includeThoughts &&
+                        budgetTokens !== undefined && {
+                            thinkingBudget: budgetTokens,
+                        }),
                 },
             },
         };
@@ -395,14 +389,4 @@ function mapPresetToGoogleThinkingLevel(
         default:
             return undefined;
     }
-}
-
-function getDefaultOpenAIReasoningEffort(
-    model: string
-): Exclude<ReturnType<typeof mapPresetToOpenAIReasoningEffort>, 'none' | undefined> | undefined {
-    if (!isReasoningCapableModel(model)) return undefined;
-    // Note: In Dexto, `auto` currently maps to an explicit effort (medium) rather than
-    // omitting the provider option to allow OpenAI's server-side defaults (which may be `none`
-    // for some newer models). If we want `auto` to mean "use provider default", revisit this.
-    return 'medium';
 }

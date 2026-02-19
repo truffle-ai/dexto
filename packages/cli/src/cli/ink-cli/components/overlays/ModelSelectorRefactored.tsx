@@ -21,7 +21,7 @@ import {
     listOllamaModels,
     DEFAULT_OLLAMA_URL,
     getLocalModelById,
-    isReasoningCapableModel,
+    getReasoningSupport,
 } from '@dexto/core';
 import {
     loadCustomModels,
@@ -135,7 +135,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
     // Reasoning effort sub-step state
     const [pendingReasoningModel, setPendingReasoningModel] = useState<ModelOption | null>(null);
-    const [reasoningEffortIndex, setReasoningEffortIndex] = useState(0); // Default to 'Auto' (index 0)
+    const [reasoningPresetIndex, setReasoningPresetIndex] = useState(0); // Default to 'Auto' (index 0)
     const [isSettingDefault, setIsSettingDefault] = useState(false); // Track if setting as default vs normal selection
     const [refreshVersion, setRefreshVersion] = useState(0);
 
@@ -164,7 +164,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         setPendingDeleteConfirm(false);
         setPendingReasoningModel(null);
         setIsSettingDefault(false);
-        setReasoningEffortIndex(0); // Default to 'Auto'
+        setReasoningPresetIndex(0); // Default to 'Auto'
         if (deleteTimeoutRef.current) {
             clearTimeout(deleteTimeoutRef.current);
             deleteTimeoutRef.current = null;
@@ -457,19 +457,19 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         return true;
                     }
                     if (key.upArrow) {
-                        setReasoningEffortIndex((prev) =>
+                        setReasoningPresetIndex((prev) =>
                             prev > 0 ? prev - 1 : REASONING_PRESET_OPTIONS.length - 1
                         );
                         return true;
                     }
                     if (key.downArrow) {
-                        setReasoningEffortIndex((prev) =>
+                        setReasoningPresetIndex((prev) =>
                             prev < REASONING_PRESET_OPTIONS.length - 1 ? prev + 1 : 0
                         );
                         return true;
                     }
                     if (key.return) {
-                        const selectedOption = REASONING_PRESET_OPTIONS[reasoningEffortIndex];
+                        const selectedOption = REASONING_PRESET_OPTIONS[reasoningPresetIndex];
                         const reasoningPreset = selectedOption?.value ?? 'auto';
 
                         if (isSettingDefault) {
@@ -549,10 +549,14 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         const actionItem = currentItem as ModelOption;
 
                         // Check if reasoning-capable, show reasoning preset selection
-                        if (isReasoningCapableModel(actionItem.name)) {
+                        if (getReasoningSupport(actionItem.provider, actionItem.name).capable) {
                             setPendingReasoningModel(actionItem);
                             setIsSettingDefault(true);
-                            setReasoningEffortIndex(0); // Default to 'Auto'
+                            const savedPreset = actionItem.reasoningPreset;
+                            const savedIdx = savedPreset
+                                ? REASONING_PRESET_OPTIONS.findIndex((o) => o.value === savedPreset)
+                                : -1;
+                            setReasoningPresetIndex(savedIdx >= 0 ? savedIdx : 0);
                             return true;
                         }
 
@@ -698,10 +702,16 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
                         if (customModelAction === 'default') {
                             // Check if reasoning-capable, show reasoning preset selection
-                            if (isReasoningCapableModel(item.name)) {
+                            if (getReasoningSupport(item.provider, item.name).capable) {
                                 setPendingReasoningModel(item);
                                 setIsSettingDefault(true);
-                                setReasoningEffortIndex(0); // Default to 'Auto'
+                                const savedPreset = item.reasoningPreset;
+                                const savedIdx = savedPreset
+                                    ? REASONING_PRESET_OPTIONS.findIndex(
+                                          (o) => o.value === savedPreset
+                                      )
+                                    : -1;
+                                setReasoningPresetIndex(savedIdx >= 0 ? savedIdx : 0);
                                 return true;
                             }
 
@@ -740,10 +750,14 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         }
 
                         // Normal selection - check if reasoning-capable
-                        if (isReasoningCapableModel(item.name)) {
+                        if (getReasoningSupport(item.provider, item.name).capable) {
                             // Show reasoning preset sub-step
                             setPendingReasoningModel(item);
-                            setReasoningEffortIndex(0); // Default to 'Auto'
+                            const savedPreset = item.reasoningPreset;
+                            const savedIdx = savedPreset
+                                ? REASONING_PRESET_OPTIONS.findIndex((o) => o.value === savedPreset)
+                                : -1;
+                            setReasoningPresetIndex(savedIdx >= 0 ? savedIdx : 0);
                             return true;
                         }
                         onSelectModel(item.provider, item.name, item.displayName, item.baseURL);
@@ -767,7 +781,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             customModels,
             handleDeleteCustomModel,
             pendingReasoningModel,
-            reasoningEffortIndex,
+            reasoningPresetIndex,
             isSettingDefault,
         ]
     );
@@ -804,7 +818,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     <Text color="gray">{'─'.repeat(50)}</Text>
                 </Box>
                 {REASONING_PRESET_OPTIONS.map((option, index) => {
-                    const isSelected = index === reasoningEffortIndex;
+                    const isSelected = index === reasoningPresetIndex;
                     return (
                         <Box key={option.value} paddingX={0} paddingY={0}>
                             <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>

@@ -270,6 +270,15 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             const current = agent.getCurrentLLMConfig(sessionId);
             const support = getReasoningSupport(current.provider, current.model);
             if (!support.capable || support.supportedPresets.length === 0) {
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: 'ℹ️ Reasoning presets are not supported for the current model.',
+                        timestamp: new Date(),
+                    },
+                ]);
                 return;
             }
 

@@ -1320,19 +1320,32 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 const current = agent.getCurrentLLMConfig(sessionId);
                 const preset = (current.reasoning?.preset ?? 'auto') as ReasoningPreset;
 
-                await agent.switchLLM(
-                    {
-                        provider: current.provider,
-                        model: current.model,
-                        reasoning: {
-                            preset,
-                            ...(typeof budgetTokens === 'number' ? { budgetTokens } : {}),
+                try {
+                    await agent.switchLLM(
+                        {
+                            provider: current.provider,
+                            model: current.model,
+                            reasoning: {
+                                preset,
+                                ...(typeof budgetTokens === 'number' ? { budgetTokens } : {}),
+                            },
                         },
-                    },
-                    sessionId
-                );
+                        sessionId
+                    );
+                } catch (error) {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('error'),
+                            role: 'system',
+                            content: `❌ Failed to update reasoning budget tokens: ${error instanceof Error ? error.message : String(error)}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                    throw error;
+                }
             },
-            [agent, session.id]
+            [agent, session.id, setMessages]
         );
 
         // Handle MCP server list actions (select server or add new)

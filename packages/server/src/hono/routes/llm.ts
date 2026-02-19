@@ -367,6 +367,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                                             'Whether this provider/model supports a budgetTokens-style escape hatch'
                                         ),
                                 })
+                                .strict()
                                 .describe('Reasoning tuning capabilities (best-effort)'),
                         }),
                     },

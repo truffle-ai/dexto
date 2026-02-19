@@ -27,7 +27,15 @@ describe('buildProviderOptions', () => {
             ).toEqual({ openai: { reasoningEffort: 'high' } });
         });
 
-        it('supports xhigh only for codex-like models', () => {
+        it('supports xhigh for models that support it', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'openai',
+                    model: 'gpt-5.2',
+                    reasoning: { preset: 'max' },
+                })
+            ).toEqual({ openai: { reasoningEffort: 'xhigh' } });
+
             expect(
                 buildProviderOptions({
                     provider: 'openai',
@@ -37,14 +45,40 @@ describe('buildProviderOptions', () => {
             ).toEqual({ openai: { reasoningEffort: 'xhigh' } });
         });
 
-        it('maps off to reasoningEffort=none', () => {
+        it('coerces off to the lowest supported effort per model', () => {
             expect(
                 buildProviderOptions({
                     provider: 'openai',
                     model: 'gpt-5',
                     reasoning: { preset: 'off' },
                 })
+            ).toEqual({ openai: { reasoningEffort: 'minimal' } });
+
+            expect(
+                buildProviderOptions({
+                    provider: 'openai',
+                    model: 'gpt-5.1',
+                    reasoning: { preset: 'off' },
+                })
             ).toEqual({ openai: { reasoningEffort: 'none' } });
+        });
+
+        it('coerces unsupported levels to avoid invalid OpenAI API calls', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'openai',
+                    model: 'gpt-5-pro',
+                    reasoning: { preset: 'low' },
+                })
+            ).toEqual({ openai: { reasoningEffort: 'high' } });
+
+            expect(
+                buildProviderOptions({
+                    provider: 'openai',
+                    model: 'gpt-5.2-pro',
+                    reasoning: { preset: 'low' },
+                })
+            ).toEqual({ openai: { reasoningEffort: 'medium' } });
         });
 
         it('does not send reasoningEffort for non-reasoning models', () => {
@@ -241,7 +275,7 @@ describe('buildProviderOptions', () => {
                     reasoning: { preset: 'off' },
                 })
             ).toEqual({
-                google: { thinkingConfig: { includeThoughts: false, thinkingLevel: 'minimal' } },
+                google: { thinkingConfig: { includeThoughts: false } },
             });
         });
     });

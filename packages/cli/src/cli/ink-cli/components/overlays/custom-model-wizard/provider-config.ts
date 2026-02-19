@@ -11,6 +11,7 @@ import {
     getLocalModelById,
     isReasoningCapableModel,
 } from '@dexto/core';
+import type { ReasoningPreset } from '@dexto/core';
 import type { ProviderConfig, WizardStep } from './types.js';
 import { validators } from './types.js';
 import * as fs from 'fs';
@@ -114,7 +115,9 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
                 model.maxInputTokens = parseInt(values.maxInputTokens, 10);
             }
             if (values.reasoningPreset?.trim()) {
-                model.reasoning = { preset: values.reasoningPreset.toLowerCase() as any };
+                model.reasoning = {
+                    preset: values.reasoningPreset.toLowerCase() as ReasoningPreset,
+                };
             }
             return model;
         },
@@ -151,7 +154,9 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
                 model.maxInputTokens = parseInt(values.maxInputTokens, 10);
             }
             if (values.reasoningPreset?.trim()) {
-                model.reasoning = { preset: values.reasoningPreset.toLowerCase() as any };
+                model.reasoning = {
+                    preset: values.reasoningPreset.toLowerCase() as ReasoningPreset,
+                };
             }
             return model;
         },
@@ -207,7 +212,9 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
                 model.displayName = values.displayName.trim();
             }
             if (values.reasoningPreset?.trim()) {
-                model.reasoning = { preset: values.reasoningPreset.toLowerCase() as any };
+                model.reasoning = {
+                    preset: values.reasoningPreset.toLowerCase() as ReasoningPreset,
+                };
             }
             return model;
         },
@@ -254,7 +261,9 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
                 model.maxInputTokens = parseInt(values.maxInputTokens, 10);
             }
             if (values.reasoningPreset?.trim()) {
-                model.reasoning = { preset: values.reasoningPreset.toLowerCase() as any };
+                model.reasoning = {
+                    preset: values.reasoningPreset.toLowerCase() as ReasoningPreset,
+                };
             }
             return model;
         },
@@ -484,7 +493,9 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
                 model.maxInputTokens = parseInt(values.maxInputTokens, 10);
             }
             if (values.reasoningPreset?.trim()) {
-                model.reasoning = { preset: values.reasoningPreset.toLowerCase() as any };
+                model.reasoning = {
+                    preset: values.reasoningPreset.toLowerCase() as ReasoningPreset,
+                };
             }
             return model;
         },

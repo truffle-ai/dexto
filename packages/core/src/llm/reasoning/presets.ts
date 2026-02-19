@@ -1,6 +1,10 @@
 import type { LLMProvider, ReasoningPreset } from '../types.js';
 import { isReasoningCapableModel } from '../registry/index.js';
 import { isAnthropicAdaptiveThinkingModel } from './anthropic-thinking.js';
+import {
+    getSupportedOpenAIReasoningEfforts,
+    supportsOpenAIReasoningEffort,
+} from './openai-reasoning-effort.js';
 
 export type ReasoningSupport = {
     capable: boolean;
@@ -42,11 +46,18 @@ export function getReasoningSupport(provider: LLMProvider, model: string): Reaso
             if (!capable) {
                 return { capable, supportedPresets: base, supportsBudgetTokens: false };
             }
-            const presets: ReasoningPreset[] = ['auto', 'off', 'low', 'medium', 'high', 'max'];
-            // OpenAI's xhigh is model-specific (confirmed for codex).
-            if (model.toLowerCase().includes('codex')) {
-                presets.push('xhigh');
-            }
+            const efforts = getSupportedOpenAIReasoningEfforts(model);
+            const presets: ReasoningPreset[] = ['auto'];
+
+            // `gpt-5-pro` only supports `high` (no meaningful tuning).
+            const onlyHigh = efforts.length === 1 && efforts[0] === 'high';
+            if (!onlyHigh) presets.push('off');
+
+            if (efforts.includes('low')) presets.push('low');
+            if (efforts.includes('medium')) presets.push('medium');
+            presets.push('high');
+            if (!onlyHigh) presets.push('max');
+            if (efforts.includes('xhigh')) presets.push('xhigh');
             return { capable, supportedPresets: uniq(presets), supportsBudgetTokens: false };
         }
         case 'anthropic': {
@@ -76,7 +87,9 @@ export function getReasoningSupport(provider: LLMProvider, model: string): Reaso
                       'max',
                       // Best-effort compatibility: OpenRouter supports passing OpenAI-like reasoning efforts
                       // for OpenAI models (and opencode exposes xhigh for codex models via OpenRouter).
-                      ...(model.toLowerCase().includes('codex') ? (['xhigh'] as const) : []),
+                      ...(supportsOpenAIReasoningEffort(model, 'xhigh')
+                          ? (['xhigh'] as const)
+                          : []),
                   ]
                 : base;
             return { capable, supportedPresets: uniq(presets), supportsBudgetTokens: capable };

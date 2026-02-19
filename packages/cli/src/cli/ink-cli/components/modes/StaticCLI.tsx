@@ -102,6 +102,7 @@ export function StaticCLI({
     const { columns: terminalWidth } = useTerminalSize();
     const [staticRemountKey, setStaticRemountKey] = useState(0);
     const isInitialMount = useRef(true);
+    const isInitialShowReasoningMount = useRef(true);
 
     // Ref to InputContainer for programmatic submit
     const inputContainerRef = useRef<InputContainerHandle>(null);
@@ -150,6 +151,15 @@ export function StaticCLI({
             clearTimeout(handler);
         };
     }, [terminalWidth, refreshStatic]);
+
+    useEffect(() => {
+        // Skip initial mount to avoid unnecessary clear on startup
+        if (isInitialShowReasoningMount.current) {
+            isInitialShowReasoningMount.current = false;
+            return;
+        }
+        refreshStatic();
+    }, [ui.showReasoning, refreshStatic]);
 
     // Pre-render static items as JSX elements (Gemini pattern)
     // Header + finalized messages go in <Static> (rendered once, permanent)
