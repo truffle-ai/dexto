@@ -40,6 +40,22 @@ describe('getReasoningSupport', () => {
         });
     });
 
+    it('does not advertise budget tokens for Gemini 3 (thinkingLevel-only)', () => {
+        expect(getReasoningSupport('google', 'gemini-3-flash-preview')).toEqual({
+            capable: true,
+            supportedPresets: ['auto', 'off', 'low', 'medium', 'high', 'max'],
+            supportsBudgetTokens: false,
+        });
+    });
+
+    it('advertises budget tokens for Gemini 2.5 (thinkingBudget)', () => {
+        expect(getReasoningSupport('google', 'gemini-2.5-pro')).toEqual({
+            capable: true,
+            supportedPresets: ['auto', 'off', 'low', 'medium', 'high', 'max'],
+            supportsBudgetTokens: true,
+        });
+    });
+
     it('returns gateway support for openrouter-format reasoning models', () => {
         expect(getReasoningSupport('openrouter', 'anthropic/claude-3.7-sonnet')).toEqual({
             capable: true,

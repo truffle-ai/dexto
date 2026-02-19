@@ -16,6 +16,10 @@ function uniq<T>(values: T[]): T[] {
     return Array.from(new Set(values));
 }
 
+function isGemini3Model(model: string): boolean {
+    return model.toLowerCase().includes('gemini-3');
+}
+
 /**
  * Returns a conservative, provider-aware view of which reasoning presets we can meaningfully
  * translate into provider options today.
@@ -72,7 +76,6 @@ export function getReasoningSupport(provider: LLMProvider, model: string): Reaso
             return { capable, supportedPresets: uniq(presets), supportsBudgetTokens };
         }
         case 'bedrock':
-        case 'google':
         case 'openrouter':
         case 'dexto-nova': {
             // These providers support a budget-based paradigm and/or low|medium|high effort.
@@ -94,6 +97,18 @@ export function getReasoningSupport(provider: LLMProvider, model: string): Reaso
                 : base;
             return { capable, supportedPresets: uniq(presets), supportsBudgetTokens: capable };
         }
+        case 'google': {
+            // Gemini 3 uses `thinkingLevel` (not budget tokens). Gemini 2.5 uses `thinkingBudget`.
+            // We only advertise budget tokens when the model accepts them.
+            const presets: ReasoningPreset[] = capable
+                ? ['auto', 'off', 'low', 'medium', 'high', 'max']
+                : base;
+            return {
+                capable,
+                supportedPresets: uniq(presets),
+                supportsBudgetTokens: capable && !isGemini3Model(model),
+            };
+        }
         case 'vertex': {
             // Vertex can be Gemini or Claude; we still expose the shared set.
             const presets: ReasoningPreset[] = capable
@@ -104,7 +119,7 @@ export function getReasoningSupport(provider: LLMProvider, model: string): Reaso
                 capable &&
                 (model.toLowerCase().includes('claude')
                     ? !isAnthropicAdaptiveThinkingModel(model)
-                    : true);
+                    : !isGemini3Model(model));
 
             return { capable, supportedPresets: uniq(presets), supportsBudgetTokens };
         }
