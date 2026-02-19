@@ -32,6 +32,14 @@ describe('getReasoningSupport', () => {
         });
     });
 
+    it('does not advertise budget tokens for Claude 4.6 (adaptive thinking)', () => {
+        expect(getReasoningSupport('anthropic', 'claude-sonnet-4-6')).toEqual({
+            capable: true,
+            supportedPresets: ['auto', 'off', 'low', 'medium', 'high', 'max'],
+            supportsBudgetTokens: false,
+        });
+    });
+
     it('returns gateway support for openrouter-format reasoning models', () => {
         expect(getReasoningSupport('openrouter', 'anthropic/claude-3.7-sonnet')).toEqual({
             capable: true,

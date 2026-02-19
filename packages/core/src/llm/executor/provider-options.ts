@@ -18,6 +18,10 @@
 
 import type { LLMProvider, LLMReasoningConfig, ReasoningPreset } from '../types.js';
 import { isReasoningCapableModel } from '../registry/index.js';
+import {
+    isAnthropicAdaptiveThinkingModel,
+    isAnthropicOpus46Model,
+} from '../reasoning/anthropic-thinking.js';
 
 export interface ProviderOptionsConfig {
     provider: LLMProvider;
@@ -73,6 +77,29 @@ function mapPresetToLowMediumHigh(preset: ReasoningPreset): 'low' | 'medium' | '
         default:
             return undefined;
     }
+}
+
+function mapPresetToAnthropicEffort(
+    preset: ReasoningPreset,
+    model: string
+): 'low' | 'medium' | 'high' | 'max' | undefined {
+    if (preset === 'off') return undefined;
+
+    if (preset === 'auto') {
+        // Keep "auto" cost-conscious by default. Anthropic's server-side default is `high`.
+        return 'medium';
+    }
+
+    if (preset === 'low' || preset === 'medium' || preset === 'high') {
+        return preset;
+    }
+
+    if (preset === 'max' || preset === 'xhigh') {
+        // `max` effort is only supported on Opus 4.6 today; map conservatively for other models.
+        return isAnthropicOpus46Model(model) ? 'max' : 'high';
+    }
+
+    return undefined;
 }
 
 function supportsOpenRouterXHigh(model: string): boolean {
@@ -157,25 +184,46 @@ export function buildProviderOptions(
     // Anthropic: prompt caching + reasoning controls
     if (provider === 'anthropic') {
         const capable = isReasoningCapableModel(model);
+        const adaptiveThinking = isAnthropicAdaptiveThinkingModel(model);
+        const allowReasoning = capable || adaptiveThinking;
+
+        // Claude 4.6+ uses the "adaptive thinking" paradigm (effort), not manual budget tokens.
+        if (adaptiveThinking) {
+            const effort =
+                preset === 'off' || !allowReasoning
+                    ? undefined
+                    : mapPresetToAnthropicEffort(preset, model);
+
+            return {
+                anthropic: {
+                    cacheControl: { type: 'ephemeral' },
+                    sendReasoning: preset !== 'off' && allowReasoning,
+                    ...(preset === 'off' || !allowReasoning
+                        ? { thinking: { type: 'disabled' } }
+                        : { thinking: { type: 'adaptive' } }),
+                    ...(effort !== undefined && { effort }),
+                },
+            };
+        }
+
         const effectiveBudgetTokens =
-            preset === 'off'
+            preset === 'off' || !allowReasoning
                 ? undefined
                 : coerceAnthropicThinkingBudgetTokens(
-                      budgetTokens ??
-                          (capable ? getAnthropicDefaultThinkingBudgetTokens(preset) : undefined)
+                      budgetTokens ?? getAnthropicDefaultThinkingBudgetTokens(preset)
                   );
 
         return {
             anthropic: {
                 cacheControl: { type: 'ephemeral' },
                 // We want reasoning available; UI can hide it.
-                sendReasoning: preset !== 'off' && capable,
+                sendReasoning: preset !== 'off' && allowReasoning,
                 ...(preset === 'off'
                     ? { thinking: { type: 'disabled' } }
                     : effectiveBudgetTokens !== undefined
                       ? { thinking: { type: 'enabled', budgetTokens: effectiveBudgetTokens } }
                       : {}),
-                // Anthropic "effort" is model-specific; we prefer budgeting as the primary knob.
+                // Note: Anthropic effort is only supported on Claude 4.6+ (adaptive thinking).
             },
         };
     }
@@ -207,37 +255,58 @@ export function buildProviderOptions(
         // Vertex Claude models use Anthropic model IDs in our config/registry.
         const capable =
             isReasoningCapableModel(model, 'anthropic') || isReasoningCapableModel(model);
+        const adaptiveThinking = isAnthropicAdaptiveThinkingModel(model);
+        const allowReasoning = capable || adaptiveThinking;
+
+        if (adaptiveThinking) {
+            const effort =
+                preset === 'off' || !allowReasoning
+                    ? undefined
+                    : mapPresetToAnthropicEffort(preset, model);
+
+            return {
+                anthropic: {
+                    cacheControl: { type: 'ephemeral' },
+                    sendReasoning: preset !== 'off' && allowReasoning,
+                    ...(preset === 'off' || !allowReasoning
+                        ? { thinking: { type: 'disabled' } }
+                        : { thinking: { type: 'adaptive' } }),
+                    ...(effort !== undefined && { effort }),
+                },
+            };
+        }
+
         const effectiveBudgetTokens =
-            preset === 'off'
+            preset === 'off' || !allowReasoning
                 ? undefined
                 : coerceAnthropicThinkingBudgetTokens(
-                      budgetTokens ??
-                          (capable ? getAnthropicDefaultThinkingBudgetTokens(preset) : undefined)
+                      budgetTokens ?? getAnthropicDefaultThinkingBudgetTokens(preset)
                   );
 
         return {
             anthropic: {
                 cacheControl: { type: 'ephemeral' },
-                sendReasoning: preset !== 'off' && capable,
+                sendReasoning: preset !== 'off' && allowReasoning,
                 ...(preset === 'off'
                     ? { thinking: { type: 'disabled' } }
                     : effectiveBudgetTokens !== undefined
                       ? { thinking: { type: 'enabled', budgetTokens: effectiveBudgetTokens } }
                       : {}),
-                // Anthropic "effort" is model-specific; we prefer budgeting as the primary knob.
+                // Note: Anthropic effort is only supported on Claude 4.6+ (adaptive thinking).
             },
         };
     }
 
     // Google / Vertex Gemini: thinkingConfig + tuning
     if (provider === 'google' || (provider === 'vertex' && !modelLower.includes('claude'))) {
-        const thinkingLevel = mapPresetToGoogleThinkingLevel(preset);
+        const capable = isReasoningCapableModel(model, provider);
+        const thinkingLevel = capable ? mapPresetToGoogleThinkingLevel(preset) : undefined;
         return {
             google: {
                 thinkingConfig: {
-                    includeThoughts: preset !== 'off',
+                    includeThoughts: preset !== 'off' && capable,
                     ...(thinkingLevel !== undefined && { thinkingLevel }),
-                    ...(budgetTokens !== undefined && { thinkingBudget: budgetTokens }),
+                    ...(capable && budgetTokens !== undefined && { thinkingBudget: budgetTokens }),
                 },
             },
         };
@@ -258,6 +327,14 @@ export function buildProviderOptions(
     // OpenRouter gateway providers (OpenRouter/Dexto Nova) use `providerOptions.openrouter`.
     // Note: config.provider here is the Dexto provider (openrouter|dexto-nova), not the upstream model.
     if (provider === 'openrouter' || provider === 'dexto-nova') {
+        const capable = isReasoningCapableModel(model);
+
+        if (!capable) {
+            return preset === 'off'
+                ? { openrouter: { includeReasoning: false } }
+                : { openrouter: { includeReasoning: true } };
+        }
+
         if (preset === 'auto') {
             // Default: request reasoning details when available; UI can decide whether to display.
             return { openrouter: { includeReasoning: true } };

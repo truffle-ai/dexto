@@ -1,5 +1,6 @@
 import type { LLMProvider, ReasoningPreset } from '../types.js';
 import { isReasoningCapableModel } from '../registry/index.js';
+import { isAnthropicAdaptiveThinkingModel } from './anthropic-thinking.js';
 
 export type ReasoningSupport = {
     capable: boolean;
@@ -19,7 +20,14 @@ function uniq<T>(values: T[]): T[] {
  * The server/UI should treat this as best-effort and avoid implying guarantees.
  */
 export function getReasoningSupport(provider: LLMProvider, model: string): ReasoningSupport {
-    const capable = isReasoningCapableModel(model, provider);
+    const registryCapable = isReasoningCapableModel(model, provider);
+    const capable =
+        registryCapable ||
+        ((provider === 'anthropic' ||
+            provider === 'vertex' ||
+            provider === 'openrouter' ||
+            provider === 'dexto-nova') &&
+            isAnthropicAdaptiveThinkingModel(model));
 
     // Always allow "auto" (default) and "off" (hide/disable reasoning when possible).
     const base: ReasoningPreset[] = ['auto', 'off'];
@@ -41,7 +49,17 @@ export function getReasoningSupport(provider: LLMProvider, model: string): Reaso
             }
             return { capable, supportedPresets: uniq(presets), supportsBudgetTokens: false };
         }
-        case 'anthropic':
+        case 'anthropic': {
+            if (!capable) {
+                return { capable, supportedPresets: base, supportsBudgetTokens: false };
+            }
+
+            const presets: ReasoningPreset[] = ['auto', 'off', 'low', 'medium', 'high', 'max'];
+
+            // Claude 4.6 uses adaptive thinking; budget tokens are deprecated and will be removed.
+            const supportsBudgetTokens = !isAnthropicAdaptiveThinkingModel(model);
+            return { capable, supportedPresets: uniq(presets), supportsBudgetTokens };
+        }
         case 'bedrock':
         case 'google':
         case 'openrouter':
@@ -61,14 +79,21 @@ export function getReasoningSupport(provider: LLMProvider, model: string): Reaso
                       ...(model.toLowerCase().includes('codex') ? (['xhigh'] as const) : []),
                   ]
                 : base;
-            return { capable, supportedPresets: uniq(presets), supportsBudgetTokens: true };
+            return { capable, supportedPresets: uniq(presets), supportsBudgetTokens: capable };
         }
         case 'vertex': {
             // Vertex can be Gemini or Claude; we still expose the shared set.
             const presets: ReasoningPreset[] = capable
                 ? ['auto', 'off', 'low', 'medium', 'high', 'max']
                 : base;
-            return { capable, supportedPresets: uniq(presets), supportsBudgetTokens: true };
+
+            const supportsBudgetTokens =
+                capable &&
+                (model.toLowerCase().includes('claude')
+                    ? !isAnthropicAdaptiveThinkingModel(model)
+                    : true);
+
+            return { capable, supportedPresets: uniq(presets), supportsBudgetTokens };
         }
         case 'openai-compatible': {
             // Best-effort: we can send a string reasoningEffort; support the common set.

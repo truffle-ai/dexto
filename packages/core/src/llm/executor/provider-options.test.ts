@@ -75,6 +75,55 @@ describe('buildProviderOptions', () => {
             });
         });
 
+        it('uses adaptive thinking (effort) for Claude 4.6 models', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'anthropic',
+                    model: 'claude-sonnet-4-6',
+                    reasoning: { preset: 'auto' },
+                })
+            ).toEqual({
+                anthropic: {
+                    cacheControl: { type: 'ephemeral' },
+                    sendReasoning: true,
+                    thinking: { type: 'adaptive' },
+                    effort: 'medium',
+                },
+            });
+        });
+
+        it('ignores budgetTokens for Claude 4.6 models (adaptive thinking)', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'anthropic',
+                    model: 'claude-opus-4-6',
+                    reasoning: { preset: 'auto', budgetTokens: 1234 },
+                })
+            ).toEqual({
+                anthropic: {
+                    cacheControl: { type: 'ephemeral' },
+                    sendReasoning: true,
+                    thinking: { type: 'adaptive' },
+                    effort: 'medium',
+                },
+            });
+        });
+
+        it('does not send thinking budgets for non-reasoning models (even if budgetTokens is set)', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'anthropic',
+                    model: 'claude-3-5-sonnet-20240620',
+                    reasoning: { preset: 'auto', budgetTokens: 1234 },
+                })
+            ).toEqual({
+                anthropic: {
+                    cacheControl: { type: 'ephemeral' },
+                    sendReasoning: false,
+                },
+            });
+        });
+
         it('maps explicit budgetTokens to anthropic.thinking', () => {
             expect(
                 buildProviderOptions({
@@ -137,6 +186,23 @@ describe('buildProviderOptions', () => {
                     cacheControl: { type: 'ephemeral' },
                     sendReasoning: true,
                     thinking: { type: 'enabled', budgetTokens: 4096 },
+                },
+            });
+        });
+
+        it('uses adaptive thinking (effort) for Claude 4.6 models', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'vertex',
+                    model: 'claude-opus-4-6',
+                    reasoning: { preset: 'max' },
+                })
+            ).toEqual({
+                anthropic: {
+                    cacheControl: { type: 'ephemeral' },
+                    sendReasoning: true,
+                    thinking: { type: 'adaptive' },
+                    effort: 'max',
                 },
             });
         });

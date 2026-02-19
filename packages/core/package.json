@@ -25,7 +25,7 @@
     },
     "dependencies": {
         "@ai-sdk/amazon-bedrock": "^3.0.71",
-        "@ai-sdk/anthropic": "^2.0.56",
+        "@ai-sdk/anthropic": "^2.0.65",
         "@ai-sdk/cohere": "^2.0.0",
         "@ai-sdk/google": "^2.0.0",
         "@ai-sdk/google-vertex": "^3.0.94",
