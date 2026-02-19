@@ -650,12 +650,27 @@ Implementation note (important):
       - add the provider SDK package + wire it into the LLM factory, or
       - intentionally defer (with a documented reason), or
       - treat as OpenAI-compatible via a curated baseURL if the upstream is actually OpenAI-compatible.
+    - Before implementing each new transport, re-audit upstream transport quirks and record the ones we need:
+      - OpenCode normalization + providerOptions keying: `~/Projects/external/opencode/packages/opencode/src/provider/transform.ts`, `~/Projects/external/opencode/packages/opencode/src/provider/provider.ts`
+      - pi-mono transport mapping style + gateway ingestion: `~/Projects/external/pi-mono/packages/ai/scripts/generate-models.ts`
+      - OpenClaw provider preset/onboard behaviors (when relevant): `~/Projects/external/openclaw/src/commands/onboard-auth.models.ts`, `~/Projects/external/openclaw/src/commands/model-auth.ts`
+      - Capture findings in `WORKING_MEMORY.md` and add UV items if any behavior is product-sensitive.
     - Keep the LLM factory table-driven: adding a new `provider.npm` should be a small, isolated change (no switch-case sprawl).
   - Exit:
     - `NPM_TRANSPORT_COVERAGE.md` “not covered yet” list shrinks over time, and `/connect` auto-enables newly supported providers without additional UX work.
 
 ### Phase 3 — OpenAI ChatGPT OAuth (Codex)
 > **Goal:** make OAuth a first-class method whose tokens affect runtime requests (not just storage).
+
+- [ ] **3.0 Re-audit upstream Codex OAuth implementations (edge cases)**
+  - Deliverables:
+    - Re-read and extract any “must copy” edge cases (PKCE/device-code details, callback state verification, request rewrite behavior, account header extraction):
+      - OpenCode: `~/Projects/external/opencode/packages/opencode/src/plugin/codex.ts`
+      - OpenClaw: `~/Projects/external/openclaw/src/commands/openai-codex-oauth.ts`, `~/Projects/external/openclaw/src/commands/openai-codex-oauth.test.ts`
+      - pi-mono transport split context: `~/Projects/external/pi-mono/packages/ai/scripts/generate-models.ts` (OpenAI “responses vs completions” mapping patterns)
+    - Update `WORKING_MEMORY.md` with any discovered deltas and add owner-verification items for product-sensitive behavior (allowlisting, redirect URIs, messaging).
+  - Exit:
+    - Edge-case checklist captured in working memory; Phase 3 tasks incorporate any required deltas.
 
 - [ ] **3.1 Implement OpenAI OAuth authorize/callback flows + persistence**
   - Deliverables:
@@ -681,6 +696,16 @@ Implementation note (important):
 ### Phase 4 — MiniMax Portal OAuth (device-code/PKCE)
 > **Goal:** add a second OAuth method (MiniMax) to validate the method registry + refresh patterns beyond OpenAI.
 
+- [ ] **4.0 Re-audit upstream MiniMax Portal OAuth implementations (edge cases)**
+  - Deliverables:
+    - Re-read and extract any “must copy” edge cases (device code polling, refresh format, region/resource URL behavior):
+      - OpenClaw: `~/Projects/external/openclaw/extensions/minimax-portal-auth/oauth.ts`, `~/Projects/external/openclaw/extensions/minimax-portal-auth/index.ts`
+      - OpenCode provider quirks worth mirroring: `~/Projects/external/opencode/packages/opencode/src/provider/error.ts`, `~/Projects/external/opencode/packages/opencode/src/provider/transform.ts`
+      - pi-mono transport split context: `~/Projects/external/pi-mono/packages/ai/scripts/generate-models.ts`
+    - Update `WORKING_MEMORY.md` with any discovered deltas and add UV items for client ID/redirect URI/product decisions.
+  - Exit:
+    - Edge-case checklist captured in working memory; Phase 4 tasks incorporate any required deltas.
+
 - [ ] **4.1 Implement MiniMax OAuth authorize/callback flows + persistence**
   - Deliverables:
     - Dexto-owned MiniMax OAuth app config (client ID + allowed redirect URIs) OR explicit confirmation that the public client ID we reference is intended for third-party clients.
@@ -698,6 +723,16 @@ Implementation note (important):
 ### Phase 5 — Anthropic setup-token (subscription) (if viable)
 > **Goal:** add a second “non-api-key” method to validate the model.
 
+- [ ] **5.0 Re-audit upstream Anthropic setup-token handling (edge cases)**
+  - Deliverables:
+    - Re-read setup-token validation + UX expectations and capture rules we must match (prefix/length, interactive-only constraints, profile selection):
+      - OpenClaw: `~/Projects/external/openclaw/src/commands/models/auth.ts`, `~/Projects/external/openclaw/src/commands/auth-token.ts`, `~/Projects/external/openclaw/src/agents/anthropic.setup-token.live.test.ts`
+      - OpenCode: `~/Projects/external/opencode/packages/opencode/src/provider/transform.ts` (Anthropic message normalization patterns)
+      - pi-mono: `~/Projects/external/pi-mono/packages/ai/scripts/generate-models.ts` (Anthropic transport mapping patterns)
+    - Update `WORKING_MEMORY.md` with any discovered deltas and add UV items if feasibility is unclear.
+  - Exit:
+    - Edge-case checklist captured in working memory; Phase 5 tasks incorporate any required deltas.
+
 - [ ] **5.1 Add `setup-token` method UX + storage**
   - Exit:
     - Token is stored as a profile and can be selected as default.
@@ -708,6 +743,16 @@ Implementation note (important):
 
 ### Phase 6 — Bedrock + Vertex first-class connect UX
 > **Goal:** make non-key providers feel “connectable” (guided setup) even if they use ADC/credential chains.
+
+- [ ] **6.0 Re-audit upstream Bedrock/Vertex provider handling (edge cases)**
+  - Deliverables:
+    - Re-read upstream provider transforms and capture quirks we need (providerOptions keys, vertex/anthropic handling, fetch overrides):
+      - OpenCode: `~/Projects/external/opencode/packages/opencode/src/provider/transform.ts`
+      - pi-mono: `~/Projects/external/pi-mono/packages/ai/scripts/generate-models.ts`
+      - OpenClaw: `~/Projects/external/openclaw/src/commands/onboard-auth.config-core.ts` and related onboard config files
+    - Update `WORKING_MEMORY.md` with any discovered deltas and add UV items for UX/policy decisions.
+  - Exit:
+    - Edge-case checklist captured in working memory; Phase 6 tasks incorporate any required deltas.
 
 - [ ] **6.1 Add Bedrock connect UX (chain vs bearer token)**
   - Exit:
