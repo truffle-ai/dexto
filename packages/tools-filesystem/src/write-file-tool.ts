@@ -113,8 +113,22 @@ export function createWriteFileTool(
 
             try {
                 // Try to read existing file
-                const originalFile = await resolvedFileSystemService.readFile(resolvedPath);
-                const originalContent = originalFile.content;
+                let originalContent: string;
+                try {
+                    const originalFile = await resolvedFileSystemService.readFile(resolvedPath);
+                    originalContent = originalFile.content;
+                } catch (error) {
+                    if (
+                        error instanceof DextoRuntimeError &&
+                        error.code === FileSystemErrorCode.INVALID_PATH
+                    ) {
+                        const originalFile =
+                            await resolvedFileSystemService.readFileForToolPreview(resolvedPath);
+                        originalContent = originalFile.content;
+                    } else {
+                        throw error;
+                    }
+                }
 
                 // Store content hash for change detection in execute phase
                 if (context.toolCallId) {

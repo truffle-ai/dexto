@@ -32,6 +32,20 @@ const ToolDisplayDataSchema = z.custom<ToolDisplayData>((val) => isValidDisplayD
 });
 
 /**
+ * Directory access metadata schema
+ * Used when a tool tries to access files outside the working directory
+ */
+export const DirectoryAccessMetadataSchema = z
+    .object({
+        path: z.string().describe('Full path being accessed'),
+        parentDir: z.string().describe('Parent directory (what gets approved for session)'),
+        operation: z.enum(['read', 'write', 'edit']).describe('Type of file operation'),
+        toolName: z.string().describe('Name of the tool requesting access'),
+    })
+    .strict()
+    .describe('Directory access metadata');
+
+/**
  * Tool approval metadata schema
  */
 export const ToolApprovalMetadataSchema = z
@@ -46,6 +60,9 @@ export const ToolApprovalMetadataSchema = z
         description: z.string().optional().describe('Description of the tool'),
         displayPreview: ToolDisplayDataSchema.optional().describe(
             'Preview display data for approval UI (e.g., diff preview)'
+        ),
+        directoryAccess: DirectoryAccessMetadataSchema.optional().describe(
+            'Optional directory access metadata when the tool targets a path outside config-allowed roots'
         ),
         suggestedPatterns: z
             .array(z.string())
@@ -91,20 +108,6 @@ export const ElicitationMetadataSchema = z
  * Custom approval metadata schema - flexible
  */
 export const CustomApprovalMetadataSchema = z.record(z.unknown()).describe('Custom metadata');
-
-/**
- * Directory access metadata schema
- * Used when a tool tries to access files outside the working directory
- */
-export const DirectoryAccessMetadataSchema = z
-    .object({
-        path: z.string().describe('Full path being accessed'),
-        parentDir: z.string().describe('Parent directory (what gets approved for session)'),
-        operation: z.enum(['read', 'write', 'edit']).describe('Type of file operation'),
-        toolName: z.string().describe('Name of the tool requesting access'),
-    })
-    .strict()
-    .describe('Directory access metadata');
 
 /**
  * Base approval request schema
@@ -190,6 +193,12 @@ export const ToolApprovalResponseDataSchema = z
             .describe(
                 'Remember an approval pattern (e.g., "git *"). ' +
                     'Only applicable when the tool provides pattern-based approval support.'
+            ),
+        rememberDirectory: z
+            .boolean()
+            .optional()
+            .describe(
+                'Remember this directory for the session (allows future access without prompting again)'
             ),
     })
     .strict()

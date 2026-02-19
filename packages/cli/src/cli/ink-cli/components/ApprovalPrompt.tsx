@@ -12,7 +12,7 @@ import type { Key } from '../hooks/useInputOrchestrator.js';
 import { ElicitationForm, type ElicitationFormHandle } from './ElicitationForm.js';
 import { DiffPreview, CreateFilePreview } from './renderers/index.js';
 import { isEditWriteTool } from '../utils/toolUtils.js';
-import { formatToolHeader } from '../utils/messageFormatting.js';
+import { formatPathForDisplay, formatToolHeader } from '../utils/messageFormatting.js';
 
 export interface ApprovalRequest {
     approvalId: string;
@@ -57,6 +57,7 @@ type SelectionOption =
     | 'yes'
     | 'yes-session'
     | 'yes-accept-edits'
+    | 'yes-directory-session'
     | 'no'
     | `pattern-${number}`
     // Plan review specific options
@@ -76,6 +77,20 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         const isCommandConfirmation = approval.type === 'command_confirmation';
         const isElicitation = approval.type === 'elicitation';
         const isDirectoryAccess = approval.type === 'directory_access';
+        const directoryAccess = approval.metadata.directoryAccess as
+            | {
+                  parentDir?: unknown;
+              }
+            | undefined;
+        const hasToolDirectoryAccess =
+            approval.type === 'tool_confirmation' &&
+            directoryAccess !== undefined &&
+            typeof directoryAccess === 'object' &&
+            directoryAccess !== null;
+        const directoryAccessParentDir =
+            hasToolDirectoryAccess && typeof directoryAccess.parentDir === 'string'
+                ? directoryAccess.parentDir
+                : null;
 
         // Extract tool metadata
         const toolName = approval.metadata.toolName as string | undefined;
@@ -135,6 +150,14 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
             options.push({ id: 'plan-approve', label: 'Approve' });
             options.push({ id: 'plan-approve-accept-edits', label: 'Approve + Accept All Edits' });
             // Third "option" is the feedback input (handled specially in render)
+        } else if (hasToolDirectoryAccess) {
+            // Tool approval that includes directory access - offer session-scoped dir allow
+            const dirLabel = directoryAccessParentDir
+                ? ` ${formatPathForDisplay(directoryAccessParentDir)}`
+                : '';
+            options.push({ id: 'yes', label: 'Yes (once)' });
+            options.push({ id: 'yes-directory-session', label: `Yes, allow${dirLabel} (session)` });
+            options.push({ id: 'no', label: 'No' });
         } else if (hasSuggestedPatterns) {
             // Tool with pattern suggestions
             options.push({ id: 'yes', label: 'Yes (once)' });
@@ -153,7 +176,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         } else if (isDirectoryAccess) {
             // Directory access - offer session-scoped access
             const parentDir = approval.metadata.parentDir as string | undefined;
-            const dirLabel = parentDir ? ` "${parentDir}"` : '';
+            const dirLabel = parentDir ? ` ${formatPathForDisplay(parentDir)}` : '';
             options.push({ id: 'yes', label: 'Yes (once)' });
             options.push({ id: 'yes-session', label: `Yes, allow${dirLabel} (session)` });
             options.push({ id: 'no', label: 'No' });
@@ -248,6 +271,8 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                             } else {
                                 onApprove({ rememberChoice: true });
                             }
+                        } else if (option.id === 'yes-directory-session') {
+                            onApprove({ rememberDirectory: true });
                         } else if (option.id === 'yes-accept-edits') {
                             // Approve and enable "accept all edits" mode
                             onApprove({ enableAcceptEditsMode: true });
@@ -279,6 +304,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                 isElicitation,
                 isEditOrWriteTool,
                 isDirectoryAccess,
+                hasToolDirectoryAccess,
                 isPlanReview,
                 options,
                 suggestedPatterns,
@@ -373,6 +399,26 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         const parentDir = approval.metadata.parentDir as string | undefined;
         const operation = approval.metadata.operation as string | undefined;
 
+        const directoryAccessTitle = !isDirectoryAccess
+            ? null
+            : operation === 'read'
+              ? 'Read file'
+              : operation === 'write'
+                ? 'Write file'
+                : operation === 'edit'
+                  ? 'Edit file'
+                  : 'Directory access';
+
+        const directoryAccessToolHeader =
+            !isDirectoryAccess || !toolName
+                ? null
+                : formatToolHeader({
+                      toolName,
+                      args:
+                          (directoryPath ?? parentDir) ? { path: directoryPath ?? parentDir } : {},
+                      ...(toolDisplayName !== undefined && { toolDisplayName }),
+                  }).header;
+
         const showHeaderBlock = isDirectoryAccess || isCommandConfirmation || !displayPreview;
 
         return (
@@ -382,24 +428,14 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                     <Box flexDirection="column" marginBottom={0}>
                         {isDirectoryAccess ? (
                             <>
-                                <Box flexDirection="row">
-                                    <Text color="yellowBright" bold>
-                                        🔐 Directory Access:{' '}
-                                    </Text>
-                                    <Text color="cyan">{parentDir || directoryPath}</Text>
-                                </Box>
-                                <Box flexDirection="row" marginTop={0}>
-                                    <Text color="gray">{'  '}</Text>
-                                    <Text color="gray">
-                                        {formattedTool ? `"${formattedTool.displayName}"` : 'Tool'}{' '}
-                                        wants to {operation || 'access'} files outside working
-                                        directory
+                                <Box marginBottom={0}>
+                                    <Text color="cyan" bold>
+                                        {directoryAccessTitle ?? 'Directory access'}
                                     </Text>
                                 </Box>
-                                {callDescription && (
-                                    <Box flexDirection="row" marginTop={0}>
-                                        <Text color="gray">{'  '}</Text>
-                                        <Text color="gray">{callDescription}</Text>
+                                {directoryAccessToolHeader && (
+                                    <Box marginBottom={0}>
+                                        <Text wrap="wrap">{directoryAccessToolHeader}</Text>
                                     </Box>
                                 )}
                             </>

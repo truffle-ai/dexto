@@ -11,7 +11,11 @@ import { convertZodSchemaToJsonSchema } from '../utils/schema.js';
 import type { AgentEventBus } from '../events/index.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import { ApprovalStatus, ApprovalType, DenialReason } from '../approval/types.js';
-import type { ApprovalRequest, ToolApprovalMetadata } from '../approval/types.js';
+import type {
+    ApprovalRequest,
+    DirectoryAccessMetadata,
+    ToolApprovalMetadata,
+} from '../approval/types.js';
 import type { AllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
 import type { HookManager } from '../hooks/manager.js';
 import type { SessionManager } from '../session/index.js';
@@ -632,66 +636,6 @@ export class ToolManager {
         }
     }
 
-    /**
-     * Auto-approve pending directory access requests that match a newly approved directory access request.
-     *
-     * This handles the case where parallel file operations request directory approval concurrently.
-     */
-    private autoApprovePendingDirectoryAccessRequests(options: {
-        parentDir: string;
-        operation: string;
-        toolName: string;
-        rememberDirectory: boolean;
-        sessionId: string | undefined;
-    }): void {
-        const count = this.approvalManager.autoApprovePendingRequests(
-            (request: ApprovalRequest) => {
-                if (request.type !== ApprovalType.DIRECTORY_ACCESS) {
-                    return false;
-                }
-
-                if (request.sessionId !== options.sessionId) {
-                    return false;
-                }
-
-                const metadata = request.metadata as
-                    | { parentDir?: unknown; operation?: unknown; toolName?: unknown }
-                    | undefined;
-
-                if (
-                    typeof metadata?.parentDir !== 'string' ||
-                    metadata.parentDir !== options.parentDir
-                ) {
-                    return false;
-                }
-
-                // If the user remembered the directory for the session, treat it as a broad approval.
-                if (options.rememberDirectory) {
-                    return true;
-                }
-
-                // Otherwise, only auto-approve parallel requests for the same operation and tool.
-                if (
-                    typeof metadata?.operation !== 'string' ||
-                    typeof metadata?.toolName !== 'string'
-                ) {
-                    return false;
-                }
-                return (
-                    metadata.operation === options.operation &&
-                    metadata.toolName === options.toolName
-                );
-            },
-            { rememberDirectory: false }
-        );
-
-        if (count > 0) {
-            this.logger.info(
-                `Auto-approved ${count} parallel request(s) for directory '${options.parentDir}' after directory access was approved`
-            );
-        }
-    }
-
     getMcpManager(): MCPManager {
         return this.mcpManager;
     }
@@ -753,6 +697,43 @@ export class ToolManager {
         }
 
         return validated as Record<string, unknown>;
+    }
+
+    private async getToolDirectoryAccessMetadata(
+        toolName: string,
+        args: Record<string, unknown>,
+        toolCallId: string,
+        sessionId?: string
+    ): Promise<DirectoryAccessMetadata | undefined> {
+        if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
+            return undefined;
+        }
+
+        const tool = this.agentTools.get(toolName);
+        if (!tool?.getDirectoryAccessMetadata) {
+            return undefined;
+        }
+
+        const context = this.buildToolExecutionContext({ sessionId, toolCallId });
+        const metadata = await tool.getDirectoryAccessMetadata(args, context);
+        if (!metadata) {
+            return undefined;
+        }
+
+        if (
+            typeof metadata !== 'object' ||
+            metadata === null ||
+            typeof (metadata as DirectoryAccessMetadata).path !== 'string' ||
+            typeof (metadata as DirectoryAccessMetadata).parentDir !== 'string' ||
+            typeof (metadata as DirectoryAccessMetadata).operation !== 'string' ||
+            typeof (metadata as DirectoryAccessMetadata).toolName !== 'string'
+        ) {
+            throw ToolError.configInvalid(
+                `Tool '${toolName}' returned invalid directory access metadata`
+            );
+        }
+
+        return metadata as DirectoryAccessMetadata;
     }
 
     private async executeLocalTool(
@@ -1274,27 +1255,29 @@ export class ToolManager {
     /**
      * Check if a tool has a custom approval override and handle it.
      * Tools can implement getApprovalOverride() to request specialized approval flows
-     * (e.g., directory access approval for file tools) instead of default tool confirmation.
+     * (e.g., directory access approval for file tools) in addition to or instead of default tool confirmation.
      *
      * @param toolName Tool name
      * @param args The tool arguments
      * @param sessionId Optional session ID
-     * @returns { handled: true } if custom approval was processed, { handled: false } to continue normal flow
+     * @returns
+     * - 'none'     → no custom approval required, continue normal tool approval flow
+     * - 'replace'  → custom approval replaces the normal tool approval flow
      */
     private async checkCustomApprovalOverride(
         toolName: string,
         args: Record<string, unknown>,
         toolCallId: string,
         sessionId?: string
-    ): Promise<{ handled: boolean }> {
+    ): Promise<'none' | 'replace'> {
         if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
-            return { handled: false };
+            return 'none';
         }
 
         // Get the tool and check if it has custom approval override
         const tool = this.agentTools.get(toolName);
         if (!tool?.getApprovalOverride) {
-            return { handled: false };
+            return 'none';
         }
 
         const context = this.buildToolExecutionContext({ sessionId, toolCallId });
@@ -1303,7 +1286,7 @@ export class ToolManager {
         const approvalRequest = await tool.getApprovalOverride(args, context);
         if (!approvalRequest) {
             // Tool decided no custom approval needed, continue normal flow
-            return { handled: false };
+            return 'none';
         }
 
         this.logger.debug(
@@ -1324,33 +1307,10 @@ export class ToolManager {
                 tool.onApprovalGranted(response, context, approvalRequest);
             }
 
-            // If this was a directory access approval, auto-approve other pending requests as appropriate.
-            if (approvalRequest.type === ApprovalType.DIRECTORY_ACCESS) {
-                const metadata = approvalRequest.metadata as
-                    | { parentDir?: unknown; operation?: unknown }
-                    | undefined;
-                const parentDir =
-                    typeof metadata?.parentDir === 'string' ? metadata.parentDir : null;
-                const operation =
-                    typeof metadata?.operation === 'string' ? metadata.operation : null;
-
-                if (parentDir && operation) {
-                    const data = response.data as { rememberDirectory?: boolean } | undefined;
-                    const rememberDirectory = data?.rememberDirectory ?? false;
-                    this.autoApprovePendingDirectoryAccessRequests({
-                        parentDir,
-                        operation,
-                        sessionId,
-                        toolName,
-                        rememberDirectory,
-                    });
-                }
-            }
-
             this.logger.info(
                 `Custom approval granted for '${toolName}', type=${approvalRequest.type}, session=${sessionId ?? 'global'}`
             );
-            return { handled: true };
+            return 'replace';
         }
 
         // Handle denial - throw appropriate error based on approval type
@@ -1387,13 +1347,20 @@ export class ToolManager {
         args: Record<string, unknown>;
     }> {
         const validatedArgs = this.validateLocalToolArgsOrThrow(toolName, args);
+        const directoryAccess = await this.getToolDirectoryAccessMetadata(
+            toolName,
+            validatedArgs,
+            toolCallId,
+            sessionId
+        );
 
         // Try quick resolution first (auto-approve/deny based on policies)
         const quickResult = await this.tryQuickApprovalResolution(
             toolName,
             validatedArgs,
             toolCallId,
-            sessionId
+            sessionId,
+            directoryAccess
         );
         if (quickResult !== null) {
             return { ...quickResult, args: validatedArgs };
@@ -1405,6 +1372,7 @@ export class ToolManager {
             validatedArgs,
             toolCallId,
             sessionId,
+            directoryAccess,
             callDescription
         );
         return { ...manualResult, args: validatedArgs };
@@ -1416,18 +1384,20 @@ export class ToolManager {
      *
      * Precedence order (highest to lowest):
      * 1. Static deny list (security - always blocks)
-     * 2. Custom approval override (tool-specific approval flows)
-     * 3. Session auto-approve (skill allowed-tools)
-     * 4. Static allow list
-     * 5. Dynamic "remembered" allowed list
-     * 6. Tool approval patterns
-     * 7. Approval mode (auto-approve/auto-deny)
+     * 2. Custom approval overrides (tool-specific approval flows)
+     * 3. Directory access requirement (outside-root paths)
+     * 4. Session auto-approve (skill allowed-tools)
+     * 5. Static allow list
+     * 6. Dynamic "remembered" allowed list
+     * 7. Tool approval patterns
+     * 8. Approval mode (auto-approve/auto-deny)
      */
     private async tryQuickApprovalResolution(
         toolName: string,
         args: Record<string, unknown>,
         toolCallId: string,
-        sessionId?: string
+        sessionId?: string,
+        directoryAccess?: DirectoryAccessMetadata | undefined
     ): Promise<{ requireApproval: boolean; approvalStatus?: 'approved' } | null> {
         // 1. Check static alwaysDeny list (highest priority - security-first)
         if (this.isInAlwaysDenyList(toolName)) {
@@ -1437,18 +1407,28 @@ export class ToolManager {
             throw ToolError.executionDenied(toolName, sessionId);
         }
 
-        // 2. Check custom approval override (e.g., directory access for file tools)
+        // 2. Check custom approval override
         const customApprovalResult = await this.checkCustomApprovalOverride(
             toolName,
             args,
             toolCallId,
             sessionId
         );
-        if (customApprovalResult.handled) {
+        if (customApprovalResult === 'replace') {
             return { requireApproval: true, approvalStatus: 'approved' };
         }
 
-        // 3. Check session auto-approve (skill allowed-tools)
+        // 3. Directory access: require explicit tool approval unless the directory is already session-approved.
+        // This bypasses remembered-tool approvals and edit-mode auto-approvals for outside-root paths.
+        if (directoryAccess) {
+            if (this.approvalMode === 'auto-approve') {
+                this.approvalManager.addApprovedDirectory(directoryAccess.parentDir, 'once');
+                return { requireApproval: false };
+            }
+            return null;
+        }
+
+        // 4. Check session auto-approve (skill allowed-tools)
         if (sessionId && this.isToolAutoApprovedForSession(sessionId, toolName)) {
             this.logger.info(
                 `Tool '${toolName}' is in session's auto-approve list – skipping confirmation (session: ${sessionId})`
@@ -1456,7 +1436,7 @@ export class ToolManager {
             return { requireApproval: false };
         }
 
-        // 4. Check static alwaysAllow list
+        // 5. Check static alwaysAllow list
         if (this.isInAlwaysAllowList(toolName)) {
             this.logger.info(
                 `Tool '${toolName}' is in static allow list – skipping confirmation (session: ${sessionId ?? 'global'})`
@@ -1464,7 +1444,7 @@ export class ToolManager {
             return { requireApproval: false };
         }
 
-        // 5. Check dynamic "remembered" allowed list
+        // 6. Check dynamic "remembered" allowed list
         if (await this.allowedToolsProvider.isToolAllowed(toolName, sessionId)) {
             this.logger.info(
                 `Tool '${toolName}' already allowed for session '${sessionId ?? 'global'}' – skipping confirmation.`
@@ -1472,7 +1452,7 @@ export class ToolManager {
             return { requireApproval: false };
         }
 
-        // 6. Check tool approval patterns
+        // 7. Check tool approval patterns
         const patternKey = this.getToolPatternKey(toolName, args);
         if (patternKey && this.approvalManager.matchesPattern(toolName, patternKey)) {
             this.logger.info(
@@ -1481,7 +1461,7 @@ export class ToolManager {
             return { requireApproval: false };
         }
 
-        // 7. Check approval mode
+        // 8. Check approval mode
         if (this.approvalMode === 'auto-approve') {
             this.logger.debug(`🟢 Auto-approving tool execution: ${toolName}`);
             return { requireApproval: false };
@@ -1505,6 +1485,7 @@ export class ToolManager {
         args: Record<string, unknown>,
         toolCallId: string,
         sessionId?: string,
+        directoryAccess?: DirectoryAccessMetadata | undefined,
         callDescription?: string
     ): Promise<{ requireApproval: boolean; approvalStatus: 'approved' | 'rejected' }> {
         this.logger.info(
@@ -1533,8 +1514,19 @@ export class ToolManager {
                 ...(callDescription !== undefined && { description: callDescription }),
                 ...(sessionId !== undefined && { sessionId }),
                 ...(displayPreview !== undefined && { displayPreview }),
+                ...(directoryAccess !== undefined && { directoryAccess }),
                 ...(suggestedPatterns !== undefined && { suggestedPatterns }),
             });
+
+            // Handle directory access choice (if present) BEFORE tool execution.
+            if (response.status === ApprovalStatus.APPROVED && directoryAccess) {
+                const data = response.data as { rememberDirectory?: boolean } | undefined;
+                const rememberDirectory = data?.rememberDirectory ?? false;
+                this.approvalManager.addApprovedDirectory(
+                    directoryAccess.parentDir,
+                    rememberDirectory ? 'session' : 'once'
+                );
+            }
 
             // Handle "remember" choices if approved
             if (response.status === ApprovalStatus.APPROVED && response.data) {

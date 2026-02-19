@@ -38,11 +38,19 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         } as any;
 
         mockApprovalManager = {
+            requestApproval: vi.fn().mockResolvedValue({
+                approvalId: 'test-custom-approval-id',
+                status: ApprovalStatus.APPROVED,
+                data: { rememberDirectory: false },
+            }),
             requestToolApproval: vi.fn().mockResolvedValue({
                 approvalId: 'test-approval-id',
                 status: ApprovalStatus.APPROVED,
                 data: { rememberChoice: false },
             }),
+            addApprovedDirectory: vi.fn(),
+            autoApprovePendingRequests: vi.fn().mockReturnValue(0),
+            matchesPattern: vi.fn().mockReturnValue(false),
             getPendingApprovals: vi.fn().mockReturnValue([]),
             cancelApproval: vi.fn(),
             cancelAllApprovals: vi.fn(),
@@ -314,6 +322,106 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     sessionId: 'session-1',
                 })
             );
+        });
+
+        it('should include directory access metadata in tool approval and remember directory when approved', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+
+            const callOrder: string[] = [];
+
+            const tool = defineTool({
+                id: 'fs_like_tool',
+                description: 'Filesystem-like tool',
+                inputSchema: z
+                    .object({
+                        file_path: z.string(),
+                    })
+                    .strict(),
+                getDirectoryAccessMetadata: vi.fn().mockImplementation(async () => {
+                    callOrder.push('getDirectoryAccessMetadata');
+                    return {
+                        path: '/tmp/example.txt',
+                        parentDir: '/tmp',
+                        operation: 'read',
+                        toolName: 'fs_like_tool',
+                    };
+                }),
+                generatePreview: vi.fn().mockImplementation(async () => {
+                    callOrder.push('generatePreview');
+                    return null;
+                }),
+                execute: vi.fn().mockImplementation(async () => {
+                    callOrder.push('execute');
+                    return 'ok';
+                }),
+            });
+
+            (mockApprovalManager.requestToolApproval as any).mockImplementation(async () => {
+                callOrder.push('requestToolApproval');
+                return {
+                    approvalId: 'test-approval-id',
+                    status: ApprovalStatus.APPROVED,
+                    data: { rememberDirectory: true },
+                };
+            });
+
+            (mockApprovalManager.addApprovedDirectory as any).mockImplementation(() => {
+                callOrder.push('addApprovedDirectory');
+            });
+
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: ['fs_like_tool'], alwaysDeny: [] },
+                [tool],
+                mockLogger
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+
+            const result = await toolManager.executeTool(
+                'fs_like_tool',
+                { file_path: '/tmp/example.txt' },
+                'call-1',
+                'session-1'
+            );
+
+            expect(result).toEqual({
+                result: 'ok',
+                requireApproval: true,
+                approvalStatus: 'approved',
+            });
+
+            expect(mockAllowedToolsProvider.isToolAllowed).not.toHaveBeenCalled();
+            expect(mockApprovalManager.requestToolApproval).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    toolName: 'fs_like_tool',
+                    toolCallId: 'call-1',
+                    sessionId: 'session-1',
+                    args: { file_path: '/tmp/example.txt' },
+                    directoryAccess: {
+                        path: '/tmp/example.txt',
+                        parentDir: '/tmp',
+                        operation: 'read',
+                        toolName: 'fs_like_tool',
+                    },
+                })
+            );
+            expect(mockApprovalManager.addApprovedDirectory).toHaveBeenCalledWith(
+                '/tmp',
+                'session'
+            );
+
+            // Directory metadata is gathered first, then tool preview + tool approval, then execution.
+            expect(callOrder).toEqual([
+                'getDirectoryAccessMetadata',
+                'generatePreview',
+                'requestToolApproval',
+                'addApprovedDirectory',
+                'execute',
+            ]);
         });
 
         it('should request approval via ApprovalManager with correct parameters', async () => {

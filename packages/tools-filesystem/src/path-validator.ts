@@ -73,6 +73,28 @@ export class PathValidator {
      * Validate a file path for security and policy compliance
      */
     async validatePath(filePath: string): Promise<PathValidation> {
+        return this.validatePathInternal(filePath, { allowOutsideAllowedPaths: false });
+    }
+
+    /**
+     * Validate a file path for preview purposes.
+     *
+     * This is identical to {@link validatePath} except it does NOT enforce config-allowed roots.
+     * It still enforces:
+     * - traversal protection
+     * - blocked paths
+     * - blocked extensions
+     *
+     * Used for generating UI-only previews (e.g., diffs) before the user approves directory access.
+     */
+    async validatePathForPreview(filePath: string): Promise<PathValidation> {
+        return this.validatePathInternal(filePath, { allowOutsideAllowedPaths: true });
+    }
+
+    private async validatePathInternal(
+        filePath: string,
+        options: { allowOutsideAllowedPaths: boolean }
+    ): Promise<PathValidation> {
         // 1. Check for empty path
         if (!filePath || filePath.trim() === '') {
             return {
@@ -114,7 +136,7 @@ export class PathValidator {
         }
 
         // 4. Check if path is within allowed paths
-        if (!this.isPathAllowed(normalizedPath)) {
+        if (!options.allowOutsideAllowedPaths && !this.isPathAllowed(normalizedPath)) {
             return {
                 isValid: false,
                 error: `Path is not within allowed paths. Allowed: ${this.normalizedAllowedPaths.join(', ')}`,
