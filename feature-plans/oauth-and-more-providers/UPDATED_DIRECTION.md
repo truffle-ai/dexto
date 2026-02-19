@@ -66,6 +66,7 @@ Notes:
 - Dexto already has a runtime OpenRouter validator/cache (TTL + throttle) at:
   - `packages/core/src/llm/providers/openrouter-model-registry.ts`
 - That runtime cache is great for “is this ID valid?”, but it doesn’t automatically improve our *static* model picker/catalog unless we integrate it into our registry generation or expose it as a dynamic catalog endpoint.
+- Dexto Nova gateway is a wrapper on openrouter so it will have the exact same supported model list and names
 
 ### 2.3 Also ingest Vercel AI Gateway’s live model catalog
 
