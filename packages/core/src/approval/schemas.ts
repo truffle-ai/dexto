@@ -80,7 +80,7 @@ export const CommandConfirmationMetadataSchema = z
 export const ElicitationMetadataSchema = z
     .object({
         schema: JsonSchema7Schema.describe('JSON Schema for the form'),
-        prompt: z.string().describe('Prompt to show the user'),
+        prompt: z.string().describe('High-level prompt/context for the form (clients may show it)'),
         serverName: z.string().describe('MCP server requesting input'),
         context: z.record(z.unknown()).optional().describe('Additional context'),
     })

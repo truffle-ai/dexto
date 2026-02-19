@@ -4,7 +4,11 @@ import type { Tool, ToolExecutionContext } from '@dexto/core';
 
 const AskUserInputSchema = z
     .object({
-        question: z.string().describe('The question or prompt to display to the user'),
+        question: z
+            .string()
+            .describe(
+                'High-level prompt/title for the form. Keep this short; clients may display or ignore it.'
+            ),
         schema: z
             .object({
                 type: z.literal('object'),
@@ -13,7 +17,17 @@ const AskUserInputSchema = z
             })
             .passthrough()
             .describe(
-                'JSON Schema defining form fields. Use stable, descriptive property keys (avoid generic names like "q1"). Prefer providing per-field "title" (short label for navigation) and "description" (the full question/prompt). Use "enum" for dropdowns, "boolean" for yes/no, "number" for numeric inputs, "string" for text. Include a "required" array for mandatory fields.'
+                [
+                    'JSON Schema defining form fields (object schema only).',
+                    'Deterministic UI mapping (recommended):',
+                    '- `properties[field].title`: main question/label shown prominently (keep ≲ 80 chars).',
+                    '- `properties[field].description`: optional help text (keep ≲ 120 chars).',
+                    '- `properties[field][\"x-dexto\"].stepLabel`: short wizard/step label (keep ≲ 16 chars).',
+                    'Use stable, descriptive property keys (avoid generic names like "q1").',
+                    'Use `enum` for single-choice lists, `boolean` for yes/no, `number` for numeric inputs, `string` for text.',
+                    'For multi-select, use `type: \"array\"` with `items: { enum: [...] }`.',
+                    'Include a top-level `required` array for mandatory fields.',
+                ].join(' ')
             ),
     })
     .strict();

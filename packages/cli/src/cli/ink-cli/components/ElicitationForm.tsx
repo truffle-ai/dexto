@@ -8,9 +8,11 @@
 
 import React, { useState, forwardRef, useImperativeHandle, useCallback, useMemo } from 'react';
 import { Box, Text } from 'ink';
+import wrapAnsi from 'wrap-ansi';
 import type { ElicitationMetadata } from '@dexto/core';
 import type { Key } from '../hooks/useInputOrchestrator.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
+import { parseElicitationSchema, type ElicitationFormField } from '../utils/elicitationSchema.js';
 
 export interface ElicitationFormHandle {
     handleInput: (input: string, key: Key) => boolean;
@@ -22,89 +24,16 @@ interface ElicitationFormProps {
     onCancel: () => void;
 }
 
-interface FormField {
-    name: string;
-    chipLabel: string;
-    question: string;
-    helpText: string | undefined;
-    type: 'string' | 'number' | 'boolean' | 'enum' | 'array-enum';
-    required: boolean;
-    enumValues: unknown[] | undefined;
-}
-
 function hasOwn(obj: object, key: string): boolean {
     return Object.prototype.hasOwnProperty.call(obj, key);
 }
 
 function getDisplayValue(value: unknown): string {
-    if (Array.isArray(value)) return value.join(', ');
+    if (value === undefined || value === null || value === '') return '—';
+    if (Array.isArray(value)) return value.length > 0 ? value.join(', ') : '—';
     if (value === true) return 'Yes';
     if (value === false) return 'No';
     return String(value ?? '');
-}
-
-function humanizeIdentifier(value: string): string {
-    return value
-        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-        .replace(/[_-]+/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-}
-
-function titleCaseWords(value: string): string {
-    return value
-        .split(' ')
-        .map((word) => {
-            if (!word) return '';
-            return word[0]!.toUpperCase() + word.slice(1);
-        })
-        .join(' ');
-}
-
-function cleanLabel(value: string): string {
-    return value
-        .replace(/^\s*\d+\s*[).:-]\s*/g, '')
-        .replace(/\s*[:*]\s*$/g, '')
-        .trim();
-}
-
-function stripWrappingParens(value: string): string {
-    const trimmed = value.trim();
-    if (trimmed.startsWith('(') && trimmed.endsWith(')') && trimmed.length >= 2) {
-        return trimmed.slice(1, -1).trim();
-    }
-    return trimmed;
-}
-
-function splitQuestionAndDetail(text: string): { main: string; detail: string | undefined } {
-    const cleaned = cleanLabel(text);
-    if (!cleaned) return { main: '', detail: undefined };
-
-    const questionIndex = cleaned.indexOf('?');
-    if (questionIndex >= 0 && questionIndex < cleaned.length - 1) {
-        const main = cleaned.slice(0, questionIndex + 1).trim();
-        const detail = stripWrappingParens(cleaned.slice(questionIndex + 1));
-        return { main, detail: detail || undefined };
-    }
-
-    const parenIndex = cleaned.indexOf('(');
-    if (parenIndex >= 12 && parenIndex < cleaned.length - 1) {
-        const main = cleaned.slice(0, parenIndex).trim();
-        const detail = stripWrappingParens(cleaned.slice(parenIndex));
-        return { main, detail: detail || undefined };
-    }
-
-    return { main: cleaned, detail: undefined };
-}
-
-function combineHelpText(...parts: Array<string | undefined>): string | undefined {
-    const text = parts
-        .map((part) => (typeof part === 'string' ? part.trim() : ''))
-        .filter(Boolean)
-        .join(' • ')
-        .trim();
-
-    return text || undefined;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -118,96 +47,74 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
     ({ metadata, onSubmit, onCancel }, ref) => {
         const { rows: terminalRows, columns: terminalColumns } = useTerminalSize();
 
+        const headerLineCount = 1;
+        const stepHeaderLineCount = 2; // hard cap: 2 lines
+        const spacerAfterStepLineCount = 1;
+        const questionLineCount = 2;
+        const helpLineCount = 2;
+        const errorLineCount = 1;
+
+        const questionHeaderHeight =
+            headerLineCount +
+            stepHeaderLineCount +
+            spacerAfterStepLineCount +
+            questionLineCount +
+            helpLineCount +
+            errorLineCount;
+
+        const reviewHeaderHeight = headerLineCount + spacerAfterStepLineCount;
+
+        const maxHeaderHeight = Math.max(questionHeaderHeight, reviewHeaderHeight);
+        const footerHeight = 1; // key hints
+        const minContentHeight = 4;
+
         const viewportHeight = useMemo(() => {
             // Ink clears + redraws when dynamic output height >= terminal rows, which looks like flicker.
             // Keep the elicitation UI small and scroll internally to stay under that threshold.
             // Leave slack so Ink doesn't hit the "clear + redraw everything" path.
             // (Ink clears when dynamic output height >= terminal rows.)
-            const reservedRows = 12;
-            const maxHeight = Math.max(4, terminalRows - reservedRows);
-            const desired = Math.max(4, Math.floor(terminalRows * 0.6));
+            const reservedRows = 8;
+            const minViewportHeight = maxHeaderHeight + footerHeight + minContentHeight;
+            const maxHeight = Math.max(minViewportHeight, terminalRows - reservedRows);
+            const desired = Math.max(minViewportHeight, Math.floor(terminalRows * 0.6));
             return Math.min(maxHeight, desired);
-        }, [terminalRows]);
+        }, [footerHeight, maxHeaderHeight, minContentHeight, terminalRows]);
 
-        const headerHeight = 5; // prompt + stepper + question + description + error
-        const footerHeight = 1; // key hints
-        const contentHeight = Math.max(1, viewportHeight - headerHeight - footerHeight);
+        const availableWidth = Math.max(20, terminalColumns - 2);
 
-        // Parse schema into form fields
-        const fields = useMemo((): FormField[] => {
-            const schema = metadata.schema;
-            if (!schema?.properties) return [];
-
-            const required = schema.required || [];
-            return Object.entries(schema.properties)
-                .filter(
-                    (entry): entry is [string, Exclude<(typeof entry)[1], boolean>] =>
-                        typeof entry[1] !== 'boolean'
-                )
-                .map(([name, prop]) => {
-                    let type: FormField['type'] = 'string';
-                    let enumValues: unknown[] | undefined;
-
-                    if (prop.type === 'boolean') {
-                        type = 'boolean';
-                    } else if (prop.type === 'number' || prop.type === 'integer') {
-                        type = 'number';
-                    } else if (prop.enum && Array.isArray(prop.enum)) {
-                        type = 'enum';
-                        enumValues = prop.enum;
-                    } else if (
-                        prop.type === 'array' &&
-                        typeof prop.items === 'object' &&
-                        prop.items &&
-                        'enum' in prop.items
-                    ) {
-                        type = 'array-enum';
-                        enumValues = prop.items.enum as unknown[];
-                    }
-
-                    const fallbackLabel = titleCaseWords(humanizeIdentifier(name)) || name;
-                    const title = typeof prop.title === 'string' ? cleanLabel(prop.title) : '';
-                    const description =
-                        typeof prop.description === 'string' ? cleanLabel(prop.description) : '';
-
-                    const chipLabel = title || fallbackLabel;
-                    const questionLike = (text: string) =>
-                        text.includes('?') ||
-                        text.length >= 45 ||
-                        text.toLowerCase().startsWith('how ') ||
-                        text.toLowerCase().startsWith('what ') ||
-                        text.toLowerCase().startsWith('why ') ||
-                        text.toLowerCase().startsWith('when ') ||
-                        text.toLowerCase().startsWith('where ');
-
-                    let questionRaw = chipLabel;
-                    let helpRaw: string | undefined = undefined;
-
-                    if (description && questionLike(description)) {
-                        questionRaw = description;
-                        helpRaw = title ? chipLabel : undefined;
-                    } else if (title && questionLike(title)) {
-                        questionRaw = title;
-                        helpRaw = description || undefined;
-                    } else {
-                        questionRaw = chipLabel;
-                        helpRaw = description || undefined;
-                    }
-
-                    const { main: question, detail } = splitQuestionAndDetail(questionRaw);
-                    const helpText = combineHelpText(detail, helpRaw);
-
-                    return {
-                        name,
-                        chipLabel,
-                        question: question || chipLabel,
-                        type,
-                        helpText,
-                        required: required.includes(name),
-                        enumValues,
-                    };
-                });
+        const fields = useMemo(() => {
+            return parseElicitationSchema(metadata.schema);
         }, [metadata.schema]);
+
+        const wrapClampedLines = useCallback(
+            (text: string, maxLines: number): string[] => {
+                if (maxLines <= 0) return [];
+                const wrapped = wrapAnsi(text, availableWidth, {
+                    hard: true,
+                    wordWrap: true,
+                    trim: false,
+                });
+                const rawLines = wrapped.length > 0 ? wrapped.split('\n') : [''];
+                const didTruncate = rawLines.length > maxLines;
+                const lines = rawLines.slice(0, maxLines);
+
+                if (didTruncate && lines.length > 0) {
+                    const lastIndex = lines.length - 1;
+                    const lastLine = (lines[lastIndex] ?? '').replace(/\s+$/, '');
+                    const safe =
+                        lastLine.length > 0
+                            ? `${lastLine.slice(0, Math.max(0, lastLine.length - 1))}…`
+                            : '…';
+                    lines[lastIndex] = safe;
+                }
+
+                while (lines.length < maxLines) {
+                    lines.push('');
+                }
+                return lines;
+            },
+            [availableWidth]
+        );
 
         // Form state
         const [activeFieldIndex, setActiveFieldIndex] = useState(0);
@@ -220,6 +127,11 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
         const [reviewScrollTop, setReviewScrollTop] = useState(0);
 
         const activeField = fields[activeFieldIndex];
+
+        const contentHeight = useMemo(() => {
+            const activeHeaderHeight = isReviewing ? reviewHeaderHeight : questionHeaderHeight;
+            return Math.max(1, viewportHeight - activeHeaderHeight - footerHeight);
+        }, [footerHeight, isReviewing, questionHeaderHeight, reviewHeaderHeight, viewportHeight]);
 
         const updateField = useCallback((name: string, value: unknown) => {
             setFormData((prev) => ({ ...prev, [name]: value }));
@@ -240,11 +152,8 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                 if (!field) return;
 
                 if (field.type === 'boolean') {
-                    if (data[field.name] === undefined) {
-                        updateField(field.name, false);
-                        data = { ...data, [field.name]: false };
-                    }
-                    setEnumIndex(data[field.name] === true ? 0 : 1);
+                    const currentValue = data[field.name];
+                    setEnumIndex(currentValue === false ? 1 : 0);
                     setArraySelections(new Set());
                     return;
                 }
@@ -330,13 +239,6 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                 }
 
                 // Ensure boolean fields are always present in submitted data.
-                for (const field of fields) {
-                    if (field.type !== 'boolean') continue;
-                    if (finalFormData[field.name] === undefined) {
-                        finalFormData[field.name] = false;
-                    }
-                }
-
                 for (const field of fields) {
                     if (!field.required) continue;
                     const value = finalFormData[field.name];
@@ -466,27 +368,15 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                     switch (activeField.type) {
                         case 'boolean': {
                             if (key.upArrow) {
-                                setEnumIndex((prev) => {
-                                    const nextIndex = clamp(prev - 1, 0, 1);
-                                    updateField(activeField.name, nextIndex === 0);
-                                    return nextIndex;
-                                });
+                                setEnumIndex((prev) => clamp(prev - 1, 0, 1));
                                 return true;
                             }
                             if (key.downArrow) {
-                                setEnumIndex((prev) => {
-                                    const nextIndex = clamp(prev + 1, 0, 1);
-                                    updateField(activeField.name, nextIndex === 0);
-                                    return nextIndex;
-                                });
+                                setEnumIndex((prev) => clamp(prev + 1, 0, 1));
                                 return true;
                             }
                             if (input === ' ') {
-                                setEnumIndex((prev) => {
-                                    const nextIndex = prev === 0 ? 1 : 0;
-                                    updateField(activeField.name, nextIndex === 0);
-                                    return nextIndex;
-                                });
+                                setEnumIndex((prev) => (prev === 0 ? 1 : 0));
                                 return true;
                             }
                             if (key.return) {
@@ -664,90 +554,18 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
             );
         }
 
-        const activeStepIndex = isReviewing ? fields.length : activeFieldIndex;
-        const windowCenterIndex =
-            activeStepIndex >= fields.length ? Math.max(0, fields.length - 1) : activeStepIndex;
-
-        const stepper = (() => {
-            const maxChipLabelChars = terminalColumns >= 90 ? 14 : 10;
-            const chipLabel = (text: string) => {
-                const cleaned = cleanLabel(text);
-                if (cleaned.length <= maxChipLabelChars) return cleaned;
-                return `${cleaned.slice(0, Math.max(0, maxChipLabelChars - 1))}…`;
-            };
-
-            const isAnswered = (field: FormField): boolean => {
-                if (field.type === 'boolean') return hasOwn(formData, field.name);
-                if (field.type === 'enum') return hasOwn(formData, field.name);
-                if (field.type === 'array-enum') {
-                    const value = formData[field.name];
-                    return Array.isArray(value) && value.length > 0;
-                }
-                const draft = draftInputs[field.name];
-                if (typeof draft === 'string' && draft.trim() !== '') return true;
+        const isAnswered = (field: ElicitationFormField): boolean => {
+            if (field.type === 'boolean') return hasOwn(formData, field.name);
+            if (field.type === 'enum') return hasOwn(formData, field.name);
+            if (field.type === 'array-enum') {
                 const value = formData[field.name];
-                return value !== undefined && value !== null && value !== '';
-            };
-
-            const maxWindow = 7;
-            const totalFields = fields.length;
-            const maxVisible = Math.min(totalFields, maxWindow);
-
-            let windowSize = maxVisible;
-            let start = 0;
-
-            const calcLength = (startIndex: number, size: number): number => {
-                const endIndex = startIndex + size - 1;
-                const leftEllipsis = startIndex > 0 ? 2 : 0; // "… "
-                const rightEllipsis = endIndex < totalFields - 1 ? 2 : 0; // " …"
-                const arrowLen = 2 + 2; // "← " + " →"
-                const submitLen = 8; // "□ Submit"
-                let chipsLen = 0;
-                for (let i = 0; i < size; i++) {
-                    const field = fields[startIndex + i]!;
-                    const label = chipLabel(field.chipLabel);
-                    const chipLen = 2 + 1 + label.length; // "□ " + label
-                    const sep = i === 0 ? 0 : 2; // two spaces
-                    chipsLen += sep + chipLen;
-                }
-                const sepToSubmit = chipsLen > 0 ? 2 : 0;
-                return arrowLen + leftEllipsis + chipsLen + rightEllipsis + sepToSubmit + submitLen;
-            };
-
-            while (windowSize > 1) {
-                start = clamp(
-                    windowCenterIndex - Math.floor(windowSize / 2),
-                    0,
-                    Math.max(0, totalFields - windowSize)
-                );
-                if (calcLength(start, windowSize) <= terminalColumns) break;
-                windowSize -= 1;
+                return Array.isArray(value) && value.length > 0;
             }
-
-            start = clamp(
-                windowCenterIndex - Math.floor(windowSize / 2),
-                0,
-                Math.max(0, totalFields - windowSize)
-            );
-            const end = start + windowSize - 1;
-
-            const items = fields.slice(start, end + 1).map((field, i) => {
-                const index = start + i;
-                const active = index === activeStepIndex;
-                const complete = isAnswered(field);
-                return { key: field.name, label: chipLabel(field.chipLabel), active, complete };
-            });
-
-            return {
-                items,
-                leftEllipsis: start > 0,
-                rightEllipsis: end < totalFields - 1,
-                submit: {
-                    active: activeStepIndex === fields.length,
-                    complete: isReviewing,
-                },
-            };
-        })();
+            const draft = draftInputs[field.name];
+            if (typeof draft === 'string' && draft.trim() !== '') return true;
+            const value = formData[field.name];
+            return value !== undefined && value !== null && value !== '';
+        };
 
         if (!isReviewing && !activeField) {
             return (
@@ -814,13 +632,13 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                     key: 'yes',
                     label: 'Yes',
                     isFocused: enumIndex === 0,
-                    isSelected: formData[activeField.name] === true,
+                    isSelected: false,
                 });
                 options.push({
                     key: 'no',
                     label: 'No',
                     isFocused: enumIndex === 1,
-                    isSelected: formData[activeField.name] === false,
+                    isSelected: false,
                 });
             }
 
@@ -830,10 +648,7 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
             ) {
                 activeField.enumValues.forEach((opt, i) => {
                     const isFocused = i === enumIndex;
-                    const isSelected =
-                        activeField.type === 'enum'
-                            ? formData[activeField.name] === opt
-                            : arraySelections.has(i);
+                    const isSelected = activeField.type === 'enum' ? false : arraySelections.has(i);
                     options.push({
                         key: `${String(opt)}-${i}`,
                         label: String(opt),
@@ -871,9 +686,7 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                                 ? opt.isSelected
                                     ? '[✓] '
                                     : '[ ] '
-                                : opt.isSelected
-                                  ? '✓ '
-                                  : '  ';
+                                : '';
                         return (
                             <Text
                                 key={opt.key}
@@ -890,13 +703,8 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
             );
         };
 
-        const titleLine = isReviewing ? 'Review your answers' : (activeField?.question ?? '');
-
-        const descriptionLine =
-            !isReviewing && activeField?.helpText ? cleanLabel(activeField.helpText) : '';
-
         const hintLine = (() => {
-            if (isReviewing) return 'Enter submit • ← edit • ↑↓ scroll • Esc cancel';
+            if (isReviewing) return 'Enter submit • Backspace/← edit • ↑↓ scroll • Esc cancel';
             switch (activeField?.type) {
                 case 'string':
                 case 'number':
@@ -908,75 +716,75 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
             }
         })();
 
+        const headerText = isReviewing
+            ? '📝 Review your answers'
+            : `📝 Please answer these ${fields.length} ${
+                  fields.length === 1 ? 'question' : 'questions'
+              }.`;
+
+        const stepText = (() => {
+            if (isReviewing) {
+                return '';
+            }
+            if (!activeField) return '';
+            return `Question ${activeFieldIndex + 1}/${fields.length}: ${activeField.stepLabel}`;
+        })();
+
+        const questionText =
+            !isReviewing && activeField
+                ? `${activeField.question}${activeField.required ? '*' : ''}`
+                : '';
+
+        const helpText = !isReviewing && activeField?.helpText ? activeField.helpText : '';
+        const errorLineText = !isReviewing ? errorText : '';
+
+        const headerLines = wrapClampedLines(headerText, headerLineCount);
+        const stepLines = wrapClampedLines(stepText, stepHeaderLineCount);
+        const questionLines = wrapClampedLines(questionText, questionLineCount);
+        const helpLines = wrapClampedLines(helpText, helpLineCount);
+        const errorLines = wrapClampedLines(errorLineText, errorLineCount);
+
         return (
             <Box flexDirection="column" paddingX={0} height={viewportHeight}>
-                <Text color="yellowBright" bold wrap="truncate-end" dimColor>
-                    📝 {cleanLabel(metadata.prompt)}
-                </Text>
-
-                <Box flexDirection="row">
-                    <Text color="gray" dimColor wrap="truncate-end">
-                        ←{' '}
+                {headerLines.map((line, index) => (
+                    <Text key={`header-${index}`} color="yellowBright" bold wrap="truncate-end">
+                        {line || ' '}
                     </Text>
-                    {stepper.leftEllipsis && (
-                        <Text color="gray" dimColor wrap="truncate-end">
-                            …{' '}
+                ))}
+
+                {!isReviewing &&
+                    stepLines.map((line, index) => (
+                        <Text key={`step-${index}`} color="gray" dimColor wrap="truncate-end">
+                            {line || ' '}
                         </Text>
-                    )}
-                    {stepper.items.map((item, i) => (
-                        <React.Fragment key={item.key}>
-                            {i > 0 && (
-                                <Text color="gray" dimColor wrap="truncate-end">
-                                    {'  '}
-                                </Text>
-                            )}
-                            {item.active ? (
-                                <Text inverse color="white" wrap="truncate-end">
-                                    {item.complete ? '✓' : '□'} {item.label}
-                                </Text>
-                            ) : (
-                                <Text color="gray" dimColor wrap="truncate-end">
-                                    {item.complete ? '✓' : '□'} {item.label}
-                                </Text>
-                            )}
-                        </React.Fragment>
                     ))}
-                    {stepper.rightEllipsis && (
-                        <Text color="gray" dimColor wrap="truncate-end">
-                            {' '}
-                            …
-                        </Text>
-                    )}
-                    <Text color="gray" dimColor wrap="truncate-end">
-                        {'  '}
-                    </Text>
-                    {stepper.submit.active ? (
-                        <Text inverse color="white" wrap="truncate-end">
-                            {stepper.submit.complete ? '✓' : '□'} Submit
-                        </Text>
-                    ) : (
-                        <Text color="gray" dimColor wrap="truncate-end">
-                            {stepper.submit.complete ? '✓' : '□'} Submit
-                        </Text>
-                    )}
-                    <Text color="gray" dimColor wrap="truncate-end">
+
+                {Array.from({ length: spacerAfterStepLineCount }, (_, index) => (
+                    <Text key={`spacer-step-${index}`} wrap="truncate-end">
                         {' '}
-                        →
                     </Text>
-                </Box>
+                ))}
 
-                <Text color="white" bold wrap="truncate-end">
-                    {titleLine}
-                    {!isReviewing && activeField?.required && <Text color="red">*</Text>}
-                </Text>
+                {!isReviewing &&
+                    questionLines.map((line, index) => (
+                        <Text key={`question-${index}`} color="white" bold wrap="truncate-end">
+                            {line || ' '}
+                        </Text>
+                    ))}
 
-                <Text color="gray" dimColor wrap="truncate-end">
-                    {descriptionLine || ' '}
-                </Text>
+                {!isReviewing &&
+                    helpLines.map((line, index) => (
+                        <Text key={`help-${index}`} color="gray" dimColor wrap="truncate-end">
+                            {line || ' '}
+                        </Text>
+                    ))}
 
-                <Text color="red" wrap="truncate-end">
-                    {errorText || ' '}
-                </Text>
+                {!isReviewing &&
+                    errorLines.map((line, index) => (
+                        <Text key={`error-${index}`} color="red" wrap="truncate-end">
+                            {line || ' '}
+                        </Text>
+                    ))}
 
                 {renderContent()}
 
