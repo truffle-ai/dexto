@@ -318,6 +318,39 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
         });
 
+        it('should emit callDescription on llm:tool-call events when args.description is provided', async () => {
+            mockMcpManager.executeTool = vi.fn().mockResolvedValue('result');
+
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'auto-approve',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [],
+                mockLogger
+            );
+
+            await toolManager.executeTool(
+                'mcp--file_read',
+                { path: '/test', description: 'Read test file' },
+                'call-1',
+                'session-1'
+            );
+
+            expect(mockAgentEventBus.emit).toHaveBeenCalledWith(
+                'llm:tool-call',
+                expect.objectContaining({
+                    toolName: 'mcp--file_read',
+                    args: { path: '/test', description: 'Read test file' },
+                    callDescription: 'Read test file',
+                    callId: 'call-1',
+                    sessionId: 'session-1',
+                })
+            );
+        });
+
         it('should validate local tool args before custom approvals and previews', async () => {
             mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
 
@@ -499,6 +532,36 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 toolName: 'mcp--file_read',
                 toolCallId: 'call-123',
                 args: { path: '/test' },
+                description: 'Read test file',
+                sessionId: 'session123',
+            });
+        });
+
+        it('should fall back to args.description for approval description when __meta.callDescription is missing', async () => {
+            mockMcpManager.executeTool = vi.fn().mockResolvedValue('result');
+
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [],
+                mockLogger
+            );
+
+            await toolManager.executeTool(
+                'mcp--file_read',
+                { path: '/test', description: 'Read test file' },
+                'call-123',
+                'session123'
+            );
+
+            expect(mockApprovalManager.requestToolApproval).toHaveBeenCalledWith({
+                toolName: 'mcp--file_read',
+                toolCallId: 'call-123',
+                args: { path: '/test', description: 'Read test file' },
                 description: 'Read test file',
                 sessionId: 'session123',
             });

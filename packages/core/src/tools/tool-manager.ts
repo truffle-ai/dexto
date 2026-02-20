@@ -861,7 +861,11 @@ export class ToolManager {
         const { toolArgs: rawToolArgs, meta } = extractToolCallMeta(args);
         let toolArgs = rawToolArgs;
         const callDescription =
-            typeof meta.callDescription === 'string' ? meta.callDescription : undefined;
+            typeof meta.callDescription === 'string'
+                ? meta.callDescription
+                : typeof rawToolArgs.description === 'string'
+                  ? rawToolArgs.description
+                  : undefined;
         const backgroundTasksEnabled = isBackgroundTasksEnabled();
         const toolDisplayName = this.agentTools.get(toolName)?.displayName;
 
@@ -898,7 +902,7 @@ export class ToolManager {
             toolArgs,
             toolCallId,
             sessionId,
-            meta.callDescription
+            callDescription
         );
         toolArgs = validatedToolArgs;
 
