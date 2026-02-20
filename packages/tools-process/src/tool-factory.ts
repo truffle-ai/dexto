@@ -27,7 +27,6 @@ export const processToolsFactory: ToolFactory<ProcessToolsConfig> = {
         };
 
         let processService: ProcessService | undefined;
-        const injectedServiceScopes = new WeakMap<ProcessService, Map<string, ProcessService>>();
 
         const resolveWorkingDirectory = (context: ToolExecutionContext): string =>
             context.workspace?.path ?? processConfig.workingDirectory ?? process.cwd();
@@ -50,41 +49,13 @@ export const processToolsFactory: ToolFactory<ProcessToolsConfig> = {
             return hasMethods ? (candidate as ProcessService) : null;
         };
 
-        const getScopedInjectedService = (
-            context: ToolExecutionContext,
-            injectedService: ProcessService
-        ): ProcessService => {
-            const workingDirectory = resolveWorkingDirectory(context);
-            let scopedServices = injectedServiceScopes.get(injectedService);
-            if (!scopedServices) {
-                scopedServices = new Map();
-                injectedServiceScopes.set(injectedService, scopedServices);
-            }
-
-            const existing = scopedServices.get(workingDirectory);
-            if (existing) {
-                return existing;
-            }
-
-            const logger = context.logger;
-            const baseConfig = injectedService.getConfig();
-            const scopedConfig: ProcessConfig = { ...baseConfig, workingDirectory };
-            const scopedService = new ProcessService(scopedConfig, logger);
-            scopedService.initialize().catch((error) => {
-                const message = error instanceof Error ? error.message : String(error);
-                logger.error(`Failed to initialize ProcessService: ${message}`);
-            });
-            scopedServices.set(workingDirectory, scopedService);
-            return scopedService;
-        };
-
         const getProcessService = async (
             context: ToolExecutionContext
         ): Promise<ProcessService> => {
             const injectedService = resolveInjectedService(context);
             if (injectedService) {
-                const scopedService = getScopedInjectedService(context, injectedService);
-                return scopedService;
+                applyWorkspace(context, injectedService);
+                return injectedService;
             }
 
             if (processService) {
