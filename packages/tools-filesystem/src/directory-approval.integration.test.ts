@@ -116,11 +116,13 @@ describe('Directory Approval Integration Tests', () => {
     describe('getApprovalOverride', () => {
         it('should return null for paths within config-allowed roots', async () => {
             const tool = createReadFileTool(getFileSystemService);
+            const overrideFn = tool.approval?.override ?? tool.getApprovalOverride;
+            expect(overrideFn).toBeDefined();
 
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'test content');
 
-            const metadata = await tool.getApprovalOverride?.(
+            const metadata = await overrideFn!(
                 tool.inputSchema.parse({ file_path: testFile }),
                 toolContext
             );
@@ -129,10 +131,12 @@ describe('Directory Approval Integration Tests', () => {
 
         it('should return directory access metadata for external paths', async () => {
             const tool = createReadFileTool(getFileSystemService);
+            const overrideFn = tool.approval?.override ?? tool.getApprovalOverride;
+            expect(overrideFn).toBeDefined();
 
             const externalPath = '/external/project/file.ts';
 
-            const metadata = await tool.getApprovalOverride?.(
+            const metadata = await overrideFn!(
                 tool.inputSchema.parse({ file_path: externalPath }),
                 toolContext
             );
@@ -153,9 +157,11 @@ describe('Directory Approval Integration Tests', () => {
             approvalManager.addApprovedDirectory('/external/project', 'session');
 
             const tool = createReadFileTool(getFileSystemService);
+            const overrideFn = tool.approval?.override ?? tool.getApprovalOverride;
+            expect(overrideFn).toBeDefined();
             const externalPath = '/external/project/file.ts';
 
-            const metadata = await tool.getApprovalOverride?.(
+            const metadata = await overrideFn!(
                 tool.inputSchema.parse({ file_path: externalPath }),
                 toolContext
             );
@@ -166,9 +172,11 @@ describe('Directory Approval Integration Tests', () => {
             approvalManager.addApprovedDirectory('/external/project', 'once');
 
             const tool = createReadFileTool(getFileSystemService);
+            const overrideFn = tool.approval?.override ?? tool.getApprovalOverride;
+            expect(overrideFn).toBeDefined();
             const externalPath = '/external/project/file.ts';
 
-            const metadata = await tool.getApprovalOverride?.(
+            const metadata = await overrideFn!(
                 tool.inputSchema.parse({ file_path: externalPath }),
                 toolContext
             );
@@ -179,9 +187,11 @@ describe('Directory Approval Integration Tests', () => {
     describe('Different tool operations', () => {
         it('should label write operations correctly', async () => {
             const tool = createWriteFileTool(getFileSystemService);
+            const overrideFn = tool.approval?.override ?? tool.getApprovalOverride;
+            expect(overrideFn).toBeDefined();
             const externalPath = '/external/project/new.ts';
 
-            const metadata = await tool.getApprovalOverride?.(
+            const metadata = await overrideFn!(
                 tool.inputSchema.parse({ file_path: externalPath, content: 'test' }),
                 toolContext
             );
@@ -200,9 +210,11 @@ describe('Directory Approval Integration Tests', () => {
 
         it('should label edit operations correctly', async () => {
             const tool = createEditFileTool(getFileSystemService);
+            const overrideFn = tool.approval?.override ?? tool.getApprovalOverride;
+            expect(overrideFn).toBeDefined();
             const externalPath = '/external/project/existing.ts';
 
-            const metadata = await tool.getApprovalOverride?.(
+            const metadata = await overrideFn!(
                 tool.inputSchema.parse({
                     file_path: externalPath,
                     old_string: 'old',
@@ -227,15 +239,17 @@ describe('Directory Approval Integration Tests', () => {
     describe('Path containment scenarios', () => {
         it('should cover child paths when parent directory is session-approved', async () => {
             const tool = createReadFileTool(getFileSystemService);
+            const overrideFn = tool.approval?.override ?? tool.getApprovalOverride;
+            expect(overrideFn).toBeDefined();
             approvalManager.addApprovedDirectory('/external/project', 'session');
 
-            const metadata1 = await tool.getApprovalOverride?.(
+            const metadata1 = await overrideFn!(
                 tool.inputSchema.parse({ file_path: '/external/project/file.ts' }),
                 toolContext
             );
             expect(metadata1).toBeNull();
 
-            const metadata2 = await tool.getApprovalOverride?.(
+            const metadata2 = await overrideFn!(
                 tool.inputSchema.parse({ file_path: '/external/project/deep/nested/file.ts' }),
                 toolContext
             );
@@ -244,15 +258,17 @@ describe('Directory Approval Integration Tests', () => {
 
         it('should NOT cover sibling directories', async () => {
             const tool = createReadFileTool(getFileSystemService);
+            const overrideFn = tool.approval?.override ?? tool.getApprovalOverride;
+            expect(overrideFn).toBeDefined();
             approvalManager.addApprovedDirectory('/external/sub', 'session');
 
-            const metadata1 = await tool.getApprovalOverride?.(
+            const metadata1 = await overrideFn!(
                 tool.inputSchema.parse({ file_path: '/external/sub/file.ts' }),
                 toolContext
             );
             expect(metadata1).toBeNull();
 
-            const metadata2 = await tool.getApprovalOverride?.(
+            const metadata2 = await overrideFn!(
                 tool.inputSchema.parse({ file_path: '/external/other/file.ts' }),
                 toolContext
             );
@@ -263,10 +279,12 @@ describe('Directory Approval Integration Tests', () => {
     describe('Without ApprovalManager in context', () => {
         it('should throw for external paths', async () => {
             const tool = createReadFileTool(getFileSystemService);
+            const overrideFn = tool.approval?.override ?? tool.getApprovalOverride;
+            expect(overrideFn).toBeDefined();
 
             const contextWithoutApprovalManager: ToolExecutionContext = { logger: mockLogger };
             await expect(
-                tool.getApprovalOverride?.(
+                overrideFn!(
                     tool.inputSchema.parse({ file_path: '/external/project/file.ts' }),
                     contextWithoutApprovalManager
                 )

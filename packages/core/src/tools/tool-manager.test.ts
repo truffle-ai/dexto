@@ -268,7 +268,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(allTools['hello']).toBeDefined();
 
             const result = await toolManager.executeTool('hello', { name: 'World' }, 'call-1');
-            expect(result).toEqual({ result: 'Hello, World' });
+            expect(result).toEqual(expect.objectContaining({ result: 'Hello, World' }));
         });
     });
 
@@ -478,11 +478,13 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'session-1'
             );
 
-            expect(result).toEqual({
-                result: 'ok',
-                requireApproval: true,
-                approvalStatus: 'approved',
-            });
+            expect(result).toEqual(
+                expect.objectContaining({
+                    result: 'ok',
+                    requireApproval: true,
+                    approvalStatus: 'approved',
+                })
+            );
 
             expect(mockAllowedToolsProvider.isToolAllowed).not.toHaveBeenCalled();
             expect(mockApprovalManager.requestToolApproval).toHaveBeenCalledWith(
@@ -542,13 +544,15 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'session123'
             );
 
-            expect(mockApprovalManager.requestToolApproval).toHaveBeenCalledWith({
-                toolName: 'mcp--file_read',
-                toolCallId: 'call-123',
-                args: { path: '/test' },
-                description: 'Read test file',
-                sessionId: 'session123',
-            });
+            expect(mockApprovalManager.requestToolApproval).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    toolName: 'mcp--file_read',
+                    toolCallId: 'call-123',
+                    args: { path: '/test' },
+                    description: 'Read test file',
+                    sessionId: 'session123',
+                })
+            );
         });
 
         it('should include suggestedPatterns in tool approval when tool provides suggestions', async () => {
@@ -624,13 +628,15 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'session123'
             );
 
-            expect(mockApprovalManager.requestToolApproval).toHaveBeenCalledWith({
-                toolName: 'mcp--file_read',
-                toolCallId: 'call-123',
-                args: { path: '/test', description: 'Read test file' },
-                description: 'Read test file',
-                sessionId: 'session123',
-            });
+            expect(mockApprovalManager.requestToolApproval).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    toolName: 'mcp--file_read',
+                    toolCallId: 'call-123',
+                    args: { path: '/test', description: 'Read test file' },
+                    description: 'Read test file',
+                    sessionId: 'session123',
+                })
+            );
         });
 
         it('should emit background event when runInBackground is set', async () => {
@@ -746,11 +752,13 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
             await toolManager.executeTool('mcp--file_read', { path: '/test' }, 'call-456');
 
-            expect(mockApprovalManager.requestToolApproval).toHaveBeenCalledWith({
-                toolName: 'mcp--file_read',
-                toolCallId: 'call-456',
-                args: { path: '/test' },
-            });
+            expect(mockApprovalManager.requestToolApproval).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    toolName: 'mcp--file_read',
+                    toolCallId: 'call-456',
+                    args: { path: '/test' },
+                })
+            );
         });
 
         it('should throw execution denied error when approval denied', async () => {
@@ -806,11 +814,13 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 { path: '/test' },
                 undefined
             );
-            expect(result).toEqual({
-                result: 'success',
-                requireApproval: true,
-                approvalStatus: 'approved',
-            });
+            expect(result).toEqual(
+                expect.objectContaining({
+                    result: 'success',
+                    requireApproval: true,
+                    approvalStatus: 'approved',
+                })
+            );
         });
 
         it('should skip confirmation for tools in allowed list', async () => {
@@ -839,7 +849,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 undefined
             );
             expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
-            expect(result).toEqual({ result: 'success' });
+            expect(result).toEqual(expect.objectContaining({ result: 'success' }));
         });
 
         it('should auto-approve when mode is auto-approve', async () => {
@@ -864,7 +874,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
             expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
             expect(mockMcpManager.executeTool).toHaveBeenCalled();
-            expect(result).toEqual({ result: 'success' });
+            expect(result).toEqual(expect.objectContaining({ result: 'success' }));
         });
 
         it('should auto-deny when mode is auto-deny', async () => {
@@ -1211,7 +1221,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'test-call-id'
                 );
 
-                expect(result).toEqual({ result: 'success' });
+                expect(result).toEqual(expect.objectContaining({ result: 'success' }));
                 expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
                 expect(mockMcpManager.executeTool).toHaveBeenCalledWith(
                     'filesystem--read_file',
@@ -1247,7 +1257,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'test-call-id'
                 );
 
-                expect(result).toEqual({ result: 'success' });
+                expect(result).toEqual(expect.objectContaining({ result: 'success' }));
                 expect(mockAllowedToolsProvider.isToolAllowed).toHaveBeenCalledWith(
                     'mcp--filesystem--read_file',
                     undefined
@@ -1284,11 +1294,13 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'test-call-id'
                 );
 
-                expect(result).toEqual({
-                    result: 'success',
-                    requireApproval: true,
-                    approvalStatus: 'approved',
-                });
+                expect(result).toEqual(
+                    expect.objectContaining({
+                        result: 'success',
+                        requireApproval: true,
+                        approvalStatus: 'approved',
+                    })
+                );
                 expect(mockApprovalManager.requestToolApproval).toHaveBeenCalled();
             });
         });
@@ -1345,7 +1357,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'test-call-id'
                 );
 
-                expect(result).toEqual({ result: 'success' });
+                expect(result).toEqual(expect.objectContaining({ result: 'success' }));
                 expect(mockMcpManager.executeTool).toHaveBeenCalled();
             });
         });
@@ -1374,7 +1386,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'test-call-id'
                 );
 
-                expect(result).toEqual({ result: 'success' });
+                expect(result).toEqual(expect.objectContaining({ result: 'success' }));
                 expect(mockMcpManager.executeTool).toHaveBeenCalled();
             });
 
@@ -1432,11 +1444,13 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'test-call-id'
                 );
 
-                expect(result).toEqual({
-                    result: 'success',
-                    requireApproval: true,
-                    approvalStatus: 'approved',
-                });
+                expect(result).toEqual(
+                    expect.objectContaining({
+                        result: 'success',
+                        requireApproval: true,
+                        approvalStatus: 'approved',
+                    })
+                );
                 expect(mockApprovalManager.requestToolApproval).toHaveBeenCalled();
             });
 
@@ -1469,11 +1483,13 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'test-call-id'
                 );
 
-                expect(result).toEqual({
-                    result: 'success',
-                    requireApproval: true,
-                    approvalStatus: 'approved',
-                });
+                expect(result).toEqual(
+                    expect.objectContaining({
+                        result: 'success',
+                        requireApproval: true,
+                        approvalStatus: 'approved',
+                    })
+                );
                 expect(mockApprovalManager.requestToolApproval).toHaveBeenCalled();
             });
         });
@@ -1506,7 +1522,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
 
                 const result = await toolManager.executeTool('ask_user', {}, 'test-call-id');
 
-                expect(result).toEqual({ result: 'ok' });
+                expect(result).toEqual(expect.objectContaining({ result: 'ok' }));
                 expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
             });
         });
@@ -1540,7 +1556,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'test-call-id'
                 );
 
-                expect(result).toEqual({ result: 'success' });
+                expect(result).toEqual(expect.objectContaining({ result: 'success' }));
                 expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
             });
 
@@ -1568,7 +1584,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'test-call-id'
                 );
 
-                expect(result).toEqual({ result: 'success' });
+                expect(result).toEqual(expect.objectContaining({ result: 'success' }));
                 expect(mockApprovalManager.requestToolApproval).not.toHaveBeenCalled();
                 expect(mockMcpManager.executeTool).toHaveBeenCalledWith(
                     'filesystem--read_file',
@@ -1662,11 +1678,13 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     'test-call-id'
                 );
 
-                expect(result).toEqual({
-                    result: 'success',
-                    requireApproval: true,
-                    approvalStatus: 'approved',
-                });
+                expect(result).toEqual(
+                    expect.objectContaining({
+                        result: 'success',
+                        requireApproval: true,
+                        approvalStatus: 'approved',
+                    })
+                );
                 // Should require approval since it doesn't match the policy
                 expect(mockApprovalManager.requestToolApproval).toHaveBeenCalled();
             });

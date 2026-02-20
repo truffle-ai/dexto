@@ -80,6 +80,8 @@ describe('edit_file tool', () => {
     describe('File Modification Detection', () => {
         it('should generate preview for files outside config-allowed roots (preview read only)', async () => {
             const tool = createEditFileTool(async () => fileSystemService);
+            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            expect(previewFn).toBeDefined();
 
             const rawExternalDir = await fs.mkdtemp(
                 path.join(os.tmpdir(), 'dexto-edit-outside-allowed-')
@@ -97,7 +99,7 @@ describe('edit_file tool', () => {
                     new_string: 'universe',
                 });
 
-                const preview = await tool.generatePreview!(
+                const preview = await previewFn!(
                     parsedInput,
                     createToolContext(mockLogger, { toolCallId })
                 );
@@ -117,6 +119,8 @@ describe('edit_file tool', () => {
 
         it('should succeed when file is not modified between preview and execute', async () => {
             const tool = createEditFileTool(async () => fileSystemService);
+            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'hello world');
 
@@ -129,7 +133,7 @@ describe('edit_file tool', () => {
             const parsedInput = tool.inputSchema.parse(input);
 
             // Generate preview (stores hash)
-            const preview = await tool.generatePreview!(
+            const preview = await previewFn!(
                 parsedInput,
                 createToolContext(mockLogger, { toolCallId })
             );
@@ -154,6 +158,8 @@ describe('edit_file tool', () => {
 
         it('should fail when file is modified between preview and execute', async () => {
             const tool = createEditFileTool(async () => fileSystemService);
+            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'hello world');
 
@@ -166,7 +172,7 @@ describe('edit_file tool', () => {
             const parsedInput = tool.inputSchema.parse(input);
 
             // Generate preview (stores hash)
-            const preview = await tool.generatePreview!(
+            const preview = await previewFn!(
                 parsedInput,
                 createToolContext(mockLogger, { toolCallId })
             );
@@ -193,6 +199,8 @@ describe('edit_file tool', () => {
 
         it('should detect file modification with correct error code', async () => {
             const tool = createEditFileTool(async () => fileSystemService);
+            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'hello world');
 
@@ -205,7 +213,7 @@ describe('edit_file tool', () => {
             const parsedInput = tool.inputSchema.parse(input);
 
             // Generate preview (stores hash)
-            await tool.generatePreview!(parsedInput, createToolContext(mockLogger, { toolCallId }));
+            await previewFn!(parsedInput, createToolContext(mockLogger, { toolCallId }));
 
             // Simulate user modifying the file externally
             await fs.writeFile(testFile, 'hello world modified');
@@ -228,6 +236,8 @@ describe('edit_file tool', () => {
 
         it('should work without toolCallId (no modification check)', async () => {
             const tool = createEditFileTool(async () => fileSystemService);
+            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'hello world');
 
@@ -239,7 +249,7 @@ describe('edit_file tool', () => {
             const parsedInput = tool.inputSchema.parse(input);
 
             // Generate preview without toolCallId
-            await tool.generatePreview!(parsedInput, createToolContext(mockLogger));
+            await previewFn!(parsedInput, createToolContext(mockLogger));
 
             // Modify file
             await fs.writeFile(testFile, 'hello world changed');
@@ -261,6 +271,8 @@ describe('edit_file tool', () => {
 
         it('should clean up hash cache after successful execution', async () => {
             const tool = createEditFileTool(async () => fileSystemService);
+            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'hello world');
 
@@ -273,7 +285,7 @@ describe('edit_file tool', () => {
             const parsedInput = tool.inputSchema.parse(input);
 
             // Generate preview
-            await tool.generatePreview!(parsedInput, createToolContext(mockLogger, { toolCallId }));
+            await previewFn!(parsedInput, createToolContext(mockLogger, { toolCallId }));
 
             // Execute successfully
             await tool.execute(parsedInput, createToolContext(mockLogger, { toolCallId }));
@@ -288,10 +300,7 @@ describe('edit_file tool', () => {
 
             // Second execution with same toolCallId should work
             // (hash should have been cleaned up, so no stale check)
-            await tool.generatePreview!(
-                parsedInput2,
-                createToolContext(mockLogger, { toolCallId })
-            );
+            await previewFn!(parsedInput2, createToolContext(mockLogger, { toolCallId }));
             const result = (await tool.execute(
                 parsedInput2,
                 createToolContext(mockLogger, { toolCallId })
@@ -304,6 +313,8 @@ describe('edit_file tool', () => {
 
         it('should clean up hash cache after failed execution', async () => {
             const tool = createEditFileTool(async () => fileSystemService);
+            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'hello world');
 
@@ -316,7 +327,7 @@ describe('edit_file tool', () => {
             const parsedInput = tool.inputSchema.parse(input);
 
             // Generate preview
-            await tool.generatePreview!(parsedInput, createToolContext(mockLogger, { toolCallId }));
+            await previewFn!(parsedInput, createToolContext(mockLogger, { toolCallId }));
 
             // Modify file to cause failure
             await fs.writeFile(testFile, 'hello world modified');
@@ -333,7 +344,7 @@ describe('edit_file tool', () => {
 
             // Next execution with same toolCallId should work
             // (hash should have been cleaned up even after failure)
-            await tool.generatePreview!(parsedInput, createToolContext(mockLogger, { toolCallId }));
+            await previewFn!(parsedInput, createToolContext(mockLogger, { toolCallId }));
             const result = (await tool.execute(
                 parsedInput,
                 createToolContext(mockLogger, { toolCallId })

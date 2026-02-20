@@ -70,7 +70,10 @@ describe('plan_create tool', () => {
             const sessionId = 'test-session';
             const content = '# Implementation Plan\n\n## Steps\n1. First step';
 
-            const preview = (await tool.generatePreview!(
+            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            expect(previewFn).toBeDefined();
+
+            const preview = (await previewFn!(
                 { title: 'Test Plan', content },
                 createToolContext(logger, { sessionId })
             )) as FileDisplayData;
@@ -88,11 +91,11 @@ describe('plan_create tool', () => {
         it('should throw error when sessionId is missing', async () => {
             const tool = createPlanCreateTool(async () => planService);
 
+            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            expect(previewFn).toBeDefined();
+
             try {
-                await tool.generatePreview!(
-                    { title: 'Test', content: '# Plan' },
-                    createToolContext(logger)
-                );
+                await previewFn!({ title: 'Test', content: '# Plan' }, createToolContext(logger));
                 expect.fail('Should have thrown an error');
             } catch (error) {
                 expect(error).toBeInstanceOf(DextoRuntimeError);
@@ -104,11 +107,14 @@ describe('plan_create tool', () => {
             const tool = createPlanCreateTool(async () => planService);
             const sessionId = 'test-session';
 
+            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            expect(previewFn).toBeDefined();
+
             // Create existing plan
             await planService.create(sessionId, '# Existing Plan');
 
             try {
-                await tool.generatePreview!(
+                await previewFn!(
                     { title: 'New Plan', content: '# New Content' },
                     createToolContext(logger, { sessionId })
                 );

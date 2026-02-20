@@ -96,7 +96,7 @@ describe('write_file tool', () => {
                     content: 'new content',
                 });
 
-                const preview = await tool.generatePreview!(
+                const preview = await tool.presentation!.preview!(
                     parsedInput,
                     createToolContext(mockLogger, { toolCallId })
                 );
@@ -127,7 +127,7 @@ describe('write_file tool', () => {
             const parsedInput = tool.inputSchema.parse(input);
 
             // Generate preview (stores hash)
-            const preview = await tool.generatePreview!(
+            const preview = await tool.presentation!.preview!(
                 parsedInput,
                 createToolContext(mockLogger, { toolCallId })
             );
@@ -169,7 +169,10 @@ describe('write_file tool', () => {
             const parsedInput = tool.inputSchema.parse(input);
 
             // Generate preview (stores hash)
-            await tool.generatePreview!(parsedInput, createToolContext(mockLogger, { toolCallId }));
+            await tool.presentation!.preview!(
+                parsedInput,
+                createToolContext(mockLogger, { toolCallId })
+            );
 
             // Simulate user modifying the file externally
             await fs.writeFile(testFile, 'user modified this');
@@ -203,7 +206,10 @@ describe('write_file tool', () => {
             const parsedInput = tool.inputSchema.parse(input);
 
             // Generate preview (stores hash of existing file)
-            await tool.generatePreview!(parsedInput, createToolContext(mockLogger, { toolCallId }));
+            await tool.presentation!.preview!(
+                parsedInput,
+                createToolContext(mockLogger, { toolCallId })
+            );
 
             // Simulate user deleting the file
             await fs.unlink(testFile);
@@ -234,7 +240,7 @@ describe('write_file tool', () => {
             const parsedInput = tool.inputSchema.parse(input);
 
             // Generate preview (stores marker that file doesn't exist)
-            const preview = await tool.generatePreview!(
+            const preview = await tool.presentation!.preview!(
                 parsedInput,
                 createToolContext(mockLogger, { toolCallId })
             );
@@ -271,6 +277,8 @@ describe('write_file tool', () => {
 
         it('should fail when file is created by someone else between preview and execute', async () => {
             const tool = createWriteFileTool(async () => fileSystemService);
+            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'race-condition.txt');
 
             const toolCallId = 'test-call-race';
@@ -281,7 +289,7 @@ describe('write_file tool', () => {
             const parsedInput = tool.inputSchema.parse(input);
 
             // Generate preview (file doesn't exist)
-            const preview = await tool.generatePreview!(
+            const preview = await previewFn!(
                 parsedInput,
                 createToolContext(mockLogger, { toolCallId })
             );
@@ -321,7 +329,10 @@ describe('write_file tool', () => {
             const parsedInput = tool.inputSchema.parse(input);
 
             // First write
-            await tool.generatePreview!(parsedInput, createToolContext(mockLogger, { toolCallId }));
+            await tool.presentation!.preview!(
+                parsedInput,
+                createToolContext(mockLogger, { toolCallId })
+            );
             await tool.execute(parsedInput, createToolContext(mockLogger, { toolCallId }));
 
             // Second write with same toolCallId should work
@@ -330,10 +341,9 @@ describe('write_file tool', () => {
                 content: 'second write',
             };
             const parsedInput2 = tool.inputSchema.parse(input2);
-            await tool.generatePreview!(
-                parsedInput2,
-                createToolContext(mockLogger, { toolCallId })
-            );
+            const previewFn2 = tool.presentation?.preview ?? tool.generatePreview;
+            expect(previewFn2).toBeDefined();
+            await previewFn2!(parsedInput2, createToolContext(mockLogger, { toolCallId }));
             const result = (await tool.execute(
                 parsedInput2,
                 createToolContext(mockLogger, { toolCallId })
@@ -357,7 +367,9 @@ describe('write_file tool', () => {
             const parsedInput = tool.inputSchema.parse(input);
 
             // Preview
-            await tool.generatePreview!(parsedInput, createToolContext(mockLogger, { toolCallId }));
+            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            expect(previewFn).toBeDefined();
+            await previewFn!(parsedInput, createToolContext(mockLogger, { toolCallId }));
 
             // Modify to cause failure
             await fs.writeFile(testFile, 'modified');
@@ -373,7 +385,7 @@ describe('write_file tool', () => {
             await fs.writeFile(testFile, 'reset content');
 
             // Next execution with same toolCallId should work
-            await tool.generatePreview!(parsedInput, createToolContext(mockLogger, { toolCallId }));
+            await previewFn!(parsedInput, createToolContext(mockLogger, { toolCallId }));
             const result = (await tool.execute(
                 parsedInput,
                 createToolContext(mockLogger, { toolCallId })
