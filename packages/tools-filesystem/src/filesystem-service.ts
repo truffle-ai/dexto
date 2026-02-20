@@ -398,7 +398,11 @@ export class FileSystemService {
                         if (current >= items.length) {
                             return;
                         }
-                        results[current] = await mapper(items[current], current);
+                        const item = items[current];
+                        if (item === undefined) {
+                            continue;
+                        }
+                        results[current] = await mapper(item, current);
                     }
                 });
 
