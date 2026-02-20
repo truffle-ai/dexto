@@ -299,14 +299,27 @@ export function LLMConfigSection({
                                     ? ''
                                     : value.reasoning?.preset || ''
                             }
-                            onChange={(e) =>
+                            onChange={(e) => {
+                                if (!e.target.value) {
+                                    handleChange('reasoning', undefined);
+                                    return;
+                                }
+
+                                const selectedPreset = reasoningPresets.find(
+                                    (preset) => preset === e.target.value
+                                );
+                                if (!selectedPreset || selectedPreset === 'auto') {
+                                    handleChange('reasoning', undefined);
+                                    return;
+                                }
+
                                 handleChange(
                                     'reasoning',
-                                    e.target.value
-                                        ? ({ preset: e.target.value } as LLMConfig['reasoning'])
-                                        : undefined
-                                )
-                            }
+                                    value.reasoning
+                                        ? { ...value.reasoning, preset: selectedPreset }
+                                        : { preset: selectedPreset }
+                                );
+                            }}
                             className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                         >
                             <option value="">Auto (provider/model default)</option>

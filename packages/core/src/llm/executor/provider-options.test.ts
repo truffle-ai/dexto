@@ -224,6 +224,18 @@ describe('buildProviderOptions', () => {
             });
         });
 
+        it('maps vertex Gemini models under google providerOptions', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'vertex',
+                    model: 'gemini-2.5-pro',
+                    reasoning: { preset: 'medium' },
+                })
+            ).toEqual({
+                google: { thinkingConfig: { includeThoughts: true } },
+            });
+        });
+
         it('uses adaptive thinking (effort) for Claude 4.6 models', () => {
             expect(
                 buildProviderOptions({
@@ -311,6 +323,18 @@ describe('buildProviderOptions', () => {
                     reasoning: { preset: 'off' },
                 })
             ).toEqual({ bedrock: { reasoningConfig: { type: 'disabled' } } });
+        });
+
+        it('maps active presets to bedrock.reasoningConfig enabled', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'bedrock',
+                    model: 'anthropic.claude-haiku-4-5-20251001-v1:0',
+                    reasoning: { preset: 'high' },
+                })
+            ).toEqual({
+                bedrock: { reasoningConfig: { type: 'enabled', maxReasoningEffort: 'high' } },
+            });
         });
 
         it('does not send reasoningConfig for non-capable models', () => {

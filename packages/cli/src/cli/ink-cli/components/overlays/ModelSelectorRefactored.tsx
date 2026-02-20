@@ -534,11 +534,10 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 const isCustomActionItem =
                     currentItem && !isAddCustomOption(currentItem) && currentItem.isCustom;
                 const isSelectableItem = currentItem && !isAddCustomOption(currentItem);
-                const isOnActionItem = isCustomActionItem || isSelectableItem;
 
                 // Right arrow - enter/advance action mode for custom or selectable models
                 if (key.rightArrow) {
-                    if (!isOnActionItem) return false;
+                    if (!isSelectableItem) return false;
 
                     if (customModelAction === null) {
                         if (isCustomActionItem) {

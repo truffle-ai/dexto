@@ -379,7 +379,7 @@ export function buildProviderOptions(
         return {
             openrouter: {
                 includeReasoning: true,
-                reasoning: effort !== undefined ? { enabled: true, effort } : undefined,
+                ...(effort !== undefined ? { reasoning: { enabled: true, effort } } : {}),
             },
         };
     }
