@@ -26,15 +26,15 @@ import {
 
 interface DiffPreviewProps {
     data: DiffDisplayData;
-    /** Header text: "Edit file" or "Overwrite file" */
-    headerType: 'edit' | 'overwrite';
+    /** Optional header override (useful for plan tools, etc.) */
+    header?: string;
 }
 
 /**
  * Enhanced diff preview for edit_file and write_file (overwrite) approval
  * Shows full diff with line backgrounds, hunk collapsing, and word-level highlighting
  */
-export function DiffPreview({ data, headerType }: DiffPreviewProps) {
+export function DiffPreview({ data, header }: DiffPreviewProps) {
     const { unified, filename } = data;
     const hunks = parseUnifiedDiff(unified);
 
@@ -50,7 +50,7 @@ export function DiffPreview({ data, headerType }: DiffPreviewProps) {
     // Find line pairs for word-level diff
     const allLinePairs = hunks.map((hunk) => findLinePairs(hunk.lines));
 
-    const headerText = headerType === 'edit' ? 'Edit file' : 'Overwrite file';
+    const headerText = header ?? data.title ?? 'Update file';
 
     return (
         <Box flexDirection="column" marginBottom={1}>
@@ -147,8 +147,9 @@ interface CreateFilePreviewProps {
  * Preview for write_file (new file creation) or plan review
  * Shows full file content with line numbers, white text
  */
-export function CreateFilePreview({ data, header = 'Create file' }: CreateFilePreviewProps) {
+export function CreateFilePreview({ data, header }: CreateFilePreviewProps) {
     const { path, content, lineCount } = data;
+    const headerText = header ?? data.title ?? 'Create file';
 
     if (!content) {
         // Fallback if content not provided
@@ -156,7 +157,7 @@ export function CreateFilePreview({ data, header = 'Create file' }: CreateFilePr
             <Box flexDirection="column" marginBottom={1}>
                 <Box marginBottom={0}>
                     <Text color="cyan" bold>
-                        {header}
+                        {headerText}
                     </Text>
                 </Box>
                 <Box flexDirection="column" borderStyle="round" borderColor="gray" paddingX={1}>
@@ -175,7 +176,7 @@ export function CreateFilePreview({ data, header = 'Create file' }: CreateFilePr
             {/* Header - standalone line */}
             <Box marginBottom={0}>
                 <Text color="cyan" bold>
-                    {header}
+                    {headerText}
                 </Text>
             </Box>
 

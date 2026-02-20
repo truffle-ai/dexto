@@ -58,6 +58,7 @@ export function createPlanCreateTool(
             const planPath = resolvedPlanService.getPlanPath(context.sessionId);
             return {
                 type: 'file',
+                title: 'Create Plan',
                 path: planPath,
                 operation: 'create',
                 content,
@@ -86,6 +87,7 @@ export function createPlanCreateTool(
             const planPath = resolvedPlanService.getPlanPath(context.sessionId);
             const _display: FileDisplayData = {
                 type: 'file',
+                title: 'Create Plan',
                 path: planPath,
                 operation: 'create',
                 size: Buffer.byteLength(content, 'utf8'),

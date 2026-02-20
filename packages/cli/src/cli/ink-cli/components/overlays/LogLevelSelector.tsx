@@ -122,6 +122,11 @@ const LogLevelSelector = forwardRef<LogLevelSelectorHandle, LogLevelSelectorProp
 
         return (
             <Box flexDirection="column">
+                {logFilePath && (
+                    <Box marginBottom={1}>
+                        <Text color="gray">📁 Log file: {logFilePath}</Text>
+                    </Box>
+                )}
                 <BaseSelector
                     ref={baseSelectorRef}
                     items={levels}
@@ -136,11 +141,6 @@ const LogLevelSelector = forwardRef<LogLevelSelectorHandle, LogLevelSelectorProp
                     borderColor="yellowBright"
                     emptyMessage="No log levels available"
                 />
-                {logFilePath && process.env.DEXTO_DEV_MODE === 'true' && (
-                    <Box marginTop={1}>
-                        <Text color="gray">📁 Log file: {logFilePath}</Text>
-                    </Box>
-                )}
             </Box>
         );
     }

@@ -6,6 +6,7 @@ export default defineConfig([
         format: ['cjs', 'esm'],
         outDir: 'dist',
         dts: {
+            entry: 'src/index.ts',
             compilerOptions: {
                 skipLibCheck: true,
                 composite: false,

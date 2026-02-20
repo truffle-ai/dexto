@@ -13,6 +13,8 @@ import type { Key } from '../hooks/useInputOrchestrator.js';
 import type { ResourceMetadata } from '@dexto/core';
 import type { DextoAgent } from '@dexto/core';
 import { centerTruncatePath } from '../utils/messageFormatting.js';
+import { useTerminalSize } from '../hooks/useTerminalSize.js';
+import { getMaxVisibleItemsForTerminalRows } from '../utils/overlaySizing.js';
 
 export interface ResourceAutocompleteHandle {
     handleInput: (input: string, key: Key) => boolean;
@@ -121,10 +123,18 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
     ) {
         const [resources, setResources] = useState<ResourceMetadata[]>([]);
         const [isLoading, setIsLoading] = useState(false);
+        const { columns: terminalWidth, rows: terminalRows } = useTerminalSize();
+        const maxVisibleItems = useMemo(() => {
+            return getMaxVisibleItemsForTerminalRows({
+                rows: terminalRows,
+                hardCap: 15,
+                reservedRows: 6,
+            });
+        }, [terminalRows]);
+
         // Combined state to guarantee single render on navigation
         const [selection, setSelection] = useState({ index: 0, offset: 0 });
         const selectedIndexRef = useRef(0);
-        const MAX_VISIBLE_ITEMS = 5;
 
         // Update selection AND scroll offset in a single state update
         // This guarantees exactly one render per navigation action
@@ -141,14 +151,14 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
                     let newOffset = prev.offset;
                     if (newIndex < prev.offset) {
                         newOffset = newIndex;
-                    } else if (newIndex >= prev.offset + MAX_VISIBLE_ITEMS) {
-                        newOffset = Math.max(0, newIndex - MAX_VISIBLE_ITEMS + 1);
+                    } else if (newIndex >= prev.offset + maxVisibleItems) {
+                        newOffset = Math.max(0, newIndex - maxVisibleItems + 1);
                     }
 
                     return { index: newIndex, offset: newOffset };
                 });
             },
-            [MAX_VISIBLE_ITEMS]
+            [maxVisibleItems]
         );
 
         // Fetch resources from agent
@@ -327,7 +337,7 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
             : Math.min(selection.index, Math.max(0, displayItems.length - 1));
         const scrollOffset = itemsChanged
             ? 0
-            : Math.min(selection.offset, Math.max(0, displayItems.length - MAX_VISIBLE_ITEMS));
+            : Math.min(selection.offset, Math.max(0, displayItems.length - maxVisibleItems));
 
         // Sync state only when items actually changed AND state differs
         // This effect runs AFTER render, updating state for next user interaction
@@ -346,8 +356,8 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
 
         // Calculate visible items based on scroll offset
         const visibleResources = useMemo(() => {
-            return displayItems.slice(scrollOffset, scrollOffset + MAX_VISIBLE_ITEMS);
-        }, [displayItems, scrollOffset, MAX_VISIBLE_ITEMS]);
+            return displayItems.slice(scrollOffset, scrollOffset + maxVisibleItems);
+        }, [displayItems, scrollOffset, maxVisibleItems]);
 
         // Expose handleInput method via ref
         useImperativeHandle(
@@ -452,13 +462,16 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
         }
 
         return (
-            <Box flexDirection="column" paddingLeft={2}>
+            <Box flexDirection="column" width={terminalWidth} paddingLeft={2}>
                 {visibleResources.map((item, visibleIndex) => {
                     const actualIndex = scrollOffset + visibleIndex;
                     const isSelected = actualIndex === selectedIndex;
 
-                    // Use center truncation for long paths
-                    const displayPath = centerTruncatePath(item.path, 60);
+                    // Use center truncation for long paths (and still force truncate to prevent wrapping)
+                    const displayPath = centerTruncatePath(
+                        item.path,
+                        Math.max(20, terminalWidth - 16)
+                    );
 
                     // Check if it's an image file
                     const isImage = item.resource?.mimeType?.startsWith('image/');
@@ -468,7 +481,11 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
                             <Text color={isSelected ? 'cyan' : 'gray'}>
                                 {isSelected ? '❯ ' : '  '}
                             </Text>
-                            <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected}>
+                            <Text
+                                wrap="truncate-end"
+                                color={isSelected ? 'cyan' : 'white'}
+                                bold={isSelected}
+                            >
                                 {isImage && '🖼️  '}
                                 {displayPath}
                                 {item.resource?.serverName && ` [${item.resource.serverName}]`}

@@ -6,6 +6,10 @@ export default defineConfig([
         format: ['cjs', 'esm'],
         outDir: 'dist',
         dts: {
+            entry: {
+                index: 'src/index.ts',
+                schemas: 'src/schemas.ts',
+            },
             compilerOptions: {
                 skipLibCheck: true,
                 composite: false,

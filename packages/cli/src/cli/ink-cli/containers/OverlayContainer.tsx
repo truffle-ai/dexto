@@ -39,6 +39,10 @@ import SoundsSelector, {
     type SoundsSelectorHandle,
 } from '../components/overlays/SoundsSelector.js';
 import ToolBrowser, { type ToolBrowserHandle } from '../components/overlays/ToolBrowser.js';
+import {
+    CommandOutputOverlay,
+    type CommandOutputOverlayHandle,
+} from '../components/overlays/CommandOutputOverlay.js';
 import McpServerList, {
     type McpServerListHandle,
     type McpServerListAction,
@@ -125,6 +129,8 @@ import { InputService } from '../services/InputService.js';
 import { createUserMessage, convertHistoryToUIMessages } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import { capture } from '../../../analytics/index.js';
+import { FocusOverlayFrame } from '../components/shared/FocusOverlayFrame.js';
+import { shouldHideCliChrome } from '../utils/overlayPresentation.js';
 
 export interface OverlayContainerHandle {
     handleInput: (input: string, key: Key) => boolean;
@@ -188,6 +194,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const streamSelectorRef = useRef<StreamSelectorHandle>(null);
         const soundsSelectorRef = useRef<SoundsSelectorHandle>(null);
         const toolBrowserRef = useRef<ToolBrowserHandle>(null);
+        const commandOutputRef = useRef<CommandOutputOverlayHandle>(null);
         const mcpServerListRef = useRef<McpServerListHandle>(null);
         const mcpServerActionsRef = useRef<McpServerActionsHandle>(null);
         const mcpAddChoiceRef = useRef<McpAddChoiceHandle>(null);
@@ -266,6 +273,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             return soundsSelectorRef.current?.handleInput(inputStr, key) ?? false;
                         case 'tool-browser':
                             return toolBrowserRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'command-output':
+                            return commandOutputRef.current?.handleInput(inputStr, key) ?? false;
                         case 'mcp-server-list':
                             return mcpServerListRef.current?.handleInput(inputStr, key) ?? false;
                         case 'mcp-server-actions':
@@ -1220,7 +1229,12 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         );
 
         const handleClose = useCallback(() => {
-            setUi((prev) => ({ ...prev, activeOverlay: 'none', mcpWizardServerType: null }));
+            setUi((prev) => ({
+                ...prev,
+                activeOverlay: 'none',
+                mcpWizardServerType: null,
+                commandOutput: null,
+            }));
         }, [setUi]);
 
         // Handle log level selection
@@ -2297,7 +2311,9 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
         }, [setUi]);
 
-        return (
+        const hideCliChrome = shouldHideCliChrome(ui.activeOverlay, approval);
+
+        const overlayContent = (
             <>
                 {/* Approval prompt */}
                 {approval && (
@@ -2418,6 +2434,19 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             onClose={handleClose}
                             agent={agent}
                             sessionId={session.id}
+                        />
+                    </Box>
+                )}
+
+                {/* Command output modal */}
+                {ui.activeOverlay === 'command-output' && ui.commandOutput && (
+                    <Box marginTop={1}>
+                        <CommandOutputOverlay
+                            ref={commandOutputRef}
+                            isVisible={true}
+                            title={ui.commandOutput.title}
+                            content={ui.commandOutput.content}
+                            onClose={handleClose}
                         />
                     </Box>
                 )}
@@ -2697,6 +2726,12 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     />
                 )}
             </>
+        );
+
+        return hideCliChrome ? (
+            <FocusOverlayFrame>{overlayContent}</FocusOverlayFrame>
+        ) : (
+            overlayContent
         );
     }
 );

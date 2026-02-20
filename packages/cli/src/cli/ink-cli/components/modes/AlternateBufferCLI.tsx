@@ -41,6 +41,7 @@ import {
 // Containers
 import { InputContainer, type InputContainerHandle } from '../../containers/InputContainer.js';
 import { OverlayContainer } from '../../containers/OverlayContainer.js';
+import { shouldHideStatusChrome } from '../../utils/overlayPresentation.js';
 
 // Union type for virtualized list items: header or message
 type ListItem = { type: 'header' } | { type: 'message'; message: Message };
@@ -277,6 +278,8 @@ export function AlternateBufferCLI({
         return item.message.id;
     }, []);
 
+    const hideChrome = shouldHideStatusChrome(ui.activeOverlay, approval);
+
     return (
         <Box flexDirection="column" height={terminalHeight}>
             {/* Content area - VirtualizedList */}
@@ -294,47 +297,47 @@ export function AlternateBufferCLI({
 
             {/* Controls area - fixed at bottom */}
             <Box flexDirection="column" flexShrink={0}>
-                <StatusBar
-                    agent={agent}
-                    isProcessing={ui.isProcessing}
-                    isThinking={ui.isThinking}
-                    isCompacting={ui.isCompacting}
-                    approvalQueueCount={approvalQueue.length}
-                    copyModeEnabled={ui.copyModeEnabled}
-                    isAwaitingApproval={approval !== null}
-                    todoExpanded={ui.todoExpanded}
-                    hasTodos={todos.some((t) => t.status !== 'completed')}
-                    planModeActive={ui.planModeActive}
-                    autoApproveEdits={ui.autoApproveEdits}
-                    backgroundTasksRunning={ui.backgroundTasksRunning}
-                />
+                {!hideChrome && (
+                    <>
+                        <StatusBar
+                            agent={agent}
+                            isProcessing={ui.isProcessing}
+                            isThinking={ui.isThinking}
+                            isCompacting={ui.isCompacting}
+                            approvalQueueCount={approvalQueue.length}
+                            copyModeEnabled={ui.copyModeEnabled}
+                            isAwaitingApproval={approval !== null}
+                            todoExpanded={ui.todoExpanded}
+                            hasTodos={todos.some((t) => t.status !== 'completed')}
+                            planModeActive={ui.planModeActive}
+                            autoApproveEdits={ui.autoApproveEdits}
+                            backgroundTasksRunning={ui.backgroundTasksRunning}
+                        />
 
-                {/* Background tasks panel */}
-                <BackgroundTasksPanel
-                    tasks={ui.backgroundTasks}
-                    isExpanded={ui.backgroundTasksExpanded}
-                    isProcessing={ui.isProcessing}
-                />
+                        <BackgroundTasksPanel
+                            tasks={ui.backgroundTasks}
+                            isExpanded={ui.backgroundTasksExpanded}
+                            isProcessing={ui.isProcessing}
+                        />
 
-                {/* Todo panel - shown below status bar */}
-                <TodoPanel
-                    todos={todos}
-                    isExpanded={ui.todoExpanded}
-                    isProcessing={ui.isProcessing}
-                />
+                        <TodoPanel
+                            todos={todos}
+                            isExpanded={ui.todoExpanded}
+                            isProcessing={ui.isProcessing}
+                        />
 
-                {/* Selection hint when user tries to select without Option key */}
-                {selectionHintVisible && (
-                    <Box paddingX={1}>
-                        <Text color="yellowBright">
-                            💡 Tip: Hold Option (⌥) and click to select text, or press Ctrl+S to
-                            toggle copy mode
-                        </Text>
-                    </Box>
+                        {selectionHintVisible && (
+                            <Box paddingX={1}>
+                                <Text color="yellowBright">
+                                    💡 Tip: Hold Option (⌥) and click to select text, or press
+                                    Ctrl+S to toggle copy mode
+                                </Text>
+                            </Box>
+                        )}
+
+                        <QueuedMessagesDisplay messages={queuedMessages} />
+                    </>
                 )}
-
-                {/* Queued messages display (shows when messages are pending) */}
-                <QueuedMessagesDisplay messages={queuedMessages} />
 
                 <InputContainer
                     ref={inputContainerRef}
@@ -382,7 +385,7 @@ export function AlternateBufferCLI({
                 />
 
                 {/* Exit warning (Ctrl+C pressed once) - shown above footer */}
-                {ui.exitWarningShown && (
+                {!hideChrome && ui.exitWarningShown && (
                     <Box paddingX={1}>
                         <Text color="yellowBright" bold>
                             ⚠ Press Ctrl+C again to exit
@@ -392,19 +395,21 @@ export function AlternateBufferCLI({
                 )}
 
                 {/* Footer status line */}
-                <Footer
-                    agent={agent}
-                    sessionId={session.id}
-                    modelName={session.modelName}
-                    cwd={process.cwd()}
-                    {...(branchName ? { branchName } : {})}
-                    autoApproveEdits={ui.autoApproveEdits}
-                    planModeActive={ui.planModeActive}
-                    isShellMode={buffer.text.startsWith('!')}
-                />
+                {!hideChrome && (
+                    <Footer
+                        agent={agent}
+                        sessionId={session.id}
+                        modelName={session.modelName}
+                        cwd={process.cwd()}
+                        {...(branchName ? { branchName } : {})}
+                        autoApproveEdits={ui.autoApproveEdits}
+                        planModeActive={ui.planModeActive}
+                        isShellMode={buffer.text.startsWith('!')}
+                    />
+                )}
 
                 {/* History search bar (Ctrl+R) - shown at very bottom */}
-                {ui.historySearch.isActive && (
+                {!hideChrome && ui.historySearch.isActive && (
                     <HistorySearchBar
                         query={ui.historySearch.query}
                         hasMatch={historySearchHasMatch}

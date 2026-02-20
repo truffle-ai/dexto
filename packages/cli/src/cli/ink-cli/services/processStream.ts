@@ -621,11 +621,13 @@ export async function processStream(
                         }),
                     });
 
-                    // Add description if present (dim styling, on new line)
+                    // Add call description if present (dim styling, on new line)
+                    // NOTE: This should come from tool call metadata (e.g., __meta.callDescription),
+                    // not from tool args, to keep approval + history consistent.
                     let finalToolContent = toolContent;
-                    const description = event.args?.description;
-                    if (description && typeof description === 'string') {
-                        finalToolContent += `\n${chalk.dim(description)}`;
+                    const callDescription = event.callDescription;
+                    if (typeof callDescription === 'string' && callDescription.trim().length > 0) {
+                        finalToolContent += `\n${chalk.dim(callDescription)}`;
                     }
 
                     // Tool calls start in 'pending' state (don't know if approval needed yet)
@@ -913,9 +915,12 @@ export async function processStream(
 
                     if (autoApproveEdits && event.type === ApprovalTypeEnum.TOOL_APPROVAL) {
                         // Type is narrowed - metadata is now ToolApprovalMetadata
-                        const { toolName } = event.metadata;
+                        const { toolName, directoryAccess } = event.metadata;
 
-                        if (isAutoApprovableInEditMode(toolName)) {
+                        const hasDirectoryAccess =
+                            typeof directoryAccess === 'object' && directoryAccess !== null;
+
+                        if (!hasDirectoryAccess && isAutoApprovableInEditMode(toolName)) {
                             // Auto-approve immediately - emit response and let tool:running handle status
                             eventBus.emit('approval:response', {
                                 approvalId: event.approvalId,

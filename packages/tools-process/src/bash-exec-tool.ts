@@ -119,6 +119,7 @@ Security: Dangerous commands are blocked. Injection attempts are detected. Requi
             const { command, run_in_background } = input;
             const preview: ShellDisplayData = {
                 type: 'shell',
+                title: 'Bash',
                 command,
                 exitCode: 0, // Placeholder - not executed yet
                 duration: 0, // Placeholder - not executed yet
@@ -176,6 +177,7 @@ Security: Dangerous commands are blocked. Injection attempts are detected. Requi
                 // Foreground execution result
                 const _display: ShellDisplayData = {
                     type: 'shell',
+                    title: 'Bash',
                     command,
                     exitCode: result.exitCode,
                     duration: result.duration,
@@ -195,6 +197,7 @@ Security: Dangerous commands are blocked. Injection attempts are detected. Requi
                 // Background execution handle
                 const _display: ShellDisplayData = {
                     type: 'shell',
+                    title: 'Bash',
                     command,
                     exitCode: 0, // Background process hasn't exited yet
                     duration: 0, // Still running

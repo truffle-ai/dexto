@@ -78,6 +78,43 @@ describe('edit_file tool', () => {
     });
 
     describe('File Modification Detection', () => {
+        it('should generate preview for files outside config-allowed roots (preview read only)', async () => {
+            const tool = createEditFileTool(async () => fileSystemService);
+
+            const rawExternalDir = await fs.mkdtemp(
+                path.join(os.tmpdir(), 'dexto-edit-outside-allowed-')
+            );
+            const externalDir = await fs.realpath(rawExternalDir);
+            const externalFile = path.join(externalDir, 'external.txt');
+
+            try {
+                await fs.writeFile(externalFile, 'hello world');
+
+                const toolCallId = 'preview-outside-roots';
+                const parsedInput = tool.inputSchema.parse({
+                    file_path: externalFile,
+                    old_string: 'world',
+                    new_string: 'universe',
+                });
+
+                const preview = await tool.generatePreview!(
+                    parsedInput,
+                    createToolContext(mockLogger, { toolCallId })
+                );
+
+                expect(preview).toBeDefined();
+                expect(preview?.type).toBe('diff');
+                if (preview?.type === 'diff') {
+                    expect(preview.title).toBe('Update file');
+                    expect(preview.filename).toBe(externalFile);
+                } else {
+                    expect.fail('Expected diff preview');
+                }
+            } finally {
+                await fs.rm(externalDir, { recursive: true, force: true });
+            }
+        });
+
         it('should succeed when file is not modified between preview and execute', async () => {
             const tool = createEditFileTool(async () => fileSystemService);
             const testFile = path.join(tempDir, 'test.txt');

@@ -20,6 +20,8 @@ import type { Key } from '../../hooks/useInputOrchestrator.js';
 import type { DextoAgent } from '@dexto/core';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
 import { writeToClipboard } from '../../utils/clipboardUtils.js';
+import { getMaxVisibleItemsForTerminalRows } from '../../utils/overlaySizing.js';
+import { HintBar } from '../shared/HintBar.js';
 
 interface ToolBrowserProps {
     isVisible: boolean;
@@ -46,7 +48,6 @@ type ViewMode = 'list' | 'list-actions' | 'detail' | 'config' | 'scope';
 
 type ListAction = 'view' | 'config' | 'back';
 
-const MAX_VISIBLE_ITEMS = 12;
 const LIST_ACTIONS: ListAction[] = ['view', 'config', 'back'];
 
 /**
@@ -57,12 +58,18 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
     ref
 ) {
     const { columns, rows } = useTerminalSize();
+    const maxVisibleTools = useMemo(() => {
+        return getMaxVisibleItemsForTerminalRows({
+            rows,
+            hardCap: 10,
+            reservedRows: 16,
+        });
+    }, [rows]);
     const [tools, setTools] = useState<ToolInfo[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [loadError, setLoadError] = useState<string | null>(null);
-    const [selectedIndex, setSelectedIndex] = useState(0);
+    const [selection, setSelection] = useState({ index: 0, offset: 0 });
     const [searchQuery, setSearchQuery] = useState('');
-    const [scrollOffset, setScrollOffset] = useState(0);
     const [viewMode, setViewMode] = useState<ViewMode>('list');
     const [selectedTool, setSelectedTool] = useState<ToolInfo | null>(null);
     const [detailScrollOffset, setDetailScrollOffset] = useState(0);
@@ -72,7 +79,7 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
     const [scopeToolName, setScopeToolName] = useState<string | null>(null);
     const [scopeNextEnabled, setScopeNextEnabled] = useState<boolean>(true);
     const [scopeTarget, setScopeTarget] = useState<'session' | 'global'>('session');
-    const selectedIndexRef = useRef(selectedIndex);
+    const selectedIndexRef = useRef(0);
     const viewModeRef = useRef(viewMode);
     const detailScrollOffsetRef = useRef(detailScrollOffset);
     const detailMaxScrollOffsetRef = useRef(0);
@@ -85,7 +92,7 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
     const scopeToolNameRef = useRef(scopeToolName);
 
     // Keep refs in sync
-    selectedIndexRef.current = selectedIndex;
+    selectedIndexRef.current = selection.index;
     viewModeRef.current = viewMode;
     detailScrollOffsetRef.current = detailScrollOffset;
     selectedToolRef.current = selectedTool;
@@ -103,8 +110,7 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
         let cancelled = false;
         setIsLoading(true);
         setSearchQuery('');
-        setSelectedIndex(0);
-        setScrollOffset(0);
+        setSelection({ index: 0, offset: 0 });
         setViewMode('list');
         setSelectedTool(null);
         setListActionsIndex(0);
@@ -193,21 +199,30 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
         });
     }, [tools, searchQuery]);
 
-    // Adjust selected index when filter changes
+    // Keep selection valid and visible when filtering or terminal height changes.
     useEffect(() => {
-        if (selectedIndex >= filteredTools.length) {
-            setSelectedIndex(Math.max(0, filteredTools.length - 1));
-        }
-    }, [filteredTools.length, selectedIndex]);
+        setSelection((prev) => {
+            const maxIndex = Math.max(0, filteredTools.length - 1);
+            const nextIndex = Math.min(prev.index, maxIndex);
 
-    // Calculate scroll offset
-    useEffect(() => {
-        if (selectedIndex < scrollOffset) {
-            setScrollOffset(selectedIndex);
-        } else if (selectedIndex >= scrollOffset + MAX_VISIBLE_ITEMS) {
-            setScrollOffset(selectedIndex - MAX_VISIBLE_ITEMS + 1);
-        }
-    }, [selectedIndex, scrollOffset]);
+            let nextOffset = prev.offset;
+            if (nextIndex < nextOffset) {
+                nextOffset = nextIndex;
+            } else if (nextIndex >= nextOffset + maxVisibleTools) {
+                nextOffset = Math.max(0, nextIndex - maxVisibleTools + 1);
+            }
+
+            const maxOffset = Math.max(0, filteredTools.length - maxVisibleTools);
+            nextOffset = Math.min(maxOffset, Math.max(0, nextOffset));
+
+            if (nextIndex === prev.index && nextOffset === prev.offset) {
+                return prev;
+            }
+
+            selectedIndexRef.current = nextIndex;
+            return { index: nextIndex, offset: nextOffset };
+        });
+    }, [filteredTools.length, maxVisibleTools]);
 
     const openListActions = (tool: ToolInfo) => {
         setSelectedTool(tool);
@@ -361,6 +376,13 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
         () => ({
             handleInput: (input: string, key: Key): boolean => {
                 if (!isVisible) return false;
+
+                if (isLoading) {
+                    if (key.escape) {
+                        onClose();
+                    }
+                    return true;
+                }
 
                 // Scope selection view
                 if (viewModeRef.current === 'scope') {
@@ -521,8 +543,8 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
                     // Regular character - add to search
                     if (input.length === 1 && input.charCodeAt(0) >= 32) {
                         setSearchQuery((prev) => prev + input);
-                        setSelectedIndex(0);
-                        setScrollOffset(0);
+                        selectedIndexRef.current = 0;
+                        setSelection({ index: 0, offset: 0 });
                         return true;
                     }
                 }
@@ -538,15 +560,35 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
 
                 if (key.upArrow) {
                     const nextIndex = (selectedIndexRef.current - 1 + itemsLength) % itemsLength;
-                    setSelectedIndex(nextIndex);
                     selectedIndexRef.current = nextIndex;
+                    setSelection((prev) => {
+                        let nextOffset = prev.offset;
+                        if (nextIndex < prev.offset) {
+                            nextOffset = nextIndex;
+                        } else if (nextIndex >= prev.offset + maxVisibleTools) {
+                            nextOffset = Math.max(0, nextIndex - maxVisibleTools + 1);
+                        }
+                        const maxOffset = Math.max(0, itemsLength - maxVisibleTools);
+                        nextOffset = Math.min(maxOffset, Math.max(0, nextOffset));
+                        return { index: nextIndex, offset: nextOffset };
+                    });
                     return true;
                 }
 
                 if (key.downArrow) {
                     const nextIndex = (selectedIndexRef.current + 1) % itemsLength;
-                    setSelectedIndex(nextIndex);
                     selectedIndexRef.current = nextIndex;
+                    setSelection((prev) => {
+                        let nextOffset = prev.offset;
+                        if (nextIndex < prev.offset) {
+                            nextOffset = nextIndex;
+                        } else if (nextIndex >= prev.offset + maxVisibleTools) {
+                            nextOffset = Math.max(0, nextIndex - maxVisibleTools + 1);
+                        }
+                        const maxOffset = Math.max(0, itemsLength - maxVisibleTools);
+                        nextOffset = Math.min(maxOffset, Math.max(0, nextOffset));
+                        return { index: nextIndex, offset: nextOffset };
+                    });
                     return true;
                 }
 
@@ -561,18 +603,10 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
                 return false;
             },
         }),
-        [isVisible, filteredTools, onClose, sessionId]
+        [isVisible, isLoading, filteredTools, maxVisibleTools, onClose, sessionId]
     );
 
     if (!isVisible) return null;
-
-    if (isLoading) {
-        return (
-            <Box paddingX={0} paddingY={0}>
-                <Text color="gray">Loading tools...</Text>
-            </Box>
-        );
-    }
 
     if (viewMode === 'list-actions' && selectedTool) {
         return (
@@ -622,16 +656,30 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
     }
 
     // List view
-    const visibleTools = filteredTools.slice(scrollOffset, scrollOffset + MAX_VISIBLE_ITEMS);
+    const selectedIndex = selection.index;
+    const scrollOffset = selection.offset;
+    const visibleTools = filteredTools.slice(scrollOffset, scrollOffset + maxVisibleTools);
     const filteredLocalCount = filteredTools.filter((t) => t.source === 'local').length;
     const filteredMcpCount = filteredTools.filter((t) => t.source === 'mcp').length;
+    const selectedToolInList = filteredTools[selectedIndex];
+
+    let detailLine = '';
+    if (isLoading) {
+        detailLine = 'Loading tools…';
+    } else if (loadError) {
+        detailLine = loadError;
+    } else if (searchQuery.trim() && filteredTools.length === 0) {
+        detailLine = 'No tools match your search';
+    } else if (selectedToolInList) {
+        detailLine = selectedToolInList.description;
+    }
 
     return (
         <Box flexDirection="column" width={columns}>
             {/* Header */}
             <Box paddingX={0} paddingY={0}>
                 <Text color="cyan" bold>
-                    Tool Browser
+                    Tools
                 </Text>
                 <Text color="gray">
                     {' '}
@@ -639,79 +687,72 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
                     MCP)
                 </Text>
             </Box>
-            <Box paddingX={0} paddingY={0}>
-                <Text color="gray">↑↓ navigate · Enter options · Esc close</Text>
-            </Box>
-            <Box paddingX={0} paddingY={0}>
-                <Text color="gray">Type to search · Backspace to delete</Text>
-            </Box>
-            {loadError && (
-                <Box paddingX={0} paddingY={0}>
-                    <Text color="red">{loadError}</Text>
-                </Box>
-            )}
 
             {/* Search input */}
             <Box paddingX={0} paddingY={0} marginTop={1}>
                 <Text color="gray">Search: </Text>
-                <Text color={searchQuery ? 'white' : 'gray'}>
-                    {searchQuery || 'Type to filter...'}
+                <Text color={searchQuery ? 'white' : 'gray'} wrap="truncate-end">
+                    {searchQuery || 'Type to filter tools…'}
                 </Text>
-                <Text color="cyan">▌</Text>
-            </Box>
-
-            {/* Separator */}
-            <Box paddingX={0} paddingY={0}>
-                <Text color="gray">{'─'.repeat(Math.min(60, columns - 2))}</Text>
             </Box>
 
             {/* Tools list */}
-            {filteredTools.length === 0 ? (
-                <Box paddingX={0} paddingY={0}>
-                    <Text color="gray">No tools match your search</Text>
-                </Box>
-            ) : (
-                visibleTools.map((tool, visibleIndex) => {
-                    const actualIndex = scrollOffset + visibleIndex;
-                    const isSelected = actualIndex === selectedIndex;
+            <Box flexDirection="column" height={maxVisibleTools} marginTop={1}>
+                {isLoading || filteredTools.length === 0
+                    ? Array.from({ length: maxVisibleTools }, (_, index) => (
+                          <Box key={`tool-empty-${index}`} paddingX={0} paddingY={0}>
+                              <Text> </Text>
+                          </Box>
+                      ))
+                    : Array.from({ length: maxVisibleTools }, (_, rowIndex) => {
+                          const tool = visibleTools[rowIndex];
+                          if (!tool) {
+                              return (
+                                  <Box key={`tool-empty-${rowIndex}`} paddingX={0} paddingY={0}>
+                                      <Text> </Text>
+                                  </Box>
+                              );
+                          }
 
-                    return (
-                        <Box key={tool.name} paddingX={0} paddingY={0}>
-                            <Text color={isSelected ? 'cyan' : 'white'}>
-                                {isSelected ? '▶ ' : '  '}
-                            </Text>
-                            <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected}>
-                                {truncateText(tool.name, 35)}
-                            </Text>
-                            <Text color={tool.source === 'local' ? 'magenta' : 'blue'}>
-                                {' '}
-                                [{tool.source === 'local' ? 'Local' : 'MCP'}]
-                            </Text>
-                            {tool.serverName && <Text color="gray"> ({tool.serverName})</Text>}
-                            <Text color={tool.isEnabled ? 'green' : 'red'}>
-                                {' '}
-                                {tool.isEnabled ? 'Enabled' : 'Disabled'}
-                            </Text>
-                            {tool.isAutoApproved && <Text color="yellow"> [auto-approved]</Text>}
-                        </Box>
-                    );
-                })
-            )}
+                          const actualIndex = scrollOffset + rowIndex;
+                          const isSelected = actualIndex === selectedIndex;
 
-            {/* Scroll indicator */}
-            {filteredTools.length > MAX_VISIBLE_ITEMS && (
-                <Box paddingX={0} paddingY={0} marginTop={1}>
-                    <Text color="gray">
-                        {scrollOffset > 0 ? '↑ more above' : ''}
-                        {scrollOffset > 0 && scrollOffset + MAX_VISIBLE_ITEMS < filteredTools.length
-                            ? ' | '
-                            : ''}
-                        {scrollOffset + MAX_VISIBLE_ITEMS < filteredTools.length
-                            ? '↓ more below'
-                            : ''}
-                    </Text>
-                </Box>
-            )}
+                          return (
+                              <Box key={tool.name} paddingX={0} paddingY={0}>
+                                  <Text color={isSelected ? 'cyan' : 'white'}>
+                                      {isSelected ? '▶ ' : '  '}
+                                  </Text>
+                                  <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected}>
+                                      {truncateText(tool.name, 35)}
+                                  </Text>
+                                  <Text color={tool.source === 'local' ? 'magenta' : 'blue'}>
+                                      {' '}
+                                      [{tool.source === 'local' ? 'Local' : 'MCP'}]
+                                  </Text>
+                                  {tool.serverName && (
+                                      <Text color="gray"> ({tool.serverName})</Text>
+                                  )}
+                                  <Text color={tool.isEnabled ? 'green' : 'red'}>
+                                      {' '}
+                                      {tool.isEnabled ? 'Enabled' : 'Disabled'}
+                                  </Text>
+                                  {tool.isAutoApproved && (
+                                      <Text color="yellow"> [auto-approved]</Text>
+                                  )}
+                              </Box>
+                          );
+                      })}
+            </Box>
+
+            <Box paddingX={0} paddingY={0} marginTop={1}>
+                <Text color={loadError ? 'red' : 'gray'} wrap="truncate-end">
+                    {detailLine}
+                </Text>
+            </Box>
+
+            <Box paddingX={0} paddingY={0}>
+                <HintBar hints={['↑↓ navigate', 'Enter options', 'Esc close']} />
+            </Box>
         </Box>
     );
 });

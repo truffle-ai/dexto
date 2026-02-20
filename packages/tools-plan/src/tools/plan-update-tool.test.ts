@@ -78,6 +78,7 @@ describe('plan_update tool', () => {
             )) as DiffDisplayData;
 
             expect(preview.type).toBe('diff');
+            expect(preview.title).toBe('Update Plan');
             // Path is now absolute, check it ends with the expected suffix
             expect(preview.filename).toContain(sessionId);
             expect(preview.filename).toMatch(/plan\.md$/);
@@ -176,6 +177,7 @@ describe('plan_update tool', () => {
 
             expect(result._display).toBeDefined();
             expect(result._display.type).toBe('diff');
+            expect(result._display.title).toBe('Update Plan');
             expect(result._display.unified).toContain('-# Original');
             expect(result._display.unified).toContain('+# Updated');
         });

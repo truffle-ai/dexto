@@ -1,5 +1,5 @@
 import * as path from 'node:path';
-import { ApprovalType, ToolError } from '@dexto/core';
+import { ApprovalStatus, ApprovalType, ToolError } from '@dexto/core';
 import type { ApprovalRequestDetails, ApprovalResponse, ToolExecutionContext } from '@dexto/core';
 import type { FileSystemService } from './filesystem-service.js';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
@@ -35,20 +35,18 @@ export function createDirectoryAccessApprovalHandlers<TInput>(options: {
         response: ApprovalResponse,
         context: ToolExecutionContext,
         approvalRequest: ApprovalRequestDetails
-    ) => void;
+    ) => Promise<void>;
 } {
     return {
-        async getApprovalOverride(input, context): Promise<ApprovalRequestDetails | null> {
+        async getApprovalOverride(input, context) {
             const resolvedFileSystemService = await options.getFileSystemService(context);
             const paths = options.resolvePaths(input, resolvedFileSystemService);
 
-            // Check if path is within config-allowed paths
             const isAllowed = await resolvedFileSystemService.isPathWithinConfigAllowed(paths.path);
             if (isAllowed) {
-                return null; // Use normal tool confirmation
+                return null;
             }
 
-            // Check if directory is already session-approved (prompting decision)
             const approvalManager = context.services?.approval;
             if (!approvalManager) {
                 throw ToolError.configInvalid(
@@ -56,10 +54,9 @@ export function createDirectoryAccessApprovalHandlers<TInput>(options: {
                 );
             }
             if (approvalManager.isDirectorySessionApproved(paths.path)) {
-                return null; // Already approved, use normal flow
+                return null;
             }
 
-            // Need directory access approval
             return {
                 type: ApprovalType.DIRECTORY_ACCESS,
                 metadata: {
@@ -71,32 +68,28 @@ export function createDirectoryAccessApprovalHandlers<TInput>(options: {
             };
         },
 
-        onApprovalGranted(
-            response: ApprovalResponse,
-            context: ToolExecutionContext,
-            approvalRequest: ApprovalRequestDetails
-        ): void {
-            if (approvalRequest.type !== ApprovalType.DIRECTORY_ACCESS) {
+        async onApprovalGranted(response, context, approvalRequest) {
+            const approvalManager = context.services?.approval;
+            if (!approvalManager) {
                 return;
             }
 
-            const metadata = approvalRequest.metadata as { parentDir?: unknown } | undefined;
-            const parentDir = typeof metadata?.parentDir === 'string' ? metadata.parentDir : null;
-            if (!parentDir) {
+            if (response.status !== ApprovalStatus.APPROVED) {
                 return;
             }
 
-            // Check if user wants to remember the directory
             const data = response.data as { rememberDirectory?: boolean } | undefined;
             const rememberDirectory = data?.rememberDirectory ?? false;
 
-            const approvalManager = context.services?.approval;
-            if (!approvalManager) {
-                throw ToolError.configInvalid(
-                    `${options.toolName} requires ToolExecutionContext.services.approval`
-                );
+            const metadata = approvalRequest.metadata as { parentDir: string };
+            if (!metadata?.parentDir) {
+                return;
             }
-            approvalManager.addApprovedDirectory(parentDir, rememberDirectory ? 'session' : 'once');
+
+            approvalManager.addApprovedDirectory(
+                metadata.parentDir,
+                rememberDirectory ? 'session' : 'once'
+            );
         },
     };
 }

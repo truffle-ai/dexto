@@ -102,7 +102,7 @@ export interface AgentRuntimeConfig {
     /** Maximum total agents managed by this runtime (default: 20) */
     maxAgents?: number;
 
-    /** Default task timeout in milliseconds (default: 300000 = 5 min) */
+    /** Default task timeout in milliseconds (default: 300000 = 5 min, 0 = no timeout) */
     defaultTaskTimeout?: number;
 }
 

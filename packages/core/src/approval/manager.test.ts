@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import * as path from 'node:path';
+import * as os from 'node:os';
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync } from 'node:fs';
 import { ApprovalManager } from './manager.js';
 import { ApprovalStatus, DenialReason } from './types.js';
 import { AgentEventBus } from '../events/index.js';
@@ -797,6 +800,56 @@ describe('ApprovalManager', () => {
                 expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(true);
             });
 
+            it('should treat symlink-approved directory as approved for its realpath', () => {
+                const baseDir = mkdtempSync(path.join(os.tmpdir(), 'dexto-approval-symlink-'));
+                try {
+                    const actualDir = path.join(baseDir, 'actual');
+                    mkdirSync(actualDir);
+
+                    const linkDir = path.join(baseDir, 'link');
+                    const symlinkType = process.platform === 'win32' ? 'junction' : 'dir';
+                    symlinkSync(actualDir, linkDir, symlinkType);
+
+                    manager.addApprovedDirectory(linkDir, 'session');
+
+                    expect(manager.isDirectoryApproved(path.join(actualDir, 'file.ts'))).toBe(true);
+                    expect(
+                        manager.isDirectorySessionApproved(path.join(actualDir, 'file.ts'))
+                    ).toBe(true);
+                } finally {
+                    rmSync(baseDir, { recursive: true, force: true });
+                }
+            });
+
+            it('should treat approved directory as approved for its realpath even if the directory did not exist yet', () => {
+                const baseDir = mkdtempSync(
+                    path.join(os.tmpdir(), 'dexto-approval-symlink-missing-leaf-')
+                );
+
+                try {
+                    const actualDir = path.join(baseDir, 'actual');
+                    mkdirSync(actualDir);
+
+                    const linkDir = path.join(baseDir, 'link');
+                    const symlinkType = process.platform === 'win32' ? 'junction' : 'dir';
+                    symlinkSync(actualDir, linkDir, symlinkType);
+
+                    const approvedDir = path.join(linkDir, 'child');
+
+                    // Approve a directory that doesn't exist yet (common for write/create flows).
+                    manager.addApprovedDirectory(approvedDir, 'session');
+
+                    const actualChildDir = path.join(actualDir, 'child');
+                    mkdirSync(actualChildDir);
+
+                    const filePath = path.join(actualChildDir, 'file.ts');
+                    expect(manager.isDirectoryApproved(filePath)).toBe(true);
+                    expect(manager.isDirectorySessionApproved(filePath)).toBe(true);
+                } finally {
+                    rmSync(baseDir, { recursive: true, force: true });
+                }
+            });
+
             it('should add directory with explicit session type', () => {
                 manager.addApprovedDirectory('/external/project', 'session');
                 expect(manager.isDirectorySessionApproved('/external/project/file.ts')).toBe(true);
@@ -908,7 +961,7 @@ describe('ApprovalManager', () => {
                 manager.addApprovedDirectory('/external/project2', 'once');
 
                 const dirs = manager.getApprovedDirectories();
-                expect(dirs.size).toBe(2);
+                expect(dirs.size).toBeGreaterThanOrEqual(2);
                 // Check that paths are normalized (absolute)
                 const keys = Array.from(dirs.keys());
                 expect(keys.some((k) => k.includes('project1'))).toBe(true);
@@ -918,10 +971,9 @@ describe('ApprovalManager', () => {
             it('should include working directory after initialization', () => {
                 manager.initializeWorkingDirectory('/home/user/project');
                 const dirs = manager.getApprovedDirectories();
-                expect(dirs.size).toBe(1);
-                // Check that working directory is session type
-                const entries = Array.from(dirs.entries());
-                expect(entries[0]![1]).toBe('session');
+                expect(dirs.size).toBeGreaterThanOrEqual(1);
+                expect(dirs.get(path.resolve('/home/user/project'))).toBe('session');
+                expect(new Set(dirs.values())).toEqual(new Set(['session']));
             });
         });
 

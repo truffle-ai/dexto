@@ -71,13 +71,6 @@ export function Header({ modelName, sessionId, hasActiveSession, startupInfo }: 
                 </Box>
             )}
 
-            {/* Log file (only shown in dev mode) */}
-            {startupInfo.logFile && process.env.DEXTO_DEV_MODE === 'true' && (
-                <Box flexDirection="row">
-                    <Text color="gray">Logs: {startupInfo.logFile}</Text>
-                </Box>
-            )}
-
             {/* Update available notification */}
             {startupInfo.updateInfo && (
                 <Box marginTop={1} flexDirection="row">

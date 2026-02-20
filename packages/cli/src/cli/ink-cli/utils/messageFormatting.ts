@@ -317,6 +317,20 @@ const PATH_ARGS = new Set(['file_path', 'path']);
 const NEVER_TRUNCATE_ARGS = new Set(['url', 'task', 'pattern', 'question']);
 
 /**
+ * Arguments that should be omitted from tool headers.
+ * These are either large blobs (e.g., content/schema) or internal metadata.
+ */
+const OMITTED_ARGS = new Set([
+    '__meta',
+    'content',
+    'schema',
+    // edit_file args are redundant with the diff preview
+    'old_string',
+    'new_string',
+    'replace_all',
+]);
+
+/**
  * Formats tool arguments for display.
  * Format: ToolName(primary_arg) or ToolName(primary_arg, key: value)
  *
@@ -342,15 +356,9 @@ export function formatToolArgsForDisplay(toolName: string, args: Record<string, 
             return makeRelativePath(strValue);
         }
 
-        // Commands: show single-line in full, truncate multi-line (heredocs) to first line
+        // Commands: show in full (never truncate). Replace newlines for consistent single-line headers.
         if (argName === 'command') {
-            const newlineIndex = strValue.indexOf('\n');
-            if (newlineIndex === -1) {
-                // Single-line command: show in full (useful for complex pipes)
-                return strValue;
-            }
-            // Multi-line command (heredoc): show first line only
-            return strValue.slice(0, newlineIndex) + '...';
+            return strValue.replace(/\r?\n/g, ' ⏎ ');
         }
 
         // URLs: never truncate
@@ -368,6 +376,7 @@ export function formatToolArgsForDisplay(toolName: string, args: Record<string, 
     // - Skip description (it's shown separately in the UI when present)
     for (const [key, value] of entries) {
         if (key === 'description') continue;
+        if (OMITTED_ARGS.has(key)) continue;
         if (parts.length >= 3) break;
 
         const formattedValue = formatArgValue(key, value);

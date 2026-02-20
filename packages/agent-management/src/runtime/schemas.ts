@@ -32,9 +32,9 @@ export const AgentRuntimeConfigSchema = z
         defaultTaskTimeout: z
             .number()
             .int()
-            .positive()
+            .nonnegative()
             .default(DEFAULT_TASK_TIMEOUT)
-            .describe('Default task timeout in milliseconds'),
+            .describe('Default task timeout in milliseconds (0 = no timeout)'),
     })
     .strict()
     .describe('Configuration for the AgentRuntime');
