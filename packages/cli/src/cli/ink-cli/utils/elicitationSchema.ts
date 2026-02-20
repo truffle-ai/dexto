@@ -19,10 +19,7 @@ function humanizeIdentifier(value: string): string {
 function titleCaseWords(value: string): string {
     return value
         .split(' ')
-        .map((word) => {
-            if (!word) return '';
-            return word.charAt(0).toUpperCase() + word.slice(1);
-        })
+        .map((word) => (word ? word.charAt(0).toUpperCase() + word.slice(1) : ''))
         .join(' ');
 }
 
@@ -33,67 +30,75 @@ function cleanLabel(value: string): string {
         .trim();
 }
 
+function makeLabel(name: string): string {
+    return titleCaseWords(humanizeIdentifier(name)) || name;
+}
+
 function getXDextoStepLabel(prop: Record<string, unknown>): string | undefined {
-    if (!Object.prototype.hasOwnProperty.call(prop, 'x-dexto')) return undefined;
-    const value = prop['x-dexto'];
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
-    const stepLabel = (value as Record<string, unknown>).stepLabel;
+    const xDexto = prop['x-dexto'];
+    if (!xDexto || typeof xDexto !== 'object' || Array.isArray(xDexto)) return undefined;
+    const stepLabel = (xDexto as Record<string, unknown>).stepLabel;
     if (typeof stepLabel !== 'string') return undefined;
-    const cleaned = cleanLabel(stepLabel);
-    return cleaned || undefined;
+    return cleanLabel(stepLabel) || undefined;
+}
+
+type JsonSchemaProp = {
+    type?: string;
+    title?: string;
+    description?: string;
+    enum?: unknown[];
+    items?: Record<string, unknown>;
+};
+
+type FieldTypeResult = { type: ElicitationFormField['type']; enumValues: unknown[] | undefined };
+
+function getFieldType(prop: JsonSchemaProp): FieldTypeResult {
+    const { type } = prop;
+    if (type === 'boolean') return { type: 'boolean', enumValues: undefined };
+    if (type === 'number' || type === 'integer') return { type: 'number', enumValues: undefined };
+    if (type === 'array' && prop.items && Array.isArray(prop.items.enum)) {
+        return { type: 'array-enum', enumValues: prop.items.enum };
+    }
+    if (Array.isArray(prop.enum)) return { type: 'enum', enumValues: prop.enum };
+    return { type: 'string', enumValues: undefined };
 }
 
 export function parseElicitationSchema(schema: unknown): ElicitationFormField[] {
     if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return [];
+
     const schemaRecord = schema as Record<string, unknown>;
     const properties = schemaRecord.properties;
     if (!properties || typeof properties !== 'object' || Array.isArray(properties)) return [];
 
     const required = Array.isArray(schemaRecord.required)
-        ? schemaRecord.required.filter((value): value is string => typeof value === 'string')
+        ? schemaRecord.required.filter((v): v is string => typeof v === 'string')
         : [];
 
     const result: ElicitationFormField[] = [];
 
     for (const [name, rawProp] of Object.entries(properties as Record<string, unknown>)) {
-        if (typeof rawProp === 'boolean') continue;
-        if (!rawProp || typeof rawProp !== 'object' || Array.isArray(rawProp)) continue;
-        const prop = rawProp as Record<string, unknown>;
-
-        let type: ElicitationFormField['type'] = 'string';
-        let enumValues: unknown[] | undefined;
-
-        const propType = prop.type;
-        if (propType === 'boolean') {
-            type = 'boolean';
-        } else if (propType === 'number' || propType === 'integer') {
-            type = 'number';
-        } else if (Array.isArray(prop.enum)) {
-            type = 'enum';
-            enumValues = prop.enum;
-        } else if (
-            propType === 'array' &&
-            prop.items &&
-            typeof prop.items === 'object' &&
-            !Array.isArray(prop.items) &&
-            Array.isArray((prop.items as Record<string, unknown>).enum)
+        if (
+            typeof rawProp === 'boolean' ||
+            !rawProp ||
+            typeof rawProp !== 'object' ||
+            Array.isArray(rawProp)
         ) {
-            type = 'array-enum';
-            enumValues = (prop.items as Record<string, unknown>).enum as unknown[];
+            continue;
         }
 
-        const fallbackLabel = titleCaseWords(humanizeIdentifier(name)) || name;
-        const title = typeof prop.title === 'string' ? cleanLabel(prop.title) : '';
-        const description =
-            typeof prop.description === 'string' ? cleanLabel(prop.description) : '';
+        const prop = rawProp as JsonSchemaProp;
+        const { type, enumValues } = getFieldType(prop);
 
+        const fallbackLabel = makeLabel(name);
         const stepLabel = getXDextoStepLabel(prop) || fallbackLabel;
+        const question = (prop.title ? cleanLabel(prop.title) : '') || fallbackLabel;
+        const helpText = (prop.description ? cleanLabel(prop.description) : '') || undefined;
 
         result.push({
             name,
             stepLabel,
-            question: title || fallbackLabel,
-            helpText: description || undefined,
+            question,
+            helpText,
             type,
             required: required.includes(name),
             enumValues,
