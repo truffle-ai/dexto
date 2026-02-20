@@ -320,7 +320,15 @@ const NEVER_TRUNCATE_ARGS = new Set(['url', 'task', 'pattern', 'question']);
  * Arguments that should be omitted from tool headers.
  * These are either large blobs (e.g., content/schema) or internal metadata.
  */
-const OMITTED_ARGS = new Set(['__meta', 'content', 'schema']);
+const OMITTED_ARGS = new Set([
+    '__meta',
+    'content',
+    'schema',
+    // edit_file args are redundant with the diff preview
+    'old_string',
+    'new_string',
+    'replace_all',
+]);
 
 /**
  * Formats tool arguments for display.
