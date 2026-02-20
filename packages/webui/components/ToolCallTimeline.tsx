@@ -33,7 +33,6 @@ export interface SubAgentProgress {
 
 export interface ToolCallTimelineProps {
     toolName: string;
-    toolDisplayName?: string;
     presentationSnapshot?: ToolPresentationSnapshotV1;
     toolArgs?: Record<string, unknown>;
     toolResult?: unknown;
@@ -99,7 +98,6 @@ function getSummary(
 
 export function ToolCallTimeline({
     toolName,
-    toolDisplayName,
     presentationSnapshot,
     toolArgs,
     toolResult,
@@ -154,8 +152,7 @@ export function ToolCallTimeline({
     }, [requireApproval, approvalStatus, hasRichUI, isRejected]);
 
     const { displayName: fallbackDisplayName, source: fallbackSource } = stripToolPrefix(toolName);
-    const displayName =
-        presentationSnapshot?.header?.title ?? toolDisplayName ?? fallbackDisplayName;
+    const displayName = presentationSnapshot?.header?.title ?? fallbackDisplayName;
     const source = (() => {
         const snapshotSource = presentationSnapshot?.source;
         if (snapshotSource?.type === 'mcp') {

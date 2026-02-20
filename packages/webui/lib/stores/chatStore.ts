@@ -67,7 +67,6 @@ export interface Message extends Omit<InternalMessage, 'content' | 'role'> {
 
     // Tool-related fields
     toolName?: string;
-    toolDisplayName?: string;
     presentationSnapshot?: ToolPresentationSnapshotV1;
     toolArgs?: Record<string, unknown>;
     toolCallId?: string;
