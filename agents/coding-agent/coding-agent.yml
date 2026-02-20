@@ -168,6 +168,7 @@ tools:
     basePath: "${{dexto.project_dir}}/plans"
   - type: agent-spawner
     maxConcurrentAgents: 5
+    defaultTimeout: 0
     allowSpawning: true
     # List of agent IDs from the registry that can be spawned.
     # Agent metadata (name, description) is pulled from the registry at runtime.
