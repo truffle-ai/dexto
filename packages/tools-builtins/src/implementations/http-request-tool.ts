@@ -63,6 +63,10 @@ const BLOCKED_HOSTNAMES = new Set(['localhost']);
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 const SAFE_DISPATCHER = createSafeDispatcher();
 
+type LookupCallback =
+    | ((err: NodeJS.ErrnoException | null, address: string, family: number) => void)
+    | ((err: NodeJS.ErrnoException | null, addresses: LookupAddress[]) => void);
+
 function isPrivateIpv4(ip: string): boolean {
     const parts = ip.split('.').map((part) => Number(part));
     if (parts.length !== 4 || parts.some((part) => Number.isNaN(part))) {
@@ -113,29 +117,44 @@ function isPrivateAddress(ip: string): boolean {
     return false;
 }
 
-function createSafeDispatcher(): Dispatcher {
-    type LookupCallback =
-        | ((err: NodeJS.ErrnoException | null, address: string, family: number) => void)
-        | ((err: NodeJS.ErrnoException | null, addresses: LookupAddress[]) => void);
+export function createSafeLookup(config?: {
+    dnsLookup?: typeof dns.lookup;
+}): (hostname: string, options: LookupOptions, callback: LookupCallback) => void {
+    const dnsLookup = config?.dnsLookup ?? dns.lookup;
 
-    const lookup = (hostname: string, options: LookupOptions, callback: LookupCallback) => {
+    return (hostname, options, callback) => {
         void (async () => {
-            try {
-                if (BLOCKED_HOSTNAMES.has(hostname) || hostname.endsWith('.localhost')) {
+            const emitError = (err: NodeJS.ErrnoException) => {
+                if (options.all) {
                     (callback as (err: NodeJS.ErrnoException, addresses: LookupAddress[]) => void)(
-                        new DextoRuntimeError(
-                            'HTTP_REQUEST_UNSAFE_TARGET',
-                            ErrorScope.TOOLS,
-                            ErrorType.FORBIDDEN,
-                            `Blocked request to local hostname: ${hostname}`
-                        ),
+                        err,
                         []
                     );
                     return;
                 }
 
+                (callback as (err: NodeJS.ErrnoException, address: string, family: number) => void)(
+                    err,
+                    '',
+                    0
+                );
+            };
+
+            try {
+                if (BLOCKED_HOSTNAMES.has(hostname) || hostname.endsWith('.localhost')) {
+                    emitError(
+                        new DextoRuntimeError(
+                            'HTTP_REQUEST_UNSAFE_TARGET',
+                            ErrorScope.TOOLS,
+                            ErrorType.FORBIDDEN,
+                            `Blocked request to local hostname: ${hostname}`
+                        ) as unknown as NodeJS.ErrnoException
+                    );
+                    return;
+                }
+
                 // Always resolve all addresses so we can validate none are private.
-                const records = (await dns.lookup(hostname, {
+                const records = (await dnsLookup(hostname, {
                     all: true,
                     verbatim: true,
                     family: options.family,
@@ -143,33 +162,26 @@ function createSafeDispatcher(): Dispatcher {
                 })) as LookupAddress[];
 
                 if (!records.length) {
-                    (callback as (err: NodeJS.ErrnoException, addresses: LookupAddress[]) => void)(
+                    emitError(
                         new DextoRuntimeError(
                             'HTTP_REQUEST_DNS_FAILED',
                             ErrorScope.TOOLS,
                             ErrorType.THIRD_PARTY,
                             `Failed to resolve hostname: ${hostname}`
-                        ),
-                        []
+                        ) as unknown as NodeJS.ErrnoException
                     );
                     return;
                 }
 
                 for (const record of records) {
                     if (isPrivateAddress(record.address)) {
-                        (
-                            callback as (
-                                err: NodeJS.ErrnoException,
-                                addresses: LookupAddress[]
-                            ) => void
-                        )(
+                        emitError(
                             new DextoRuntimeError(
                                 'HTTP_REQUEST_UNSAFE_TARGET',
                                 ErrorScope.TOOLS,
                                 ErrorType.FORBIDDEN,
                                 `Blocked request to private address: ${record.address}`
-                            ),
-                            []
+                            ) as unknown as NodeJS.ErrnoException
                         );
                         return;
                     }
@@ -198,13 +210,14 @@ function createSafeDispatcher(): Dispatcher {
                               `Failed to resolve hostname: ${hostname}`
                           );
 
-                (callback as (err: NodeJS.ErrnoException, addresses: LookupAddress[]) => void)(
-                    err,
-                    []
-                );
+                emitError(err as unknown as NodeJS.ErrnoException);
             }
         })();
     };
+}
+
+function createSafeDispatcher(): Dispatcher {
+    const lookup = createSafeLookup();
 
     return new Agent({ connect: { lookup } });
 }

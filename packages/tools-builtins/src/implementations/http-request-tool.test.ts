@@ -1,52 +1,47 @@
+import type { LookupAddress, LookupOptions } from 'node:dns';
 import { describe, expect, it, vi } from 'vitest';
 
-// NOTE: We intentionally import from the source file so the test
-// exercises the exact dispatcher/lookup wiring.
-import { createHttpRequestTool } from './http-request-tool.js';
+// NOTE: We intentionally import from the source file so the test exercises
+// the exact dispatcher/lookup wiring (no barrel exports).
+import { createHttpRequestTool, createSafeLookup } from './http-request-tool.js';
 
 describe('http_request tool', () => {
-    it('can fetch via SAFE_DISPATCHER when undici uses lookup({ all: true })', async () => {
-        type HttpResponsePayload = {
-            ok: boolean;
-            status: number;
-            body: string;
-        };
-
+    it('supports undici lookup({ all: true }) callback signature', async () => {
         // Regression coverage for a subtle bug:
         // undici can call our custom DNS lookup with options.all=true, in which case
         // the callback signature must be (err, addresses[]).
-        //
-        // We spy on dns.lookup but delegate to the real implementation to avoid
-        // pinning example.com to an outdated IP (which can hang/fail).
-        const dns = await import('node:dns');
 
-        const realLookup = dns.promises.lookup.bind(dns.promises);
-        const lookupSpy = vi.spyOn(dns.promises, 'lookup').mockImplementation(((
-            hostname: string,
-            options: unknown
-        ) => {
-            return realLookup(hostname, options as never) as never;
-        }) as never);
+        const records: LookupAddress[] = [
+            { address: '93.184.216.34', family: 4 },
+            { address: '2606:2800:220:1:248:1893:25c8:1946', family: 6 },
+        ];
 
-        const tool = createHttpRequestTool();
-        const result = (await tool.execute(
-            {
-                url: 'https://example.com',
-                method: 'GET',
-                timeoutMs: 15_000,
-            },
-            // ToolExecutionContext is not used by this tool.
-            {} as never
-        )) as HttpResponsePayload;
+        const dnsLookup = vi.fn().mockResolvedValue(records);
+        const safeLookup = createSafeLookup({ dnsLookup });
 
-        expect(lookupSpy).toHaveBeenCalled();
-        expect(result).toMatchObject({
-            ok: true,
-            status: 200,
+        const result = await new Promise<LookupAddress[]>((resolve, reject) => {
+            safeLookup(
+                'example.com',
+                { all: true } as LookupOptions,
+                ((err: NodeJS.ErrnoException | null, addresses: LookupAddress[]) => {
+                    if (err) {
+                        reject(err);
+                        return;
+                    }
+                    resolve(addresses);
+                }) as never
+            );
         });
-        expect(typeof result.body).toBe('string');
-        expect(result.body.length).toBeGreaterThan(0);
-    }, 20_000);
+
+        expect(dnsLookup).toHaveBeenCalledWith(
+            'example.com',
+            expect.objectContaining({
+                all: true,
+                verbatim: true,
+            })
+        );
+        expect(result).toEqual(records);
+    });
 
     it('blocks localhost hostnames', async () => {
         const tool = createHttpRequestTool();
