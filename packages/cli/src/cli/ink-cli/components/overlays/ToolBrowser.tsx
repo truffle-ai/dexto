@@ -716,19 +716,29 @@ const ToolBrowser = forwardRef<ToolBrowserHandle, ToolBrowserProps>(function Too
 
                           const actualIndex = scrollOffset + rowIndex;
                           const isSelected = actualIndex === selectedIndex;
-                          const prefix = `${isSelected ? '›' : ' '} ${tool.isEnabled ? '✓' : '×'} ${
-                              tool.source === 'local' ? 'L' : 'M'
-                          } ${tool.isAutoApproved ? '⚡' : ' '}`;
 
                           return (
                               <Box key={tool.name} paddingX={0} paddingY={0}>
-                                  <Text
-                                      color={isSelected ? 'cyan' : 'gray'}
-                                      bold={isSelected}
-                                      wrap="truncate-end"
-                                  >
-                                      {prefix} {tool.name}
+                                  <Text color={isSelected ? 'cyan' : 'white'}>
+                                      {isSelected ? '▶ ' : '  '}
                                   </Text>
+                                  <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected}>
+                                      {truncateText(tool.name, 35)}
+                                  </Text>
+                                  <Text color={tool.source === 'local' ? 'magenta' : 'blue'}>
+                                      {' '}
+                                      [{tool.source === 'local' ? 'Local' : 'MCP'}]
+                                  </Text>
+                                  {tool.serverName && (
+                                      <Text color="gray"> ({tool.serverName})</Text>
+                                  )}
+                                  <Text color={tool.isEnabled ? 'green' : 'red'}>
+                                      {' '}
+                                      {tool.isEnabled ? 'Enabled' : 'Disabled'}
+                                  </Text>
+                                  {tool.isAutoApproved && (
+                                      <Text color="yellow"> [auto-approved]</Text>
+                                  )}
                               </Box>
                           );
                       })}
