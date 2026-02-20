@@ -619,6 +619,9 @@ export async function processStream(
                         ...(event.toolDisplayName !== undefined && {
                             toolDisplayName: event.toolDisplayName,
                         }),
+                        ...(event.presentationSnapshot !== undefined && {
+                            presentationSnapshot: event.presentationSnapshot,
+                        }),
                     });
 
                     // Add call description if present (dim styling, on new line)

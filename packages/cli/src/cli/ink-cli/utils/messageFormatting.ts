@@ -5,7 +5,13 @@
 
 import path from 'path';
 import os from 'os';
-import type { DextoAgent, InternalMessage, ContentPart, ToolCall } from '@dexto/core';
+import type {
+    DextoAgent,
+    InternalMessage,
+    ContentPart,
+    ToolCall,
+    ToolPresentationSnapshotV1,
+} from '@dexto/core';
 import { isTextPart, isAssistantMessage, isToolMessage } from '@dexto/core';
 import type { Message } from '../state/types.js';
 
@@ -238,38 +244,14 @@ export function formatToolHeader(options: {
     toolName: string;
     args: Record<string, unknown>;
     toolDisplayName?: string;
+    presentationSnapshot?: ToolPresentationSnapshotV1;
 }): FormattedToolHeader {
-    const { toolName, args, toolDisplayName } = options;
+    const { toolName, args, toolDisplayName, presentationSnapshot } = options;
 
-    let displayName = toolDisplayName ?? getToolDisplayName(toolName);
-    const argsFormatted = formatToolArgsForDisplay(toolName, args);
+    const snapshotHeader = presentationSnapshot?.header;
+    let displayName = snapshotHeader?.title ?? toolDisplayName ?? getToolDisplayName(toolName);
+    const argsFormatted = snapshotHeader?.primaryText ?? formatToolArgsForDisplay(toolName, args);
     const badge = getToolTypeBadge(toolName);
-
-    // TODO: Move tool-specific header formatting into tool display metadata, so the CLI doesn't
-    // need to special-case tool IDs here.
-    // Special handling for spawn_agent: use agentId as display name
-    const isSpawnAgent = toolName === 'spawn_agent';
-    if (isSpawnAgent && args.agentId) {
-        const agentId = String(args.agentId);
-        const agentLabel = agentId.replace(/-agent$/, '');
-        displayName = agentLabel.charAt(0).toUpperCase() + agentLabel.slice(1);
-    }
-
-    // Special handling for invoke_skill: show skill as /skill-name
-    const isInvokeSkill = toolName === 'invoke_skill';
-    if (isInvokeSkill && args.skill) {
-        const skillName = String(args.skill);
-        // Extract display name from skill identifier (e.g., "config:test-fork" -> "test-fork")
-        const colonIndex = skillName.indexOf(':');
-        const displaySkillName = colonIndex >= 0 ? skillName.slice(colonIndex + 1) : skillName;
-        // Override args display to show clean slash command format
-        return {
-            displayName: 'Skill',
-            argsFormatted: `/${displaySkillName}`,
-            badge,
-            header: `Skill(/${displaySkillName})`,
-        };
-    }
 
     // Only show badge for MCP tools (external tools worth distinguishing)
     const isMcpTool = badge.startsWith('MCP');

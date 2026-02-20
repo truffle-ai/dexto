@@ -7,7 +7,7 @@ import React, {
     useMemo,
 } from 'react';
 import { Box, Text } from 'ink';
-import type { ToolDisplayData, ElicitationMetadata } from '@dexto/core';
+import type { ToolDisplayData, ElicitationMetadata, ToolPresentationSnapshotV1 } from '@dexto/core';
 import type { Key } from '../hooks/useInputOrchestrator.js';
 import { ElicitationForm, type ElicitationFormHandle } from './ElicitationForm.js';
 import { DiffPreview, CreateFilePreview } from './renderers/index.js';
@@ -121,14 +121,27 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         const isEditOrWriteTool = isEditWriteTool(toolName);
 
         // Format tool header using shared utility (same format as tool messages)
+        const presentationSnapshot = useMemo(() => {
+            const raw = (approval.metadata as { presentationSnapshot?: unknown })
+                .presentationSnapshot;
+            if (typeof raw !== 'object' || raw === null) {
+                return undefined;
+            }
+            if ((raw as { version?: unknown }).version !== 1) {
+                return undefined;
+            }
+            return raw as ToolPresentationSnapshotV1;
+        }, [approval.metadata]);
+
         const formattedTool = useMemo(() => {
             if (!toolName) return null;
             return formatToolHeader({
                 toolName,
                 args: toolArgs,
                 ...(toolDisplayName !== undefined && { toolDisplayName }),
+                ...(presentationSnapshot !== undefined && { presentationSnapshot }),
             });
-        }, [toolName, toolDisplayName, toolArgs]);
+        }, [toolName, toolDisplayName, toolArgs, presentationSnapshot]);
 
         const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -417,6 +430,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                       args:
                           (directoryPath ?? parentDir) ? { path: directoryPath ?? parentDir } : {},
                       ...(toolDisplayName !== undefined && { toolDisplayName }),
+                      ...(presentationSnapshot !== undefined && { presentationSnapshot }),
                   }).header;
 
         const showHeaderBlock = isDirectoryAccess || isCommandConfirmation || !displayPreview;

@@ -617,6 +617,56 @@ export class ToolManager {
         return snapshot;
     }
 
+    private getToolPresentationSnapshotForToolCallEvent(
+        toolName: string,
+        args: Record<string, unknown>,
+        toolCallId: string,
+        sessionId?: string
+    ): ToolPresentationSnapshotV1 {
+        const toolDisplayName = this.getToolDisplayNameForUi(toolName);
+        const fallback = this.buildGenericToolPresentationSnapshot(toolName, toolDisplayName);
+
+        if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
+            return fallback;
+        }
+
+        const describeCall = this.getToolDescribeCallFn(toolName);
+        if (!describeCall) {
+            return fallback;
+        }
+
+        try {
+            const validatedArgs = this.validateLocalToolArgs(toolName, args);
+            const context = this.buildToolExecutionContext({ sessionId, toolCallId });
+
+            const described = describeCall(validatedArgs, context);
+
+            const isPromiseLike = (value: unknown): value is PromiseLike<unknown> => {
+                if (typeof value !== 'object' || value === null) {
+                    return false;
+                }
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                return typeof (value as any).then === 'function';
+            };
+
+            if (isPromiseLike(described)) {
+                return fallback;
+            }
+
+            if (described && described.version === 1) {
+                return described;
+            }
+            return fallback;
+        } catch (error) {
+            this.logger.debug(
+                `Tool presentation snapshot generation failed for '${toolName}': ${
+                    error instanceof Error ? error.message : String(error)
+                }`
+            );
+            return fallback;
+        }
+    }
+
     private async getToolPresentationSnapshotForCall(
         toolName: string,
         args: Record<string, unknown>,
@@ -1075,9 +1125,11 @@ export class ToolManager {
         // before our iterator processes the queued tool-call. By emitting here, we guarantee llm:tool-call
         // arrives before approval:request.
         if (sessionId) {
-            const presentationSnapshot = this.buildGenericToolPresentationSnapshot(
+            const presentationSnapshot = this.getToolPresentationSnapshotForToolCallEvent(
                 toolName,
-                toolDisplayName
+                toolArgs,
+                toolCallId,
+                sessionId
             );
             this.agentEventBus.emit('llm:tool-call', {
                 toolName,

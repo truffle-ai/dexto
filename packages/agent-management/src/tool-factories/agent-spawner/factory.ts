@@ -299,6 +299,22 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                     ensureToolsInitialized(context).spawnAgent.execute(input, context),
                 presentation: {
                     displayName: 'Agent',
+                    describeCall: (input) => {
+                        const agentId =
+                            typeof input.agentId === 'string' ? input.agentId : undefined;
+                        const agentLabel = agentId ? agentId.replace(/-agent$/, '') : undefined;
+                        const title = agentLabel
+                            ? agentLabel.charAt(0).toUpperCase() + agentLabel.slice(1)
+                            : 'Agent';
+
+                        return {
+                            version: 1,
+                            source: { type: 'local' },
+                            header: {
+                                title,
+                            },
+                        };
+                    },
                     preview: async (input, context) => {
                         const tool = ensureToolsInitialized(context).spawnAgent;
                         const previewFn = tool.presentation?.preview ?? tool.generatePreview;

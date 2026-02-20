@@ -34,6 +34,21 @@ export function createInvokeSkillTool(): Tool<typeof InvokeSkillInputSchema> {
         inputSchema: InvokeSkillInputSchema,
         presentation: {
             displayName: 'Skill',
+            describeCall: (input) => {
+                const skillName = input.skill;
+                const colonIndex = skillName.indexOf(':');
+                const displaySkillName =
+                    colonIndex >= 0 ? skillName.slice(colonIndex + 1) : skillName;
+
+                return {
+                    version: 1,
+                    source: { type: 'local' },
+                    header: {
+                        title: 'Skill',
+                        primaryText: `/${displaySkillName}`,
+                    },
+                };
+            },
         },
         async execute(input, context: ToolExecutionContext) {
             const { skill, args, taskContext } = input;

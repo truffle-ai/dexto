@@ -61,6 +61,20 @@ export function createSpawnAgentTool(
 
         presentation: {
             displayName: 'Agent',
+            describeCall: (input) => {
+                const agentLabel = input.agentId ? input.agentId.replace(/-agent$/, '') : null;
+                const title = agentLabel
+                    ? agentLabel.charAt(0).toUpperCase() + agentLabel.slice(1)
+                    : 'Agent';
+
+                return {
+                    version: 1,
+                    source: { type: 'local' },
+                    header: {
+                        title,
+                    },
+                };
+            },
         },
 
         inputSchema: SpawnAgentInputSchema,
