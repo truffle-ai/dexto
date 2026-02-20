@@ -6,11 +6,7 @@ import type { JSONSchema7 } from 'json-schema';
 import type { z, ZodTypeAny } from 'zod';
 import type { ToolDisplayData } from './display-types.js';
 import type { WorkspaceContext } from '../workspace/types.js';
-import type {
-    ApprovalRequestDetails,
-    ApprovalResponse,
-    DirectoryAccessMetadata,
-} from '../approval/types.js';
+import type { ApprovalRequestDetails, ApprovalResponse } from '../approval/types.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import type { DextoAgent } from '../agent/DextoAgent.js';
 import type { Cache } from '../storage/cache/types.js';
@@ -162,14 +158,6 @@ export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
      * - Include this metadata in the tool approval request (UI can offer a "remember directory" option)
      * - Force manual approval even if the tool itself is otherwise auto-approved,
      *   unless the directory is already session-approved.
-     *
-     * Return null to indicate no special directory access prompt is needed.
-     */
-    getDirectoryAccessMetadata?(
-        input: z.output<TSchema>,
-        context: ToolExecutionContext
-    ): Promise<DirectoryAccessMetadata | null> | DirectoryAccessMetadata | null;
-
     /**
      * Optional aliases for this tool id.
      *

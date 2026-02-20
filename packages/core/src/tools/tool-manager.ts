@@ -739,43 +739,6 @@ export class ToolManager {
         return validated as Record<string, unknown>;
     }
 
-    private async getToolDirectoryAccessMetadata(
-        toolName: string,
-        args: Record<string, unknown>,
-        toolCallId: string,
-        sessionId?: string
-    ): Promise<DirectoryAccessMetadata | undefined> {
-        if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
-            return undefined;
-        }
-
-        const tool = this.agentTools.get(toolName);
-        if (!tool?.getDirectoryAccessMetadata) {
-            return undefined;
-        }
-
-        const context = this.buildToolExecutionContext({ sessionId, toolCallId });
-        const metadata = await tool.getDirectoryAccessMetadata(args, context);
-        if (!metadata) {
-            return undefined;
-        }
-
-        if (
-            typeof metadata !== 'object' ||
-            metadata === null ||
-            typeof metadata.path !== 'string' ||
-            typeof metadata.parentDir !== 'string' ||
-            typeof metadata.operation !== 'string' ||
-            typeof metadata.toolName !== 'string'
-        ) {
-            throw ToolError.configInvalid(
-                `Tool '${toolName}' returned invalid directory access metadata`
-            );
-        }
-
-        return metadata;
-    }
-
     private async executeLocalTool(
         toolName: string,
         args: Record<string, unknown>,
@@ -1394,20 +1357,13 @@ export class ToolManager {
         args: Record<string, unknown>;
     }> {
         const validatedArgs = this.validateLocalToolArgsOrThrow(toolName, args);
-        const directoryAccess = await this.getToolDirectoryAccessMetadata(
-            toolName,
-            validatedArgs,
-            toolCallId,
-            sessionId
-        );
 
         // Try quick resolution first (auto-approve/deny based on policies)
         const quickResult = await this.tryQuickApprovalResolution(
             toolName,
             validatedArgs,
             toolCallId,
-            sessionId,
-            directoryAccess
+            sessionId
         );
         if (quickResult !== null) {
             return { ...quickResult, args: validatedArgs };
@@ -1419,7 +1375,6 @@ export class ToolManager {
             validatedArgs,
             toolCallId,
             sessionId,
-            directoryAccess,
             callDescription
         );
         return { ...manualResult, args: validatedArgs };
@@ -1443,8 +1398,7 @@ export class ToolManager {
         toolName: string,
         args: Record<string, unknown>,
         toolCallId: string,
-        sessionId?: string,
-        directoryAccess?: DirectoryAccessMetadata | undefined
+        sessionId?: string
     ): Promise<{ requireApproval: boolean; approvalStatus?: 'approved' } | null> {
         // 1. Check static alwaysDeny list (highest priority - security-first)
         if (this.isInAlwaysDenyList(toolName)) {
@@ -1454,7 +1408,7 @@ export class ToolManager {
             throw ToolError.executionDenied(toolName, sessionId);
         }
 
-        // 2. Check custom approval override
+        // 2. Check custom approval override (includes directory access via getApprovalOverride)
         const customApprovalResult = await this.checkCustomApprovalOverride(
             toolName,
             args,
@@ -1463,16 +1417,6 @@ export class ToolManager {
         );
         if (customApprovalResult === 'replace') {
             return { requireApproval: true, approvalStatus: 'approved' };
-        }
-
-        // 3. Directory access: require explicit tool approval unless the directory is already session-approved.
-        // This bypasses remembered-tool approvals and edit-mode auto-approvals for outside-root paths.
-        if (directoryAccess) {
-            if (this.approvalMode === 'auto-approve') {
-                this.approvalManager.addApprovedDirectory(directoryAccess.parentDir, 'once');
-                return { requireApproval: false };
-            }
-            return null;
         }
 
         // 4. Check session auto-approve (skill allowed-tools)
@@ -1532,7 +1476,6 @@ export class ToolManager {
         args: Record<string, unknown>,
         toolCallId: string,
         sessionId?: string,
-        directoryAccess?: DirectoryAccessMetadata | undefined,
         callDescription?: string
     ): Promise<{ requireApproval: boolean; approvalStatus: 'approved' | 'rejected' }> {
         this.logger.info(
@@ -1561,19 +1504,8 @@ export class ToolManager {
                 ...(callDescription !== undefined && { description: callDescription }),
                 ...(sessionId !== undefined && { sessionId }),
                 ...(displayPreview !== undefined && { displayPreview }),
-                ...(directoryAccess !== undefined && { directoryAccess }),
                 ...(suggestedPatterns !== undefined && { suggestedPatterns }),
             });
-
-            // Handle directory access choice (if present) BEFORE tool execution.
-            if (response.status === ApprovalStatus.APPROVED && directoryAccess) {
-                const data = response.data as { rememberDirectory?: boolean } | undefined;
-                const rememberDirectory = data?.rememberDirectory ?? false;
-                this.approvalManager.addApprovedDirectory(
-                    directoryAccess.parentDir,
-                    rememberDirectory ? 'session' : 'once'
-                );
-            }
 
             // Handle "remember" choices if approved
             if (response.status === ApprovalStatus.APPROVED && response.data) {

@@ -113,14 +113,14 @@ describe('Directory Approval Integration Tests', () => {
         }
     });
 
-    describe('getDirectoryAccessMetadata', () => {
+    describe('getApprovalOverride', () => {
         it('should return null for paths within config-allowed roots', async () => {
             const tool = createReadFileTool(getFileSystemService);
 
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'test content');
 
-            const metadata = await tool.getDirectoryAccessMetadata?.(
+            const metadata = await tool.getApprovalOverride?.(
                 tool.inputSchema.parse({ file_path: testFile }),
                 toolContext
             );
@@ -132,17 +132,20 @@ describe('Directory Approval Integration Tests', () => {
 
             const externalPath = '/external/project/file.ts';
 
-            const metadata = await tool.getDirectoryAccessMetadata?.(
+            const metadata = await tool.getApprovalOverride?.(
                 tool.inputSchema.parse({ file_path: externalPath }),
                 toolContext
             );
 
             expect(metadata).not.toBeNull();
-            expect(metadata).toEqual({
-                path: path.resolve(externalPath),
-                parentDir: path.dirname(path.resolve(externalPath)),
-                operation: 'read',
-                toolName: 'read_file',
+            expect(metadata).toMatchObject({
+                type: 'directory_access',
+                metadata: {
+                    path: path.resolve(externalPath),
+                    parentDir: path.dirname(path.resolve(externalPath)),
+                    operation: 'read',
+                    toolName: 'read_file',
+                },
             });
         });
 
@@ -152,7 +155,7 @@ describe('Directory Approval Integration Tests', () => {
             const tool = createReadFileTool(getFileSystemService);
             const externalPath = '/external/project/file.ts';
 
-            const metadata = await tool.getDirectoryAccessMetadata?.(
+            const metadata = await tool.getApprovalOverride?.(
                 tool.inputSchema.parse({ file_path: externalPath }),
                 toolContext
             );
@@ -165,7 +168,7 @@ describe('Directory Approval Integration Tests', () => {
             const tool = createReadFileTool(getFileSystemService);
             const externalPath = '/external/project/file.ts';
 
-            const metadata = await tool.getDirectoryAccessMetadata?.(
+            const metadata = await tool.getApprovalOverride?.(
                 tool.inputSchema.parse({ file_path: externalPath }),
                 toolContext
             );
@@ -178,17 +181,20 @@ describe('Directory Approval Integration Tests', () => {
             const tool = createWriteFileTool(getFileSystemService);
             const externalPath = '/external/project/new.ts';
 
-            const metadata = await tool.getDirectoryAccessMetadata?.(
+            const metadata = await tool.getApprovalOverride?.(
                 tool.inputSchema.parse({ file_path: externalPath, content: 'test' }),
                 toolContext
             );
 
             expect(metadata).not.toBeNull();
-            expect(metadata).toEqual({
-                path: path.resolve(externalPath),
-                parentDir: path.dirname(path.resolve(externalPath)),
-                operation: 'write',
-                toolName: 'write_file',
+            expect(metadata).toMatchObject({
+                type: 'directory_access',
+                metadata: {
+                    path: path.resolve(externalPath),
+                    parentDir: path.dirname(path.resolve(externalPath)),
+                    operation: 'write',
+                    toolName: 'write_file',
+                },
             });
         });
 
@@ -196,7 +202,7 @@ describe('Directory Approval Integration Tests', () => {
             const tool = createEditFileTool(getFileSystemService);
             const externalPath = '/external/project/existing.ts';
 
-            const metadata = await tool.getDirectoryAccessMetadata?.(
+            const metadata = await tool.getApprovalOverride?.(
                 tool.inputSchema.parse({
                     file_path: externalPath,
                     old_string: 'old',
@@ -206,11 +212,14 @@ describe('Directory Approval Integration Tests', () => {
             );
 
             expect(metadata).not.toBeNull();
-            expect(metadata).toEqual({
-                path: path.resolve(externalPath),
-                parentDir: path.dirname(path.resolve(externalPath)),
-                operation: 'edit',
-                toolName: 'edit_file',
+            expect(metadata).toMatchObject({
+                type: 'directory_access',
+                metadata: {
+                    path: path.resolve(externalPath),
+                    parentDir: path.dirname(path.resolve(externalPath)),
+                    operation: 'edit',
+                    toolName: 'edit_file',
+                },
             });
         });
     });
@@ -220,13 +229,13 @@ describe('Directory Approval Integration Tests', () => {
             const tool = createReadFileTool(getFileSystemService);
             approvalManager.addApprovedDirectory('/external/project', 'session');
 
-            const metadata1 = await tool.getDirectoryAccessMetadata?.(
+            const metadata1 = await tool.getApprovalOverride?.(
                 tool.inputSchema.parse({ file_path: '/external/project/file.ts' }),
                 toolContext
             );
             expect(metadata1).toBeNull();
 
-            const metadata2 = await tool.getDirectoryAccessMetadata?.(
+            const metadata2 = await tool.getApprovalOverride?.(
                 tool.inputSchema.parse({ file_path: '/external/project/deep/nested/file.ts' }),
                 toolContext
             );
@@ -237,13 +246,13 @@ describe('Directory Approval Integration Tests', () => {
             const tool = createReadFileTool(getFileSystemService);
             approvalManager.addApprovedDirectory('/external/sub', 'session');
 
-            const metadata1 = await tool.getDirectoryAccessMetadata?.(
+            const metadata1 = await tool.getApprovalOverride?.(
                 tool.inputSchema.parse({ file_path: '/external/sub/file.ts' }),
                 toolContext
             );
             expect(metadata1).toBeNull();
 
-            const metadata2 = await tool.getDirectoryAccessMetadata?.(
+            const metadata2 = await tool.getApprovalOverride?.(
                 tool.inputSchema.parse({ file_path: '/external/other/file.ts' }),
                 toolContext
             );
@@ -257,7 +266,7 @@ describe('Directory Approval Integration Tests', () => {
 
             const contextWithoutApprovalManager: ToolExecutionContext = { logger: mockLogger };
             await expect(
-                tool.getDirectoryAccessMetadata?.(
+                tool.getApprovalOverride?.(
                     tool.inputSchema.parse({ file_path: '/external/project/file.ts' }),
                     contextWithoutApprovalManager
                 )

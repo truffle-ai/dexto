@@ -9,7 +9,7 @@ import { ErrorScope, ErrorType } from '../errors/types.js';
 import { AgentEventBus } from '../events/index.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import type { AllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
-import { ApprovalStatus } from '../approval/types.js';
+import { ApprovalStatus, ApprovalType } from '../approval/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 
 // Mock logger
@@ -415,14 +415,20 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                         file_path: z.string(),
                     })
                     .strict(),
-                getDirectoryAccessMetadata: vi.fn().mockImplementation(async () => {
-                    callOrder.push('getDirectoryAccessMetadata');
+                getApprovalOverride: vi.fn().mockImplementation(async () => {
+                    callOrder.push('getApprovalOverride');
                     return {
-                        path: '/tmp/example.txt',
-                        parentDir: '/tmp',
-                        operation: 'read',
-                        toolName: 'fs_like_tool',
+                        type: ApprovalType.DIRECTORY_ACCESS,
+                        metadata: {
+                            path: '/tmp/example.txt',
+                            parentDir: '/tmp',
+                            operation: 'read',
+                            toolName: 'fs_like_tool',
+                        },
                     };
+                }),
+                onApprovalGranted: vi.fn().mockImplementation(async () => {
+                    callOrder.push('onApprovalGranted');
                 }),
                 generatePreview: vi.fn().mockImplementation(async () => {
                     callOrder.push('generatePreview');
@@ -434,8 +440,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 }),
             });
 
-            (mockApprovalManager.requestToolApproval as any).mockImplementation(async () => {
-                callOrder.push('requestToolApproval');
+            (mockApprovalManager.requestApproval as any).mockImplementation(async () => {
+                callOrder.push('requestApproval');
                 return {
                     approvalId: 'test-approval-id',
                     status: ApprovalStatus.APPROVED,
@@ -473,31 +479,24 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             });
 
             expect(mockAllowedToolsProvider.isToolAllowed).not.toHaveBeenCalled();
-            expect(mockApprovalManager.requestToolApproval).toHaveBeenCalledWith(
+            // When getApprovalOverride returns a value, it calls requestApproval directly
+            expect(mockApprovalManager.requestApproval).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    toolName: 'fs_like_tool',
-                    toolCallId: 'call-1',
-                    sessionId: 'session-1',
-                    args: { file_path: '/tmp/example.txt' },
-                    directoryAccess: {
+                    type: ApprovalType.DIRECTORY_ACCESS,
+                    metadata: expect.objectContaining({
                         path: '/tmp/example.txt',
                         parentDir: '/tmp',
                         operation: 'read',
-                        toolName: 'fs_like_tool',
-                    },
+                    }),
                 })
             );
-            expect(mockApprovalManager.addApprovedDirectory).toHaveBeenCalledWith(
-                '/tmp',
-                'session'
-            );
+            expect(mockApprovalManager.addApprovedDirectory).not.toHaveBeenCalled();
 
-            // Directory metadata is gathered first, then tool preview + tool approval, then execution.
+            // Directory access goes through getApprovalOverride → requestApproval → onApprovalGranted → execute
             expect(callOrder).toEqual([
-                'getDirectoryAccessMetadata',
-                'generatePreview',
-                'requestToolApproval',
-                'addApprovedDirectory',
+                'getApprovalOverride',
+                'requestApproval',
+                'onApprovalGranted',
                 'execute',
             ]);
         });
