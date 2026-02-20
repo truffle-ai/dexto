@@ -109,10 +109,12 @@ export function createViewLogsTool(options: {
 }): Tool<typeof ViewLogsInputSchema> {
     return defineTool({
         id: 'view_logs',
-        displayName: 'View Logs',
         description:
             'View this session log file (tail). Returns the most recent log lines for debugging. If file logging is not configured, returns a message instead.',
         inputSchema: ViewLogsInputSchema,
+        presentation: {
+            displayName: 'View Logs',
+        },
         async execute(parsed, context: ToolExecutionContext) {
             const logFilePath = context.logger.getLogFilePath();
             if (!logFilePath) {

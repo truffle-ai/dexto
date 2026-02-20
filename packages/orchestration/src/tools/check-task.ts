@@ -52,12 +52,12 @@ export interface CheckTaskOutput {
 export function createCheckTaskTool(taskRegistry: TaskRegistry): Tool<typeof CheckTaskInputSchema> {
     return {
         id: 'check_task',
-        displayName: 'Check Task',
         description:
             'Check the status of a background task. ' +
             'Returns immediately without waiting. ' +
             'Use this to poll task status or check if a task is done.',
         inputSchema: CheckTaskInputSchema,
+        presentation: { displayName: 'Check Task' },
         execute: async (input, _context): Promise<CheckTaskOutput> => {
             const info = taskRegistry.getInfo(input.taskId);
 

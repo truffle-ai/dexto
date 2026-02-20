@@ -30,9 +30,11 @@ const InvokeSkillInputSchema = z
 export function createInvokeSkillTool(): Tool<typeof InvokeSkillInputSchema> {
     return defineTool({
         id: 'invoke_skill',
-        displayName: 'Skill',
         description: buildToolDescription(),
         inputSchema: InvokeSkillInputSchema,
+        presentation: {
+            displayName: 'Skill',
+        },
         async execute(input, context: ToolExecutionContext) {
             const { skill, args, taskContext } = input;
 

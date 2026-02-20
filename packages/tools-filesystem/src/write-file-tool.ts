@@ -84,7 +84,6 @@ export function createWriteFileTool(
 ): Tool<typeof WriteFileInputSchema> {
     return defineTool({
         id: 'write_file',
-        displayName: 'Write',
         aliases: ['write'],
         description:
             'Write content to a file. Creates a new file or overwrites existing file. Automatically creates backup of existing files before overwriting. Use create_dirs to create parent directories. Requires approval for all write operations. Returns success status, path, bytes written, and backup path if applicable.',
@@ -93,80 +92,87 @@ export function createWriteFileTool(
         ...createDirectoryAccessApprovalHandlers({
             toolName: 'write_file',
             operation: 'write',
+            inputSchema: WriteFileInputSchema,
             getFileSystemService,
             resolvePaths: (input, fileSystemService) =>
                 resolveFilePath(fileSystemService.getWorkingDirectory(), input.file_path),
         }),
 
-        /**
-         * Generate preview for approval UI - shows diff or file creation info
-         * Stores content hash for change detection in execute phase.
-         */
-        async generatePreview(input, context: ToolExecutionContext) {
-            const { file_path, content } = input;
+        presentation: {
+            displayName: 'Write',
 
-            const resolvedFileSystemService = await getFileSystemService(context);
-            const { path: resolvedPath } = resolveFilePath(
-                resolvedFileSystemService.getWorkingDirectory(),
-                file_path
-            );
+            /**
+             * Generate preview for approval UI - shows diff or file creation info
+             * Stores content hash for change detection in execute phase.
+             */
+            preview: async (input, context: ToolExecutionContext) => {
+                const { file_path, content } = input;
 
-            try {
-                // Try to read existing file
-                let originalContent: string;
+                const resolvedFileSystemService = await getFileSystemService(context);
+                const { path: resolvedPath } = resolveFilePath(
+                    resolvedFileSystemService.getWorkingDirectory(),
+                    file_path
+                );
+
                 try {
-                    const originalFile = await resolvedFileSystemService.readFile(resolvedPath);
-                    originalContent = originalFile.content;
+                    // Try to read existing file
+                    let originalContent: string;
+                    try {
+                        const originalFile = await resolvedFileSystemService.readFile(resolvedPath);
+                        originalContent = originalFile.content;
+                    } catch (error) {
+                        if (
+                            error instanceof DextoRuntimeError &&
+                            error.code === FileSystemErrorCode.INVALID_PATH
+                        ) {
+                            const originalFile =
+                                await resolvedFileSystemService.readFileForToolPreview(
+                                    resolvedPath
+                                );
+                            originalContent = originalFile.content;
+                        } else {
+                            throw error;
+                        }
+                    }
+
+                    // Store content hash for change detection in execute phase
+                    if (context.toolCallId) {
+                        previewContentHashCache.set(
+                            context.toolCallId,
+                            computeContentHash(originalContent)
+                        );
+                    }
+
+                    // File exists - show diff preview
+                    return generateDiffPreview(resolvedPath, originalContent, content);
                 } catch (error) {
+                    // Only treat FILE_NOT_FOUND as "create new file", rethrow other errors
                     if (
                         error instanceof DextoRuntimeError &&
-                        error.code === FileSystemErrorCode.INVALID_PATH
+                        error.code === FileSystemErrorCode.FILE_NOT_FOUND
                     ) {
-                        const originalFile =
-                            await resolvedFileSystemService.readFileForToolPreview(resolvedPath);
-                        originalContent = originalFile.content;
-                    } else {
-                        throw error;
+                        // Store marker that file didn't exist at preview time
+                        if (context.toolCallId) {
+                            previewContentHashCache.set(context.toolCallId, FILE_NOT_EXISTS_MARKER);
+                        }
+
+                        // File doesn't exist - show as file creation with full content
+                        const lineCount = content.split('\n').length;
+                        const preview: FileDisplayData = {
+                            type: 'file',
+                            title: 'Create file',
+                            path: resolvedPath,
+                            operation: 'create',
+                            size: Buffer.byteLength(content, 'utf8'),
+                            lineCount,
+                            content, // Include content for approval preview
+                        };
+                        return preview;
                     }
+                    // Permission denied, I/O errors, etc. - rethrow
+                    throw error;
                 }
-
-                // Store content hash for change detection in execute phase
-                if (context.toolCallId) {
-                    previewContentHashCache.set(
-                        context.toolCallId,
-                        computeContentHash(originalContent)
-                    );
-                }
-
-                // File exists - show diff preview
-                return generateDiffPreview(resolvedPath, originalContent, content);
-            } catch (error) {
-                // Only treat FILE_NOT_FOUND as "create new file", rethrow other errors
-                if (
-                    error instanceof DextoRuntimeError &&
-                    error.code === FileSystemErrorCode.FILE_NOT_FOUND
-                ) {
-                    // Store marker that file didn't exist at preview time
-                    if (context.toolCallId) {
-                        previewContentHashCache.set(context.toolCallId, FILE_NOT_EXISTS_MARKER);
-                    }
-
-                    // File doesn't exist - show as file creation with full content
-                    const lineCount = content.split('\n').length;
-                    const preview: FileDisplayData = {
-                        type: 'file',
-                        title: 'Create file',
-                        path: resolvedPath,
-                        operation: 'create',
-                        size: Buffer.byteLength(content, 'utf8'),
-                        lineCount,
-                        content, // Include content for approval preview
-                    };
-                    return preview;
-                }
-                // Permission denied, I/O errors, etc. - rethrow
-                throw error;
-            }
+            },
         },
 
         async execute(input, context: ToolExecutionContext) {

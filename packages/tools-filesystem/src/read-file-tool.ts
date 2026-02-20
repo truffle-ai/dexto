@@ -36,15 +36,19 @@ export function createReadFileTool(
 ): Tool<typeof ReadFileInputSchema> {
     return defineTool({
         id: 'read_file',
-        displayName: 'Read',
         aliases: ['read'],
         description:
             'Read the contents of a file with optional pagination. Returns file content, line count, encoding, and whether the output was truncated. Use limit and offset parameters for large files to read specific sections. This tool is for reading files within allowed paths only.',
         inputSchema: ReadFileInputSchema,
 
+        presentation: {
+            displayName: 'Read',
+        },
+
         ...createDirectoryAccessApprovalHandlers({
             toolName: 'read_file',
             operation: 'read',
+            inputSchema: ReadFileInputSchema,
             getFileSystemService,
             resolvePaths: (input, fileSystemService) =>
                 resolveFilePath(fileSystemService.getWorkingDirectory(), input.file_path),

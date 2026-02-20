@@ -29,9 +29,9 @@ const MemoryListInputSchema = z
 export function createMemoryListTool(): Tool<typeof MemoryListInputSchema> {
     return defineTool({
         id: 'memory_list',
-        displayName: 'List Memories',
         description: 'List stored memories for this agent, with optional filtering.',
         inputSchema: MemoryListInputSchema,
+        presentation: { displayName: 'List Memories' },
         async execute(input, context: ToolExecutionContext) {
             const agent = context.agent;
             if (!agent) {
@@ -58,9 +58,9 @@ const MemoryGetInputSchema = z.object({ id: z.string().describe('Memory ID') }).
 export function createMemoryGetTool(): Tool<typeof MemoryGetInputSchema> {
     return defineTool({
         id: 'memory_get',
-        displayName: 'Get Memory',
         description: 'Get a memory by ID.',
         inputSchema: MemoryGetInputSchema,
+        presentation: { displayName: 'Get Memory' },
         async execute(input, context: ToolExecutionContext) {
             const agent = context.agent;
             if (!agent) {
@@ -87,9 +87,9 @@ const MemoryCreateInputSchema = z
 export function createMemoryCreateTool(): Tool<typeof MemoryCreateInputSchema> {
     return defineTool({
         id: 'memory_create',
-        displayName: 'Create Memory',
         description: 'Create a new memory.',
         inputSchema: MemoryCreateInputSchema,
+        presentation: { displayName: 'Create Memory' },
         async execute(input, context: ToolExecutionContext) {
             const agent = context.agent;
             if (!agent) {
@@ -121,9 +121,9 @@ const MemoryUpdateInputSchema = z
 export function createMemoryUpdateTool(): Tool<typeof MemoryUpdateInputSchema> {
     return defineTool({
         id: 'memory_update',
-        displayName: 'Update Memory',
         description: 'Update an existing memory.',
         inputSchema: MemoryUpdateInputSchema,
+        presentation: { displayName: 'Update Memory' },
         async execute(input, context: ToolExecutionContext) {
             const agent = context.agent;
             if (!agent) {
@@ -149,9 +149,9 @@ const MemoryDeleteInputSchema = z.object({ id: z.string().describe('Memory ID') 
 export function createMemoryDeleteTool(): Tool<typeof MemoryDeleteInputSchema> {
     return defineTool({
         id: 'memory_delete',
-        displayName: 'Delete Memory',
         description: 'Delete a memory by ID.',
         inputSchema: MemoryDeleteInputSchema,
+        presentation: { displayName: 'Delete Memory' },
         async execute(input, context: ToolExecutionContext) {
             const agent = context.agent;
             if (!agent) {

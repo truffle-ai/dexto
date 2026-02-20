@@ -39,15 +39,19 @@ export function createGlobFilesTool(
 ): Tool<typeof GlobFilesInputSchema> {
     return defineTool({
         id: 'glob_files',
-        displayName: 'Find Files',
         aliases: ['glob'],
         description:
             'Find files matching a glob pattern. Supports standard glob syntax like **/*.js for recursive matches, *.ts for files in current directory, and src/**/*.tsx for nested paths. Returns array of file paths with metadata (size, modified date). Results are limited to allowed paths only.',
         inputSchema: GlobFilesInputSchema,
 
+        presentation: {
+            displayName: 'Find Files',
+        },
+
         ...createDirectoryAccessApprovalHandlers({
             toolName: 'glob_files',
             operation: 'read',
+            inputSchema: GlobFilesInputSchema,
             getFileSystemService,
             resolvePaths: (input, fileSystemService) => {
                 const baseDir = fileSystemService.getWorkingDirectory();

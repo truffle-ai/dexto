@@ -1,4 +1,5 @@
 import * as path from 'node:path';
+import type { z, ZodTypeAny } from 'zod';
 import { ApprovalStatus, ApprovalType, ToolError } from '@dexto/core';
 import type { ApprovalRequestDetails, ApprovalResponse, ToolExecutionContext } from '@dexto/core';
 import type { FileSystemService } from './filesystem-service.js';
@@ -21,75 +22,85 @@ export function resolveFilePath(
     return { path: resolvedPath, parentDir: path.dirname(resolvedPath) };
 }
 
-export function createDirectoryAccessApprovalHandlers<TInput>(options: {
+export function createDirectoryAccessApprovalHandlers<const TSchema extends ZodTypeAny>(options: {
     toolName: string;
     operation: DirectoryApprovalOperation;
+    inputSchema: TSchema;
     getFileSystemService: FileSystemServiceGetter;
-    resolvePaths: (input: TInput, fileSystemService: FileSystemService) => DirectoryApprovalPaths;
+    resolvePaths: (
+        input: z.output<TSchema>,
+        fileSystemService: FileSystemService
+    ) => DirectoryApprovalPaths;
 }): {
-    getApprovalOverride: (
-        input: TInput,
-        context: ToolExecutionContext
-    ) => Promise<ApprovalRequestDetails | null>;
-    onApprovalGranted: (
-        response: ApprovalResponse,
-        context: ToolExecutionContext,
-        approvalRequest: ApprovalRequestDetails
-    ) => Promise<void>;
+    approval: {
+        override: (
+            input: z.output<TSchema>,
+            context: ToolExecutionContext
+        ) => Promise<ApprovalRequestDetails | null>;
+        onGranted: (
+            response: ApprovalResponse,
+            context: ToolExecutionContext,
+            approvalRequest: ApprovalRequestDetails
+        ) => Promise<void>;
+    };
 } {
     return {
-        async getApprovalOverride(input, context) {
-            const resolvedFileSystemService = await options.getFileSystemService(context);
-            const paths = options.resolvePaths(input, resolvedFileSystemService);
+        approval: {
+            async override(input, context) {
+                const resolvedFileSystemService = await options.getFileSystemService(context);
+                const paths = options.resolvePaths(input, resolvedFileSystemService);
 
-            const isAllowed = await resolvedFileSystemService.isPathWithinConfigAllowed(paths.path);
-            if (isAllowed) {
-                return null;
-            }
-
-            const approvalManager = context.services?.approval;
-            if (!approvalManager) {
-                throw ToolError.configInvalid(
-                    `${options.toolName} requires ToolExecutionContext.services.approval`
+                const isAllowed = await resolvedFileSystemService.isPathWithinConfigAllowed(
+                    paths.path
                 );
-            }
-            if (approvalManager.isDirectorySessionApproved(paths.path)) {
-                return null;
-            }
+                if (isAllowed) {
+                    return null;
+                }
 
-            return {
-                type: ApprovalType.DIRECTORY_ACCESS,
-                metadata: {
-                    path: paths.path,
-                    parentDir: paths.parentDir,
-                    operation: options.operation,
-                    toolName: options.toolName,
-                },
-            };
-        },
+                const approvalManager = context.services?.approval;
+                if (!approvalManager) {
+                    throw ToolError.configInvalid(
+                        `${options.toolName} requires ToolExecutionContext.services.approval`
+                    );
+                }
+                if (approvalManager.isDirectorySessionApproved(paths.path)) {
+                    return null;
+                }
 
-        async onApprovalGranted(response, context, approvalRequest) {
-            const approvalManager = context.services?.approval;
-            if (!approvalManager) {
-                return;
-            }
+                return {
+                    type: ApprovalType.DIRECTORY_ACCESS,
+                    metadata: {
+                        path: paths.path,
+                        parentDir: paths.parentDir,
+                        operation: options.operation,
+                        toolName: options.toolName,
+                    },
+                };
+            },
 
-            if (response.status !== ApprovalStatus.APPROVED) {
-                return;
-            }
+            async onGranted(response, context, approvalRequest) {
+                const approvalManager = context.services?.approval;
+                if (!approvalManager) {
+                    return;
+                }
 
-            const data = response.data as { rememberDirectory?: boolean } | undefined;
-            const rememberDirectory = data?.rememberDirectory ?? false;
+                if (response.status !== ApprovalStatus.APPROVED) {
+                    return;
+                }
 
-            const metadata = approvalRequest.metadata as { parentDir: string };
-            if (!metadata?.parentDir) {
-                return;
-            }
+                const data = response.data as { rememberDirectory?: boolean } | undefined;
+                const rememberDirectory = data?.rememberDirectory ?? false;
 
-            approvalManager.addApprovedDirectory(
-                metadata.parentDir,
-                rememberDirectory ? 'session' : 'once'
-            );
+                const metadata = approvalRequest.metadata as { parentDir: string };
+                if (!metadata?.parentDir) {
+                    return;
+                }
+
+                approvalManager.addApprovedDirectory(
+                    metadata.parentDir,
+                    rememberDirectory ? 'session' : 'once'
+                );
+            },
         },
     };
 }

@@ -56,9 +56,12 @@ export function createSpawnAgentTool(
 ): Tool<typeof SpawnAgentInputSchema> {
     return {
         id: 'spawn_agent',
-        displayName: 'Agent',
         aliases: ['task'],
         description: buildDescription(service),
+
+        presentation: {
+            displayName: 'Agent',
+        },
 
         inputSchema: SpawnAgentInputSchema,
 

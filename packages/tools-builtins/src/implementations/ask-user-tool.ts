@@ -72,10 +72,12 @@ function enrichSchemaTitles(schema: JsonSchema): JsonSchema {
 export function createAskUserTool(): Tool<typeof AskUserInputSchema> {
     return defineTool({
         id: 'ask_user',
-        displayName: 'Ask',
         description:
             'Collect structured input from the user through a form interface. ONLY use this tool when you need: 1) Multiple fields at once (e.g., name + email + preferences), 2) Pre-defined options/choices (use enum for dropdowns like ["small","medium","large"]), 3) Specific data types with validation (boolean for yes/no, number for quantities). DO NOT use for simple conversational questions - just ask those naturally in your response. This tool is for form-like data collection, not chat. Examples: collecting user profile info, configuration settings, or selecting from preset options.',
         inputSchema: AskUserInputSchema,
+        presentation: {
+            displayName: 'Ask',
+        },
         async execute(input, context: ToolExecutionContext) {
             const { question, schema } = input;
 

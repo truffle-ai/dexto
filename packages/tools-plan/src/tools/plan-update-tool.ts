@@ -50,31 +50,33 @@ export function createPlanUpdateTool(
 ): Tool<typeof PlanUpdateInputSchema> {
     return defineTool({
         id: 'plan_update',
-        displayName: 'Update Plan',
         description:
             'Update the existing implementation plan for this session. Shows a diff preview for approval before saving. The plan must already exist (use plan_create first).',
         inputSchema: PlanUpdateInputSchema,
 
-        /**
-         * Generate diff preview for approval UI
-         */
-        generatePreview: async (input, context: ToolExecutionContext): Promise<DiffDisplayData> => {
-            const resolvedPlanService = await getPlanService(context);
-            const { content: newContent } = input;
+        presentation: {
+            displayName: 'Update Plan',
+            /**
+             * Generate diff preview for approval UI
+             */
+            preview: async (input, context: ToolExecutionContext): Promise<DiffDisplayData> => {
+                const resolvedPlanService = await getPlanService(context);
+                const { content: newContent } = input;
 
-            if (!context.sessionId) {
-                throw PlanError.sessionIdRequired();
-            }
+                if (!context.sessionId) {
+                    throw PlanError.sessionIdRequired();
+                }
 
-            // Read existing plan
-            const existing = await resolvedPlanService.read(context.sessionId);
-            if (!existing) {
-                throw PlanError.planNotFound(context.sessionId);
-            }
+                // Read existing plan
+                const existing = await resolvedPlanService.read(context.sessionId);
+                if (!existing) {
+                    throw PlanError.planNotFound(context.sessionId);
+                }
 
-            // Generate diff preview
-            const planPath = resolvedPlanService.getPlanPath(context.sessionId);
-            return generateDiffPreview(planPath, existing.content, newContent);
+                // Generate diff preview
+                const planPath = resolvedPlanService.getPlanPath(context.sessionId);
+                return generateDiffPreview(planPath, existing.content, newContent);
+            },
         },
 
         async execute(input, context: ToolExecutionContext) {

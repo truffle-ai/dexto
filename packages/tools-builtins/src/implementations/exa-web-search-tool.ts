@@ -42,10 +42,10 @@ const WebSearchInputSchema = z
 export function createWebSearchTool(): Tool<typeof WebSearchInputSchema> {
     return defineTool({
         id: 'web_search',
-        displayName: 'Web Search',
         description:
             'Search the web for current information and return clean, ready-to-use text. Use for news, facts, and up-to-date context.',
         inputSchema: WebSearchInputSchema,
+        presentation: { displayName: 'Web Search' },
         async execute(input, context: ToolExecutionContext) {
             const { query, numResults, livecrawl, type, contextMaxCharacters } = input;
 

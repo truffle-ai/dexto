@@ -152,12 +152,12 @@ export function createWaitForTool(
 ): Tool<typeof WaitForInputSchema> {
     return {
         id: 'wait_for',
-        displayName: 'Wait',
         description:
             'Wait for background task(s) to complete. ' +
             'Blocks execution until the condition is met. ' +
             'Use taskId for a single task, or taskIds with mode for multiple tasks.',
         inputSchema: WaitForInputSchema,
+        presentation: { displayName: 'Wait' },
         execute: async (input, _context): Promise<WaitForOutput> => {
             const condition = buildCondition(input);
 

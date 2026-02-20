@@ -19,9 +19,9 @@ const SleepInputSchema = z
 export function createSleepTool(): Tool<typeof SleepInputSchema> {
     return defineTool({
         id: 'sleep',
-        displayName: 'Sleep',
         description: 'Pause execution for a specified number of milliseconds.',
         inputSchema: SleepInputSchema,
+        presentation: { displayName: 'Sleep' },
         async execute(input, _context: ToolExecutionContext) {
             const { ms } = input;
             await new Promise((resolve) => setTimeout(resolve, ms));

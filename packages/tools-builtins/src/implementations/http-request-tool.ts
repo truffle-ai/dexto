@@ -353,10 +353,12 @@ async function readResponseTextWithLimit(response: Response): Promise<string> {
 export function createHttpRequestTool(): Tool<typeof HttpRequestInputSchema> {
     return defineTool({
         id: 'http_request',
-        displayName: 'Fetch',
         description:
             'Make a direct HTTP request using fetch. Supports method, headers, query params, JSON bodies, and timeouts. Returns status, headers, raw body text, and parsed JSON when available.',
         inputSchema: HttpRequestInputSchema,
+        presentation: {
+            displayName: 'Fetch',
+        },
         async execute(input, _context: ToolExecutionContext) {
             const { url, method, headers, query, body, timeoutMs } = input;
 

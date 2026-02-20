@@ -75,7 +75,6 @@ export function createEditFileTool(
 ): Tool<typeof EditFileInputSchema> {
     return defineTool({
         id: 'edit_file',
-        displayName: 'Update',
         aliases: ['edit'],
         description:
             'Edit a file by replacing text. By default, old_string must be unique in the file (will error if found multiple times). Set replace_all=true to replace all occurrences. Automatically creates backup before editing. Requires approval. Returns success status, path, number of changes made, and backup path.',
@@ -84,97 +83,107 @@ export function createEditFileTool(
         ...createDirectoryAccessApprovalHandlers({
             toolName: 'edit_file',
             operation: 'edit',
+            inputSchema: EditFileInputSchema,
             getFileSystemService,
             resolvePaths: (input, fileSystemService) =>
                 resolveFilePath(fileSystemService.getWorkingDirectory(), input.file_path),
         }),
 
-        /**
-         * Generate preview for approval UI - shows diff without modifying file
-         * Throws ToolError.validationFailed() for validation errors (file not found, string not found)
-         * Stores content hash for change detection in execute phase.
-         */
-        async generatePreview(input, context: ToolExecutionContext) {
-            const { file_path, old_string, new_string, replace_all } = input;
+        presentation: {
+            displayName: 'Update',
 
-            const resolvedFileSystemService = await getFileSystemService(context);
-            const { path: resolvedPath } = resolveFilePath(
-                resolvedFileSystemService.getWorkingDirectory(),
-                file_path
-            );
+            /**
+             * Generate preview for approval UI - shows diff without modifying file
+             * Throws ToolError.validationFailed() for validation errors (file not found, string not found)
+             * Stores content hash for change detection in execute phase.
+             */
+            preview: async (input, context: ToolExecutionContext) => {
+                const { file_path, old_string, new_string, replace_all } = input;
 
-            try {
-                // Read current file content
-                let originalContent: string;
+                const resolvedFileSystemService = await getFileSystemService(context);
+                const { path: resolvedPath } = resolveFilePath(
+                    resolvedFileSystemService.getWorkingDirectory(),
+                    file_path
+                );
+
                 try {
-                    const originalFile = await resolvedFileSystemService.readFile(resolvedPath);
-                    originalContent = originalFile.content;
-                } catch (error) {
-                    if (
-                        error instanceof DextoRuntimeError &&
-                        error.code === FileSystemErrorCode.INVALID_PATH
-                    ) {
-                        const originalFile =
-                            await resolvedFileSystemService.readFileForToolPreview(resolvedPath);
+                    // Read current file content
+                    let originalContent: string;
+                    try {
+                        const originalFile = await resolvedFileSystemService.readFile(resolvedPath);
                         originalContent = originalFile.content;
-                    } else {
-                        throw error;
+                    } catch (error) {
+                        if (
+                            error instanceof DextoRuntimeError &&
+                            error.code === FileSystemErrorCode.INVALID_PATH
+                        ) {
+                            const originalFile =
+                                await resolvedFileSystemService.readFileForToolPreview(
+                                    resolvedPath
+                                );
+                            originalContent = originalFile.content;
+                        } else {
+                            throw error;
+                        }
                     }
-                }
 
-                // Store content hash for change detection in execute phase
-                if (context.toolCallId) {
-                    previewContentHashCache.set(
-                        context.toolCallId,
-                        computeContentHash(originalContent)
-                    );
-                }
-
-                // Validate uniqueness constraint when replace_all is false
-                if (!replace_all) {
-                    const occurrences = originalContent.split(old_string).length - 1;
-                    if (occurrences > 1) {
-                        throw ToolError.validationFailed(
-                            'edit_file',
-                            `String found ${occurrences} times in file. Set replace_all=true to replace all, or provide more context to make old_string unique.`,
-                            { file_path: resolvedPath, occurrences }
+                    // Store content hash for change detection in execute phase
+                    if (context.toolCallId) {
+                        previewContentHashCache.set(
+                            context.toolCallId,
+                            computeContentHash(originalContent)
                         );
                     }
-                }
 
-                // Compute what the new content would be
-                const newContent = replace_all
-                    ? originalContent.split(old_string).join(new_string)
-                    : originalContent.replace(old_string, new_string);
+                    // Validate uniqueness constraint when replace_all is false
+                    if (!replace_all) {
+                        const occurrences = originalContent.split(old_string).length - 1;
+                        if (occurrences > 1) {
+                            throw ToolError.validationFailed(
+                                'edit_file',
+                                `String found ${occurrences} times in file. Set replace_all=true to replace all, or provide more context to make old_string unique.`,
+                                { file_path: resolvedPath, occurrences }
+                            );
+                        }
+                    }
 
-                // If no change, old_string was not found - throw validation error
-                if (originalContent === newContent) {
-                    throw ToolError.validationFailed(
-                        'edit_file',
-                        `String not found in file: "${old_string.slice(0, 50)}${old_string.length > 50 ? '...' : ''}"`,
-                        { file_path: resolvedPath, old_string_preview: old_string.slice(0, 100) }
-                    );
-                }
+                    // Compute what the new content would be
+                    const newContent = replace_all
+                        ? originalContent.split(old_string).join(new_string)
+                        : originalContent.replace(old_string, new_string);
 
-                return generateDiffPreview(resolvedPath, originalContent, newContent);
-            } catch (error) {
-                // Re-throw validation errors as-is
-                if (
-                    error instanceof DextoRuntimeError &&
-                    error.code === ToolErrorCode.VALIDATION_FAILED
-                ) {
-                    throw error;
+                    // If no change, old_string was not found - throw validation error
+                    if (originalContent === newContent) {
+                        throw ToolError.validationFailed(
+                            'edit_file',
+                            `String not found in file: "${old_string.slice(0, 50)}${old_string.length > 50 ? '...' : ''}"`,
+                            {
+                                file_path: resolvedPath,
+                                old_string_preview: old_string.slice(0, 100),
+                            }
+                        );
+                    }
+
+                    return generateDiffPreview(resolvedPath, originalContent, newContent);
+                } catch (error) {
+                    // Re-throw validation errors as-is
+                    if (
+                        error instanceof DextoRuntimeError &&
+                        error.code === ToolErrorCode.VALIDATION_FAILED
+                    ) {
+                        throw error;
+                    }
+                    // Convert filesystem errors (file not found, etc.) to validation errors
+                    if (error instanceof DextoRuntimeError) {
+                        throw ToolError.validationFailed('edit_file', error.message, {
+                            file_path: resolvedPath,
+                            originalErrorCode: error.code,
+                        });
+                    }
+                    // Unexpected errors - return null to allow approval to proceed
+                    return null;
                 }
-                // Convert filesystem errors (file not found, etc.) to validation errors
-                if (error instanceof DextoRuntimeError) {
-                    throw ToolError.validationFailed('edit_file', error.message, {
-                        file_path: resolvedPath,
-                        originalErrorCode: error.code,
-                    });
-                }
-                // Unexpected errors - return null to allow approval to proceed
-                return null;
-            }
+            },
         },
 
         async execute(input, context: ToolExecutionContext) {

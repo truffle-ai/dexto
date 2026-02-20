@@ -65,11 +65,11 @@ export interface ListTasksOutput {
 export function createListTasksTool(taskRegistry: TaskRegistry): Tool<typeof ListTasksInputSchema> {
     return {
         id: 'list_tasks',
-        displayName: 'List Tasks',
         description:
             'List all background tasks with optional filtering by status or type. ' +
             'Returns task information and counts.',
         inputSchema: ListTasksInputSchema,
+        presentation: { displayName: 'List Tasks' },
         execute: async (input, _context): Promise<ListTasksOutput> => {
             // Build filter
             const filter: {

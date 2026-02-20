@@ -55,15 +55,19 @@ export function createGrepContentTool(
 ): Tool<typeof GrepContentInputSchema> {
     return defineTool({
         id: 'grep_content',
-        displayName: 'Search Files',
         aliases: ['grep'],
         description:
             'Search for text patterns in files using regular expressions. Returns matching lines with file path, line number, and optional context lines. Use glob parameter to filter specific file types (e.g., "*.ts"). Supports case-insensitive search. Great for finding code patterns, function definitions, or specific text across multiple files.',
         inputSchema: GrepContentInputSchema,
 
+        presentation: {
+            displayName: 'Search Files',
+        },
+
         ...createDirectoryAccessApprovalHandlers({
             toolName: 'grep_content',
             operation: 'read',
+            inputSchema: GrepContentInputSchema,
             getFileSystemService,
             resolvePaths: (input, fileSystemService) => {
                 const baseDir = fileSystemService.getWorkingDirectory();

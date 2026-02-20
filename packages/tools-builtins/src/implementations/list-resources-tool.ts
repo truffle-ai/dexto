@@ -44,12 +44,14 @@ interface ResourceInfo {
 export function createListResourcesTool(): Tool<typeof ListResourcesInputSchema> {
     return defineTool({
         id: 'list_resources',
-        displayName: 'List Resources',
         description:
             'List available resources (images, files, etc.). Returns resource references ' +
             'that can be used with get_resource to obtain shareable URLs or metadata. ' +
             'Filter by source (tool/user) or kind (image/audio/video/binary).',
         inputSchema: ListResourcesInputSchema,
+        presentation: {
+            displayName: 'List Resources',
+        },
         async execute(input, context: ToolExecutionContext) {
             const { source, kind, limit } = input;
 

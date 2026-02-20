@@ -30,41 +30,43 @@ export function createPlanCreateTool(
 ): Tool<typeof PlanCreateInputSchema> {
     return defineTool({
         id: 'plan_create',
-        displayName: 'Plan',
         description:
             'Create a new implementation plan for the current session. Shows the plan for approval before saving. Use markdown format for the plan content with clear steps and file references.',
         inputSchema: PlanCreateInputSchema,
 
-        /**
-         * Generate preview for approval UI
-         */
-        generatePreview: async (input, context: ToolExecutionContext): Promise<FileDisplayData> => {
-            const { content } = input;
+        presentation: {
+            displayName: 'Plan',
+            /**
+             * Generate preview for approval UI
+             */
+            preview: async (input, context: ToolExecutionContext): Promise<FileDisplayData> => {
+                const { content } = input;
 
-            if (!context.sessionId) {
-                throw PlanError.sessionIdRequired();
-            }
+                if (!context.sessionId) {
+                    throw PlanError.sessionIdRequired();
+                }
 
-            const resolvedPlanService = await getPlanService(context);
+                const resolvedPlanService = await getPlanService(context);
 
-            // Check if plan already exists
-            const exists = await resolvedPlanService.exists(context.sessionId);
-            if (exists) {
-                throw PlanError.planAlreadyExists(context.sessionId);
-            }
+                // Check if plan already exists
+                const exists = await resolvedPlanService.exists(context.sessionId);
+                if (exists) {
+                    throw PlanError.planAlreadyExists(context.sessionId);
+                }
 
-            // Return preview for approval UI
-            const lineCount = content.split('\n').length;
-            const planPath = resolvedPlanService.getPlanPath(context.sessionId);
-            return {
-                type: 'file',
-                title: 'Create Plan',
-                path: planPath,
-                operation: 'create',
-                content,
-                size: Buffer.byteLength(content, 'utf8'),
-                lineCount,
-            };
+                // Return preview for approval UI
+                const lineCount = content.split('\n').length;
+                const planPath = resolvedPlanService.getPlanPath(context.sessionId);
+                return {
+                    type: 'file',
+                    title: 'Create Plan',
+                    path: planPath,
+                    operation: 'create',
+                    content,
+                    size: Buffer.byteLength(content, 'utf8'),
+                    lineCount,
+                };
+            },
         },
 
         async execute(input, context: ToolExecutionContext) {
