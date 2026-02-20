@@ -26,13 +26,13 @@ export const AgentSpawnerConfigSchema = z
             .default(5)
             .describe('Maximum concurrent sub-agents'),
 
-        /** Default timeout for task execution in milliseconds (default: 300000 = 5 min) */
+        /** Default timeout for task execution in milliseconds (default: 0 = no timeout) */
         defaultTimeout: z
             .number()
             .int()
-            .positive()
-            .default(300000)
-            .describe('Default task timeout in milliseconds'),
+            .nonnegative()
+            .default(0)
+            .describe('Default task timeout in milliseconds (0 = no timeout)'),
 
         /** Whether spawning is enabled (default: true) */
         allowSpawning: z.boolean().default(true).describe('Whether agent spawning is enabled'),

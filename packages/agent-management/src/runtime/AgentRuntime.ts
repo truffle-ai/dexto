@@ -153,26 +153,30 @@ export class AgentRuntime {
         this.pool.updateStatus(agentId, 'running');
 
         try {
-            // Create timeout promise
-            let timeoutId: ReturnType<typeof setTimeout> | undefined;
-            const timeoutPromise = new Promise<never>((_, reject) => {
-                timeoutId = setTimeout(() => {
-                    reject(RuntimeError.taskTimeout(agentId, taskTimeout));
-                }, taskTimeout);
-            });
-
-            // Execute the task with timeout
+            // Execute the task with optional timeout
             const generatePromise = handle.agent.generate(task, handle.sessionId);
 
             let response: GenerateResponse;
-            try {
-                response = (await Promise.race([
-                    generatePromise,
-                    timeoutPromise,
-                ])) as GenerateResponse;
-            } finally {
-                if (timeoutId) {
-                    clearTimeout(timeoutId);
+            if (taskTimeout === 0) {
+                response = await generatePromise;
+            } else {
+                // Create timeout promise
+                let timeoutId: ReturnType<typeof setTimeout> | undefined;
+                const timeoutPromise = new Promise<never>((_, reject) => {
+                    timeoutId = setTimeout(() => {
+                        reject(RuntimeError.taskTimeout(agentId, taskTimeout));
+                    }, taskTimeout);
+                });
+
+                try {
+                    response = (await Promise.race([
+                        generatePromise,
+                        timeoutPromise,
+                    ])) as GenerateResponse;
+                } finally {
+                    if (timeoutId) {
+                        clearTimeout(timeoutId);
+                    }
                 }
             }
 
