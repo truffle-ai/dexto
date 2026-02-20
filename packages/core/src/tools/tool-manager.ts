@@ -705,7 +705,7 @@ export class ToolManager {
         return this.toolExecutionContextFactory(baseContext);
     }
 
-    private validateLocalToolArgsOrThrow(
+    private validateLocalToolArgs(
         toolName: string,
         args: Record<string, unknown>
     ): Record<string, unknown> {
@@ -952,7 +952,7 @@ export class ToolManager {
             // Hooks may modify tool args (including in-place). Re-validate before execution so tools
             // always receive schema-validated args and defaults/coercions are re-applied after hook mutation.
             try {
-                toolArgs = this.validateLocalToolArgsOrThrow(toolName, toolArgs);
+                toolArgs = this.validateLocalToolArgs(toolName, toolArgs);
             } catch (error) {
                 this.logger.error(
                     `Post-hook validation failed for tool '${toolName}': a beforeToolCall hook may have set invalid args`
@@ -1356,7 +1356,7 @@ export class ToolManager {
         approvalStatus?: 'approved' | 'rejected';
         args: Record<string, unknown>;
     }> {
-        const validatedArgs = this.validateLocalToolArgsOrThrow(toolName, args);
+        const validatedArgs = this.validateLocalToolArgs(toolName, args);
 
         // Try quick resolution first (auto-approve/deny based on policies)
         const quickResult = await this.tryQuickApprovalResolution(
