@@ -3,7 +3,7 @@
  */
 
 import cron from 'node-cron';
-import * as cronParser from 'cron-parser';
+import cronParser from 'cron-parser';
 import { randomUUID } from 'crypto';
 import { DextoRuntimeError } from '@dexto/core';
 import type { StorageManager, Logger } from '@dexto/core';
@@ -44,9 +44,15 @@ export class SchedulerManager {
     constructor(
         storageManager: StorageManager,
         private config: SchedulerToolsConfig,
-        private logger: Logger
+        private logger: Logger,
+        options?: { storageNamespace?: string }
     ) {
-        this.storage = new ScheduleStorage(storageManager, config.maxExecutionHistory, logger);
+        this.storage = new ScheduleStorage(
+            storageManager,
+            config.maxExecutionHistory,
+            logger,
+            options?.storageNamespace
+        );
         this.executor = new ScheduleExecutor(config.executionTimeout, logger);
     }
 

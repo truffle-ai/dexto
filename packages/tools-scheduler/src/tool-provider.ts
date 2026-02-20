@@ -31,6 +31,29 @@ const schedulerManagerInitPromises = new Map<string, Promise<SchedulerManager | 
 let defaultSchedulerConfig: SchedulerToolsConfig | undefined;
 
 /**
+ * Register an externally managed scheduler manager (e.g., runtime-owned service).
+ */
+export function registerSchedulerManager(
+    agentId: string,
+    manager: SchedulerManager,
+    config?: SchedulerToolsConfig
+): void {
+    schedulerManagerRegistry.set(agentId, manager);
+    if (config) {
+        schedulerConfigRegistry.set(agentId, config);
+    }
+}
+
+/**
+ * Unregister a scheduler manager and associated config.
+ */
+export function unregisterSchedulerManager(agentId: string): void {
+    schedulerManagerRegistry.delete(agentId);
+    schedulerConfigRegistry.delete(agentId);
+    schedulerManagerInitPromises.delete(agentId);
+}
+
+/**
  * Get a scheduler manager instance by agent ID.
  * Returns undefined if no scheduler is registered for the agent.
  */
