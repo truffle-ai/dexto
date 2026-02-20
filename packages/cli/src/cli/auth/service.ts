@@ -7,7 +7,8 @@ import { z } from 'zod';
 import { getDextoGlobalPath, logger } from '@dexto/core';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './constants.js';
 
-const AUTH_CONFIG_FILE = 'auth.json';
+const AUTH_DIR = 'auth';
+const AUTH_CONFIG_FILE = 'dexto.json';
 
 export interface AuthConfig {
     /** Supabase access token from OAuth login (optional if using --api-key) */
@@ -38,8 +39,8 @@ const AuthConfigSchema = z
     });
 
 export async function storeAuth(config: AuthConfig): Promise<void> {
-    const authPath = getDextoGlobalPath('', AUTH_CONFIG_FILE);
-    const dextoDir = getDextoGlobalPath('', '');
+    const authPath = getDextoGlobalPath(AUTH_DIR, AUTH_CONFIG_FILE);
+    const dextoDir = getDextoGlobalPath(AUTH_DIR, '');
 
     await fs.mkdir(dextoDir, { recursive: true });
     await fs.writeFile(authPath, JSON.stringify(config, null, 2), { mode: 0o600 });
@@ -48,7 +49,7 @@ export async function storeAuth(config: AuthConfig): Promise<void> {
 }
 
 export async function loadAuth(): Promise<AuthConfig | null> {
-    const authPath = getDextoGlobalPath('', AUTH_CONFIG_FILE);
+    const authPath = getDextoGlobalPath(AUTH_DIR, AUTH_CONFIG_FILE);
 
     if (!existsSync(authPath)) {
         return null;
@@ -78,7 +79,7 @@ export async function loadAuth(): Promise<AuthConfig | null> {
 }
 
 export async function removeAuth(): Promise<void> {
-    const authPath = getDextoGlobalPath('', AUTH_CONFIG_FILE);
+    const authPath = getDextoGlobalPath(AUTH_DIR, AUTH_CONFIG_FILE);
 
     if (existsSync(authPath)) {
         await fs.unlink(authPath);
@@ -142,7 +143,7 @@ export async function getDextoApiKey(): Promise<string | null> {
     if (process.env.DEXTO_API_KEY?.trim()) {
         return process.env.DEXTO_API_KEY;
     }
-    // Fall back to auth.json (from `dexto login`)
+    // Fall back to dexto.json (from `dexto login`)
     const auth = await loadAuth();
     return auth?.dextoApiKey || null;
 }
@@ -192,5 +193,5 @@ async function refreshAccessToken(refreshToken: string): Promise<{
 }
 
 export function getAuthFilePath(): string {
-    return getDextoGlobalPath('', AUTH_CONFIG_FILE);
+    return getDextoGlobalPath(AUTH_DIR, AUTH_CONFIG_FILE);
 }

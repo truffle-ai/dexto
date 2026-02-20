@@ -13,7 +13,7 @@ describe('Image Local - Import Integration', () => {
         const imageSpecifier = metaResolve
             ? metaResolve('@dexto/image-local')
             : pathToFileURL(
-                  path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'index.js')
+                  path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'index.ts')
               ).href;
 
         const image = await loadImage(imageSpecifier);

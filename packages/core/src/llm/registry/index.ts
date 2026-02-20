@@ -187,12 +187,30 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
     },
-    // https://platform.minimax.io/docs/api-reference/text-openai-api
-    // MiniMax provides an OpenAI-compatible endpoint at https://api.minimax.chat/v1
+    // https://platform.minimax.io/docs/guides/quickstart
+    // MiniMax provides an Anthropic-compatible endpoint (models.dev):
+    // https://api.minimax.io/anthropic/v1
     minimax: {
         models: MODELS_BY_PROVIDER.minimax,
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
+    },
+    // https://api.minimaxi.com/anthropic/v1 (CN)
+    'minimax-cn': {
+        models: MODELS_BY_PROVIDER['minimax-cn'],
+        baseURLSupport: 'none',
+        supportedFileTypes: [],
+    },
+    // Coding plan routes through the same API base URL, but is modeled as a separate provider in models.dev
+    'minimax-coding-plan': {
+        models: MODELS_BY_PROVIDER['minimax-coding-plan'],
+        baseURLSupport: 'none',
+        supportedFileTypes: [],
+    },
+    'minimax-cn-coding-plan': {
+        models: MODELS_BY_PROVIDER['minimax-cn-coding-plan'],
+        baseURLSupport: 'none',
+        supportedFileTypes: [],
     },
     // https://open.bigmodel.cn/dev/api/normal-model/glm-4
     // GLM (Zhipu AI) provides an OpenAI-compatible endpoint
@@ -200,6 +218,44 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         models: MODELS_BY_PROVIDER.glm,
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
+    },
+    // models.dev-aligned aliases/presets
+    zhipuai: {
+        models: MODELS_BY_PROVIDER.zhipuai,
+        baseURLSupport: 'none',
+        supportedFileTypes: [],
+    },
+    'zhipuai-coding-plan': {
+        models: MODELS_BY_PROVIDER['zhipuai-coding-plan'],
+        baseURLSupport: 'none',
+        supportedFileTypes: [],
+    },
+    zai: {
+        models: MODELS_BY_PROVIDER.zai,
+        baseURLSupport: 'none',
+        supportedFileTypes: [],
+    },
+    'zai-coding-plan': {
+        models: MODELS_BY_PROVIDER['zai-coding-plan'],
+        baseURLSupport: 'none',
+        supportedFileTypes: [],
+    },
+    // Moonshot (Kimi) OpenAI-compatible endpoints
+    moonshotai: {
+        models: MODELS_BY_PROVIDER.moonshotai,
+        baseURLSupport: 'none',
+        supportedFileTypes: [],
+    },
+    'moonshotai-cn': {
+        models: MODELS_BY_PROVIDER['moonshotai-cn'],
+        baseURLSupport: 'none',
+        supportedFileTypes: [],
+    },
+    // Kimi For Coding (Anthropic-compatible)
+    'kimi-for-coding': {
+        models: MODELS_BY_PROVIDER['kimi-for-coding'],
+        baseURLSupport: 'none',
+        supportedFileTypes: [],
     },
     // https://openrouter.ai/docs
     // OpenRouter is a unified API gateway providing access to 100+ models from various providers.
@@ -600,7 +656,16 @@ const OPENROUTER_PREFIX_BY_PROVIDER: Partial<Record<LLMProvider, string>> = {
     xai: 'x-ai',
     cohere: 'cohere',
     minimax: 'minimax',
+    'minimax-cn': 'minimax',
+    'minimax-coding-plan': 'minimax',
+    'minimax-cn-coding-plan': 'minimax',
     glm: 'z-ai',
+    zhipuai: 'z-ai',
+    'zhipuai-coding-plan': 'z-ai',
+    zai: 'z-ai',
+    'zai-coding-plan': 'z-ai',
+    moonshotai: 'moonshotai',
+    'moonshotai-cn': 'moonshotai',
 };
 
 function getOpenRouterModelIdSet(): Set<string> {

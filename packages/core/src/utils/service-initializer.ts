@@ -28,6 +28,7 @@ import { MemoryManager } from '../memory/index.js';
 import { HookManager } from '../hooks/manager.js';
 import type { Hook } from '../hooks/types.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
+import type { LlmAuthResolver } from '../llm/auth/types.js';
 
 /**
  * Type for the core agent services returned by createAgentServices
@@ -68,6 +69,7 @@ export type InitializeServicesOptions = {
     toolManagerFactory?: ToolManagerFactory;
     storageManager?: StorageManager;
     hooks?: Hook[] | undefined;
+    llmAuthResolver?: LlmAuthResolver | null;
 };
 
 // High-level factory to load, validate, and wire up all agent services in one call
@@ -256,6 +258,7 @@ export async function createAgentServices(
             hookManager, // Add hook manager for hook execution
             mcpManager, // Add MCP manager for ChatSession
             compactionStrategy: compactionStrategy ?? null,
+            llmAuthResolver: overrides?.llmAuthResolver ?? null,
             workspaceManager, // Workspace context propagation
         },
         {

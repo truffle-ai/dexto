@@ -9,7 +9,8 @@ import { existsSync, promises as fs } from 'fs';
 import { z } from 'zod';
 import { getDextoGlobalPath } from '@dexto/core';
 
-const AUTH_CONFIG_FILE = 'auth.json';
+const AUTH_DIR = 'auth';
+const AUTH_CONFIG_FILE = 'dexto.json';
 
 /**
  * Minimal schema for checking auth status.
@@ -23,10 +24,10 @@ const AuthConfigSchema = z.object({
 
 /**
  * Check if user is authenticated with Dexto.
- * Returns true if auth.json exists with valid (non-expired) token.
+ * Returns true if dexto auth file exists with valid (non-expired) token.
  */
 export async function isDextoAuthenticated(): Promise<boolean> {
-    const authPath = getDextoGlobalPath('', AUTH_CONFIG_FILE);
+    const authPath = getDextoGlobalPath(AUTH_DIR, AUTH_CONFIG_FILE);
 
     if (!existsSync(authPath)) {
         return false;
@@ -62,7 +63,7 @@ export async function getDextoApiKeyFromAuth(): Promise<string | null> {
     }
 
     // Check auth config
-    const authPath = getDextoGlobalPath('', AUTH_CONFIG_FILE);
+    const authPath = getDextoGlobalPath(AUTH_DIR, AUTH_CONFIG_FILE);
 
     if (!existsSync(authPath)) {
         return null;

@@ -279,7 +279,7 @@ function buildProviderOptions(): Array<{ value: LLMProvider; label: string; hint
 export async function selectProvider(): Promise<LLMProvider | '_back' | null> {
     const options = buildProviderOptions();
 
-    const choice = await p.select({
+    const choice = await p.select<string>({
         message: 'Choose your AI provider',
         options: [
             ...options,
@@ -295,7 +295,9 @@ export async function selectProvider(): Promise<LLMProvider | '_back' | null> {
         return null;
     }
 
-    return choice as LLMProvider | '_back';
+    if (choice === '_back') return '_back';
+    if (isLLMProvider(choice)) return choice;
+    return null;
 }
 
 /**

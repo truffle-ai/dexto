@@ -27,6 +27,7 @@ import type { UserMessageInput } from './message-queue.js';
 import type { ContentInput } from '../agent/types.js';
 import { getModelPricing, calculateCost } from '../llm/registry/index.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
+import type { LlmAuthResolver } from '../llm/auth/types.js';
 
 /**
  * Represents an isolated conversation session within a Dexto agent.
@@ -144,6 +145,7 @@ export class ChatSession {
             mcpManager: MCPManager;
             sessionManager: import('./session-manager.js').SessionManager;
             compactionStrategy: CompactionStrategy | null;
+            llmAuthResolver?: LlmAuthResolver | null;
         },
         public readonly id: string,
         logger: Logger
@@ -268,7 +270,8 @@ export class ChatSession {
             this.id,
             this.services.resourceManager, // Pass ResourceManager for blob storage
             this.logger, // Pass logger for dependency injection
-            compactionStrategy // Pass compaction strategy
+            compactionStrategy, // Pass compaction strategy
+            this.services.llmAuthResolver ?? null
         );
 
         this.logger.debug(`ChatSession ${this.id}: Services initialized with storage`);
@@ -648,7 +651,8 @@ export class ChatSession {
                 this.id,
                 this.services.resourceManager,
                 this.logger,
-                compactionStrategy // Pass compaction strategy
+                compactionStrategy, // Pass compaction strategy
+                this.services.llmAuthResolver ?? null
             );
 
             // Replace the LLM service

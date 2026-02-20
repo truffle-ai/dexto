@@ -18,8 +18,8 @@ process.env.DEXTO_CLI_VERSION = pkg.version;
 // Populate DEXTO_API_KEY for Dexto gateway routing
 // Resolution order in getDextoApiKey():
 //   1. Explicit env var (CI, testing, account override)
-//   2. auth.json from `dexto login`
-import { isDextoAuthEnabled } from '@dexto/agent-management';
+//   2. ~/.dexto/auth/dexto.json from `dexto login`
+import { createDefaultLlmAuthResolver, isDextoAuthEnabled } from '@dexto/agent-management';
 if (isDextoAuthEnabled()) {
     const { getDextoApiKey } = await import('./cli/auth/index.js');
     const dextoApiKey = await getDextoApiKey();
@@ -777,7 +777,13 @@ async function bootstrapAgentFromGlobalOpts() {
 
     const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
     const services = await resolveServicesFromConfig(validatedConfig, image);
-    const agent = new DextoAgent(toDextoAgentOptions({ config: validatedConfig, services }));
+    const agent = new DextoAgent(
+        toDextoAgentOptions({
+            config: validatedConfig,
+            services,
+            overrides: { llmAuthResolver: createDefaultLlmAuthResolver() },
+        })
+    );
     await agent.start();
 
     // Register graceful shutdown
@@ -1652,7 +1658,11 @@ program
                         toDextoAgentOptions({
                             config: validatedConfig,
                             services,
-                            overrides: { sessionLoggerFactory, mcpAuthProviderFactory },
+                            overrides: {
+                                sessionLoggerFactory,
+                                mcpAuthProviderFactory,
+                                llmAuthResolver: createDefaultLlmAuthResolver(),
+                            },
                         })
                     );
 

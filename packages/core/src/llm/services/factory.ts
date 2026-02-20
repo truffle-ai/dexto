@@ -19,6 +19,7 @@ import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { requiresApiKey } from '../registry/index.js';
 import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
+import type { LlmAuthResolver } from '../auth/types.js';
 
 // Dexto Gateway headers for usage tracking
 const DEXTO_GATEWAY_HEADERS = {
@@ -35,6 +36,8 @@ export interface DextoProviderContext {
     sessionId?: string;
     /** Client source for usage attribution (cli, web, sdk) */
     clientSource?: 'cli' | 'web' | 'sdk';
+    /** Optional runtime auth resolver (profiles, OAuth, etc.) */
+    authResolver?: LlmAuthResolver | null;
 }
 
 /**
@@ -52,7 +55,11 @@ export function createVercelModel(
     context?: DextoProviderContext
 ): LanguageModel {
     const { provider, model, baseURL } = llmConfig;
-    const apiKey = llmConfig.apiKey || resolveApiKeyForProvider(provider);
+    const runtimeAuth = context?.authResolver?.resolveRuntimeAuth({ provider, model }) ?? null;
+    const apiKey = llmConfig.apiKey || runtimeAuth?.apiKey || resolveApiKeyForProvider(provider);
+    const extraHeaders = runtimeAuth?.headers;
+    const runtimeFetch = runtimeAuth?.fetch;
+    const runtimeBaseURL = runtimeAuth?.baseURL;
 
     // Runtime check: if provider requires API key but none is configured, fail with helpful message
     if (requiresApiKey(provider) && !apiKey?.trim()) {
@@ -64,34 +71,151 @@ export function createVercelModel(
         case 'openai': {
             // Regular OpenAI - strict compatibility, no baseURL
             // Explicitly use the Responses API (default in AI SDK 5+).
-            return createOpenAI({ apiKey: apiKey ?? '' }).responses(model);
+            return createOpenAI({
+                apiKey: apiKey ?? '',
+                ...(runtimeBaseURL ? { baseURL: runtimeBaseURL } : {}),
+                ...(extraHeaders ? { headers: extraHeaders } : {}),
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            }).responses(model);
         }
         case 'openai-compatible': {
             // OpenAI-compatible - requires baseURL, uses chat completions endpoint
             // Must use .chat() as most compatible endpoints (like Ollama) don't support Responses API
             const compatibleBaseURL =
-                baseURL?.replace(/\/$/, '') || process.env.OPENAI_BASE_URL?.replace(/\/$/, '');
+                baseURL?.replace(/\/$/, '') ||
+                runtimeBaseURL?.replace(/\/$/, '') ||
+                process.env.OPENAI_BASE_URL?.replace(/\/$/, '');
             if (!compatibleBaseURL) {
                 throw LLMError.baseUrlMissing('openai-compatible');
             }
-            return createOpenAI({ apiKey: apiKey ?? '', baseURL: compatibleBaseURL }).chat(model);
+            return createOpenAI({
+                apiKey: apiKey ?? '',
+                baseURL: compatibleBaseURL,
+                ...(extraHeaders ? { headers: extraHeaders } : {}),
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            }).chat(model);
         }
         case 'openrouter': {
             // OpenRouter - unified API gateway for 100+ models (BYOK)
             // Model IDs are in OpenRouter format (e.g., 'anthropic/claude-sonnet-4-5-20250929')
             const orBaseURL = baseURL || 'https://openrouter.ai/api/v1';
             // Use Responses API (OpenAI-compatible) via /api/v1/responses
-            return createOpenAI({ apiKey: apiKey ?? '', baseURL: orBaseURL }).responses(model);
+            return createOpenAI({
+                apiKey: apiKey ?? '',
+                baseURL: orBaseURL,
+                ...(extraHeaders ? { headers: extraHeaders } : {}),
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            }).responses(model);
         }
         case 'minimax': {
-            // MiniMax - OpenAI-compatible endpoint
-            const minimaxBaseURL = baseURL || 'https://api.minimax.chat/v1';
-            return createOpenAI({ apiKey: apiKey ?? '', baseURL: minimaxBaseURL }).chat(model);
+            // MiniMax - Anthropic-compatible endpoint (models.dev): https://api.minimax.io/anthropic/v1
+            const minimaxBaseURL = runtimeBaseURL || 'https://api.minimax.io/anthropic/v1';
+            return createAnthropic({
+                apiKey: apiKey ?? '',
+                baseURL: minimaxBaseURL,
+                ...(extraHeaders ? { headers: extraHeaders } : {}),
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            })(model);
+        }
+        case 'minimax-cn': {
+            const minimaxBaseURL = runtimeBaseURL || 'https://api.minimaxi.com/anthropic/v1';
+            return createAnthropic({
+                apiKey: apiKey ?? '',
+                baseURL: minimaxBaseURL,
+                ...(extraHeaders ? { headers: extraHeaders } : {}),
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            })(model);
+        }
+        case 'minimax-coding-plan': {
+            const minimaxBaseURL = runtimeBaseURL || 'https://api.minimax.io/anthropic/v1';
+            return createAnthropic({
+                apiKey: apiKey ?? '',
+                baseURL: minimaxBaseURL,
+                ...(extraHeaders ? { headers: extraHeaders } : {}),
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            })(model);
+        }
+        case 'minimax-cn-coding-plan': {
+            const minimaxBaseURL = runtimeBaseURL || 'https://api.minimaxi.com/anthropic/v1';
+            return createAnthropic({
+                apiKey: apiKey ?? '',
+                baseURL: minimaxBaseURL,
+                ...(extraHeaders ? { headers: extraHeaders } : {}),
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            })(model);
         }
         case 'glm': {
             // Zhipu AI (GLM) - OpenAI-compatible endpoint
             const glmBaseURL = baseURL || 'https://open.bigmodel.cn/api/paas/v4';
-            return createOpenAI({ apiKey: apiKey ?? '', baseURL: glmBaseURL }).chat(model);
+            return createOpenAI({
+                apiKey: apiKey ?? '',
+                baseURL: glmBaseURL,
+                ...(extraHeaders ? { headers: extraHeaders } : {}),
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            }).chat(model);
+        }
+        case 'zhipuai': {
+            const zhipuBaseURL = baseURL || 'https://open.bigmodel.cn/api/paas/v4';
+            return createOpenAI({
+                apiKey: apiKey ?? '',
+                baseURL: zhipuBaseURL,
+                ...(extraHeaders ? { headers: extraHeaders } : {}),
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            }).chat(model);
+        }
+        case 'zhipuai-coding-plan': {
+            const zhipuBaseURL = baseURL || 'https://open.bigmodel.cn/api/coding/paas/v4';
+            return createOpenAI({
+                apiKey: apiKey ?? '',
+                baseURL: zhipuBaseURL,
+                ...(extraHeaders ? { headers: extraHeaders } : {}),
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            }).chat(model);
+        }
+        case 'zai': {
+            const zaiBaseURL = baseURL || 'https://api.z.ai/api/paas/v4';
+            return createOpenAI({
+                apiKey: apiKey ?? '',
+                baseURL: zaiBaseURL,
+                ...(extraHeaders ? { headers: extraHeaders } : {}),
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            }).chat(model);
+        }
+        case 'zai-coding-plan': {
+            const zaiBaseURL = baseURL || 'https://api.z.ai/api/coding/paas/v4';
+            return createOpenAI({
+                apiKey: apiKey ?? '',
+                baseURL: zaiBaseURL,
+                ...(extraHeaders ? { headers: extraHeaders } : {}),
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            }).chat(model);
+        }
+        case 'moonshotai': {
+            const moonshotBaseURL = baseURL || 'https://api.moonshot.ai/v1';
+            return createOpenAI({
+                apiKey: apiKey ?? '',
+                baseURL: moonshotBaseURL,
+                ...(extraHeaders ? { headers: extraHeaders } : {}),
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            }).chat(model);
+        }
+        case 'moonshotai-cn': {
+            const moonshotBaseURL = baseURL || 'https://api.moonshot.cn/v1';
+            return createOpenAI({
+                apiKey: apiKey ?? '',
+                baseURL: moonshotBaseURL,
+                ...(extraHeaders ? { headers: extraHeaders } : {}),
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            }).chat(model);
+        }
+        case 'kimi-for-coding': {
+            const kimiBaseURL = runtimeBaseURL || 'https://api.kimi.com/coding/v1';
+            return createAnthropic({
+                apiKey: apiKey ?? '',
+                baseURL: kimiBaseURL,
+                ...(extraHeaders ? { headers: extraHeaders } : {}),
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            })(model);
         }
         case 'litellm': {
             // LiteLLM - OpenAI-compatible proxy for 100+ LLM providers
@@ -99,13 +223,23 @@ export function createVercelModel(
             if (!baseURL) {
                 throw LLMError.baseUrlMissing('litellm');
             }
-            return createOpenAI({ apiKey: apiKey ?? '', baseURL }).chat(model);
+            return createOpenAI({
+                apiKey: apiKey ?? '',
+                baseURL,
+                ...(extraHeaders ? { headers: extraHeaders } : {}),
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            }).chat(model);
         }
         case 'glama': {
             // Glama - OpenAI-compatible gateway for multiple LLM providers
             // Fixed endpoint, no user configuration needed
             const glamaBaseURL = 'https://glama.ai/api/gateway/openai/v1';
-            return createOpenAI({ apiKey: apiKey ?? '', baseURL: glamaBaseURL }).chat(model);
+            return createOpenAI({
+                apiKey: apiKey ?? '',
+                baseURL: glamaBaseURL,
+                ...(extraHeaders ? { headers: extraHeaders } : {}),
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            }).chat(model);
         }
         case 'dexto-nova': {
             // Dexto Gateway - OpenAI-compatible proxy with per-request billing
@@ -120,6 +254,7 @@ export function createVercelModel(
 
             // Build headers for usage tracking
             const headers: Record<string, string> = {
+                ...(extraHeaders ? extraHeaders : {}),
                 [DEXTO_GATEWAY_HEADERS.CLIENT_SOURCE]: context?.clientSource ?? 'cli',
             };
             if (context?.sessionId) {
@@ -130,9 +265,12 @@ export function createVercelModel(
             }
 
             // Model is already in OpenRouter format - pass through directly
-            return createOpenAI({ apiKey: apiKey ?? '', baseURL: dextoBaseURL, headers }).chat(
-                model
-            );
+            return createOpenAI({
+                apiKey: apiKey ?? '',
+                baseURL: dextoBaseURL,
+                headers,
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            }).chat(model);
         }
         case 'vertex': {
             // Google Vertex AI - supports both Gemini and Claude models
@@ -203,7 +341,12 @@ export function createVercelModel(
             return createAmazonBedrock({ region })(modelId);
         }
         case 'anthropic':
-            return createAnthropic({ apiKey: apiKey ?? '' })(model);
+            return createAnthropic({
+                apiKey: apiKey ?? '',
+                ...(runtimeBaseURL ? { baseURL: runtimeBaseURL } : {}),
+                ...(extraHeaders ? { headers: extraHeaders } : {}),
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            })(model);
         case 'google':
             return createGoogleGenerativeAI({ apiKey: apiKey ?? '' })(model);
         case 'groq':
@@ -218,7 +361,12 @@ export function createVercelModel(
             // Default URL: http://localhost:11434
             const ollamaBaseURL = baseURL || 'http://localhost:11434/v1';
             // Ollama doesn't require an API key, but the SDK needs a non-empty string
-            return createOpenAI({ apiKey: 'ollama', baseURL: ollamaBaseURL }).chat(model);
+            return createOpenAI({
+                apiKey: 'ollama',
+                baseURL: ollamaBaseURL,
+                ...(extraHeaders ? { headers: extraHeaders } : {}),
+                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
+            }).chat(model);
         }
         case 'local': {
             // Native node-llama-cpp execution via AI SDK adapter.
@@ -257,9 +405,10 @@ export function createLLMService(
     sessionId: string,
     resourceManager: import('../../resources/index.js').ResourceManager,
     logger: Logger,
-    compactionStrategy?: import('../../context/compaction/types.js').CompactionStrategy | null
+    compactionStrategy?: import('../../context/compaction/types.js').CompactionStrategy | null,
+    authResolver?: LlmAuthResolver | null
 ): VercelLLMService {
-    const model = createVercelModel(config, { sessionId });
+    const model = createVercelModel(config, { sessionId, authResolver: authResolver ?? null });
 
     return new VercelLLMService(
         toolManager,

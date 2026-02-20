@@ -188,7 +188,17 @@ export const TestConfigs = {
             xai: 'grok-beta',
             cohere: 'command-r',
             minimax: 'MiniMax-M2.1',
+            'minimax-cn': 'MiniMax-M2.1',
+            'minimax-coding-plan': 'MiniMax-M2.1',
+            'minimax-cn-coding-plan': 'MiniMax-M2.1',
             glm: 'glm-4.7',
+            zhipuai: 'glm-4.7',
+            'zhipuai-coding-plan': 'glm-4.7',
+            zai: 'glm-4.7',
+            'zai-coding-plan': 'glm-4.7',
+            moonshotai: 'kimi-k2.5',
+            'moonshotai-cn': 'kimi-k2.5',
+            'kimi-for-coding': 'k2p5',
             'openai-compatible': 'gpt-5-mini',
             openrouter: 'anthropic/claude-3.5-haiku', // OpenRouter model format: provider/model
             litellm: 'gpt-4', // LiteLLM model names follow the provider's convention
