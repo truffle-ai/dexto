@@ -1,5 +1,31 @@
 # dexto
 
+## 1.6.1
+
+### Patch Changes
+
+- f039e9f: Enhanced session exit statistics and token usage reporting:
+    - Updated exit message to "Exiting Dexto CLI. Goodbye!" (was "Exiting AI CLI. Goodbye!")
+    - Enhanced token usage display with explicit labels ("Input tokens", "Output tokens", "Total tokens" instead of just "Input", "Output", "Total")
+    - Show all token types even when 0 (reasoning tokens, cache read tokens, cache write tokens)
+    - Simplified color scheme for consistency (all token types in gray)
+    - Display cache savings percentage when prompt caching is used
+
+- 526d906: - Add a `/sounds` overlay to preview and select notification sounds (startup/approval/completion), including custom files from `~/.dexto/sounds/`.
+    - Play an optional startup sound when the interactive CLI launches.
+    - Add preferences to select per-event sound files via paths relative to `~/.dexto/sounds` (`sounds.*SoundFile`).
+- Updated dependencies [03d4564]
+- Updated dependencies [526d906]
+    - @dexto/agent-management@1.6.1
+    - @dexto/server@1.6.1
+    - @dexto/core@1.6.1
+    - @dexto/analytics@1.6.1
+    - @dexto/image-local@1.6.1
+    - @dexto/agent-config@1.6.1
+    - @dexto/image-logger-agent@1.6.1
+    - @dexto/storage@1.6.1
+    - @dexto/registry@1.6.1
+
 ## 1.6.0
 
 ### Minor Changes

@@ -1,5 +1,19 @@
 # @dexto/agent-management
 
+## 1.6.1
+
+### Patch Changes
+
+- 03d4564: consolidates scheduler runtime changes and workspace context propagation, and ensures sub‑agents inherit the parent workspace.
+- 526d906: - Add a `/sounds` overlay to preview and select notification sounds (startup/approval/completion), including custom files from `~/.dexto/sounds/`.
+    - Play an optional startup sound when the interactive CLI launches.
+    - Add preferences to select per-event sound files via paths relative to `~/.dexto/sounds` (`sounds.*SoundFile`).
+- Updated dependencies [03d4564]
+    - @dexto/core@1.6.1
+    - @dexto/agent-config@1.6.1
+    - @dexto/orchestration@1.6.1
+    - @dexto/tools-builtins@1.6.1
+
 ## 1.6.0
 
 ### Minor Changes

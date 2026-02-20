@@ -1,5 +1,11 @@
 # @dexto/core
 
+## 1.6.1
+
+### Patch Changes
+
+- 03d4564: consolidates scheduler runtime changes and workspace context propagation, and ensures sub‑agents inherit the parent workspace.
+
 ## 1.6.0
 
 ### Minor Changes
