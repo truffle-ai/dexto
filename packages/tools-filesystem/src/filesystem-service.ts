@@ -41,6 +41,7 @@ const DEFAULT_ENCODING: BufferEncoding = 'utf-8';
 const DEFAULT_MAX_RESULTS = 1000;
 const DEFAULT_MAX_SEARCH_RESULTS = 100;
 const DEFAULT_MAX_LIST_RESULTS = 5000;
+const DEFAULT_LIST_CONCURRENCY = 16;
 
 /**
  * FileSystemService - Handles all file system operations with security checks
@@ -374,48 +375,129 @@ export class FileSystemService {
 
         try {
             const dirEntries = await fs.readdir(normalizedPath, { withFileTypes: true });
-            const entries: DirectoryEntry[] = [];
-            let totalEntries = 0;
+            const candidates = dirEntries.filter(
+                (entry) => includeHidden || !entry.name.startsWith('.')
+            );
 
-            for (const entry of dirEntries) {
-                if (!includeHidden && entry.name.startsWith('.')) {
-                    continue;
+            const mapWithConcurrency = async <T, R>(
+                items: T[],
+                limit: number,
+                mapper: (item: T, index: number) => Promise<R>
+            ): Promise<R[]> => {
+                if (items.length === 0) {
+                    return [];
                 }
 
-                const entryPath = path.join(normalizedPath, entry.name);
-                const entryValidation = await this.pathValidator.validatePath(entryPath);
-                if (!entryValidation.isValid || !entryValidation.normalizedPath) {
-                    continue;
+                const results = new Array<R>(items.length);
+                let nextIndex = 0;
+                const workerCount = Math.min(limit, items.length);
+
+                const workers = Array.from({ length: workerCount }, async () => {
+                    while (true) {
+                        const current = nextIndex++;
+                        if (current >= items.length) {
+                            return;
+                        }
+                        results[current] = await mapper(items[current], current);
+                    }
+                });
+
+                await Promise.all(workers);
+                return results;
+            };
+
+            const concurrency = Math.max(1, DEFAULT_LIST_CONCURRENCY);
+            const validatedEntries = await mapWithConcurrency(
+                candidates,
+                concurrency,
+                async (entry) => {
+                    const entryPath = path.join(normalizedPath, entry.name);
+                    const entryValidation = await this.pathValidator.validatePath(entryPath);
+                    if (!entryValidation.isValid || !entryValidation.normalizedPath) {
+                        return null;
+                    }
+
+                    return {
+                        entry,
+                        normalizedPath: entryValidation.normalizedPath,
+                    };
                 }
+            );
 
-                let size = 0;
-                let modified = new Date();
+            type ValidEntry = {
+                entry: (typeof candidates)[number];
+                normalizedPath: string;
+            };
+            const validEntries = validatedEntries.filter(Boolean) as ValidEntry[];
 
-                if (entries.length >= maxEntries) {
-                    totalEntries++;
-                    continue;
-                }
+            if (maxEntries <= 0) {
+                return {
+                    path: normalizedPath,
+                    entries: [],
+                    truncated: validEntries.length > 0,
+                    totalEntries: validEntries.length,
+                };
+            }
 
-                if (includeMetadata) {
+            if (!includeMetadata) {
+                const entries = validEntries.slice(0, maxEntries).map((entry) => ({
+                    name: entry.entry.name,
+                    path: entry.normalizedPath,
+                    isDirectory: entry.entry.isDirectory(),
+                    size: 0,
+                    modified: new Date(),
+                }));
+                return {
+                    path: normalizedPath,
+                    entries,
+                    truncated: validEntries.length > maxEntries,
+                    totalEntries: validEntries.length,
+                };
+            }
+
+            const metadataEntries = await mapWithConcurrency(
+                validEntries,
+                concurrency,
+                async (entry) => {
                     try {
-                        const stat = await fs.stat(entryValidation.normalizedPath);
-                        size = stat.size;
-                        modified = stat.mtime;
+                        const stat = await fs.stat(entry.normalizedPath);
+                        return {
+                            name: entry.entry.name,
+                            path: entry.normalizedPath,
+                            isDirectory: entry.entry.isDirectory(),
+                            size: stat.size,
+                            modified: stat.mtime,
+                        } satisfies DirectoryEntry;
                     } catch {
-                        // Skip entries we cannot stat
-                        continue;
+                        return null;
                     }
                 }
+            );
 
-                totalEntries++;
-                entries.push({
-                    name: entry.name,
-                    path: entryValidation.normalizedPath,
-                    isDirectory: entry.isDirectory(),
-                    size,
-                    modified,
-                });
+            const entries: DirectoryEntry[] = [];
+            let successfulStats = 0;
+            let cutoffIndex = -1;
+
+            for (let index = 0; index < metadataEntries.length; index += 1) {
+                const entry = metadataEntries[index];
+                if (!entry) {
+                    continue;
+                }
+
+                successfulStats += 1;
+                if (entries.length < maxEntries) {
+                    entries.push(entry);
+                }
+
+                if (successfulStats === maxEntries) {
+                    cutoffIndex = index;
+                }
             }
+
+            const totalEntries =
+                successfulStats < maxEntries
+                    ? successfulStats
+                    : maxEntries + (validEntries.length - cutoffIndex - 1);
 
             return {
                 path: normalizedPath,
