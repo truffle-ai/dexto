@@ -62,7 +62,7 @@ export function createGlobFilesTool(
             // Input is validated by provider before reaching here
             const { pattern, path: searchPath, max_results } = input;
 
-            // Resolve the search directory consistently with getDirectoryAccessMetadata
+            // Resolve the search directory consistently with directory-approval path handling
             const baseDir = resolvedFileSystemService.getWorkingDirectory();
             const resolvedSearchPath = path.resolve(baseDir, searchPath || '.');
 

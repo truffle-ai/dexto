@@ -432,7 +432,13 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 }),
                 generatePreview: vi.fn().mockImplementation(async () => {
                     callOrder.push('generatePreview');
-                    return null;
+                    return {
+                        type: 'diff',
+                        unified: 'diff --git a/x b/x',
+                        filename: '/tmp/example.txt',
+                        additions: 1,
+                        deletions: 0,
+                    };
                 }),
                 execute: vi.fn().mockImplementation(async () => {
                     callOrder.push('execute');
@@ -440,8 +446,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 }),
             });
 
-            (mockApprovalManager.requestApproval as any).mockImplementation(async () => {
-                callOrder.push('requestApproval');
+            (mockApprovalManager.requestToolApproval as any).mockImplementation(async () => {
+                callOrder.push('requestToolApproval');
                 return {
                     approvalId: 'test-approval-id',
                     status: ApprovalStatus.APPROVED,
@@ -479,23 +485,32 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             });
 
             expect(mockAllowedToolsProvider.isToolAllowed).not.toHaveBeenCalled();
-            // When getApprovalOverride returns a value, it calls requestApproval directly
-            expect(mockApprovalManager.requestApproval).toHaveBeenCalledWith(
+            expect(mockApprovalManager.requestToolApproval).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    type: ApprovalType.DIRECTORY_ACCESS,
-                    metadata: expect.objectContaining({
+                    toolName: 'fs_like_tool',
+                    toolCallId: 'call-1',
+                    sessionId: 'session-1',
+                    args: { file_path: '/tmp/example.txt' },
+                    displayPreview: expect.objectContaining({
+                        type: 'diff',
+                        filename: '/tmp/example.txt',
+                    }),
+                    directoryAccess: {
                         path: '/tmp/example.txt',
                         parentDir: '/tmp',
                         operation: 'read',
-                    }),
+                        toolName: 'fs_like_tool',
+                    },
                 })
             );
             expect(mockApprovalManager.addApprovedDirectory).not.toHaveBeenCalled();
 
-            // Directory access goes through getApprovalOverride → requestApproval → onApprovalGranted → execute
+            // Directory access goes through getApprovalOverride → generatePreview → requestToolApproval
+            // → onApprovalGranted → execute
             expect(callOrder).toEqual([
                 'getApprovalOverride',
-                'requestApproval',
+                'generatePreview',
+                'requestToolApproval',
                 'onApprovalGranted',
                 'execute',
             ]);
@@ -534,6 +549,58 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 description: 'Read test file',
                 sessionId: 'session123',
             });
+        });
+
+        it('should include suggestedPatterns in tool approval when tool provides suggestions', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+
+            const tool = defineTool({
+                id: 'bash_like_tool',
+                description: 'Bash-like tool with patterns',
+                inputSchema: z
+                    .object({
+                        command: z.string(),
+                    })
+                    .strict(),
+                getApprovalPatternKey: () => 'git:*',
+                suggestApprovalPatterns: () => ['git status', 'git diff'],
+                generatePreview: vi.fn().mockResolvedValue(null),
+                execute: vi.fn().mockResolvedValue('ok'),
+            });
+
+            (mockApprovalManager.requestToolApproval as any).mockResolvedValue({
+                approvalId: 'test-approval-id',
+                status: ApprovalStatus.APPROVED,
+            });
+
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [tool],
+                mockLogger
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+
+            await toolManager.executeTool(
+                'bash_like_tool',
+                { command: 'git status' },
+                'call-1',
+                'session-1'
+            );
+
+            expect(mockApprovalManager.requestToolApproval).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    toolName: 'bash_like_tool',
+                    toolCallId: 'call-1',
+                    sessionId: 'session-1',
+                    args: { command: 'git status' },
+                    suggestedPatterns: ['git status', 'git diff'],
+                })
+            );
         });
 
         it('should fall back to args.description for approval description when __meta.callDescription is missing', async () => {
