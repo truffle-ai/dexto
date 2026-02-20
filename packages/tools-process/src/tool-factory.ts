@@ -43,7 +43,8 @@ export const processToolsFactory: ToolFactory<ProcessToolsConfig> = {
             if (candidate instanceof ProcessService) return candidate;
             const hasMethods =
                 typeof (candidate as ProcessService).executeCommand === 'function' &&
-                typeof (candidate as ProcessService).killProcess === 'function';
+                typeof (candidate as ProcessService).killProcess === 'function' &&
+                typeof (candidate as ProcessService).setWorkingDirectory === 'function';
             return hasMethods ? (candidate as ProcessService) : null;
         };
 

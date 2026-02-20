@@ -388,14 +388,13 @@ export class FileSystemService {
                     continue;
                 }
 
-                totalEntries++;
-
-                if (entries.length >= maxEntries) {
-                    continue;
-                }
-
                 let size = 0;
                 let modified = new Date();
+
+                if (entries.length >= maxEntries) {
+                    totalEntries++;
+                    continue;
+                }
 
                 if (includeMetadata) {
                     try {
@@ -408,6 +407,7 @@ export class FileSystemService {
                     }
                 }
 
+                totalEntries++;
                 entries.push({
                     name: entry.name,
                     path: entryValidation.normalizedPath,
@@ -446,10 +446,12 @@ export class FileSystemService {
         }
 
         const normalizedPath = validation.normalizedPath;
+        const recursive = options.recursive ?? false;
 
         try {
-            await fs.mkdir(normalizedPath, { recursive: options.recursive ?? false });
-            return { path: normalizedPath, created: true };
+            const firstCreated = await fs.mkdir(normalizedPath, { recursive });
+            const created = recursive ? typeof firstCreated === 'string' : true;
+            return { path: normalizedPath, created };
         } catch (error) {
             const code = (error as NodeJS.ErrnoException).code;
             if (code === 'EEXIST') {
@@ -462,7 +464,7 @@ export class FileSystemService {
                     // fallthrough to error
                 }
             }
-            if (code === 'EACCES') {
+            if (code === 'EACCES' || code === 'EPERM') {
                 throw FileSystemError.permissionDenied(normalizedPath, 'create directory');
             }
             throw FileSystemError.createDirFailed(
@@ -536,8 +538,19 @@ export class FileSystemService {
                 `Target already exists: ${normalizedTo}`
             );
         } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+            const code = (error as NodeJS.ErrnoException).code;
+            if (!code) {
                 throw error;
+            }
+            if (code === 'ENOENT') {
+                // Destination doesn't exist
+            } else if (code === 'EACCES' || code === 'EPERM') {
+                throw FileSystemError.permissionDenied(normalizedTo, 'rename');
+            } else {
+                throw FileSystemError.renameFailed(
+                    normalizedFrom,
+                    error instanceof Error ? error.message : String(error)
+                );
             }
         }
 

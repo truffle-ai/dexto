@@ -6,11 +6,11 @@ import {
     ScheduleSchema,
     type ErrorResponse,
 } from '../schemas/responses.js';
+import { SchedulerErrorCode } from '@dexto/tools-scheduler';
 import {
-    getSchedulerManager,
     ensureSchedulerManagerForAgent,
-    SchedulerErrorCode,
-} from '@dexto/tools-scheduler';
+    getSchedulerManager,
+} from '@dexto/tools-scheduler/service';
 import { DextoRuntimeError, ErrorType } from '@dexto/core';
 
 const CreateScheduleSchema = z

@@ -3,6 +3,9 @@ import { SchedulerToolsConfigSchema, type SchedulerToolsConfig } from './schemas
 import type { ScheduleExecutorFn } from './types.js';
 import { SchedulerManager } from './manager.js';
 
+/**
+ * Options for constructing a scheduler service.
+ */
 export type SchedulerServiceOptions = {
     storageManager: StorageManager;
     logger: Logger;
@@ -12,6 +15,11 @@ export type SchedulerServiceOptions = {
     autoStart?: boolean;
 };
 
+/**
+ * Create and initialize a SchedulerManager with optional overrides.
+ *
+ * @returns A ready-to-use SchedulerManager instance.
+ */
 export async function createSchedulerService(
     options: SchedulerServiceOptions
 ): Promise<SchedulerManager> {
@@ -30,7 +38,12 @@ export async function createSchedulerService(
 
     await manager.init();
     if (options.autoStart !== false) {
-        await manager.start();
+        try {
+            await manager.start();
+        } catch (error) {
+            await manager.stop().catch(() => undefined);
+            throw error;
+        }
     }
 
     return manager;

@@ -54,7 +54,9 @@ export const fileSystemToolsFactory: ToolFactory<FileSystemToolsConfig> = {
             if (candidate instanceof FileSystemService) return candidate;
             const hasMethods =
                 typeof (candidate as FileSystemService).readFile === 'function' &&
-                typeof (candidate as FileSystemService).writeFile === 'function';
+                typeof (candidate as FileSystemService).writeFile === 'function' &&
+                typeof (candidate as FileSystemService).setWorkingDirectory === 'function' &&
+                typeof (candidate as FileSystemService).setDirectoryApprovalChecker === 'function';
             return hasMethods ? (candidate as FileSystemService) : null;
         };
 
