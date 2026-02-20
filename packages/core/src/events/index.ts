@@ -4,6 +4,7 @@ import type { AgentRuntimeSettings } from '../agent/runtime-config.js';
 import type { ApprovalRequest, ApprovalResponse } from '../approval/types.js';
 import type { SanitizedToolResult } from '../context/types.js';
 import type { WorkspaceContext } from '../workspace/types.js';
+import type { ToolPresentationSnapshotV1 } from '../tools/types.js';
 
 /**
  * LLM finish reason - why the LLM stopped generating
@@ -377,6 +378,8 @@ export interface AgentEventMap {
         toolName: string;
         /** Optional user-facing name for the tool (UI convenience) */
         toolDisplayName?: string;
+        /** Optional UI-agnostic presentation snapshot (clients MUST fall back when absent) */
+        presentationSnapshot?: ToolPresentationSnapshotV1;
         args: Record<string, any>;
         /** Optional user-facing description from tool call metadata (e.g., __meta.callDescription) */
         callDescription?: string;
@@ -402,6 +405,8 @@ export interface AgentEventMap {
         toolName: string;
         /** Optional user-facing name for the tool (UI convenience) */
         toolDisplayName?: string;
+        /** Optional UI-agnostic presentation snapshot (clients MUST fall back when absent) */
+        presentationSnapshot?: ToolPresentationSnapshotV1;
         callId?: string;
         success: boolean;
         /** Sanitized result - present when success=true */

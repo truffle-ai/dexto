@@ -9,6 +9,7 @@ import type { SanitizedToolResult } from '../../context/types.js';
 import { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import { LLMProvider, TokenUsage } from '../types.js';
+import type { ToolPresentationSnapshotV1 } from '../../tools/types.js';
 
 type UsageLike = {
     inputTokens?: number | undefined;
@@ -97,6 +98,7 @@ export class StreamProcessor {
             string,
             {
                 toolDisplayName?: string;
+                presentationSnapshot?: ToolPresentationSnapshotV1;
                 requireApproval?: boolean;
                 approvalStatus?: 'approved' | 'rejected';
             }
@@ -307,6 +309,9 @@ export class StreamProcessor {
                             toolName: event.toolName,
                             ...(metadata?.toolDisplayName !== undefined && {
                                 toolDisplayName: metadata.toolDisplayName,
+                            }),
+                            ...(metadata?.presentationSnapshot !== undefined && {
+                                presentationSnapshot: metadata.presentationSnapshot,
                             }),
                             callId: event.toolCallId,
                             success: true,

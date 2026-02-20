@@ -7,6 +7,7 @@ import type { JSONSchema7 } from 'json-schema';
 import { ApprovalType, ApprovalStatus, DenialReason } from './types.js';
 import type { ToolDisplayData } from '../tools/display-types.js';
 import { isValidDisplayData } from '../tools/display-types.js';
+import type { ToolPresentationSnapshotV1 } from '../tools/types.js';
 
 // Zod schema that validates as object but types as JSONSchema7
 const JsonSchema7Schema = z.record(z.unknown()) as z.ZodType<JSONSchema7>;
@@ -30,6 +31,14 @@ export const DenialReasonSchema = z.nativeEnum(DenialReason);
 const ToolDisplayDataSchema = z.custom<ToolDisplayData>((val) => isValidDisplayData(val), {
     message: 'Invalid ToolDisplayData',
 });
+
+const ToolPresentationSnapshotV1Schema = z.custom<ToolPresentationSnapshotV1>(
+    (val) =>
+        typeof val === 'object' && val !== null && (val as { version?: unknown }).version === 1,
+    {
+        message: 'Invalid ToolPresentationSnapshotV1',
+    }
+);
 
 /**
  * Directory access metadata schema
@@ -55,6 +64,9 @@ export const ToolApprovalMetadataSchema = z
             .string()
             .optional()
             .describe('Optional user-facing name for the tool (UI convenience)'),
+        presentationSnapshot: ToolPresentationSnapshotV1Schema.optional().describe(
+            'Optional UI-agnostic presentation snapshot for the tool call. Clients MUST ignore unknown fields.'
+        ),
         toolCallId: z.string().describe('Unique tool call ID for tracking parallel tool calls'),
         args: z.record(z.unknown()).describe('Arguments for the tool'),
         description: z.string().optional().describe('Description of the tool'),

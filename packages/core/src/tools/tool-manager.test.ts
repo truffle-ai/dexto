@@ -551,6 +551,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     args: { path: '/test' },
                     description: 'Read test file',
                     sessionId: 'session123',
+                    presentationSnapshot: expect.objectContaining({ version: 1 }),
                 })
             );
         });
@@ -635,6 +636,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     args: { path: '/test', description: 'Read test file' },
                     description: 'Read test file',
                     sessionId: 'session123',
+                    presentationSnapshot: expect.objectContaining({ version: 1 }),
                 })
             );
         });
@@ -757,6 +759,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                     toolName: 'mcp--file_read',
                     toolCallId: 'call-456',
                     args: { path: '/test' },
+                    presentationSnapshot: expect.objectContaining({ version: 1 }),
                 })
             );
         });

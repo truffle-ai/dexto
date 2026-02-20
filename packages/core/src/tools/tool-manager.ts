@@ -1,6 +1,12 @@
 import { MCPManager } from '../mcp/manager.js';
 import type { ToolPolicies } from './schemas.js';
-import { ToolSet, ToolExecutionContext, ToolExecutionContextBase, Tool } from './types.js';
+import {
+    ToolSet,
+    ToolExecutionContext,
+    ToolExecutionContextBase,
+    Tool,
+    ToolPresentationSnapshotV1,
+} from './types.js';
 import type { ToolDisplayData } from './display-types.js';
 import { ToolError } from './errors.js';
 import { ToolErrorCode } from './error-codes.js';
@@ -558,6 +564,131 @@ export class ToolManager {
         return tool?.presentation?.preview ?? tool?.generatePreview;
     }
 
+    private getToolDescribeCallFn(
+        toolName: string
+    ):
+        | ((
+              args: Record<string, unknown>,
+              context: ToolExecutionContext
+          ) => Promise<ToolPresentationSnapshotV1 | null> | ToolPresentationSnapshotV1 | null)
+        | undefined {
+        const tool = this.agentTools.get(toolName);
+        return tool?.presentation?.describeCall;
+    }
+
+    private getToolDescribeResultFn(
+        toolName: string
+    ):
+        | ((
+              result: unknown,
+              args: Record<string, unknown>,
+              context: ToolExecutionContext
+          ) =>
+              | Promise<ToolPresentationSnapshotV1['result'] | null>
+              | ToolPresentationSnapshotV1['result']
+              | null)
+        | undefined {
+        const tool = this.agentTools.get(toolName);
+        return tool?.presentation?.describeResult;
+    }
+
+    private buildGenericToolPresentationSnapshot(
+        toolName: string,
+        toolDisplayName?: string
+    ): ToolPresentationSnapshotV1 {
+        const snapshot: ToolPresentationSnapshotV1 = {
+            version: 1,
+            source: {
+                type: toolName.startsWith(ToolManager.MCP_TOOL_PREFIX) ? 'mcp' : 'local',
+            },
+            header: {
+                title: toolDisplayName ?? toolName,
+            },
+        };
+
+        if (snapshot.source?.type === 'mcp') {
+            const actualToolName = toolName.substring(ToolManager.MCP_TOOL_PREFIX.length);
+            const parts = actualToolName.split('--');
+            if (parts.length >= 2 && parts[0]) {
+                snapshot.source.mcpServerName = parts[0];
+            }
+        }
+
+        return snapshot;
+    }
+
+    private async getToolPresentationSnapshotForCall(
+        toolName: string,
+        args: Record<string, unknown>,
+        toolCallId: string,
+        sessionId?: string
+    ): Promise<ToolPresentationSnapshotV1> {
+        const toolDisplayName = this.getToolDisplayNameForUi(toolName);
+        const fallback = this.buildGenericToolPresentationSnapshot(toolName, toolDisplayName);
+
+        if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
+            return fallback;
+        }
+
+        const describeCall = this.getToolDescribeCallFn(toolName);
+        if (!describeCall) {
+            return fallback;
+        }
+
+        try {
+            const context = this.buildToolExecutionContext({ sessionId, toolCallId });
+            const described = await Promise.resolve(describeCall(args, context));
+            if (described && described.version === 1) {
+                return described;
+            }
+            return fallback;
+        } catch (error) {
+            this.logger.debug(
+                `Tool presentation snapshot generation failed for '${toolName}': ${
+                    error instanceof Error ? error.message : String(error)
+                }`
+            );
+            return fallback;
+        }
+    }
+
+    private async augmentSnapshotWithResult(
+        toolName: string,
+        snapshot: ToolPresentationSnapshotV1,
+        result: unknown,
+        args: Record<string, unknown>,
+        toolCallId: string,
+        sessionId?: string
+    ): Promise<ToolPresentationSnapshotV1> {
+        if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
+            return snapshot;
+        }
+
+        const describeResult = this.getToolDescribeResultFn(toolName);
+        if (!describeResult) {
+            return snapshot;
+        }
+
+        try {
+            const context = this.buildToolExecutionContext({ sessionId, toolCallId });
+            const resultPresentation = await Promise.resolve(describeResult(result, args, context));
+            if (!resultPresentation) {
+                return snapshot;
+            }
+            return {
+                ...snapshot,
+                result: resultPresentation,
+            };
+        } catch (error) {
+            this.logger.debug(
+                `Tool result presentation snapshot generation failed for '${toolName}': ${
+                    error instanceof Error ? error.message : String(error)
+                }`
+            );
+            return snapshot;
+        }
+    }
+
     private getToolPatternKey(toolName: string, args: Record<string, unknown>): string | null {
         if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
             return null;
@@ -944,9 +1075,14 @@ export class ToolManager {
         // before our iterator processes the queued tool-call. By emitting here, we guarantee llm:tool-call
         // arrives before approval:request.
         if (sessionId) {
+            const presentationSnapshot = this.buildGenericToolPresentationSnapshot(
+                toolName,
+                toolDisplayName
+            );
             this.agentEventBus.emit('llm:tool-call', {
                 toolName,
                 ...(toolDisplayName !== undefined && { toolDisplayName }),
+                presentationSnapshot,
                 args: toolArgs,
                 ...(callDescription !== undefined && { callDescription }),
                 callId: toolCallId,
@@ -959,6 +1095,7 @@ export class ToolManager {
             requireApproval,
             approvalStatus,
             args: validatedToolArgs,
+            presentationSnapshot: callSnapshot,
         } = await this.handleToolApproval(
             toolName,
             toolArgs,
@@ -1154,9 +1291,19 @@ export class ToolManager {
                 result = modifiedPayload.result;
             }
 
+            const presentationSnapshot = await this.augmentSnapshotWithResult(
+                toolName,
+                callSnapshot,
+                result,
+                toolArgs,
+                toolCallId,
+                sessionId
+            );
+
             return {
                 result,
                 ...(toolDisplayName !== undefined && { toolDisplayName }),
+                ...(presentationSnapshot !== undefined && { presentationSnapshot }),
                 ...(requireApproval && { requireApproval, approvalStatus }),
             };
         } catch (error) {
@@ -1335,6 +1482,7 @@ export class ToolManager {
         requireApproval: boolean;
         approvalStatus?: 'approved' | 'rejected';
         args: Record<string, unknown>;
+        presentationSnapshot: ToolPresentationSnapshotV1;
     }> {
         // 1. Check static alwaysDeny list (highest priority - security-first)
         if (this.isInAlwaysDenyList(toolName)) {
@@ -1345,6 +1493,12 @@ export class ToolManager {
         }
 
         const validatedArgs = this.validateLocalToolArgs(toolName, args);
+        const presentationSnapshot = await this.getToolPresentationSnapshotForCall(
+            toolName,
+            validatedArgs,
+            toolCallId,
+            sessionId
+        );
 
         // 2. Tool-specific approval override (directory access and other custom approvals)
         let directoryAccess: DirectoryAccessMetadata | undefined;
@@ -1404,6 +1558,7 @@ export class ToolManager {
                                 requireApproval: true,
                                 approvalStatus: 'approved',
                                 args: validatedArgs,
+                                presentationSnapshot,
                             };
                         }
 
@@ -1426,7 +1581,7 @@ export class ToolManager {
             directoryAccess
         );
         if (quickResult !== null) {
-            return { ...quickResult, args: validatedArgs };
+            return { ...quickResult, args: validatedArgs, presentationSnapshot };
         }
 
         // Fall back to manual approval flow
@@ -1437,9 +1592,10 @@ export class ToolManager {
             sessionId,
             directoryAccess,
             directoryAccessApprovalRequest,
-            callDescription
+            callDescription,
+            presentationSnapshot
         );
-        return { ...manualResult, args: validatedArgs };
+        return { ...manualResult, args: validatedArgs, presentationSnapshot };
     }
 
     /**
@@ -1529,7 +1685,8 @@ export class ToolManager {
         sessionId?: string,
         directoryAccess?: DirectoryAccessMetadata,
         directoryAccessApprovalRequest?: ApprovalRequestDetails,
-        callDescription?: string
+        callDescription?: string,
+        presentationSnapshot?: ToolPresentationSnapshotV1
     ): Promise<{ requireApproval: boolean; approvalStatus: 'approved' | 'rejected' }> {
         this.logger.info(
             `Tool approval requested for ${toolName}, sessionId: ${sessionId ?? 'global'}`
@@ -1552,6 +1709,7 @@ export class ToolManager {
             const response = await this.approvalManager.requestToolApproval({
                 toolName,
                 ...(toolDisplayName !== undefined && { toolDisplayName }),
+                ...(presentationSnapshot !== undefined && { presentationSnapshot }),
                 toolCallId,
                 args,
                 ...(callDescription !== undefined && { description: callDescription }),
