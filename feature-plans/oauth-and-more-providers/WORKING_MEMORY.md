@@ -22,18 +22,14 @@ Repo context:
 
 ## Current Task
 
-**Next planned work (post-merge with “reasoning toggles” branch):**
-- Implement Phase **1.5.1** provider snapshot generation and use it to generate `LLM_PROVIDERS` / `LLMProvider` (models.dev canonical IDs + small Dexto-only overlay).
-- When expanding provider IDs to models.dev, ensure **reasoning presets** remain correct by keying reasoning/provider-options on the same transport mapping (`provider.npm` → transport kind), not on a small hardcoded provider enum.
-
-**Task:** **Owner review — Updated direction + tasklist rebase**
-**Status:** _Waiting on owner_
+**Task:** **1.5.1 Generate provider snapshot + make `LLMProvider` generated**
+**Status:** _Not started_
 **Branch:** `oauth-provider-revamp`
 
 ### Plan
-- Review the direction update in `feature-plans/oauth-and-more-providers/UPDATED_DIRECTION.md`.
-- Confirm the rebaselined tasklist in `feature-plans/oauth-and-more-providers/PLAN.md` (new Phase 1.5 for gateway catalogs; fix `/connect` “auth slot” overwrite prompts + default switching).
-- Once aligned, proceed with **1.3.1** (auth slot UX) and then Phase 1.5 gateway ingestion (**1.5.2** OpenRouter, **1.5.3** Vercel AI Gateway) in that order.
+- Implement Phase **1.5.1** provider snapshot generation and use it to generate `LLM_PROVIDERS` / `LLMProvider` (models.dev canonical IDs + small Dexto-only overlay).
+- When expanding provider IDs to models.dev, ensure **reasoning presets** remain correct by keying reasoning/provider-options on the same transport mapping (`provider.npm` → transport kind), not on a small hardcoded provider enum.
+- After 1.5.1, proceed with gateway ingestion (**1.5.2** OpenRouter, **1.5.3** Vercel AI Gateway).
 
 ### Notes
 _Log findings, issues, and progress here as you work._
@@ -44,6 +40,9 @@ _Log findings, issues, and progress here as you work._
 - Added `UPDATED_DIRECTION.md` and updated `PLAN.md` to adopt a pi-style multi-source model registry direction (models.dev baseline + gateway catalogs, starting with OpenRouter).
 - Phase 1 scaffolding exists in-repo (profiles store + runtime resolver + server routes + CLI `/connect`), but `/connect` still overwrites profiles because `profileId` is fixed to `${providerId}:${methodId}`.
   - Keep deterministic IDs, but add UX to avoid silent overwrites (explicit replace confirmation + “switch default to existing slot”).
+
+2026-02-20:
+- Completed **1.3.1**: `/connect` now prompts when an auth slot already exists, supports “use existing” (set default without re-auth), explicit replace, and delete (clears defaults).
 
 ---
 
@@ -71,7 +70,8 @@ _Move tasks here after completion. Keep a brief log of what was done and any dev
 |------|-------|------|-------|
 | 1.1 | LLM profile store (`llm-profiles.json`) | 2026-02-18 | Implemented file-backed multi-profile store + defaults + tests. |
 | 1.2 | Server routes for connect providers/profiles/defaults | 2026-02-18 | Added `packages/server/src/hono/routes/llm-connect.ts` (redacted profiles). |
-| 1.3 | CLI interactive `/connect` | 2026-02-18 | Added `/connect` flow + initial OAuth method scaffolding; still needs auth slot management (no silent overwrite + switch default without re-auth). |
+| 1.3 | CLI interactive `/connect` | 2026-02-18 | Added `/connect` flow + initial OAuth method scaffolding. |
+| 1.3.1 | Multi-profile UX (no overwrite) | 2026-02-20 | Added existing-slot action prompt (use existing / replace / delete) + connected/default hints in method picker + tests. |
 | — | Direction + tasklist rebase | 2026-02-18 | Added `UPDATED_DIRECTION.md`; updated tasklist to include gateway catalog ingestion. |
 
 ---

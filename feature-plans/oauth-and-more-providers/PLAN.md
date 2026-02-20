@@ -533,7 +533,7 @@ Implementation note (important):
   - Exit:
     - Manual CLI smoke: connect an API-key provider, set default, and confirm Dexto can run using it.
 
-- [ ] **1.3.1 Finish multi-profile UX (no overwrite)**
+- [x] **1.3.1 Finish multi-profile UX (no overwrite)**
   - Deliverables:
     - `/connect` uses **deterministic auth slots** (`profileId = ${providerId}:${methodId}`) and does **not** ask the user to name profiles.
     - `/connect` lists existing method slots for a provider and lets the user:
