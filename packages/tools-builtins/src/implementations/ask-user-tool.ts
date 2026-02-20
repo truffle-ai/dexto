@@ -12,7 +12,7 @@ const AskUserInputSchema = z
         schema: z
             .object({
                 type: z.literal('object'),
-                properties: z.record(z.unknown()),
+                properties: z.record(z.string(), z.record(z.unknown())),
                 required: z.array(z.string()).optional(),
             })
             .passthrough()
@@ -32,6 +32,9 @@ const AskUserInputSchema = z
     })
     .strict();
 
+type AskUserInput = z.output<typeof AskUserInputSchema>;
+type JsonSchema = AskUserInput['schema'];
+
 function toTitleCase(value: string): string {
     return value
         .trim()
@@ -43,19 +46,18 @@ function toTitleCase(value: string): string {
         .join(' ');
 }
 
-function enrichSchemaTitles(schema: Record<string, unknown>): Record<string, unknown> {
+function enrichSchemaTitles(schema: JsonSchema): JsonSchema {
     if (schema.type !== 'object') return schema;
     const properties = schema.properties;
-    if (!properties || typeof properties !== 'object') return schema;
+    if (!properties) return schema;
 
-    const nextProperties: Record<string, unknown> = { ...(properties as Record<string, unknown>) };
+    const nextProperties: JsonSchema['properties'] = { ...properties };
 
     for (const [key, value] of Object.entries(nextProperties)) {
         if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
-        const prop = value as Record<string, unknown>;
-        const title = typeof prop.title === 'string' ? prop.title.trim() : '';
+        const title = typeof value.title === 'string' ? value.title.trim() : '';
         if (title) continue;
-        nextProperties[key] = { ...prop, title: toTitleCase(key) };
+        nextProperties[key] = { ...value, title: toTitleCase(key) };
     }
 
     return { ...schema, properties: nextProperties };
@@ -84,20 +86,12 @@ export function createAskUserTool(): Tool<typeof AskUserInputSchema> {
                 );
             }
 
-            const elicitationRequest: {
-                schema: Record<string, unknown>;
-                prompt: string;
-                serverName: string;
-                sessionId?: string;
-            } = {
-                schema: enrichSchemaTitles(schema as unknown as Record<string, unknown>),
+            const elicitationRequest = {
+                schema: enrichSchemaTitles(input.schema),
                 prompt: question,
                 serverName: 'Dexto Agent',
+                ...(context.sessionId && { sessionId: context.sessionId }),
             };
-
-            if (context.sessionId !== undefined) {
-                elicitationRequest.sessionId = context.sessionId;
-            }
 
             return approvalManager.getElicitationData(elicitationRequest);
         },
