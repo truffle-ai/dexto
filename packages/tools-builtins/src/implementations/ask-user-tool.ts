@@ -22,10 +22,10 @@ const AskUserInputSchema = z
                     'Deterministic UI mapping (recommended):',
                     '- `properties[field].title`: main question/label shown prominently (keep ≲ 80 chars).',
                     '- `properties[field].description`: optional help text (keep ≲ 120 chars).',
-                    '- `properties[field][\"x-dexto\"].stepLabel`: short wizard/step label (keep ≲ 16 chars).',
+                    '- `properties[field]["x-dexto"].stepLabel`: short wizard/step label (keep ≲ 16 chars).',
                     'Use stable, descriptive property keys (avoid generic names like "q1").',
                     'Use `enum` for single-choice lists, `boolean` for yes/no, `number` for numeric inputs, `string` for text.',
-                    'For multi-select, use `type: \"array\"` with `items: { enum: [...] }`.',
+                    'For multi-select, use `type: "array"` with `items: { enum: [...] }`.',
                     'Include a top-level `required` array for mandatory fields.',
                 ].join(' ')
             ),
@@ -39,7 +39,7 @@ function toTitleCase(value: string): string {
         .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
         .replace(/\s+/g, ' ')
         .split(' ')
-        .map((part) => (part ? part[0]!.toUpperCase() + part.slice(1) : part))
+        .map((part) => (part ? part.charAt(0).toUpperCase() + part.slice(1) : part))
         .join(' ');
 }
 
@@ -55,7 +55,7 @@ function enrichSchemaTitles(schema: Record<string, unknown>): Record<string, unk
         const prop = value as Record<string, unknown>;
         const title = typeof prop.title === 'string' ? prop.title.trim() : '';
         if (title) continue;
-        prop.title = toTitleCase(key);
+        nextProperties[key] = { ...prop, title: toTitleCase(key) };
     }
 
     return { ...schema, properties: nextProperties };

@@ -82,7 +82,8 @@ export class PathValidator {
      * This is identical to {@link validatePath} except it does NOT enforce config-allowed roots.
      * It still enforces:
      * - traversal protection
-     * - blocked paths
+     * - blocked paths (absolute blocked paths only; relative blocked paths are resolved against
+     *   config-allowed roots and may not match paths outside those roots)
      * - blocked extensions
      *
      * Used for generating UI-only previews (e.g., diffs) before the user approves directory access.
@@ -105,13 +106,15 @@ export class PathValidator {
 
         // 2. Normalize the path to absolute
         const workingDir = this.config.workingDirectory || process.cwd();
+        let resolvedPath: string;
         let normalizedPath: string;
 
         try {
             // Handle both absolute and relative paths
-            normalizedPath = path.isAbsolute(filePath)
+            resolvedPath = path.isAbsolute(filePath)
                 ? path.resolve(filePath)
                 : path.resolve(workingDir, filePath);
+            normalizedPath = resolvedPath;
 
             // Canonicalize to handle symlinks and resolve real paths (async, non-blocking)
             try {
@@ -132,6 +135,17 @@ export class PathValidator {
             return {
                 isValid: false,
                 error: 'Path traversal detected',
+            };
+        }
+
+        if (
+            options.allowOutsideAllowedPaths &&
+            this.isInConfigAllowedPaths(resolvedPath) &&
+            !this.isInConfigAllowedPaths(normalizedPath)
+        ) {
+            return {
+                isValid: false,
+                error: 'Symlink target escapes allowed paths',
             };
         }
 

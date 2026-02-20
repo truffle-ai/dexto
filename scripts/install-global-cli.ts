@@ -189,6 +189,9 @@ function removeBunGlobalCliShim(toolName: string): RemoveResult {
             ? [join(bunBinDir, `${toolName}.exe`), join(bunBinDir, `${toolName}.cmd`)]
             : [join(bunBinDir, toolName)];
 
+    const messages: string[] = [];
+    let removedAny = false;
+
     for (const candidate of candidates) {
         if (!existsSync(candidate)) {
             continue;
@@ -211,37 +214,43 @@ function removeBunGlobalCliShim(toolName: string): RemoveResult {
                     resolvedTarget.startsWith(`${bunGlobalPkgDir}${sep}`);
 
                 if (!looksLikeBunGlobalDexto) {
-                    return {
-                        removed: false,
-                        message: `Found bun shim at ${candidate}, but its target doesn't look like a bun-managed install (${target}).`,
-                    };
+                    messages.push(
+                        `Found bun shim at ${candidate}, but its target doesn't look like a bun-managed install (${target}).`
+                    );
+                    continue;
                 }
 
                 rmSync(candidate, { force: true });
-                return { removed: true, message: `Removed bun shim at ${candidate}` };
+                removedAny = true;
+                messages.push(`Removed bun shim at ${candidate}`);
+                continue;
             }
 
-            const firstLine = readFileSync(candidate, 'utf8').split('\n')[0] ?? '';
-            if (!firstLine.includes('bun')) {
-                return {
-                    removed: false,
-                    message: `Found bun bin entry at ${candidate}, but it doesn't look like a bun script (first line: ${firstLine}).`,
-                };
+            const isWindowsExe =
+                process.platform === 'win32' && candidate.toLowerCase().endsWith('.exe');
+            if (!isWindowsExe) {
+                const firstLine = readFileSync(candidate, 'utf8').split('\n')[0] ?? '';
+                if (!firstLine.includes('bun')) {
+                    messages.push(
+                        `Found bun bin entry at ${candidate}, but it doesn't look like a bun script (first line: ${firstLine}).`
+                    );
+                    continue;
+                }
             }
 
             rmSync(candidate, { force: true });
-            return { removed: true, message: `Removed bun bin entry at ${candidate}` };
+            removedAny = true;
+            messages.push(`Removed bun bin entry at ${candidate}`);
         } catch (error) {
-            return {
-                removed: false,
-                message: `Failed to inspect/remove bun shim at ${candidate}: ${
+            messages.push(
+                `Failed to inspect/remove bun shim at ${candidate}: ${
                     error instanceof Error ? error.message : String(error)
-                }`,
-            };
+                }`
+            );
         }
     }
 
-    return { removed: false };
+    return { removed: removedAny, message: messages.length ? messages.join('; ') : undefined };
 }
 
 function sleep(ms: number): Promise<void> {

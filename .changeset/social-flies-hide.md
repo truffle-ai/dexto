@@ -20,4 +20,8 @@
 'dexto': patch
 ---
 
-Placeholder
+- CLI/TUI: cleaner overlays (selectors, approvals, elicitation) with consistent sizing to reduce flicker on small terminals.
+- Tools: richer pre-approval previews (files/diffs, bash commands, plans) and clearer tool output formatting in message history.
+- Filesystem approvals: directory access checks now handle symlinks/realpaths consistently so approved directories actually work (e.g. `/tmp` on macOS).
+- ask_user: wizard-style elicitation flow with a deterministic schema contract (field `title`/`description` + `x-dexto.stepLabel`).
+- Reliability & build: deterministic `http_request` tests (no network) and faster builds by separating JS bundling from DTS generation.

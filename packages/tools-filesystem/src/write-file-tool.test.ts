@@ -103,8 +103,12 @@ describe('write_file tool', () => {
 
                 expect(preview).toBeDefined();
                 expect(preview?.type).toBe('diff');
-                expect((preview as any).title).toBe('Update file');
-                expect((preview as any).filename).toBe(externalFile);
+                if (preview?.type === 'diff') {
+                    expect(preview.title).toBe('Update file');
+                    expect(preview.filename).toBe(externalFile);
+                } else {
+                    expect.fail('Expected diff preview');
+                }
             } finally {
                 await fs.rm(externalDir, { recursive: true, force: true });
             }
@@ -129,7 +133,11 @@ describe('write_file tool', () => {
             );
             expect(preview).toBeDefined();
             expect(preview?.type).toBe('diff');
-            expect((preview as any).title).toBe('Update file');
+            if (preview?.type === 'diff') {
+                expect(preview.title).toBe('Update file');
+            } else {
+                expect.fail('Expected diff preview');
+            }
 
             // Execute without modifying file (should succeed)
             const result = (await tool.execute(
@@ -232,8 +240,12 @@ describe('write_file tool', () => {
             );
             expect(preview).toBeDefined();
             expect(preview?.type).toBe('file');
-            expect((preview as any).operation).toBe('create');
-            expect((preview as any).title).toBe('Create file');
+            if (preview?.type === 'file') {
+                expect(preview.operation).toBe('create');
+                expect(preview.title).toBe('Create file');
+            } else {
+                expect.fail('Expected file preview');
+            }
 
             // Execute (file still doesn't exist - should succeed)
             const result = (await tool.execute(
@@ -242,8 +254,15 @@ describe('write_file tool', () => {
             )) as { success: boolean; _display?: unknown };
 
             expect(result.success).toBe(true);
-            expect((result._display as any)?.title).toBe('Create file');
-            expect((result._display as any)?.content).toBe('brand new content');
+            const display = result._display;
+            if (display && typeof display === 'object' && 'type' in display) {
+                expect((display as { type?: unknown }).type).toBe('file');
+                const fileDisplay = display as { title?: unknown; content?: unknown };
+                expect(fileDisplay.title).toBe('Create file');
+                expect(fileDisplay.content).toBe('brand new content');
+            } else {
+                expect.fail('Expected result._display');
+            }
 
             // Verify file was created
             const content = await fs.readFile(testFile, 'utf-8');

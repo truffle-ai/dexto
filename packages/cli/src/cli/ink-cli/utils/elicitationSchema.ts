@@ -21,7 +21,7 @@ function titleCaseWords(value: string): string {
         .split(' ')
         .map((word) => {
             if (!word) return '';
-            return word[0]!.toUpperCase() + word.slice(1);
+            return word.charAt(0).toUpperCase() + word.slice(1);
         })
         .join(' ');
 }

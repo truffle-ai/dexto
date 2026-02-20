@@ -124,31 +124,44 @@ export function createSafeLookup(config?: {
 
     return (hostname, options, callback) => {
         void (async () => {
+            const toErrnoException = (err: DextoRuntimeError): NodeJS.ErrnoException =>
+                err as unknown as NodeJS.ErrnoException;
             const emitError = (err: NodeJS.ErrnoException) => {
-                if (options.all) {
-                    (callback as (err: NodeJS.ErrnoException, addresses: LookupAddress[]) => void)(
-                        err,
-                        []
-                    );
-                    return;
-                }
+                try {
+                    if (options.all) {
+                        (
+                            callback as (
+                                err: NodeJS.ErrnoException,
+                                addresses: LookupAddress[]
+                            ) => void
+                        )(err, []);
+                        return;
+                    }
 
-                (callback as (err: NodeJS.ErrnoException, address: string, family: number) => void)(
-                    err,
-                    '',
-                    0
-                );
+                    (
+                        callback as (
+                            err: NodeJS.ErrnoException,
+                            address: string,
+                            family: number
+                        ) => void
+                    )(err, '', 0);
+                } catch {
+                    // Swallow callback exceptions: dns.lookup callbacks should not throw, and
+                    // we don't want this to surface as an unhandled rejection.
+                }
             };
 
             try {
                 if (BLOCKED_HOSTNAMES.has(hostname) || hostname.endsWith('.localhost')) {
                     emitError(
-                        new DextoRuntimeError(
-                            'HTTP_REQUEST_UNSAFE_TARGET',
-                            ErrorScope.TOOLS,
-                            ErrorType.FORBIDDEN,
-                            `Blocked request to local hostname: ${hostname}`
-                        ) as unknown as NodeJS.ErrnoException
+                        toErrnoException(
+                            new DextoRuntimeError(
+                                'HTTP_REQUEST_UNSAFE_TARGET',
+                                ErrorScope.TOOLS,
+                                ErrorType.FORBIDDEN,
+                                `Blocked request to local hostname: ${hostname}`
+                            )
+                        )
                     );
                     return;
                 }
@@ -163,12 +176,14 @@ export function createSafeLookup(config?: {
 
                 if (!records.length) {
                     emitError(
-                        new DextoRuntimeError(
-                            'HTTP_REQUEST_DNS_FAILED',
-                            ErrorScope.TOOLS,
-                            ErrorType.THIRD_PARTY,
-                            `Failed to resolve hostname: ${hostname}`
-                        ) as unknown as NodeJS.ErrnoException
+                        toErrnoException(
+                            new DextoRuntimeError(
+                                'HTTP_REQUEST_DNS_FAILED',
+                                ErrorScope.TOOLS,
+                                ErrorType.THIRD_PARTY,
+                                `Failed to resolve hostname: ${hostname}`
+                            )
+                        )
                     );
                     return;
                 }
@@ -176,12 +191,14 @@ export function createSafeLookup(config?: {
                 for (const record of records) {
                     if (isPrivateAddress(record.address)) {
                         emitError(
-                            new DextoRuntimeError(
-                                'HTTP_REQUEST_UNSAFE_TARGET',
-                                ErrorScope.TOOLS,
-                                ErrorType.FORBIDDEN,
-                                `Blocked request to private address: ${record.address}`
-                            ) as unknown as NodeJS.ErrnoException
+                            toErrnoException(
+                                new DextoRuntimeError(
+                                    'HTTP_REQUEST_UNSAFE_TARGET',
+                                    ErrorScope.TOOLS,
+                                    ErrorType.FORBIDDEN,
+                                    `Blocked request to private address: ${record.address}`
+                                )
+                            )
                         );
                         return;
                     }
@@ -189,16 +206,41 @@ export function createSafeLookup(config?: {
 
                 // undici passes { all: true } and expects the dns.lookup(all:true) callback signature.
                 if (options.all) {
-                    (callback as (err: null, addresses: LookupAddress[]) => void)(null, records);
+                    try {
+                        (callback as (err: null, addresses: LookupAddress[]) => void)(
+                            null,
+                            records
+                        );
+                    } catch {
+                        // Swallow callback exceptions to avoid unhandled rejection.
+                    }
                     return;
                 }
 
-                const selected = records[0]!;
-                (callback as (err: null, address: string, family: number) => void)(
-                    null,
-                    selected.address,
-                    selected.family ?? (isIP(selected.address) === 6 ? 6 : 4)
-                );
+                const selected = records[0];
+                if (!selected) {
+                    emitError(
+                        toErrnoException(
+                            new DextoRuntimeError(
+                                'HTTP_REQUEST_DNS_FAILED',
+                                ErrorScope.TOOLS,
+                                ErrorType.THIRD_PARTY,
+                                `Failed to resolve hostname: ${hostname}`
+                            )
+                        )
+                    );
+                    return;
+                }
+
+                try {
+                    (callback as (err: null, address: string, family: number) => void)(
+                        null,
+                        selected.address,
+                        selected.family ?? (isIP(selected.address) === 6 ? 6 : 4)
+                    );
+                } catch {
+                    // Swallow callback exceptions to avoid unhandled rejection.
+                }
             } catch (error) {
                 const err =
                     error instanceof DextoRuntimeError
@@ -210,7 +252,7 @@ export function createSafeLookup(config?: {
                               `Failed to resolve hostname: ${hostname}`
                           );
 
-                emitError(err as unknown as NodeJS.ErrnoException);
+                emitError(toErrnoException(err));
             }
         })();
     };

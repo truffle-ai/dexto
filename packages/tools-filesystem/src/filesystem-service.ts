@@ -8,7 +8,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { glob } from 'glob';
 import safeRegex from 'safe-regex';
-import { getDextoPath, Logger, DextoLogComponent } from '@dexto/core';
+import { DextoRuntimeError, getDextoPath, Logger, DextoLogComponent } from '@dexto/core';
 import {
     FileSystemConfig,
     FileContent,
@@ -213,6 +213,9 @@ export class FileSystemService {
             if ((error as NodeJS.ErrnoException).code === 'EACCES') {
                 throw FileSystemError.permissionDenied(normalizedPath, 'read');
             }
+            if (error instanceof DextoRuntimeError) {
+                throw error;
+            }
             throw FileSystemError.readFailed(
                 normalizedPath,
                 error instanceof Error ? error.message : String(error)
@@ -241,12 +244,13 @@ export class FileSystemService {
                 selectedLines = lines;
             }
 
+            const returnedContent = selectedLines.join('\n');
             return {
-                content: selectedLines.join('\n'),
+                content: returnedContent,
                 lines: selectedLines.length,
                 encoding,
                 truncated,
-                size: Buffer.byteLength(content, encoding),
+                size: Buffer.byteLength(returnedContent, encoding),
             };
         } catch (error) {
             throw FileSystemError.readFailed(

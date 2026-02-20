@@ -104,8 +104,12 @@ describe('edit_file tool', () => {
 
                 expect(preview).toBeDefined();
                 expect(preview?.type).toBe('diff');
-                expect((preview as any).title).toBe('Update file');
-                expect((preview as any).filename).toBe(externalFile);
+                if (preview?.type === 'diff') {
+                    expect(preview.title).toBe('Update file');
+                    expect(preview.filename).toBe(externalFile);
+                } else {
+                    expect.fail('Expected diff preview');
+                }
             } finally {
                 await fs.rm(externalDir, { recursive: true, force: true });
             }

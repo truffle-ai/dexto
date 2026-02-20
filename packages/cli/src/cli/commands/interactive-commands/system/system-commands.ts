@@ -40,7 +40,15 @@ export const systemCommands: CommandDefinition[] = [
             agent: DextoAgent,
             _ctx: CommandContext
         ): Promise<CommandHandlerResult> => {
-            const validLevels = ['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly'];
+            const validLevels = [
+                'error',
+                'warn',
+                'info',
+                'debug',
+                'silly',
+            ] as const satisfies readonly LogLevel[];
+            const validLevelSet = new Set<string>(validLevels);
+            const isLogLevel = (value: string): value is LogLevel => validLevelSet.has(value);
             const level = args[0];
 
             if (!level) {
@@ -50,7 +58,7 @@ export const systemCommands: CommandDefinition[] = [
                 const styledData: LogConfigStyledData = {
                     currentLevel,
                     logFile,
-                    availableLevels: validLevels,
+                    availableLevels: [...validLevels],
                 };
 
                 const fallbackLines = [
@@ -68,8 +76,8 @@ export const systemCommands: CommandDefinition[] = [
                 );
             }
 
-            if (validLevels.includes(level)) {
-                agent.logger.setLevel(level as LogLevel);
+            if (isLogLevel(level)) {
+                agent.logger.setLevel(level);
                 return formatForInkCli(`✅ Log level set to ${level}`);
             }
 

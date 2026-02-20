@@ -343,6 +343,7 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                     }
 
                     const setDraftValue = (updater: (prev: string) => string) => {
+                        const hadError = hasOwn(errors, activeField.name);
                         setDraftInputs((prev) => {
                             const current = hasOwn(prev, activeField.name)
                                 ? (prev[activeField.name] ?? '')
@@ -353,16 +354,15 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                                           : String(existing);
                                   })();
 
-                            if (hasOwn(errors, activeField.name)) {
-                                setErrors((prevErrors) => {
-                                    const nextErrors = { ...prevErrors };
-                                    delete nextErrors[activeField.name];
-                                    return nextErrors;
-                                });
-                            }
-
                             return { ...prev, [activeField.name]: updater(current) };
                         });
+                        if (hadError) {
+                            setErrors((prevErrors) => {
+                                const nextErrors = { ...prevErrors };
+                                delete nextErrors[activeField.name];
+                                return nextErrors;
+                            });
+                        }
                     };
 
                     switch (activeField.type) {

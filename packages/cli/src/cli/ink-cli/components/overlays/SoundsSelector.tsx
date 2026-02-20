@@ -715,12 +715,14 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                 ) {
                     return (
                         <Box flexDirection="row">
-                            <Box flexGrow={1}>
-                                <Text wrap="truncate-end">
-                                    <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
-                                        {item.label}
-                                    </Text>
-                                    {item.isCurrent ? <Text color="green"> *</Text> : null}
+                            <Box flexGrow={1} flexDirection="row">
+                                <Text color="green">{item.isCurrent ? '* ' : '  '}</Text>
+                                <Text
+                                    color={isSelected ? 'cyan' : 'gray'}
+                                    bold={isSelected}
+                                    wrap="truncate-end"
+                                >
+                                    {item.label}
                                 </Text>
                             </Box>
                             {isSelected && (
@@ -785,7 +787,7 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
 
                 {error && (
                     <Box marginTop={1}>
-                        <Text color="red" wrap="truncate-end">
+                        <Text color="red" wrap="wrap">
                             {error}
                         </Text>
                     </Box>
