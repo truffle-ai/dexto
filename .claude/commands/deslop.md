@@ -40,6 +40,8 @@ Look for:
 - **Bad naming** - Vague names like `data`, `temp`, `stuff`, `foo`, `bar`, `result`, `val`, `item`, `obj`
     - Good names describe intent: `validatedUserId`, `currentLogLevel`, `pendingApprovalRequests`
 - **One-line wrapper functions** - Functions that just call another function without adding logic (e.g., `const foo = (x) => bar(x)`). Either inline or merge the logic.
+- **Flag arguments** - Boolean parameters that change function behavior (e.g., `doThing(flag=true)`). Split into separate functions instead.
+- **Verb-based function names doing noun things** - `doXOrReturnY` patterns that do two things. Split into focused functions.
 - **Unused refs/state** - Refs kept in sync with state that could be simplified
 
 ### 3. Type Safety Issues
