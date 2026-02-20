@@ -266,6 +266,7 @@ describe('Setup Command', () => {
             mockPrompts.select.mockResolvedValueOnce('custom'); // Setup type
             mockSelectProvider.mockResolvedValueOnce('anthropic'); // Provider (via selectProvider)
             mockPrompts.select.mockResolvedValueOnce('claude-haiku-4-5-20251001'); // Model
+            mockPrompts.select.mockResolvedValueOnce('auto'); // Reasoning preset (if model supports it)
             mockPrompts.select.mockResolvedValueOnce('web'); // Default mode
 
             const options = {
@@ -278,6 +279,7 @@ describe('Setup Command', () => {
                 expect.objectContaining({
                     provider: 'anthropic',
                     defaultMode: 'web',
+                    reasoning: { preset: 'auto' },
                     setupCompleted: true,
                 })
             );

@@ -86,6 +86,15 @@ export interface ModelInfo {
     default?: boolean;
     supportedFileTypes: SupportedFileType[]; // Required - every model must explicitly specify file support
     displayName?: string;
+    /**
+     * models.dev capability hints (optional).
+     * - reasoning: model is marketed/flagged as a "reasoning" model / supports explicit reasoning mode.
+     * - supportsTemperature: model supports a temperature parameter (some reasoning models don't).
+     * - supportsInterleaved: model supports interleaved reasoning/content streaming paradigms.
+     */
+    reasoning?: boolean;
+    supportsTemperature?: boolean;
+    supportsInterleaved?: boolean;
     // Pricing metadata (USD per 1M tokens). Optional; when omitted, pricing is unknown.
     pricing?: ModelPricing;
 }
@@ -1081,16 +1090,34 @@ export function getModelDisplayName(model: string, provider?: LLMProvider): stri
     }
 }
 
-// TODO: Add reasoningCapable as a property in the model registry instead of hardcoding here
 /**
- * Checks if a model supports configurable reasoning effort.
- * Currently only OpenAI reasoning models (o1, o3, codex, gpt-5.x) support this.
+ * Checks if a model is flagged as "reasoning-capable" by the registry (models.dev).
+ *
+ * Note: This is distinct from "supports tunable reasoning knobs". Some providers/models may
+ * have reasoning but limited/implicit tuning controls.
  *
  * @param model The model name to check.
  * @param provider Optional provider for context (defaults to detecting from model name).
- * @returns True if the model supports reasoning effort configuration.
+ * @returns True if the registry marks this model as reasoning-capable.
  */
-export function isReasoningCapableModel(model: string, _provider?: LLMProvider): boolean {
+export function isReasoningCapableModel(model: string, provider?: LLMProvider): boolean {
+    const registryProvider = (() => {
+        if (model.includes('/')) return 'openrouter' as const;
+        if (provider) return provider;
+        try {
+            return getProviderFromModel(model);
+        } catch {
+            return undefined;
+        }
+    })();
+
+    if (registryProvider) {
+        const modelInfo = findModelInfo(registryProvider, model);
+        if (modelInfo?.reasoning === true) return true;
+        if (modelInfo?.reasoning === false) return false;
+    }
+
+    // Fallback heuristics (for unknown/custom models).
     const modelLower = model.toLowerCase();
 
     // Codex models are optimized for complex coding with reasoning

@@ -16,12 +16,12 @@ import {
 } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import type { DextoAgent, LLMProvider } from '@dexto/core';
+import type { DextoAgent, LLMProvider, ReasoningPreset } from '@dexto/core';
 import {
     listOllamaModels,
     DEFAULT_OLLAMA_URL,
     getLocalModelById,
-    isReasoningCapableModel,
+    getReasoningSupport,
 } from '@dexto/core';
 import {
     loadCustomModels,
@@ -33,8 +33,6 @@ import {
 } from '@dexto/agent-management';
 import { getLLMProviderDisplayName } from '../../utils/llm-provider-display.js';
 
-type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
-
 interface ModelSelectorProps {
     isVisible: boolean;
     onSelectModel: (
@@ -42,14 +40,14 @@ interface ModelSelectorProps {
         model: string,
         displayName?: string,
         baseURL?: string,
-        reasoningEffort?: ReasoningEffort
+        reasoningPreset?: ReasoningPreset
     ) => void;
     onSetDefaultModel: (
         provider: LLMProvider,
         model: string,
         displayName?: string,
         baseURL?: string,
-        reasoningEffort?: ReasoningEffort
+        reasoningPreset?: ReasoningPreset
     ) => Promise<void>;
     onClose: () => void;
     onAddCustomModel: () => void;
@@ -70,7 +68,7 @@ interface ModelOption {
     isCurrent: boolean;
     isCustom: boolean;
     baseURL?: string;
-    reasoningEffort?: ReasoningEffort;
+    reasoningPreset?: ReasoningPreset;
     /** For gateway providers like dexto-nova, the original provider this model comes from */
     originalProvider?: LLMProvider;
 }
@@ -88,28 +86,36 @@ function isAddCustomOption(item: SelectorItem): item is AddCustomOption {
 
 const MAX_VISIBLE_ITEMS = 10;
 
-// Reasoning effort options - defined at module scope to avoid recreation on each render
-const REASONING_EFFORT_OPTIONS: {
-    value: ReasoningEffort | 'auto';
+// Reasoning preset options - defined at module scope to avoid recreation on each render
+const REASONING_PRESET_OPTIONS: {
+    value: ReasoningPreset;
     label: string;
     description: string;
 }[] = [
     {
         value: 'auto',
         label: 'Auto',
-        description: 'Let the model decide (recommended for most tasks)',
+        description: 'Let Dexto/provider choose an appropriate reasoning level',
     },
-    { value: 'none', label: 'None', description: 'No reasoning, fastest responses' },
-    { value: 'minimal', label: 'Minimal', description: 'Barely any reasoning, very fast' },
-    { value: 'low', label: 'Low', description: 'Light reasoning, fast responses' },
-    {
-        value: 'medium',
-        label: 'Medium',
-        description: 'Balanced reasoning (OpenAI recommended)',
-    },
-    { value: 'high', label: 'High', description: 'Thorough reasoning for complex tasks' },
-    { value: 'xhigh', label: 'Extra High', description: 'Maximum quality, slower/costlier' },
+    { value: 'off', label: 'Off', description: 'Disable reasoning (fastest)' },
+    { value: 'low', label: 'Low', description: 'Light reasoning, faster responses' },
+    { value: 'medium', label: 'Medium', description: 'Balanced reasoning' },
+    { value: 'high', label: 'High', description: 'Thorough reasoning' },
+    { value: 'max', label: 'Max', description: 'Maximize reasoning within provider limits' },
+    { value: 'xhigh', label: 'XHigh', description: 'Extra high (only on some models, e.g. codex)' },
 ];
+
+function getInitialPresetIndex(
+    savedPreset: ReasoningPreset | undefined,
+    supportedPresets: ReasoningPreset[]
+): number {
+    const filteredOptions = REASONING_PRESET_OPTIONS.filter((option) =>
+        supportedPresets.includes(option.value)
+    );
+    if (!savedPreset) return 0;
+    const idx = filteredOptions.findIndex((option) => option.value === savedPreset);
+    return idx >= 0 ? idx : 0;
+}
 
 /**
  * Model selector with search and custom model support
@@ -141,9 +147,20 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
     // Reasoning effort sub-step state
     const [pendingReasoningModel, setPendingReasoningModel] = useState<ModelOption | null>(null);
-    const [reasoningEffortIndex, setReasoningEffortIndex] = useState(0); // Default to 'Auto' (index 0)
+    const [reasoningPresetIndex, setReasoningPresetIndex] = useState(0); // Default to 'Auto' (index 0)
     const [isSettingDefault, setIsSettingDefault] = useState(false); // Track if setting as default vs normal selection
     const [refreshVersion, setRefreshVersion] = useState(0);
+
+    const reasoningPresetOptions = useMemo(() => {
+        if (!pendingReasoningModel) return REASONING_PRESET_OPTIONS;
+        const support = getReasoningSupport(
+            pendingReasoningModel.provider,
+            pendingReasoningModel.name
+        );
+        return REASONING_PRESET_OPTIONS.filter((option) =>
+            support.supportedPresets.includes(option.value)
+        );
+    }, [pendingReasoningModel]);
 
     // Keep ref in sync
     selectedIndexRef.current = selectedIndex;
@@ -170,7 +187,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         setPendingDeleteConfirm(false);
         setPendingReasoningModel(null);
         setIsSettingDefault(false);
-        setReasoningEffortIndex(0); // Default to 'Auto'
+        setReasoningPresetIndex(0); // Default to 'Auto'
         if (deleteTimeoutRef.current) {
             clearTimeout(deleteTimeoutRef.current);
             deleteTimeoutRef.current = null;
@@ -191,7 +208,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 const defaultProvider = preferences?.llm.provider;
                 const defaultModel = preferences?.llm.model;
                 const defaultBaseURL = preferences?.llm.baseURL;
-                const defaultReasoningEffort = preferences?.llm.reasoningEffort;
+                const defaultReasoningPreset = preferences?.llm.reasoning?.preset;
 
                 // Fetch dynamic models for local providers
                 let ollamaModels: Array<{ name: string; size?: number }> = [];
@@ -230,8 +247,8 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     if (custom.baseURL) {
                         modelOption.baseURL = custom.baseURL;
                     }
-                    if (custom.reasoningEffort) {
-                        modelOption.reasoningEffort = custom.reasoningEffort;
+                    if (custom.reasoning?.preset) {
+                        modelOption.reasoningPreset = custom.reasoning.preset;
                     }
                     modelList.push(modelOption);
                 }
@@ -276,10 +293,10 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                                 provider === currentConfig.provider &&
                                 model.name === currentConfig.model,
                             isCustom: false,
-                            ...(defaultReasoningEffort &&
+                            ...(defaultReasoningPreset &&
                             provider === defaultProvider &&
                             model.name === defaultModel
-                                ? { reasoningEffort: defaultReasoningEffort }
+                                ? { reasoningPreset: defaultReasoningPreset }
                                 : {}),
                             ...(defaultBaseURL &&
                             provider === defaultProvider &&
@@ -342,10 +359,10 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                                 currentConfig.provider === 'vertex' &&
                                 currentConfig.model === model.name,
                             isCustom: false,
-                            ...(defaultReasoningEffort &&
+                            ...(defaultReasoningPreset &&
                             defaultProvider === 'vertex' &&
                             defaultModel === model.name
-                                ? { reasoningEffort: defaultReasoningEffort }
+                                ? { reasoningPreset: defaultReasoningPreset }
                                 : {}),
                         });
                     }
@@ -454,7 +471,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             handleInput: (input: string, key: Key): boolean => {
                 if (!isVisible) return false;
 
-                // Handle reasoning effort sub-step
+                // Handle reasoning preset sub-step
                 if (pendingReasoningModel) {
                     if (key.escape) {
                         // Go back to model selection
@@ -463,21 +480,24 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         return true;
                     }
                     if (key.upArrow) {
-                        setReasoningEffortIndex((prev) =>
-                            prev > 0 ? prev - 1 : REASONING_EFFORT_OPTIONS.length - 1
+                        if (reasoningPresetOptions.length === 0) return true;
+                        setReasoningPresetIndex((prev) =>
+                            prev > 0 ? prev - 1 : reasoningPresetOptions.length - 1
                         );
                         return true;
                     }
                     if (key.downArrow) {
-                        setReasoningEffortIndex((prev) =>
-                            prev < REASONING_EFFORT_OPTIONS.length - 1 ? prev + 1 : 0
+                        if (reasoningPresetOptions.length === 0) return true;
+                        setReasoningPresetIndex((prev) =>
+                            prev < reasoningPresetOptions.length - 1 ? prev + 1 : 0
                         );
                         return true;
                     }
                     if (key.return) {
-                        const selectedOption = REASONING_EFFORT_OPTIONS[reasoningEffortIndex];
-                        const reasoningEffort =
-                            selectedOption?.value === 'auto' ? undefined : selectedOption?.value;
+                        const selectedOption =
+                            reasoningPresetOptions[reasoningPresetIndex] ??
+                            reasoningPresetOptions[0];
+                        const reasoningPreset = selectedOption?.value ?? 'auto';
 
                         if (isSettingDefault) {
                             // Setting as default model
@@ -488,7 +508,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                                     pendingReasoningModel.name,
                                     pendingReasoningModel.displayName,
                                     pendingReasoningModel.baseURL,
-                                    reasoningEffort
+                                    reasoningPreset
                                 );
                                 setRefreshVersion((prev) => prev + 1);
                                 onClose(); // Close overlay after setting default
@@ -500,15 +520,14 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                                 pendingReasoningModel.name,
                                 pendingReasoningModel.displayName,
                                 pendingReasoningModel.baseURL,
-                                reasoningEffort
+                                reasoningPreset
                             );
                         }
-
                         setPendingReasoningModel(null);
                         setIsSettingDefault(false);
                         return true;
                     }
-                    return true; // Consume all input in reasoning effort mode
+                    return true; // Consume all input in reasoning preset mode
                 }
 
                 // Escape always works
@@ -527,11 +546,10 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 const isCustomActionItem =
                     currentItem && !isAddCustomOption(currentItem) && currentItem.isCustom;
                 const isSelectableItem = currentItem && !isAddCustomOption(currentItem);
-                const isOnActionItem = isCustomActionItem || isSelectableItem;
 
                 // Right arrow - enter/advance action mode for custom or selectable models
                 if (key.rightArrow) {
-                    if (!isOnActionItem) return false;
+                    if (!isSelectableItem) return false;
 
                     if (customModelAction === null) {
                         if (isCustomActionItem) {
@@ -556,11 +574,17 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
                         const actionItem = currentItem as ModelOption;
 
-                        // Check if reasoning-capable, show reasoning effort selection
-                        if (isReasoningCapableModel(actionItem.name)) {
+                        // Check if reasoning-capable, show reasoning preset selection
+                        const support = getReasoningSupport(actionItem.provider, actionItem.name);
+                        if (support.capable) {
                             setPendingReasoningModel(actionItem);
                             setIsSettingDefault(true);
-                            setReasoningEffortIndex(0); // Default to 'Auto'
+                            setReasoningPresetIndex(
+                                getInitialPresetIndex(
+                                    actionItem.reasoningPreset,
+                                    support.supportedPresets
+                                )
+                            );
                             return true;
                         }
 
@@ -571,7 +595,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                                 actionItem.name,
                                 actionItem.displayName,
                                 actionItem.baseURL,
-                                actionItem.reasoningEffort
+                                actionItem.reasoningPreset
                             );
                             setRefreshVersion((prev) => prev + 1);
                             onClose(); // Close overlay after setting default
@@ -705,11 +729,17 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         }
 
                         if (customModelAction === 'default') {
-                            // Check if reasoning-capable, show reasoning effort selection
-                            if (isReasoningCapableModel(item.name)) {
+                            // Check if reasoning-capable, show reasoning preset selection
+                            const support = getReasoningSupport(item.provider, item.name);
+                            if (support.capable) {
                                 setPendingReasoningModel(item);
                                 setIsSettingDefault(true);
-                                setReasoningEffortIndex(0); // Default to 'Auto'
+                                setReasoningPresetIndex(
+                                    getInitialPresetIndex(
+                                        item.reasoningPreset,
+                                        support.supportedPresets
+                                    )
+                                );
                                 return true;
                             }
 
@@ -720,7 +750,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                                     item.name,
                                     item.displayName,
                                     item.baseURL,
-                                    item.reasoningEffort
+                                    item.reasoningPreset
                                 );
                                 setRefreshVersion((prev) => prev + 1);
                                 onClose(); // Close overlay after setting default
@@ -748,10 +778,16 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         }
 
                         // Normal selection - check if reasoning-capable
-                        if (isReasoningCapableModel(item.name)) {
-                            // Show reasoning effort sub-step
+                        const support = getReasoningSupport(item.provider, item.name);
+                        if (support.capable) {
+                            // Show reasoning preset sub-step
                             setPendingReasoningModel(item);
-                            setReasoningEffortIndex(0); // Default to 'Auto'
+                            setReasoningPresetIndex(
+                                getInitialPresetIndex(
+                                    item.reasoningPreset,
+                                    support.supportedPresets
+                                )
+                            );
                             return true;
                         }
                         onSelectModel(item.provider, item.name, item.displayName, item.baseURL);
@@ -775,7 +811,8 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             customModels,
             handleDeleteCustomModel,
             pendingReasoningModel,
-            reasoningEffortIndex,
+            reasoningPresetIndex,
+            reasoningPresetOptions,
             isSettingDefault,
         ]
     );
@@ -790,13 +827,13 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         );
     }
 
-    // Reasoning effort sub-step UI
+    // Reasoning preset sub-step UI
     if (pendingReasoningModel) {
         return (
             <Box flexDirection="column">
                 <Box paddingX={0} paddingY={0}>
                     <Text color="cyan" bold>
-                        Configure Reasoning Effort
+                        Configure Reasoning Preset
                         {isSettingDefault && <Text color="gray"> (Setting as Default)</Text>}
                     </Text>
                 </Box>
@@ -811,8 +848,8 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 <Box paddingX={0} paddingY={0}>
                     <Text color="gray">{'─'.repeat(50)}</Text>
                 </Box>
-                {REASONING_EFFORT_OPTIONS.map((option, index) => {
-                    const isSelected = index === reasoningEffortIndex;
+                {reasoningPresetOptions.map((option, index) => {
+                    const isSelected = index === reasoningPresetIndex;
                     return (
                         <Box key={option.value} paddingX={0} paddingY={0}>
                             <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>

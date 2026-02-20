@@ -60,4 +60,44 @@ describe('resolveAndValidateLLMConfig', () => {
             );
         }
     });
+
+    it('preserves reasoning config when applying unrelated updates', async () => {
+        const configWithReasoning = LLMConfigSchema.parse({
+            provider: 'openai',
+            model: 'gpt-5',
+            apiKey: TEST_OPENAI_API_KEY,
+            reasoning: { preset: 'high', budgetTokens: 123 },
+        });
+
+        const result = await resolveAndValidateLLMConfig(
+            configWithReasoning,
+            { maxOutputTokens: 2048 },
+            mockLogger
+        );
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+            expect(result.data.reasoning).toEqual({ preset: 'high', budgetTokens: 123 });
+        }
+    });
+
+    it('replaces reasoning config when updates.reasoning is provided (clears previous budgetTokens)', async () => {
+        const configWithReasoning = LLMConfigSchema.parse({
+            provider: 'openai',
+            model: 'gpt-5',
+            apiKey: TEST_OPENAI_API_KEY,
+            reasoning: { preset: 'high', budgetTokens: 123 },
+        });
+
+        const result = await resolveAndValidateLLMConfig(
+            configWithReasoning,
+            { reasoning: { preset: 'low' } },
+            mockLogger
+        );
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+            expect(result.data.reasoning).toEqual({ preset: 'low' });
+        }
+    });
 });

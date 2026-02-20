@@ -74,6 +74,8 @@ interface MessageItemProps {
     message: Message;
     /** Terminal width for proper text wrapping calculations */
     terminalWidth?: number;
+    /** Whether assistant reasoning should be shown. */
+    showReasoning?: boolean;
 }
 
 /**
@@ -84,7 +86,7 @@ interface MessageItemProps {
  * but individual message content hasn't changed.
  */
 export const MessageItem = memo(
-    ({ message, terminalWidth = 80 }: MessageItemProps) => {
+    ({ message, terminalWidth = 80, showReasoning = true }: MessageItemProps) => {
         // Check for styled message first
         if (message.styledType && message.styledData) {
             switch (message.styledType) {
@@ -160,11 +162,21 @@ export const MessageItem = memo(
         // Without width constraints, streaming content causes terminal blackout at ~50+ lines.
         // marginTop={1} for consistent spacing with tool messages
         if (message.role === 'assistant') {
+            const hasContent = message.content.trim().length > 0;
+            const reasoningBlock =
+                showReasoning && message.reasoning ? (
+                    <Box flexDirection="column" marginBottom={1}>
+                        <Text color="gray">Reasoning</Text>
+                        <MarkdownText color="gray">{message.reasoning}</MarkdownText>
+                    </Box>
+                ) : null;
+
             // Continuation messages: no indicator, just content
             if (message.isContinuation) {
                 return (
                     <Box flexDirection="column" width={terminalWidth}>
-                        <MarkdownText>{message.content || ''}</MarkdownText>
+                        {reasoningBlock}
+                        {hasContent ? <MarkdownText>{message.content}</MarkdownText> : null}
                     </Box>
                 );
             }
@@ -174,7 +186,10 @@ export const MessageItem = memo(
             // This is simpler and avoids mid-word splitting issues with Ink's wrap
             return (
                 <Box flexDirection="column" marginTop={1} width={terminalWidth}>
-                    <MarkdownText bulletPrefix="⏺ ">{message.content || ''}</MarkdownText>
+                    {reasoningBlock}
+                    {hasContent ? (
+                        <MarkdownText bulletPrefix="⏺ ">{message.content}</MarkdownText>
+                    ) : null}
                 </Box>
             );
         }
@@ -298,6 +313,7 @@ export const MessageItem = memo(
         return (
             prev.message.id === next.message.id &&
             prev.message.content === next.message.content &&
+            prev.message.reasoning === next.message.reasoning &&
             prev.message.role === next.message.role &&
             prev.message.toolStatus === next.message.toolStatus &&
             prev.message.toolResult === next.message.toolResult &&
@@ -309,6 +325,7 @@ export const MessageItem = memo(
             prev.message.toolDisplayData === next.message.toolDisplayData &&
             prev.message.toolContent === next.message.toolContent &&
             prev.terminalWidth === next.terminalWidth &&
+            prev.showReasoning === next.showReasoning &&
             prev.message.subAgentProgress?.toolsCalled ===
                 next.message.subAgentProgress?.toolsCalled &&
             prev.message.subAgentProgress?.currentTool ===

@@ -9,6 +9,8 @@
  * - /config - Show current configuration
  * - /stats - Show system statistics
  * - /stream - Toggle streaming mode for LLM responses
+ * - /reasoning - Configure reasoning visibility and budget tokens
+ * - /sounds - Configure sound notifications (interactive)
  */
 
 import chalk from 'chalk';
@@ -235,6 +237,13 @@ export const systemCommands: CommandDefinition[] = [
             // Overlay is handled via commandOverlays.ts mapping
             return true;
         },
+    },
+    {
+        name: 'reasoning',
+        description: 'Configure reasoning display and budget tokens',
+        usage: '/reasoning',
+        category: 'Model',
+        handler: overlayOnlyHandler,
     },
     {
         name: 'sounds',

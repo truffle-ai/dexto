@@ -97,6 +97,16 @@ function applyModelsByProvider(modelsByProvider: Record<LLMProvider, ModelInfo[]
                     : m.supportedFileTypes;
 
                 const displayName = updated.displayName ?? m.displayName;
+                const reasoning =
+                    typeof updated.reasoning === 'boolean' ? updated.reasoning : m.reasoning;
+                const supportsTemperature =
+                    typeof updated.supportsTemperature === 'boolean'
+                        ? updated.supportsTemperature
+                        : m.supportsTemperature;
+                const supportsInterleaved =
+                    typeof updated.supportsInterleaved === 'boolean'
+                        ? updated.supportsInterleaved
+                        : m.supportsInterleaved;
                 const pricing = updated.pricing ?? m.pricing;
 
                 merged.push({
@@ -104,6 +114,9 @@ function applyModelsByProvider(modelsByProvider: Record<LLMProvider, ModelInfo[]
                     maxInputTokens,
                     supportedFileTypes,
                     ...(displayName ? { displayName } : {}),
+                    ...(typeof reasoning === 'boolean' ? { reasoning } : {}),
+                    ...(typeof supportsTemperature === 'boolean' ? { supportsTemperature } : {}),
+                    ...(typeof supportsInterleaved === 'boolean' ? { supportsInterleaved } : {}),
                     ...(pricing ? { pricing } : {}),
                 });
             }

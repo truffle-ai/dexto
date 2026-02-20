@@ -16,6 +16,9 @@ type ModelsDevModel = {
     id: string;
     name: string;
     attachment: boolean;
+    reasoning?: boolean;
+    temperature?: boolean;
+    interleaved?: unknown;
     limit: {
         context: number;
         input?: number;
@@ -127,6 +130,15 @@ export function parseModelsDevApi(json: unknown): ModelsDevApi {
                     `models.dev model '${providerId}/${modelId}'.name`
                 ),
                 attachment: Boolean(m.attachment),
+                ...(typeof (m as { reasoning?: unknown }).reasoning === 'boolean'
+                    ? { reasoning: (m as { reasoning: boolean }).reasoning }
+                    : {}),
+                ...(typeof (m as { temperature?: unknown }).temperature === 'boolean'
+                    ? { temperature: (m as { temperature: boolean }).temperature }
+                    : {}),
+                ...((m as { interleaved?: unknown }).interleaved != null
+                    ? { interleaved: (m as { interleaved: unknown }).interleaved }
+                    : {}),
                 limit: {
                     context: requireNumber(
                         limit.context,
@@ -212,11 +224,17 @@ function modelToModelInfo(
     options: { defaultModelId?: string }
 ): ModelInfo {
     const pricing = getPricing(model);
+    const supportsInterleaved = model.interleaved === true || isRecord(model.interleaved);
     return {
         name: model.id,
         displayName: model.name,
         maxInputTokens: model.limit.input ?? model.limit.context,
         supportedFileTypes: getSupportedFileTypesFromModel(provider, model),
+        ...(typeof model.reasoning === 'boolean' ? { reasoning: model.reasoning } : {}),
+        ...(typeof model.temperature === 'boolean'
+            ? { supportsTemperature: model.temperature }
+            : {}),
+        ...(supportsInterleaved ? { supportsInterleaved } : {}),
         ...(pricing ? { pricing } : {}),
         ...(options.defaultModelId === model.id ? { default: true } : {}),
     };

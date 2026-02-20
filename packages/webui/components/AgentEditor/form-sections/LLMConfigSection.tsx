@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Input } from '../../ui/input';
 import { LabelWithTooltip } from '../../ui/label-with-tooltip';
 import { Collapsible } from '../../ui/collapsible';
 import { Eye, EyeOff } from 'lucide-react';
-import { LLM_PROVIDERS, isReasoningCapableModel } from '@dexto/core';
+import { useModelCapabilities } from '../../hooks/useLLM';
+import { LLM_PROVIDERS } from '@dexto/core';
 import type { AgentConfig } from '@dexto/agent-config';
+import { useDebounce } from 'use-debounce';
 
 type LLMConfig = AgentConfig['llm'];
 
@@ -28,9 +30,16 @@ export function LLMConfigSection({
     sectionErrors = [],
 }: LLMConfigSectionProps) {
     const [showApiKey, setShowApiKey] = useState(false);
+    const modelValueAtFocusRef = useRef('');
+    const [debouncedModel] = useDebounce(value.model ?? '', 300);
+    const { data: capabilities } = useModelCapabilities(
+        value.provider ?? null,
+        debouncedModel ? debouncedModel : null
+    );
+    const reasoningPresets = capabilities?.reasoning?.supportedPresets ?? [];
 
-    const handleChange = (field: keyof LLMConfig, newValue: string | number | undefined) => {
-        onChange({ ...value, [field]: newValue } as LLMConfig);
+    const handleChange = <K extends keyof LLMConfig>(field: K, newValue: LLMConfig[K]) => {
+        onChange({ ...value, [field]: newValue });
     };
 
     return (
@@ -54,7 +63,13 @@ export function LLMConfigSection({
                     <select
                         id="provider"
                         value={value.provider || ''}
-                        onChange={(e) => handleChange('provider', e.target.value)}
+                        onChange={(e) =>
+                            onChange({
+                                ...value,
+                                provider: e.target.value as LLMConfig['provider'],
+                                reasoning: undefined,
+                            })
+                        }
                         aria-invalid={!!errors['llm.provider']}
                         className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive"
                     >
@@ -81,7 +96,15 @@ export function LLMConfigSection({
                     <Input
                         id="model"
                         value={value.model || ''}
-                        onChange={(e) => handleChange('model', e.target.value)}
+                        onChange={(e) => onChange({ ...value, model: e.target.value })}
+                        onFocus={() => {
+                            modelValueAtFocusRef.current = value.model ?? '';
+                        }}
+                        onBlur={(e) => {
+                            if (e.target.value !== modelValueAtFocusRef.current) {
+                                onChange({ ...value, model: e.target.value, reasoning: undefined });
+                            }
+                        }}
                         placeholder="e.g., gpt-5, claude-sonnet-4-5-20250929"
                         aria-invalid={!!errors['llm.model']}
                     />
@@ -269,33 +292,57 @@ export function LLMConfigSection({
 
                 {/* Provider-Specific Options */}
 
-                {/* Reasoning Effort - Only for models that support it (o1, o3, codex, gpt-5.x) */}
-                {value.model && isReasoningCapableModel(value.model) && (
+                {/* Reasoning tuning (server-resolved; safe for gateway providers). */}
+                {value.provider && value.model && reasoningPresets.length > 0 && (
                     <div>
                         <LabelWithTooltip
-                            htmlFor="reasoningEffort"
-                            tooltip="Controls reasoning depth for OpenAI models (o1, o3, codex, gpt-5.x). Higher = more thorough but slower/costlier. 'medium' is recommended for most tasks."
+                            htmlFor="reasoningPreset"
+                            tooltip="Controls reasoning tuning. Availability depends on provider+model (resolved by the server)."
                         >
-                            Reasoning Effort
+                            Reasoning
                         </LabelWithTooltip>
                         <select
-                            id="reasoningEffort"
-                            value={value.reasoningEffort || ''}
-                            onChange={(e) =>
-                                handleChange('reasoningEffort', e.target.value || undefined)
+                            id="reasoningPreset"
+                            value={
+                                value.reasoning?.preset === 'auto'
+                                    ? ''
+                                    : value.reasoning?.preset || ''
                             }
+                            onChange={(e) => {
+                                if (!e.target.value) {
+                                    handleChange('reasoning', undefined);
+                                    return;
+                                }
+
+                                const selectedPreset = reasoningPresets.find(
+                                    (preset) => preset === e.target.value
+                                );
+                                if (!selectedPreset || selectedPreset === 'auto') {
+                                    handleChange('reasoning', undefined);
+                                    return;
+                                }
+
+                                handleChange(
+                                    'reasoning',
+                                    value.reasoning
+                                        ? { ...value.reasoning, preset: selectedPreset }
+                                        : { preset: selectedPreset }
+                                );
+                            }}
                             className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                         >
-                            <option value="">Auto (model default)</option>
-                            <option value="none">None - No reasoning</option>
-                            <option value="minimal">Minimal - Barely any reasoning</option>
-                            <option value="low">Low - Light reasoning</option>
-                            <option value="medium">Medium - Balanced (recommended)</option>
-                            <option value="high">High - Thorough reasoning</option>
-                            <option value="xhigh">Extra High - Maximum quality</option>
+                            <option value="">Auto (provider/model default)</option>
+                            {reasoningPresets
+                                .filter((p) => p !== 'auto')
+                                .map((preset) => (
+                                    <option key={preset} value={preset}>
+                                        {preset}
+                                    </option>
+                                ))}
                         </select>
                         <p className="text-xs text-muted-foreground mt-1">
-                            Only applies to reasoning models (o1, o3, codex, gpt-5.x)
+                            Supported presets:{' '}
+                            {reasoningPresets.filter((p) => p !== 'auto').join(', ')}
                         </p>
                     </div>
                 )}

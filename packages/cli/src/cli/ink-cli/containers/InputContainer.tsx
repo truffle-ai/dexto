@@ -7,7 +7,15 @@
  */
 
 import React, { useCallback, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
-import type { DextoAgent, ContentPart, ImagePart, TextPart, QueuedMessage } from '@dexto/core';
+import type {
+    DextoAgent,
+    ContentPart,
+    ImagePart,
+    TextPart,
+    QueuedMessage,
+    ReasoningPreset,
+} from '@dexto/core';
+import { getReasoningSupport } from '@dexto/core';
 import { InputArea, type OverlayTrigger } from '../components/input/InputArea.js';
 import { InputService, processStream } from '../services/index.js';
 import { useSoundService } from '../contexts/index.js';
@@ -254,6 +262,58 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             },
             [setUi, approval]
         );
+
+        const handleCycleReasoningPreset = useCallback(() => {
+            if (ui.isProcessing) return;
+
+            const sessionId = session.id || undefined;
+            const current = agent.getCurrentLLMConfig(sessionId);
+            const support = getReasoningSupport(current.provider, current.model);
+            if (!support.capable || support.supportedPresets.length === 0) {
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: 'ℹ️ Reasoning presets are not supported for the current model.',
+                        timestamp: new Date(),
+                    },
+                ]);
+                return;
+            }
+
+            const presets = support.supportedPresets;
+            const currentPreset = (current.reasoning?.preset ?? 'auto') as ReasoningPreset;
+            const idx = presets.indexOf(currentPreset);
+            const nextPreset = presets[(idx >= 0 ? idx + 1 : 0) % presets.length];
+
+            const budgetTokens = current.reasoning?.budgetTokens;
+            void (async () => {
+                try {
+                    await agent.switchLLM(
+                        {
+                            provider: current.provider,
+                            model: current.model,
+                            reasoning: {
+                                preset: nextPreset,
+                                ...(typeof budgetTokens === 'number' ? { budgetTokens } : {}),
+                            },
+                        },
+                        sessionId
+                    );
+                } catch (error) {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('error'),
+                            role: 'system',
+                            content: `❌ Failed to change reasoning preset: ${error instanceof Error ? error.message : String(error)}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                }
+            })();
+        }, [agent, session.id, setMessages, ui.isProcessing]);
 
         // Handle image paste from clipboard
         const handleImagePaste = useCallback(
@@ -783,24 +843,15 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             });
         }, [agent.logger, handleSubmit, initialPrompt, setMessages]);
 
-        // Determine if input should be active (not blocked by approval/overlay/history search)
-        // Input stays active for filter-type overlays (so user can keep typing to filter)
-        // Disable for approval prompts, overlays with their own text input, and history search mode
-        const overlaysWithOwnInput = [
-            'mcp-custom-wizard',
-            'custom-model-wizard',
-            'api-key-input',
-            'search',
-            'tool-browser',
-            'prompt-add-wizard',
-            'model-selector',
-            'export-wizard',
-            'marketplace-add',
-        ];
-        const hasOverlayWithOwnInput = overlaysWithOwnInput.includes(ui.activeOverlay);
+        // Determine if main input should be active.
+        // Important: The main input subscribes to keypress events directly (not via orchestrator),
+        // so we must disable it for ALL overlays except the two autocompletes that intentionally
+        // use the main input as their filter field.
+        const mainInputAllowedOverlays = ['none', 'slash-autocomplete', 'resource-autocomplete'];
+        const mainInputAllowed = mainInputAllowedOverlays.includes(ui.activeOverlay);
         const isHistorySearchActive = ui.historySearch.isActive;
-        const isInputActive = !approval && !hasOverlayWithOwnInput && !isHistorySearchActive;
-        const isInputDisabled = !!approval || hasOverlayWithOwnInput || isHistorySearchActive;
+        const isInputActive = !approval && mainInputAllowed && !isHistorySearchActive;
+        const isInputDisabled = !!approval || !mainInputAllowed || isHistorySearchActive;
         // Allow submit when:
         // - no overlay active
         // - approval active
@@ -839,6 +890,9 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 onPasteBlockUpdate={handlePasteBlockUpdate}
                 onPasteBlockRemove={handlePasteBlockRemove}
                 highlightQuery={ui.historySearch.isActive ? ui.historySearch.query : undefined}
+                onCycleReasoningPreset={
+                    ui.activeOverlay === 'none' ? handleCycleReasoningPreset : undefined
+                }
             />
         );
     }

@@ -40,6 +40,9 @@ type ModelsDevModel = {
     id: string;
     name: string;
     attachment: boolean;
+    reasoning?: boolean;
+    temperature?: boolean;
+    interleaved?: unknown;
     limit: {
         context: number;
         input?: number;
@@ -229,6 +232,9 @@ type GeneratedModelInfo = {
     maxInputTokens: number;
     supportedFileTypes: DextoSupportedFileType[];
     displayName?: string;
+    reasoning?: boolean;
+    supportsTemperature?: boolean;
+    supportsInterleaved?: boolean;
     pricing?: GeneratedModelPricing;
     default?: boolean;
 };
@@ -275,11 +281,17 @@ function modelToGeneratedModel(
         defaultModelId?: string;
     }
 ): GeneratedModelInfo {
+    const supportsInterleaved = model.interleaved === true || isRecord(model.interleaved);
     return {
         name: model.id,
         displayName: model.name,
         maxInputTokens: model.limit.input ?? model.limit.context,
         supportedFileTypes: getSupportedFileTypesFromModel(options.provider, model),
+        ...(typeof model.reasoning === 'boolean' ? { reasoning: model.reasoning } : {}),
+        ...(typeof model.temperature === 'boolean'
+            ? { supportsTemperature: model.temperature }
+            : {}),
+        ...(supportsInterleaved ? { supportsInterleaved } : {}),
         pricing: getPricing(model),
         ...(options.defaultModelId === model.id ? { default: true } : {}),
     };

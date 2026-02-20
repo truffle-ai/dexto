@@ -3204,17 +3204,32 @@
                           },
                           "description": "MIME type patterns for media expansion (e.g., \"image/*\", \"application/pdf\"). If omitted, uses model capabilities from registry. Supports wildcards."
                         },
-                        "reasoningEffort": {
-                          "type": "string",
-                          "enum": [
-                            "none",
-                            "minimal",
-                            "low",
-                            "medium",
-                            "high",
-                            "xhigh"
-                          ],
-                          "description": "OpenAI reasoning effort level for reasoning models (o1, o3, codex). Options: 'none', 'minimal', 'low', 'medium' (recommended), 'high', 'xhigh'"
+                        "reasoning": {
+                          "type": "object",
+                          "properties": {
+                            "preset": {
+                              "type": "string",
+                              "enum": [
+                                "auto",
+                                "off",
+                                "low",
+                                "medium",
+                                "high",
+                                "max",
+                                "xhigh"
+                              ],
+                              "default": "auto",
+                              "description": "Reasoning tuning preset. Note: supported presets depend on provider+model. Options: auto, off, low, medium, high, max, xhigh"
+                            },
+                            "budgetTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "exclusiveMinimum": true,
+                              "description": "Advanced escape hatch for budget-based providers (e.g., Anthropic/Gemini/Bedrock/OpenRouter)."
+                            }
+                          },
+                          "additionalProperties": false,
+                          "description": "Reasoning configuration (tuning only; display is controlled separately)."
                         },
                         "hasApiKey": {
                           "type": "boolean",
@@ -5845,17 +5860,32 @@
                         },
                         "description": "MIME type patterns for media expansion (e.g., \"image/*\", \"application/pdf\"). If omitted, uses model capabilities from registry. Supports wildcards."
                       },
-                      "reasoningEffort": {
-                        "type": "string",
-                        "enum": [
-                          "none",
-                          "minimal",
-                          "low",
-                          "medium",
-                          "high",
-                          "xhigh"
-                        ],
-                        "description": "OpenAI reasoning effort level for reasoning models (o1, o3, codex). Options: 'none', 'minimal', 'low', 'medium' (recommended), 'high', 'xhigh'"
+                      "reasoning": {
+                        "type": "object",
+                        "properties": {
+                          "preset": {
+                            "type": "string",
+                            "enum": [
+                              "auto",
+                              "off",
+                              "low",
+                              "medium",
+                              "high",
+                              "max",
+                              "xhigh"
+                            ],
+                            "default": "auto",
+                            "description": "Reasoning tuning preset. Note: supported presets depend on provider+model. Options: auto, off, low, medium, high, max, xhigh"
+                          },
+                          "budgetTokens": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "description": "Advanced escape hatch for budget-based providers (e.g., Anthropic/Gemini/Bedrock/OpenRouter)."
+                          }
+                        },
+                        "additionalProperties": false,
+                        "description": "Reasoning configuration (tuning only; display is controlled separately)."
                       }
                     }
                   },
@@ -5948,17 +5978,32 @@
                           },
                           "description": "MIME type patterns for media expansion (e.g., \"image/*\", \"application/pdf\"). If omitted, uses model capabilities from registry. Supports wildcards."
                         },
-                        "reasoningEffort": {
-                          "type": "string",
-                          "enum": [
-                            "none",
-                            "minimal",
-                            "low",
-                            "medium",
-                            "high",
-                            "xhigh"
-                          ],
-                          "description": "OpenAI reasoning effort level for reasoning models (o1, o3, codex). Options: 'none', 'minimal', 'low', 'medium' (recommended), 'high', 'xhigh'"
+                        "reasoning": {
+                          "type": "object",
+                          "properties": {
+                            "preset": {
+                              "type": "string",
+                              "enum": [
+                                "auto",
+                                "off",
+                                "low",
+                                "medium",
+                                "high",
+                                "max",
+                                "xhigh"
+                              ],
+                              "default": "auto",
+                              "description": "Reasoning tuning preset. Note: supported presets depend on provider+model. Options: auto, off, low, medium, high, max, xhigh"
+                            },
+                            "budgetTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "exclusiveMinimum": true,
+                              "description": "Advanced escape hatch for budget-based providers (e.g., Anthropic/Gemini/Bedrock/OpenRouter)."
+                            }
+                          },
+                          "additionalProperties": false,
+                          "description": "Reasoning configuration (tuning only; display is controlled separately)."
                         },
                         "hasApiKey": {
                           "type": "boolean",
@@ -6050,16 +6095,29 @@
                           "filePath": {
                             "type": "string"
                           },
-                          "reasoningEffort": {
-                            "type": "string",
-                            "enum": [
-                              "none",
-                              "minimal",
-                              "low",
-                              "medium",
-                              "high",
-                              "xhigh"
-                            ]
+                          "reasoning": {
+                            "type": "object",
+                            "properties": {
+                              "preset": {
+                                "type": "string",
+                                "enum": [
+                                  "auto",
+                                  "off",
+                                  "low",
+                                  "medium",
+                                  "high",
+                                  "max",
+                                  "xhigh"
+                                ],
+                                "default": "auto"
+                              },
+                              "budgetTokens": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true
+                              }
+                            },
+                            "additionalProperties": false
                           }
                         },
                         "required": [
@@ -6132,16 +6190,29 @@
                   "filePath": {
                     "type": "string"
                   },
-                  "reasoningEffort": {
-                    "type": "string",
-                    "enum": [
-                      "none",
-                      "minimal",
-                      "low",
-                      "medium",
-                      "high",
-                      "xhigh"
-                    ]
+                  "reasoning": {
+                    "type": "object",
+                    "properties": {
+                      "preset": {
+                        "type": "string",
+                        "enum": [
+                          "auto",
+                          "off",
+                          "low",
+                          "medium",
+                          "high",
+                          "max",
+                          "xhigh"
+                        ],
+                        "default": "auto"
+                      },
+                      "budgetTokens": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "exclusiveMinimum": true
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 },
                 "required": [
@@ -6211,16 +6282,29 @@
                         "filePath": {
                           "type": "string"
                         },
-                        "reasoningEffort": {
-                          "type": "string",
-                          "enum": [
-                            "none",
-                            "minimal",
-                            "low",
-                            "medium",
-                            "high",
-                            "xhigh"
-                          ]
+                        "reasoning": {
+                          "type": "object",
+                          "properties": {
+                            "preset": {
+                              "type": "string",
+                              "enum": [
+                                "auto",
+                                "off",
+                                "low",
+                                "medium",
+                                "high",
+                                "max",
+                                "xhigh"
+                              ],
+                              "default": "auto"
+                            },
+                            "budgetTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "exclusiveMinimum": true
+                            }
+                          },
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -6412,12 +6496,49 @@
                         ]
                       },
                       "description": "File types supported by this model"
+                    },
+                    "reasoning": {
+                      "type": "object",
+                      "properties": {
+                        "capable": {
+                          "type": "boolean",
+                          "description": "Whether the registry marks this model as reasoning-capable"
+                        },
+                        "supportedPresets": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "auto",
+                              "off",
+                              "low",
+                              "medium",
+                              "high",
+                              "max",
+                              "xhigh"
+                            ]
+                          },
+                          "description": "Reasoning presets that Dexto can translate into provider options (best-effort)"
+                        },
+                        "supportsBudgetTokens": {
+                          "type": "boolean",
+                          "description": "Whether this provider/model supports a budgetTokens-style escape hatch"
+                        }
+                      },
+                      "required": [
+                        "capable",
+                        "supportedPresets",
+                        "supportsBudgetTokens"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Reasoning tuning capabilities (best-effort)"
                     }
                   },
                   "required": [
                     "provider",
                     "model",
-                    "supportedFileTypes"
+                    "supportedFileTypes",
+                    "reasoning"
                   ]
                 }
               }

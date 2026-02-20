@@ -26,6 +26,10 @@ import ResourceAutocomplete, {
 import ModelSelectorRefactored, {
     type ModelSelectorHandle,
 } from '../components/overlays/ModelSelectorRefactored.js';
+import {
+    ReasoningOverlay,
+    type ReasoningOverlayHandle,
+} from '../components/overlays/ReasoningOverlay.js';
 import SessionSelectorRefactored, {
     type SessionSelectorHandle,
 } from '../components/overlays/SessionSelectorRefactored.js';
@@ -118,7 +122,13 @@ import MarketplaceAddPrompt, {
     type MarketplaceAddPromptHandle,
 } from '../components/overlays/MarketplaceAddPrompt.js';
 import type { PromptAddScope } from '../state/types.js';
-import type { PromptInfo, ResourceMetadata, LLMProvider, SearchResult } from '@dexto/core';
+import type {
+    PromptInfo,
+    ResourceMetadata,
+    LLMProvider,
+    ReasoningPreset,
+    SearchResult,
+} from '@dexto/core';
 import type { LogLevel } from '@dexto/core';
 import { DextoValidationError, LLMErrorCode, getModelDisplayName } from '@dexto/core';
 import { InputService } from '../services/InputService.js';
@@ -183,6 +193,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const slashAutocompleteRef = useRef<SlashCommandAutocompleteHandle>(null);
         const resourceAutocompleteRef = useRef<ResourceAutocompleteHandle>(null);
         const modelSelectorRef = useRef<ModelSelectorHandle>(null);
+        const reasoningOverlayRef = useRef<ReasoningOverlayHandle>(null);
         const sessionSelectorRef = useRef<SessionSelectorHandle>(null);
         const logLevelSelectorRef = useRef<LogLevelSelectorHandle>(null);
         const streamSelectorRef = useRef<StreamSelectorHandle>(null);
@@ -256,6 +267,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             );
                         case 'model-selector':
                             return modelSelectorRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'reasoning':
+                            return reasoningOverlayRef.current?.handleInput(inputStr, key) ?? false;
                         case 'session-selector':
                             return sessionSelectorRef.current?.handleInput(inputStr, key) ?? false;
                         case 'log-level-selector':
@@ -458,7 +471,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 model: string,
                 displayName?: string,
                 baseURL?: string,
-                reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+                reasoningPreset?: ReasoningPreset
             ) => {
                 // Session-only switch (default is set via explicit action)
 
@@ -513,7 +526,12 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     ]);
 
                     await agent.switchLLM(
-                        { provider: provider as LLMProvider, model, baseURL, reasoningEffort },
+                        {
+                            provider: provider as LLMProvider,
+                            model,
+                            baseURL,
+                            ...(reasoningPreset ? { reasoning: { preset: reasoningPreset } } : {}),
+                        },
                         session.id || undefined
                     );
 
@@ -543,7 +561,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                 model,
                                 ...(displayName && { displayName }),
                                 ...(baseURL && { baseURL }),
-                                ...(reasoningEffort && { reasoningEffort }),
+                                ...(reasoningPreset && { reasoningPreset }),
                             },
                         }));
                         setMessages((prev) => [
@@ -578,22 +596,9 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 model: string,
                 displayName?: string,
                 baseURL?: string,
-                reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+                reasoningPreset?: ReasoningPreset
             ) => {
                 try {
-                    const preferencesUpdate: {
-                        provider: LLMProvider;
-                        model: string;
-                        baseURL?: string;
-                        reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
-                        apiKey?: string;
-                    } = {
-                        provider,
-                        model,
-                        ...(baseURL ? { baseURL } : {}),
-                        ...(reasoningEffort ? { reasoningEffort } : {}),
-                    };
-
                     let providerEnvVar: string | undefined;
                     try {
                         const providerKeyStatus = await getProviderKeyStatus(provider);
@@ -613,6 +618,23 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         existing = null;
                     }
 
+                    const existingReasoning = existing?.llm.reasoning;
+                    const nextReasoning =
+                        reasoningPreset !== undefined
+                            ? { ...(existingReasoning ?? {}), preset: reasoningPreset }
+                            : existingReasoning;
+
+                    type GlobalLLMPreferences = Awaited<
+                        ReturnType<typeof loadGlobalPreferences>
+                    >['llm'];
+
+                    const preferencesUpdate: GlobalLLMPreferences = {
+                        provider,
+                        model,
+                        ...(baseURL ? { baseURL } : {}),
+                        ...(nextReasoning ? { reasoning: nextReasoning } : {}),
+                    };
+
                     // Only preserve the API key if the provider hasn't changed
                     // If provider changed, use the new provider's env var
                     if (existing?.llm.provider === provider && existing?.llm.apiKey) {
@@ -627,7 +649,12 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                     try {
                         await agent.switchLLM(
-                            { provider: provider as LLMProvider, model, baseURL, reasoningEffort },
+                            {
+                                provider: provider as LLMProvider,
+                                model,
+                                ...(baseURL ? { baseURL } : {}),
+                                ...(nextReasoning ? { reasoning: nextReasoning } : {}),
+                            },
                             session.id || undefined
                         );
                         setSession((prev) => ({ ...prev, modelName: displayName || model }));
@@ -652,7 +679,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                     model,
                                     ...(displayName && { displayName }),
                                     ...(baseURL && { baseURL }),
-                                    ...(reasoningEffort && { reasoningEffort }),
+                                    ...(reasoningPreset !== undefined && { reasoningPreset }),
                                 },
                             }));
                             setMessages((prev) => [
@@ -795,8 +822,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             provider: pending.provider as LLMProvider,
                             model: pending.model,
                             ...(pending.baseURL && { baseURL: pending.baseURL }),
-                            ...(pending.reasoningEffort && {
-                                reasoningEffort: pending.reasoningEffort,
+                            ...(pending.reasoningPreset !== undefined && {
+                                reasoning: { preset: pending.reasoningPreset },
                             }),
                         },
                         session.id || undefined
@@ -1266,6 +1293,59 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 ]);
             },
             [setUi, setInput, setMessages, buffer]
+        );
+
+        const handleToggleShowReasoning = useCallback(() => {
+            setUi((prev) => ({ ...prev, showReasoning: !prev.showReasoning }));
+        }, [setUi]);
+
+        const handleReasoningNotify = useCallback(
+            (message: string) => {
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: `🧠 ${message}`,
+                        timestamp: new Date(),
+                    },
+                ]);
+            },
+            [setMessages]
+        );
+
+        const handleSetReasoningBudgetTokens = useCallback(
+            async (budgetTokens: number | undefined) => {
+                const sessionId = session.id || undefined;
+                const current = agent.getCurrentLLMConfig(sessionId);
+                const preset = (current.reasoning?.preset ?? 'auto') as ReasoningPreset;
+
+                try {
+                    await agent.switchLLM(
+                        {
+                            provider: current.provider,
+                            model: current.model,
+                            reasoning: {
+                                preset,
+                                ...(typeof budgetTokens === 'number' ? { budgetTokens } : {}),
+                            },
+                        },
+                        sessionId
+                    );
+                } catch (error) {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('error'),
+                            role: 'system',
+                            content: `❌ Failed to update reasoning budget tokens: ${error instanceof Error ? error.message : String(error)}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                    throw error;
+                }
+            },
+            [agent, session.id, setMessages]
         );
 
         // Handle MCP server list actions (select server or add new)
@@ -2354,6 +2434,23 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             onAddCustomModel={handleAddCustomModel}
                             onEditCustomModel={handleEditCustomModel}
                             agent={agent}
+                        />
+                    </Box>
+                )}
+
+                {/* Reasoning configuration */}
+                {ui.activeOverlay === 'reasoning' && (
+                    <Box marginTop={1}>
+                        <ReasoningOverlay
+                            ref={reasoningOverlayRef}
+                            isVisible={true}
+                            agent={agent}
+                            sessionId={session.id}
+                            showReasoning={ui.showReasoning}
+                            onToggleShowReasoning={handleToggleShowReasoning}
+                            onSetBudgetTokens={handleSetReasoningBudgetTokens}
+                            onNotify={handleReasoningNotify}
+                            onClose={handleClose}
                         />
                     </Box>
                 )}

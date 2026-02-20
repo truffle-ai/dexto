@@ -144,7 +144,16 @@ function handleLLMChunk(event: EventByName<'llm:chunk'>): void {
  * 3. Multi-turn: assistant message already in messages array → update it
  */
 function handleLLMResponse(event: EventByName<'llm:response'>): void {
-    const { sessionId, content, tokenUsage, model, provider, estimatedInputTokens } = event;
+    const {
+        sessionId,
+        content,
+        tokenUsage,
+        model,
+        provider,
+        estimatedInputTokens,
+        reasoningPreset,
+        reasoningBudgetTokens,
+    } = event;
     const chatStore = useChatStore.getState();
     const sessionState = chatStore.getSessionState(sessionId);
     const finalContent = typeof content === 'string' ? content : '';
@@ -172,6 +181,8 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
                 sessionId,
                 provider,
                 model,
+                reasoningPreset,
+                reasoningBudgetTokens,
                 inputTokens: tokenUsage.inputTokens,
                 outputTokens: tokenUsage.outputTokens,
                 reasoningTokens: tokenUsage.reasoningTokens,
@@ -239,6 +250,8 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
             sessionId,
             provider,
             model,
+            reasoningPreset,
+            reasoningBudgetTokens,
             inputTokens: tokenUsage.inputTokens,
             outputTokens: tokenUsage.outputTokens,
             reasoningTokens: tokenUsage.reasoningTokens,
