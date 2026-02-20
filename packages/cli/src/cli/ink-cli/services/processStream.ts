@@ -616,9 +616,6 @@ export async function processStream(
                     const { header: toolContent } = formatToolHeader({
                         toolName: event.toolName,
                         args: (event.args as Record<string, unknown>) || {},
-                        ...(event.toolDisplayName !== undefined && {
-                            toolDisplayName: event.toolDisplayName,
-                        }),
                         ...(event.presentationSnapshot !== undefined && {
                             presentationSnapshot: event.presentationSnapshot,
                         }),

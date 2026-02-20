@@ -95,7 +95,6 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         // Extract tool metadata
         const toolName = approval.metadata.toolName as string | undefined;
         const toolArgs = (approval.metadata.args as Record<string, unknown>) || {};
-        const toolDisplayName = approval.metadata.toolDisplayName as string | undefined;
         const callDescriptionRaw =
             typeof approval.metadata.description === 'string'
                 ? approval.metadata.description
@@ -138,10 +137,9 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
             return formatToolHeader({
                 toolName,
                 args: toolArgs,
-                ...(toolDisplayName !== undefined && { toolDisplayName }),
                 ...(presentationSnapshot !== undefined && { presentationSnapshot }),
             });
-        }, [toolName, toolDisplayName, toolArgs, presentationSnapshot]);
+        }, [toolName, toolArgs, presentationSnapshot]);
 
         const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -429,7 +427,6 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                       toolName,
                       args:
                           (directoryPath ?? parentDir) ? { path: directoryPath ?? parentDir } : {},
-                      ...(toolDisplayName !== undefined && { toolDisplayName }),
                       ...(presentationSnapshot !== undefined && { presentationSnapshot }),
                   }).header;
 

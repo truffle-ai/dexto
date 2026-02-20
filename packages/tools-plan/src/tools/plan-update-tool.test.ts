@@ -70,7 +70,7 @@ describe('plan_update tool', () => {
             const originalContent = '# Plan\n\n## Steps\n1. First step';
             const newContent = '# Plan\n\n## Steps\n1. First step\n2. Second step';
 
-            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
 
             await planService.create(sessionId, originalContent);
@@ -95,7 +95,7 @@ describe('plan_update tool', () => {
             const tool = createPlanUpdateTool(async () => planService);
             const sessionId = 'test-session';
 
-            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
 
             try {
@@ -113,7 +113,7 @@ describe('plan_update tool', () => {
         it('should throw error when sessionId is missing', async () => {
             const tool = createPlanUpdateTool(async () => planService);
 
-            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
 
             try {
@@ -131,7 +131,7 @@ describe('plan_update tool', () => {
             const originalContent = '# Plan\n\nLine to remove\nKeep this';
             const newContent = '# Plan\n\nKeep this';
 
-            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
 
             await planService.create(sessionId, originalContent);

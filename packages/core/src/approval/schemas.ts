@@ -60,10 +60,6 @@ export const DirectoryAccessMetadataSchema = z
 export const ToolApprovalMetadataSchema = z
     .object({
         toolName: z.string().describe('Name of the tool to confirm'),
-        toolDisplayName: z
-            .string()
-            .optional()
-            .describe('Optional user-facing name for the tool (UI convenience)'),
         presentationSnapshot: ToolPresentationSnapshotV1Schema.optional().describe(
             'Optional UI-agnostic presentation snapshot for the tool call. Clients MUST ignore unknown fields.'
         ),

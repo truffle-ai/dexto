@@ -80,7 +80,7 @@ describe('edit_file tool', () => {
     describe('File Modification Detection', () => {
         it('should generate preview for files outside config-allowed roots (preview read only)', async () => {
             const tool = createEditFileTool(async () => fileSystemService);
-            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
 
             const rawExternalDir = await fs.mkdtemp(
@@ -119,7 +119,7 @@ describe('edit_file tool', () => {
 
         it('should succeed when file is not modified between preview and execute', async () => {
             const tool = createEditFileTool(async () => fileSystemService);
-            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'hello world');
@@ -158,7 +158,7 @@ describe('edit_file tool', () => {
 
         it('should fail when file is modified between preview and execute', async () => {
             const tool = createEditFileTool(async () => fileSystemService);
-            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'hello world');
@@ -199,7 +199,7 @@ describe('edit_file tool', () => {
 
         it('should detect file modification with correct error code', async () => {
             const tool = createEditFileTool(async () => fileSystemService);
-            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'hello world');
@@ -236,7 +236,7 @@ describe('edit_file tool', () => {
 
         it('should work without toolCallId (no modification check)', async () => {
             const tool = createEditFileTool(async () => fileSystemService);
-            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'hello world');
@@ -271,7 +271,7 @@ describe('edit_file tool', () => {
 
         it('should clean up hash cache after successful execution', async () => {
             const tool = createEditFileTool(async () => fileSystemService);
-            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'hello world');
@@ -313,7 +313,7 @@ describe('edit_file tool', () => {
 
         it('should clean up hash cache after failed execution', async () => {
             const tool = createEditFileTool(async () => fileSystemService);
-            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'test.txt');
             await fs.writeFile(testFile, 'hello world');

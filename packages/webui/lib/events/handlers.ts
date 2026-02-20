@@ -259,7 +259,7 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
  * This handles cases where approval:request arrives before llm:tool-call.
  */
 function handleToolCall(event: EventByName<'llm:tool-call'>): void {
-    const { sessionId, toolName, toolDisplayName, args, callId, presentationSnapshot } = event;
+    const { sessionId, toolName, args, callId, presentationSnapshot } = event;
     const chatStore = useChatStore.getState();
 
     // Finalize any streaming message to maintain proper sequence
@@ -277,7 +277,6 @@ function handleToolCall(event: EventByName<'llm:tool-call'>): void {
         // Approval message already exists - update with args if needed
         chatStore.updateMessage(sessionId, existingMessage.id, {
             toolArgs: args,
-            ...(toolDisplayName !== undefined && { toolDisplayName }),
             ...(presentationSnapshot !== undefined && { presentationSnapshot }),
         });
         console.debug('[handlers] Tool call message already exists:', existingMessage.id);
@@ -304,7 +303,6 @@ function handleToolCall(event: EventByName<'llm:tool-call'>): void {
         chatStore.updateMessage(sessionId, pendingApprovalMessage.id, {
             toolCallId: callId,
             toolArgs: args,
-            ...(toolDisplayName !== undefined && { toolDisplayName }),
             ...(presentationSnapshot !== undefined && { presentationSnapshot }),
         });
         console.debug(
@@ -320,7 +318,6 @@ function handleToolCall(event: EventByName<'llm:tool-call'>): void {
         role: 'tool' as const,
         content: null,
         toolName,
-        ...(toolDisplayName !== undefined && { toolDisplayName }),
         ...(presentationSnapshot !== undefined && { presentationSnapshot }),
         toolArgs: args,
         toolCallId: callId,
@@ -349,7 +346,6 @@ function handleToolResult(event: EventByName<'llm:tool-result'>): void {
         callId,
         success,
         sanitized,
-        toolDisplayName,
         requireApproval,
         approvalStatus,
         presentationSnapshot,
@@ -382,7 +378,6 @@ function handleToolResult(event: EventByName<'llm:tool-result'>): void {
             toolResult: sanitized,
             toolResultMeta: sanitized?.meta,
             toolResultSuccess: success,
-            ...(toolDisplayName !== undefined && { toolDisplayName }),
             ...(presentationSnapshot !== undefined && { presentationSnapshot }),
             ...(requireApproval !== undefined && { requireApproval }),
             ...(approvalStatus !== undefined && { approvalStatus }),
@@ -438,8 +433,6 @@ function handleApprovalRequest(event: EventByName<'approval:request'>): void {
     // Extract tool info from the approval event
     const approvalId = (event as any).approvalId;
     const toolName = (event as any).metadata?.toolName || (event as any).toolName || 'unknown';
-    const toolDisplayName =
-        (event as any).metadata?.toolDisplayName || (event as any).toolDisplayName;
     const toolArgs = (event as any).metadata?.args || (event as any).args || {};
     const presentationSnapshot = (event as any).metadata?.presentationSnapshot;
     const approvalType = (event as any).type;
@@ -464,7 +457,6 @@ function handleApprovalRequest(event: EventByName<'approval:request'>): void {
         chatStore.updateMessage(sessionId, existingToolMessage.id, {
             requireApproval: true,
             approvalStatus: 'pending',
-            ...(toolDisplayName !== undefined && { toolDisplayName }),
             ...(presentationSnapshot !== undefined && { presentationSnapshot }),
         });
         console.debug(
@@ -495,7 +487,6 @@ function handleApprovalRequest(event: EventByName<'approval:request'>): void {
                 role: 'tool' as const,
                 content: null,
                 toolName,
-                ...(toolDisplayName !== undefined && { toolDisplayName }),
                 ...(presentationSnapshot !== undefined && { presentationSnapshot }),
                 toolArgs,
                 toolCallId: approvalId, // Use approvalId as callId for correlation

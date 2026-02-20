@@ -106,8 +106,6 @@ export interface ToolExecutionContext extends ToolExecutionContextBase {
 export interface ToolExecutionResult {
     /** The actual result data from tool execution */
     result: unknown;
-    /** Optional display name for the tool (UI convenience) */
-    toolDisplayName?: string;
     /** Optional UI-agnostic presentation snapshot for this call/result */
     presentationSnapshot?: ToolPresentationSnapshotV1;
     /** Whether this tool required user approval before execution */
@@ -237,12 +235,6 @@ export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
     /** Unique identifier for the tool */
     id: string;
 
-    /**
-     * Short, user-facing name for this tool (UI convenience).
-     * Defaults to a title-cased version of {@link id} when omitted.
-     */
-    displayName?: string | undefined;
-
     /** Human-readable description of what the tool does */
     description: string;
 
@@ -253,28 +245,12 @@ export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
     execute(input: z.output<TSchema>, context: ToolExecutionContext): Promise<unknown> | unknown;
 
     /**
-     * Optional preview generator for approval UI.
-     * Called before requesting user approval to generate display data (e.g., diff preview).
-     * Returns null if no preview is available.
-     */
-    generatePreview?(
-        input: z.output<TSchema>,
-        context: ToolExecutionContext
-    ): Promise<ToolDisplayData | null>;
-
-    /**
      * Optional grouped approval-related behavior.
-     *
-     * Prefer these nested fields over legacy top-level approval hooks.
-     * Legacy hooks remain supported temporarily for compatibility.
      */
     approval?: ToolApproval<TSchema> | undefined;
 
     /**
      * Optional grouped UI/presentation-related behavior.
-     *
-     * Prefer these nested fields over legacy top-level presentation hooks.
-     * Legacy hooks remain supported temporarily for compatibility.
      */
     presentation?: ToolPresentation<TSchema> | undefined;
 
@@ -287,74 +263,8 @@ export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
      */
     aliases?: string[] | undefined;
 
-    /**
-     * Optional pattern key generator for approval memory.
-     *
-     * If provided, ToolManager will:
-     * - Skip confirmation when the pattern key is covered by previously approved patterns.
-     * - Offer suggested patterns (if {@link suggestApprovalPatterns} is provided) in the approval UI.
-     *
-     * Return null to disable pattern approvals for the given input (e.g. dangerous commands).
-     */
-    getApprovalPatternKey?(input: z.output<TSchema>): string | null;
-
-    /**
-     * Optional pattern suggestions for the approval UI.
-     *
-     * Returned patterns are shown as quick "remember pattern" options.
-     */
-    suggestApprovalPatterns?(input: z.output<TSchema>): string[];
-
-    /**
-     * Optional custom approval override.
-     * If present and returns non-null, this approval request is used instead of
-     * the default tool confirmation. Allows tools to request specialized approval
-     * flows (e.g., directory access approval for file tools).
-     *
-     * @param input The validated input arguments for the tool
-     * @returns ApprovalRequestDetails for custom approval, or null to use default tool confirmation
-     *
-     * @example
-     * ```typescript
-     * // File tool requesting directory access approval for external paths
-     * getApprovalOverride: async (input) => {
-     *   const filePath = (input as {file_path: string}).file_path;
-     *   if (!await isPathWithinAllowed(filePath)) {
-     *     return {
-     *       type: ApprovalType.DIRECTORY_ACCESS,
-     *       metadata: { path: filePath, operation: 'read', ... }
-     *     };
-     *   }
-     *   return null; // Use default tool confirmation
-     * }
-     * ```
-     */
-    getApprovalOverride?(
-        input: z.output<TSchema>,
-        context: ToolExecutionContext
-    ): Promise<ApprovalRequestDetails | null> | ApprovalRequestDetails | null;
-
-    /**
-     * Optional callback invoked when custom approval is granted.
-     * Allows tools to handle approval responses (e.g., remember approved directories).
-     * Only called when getApprovalOverride returned non-null and approval was granted.
-     *
-     * @param response The approval response from ApprovalManager
-     *
-     * @example
-     * ```typescript
-     * onApprovalGranted: (response) => {
-     *   if (response.data?.rememberDirectory) {
-     *     directoryApproval.addApproved(parentDir, 'session');
-     *   }
-     * }
-     * ```
-     */
-    onApprovalGranted?(
-        response: ApprovalResponse,
-        context: ToolExecutionContext,
-        approvalRequest: ApprovalRequestDetails
-    ): void;
+    // NOTE: Legacy top-level approval/presentation hooks were removed.
+    // All approval and UI behavior must be expressed via `tool.approval` and `tool.presentation`.
 }
 
 export interface ToolApproval<TSchema extends ZodTypeAny = ZodTypeAny> {

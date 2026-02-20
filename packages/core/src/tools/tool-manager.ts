@@ -510,21 +510,21 @@ export class ToolManager {
 
     private getToolDisplayNameForUi(toolName: string): string | undefined {
         const tool = this.agentTools.get(toolName);
-        return tool?.presentation?.displayName ?? tool?.displayName;
+        return tool?.presentation?.displayName;
     }
 
     private getToolApprovalPatternKeyFn(
         toolName: string
     ): ((args: Record<string, unknown>) => string | null) | undefined {
         const tool = this.agentTools.get(toolName);
-        return tool?.approval?.patternKey ?? tool?.getApprovalPatternKey;
+        return tool?.approval?.patternKey;
     }
 
     private getToolSuggestApprovalPatternsFn(
         toolName: string
     ): ((args: Record<string, unknown>) => string[]) | undefined {
         const tool = this.agentTools.get(toolName);
-        return tool?.approval?.suggestPatterns ?? tool?.suggestApprovalPatterns;
+        return tool?.approval?.suggestPatterns;
     }
 
     private getToolApprovalOverrideFn(
@@ -536,7 +536,7 @@ export class ToolManager {
           ) => Promise<ApprovalRequestDetails | null> | ApprovalRequestDetails | null)
         | undefined {
         const tool = this.agentTools.get(toolName);
-        return tool?.approval?.override ?? tool?.getApprovalOverride;
+        return tool?.approval?.override;
     }
 
     private getToolApprovalOnGrantedFn(
@@ -549,7 +549,7 @@ export class ToolManager {
           ) => Promise<void> | void)
         | undefined {
         const tool = this.agentTools.get(toolName);
-        return tool?.approval?.onGranted ?? tool?.onApprovalGranted;
+        return tool?.approval?.onGranted;
     }
 
     private getToolPreviewFn(
@@ -561,7 +561,7 @@ export class ToolManager {
           ) => Promise<ToolDisplayData | null> | ToolDisplayData | null)
         | undefined {
         const tool = this.agentTools.get(toolName);
-        return tool?.presentation?.preview ?? tool?.generatePreview;
+        return tool?.presentation?.preview;
     }
 
     private getToolDescribeCallFn(
@@ -596,13 +596,33 @@ export class ToolManager {
         toolName: string,
         toolDisplayName?: string
     ): ToolPresentationSnapshotV1 {
+        const toTitleCase = (name: string): string =>
+            name
+                .replace(/[_-]+/g, ' ')
+                .split(' ')
+                .filter(Boolean)
+                .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+                .join(' ');
+
+        const isMcp = toolName.startsWith(ToolManager.MCP_TOOL_PREFIX);
+        const fallbackTitle = (() => {
+            if (!isMcp) {
+                return toTitleCase(toolName);
+            }
+
+            const actualToolName = toolName.substring(ToolManager.MCP_TOOL_PREFIX.length);
+            const parts = actualToolName.split('--');
+            const toolPart = parts.length >= 2 ? parts.slice(1).join('--') : actualToolName;
+            return toTitleCase(toolPart);
+        })();
+
         const snapshot: ToolPresentationSnapshotV1 = {
             version: 1,
             source: {
                 type: toolName.startsWith(ToolManager.MCP_TOOL_PREFIX) ? 'mcp' : 'local',
             },
             header: {
-                title: toolDisplayName ?? toolName,
+                title: toolDisplayName ?? fallbackTitle,
             },
         };
 
@@ -1110,7 +1130,6 @@ export class ToolManager {
                   ? rawToolArgs.description
                   : undefined;
         const backgroundTasksEnabled = isBackgroundTasksEnabled();
-        const toolDisplayName = this.getToolDisplayNameForUi(toolName);
 
         this.logger.debug(`🔧 Tool execution requested: '${toolName}' (toolCallId: ${toolCallId})`);
         this.logger.debug(`Tool args: ${JSON.stringify(toolArgs, null, 2)}`);
@@ -1133,7 +1152,6 @@ export class ToolManager {
             );
             this.agentEventBus.emit('llm:tool-call', {
                 toolName,
-                ...(toolDisplayName !== undefined && { toolDisplayName }),
                 presentationSnapshot,
                 args: toolArgs,
                 ...(callDescription !== undefined && { callDescription }),
@@ -1354,7 +1372,6 @@ export class ToolManager {
 
             return {
                 result,
-                ...(toolDisplayName !== undefined && { toolDisplayName }),
                 ...(presentationSnapshot !== undefined && { presentationSnapshot }),
                 ...(requireApproval && { requireApproval, approvalStatus }),
             };
@@ -1745,7 +1762,6 @@ export class ToolManager {
         );
 
         try {
-            const toolDisplayName = this.getToolDisplayNameForUi(toolName);
             // Generate preview for approval UI
             const displayPreview = await this.generateToolPreview(
                 toolName,
@@ -1760,7 +1776,6 @@ export class ToolManager {
             // Build and send approval request
             const response = await this.approvalManager.requestToolApproval({
                 toolName,
-                ...(toolDisplayName !== undefined && { toolDisplayName }),
                 ...(presentationSnapshot !== undefined && { presentationSnapshot }),
                 toolCallId,
                 args,

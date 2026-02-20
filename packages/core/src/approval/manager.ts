@@ -146,7 +146,7 @@ export class ApprovalManager {
      * Check if a pattern key is covered by any approved pattern for a tool.
      *
      * Note: This expects a pattern key (e.g. "git push *"), not raw arguments.
-     * Tools are responsible for generating the key via Tool.getApprovalPatternKey().
+     * Tools are responsible for generating the key via `tool.approval.patternKey()`.
      */
     matchesPattern(toolName: string, patternKey: string): boolean {
         const patterns = this.toolPatterns.get(toolName);

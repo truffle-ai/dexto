@@ -18,6 +18,7 @@ import { SystemPromptManager } from '../systemPrompt/manager.js';
 import type { ConversationHistoryProvider } from '../session/history/types.js';
 import { ContextError } from './errors.js';
 import { ValidatedLLMConfig } from '../llm/schemas.js';
+import type { ToolPresentationSnapshotV1 } from '../tools/types.js';
 
 /**
  * Manages conversation history and provides message formatting capabilities for the LLM context.
@@ -786,7 +787,7 @@ export class ContextManager<TMessage = unknown> {
         metadata?: {
             requireApproval?: boolean;
             approvalStatus?: 'approved' | 'rejected';
-            toolDisplayName?: string;
+            presentationSnapshot?: ToolPresentationSnapshotV1;
         }
     ): Promise<void> {
         if (!toolCallId || !name) {
@@ -811,8 +812,8 @@ export class ContextManager<TMessage = unknown> {
             content: sanitizedResult.content,
             toolCallId,
             name,
-            ...(metadata?.toolDisplayName !== undefined && {
-                toolDisplayName: metadata.toolDisplayName,
+            ...(metadata?.presentationSnapshot !== undefined && {
+                presentationSnapshot: metadata.presentationSnapshot,
             }),
             // Success status comes from sanitizedResult.meta (single source of truth)
             success: sanitizedResult.meta.success,

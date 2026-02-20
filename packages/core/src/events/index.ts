@@ -376,8 +376,6 @@ export interface AgentEventMap {
     /** LLM service requested a tool call */
     'llm:tool-call': {
         toolName: string;
-        /** Optional user-facing name for the tool (UI convenience) */
-        toolDisplayName?: string;
         /** Optional UI-agnostic presentation snapshot (clients MUST fall back when absent) */
         presentationSnapshot?: ToolPresentationSnapshotV1;
         args: Record<string, any>;
@@ -390,8 +388,6 @@ export interface AgentEventMap {
     /** LLM service streamed partial tool input */
     'llm:tool-call-partial': {
         toolName: string;
-        /** Optional user-facing name for the tool (UI convenience) */
-        toolDisplayName?: string;
         args: Record<string, any>;
         /** Optional user-facing description from tool call metadata (e.g., __meta.callDescription) */
         callDescription?: string;
@@ -403,8 +399,6 @@ export interface AgentEventMap {
     /** LLM service returned a tool result */
     'llm:tool-result': {
         toolName: string;
-        /** Optional user-facing name for the tool (UI convenience) */
-        toolDisplayName?: string;
         /** Optional UI-agnostic presentation snapshot (clients MUST fall back when absent) */
         presentationSnapshot?: ToolPresentationSnapshotV1;
         callId?: string;
@@ -646,8 +640,8 @@ export interface SessionEventMap {
     /** LLM service requested a tool call */
     'llm:tool-call': {
         toolName: string;
-        /** Optional user-facing name for the tool (UI convenience) */
-        toolDisplayName?: string;
+        /** Optional UI-agnostic presentation snapshot (clients MUST fall back when absent) */
+        presentationSnapshot?: ToolPresentationSnapshotV1;
         args: Record<string, any>;
         /** Optional user-facing description from tool call metadata (e.g., __meta.callDescription) */
         callDescription?: string;
@@ -657,8 +651,6 @@ export interface SessionEventMap {
     /** LLM service streamed partial tool input */
     'llm:tool-call-partial': {
         toolName: string;
-        /** Optional user-facing name for the tool (UI convenience) */
-        toolDisplayName?: string;
         args: Record<string, any>;
         /** Optional user-facing description from tool call metadata (e.g., __meta.callDescription) */
         callDescription?: string;
@@ -669,8 +661,8 @@ export interface SessionEventMap {
     /** LLM service returned a tool result */
     'llm:tool-result': {
         toolName: string;
-        /** Optional user-facing name for the tool (UI convenience) */
-        toolDisplayName?: string;
+        /** Optional UI-agnostic presentation snapshot (clients MUST fall back when absent) */
+        presentationSnapshot?: ToolPresentationSnapshotV1;
         callId?: string;
         success: boolean;
         /** Sanitized result - present when success=true */

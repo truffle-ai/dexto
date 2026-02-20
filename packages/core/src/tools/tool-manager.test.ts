@@ -365,8 +365,12 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                         count: z.coerce.number().int().default(0),
                     })
                     .strict(),
-                getApprovalOverride: approvalOverrideSpy,
-                generatePreview: previewSpy,
+                approval: {
+                    override: approvalOverrideSpy,
+                },
+                presentation: {
+                    preview: previewSpy,
+                },
                 execute: vi.fn().mockResolvedValue('ok'),
             });
 
@@ -415,31 +419,35 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                         file_path: z.string(),
                     })
                     .strict(),
-                getApprovalOverride: vi.fn().mockImplementation(async () => {
-                    callOrder.push('getApprovalOverride');
-                    return {
-                        type: ApprovalType.DIRECTORY_ACCESS,
-                        metadata: {
-                            path: '/tmp/example.txt',
-                            parentDir: '/tmp',
-                            operation: 'read',
-                            toolName: 'fs_like_tool',
-                        },
-                    };
-                }),
-                onApprovalGranted: vi.fn().mockImplementation(async () => {
-                    callOrder.push('onApprovalGranted');
-                }),
-                generatePreview: vi.fn().mockImplementation(async () => {
-                    callOrder.push('generatePreview');
-                    return {
-                        type: 'diff',
-                        unified: 'diff --git a/x b/x',
-                        filename: '/tmp/example.txt',
-                        additions: 1,
-                        deletions: 0,
-                    };
-                }),
+                approval: {
+                    override: vi.fn().mockImplementation(async () => {
+                        callOrder.push('approval.override');
+                        return {
+                            type: ApprovalType.DIRECTORY_ACCESS,
+                            metadata: {
+                                path: '/tmp/example.txt',
+                                parentDir: '/tmp',
+                                operation: 'read',
+                                toolName: 'fs_like_tool',
+                            },
+                        };
+                    }),
+                    onGranted: vi.fn().mockImplementation(async () => {
+                        callOrder.push('approval.onGranted');
+                    }),
+                },
+                presentation: {
+                    preview: vi.fn().mockImplementation(async () => {
+                        callOrder.push('presentation.preview');
+                        return {
+                            type: 'diff',
+                            unified: 'diff --git a/x b/x',
+                            filename: '/tmp/example.txt',
+                            additions: 1,
+                            deletions: 0,
+                        };
+                    }),
+                },
                 execute: vi.fn().mockImplementation(async () => {
                     callOrder.push('execute');
                     return 'ok';
@@ -507,13 +515,13 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
             expect(mockApprovalManager.addApprovedDirectory).not.toHaveBeenCalled();
 
-            // Directory access goes through getApprovalOverride → generatePreview → requestToolApproval
-            // → onApprovalGranted → execute
+            // Directory access goes through approval.override → presentation.preview → requestToolApproval
+            // → approval.onGranted → execute
             expect(callOrder).toEqual([
-                'getApprovalOverride',
-                'generatePreview',
+                'approval.override',
+                'presentation.preview',
                 'requestToolApproval',
-                'onApprovalGranted',
+                'approval.onGranted',
                 'execute',
             ]);
         });
@@ -567,9 +575,10 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                         command: z.string(),
                     })
                     .strict(),
-                getApprovalPatternKey: () => 'git:*',
-                suggestApprovalPatterns: () => ['git status', 'git diff'],
-                generatePreview: vi.fn().mockResolvedValue(null),
+                approval: {
+                    patternKey: () => 'git:*',
+                    suggestPatterns: () => ['git status', 'git diff'],
+                },
                 execute: vi.fn().mockResolvedValue('ok'),
             });
 

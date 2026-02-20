@@ -70,7 +70,7 @@ describe('plan_create tool', () => {
             const sessionId = 'test-session';
             const content = '# Implementation Plan\n\n## Steps\n1. First step';
 
-            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
 
             const preview = (await previewFn!(
@@ -91,7 +91,7 @@ describe('plan_create tool', () => {
         it('should throw error when sessionId is missing', async () => {
             const tool = createPlanCreateTool(async () => planService);
 
-            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
 
             try {
@@ -107,7 +107,7 @@ describe('plan_create tool', () => {
             const tool = createPlanCreateTool(async () => planService);
             const sessionId = 'test-session';
 
-            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
 
             // Create existing plan

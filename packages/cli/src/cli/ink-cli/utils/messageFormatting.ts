@@ -243,13 +243,12 @@ export interface FormattedToolHeader {
 export function formatToolHeader(options: {
     toolName: string;
     args: Record<string, unknown>;
-    toolDisplayName?: string;
     presentationSnapshot?: ToolPresentationSnapshotV1;
 }): FormattedToolHeader {
-    const { toolName, args, toolDisplayName, presentationSnapshot } = options;
+    const { toolName, args, presentationSnapshot } = options;
 
     const snapshotHeader = presentationSnapshot?.header;
-    let displayName = snapshotHeader?.title ?? toolDisplayName ?? getToolDisplayName(toolName);
+    const displayName = snapshotHeader?.title ?? getToolDisplayName(toolName);
     const argsFormatted = snapshotHeader?.primaryText ?? formatToolArgsForDisplay(toolName, args);
     const badge = getToolTypeBadge(toolName);
 
@@ -603,11 +602,16 @@ export function convertHistoryToUIMessages(
             const toolCall = toolCallMap.get(msg.toolCallId);
 
             // Format tool name
-            const displayName = msg.toolDisplayName ?? getToolDisplayName(msg.name);
+            const displayName =
+                msg.presentationSnapshot?.header?.title ?? getToolDisplayName(msg.name);
 
             // Format args if we have them
             let toolContent = displayName;
-            if (toolCall) {
+            const snapshotPrimaryText = msg.presentationSnapshot?.header?.primaryText;
+            if (typeof snapshotPrimaryText === 'string' && snapshotPrimaryText.length > 0) {
+                toolContent = `${displayName}(${snapshotPrimaryText})`;
+            }
+            if (!snapshotPrimaryText && toolCall) {
                 try {
                     const args = JSON.parse(toolCall.function.arguments || '{}');
                     const argsFormatted = formatToolArgsForDisplay(msg.name, args);

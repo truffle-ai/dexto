@@ -317,7 +317,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                     },
                     preview: async (input, context) => {
                         const tool = ensureToolsInitialized(context).spawnAgent;
-                        const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+                        const previewFn = tool.presentation?.preview;
                         if (!previewFn) {
                             return null;
                         }
@@ -335,7 +335,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                     displayName: 'Wait',
                     preview: async (input, context) => {
                         const tool = ensureToolsInitialized(context).waitFor;
-                        const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+                        const previewFn = tool.presentation?.preview;
                         if (!previewFn) {
                             return null;
                         }
@@ -353,7 +353,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                     displayName: 'Check Task',
                     preview: async (input, context) => {
                         const tool = ensureToolsInitialized(context).checkTask;
-                        const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+                        const previewFn = tool.presentation?.preview;
                         if (!previewFn) {
                             return null;
                         }
@@ -371,7 +371,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                     displayName: 'List Tasks',
                     preview: async (input, context) => {
                         const tool = ensureToolsInitialized(context).listTasks;
-                        const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+                        const previewFn = tool.presentation?.preview;
                         if (!previewFn) {
                             return null;
                         }

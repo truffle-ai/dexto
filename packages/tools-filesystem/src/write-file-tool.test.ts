@@ -277,7 +277,7 @@ describe('write_file tool', () => {
 
         it('should fail when file is created by someone else between preview and execute', async () => {
             const tool = createWriteFileTool(async () => fileSystemService);
-            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
             const testFile = path.join(tempDir, 'race-condition.txt');
 
@@ -341,7 +341,7 @@ describe('write_file tool', () => {
                 content: 'second write',
             };
             const parsedInput2 = tool.inputSchema.parse(input2);
-            const previewFn2 = tool.presentation?.preview ?? tool.generatePreview;
+            const previewFn2 = tool.presentation?.preview;
             expect(previewFn2).toBeDefined();
             await previewFn2!(parsedInput2, createToolContext(mockLogger, { toolCallId }));
             const result = (await tool.execute(
@@ -367,7 +367,7 @@ describe('write_file tool', () => {
             const parsedInput = tool.inputSchema.parse(input);
 
             // Preview
-            const previewFn = tool.presentation?.preview ?? tool.generatePreview;
+            const previewFn = tool.presentation?.preview;
             expect(previewFn).toBeDefined();
             await previewFn!(parsedInput, createToolContext(mockLogger, { toolCallId }));
 
