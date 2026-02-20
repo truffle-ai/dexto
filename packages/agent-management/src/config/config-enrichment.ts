@@ -85,9 +85,9 @@ export interface EnrichAgentConfigOptions {
      */
     bundledPlugins?: string[];
     /**
-     * When true, override relative storage paths (database/blob) with per-agent
-     * dexto paths. This is useful in desktop/runtime contexts where writing to
-     * the app cwd is undesirable.
+     * When true, normalize relative storage paths (database/blob) to per-agent
+     * locations.
+     * Useful when configs may be loaded from varying working directories.
      */
     forceStoragePaths?: boolean;
 }
