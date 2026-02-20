@@ -430,11 +430,11 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             return [addCustomOption, ...models];
         }
 
-        const query = searchQuery.toLowerCase();
+        const query = searchQuery.toLowerCase().replace(/[\s-]+/g, '');
         const filtered = models.filter((model) => {
-            const name = model.name.toLowerCase();
-            const displayName = (model.displayName || '').toLowerCase();
-            const provider = model.provider.toLowerCase();
+            const name = model.name.toLowerCase().replace(/[\s-]+/g, '');
+            const displayName = (model.displayName || '').toLowerCase().replace(/[\s-]+/g, '');
+            const provider = model.provider.toLowerCase().replace(/[\s-]+/g, '');
             return name.includes(query) || displayName.includes(query) || provider.includes(query);
         });
 
