@@ -73,7 +73,7 @@ export class PathValidator {
      * Validate a file path for security and policy compliance
      */
     async validatePath(filePath: string): Promise<PathValidation> {
-        return this.validatePathInternal(filePath, { allowOutsideAllowedPaths: false });
+        return this.validatePathInternal(filePath, { skipAllowedCheck: false });
     }
 
     /**
@@ -89,12 +89,12 @@ export class PathValidator {
      * Used for generating UI-only previews (e.g., diffs) before the user approves directory access.
      */
     async validatePathForPreview(filePath: string): Promise<PathValidation> {
-        return this.validatePathInternal(filePath, { allowOutsideAllowedPaths: true });
+        return this.validatePathInternal(filePath, { skipAllowedCheck: true });
     }
 
     private async validatePathInternal(
         filePath: string,
-        options: { allowOutsideAllowedPaths: boolean }
+        options: { skipAllowedCheck: boolean }
     ): Promise<PathValidation> {
         // 1. Check for empty path
         if (!filePath || filePath.trim() === '') {
@@ -139,7 +139,7 @@ export class PathValidator {
         }
 
         if (
-            options.allowOutsideAllowedPaths &&
+            options.skipAllowedCheck &&
             this.isInConfigAllowedPaths(resolvedPath) &&
             !this.isInConfigAllowedPaths(normalizedPath)
         ) {
@@ -150,7 +150,7 @@ export class PathValidator {
         }
 
         // 4. Check if path is within allowed paths
-        if (!options.allowOutsideAllowedPaths && !this.isPathAllowed(normalizedPath)) {
+        if (!options.skipAllowedCheck && !this.isPathAllowed(normalizedPath)) {
             return {
                 isValid: false,
                 error: `Path is not within allowed paths. Allowed: ${this.normalizedAllowedPaths.join(', ')}`,
