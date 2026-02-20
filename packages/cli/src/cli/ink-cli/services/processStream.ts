@@ -915,13 +915,10 @@ export async function processStream(
 
                     if (autoApproveEdits && event.type === ApprovalTypeEnum.TOOL_APPROVAL) {
                         // Type is narrowed - metadata is now ToolApprovalMetadata
-                        const { toolName } = event.metadata;
+                        const { toolName, directoryAccess } = event.metadata;
 
                         const hasDirectoryAccess =
-                            typeof (event.metadata as { directoryAccess?: unknown })
-                                .directoryAccess === 'object' &&
-                            (event.metadata as { directoryAccess?: unknown }).directoryAccess !==
-                                null;
+                            typeof directoryAccess === 'object' && directoryAccess !== null;
 
                         if (!hasDirectoryAccess && isAutoApprovableInEditMode(toolName)) {
                             // Auto-approve immediately - emit response and let tool:running handle status

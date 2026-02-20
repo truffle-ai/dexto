@@ -40,6 +40,22 @@ Look for:
 
 ### 3. Type Safety Issues
 
+**Type casting (`as X`) is a sign of slop** unless absolutely necessary. Always prefer:
+
+- Proper type narrowing with `typeof`/`instanceof` checks
+- Discriminated unions
+- Type guards (`isX` functions that return type predicates)
+- Using `z.output<typeof Schema>` for derived types
+
+Common patterns to fix:
+
+- `as Record<string, unknown>` → Use proper typing or extract to helper
+- `as unknown as X` → Double cast usually indicates type mismatch - fix the source type
+- `as const` → Usually fine for literal types
+- Type casts after type checks → Remove casts, TypeScript narrows automatically
+
+Avoid:
+
 - `any` types that should be more specific
 - Missing type annotations on function parameters
 - Type assertions (`as X`) that could be avoided with proper narrowing
