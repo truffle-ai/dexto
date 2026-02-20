@@ -749,6 +749,7 @@ export default function MessageList({
                                                 <ToolCallTimeline
                                                     toolName={msg.toolName}
                                                     toolDisplayName={msg.toolDisplayName}
+                                                    presentationSnapshot={msg.presentationSnapshot}
                                                     toolArgs={msg.toolArgs}
                                                     toolResult={msg.toolResult}
                                                     displayData={msg.toolResultMeta?.display}

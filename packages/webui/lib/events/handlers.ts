@@ -259,7 +259,7 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
  * This handles cases where approval:request arrives before llm:tool-call.
  */
 function handleToolCall(event: EventByName<'llm:tool-call'>): void {
-    const { sessionId, toolName, toolDisplayName, args, callId } = event;
+    const { sessionId, toolName, toolDisplayName, args, callId, presentationSnapshot } = event;
     const chatStore = useChatStore.getState();
 
     // Finalize any streaming message to maintain proper sequence
@@ -278,6 +278,7 @@ function handleToolCall(event: EventByName<'llm:tool-call'>): void {
         chatStore.updateMessage(sessionId, existingMessage.id, {
             toolArgs: args,
             ...(toolDisplayName !== undefined && { toolDisplayName }),
+            ...(presentationSnapshot !== undefined && { presentationSnapshot }),
         });
         console.debug('[handlers] Tool call message already exists:', existingMessage.id);
         return;
@@ -304,6 +305,7 @@ function handleToolCall(event: EventByName<'llm:tool-call'>): void {
             toolCallId: callId,
             toolArgs: args,
             ...(toolDisplayName !== undefined && { toolDisplayName }),
+            ...(presentationSnapshot !== undefined && { presentationSnapshot }),
         });
         console.debug(
             '[handlers] Updated existing approval message with callId:',
@@ -319,6 +321,7 @@ function handleToolCall(event: EventByName<'llm:tool-call'>): void {
         content: null,
         toolName,
         ...(toolDisplayName !== undefined && { toolDisplayName }),
+        ...(presentationSnapshot !== undefined && { presentationSnapshot }),
         toolArgs: args,
         toolCallId: callId,
         createdAt: Date.now(),
@@ -349,6 +352,7 @@ function handleToolResult(event: EventByName<'llm:tool-result'>): void {
         toolDisplayName,
         requireApproval,
         approvalStatus,
+        presentationSnapshot,
     } = event;
     const chatStore = useChatStore.getState();
 
@@ -379,6 +383,7 @@ function handleToolResult(event: EventByName<'llm:tool-result'>): void {
             toolResultMeta: sanitized?.meta,
             toolResultSuccess: success,
             ...(toolDisplayName !== undefined && { toolDisplayName }),
+            ...(presentationSnapshot !== undefined && { presentationSnapshot }),
             ...(requireApproval !== undefined && { requireApproval }),
             ...(approvalStatus !== undefined && { approvalStatus }),
         });
@@ -436,6 +441,7 @@ function handleApprovalRequest(event: EventByName<'approval:request'>): void {
     const toolDisplayName =
         (event as any).metadata?.toolDisplayName || (event as any).toolDisplayName;
     const toolArgs = (event as any).metadata?.args || (event as any).args || {};
+    const presentationSnapshot = (event as any).metadata?.presentationSnapshot;
     const approvalType = (event as any).type;
 
     // Helper to strip prefixes for matching
@@ -459,6 +465,7 @@ function handleApprovalRequest(event: EventByName<'approval:request'>): void {
             requireApproval: true,
             approvalStatus: 'pending',
             ...(toolDisplayName !== undefined && { toolDisplayName }),
+            ...(presentationSnapshot !== undefined && { presentationSnapshot }),
         });
         console.debug(
             '[handlers] Updated existing tool message with approval:',
@@ -489,6 +496,7 @@ function handleApprovalRequest(event: EventByName<'approval:request'>): void {
                 content: null,
                 toolName,
                 ...(toolDisplayName !== undefined && { toolDisplayName }),
+                ...(presentationSnapshot !== undefined && { presentationSnapshot }),
                 toolArgs,
                 toolCallId: approvalId, // Use approvalId as callId for correlation
                 createdAt: Date.now(),

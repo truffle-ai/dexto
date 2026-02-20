@@ -18,7 +18,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
 import { CodePreview } from './CodePreview';
-import type { ToolDisplayData } from '@dexto/core';
+import type { ToolDisplayData, ToolPresentationSnapshotV1 } from '@dexto/core';
 
 /**
  * Sub-agent progress data for spawn_agent tool calls
@@ -34,6 +34,7 @@ export interface SubAgentProgress {
 export interface ToolCallTimelineProps {
     toolName: string;
     toolDisplayName?: string;
+    presentationSnapshot?: ToolPresentationSnapshotV1;
     toolArgs?: Record<string, unknown>;
     toolResult?: unknown;
     success?: boolean;
@@ -99,6 +100,7 @@ function getSummary(
 export function ToolCallTimeline({
     toolName,
     toolDisplayName,
+    presentationSnapshot,
     toolArgs,
     toolResult,
     success,
@@ -151,9 +153,23 @@ export function ToolCallTimeline({
         }
     }, [requireApproval, approvalStatus, hasRichUI, isRejected]);
 
-    const { displayName: fallbackDisplayName, source } = stripToolPrefix(toolName);
-    const displayName = toolDisplayName ?? fallbackDisplayName;
-    const summary = getSummary(displayName, toolArgs);
+    const { displayName: fallbackDisplayName, source: fallbackSource } = stripToolPrefix(toolName);
+    const displayName =
+        presentationSnapshot?.header?.title ?? toolDisplayName ?? fallbackDisplayName;
+    const source = (() => {
+        const snapshotSource = presentationSnapshot?.source;
+        if (snapshotSource?.type === 'mcp') {
+            return snapshotSource.mcpServerName ?? (fallbackSource || 'mcp');
+        }
+        return fallbackSource;
+    })();
+    const summary = (() => {
+        const primaryText = presentationSnapshot?.header?.primaryText;
+        if (typeof primaryText === 'string' && primaryText.length > 0) {
+            return { name: displayName, detail: primaryText };
+        }
+        return getSummary(displayName, toolArgs);
+    })();
 
     // For sub-agent progress, format the agent name nicely
     const subAgentLabel = hasSubAgentProgress
