@@ -34,8 +34,12 @@ Look for:
 - **Dead code** - Unused imports, variables, or functions
 - **Magic numbers** - Hardcoded numbers without constants
 - **Complex conditionals** - Deeply nested if/else that could be simplified
+- **Large if-else trees** - Use early returns, switch with guards, or extract to helper functions
 - **Missing early returns** - Arrow code that could be early-returned
 - **Inconsistent naming** - Mixed snake_case/camelCase in same file
+- **Bad naming** - Vague names like `data`, `temp`, `stuff`, `foo`, `bar`, `result`, `val`, `item`, `obj`
+    - Good names describe intent: `validatedUserId`, `currentLogLevel`, `pendingApprovalRequests`
+- **One-line wrapper functions** - Functions that just call another function without adding logic (e.g., `const foo = (x) => bar(x)`). Either inline or merge the logic.
 - **Unused refs/state** - Refs kept in sync with state that could be simplified
 
 ### 3. Type Safety Issues
