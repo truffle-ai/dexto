@@ -151,14 +151,6 @@ export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
     ): Promise<ToolDisplayData | null>;
 
     /**
-     * Optional directory access metadata for tool approvals.
-     *
-     * This is used for tools that operate on filesystem paths which may fall
-     * outside config-allowed roots. When returned, ToolManager will:
-     * - Include this metadata in the tool approval request (UI can offer a "remember directory" option)
-     * - Force manual approval even if the tool itself is otherwise auto-approved,
-     *   unless the directory is already session-approved.
-    /**
      * Optional aliases for this tool id.
      *
      * Used to support external prompt/skill ecosystems that refer to tools by short names

@@ -68,17 +68,17 @@ export function createDirectoryAccessApprovalHandlers<TInput>(options: {
             };
         },
 
-        async onApprovalGranted(_response, _context, approvalRequest) {
-            const approvalManager = _context.services?.approval;
+        async onApprovalGranted(response, context, approvalRequest) {
+            const approvalManager = context.services?.approval;
             if (!approvalManager) {
                 return;
             }
 
-            if (_response.status !== ApprovalStatus.APPROVED) {
+            if (response.status !== ApprovalStatus.APPROVED) {
                 return;
             }
 
-            const data = _response.data as { rememberDirectory?: boolean } | undefined;
+            const data = response.data as { rememberDirectory?: boolean } | undefined;
             const rememberDirectory = data?.rememberDirectory ?? false;
 
             const metadata = approvalRequest.metadata as { parentDir: string };
