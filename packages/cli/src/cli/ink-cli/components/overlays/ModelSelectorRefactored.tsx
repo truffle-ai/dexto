@@ -89,8 +89,8 @@ function isAddCustomOption(item: SelectorItem): item is AddCustomOption {
     return 'type' in item && item.type === 'add-custom';
 }
 
-function isModelOption(item: SelectorItem): item is ModelOption {
-    return !isAddCustomOption(item);
+function asModelOption(item: SelectorItem): ModelOption {
+    return item as ModelOption;
 }
 
 function getRowPrefix({
@@ -107,6 +107,30 @@ function getRowPrefix({
     return `${isSelected ? '›' : ' '} ${isDefault ? '✓' : ' '} ${isCurrent ? '●' : ' '} ${
         isCustom ? '★' : ' '
     }`;
+}
+
+function computeNextSelection(
+    currentIndex: number,
+    itemsLength: number,
+    viewportItems: number
+): { index: number; offset: number } {
+    const nextIndex = currentIndex;
+    let nextOffset = 0;
+    const modelsLength = Math.max(0, itemsLength - 1);
+
+    if (nextIndex > 0) {
+        const modelIndex = nextIndex - 1;
+        if (modelIndex < nextOffset) {
+            nextOffset = modelIndex;
+        } else if (modelIndex >= nextOffset + viewportItems) {
+            nextOffset = Math.max(0, modelIndex - viewportItems + 1);
+        }
+    }
+
+    const maxOffset = Math.max(0, modelsLength - viewportItems);
+    nextOffset = Math.min(maxOffset, Math.max(0, nextOffset));
+
+    return { index: nextIndex, offset: nextOffset };
 }
 
 // Reasoning effort options - defined at module scope to avoid recreation on each render
@@ -906,7 +930,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
     const selectedIndex = selection.index;
     const scrollOffset = selection.offset;
-    const modelsOnly = filteredItems.slice(1).filter(isModelOption);
+    const modelsOnly = filteredItems.slice(1) as ModelOption[];
     const visibleModels = modelsOnly.slice(scrollOffset, scrollOffset + modelsViewportItems);
     const selectedItem = filteredItems[selectedIndex];
     const hasActionableItems = selectedItem && !isAddCustomOption(selectedItem);
