@@ -309,6 +309,36 @@ export class AgentSpawnerRuntime implements TaskForker {
     }
 
     /**
+     * Ensure spawned agent inherits the parent's workspace context.
+     */
+    private async applyParentWorkspace(agent: DextoAgent): Promise<void> {
+        let parentWorkspace: Awaited<ReturnType<DextoAgent['getWorkspace']>>;
+        try {
+            parentWorkspace = await this.parentAgent.getWorkspace();
+        } catch (error) {
+            this.logger.warn(
+                `Failed to read parent workspace for sub-agent: ${error instanceof Error ? error.message : String(error)}`
+            );
+            return;
+        }
+
+        if (!parentWorkspace?.path) {
+            return;
+        }
+
+        try {
+            await agent.setWorkspace({
+                path: parentWorkspace.path,
+                ...(parentWorkspace.name ? { name: parentWorkspace.name } : {}),
+            });
+        } catch (error) {
+            this.logger.warn(
+                `Failed to apply parent workspace to sub-agent: ${error instanceof Error ? error.message : String(error)}`
+            );
+        }
+    }
+
+    /**
      * Check if an error is LLM-related (API errors, credit issues, model not found, etc.)
      */
     private isLLMError(error: unknown): boolean {
@@ -392,6 +422,7 @@ export class AgentSpawnerRuntime implements TaskForker {
                     },
                 });
                 spawnedAgentId = handle.agentId;
+                await this.applyParentWorkspace(handle.agent);
             } catch (spawnError) {
                 // Check if it's an LLM-related error (model not supported, API key missing, etc.)
                 const isLlmError = this.isLLMError(spawnError);
@@ -438,6 +469,7 @@ export class AgentSpawnerRuntime implements TaskForker {
                         },
                     });
                     spawnedAgentId = handle.agentId;
+                    await this.applyParentWorkspace(handle.agent);
                 } else {
                     // Not an LLM error or already used fallback or no agentId
                     throw spawnError;
@@ -521,6 +553,7 @@ export class AgentSpawnerRuntime implements TaskForker {
                         },
                     });
                     spawnedAgentId = handle.agentId;
+                    await this.applyParentWorkspace(handle.agent);
 
                     this.logger.info(
                         `Re-spawned sub-agent '${spawnedAgentId}' for task: ${input.task} (using parent LLM)`
