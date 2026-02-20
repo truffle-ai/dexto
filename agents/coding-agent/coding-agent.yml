@@ -123,7 +123,9 @@ permissions:
       - bash_output    # Check background process output
       - kill_process   # Kill processes without approval (only processes started by agent)
       - todo_write     # Todo updates don't need approval
+      - plan_create    # Create plan without approval
       - plan_read      # Read plan without approval
+      - plan_update    # Update plan without approval
       - wait_for       # Wait for background tasks without approval
       - check_task     # Check background tasks without approval
 
@@ -166,7 +168,7 @@ tools:
     basePath: "${{dexto.project_dir}}/plans"
   - type: agent-spawner
     maxConcurrentAgents: 5
-    defaultTimeout: 300000
+    defaultTimeout: 0
     allowSpawning: true
     # List of agent IDs from the registry that can be spawned.
     # Agent metadata (name, description) is pulled from the registry at runtime.
