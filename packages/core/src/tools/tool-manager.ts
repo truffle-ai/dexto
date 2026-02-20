@@ -26,6 +26,10 @@ import type { WorkspaceContext } from '../workspace/types.js';
 import { InstrumentClass } from '../telemetry/decorators.js';
 import { extractToolCallMeta, wrapToolParametersSchema } from './tool-call-metadata.js';
 import { isBackgroundTasksEnabled } from '../utils/env.js';
+import type {
+    DynamicContributorContext,
+    DynamicContributorContextFactory,
+} from '../systemPrompt/types.js';
 
 export type ToolExecutionContextFactory = (
     baseContext: ToolExecutionContextBase
@@ -69,6 +73,7 @@ export class ToolManager {
     private agentEventBus: AgentEventBus;
     private toolPolicies: ToolPolicies | undefined;
     private toolExecutionContextFactory: ToolExecutionContextFactory;
+    private contributorContextFactory: DynamicContributorContextFactory | undefined;
 
     // Hook support - set after construction to avoid circular dependencies
     private hookManager?: HookManager;
@@ -638,6 +643,43 @@ export class ToolManager {
 
     getMcpManager(): MCPManager {
         return this.mcpManager;
+    }
+
+    setContributorContextFactory(factory?: DynamicContributorContextFactory | null): void {
+        this.contributorContextFactory = factory ?? undefined;
+    }
+
+    async buildContributorContext(): Promise<DynamicContributorContext> {
+        const baseWorkspace = this.currentWorkspace ?? null;
+        const baseContext: DynamicContributorContext = {
+            mcpManager: this.mcpManager,
+            workspace: baseWorkspace,
+        };
+
+        if (!this.contributorContextFactory) {
+            return baseContext;
+        }
+
+        try {
+            const overrides = (await this.contributorContextFactory()) ?? {};
+            const workspace =
+                overrides.workspace !== undefined ? overrides.workspace : baseWorkspace;
+            const environment =
+                overrides.environment !== undefined
+                    ? overrides.environment
+                    : baseContext.environment;
+            const mcpManager = overrides.mcpManager ?? baseContext.mcpManager;
+            return {
+                mcpManager,
+                workspace,
+                ...(environment !== undefined ? { environment } : {}),
+            };
+        } catch (error) {
+            this.logger.warn(
+                `Failed to build contributor context: ${error instanceof Error ? error.message : String(error)}`
+            );
+            return baseContext;
+        }
     }
 
     /**

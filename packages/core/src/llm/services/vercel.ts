@@ -212,7 +212,7 @@ export class VercelLLMService {
             const executor = this.createTurnExecutor(options?.signal);
 
             // Execute with streaming enabled
-            const contributorContext = { mcpManager: this.toolManager.getMcpManager() };
+            const contributorContext = await this.toolManager.buildContributorContext();
             const result = await executor.execute(contributorContext, true);
 
             return {

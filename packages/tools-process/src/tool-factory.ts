@@ -36,9 +36,28 @@ export const processToolsFactory: ToolFactory<ProcessToolsConfig> = {
             service.setWorkingDirectory(workingDirectory);
         };
 
+        const resolveInjectedService = (context: ToolExecutionContext): ProcessService | null => {
+            const candidate = (context.services as unknown as { processService?: unknown })
+                ?.processService as ProcessService | undefined;
+            if (!candidate) return null;
+            if (candidate instanceof ProcessService) return candidate;
+            const hasMethods =
+                typeof (candidate as ProcessService).executeCommand === 'function' &&
+                typeof (candidate as ProcessService).killProcess === 'function' &&
+                typeof (candidate as ProcessService).setWorkingDirectory === 'function' &&
+                typeof (candidate as ProcessService).getConfig === 'function';
+            return hasMethods ? (candidate as ProcessService) : null;
+        };
+
         const getProcessService = async (
             context: ToolExecutionContext
         ): Promise<ProcessService> => {
+            const injectedService = resolveInjectedService(context);
+            if (injectedService) {
+                applyWorkspace(context, injectedService);
+                return injectedService;
+            }
+
             if (processService) {
                 applyWorkspace(context, processService);
                 return processService;

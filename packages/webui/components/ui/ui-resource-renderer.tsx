@@ -18,31 +18,25 @@ export function UIResourceRendererWrapper({ resource, onAction }: UIResourceRend
     // Store metadata in _meta since annotations has a specific schema in MCP SDK
     const mcpResource = resource.blob
         ? {
-              type: 'resource' as const,
-              resource: {
-                  uri: resource.uri,
-                  blob: resource.blob,
-                  ...(resource.mimeType ? { mimeType: resource.mimeType } : {}),
-                  _meta: {
-                      ...(resource.metadata?.title ? { title: resource.metadata.title } : {}),
-                      ...(resource.metadata?.preferredSize
-                          ? { preferredSize: resource.metadata.preferredSize }
-                          : {}),
-                  },
+              uri: resource.uri,
+              blob: resource.blob,
+              ...(resource.mimeType ? { mimeType: resource.mimeType } : {}),
+              _meta: {
+                  ...(resource.metadata?.title ? { title: resource.metadata.title } : {}),
+                  ...(resource.metadata?.preferredSize
+                      ? { preferredSize: resource.metadata.preferredSize }
+                      : {}),
               },
           }
         : {
-              type: 'resource' as const,
-              resource: {
-                  uri: resource.uri,
-                  text: resource.content || '',
-                  ...(resource.mimeType ? { mimeType: resource.mimeType } : {}),
-                  _meta: {
-                      ...(resource.metadata?.title ? { title: resource.metadata.title } : {}),
-                      ...(resource.metadata?.preferredSize
-                          ? { preferredSize: resource.metadata.preferredSize }
-                          : {}),
-                  },
+              uri: resource.uri,
+              text: resource.content || '',
+              ...(resource.mimeType ? { mimeType: resource.mimeType } : {}),
+              _meta: {
+                  ...(resource.metadata?.title ? { title: resource.metadata.title } : {}),
+                  ...(resource.metadata?.preferredSize
+                      ? { preferredSize: resource.metadata.preferredSize }
+                      : {}),
               },
           };
 

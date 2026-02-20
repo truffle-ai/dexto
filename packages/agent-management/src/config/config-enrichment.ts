@@ -84,6 +84,12 @@ export interface EnrichAgentConfigOptions {
      * user/project plugins.
      */
     bundledPlugins?: string[];
+    /**
+     * When true, normalize relative storage paths (database/blob) to per-agent
+     * locations.
+     * Useful when configs may be loaded from varying working directories.
+     */
+    forceStoragePaths?: boolean;
 }
 
 /**
@@ -114,6 +120,7 @@ export function enrichAgentConfig(
         logLevel = 'error',
         skipPluginDiscovery = false,
         bundledPlugins = [],
+        forceStoragePaths = false,
     } = opts;
     const agentId = deriveAgentId(config, configPath);
 
@@ -160,18 +167,30 @@ export function enrichAgentConfig(
             ...config.storage,
         };
 
-        // Enrich database path if SQLite with empty/missing path
+        // Enrich database path if SQLite with empty/missing path (or force override for relative paths)
         if (config.storage.database?.type === 'sqlite') {
+            const databasePath =
+                typeof config.storage.database.path === 'string'
+                    ? config.storage.database.path
+                    : undefined;
+            const shouldOverride =
+                !databasePath || (forceStoragePaths && !path.isAbsolute(databasePath));
             enriched.storage.database = {
                 ...config.storage.database,
-                path: config.storage.database.path || dbPath,
+                path: shouldOverride ? dbPath : databasePath,
             };
         }
-        // Enrich blob path if local with empty/missing storePath
+        // Enrich blob path if local with empty/missing storePath (or force override for relative paths)
         if (config.storage.blob?.type === 'local') {
+            const blobStorePath =
+                typeof config.storage.blob.storePath === 'string'
+                    ? config.storage.blob.storePath
+                    : undefined;
+            const shouldOverride =
+                !blobStorePath || (forceStoragePaths && !path.isAbsolute(blobStorePath));
             enriched.storage.blob = {
                 ...config.storage.blob,
-                storePath: config.storage.blob.storePath || blobPath,
+                storePath: shouldOverride ? blobPath : blobStorePath,
             };
         }
     }
