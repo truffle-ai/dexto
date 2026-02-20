@@ -13,6 +13,7 @@ import type { ApprovalManager } from '../approval/manager.js';
 import { ApprovalStatus, ApprovalType, DenialReason } from '../approval/types.js';
 import type {
     ApprovalRequest,
+    ApprovalResponse,
     ApprovalRequestDetails,
     DirectoryAccessMetadata,
     ToolApprovalMetadata,
@@ -501,18 +502,74 @@ export class ToolManager {
 
     // ==================== Pattern Approval Helpers ====================
 
+    private getToolDisplayNameForUi(toolName: string): string | undefined {
+        const tool = this.agentTools.get(toolName);
+        return tool?.presentation?.displayName ?? tool?.displayName;
+    }
+
+    private getToolApprovalPatternKeyFn(
+        toolName: string
+    ): ((args: Record<string, unknown>) => string | null) | undefined {
+        const tool = this.agentTools.get(toolName);
+        return tool?.approval?.patternKey ?? tool?.getApprovalPatternKey;
+    }
+
+    private getToolSuggestApprovalPatternsFn(
+        toolName: string
+    ): ((args: Record<string, unknown>) => string[]) | undefined {
+        const tool = this.agentTools.get(toolName);
+        return tool?.approval?.suggestPatterns ?? tool?.suggestApprovalPatterns;
+    }
+
+    private getToolApprovalOverrideFn(
+        toolName: string
+    ):
+        | ((
+              args: Record<string, unknown>,
+              context: ToolExecutionContext
+          ) => Promise<ApprovalRequestDetails | null> | ApprovalRequestDetails | null)
+        | undefined {
+        const tool = this.agentTools.get(toolName);
+        return tool?.approval?.override ?? tool?.getApprovalOverride;
+    }
+
+    private getToolApprovalOnGrantedFn(
+        toolName: string
+    ):
+        | ((
+              response: ApprovalResponse,
+              context: ToolExecutionContext,
+              approvalRequest: ApprovalRequestDetails
+          ) => Promise<void> | void)
+        | undefined {
+        const tool = this.agentTools.get(toolName);
+        return tool?.approval?.onGranted ?? tool?.onApprovalGranted;
+    }
+
+    private getToolPreviewFn(
+        toolName: string
+    ):
+        | ((
+              args: Record<string, unknown>,
+              context: ToolExecutionContext
+          ) => Promise<ToolDisplayData | null> | ToolDisplayData | null)
+        | undefined {
+        const tool = this.agentTools.get(toolName);
+        return tool?.presentation?.preview ?? tool?.generatePreview;
+    }
+
     private getToolPatternKey(toolName: string, args: Record<string, unknown>): string | null {
         if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
             return null;
         }
 
-        const tool = this.agentTools.get(toolName);
-        if (!tool?.getApprovalPatternKey) {
+        const getPatternKey = this.getToolApprovalPatternKeyFn(toolName);
+        if (!getPatternKey) {
             return null;
         }
 
         try {
-            return tool.getApprovalPatternKey(args);
+            return getPatternKey(args);
         } catch (error) {
             this.logger.debug(
                 `Pattern key generation failed for '${toolName}': ${error instanceof Error ? error.message : String(error)}`
@@ -529,13 +586,13 @@ export class ToolManager {
             return undefined;
         }
 
-        const tool = this.agentTools.get(toolName);
-        if (!tool?.suggestApprovalPatterns) {
+        const suggestPatterns = this.getToolSuggestApprovalPatternsFn(toolName);
+        if (!suggestPatterns) {
             return undefined;
         }
 
         try {
-            const patterns = tool.suggestApprovalPatterns(args);
+            const patterns = suggestPatterns(args);
             return patterns.length > 0 ? patterns : undefined;
         } catch (error) {
             this.logger.debug(
@@ -588,8 +645,7 @@ export class ToolManager {
             return;
         }
 
-        const tool = this.agentTools.get(toolName);
-        const getPatternKey = tool?.getApprovalPatternKey;
+        const getPatternKey = this.getToolApprovalPatternKeyFn(toolName);
         if (!getPatternKey) {
             return;
         }
@@ -615,9 +671,11 @@ export class ToolManager {
                     return false;
                 }
 
+                const argsRecord = args as Record<string, unknown>;
+
                 let patternKey: string | null;
                 try {
-                    patternKey = getPatternKey(args);
+                    patternKey = getPatternKey(argsRecord);
                 } catch (error) {
                     this.logger.debug(
                         `Pattern key generation failed for '${toolName}': ${
@@ -871,7 +929,7 @@ export class ToolManager {
                   ? rawToolArgs.description
                   : undefined;
         const backgroundTasksEnabled = isBackgroundTasksEnabled();
-        const toolDisplayName = this.agentTools.get(toolName)?.displayName;
+        const toolDisplayName = this.getToolDisplayNameForUi(toolName);
 
         this.logger.debug(`🔧 Tool execution requested: '${toolName}' (toolCallId: ${toolCallId})`);
         this.logger.debug(`Tool args: ${JSON.stringify(toolArgs, null, 2)}`);
@@ -1293,10 +1351,10 @@ export class ToolManager {
         let directoryAccessApprovalRequest: ApprovalRequestDetails | undefined;
 
         if (!toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
-            const tool = this.agentTools.get(toolName);
-            if (tool?.getApprovalOverride) {
+            const getApprovalOverride = this.getToolApprovalOverrideFn(toolName);
+            if (getApprovalOverride) {
                 const context = this.buildToolExecutionContext({ sessionId, toolCallId });
-                const approvalRequest = await tool.getApprovalOverride(validatedArgs, context);
+                const approvalRequest = await getApprovalOverride(validatedArgs, context);
 
                 if (approvalRequest) {
                     // Directory access is handled via the normal tool approval UI so we can show
@@ -1332,9 +1390,10 @@ export class ToolManager {
                             await this.approvalManager.requestApproval(approvalRequest);
 
                         if (response.status === ApprovalStatus.APPROVED) {
-                            if (tool.onApprovalGranted) {
+                            const onGranted = this.getToolApprovalOnGrantedFn(toolName);
+                            if (onGranted) {
                                 await Promise.resolve(
-                                    tool.onApprovalGranted(response, context, approvalRequest)
+                                    onGranted(response, context, approvalRequest)
                                 );
                             }
 
@@ -1477,7 +1536,7 @@ export class ToolManager {
         );
 
         try {
-            const toolDisplayName = this.agentTools.get(toolName)?.displayName;
+            const toolDisplayName = this.getToolDisplayNameForUi(toolName);
             // Generate preview for approval UI
             const displayPreview = await this.generateToolPreview(
                 toolName,
@@ -1507,11 +1566,11 @@ export class ToolManager {
                 response.status === ApprovalStatus.APPROVED &&
                 directoryAccessApprovalRequest !== undefined
             ) {
-                const tool = this.agentTools.get(toolName);
-                if (tool?.onApprovalGranted) {
+                const onGranted = this.getToolApprovalOnGrantedFn(toolName);
+                if (onGranted) {
                     const context = this.buildToolExecutionContext({ sessionId, toolCallId });
                     await Promise.resolve(
-                        tool.onApprovalGranted(response, context, directoryAccessApprovalRequest)
+                        onGranted(response, context, directoryAccessApprovalRequest)
                     );
                 }
             }
@@ -1548,13 +1607,14 @@ export class ToolManager {
         sessionId?: string
     ): Promise<ToolDisplayData | undefined> {
         const tool = this.agentTools.get(toolName);
-        if (!tool?.generatePreview) {
+        const previewFn = this.getToolPreviewFn(toolName);
+        if (!previewFn) {
             return undefined;
         }
 
         try {
             const context = this.buildToolExecutionContext({ sessionId, toolCallId });
-            const preview = await tool.generatePreview(args, context);
+            const preview = await previewFn(args, context);
             this.logger.debug(`Generated preview for ${toolName}`);
             return preview ?? undefined;
         } catch (previewError) {
@@ -1595,7 +1655,7 @@ export class ToolManager {
                 `Tool '${toolName}' added to allowed tools for session '${allowSessionId ?? 'global'}' (remember choice selected)`
             );
             this.autoApprovePendingToolRequests(toolName, allowSessionId);
-        } else if (rememberPattern && this.agentTools.get(toolName)?.getApprovalPatternKey) {
+        } else if (rememberPattern && this.getToolApprovalPatternKeyFn(toolName)) {
             this.approvalManager.addPattern(toolName, rememberPattern);
             this.logger.info(`Pattern '${rememberPattern}' added for tool '${toolName}' approval`);
             this.autoApprovePendingPatternRequests(toolName, sessionId);

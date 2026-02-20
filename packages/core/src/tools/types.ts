@@ -151,6 +151,22 @@ export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
     ): Promise<ToolDisplayData | null>;
 
     /**
+     * Optional grouped approval-related behavior.
+     *
+     * Prefer these nested fields over legacy top-level approval hooks.
+     * Legacy hooks remain supported temporarily for compatibility.
+     */
+    approval?: ToolApproval<TSchema> | undefined;
+
+    /**
+     * Optional grouped UI/presentation-related behavior.
+     *
+     * Prefer these nested fields over legacy top-level presentation hooks.
+     * Legacy hooks remain supported temporarily for compatibility.
+     */
+    presentation?: ToolPresentation<TSchema> | undefined;
+
+    /**
      * Optional aliases for this tool id.
      *
      * Used to support external prompt/skill ecosystems that refer to tools by short names
@@ -227,6 +243,32 @@ export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
         context: ToolExecutionContext,
         approvalRequest: ApprovalRequestDetails
     ): void;
+}
+
+export interface ToolApproval<TSchema extends ZodTypeAny = ZodTypeAny> {
+    override?(
+        input: z.output<TSchema>,
+        context: ToolExecutionContext
+    ): Promise<ApprovalRequestDetails | null> | ApprovalRequestDetails | null;
+
+    onGranted?(
+        response: ApprovalResponse,
+        context: ToolExecutionContext,
+        approvalRequest: ApprovalRequestDetails
+    ): Promise<void> | void;
+
+    patternKey?(input: z.output<TSchema>): string | null;
+
+    suggestPatterns?(input: z.output<TSchema>): string[];
+}
+
+export interface ToolPresentation<TSchema extends ZodTypeAny = ZodTypeAny> {
+    displayName?: string;
+
+    preview?(
+        input: z.output<TSchema>,
+        context: ToolExecutionContext
+    ): Promise<ToolDisplayData | null> | ToolDisplayData | null;
 }
 
 /**
