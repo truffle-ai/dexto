@@ -236,6 +236,18 @@ describe('buildProviderOptions', () => {
             });
         });
 
+        it('maps presets into google.thinkingConfig for Vertex Gemini 3 models', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'vertex',
+                    model: 'gemini-3-flash-preview',
+                    reasoning: { preset: 'medium' },
+                })
+            ).toEqual({
+                google: { thinkingConfig: { includeThoughts: true, thinkingLevel: 'medium' } },
+            });
+        });
+
         it('uses adaptive thinking (effort) for Claude 4.6 models', () => {
             expect(
                 buildProviderOptions({
@@ -337,6 +349,16 @@ describe('buildProviderOptions', () => {
             });
         });
 
+        it('does not send reasoningConfig for non-reasoning Bedrock Claude models', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'bedrock',
+                    model: 'anthropic.claude-instant-v1:2',
+                    reasoning: { preset: 'high' },
+                })
+            ).toEqual({ bedrock: {} });
+        });
+
         it('does not send reasoningConfig for non-capable models', () => {
             expect(
                 buildProviderOptions({
@@ -429,7 +451,7 @@ describe('buildProviderOptions', () => {
             });
         });
 
-        it('maps budgetTokens to openrouter.reasoning.max_tokens', () => {
+        it('budgetTokens overrides preset effort (max_tokens only)', () => {
             expect(
                 buildProviderOptions({
                     provider: 'openrouter',

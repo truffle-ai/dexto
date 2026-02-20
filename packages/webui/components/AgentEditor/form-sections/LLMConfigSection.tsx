@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Input } from '../../ui/input';
 import { LabelWithTooltip } from '../../ui/label-with-tooltip';
 import { Collapsible } from '../../ui/collapsible';
@@ -6,6 +6,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import { useModelCapabilities } from '../../hooks/useLLM';
 import { LLM_PROVIDERS } from '@dexto/core';
 import type { AgentConfig } from '@dexto/agent-config';
+import { useDebounce } from 'use-debounce';
 
 type LLMConfig = AgentConfig['llm'];
 
@@ -29,9 +30,11 @@ export function LLMConfigSection({
     sectionErrors = [],
 }: LLMConfigSectionProps) {
     const [showApiKey, setShowApiKey] = useState(false);
+    const modelValueAtFocusRef = useRef('');
+    const [debouncedModel] = useDebounce(value.model ?? '', 300);
     const { data: capabilities } = useModelCapabilities(
         value.provider ?? null,
-        value.model ?? null
+        debouncedModel ? debouncedModel : null
     );
     const reasoningPresets = capabilities?.reasoning?.supportedPresets ?? [];
 
@@ -93,9 +96,15 @@ export function LLMConfigSection({
                     <Input
                         id="model"
                         value={value.model || ''}
-                        onChange={(e) =>
-                            onChange({ ...value, model: e.target.value, reasoning: undefined })
-                        }
+                        onChange={(e) => onChange({ ...value, model: e.target.value })}
+                        onFocus={() => {
+                            modelValueAtFocusRef.current = value.model ?? '';
+                        }}
+                        onBlur={(e) => {
+                            if (e.target.value !== modelValueAtFocusRef.current) {
+                                onChange({ ...value, model: e.target.value, reasoning: undefined });
+                            }
+                        }}
                         placeholder="e.g., gpt-5, claude-sonnet-4-5-20250929"
                         aria-invalid={!!errors['llm.model']}
                     />

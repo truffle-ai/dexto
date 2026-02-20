@@ -552,8 +552,8 @@ export async function processStream(
                             sessionId: event.sessionId,
                             provider: event.provider,
                             model: event.model,
-                            reasoningPreset: event.reasoningPreset,
-                            reasoningBudgetTokens: event.reasoningBudgetTokens,
+                            reasoningPreset: event.reasoningPreset ?? undefined,
+                            reasoningBudgetTokens: event.reasoningBudgetTokens ?? undefined,
                             inputTokens: event.tokenUsage.inputTokens,
                             outputTokens: event.tokenUsage.outputTokens,
                             reasoningTokens: event.tokenUsage.reasoningTokens,
@@ -610,6 +610,11 @@ export async function processStream(
                                 isStreaming: false,
                             },
                         ]);
+                    }
+
+                    if (!useStreaming) {
+                        state.nonStreamingAccumulatedText = '';
+                        state.nonStreamingAccumulatedReasoning = '';
                     }
                     // Reset the flag for this response (new text after tools will create new message)
                     state.textFinalizedBeforeTool = false;
@@ -693,19 +698,17 @@ export async function processStream(
                             reasoningLen: reasoning?.length ?? 0,
                         });
 
-                        if (content || reasoning) {
-                            setMessages((prev) => [
-                                ...prev,
-                                {
-                                    id: generateMessageId('assistant'),
-                                    role: 'assistant',
-                                    content,
-                                    ...(reasoning ? { reasoning } : {}),
-                                    timestamp: new Date(),
-                                    isStreaming: false,
-                                },
-                            ]);
-                        }
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('assistant'),
+                                role: 'assistant',
+                                content,
+                                ...(reasoning ? { reasoning } : {}),
+                                timestamp: new Date(),
+                                isStreaming: false,
+                            },
+                        ]);
 
                         const hadText = !!content;
                         state.nonStreamingAccumulatedText = '';

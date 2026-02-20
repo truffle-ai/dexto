@@ -105,6 +105,18 @@ const REASONING_PRESET_OPTIONS: {
     { value: 'xhigh', label: 'XHigh', description: 'Extra high (only on some models, e.g. codex)' },
 ];
 
+function getInitialPresetIndex(
+    savedPreset: ReasoningPreset | undefined,
+    supportedPresets: ReasoningPreset[]
+): number {
+    const filteredOptions = REASONING_PRESET_OPTIONS.filter((option) =>
+        supportedPresets.includes(option.value)
+    );
+    if (!savedPreset) return 0;
+    const idx = filteredOptions.findIndex((option) => option.value === savedPreset);
+    return idx >= 0 ? idx : 0;
+}
+
 /**
  * Model selector with search and custom model support
  */
@@ -567,14 +579,12 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         if (support.capable) {
                             setPendingReasoningModel(actionItem);
                             setIsSettingDefault(true);
-                            const filteredOptions = REASONING_PRESET_OPTIONS.filter((option) =>
-                                support.supportedPresets.includes(option.value)
+                            setReasoningPresetIndex(
+                                getInitialPresetIndex(
+                                    actionItem.reasoningPreset,
+                                    support.supportedPresets
+                                )
                             );
-                            const savedPreset = actionItem.reasoningPreset;
-                            const savedIdx = savedPreset
-                                ? filteredOptions.findIndex((o) => o.value === savedPreset)
-                                : -1;
-                            setReasoningPresetIndex(savedIdx >= 0 ? savedIdx : 0);
                             return true;
                         }
 
@@ -724,14 +734,12 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                             if (support.capable) {
                                 setPendingReasoningModel(item);
                                 setIsSettingDefault(true);
-                                const filteredOptions = REASONING_PRESET_OPTIONS.filter((option) =>
-                                    support.supportedPresets.includes(option.value)
+                                setReasoningPresetIndex(
+                                    getInitialPresetIndex(
+                                        item.reasoningPreset,
+                                        support.supportedPresets
+                                    )
                                 );
-                                const savedPreset = item.reasoningPreset;
-                                const savedIdx = savedPreset
-                                    ? filteredOptions.findIndex((o) => o.value === savedPreset)
-                                    : -1;
-                                setReasoningPresetIndex(savedIdx >= 0 ? savedIdx : 0);
                                 return true;
                             }
 
@@ -774,14 +782,12 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         if (support.capable) {
                             // Show reasoning preset sub-step
                             setPendingReasoningModel(item);
-                            const filteredOptions = REASONING_PRESET_OPTIONS.filter((option) =>
-                                support.supportedPresets.includes(option.value)
+                            setReasoningPresetIndex(
+                                getInitialPresetIndex(
+                                    item.reasoningPreset,
+                                    support.supportedPresets
+                                )
                             );
-                            const savedPreset = item.reasoningPreset;
-                            const savedIdx = savedPreset
-                                ? filteredOptions.findIndex((o) => o.value === savedPreset)
-                                : -1;
-                            setReasoningPresetIndex(savedIdx >= 0 ? savedIdx : 0);
                             return true;
                         }
                         onSelectModel(item.provider, item.name, item.displayName, item.baseURL);
@@ -806,6 +812,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             handleDeleteCustomModel,
             pendingReasoningModel,
             reasoningPresetIndex,
+            reasoningPresetOptions,
             isSettingDefault,
         ]
     );
