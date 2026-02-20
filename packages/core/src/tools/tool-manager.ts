@@ -566,8 +566,7 @@ export class ToolManager {
                 }
 
                 // Check if it's the same tool
-                const metadata = request.metadata as ToolApprovalMetadata;
-                return metadata.toolName === toolName;
+                return request.metadata.toolName === toolName;
             },
             { rememberChoice: false } // Don't propagate remember choice to auto-approved requests
         );
@@ -606,19 +605,18 @@ export class ToolManager {
                     return false;
                 }
 
-                const metadata = request.metadata as ToolApprovalMetadata;
-                if (metadata.toolName !== toolName) {
+                if (request.metadata.toolName !== toolName) {
                     return false;
                 }
 
-                const args = metadata.args;
+                const args = request.metadata.args;
                 if (typeof args !== 'object' || args === null) {
                     return false;
                 }
 
                 let patternKey: string | null;
                 try {
-                    patternKey = getPatternKey(args as Record<string, unknown>);
+                    patternKey = getPatternKey(args);
                 } catch (error) {
                     this.logger.debug(
                         `Pattern key generation failed for '${toolName}': ${
@@ -765,17 +763,17 @@ export class ToolManager {
         if (
             typeof metadata !== 'object' ||
             metadata === null ||
-            typeof (metadata as DirectoryAccessMetadata).path !== 'string' ||
-            typeof (metadata as DirectoryAccessMetadata).parentDir !== 'string' ||
-            typeof (metadata as DirectoryAccessMetadata).operation !== 'string' ||
-            typeof (metadata as DirectoryAccessMetadata).toolName !== 'string'
+            typeof metadata.path !== 'string' ||
+            typeof metadata.parentDir !== 'string' ||
+            typeof metadata.operation !== 'string' ||
+            typeof metadata.toolName !== 'string'
         ) {
             throw ToolError.configInvalid(
                 `Tool '${toolName}' returned invalid directory access metadata`
             );
         }
 
-        return metadata as DirectoryAccessMetadata;
+        return metadata;
     }
 
     private async executeLocalTool(
@@ -1369,7 +1367,7 @@ export class ToolManager {
 
         // For directory access, throw specific error
         if (approvalRequest.type === 'directory_access') {
-            const metadata = approvalRequest.metadata as { parentDir?: string } | undefined;
+            const metadata = approvalRequest.metadata as DirectoryAccessMetadata | undefined;
             throw ToolError.directoryAccessDenied(
                 metadata?.parentDir ?? 'unknown directory',
                 sessionId
