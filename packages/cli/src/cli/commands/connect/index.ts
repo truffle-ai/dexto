@@ -5,9 +5,11 @@ import open from 'open';
 import {
     CONNECT_PROVIDERS,
     getConnectProvider,
+    deleteLlmAuthProfile,
+    getDefaultLlmAuthProfileId,
+    listLlmAuthProfiles,
     setDefaultLlmAuthProfile,
     upsertLlmAuthProfile,
-    type ConnectMethod,
 } from '@dexto/agent-management';
 
 import { extractChatGptAccountId, loginOpenAiCodexDeviceCode } from './openai-codex.js';
@@ -26,17 +28,15 @@ function toProviderOption(provider: (typeof CONNECT_PROVIDERS)[number]): p.Optio
     };
 }
 
-function toMethodOption(method: ConnectMethod): p.Option<string> {
-    const hint = method.hint?.trim();
-    return {
-        value: method.id,
-        label: method.label,
-        ...(hint ? { hint } : {}),
-    };
-}
-
 function defaultProfileId(providerId: string, methodId: string): string {
     return `${providerId}:${methodId}`;
+}
+
+function combineHint(...parts: Array<string | undefined>): string | undefined {
+    const cleaned = parts
+        .map((p) => p?.trim())
+        .filter((p): p is string => Boolean(p && p.length > 0));
+    return cleaned.length > 0 ? cleaned.join(' — ') : undefined;
 }
 
 export async function handleConnectCommand(options?: { interactive?: boolean }): Promise<void> {
@@ -62,12 +62,31 @@ export async function handleConnectCommand(options?: { interactive?: boolean }):
         return;
     }
 
+    const existingProfiles = await listLlmAuthProfiles({ providerId: provider.providerId });
+    const existingByProfileId = new Map(existingProfiles.map((p) => [p.profileId, p]));
+    const defaultProfileIdForProvider = await getDefaultLlmAuthProfileId(provider.providerId);
+
     const methodId =
         provider.methods.length === 1
             ? provider.methods[0]!.id
             : await p.select({
                   message: `Choose a login method for ${provider.label}`,
-                  options: provider.methods.map(toMethodOption),
+                  options: provider.methods.map((method) => {
+                      const profileId = defaultProfileId(provider.providerId, method.id);
+                      const existing = existingByProfileId.get(profileId);
+                      const connectedHint =
+                          defaultProfileIdForProvider === profileId
+                              ? 'Connected (default)'
+                              : existing
+                                ? 'Connected'
+                                : undefined;
+                      const hint = combineHint(connectedHint, method.hint);
+                      return {
+                          value: method.id,
+                          label: method.label,
+                          ...(hint ? { hint } : {}),
+                      };
+                  }),
               });
 
     if (isCancel(methodId)) {
@@ -82,6 +101,66 @@ export async function handleConnectCommand(options?: { interactive?: boolean }):
     }
 
     const profileId = defaultProfileId(provider.providerId, method.id);
+    const existingProfile = existingByProfileId.get(profileId);
+
+    if (existingProfile) {
+        const action = await p.select({
+            message: `A ${method.label} connection already exists for ${provider.label}.`,
+            options: [
+                {
+                    value: 'use_existing',
+                    label:
+                        defaultProfileIdForProvider === profileId
+                            ? 'Keep as default'
+                            : 'Use existing (set default)',
+                    hint:
+                        defaultProfileIdForProvider === profileId
+                            ? 'No changes'
+                            : 'No re-auth required',
+                },
+                {
+                    value: 'replace',
+                    label: 'Replace credentials',
+                    hint: 'Requires re-auth / re-entering secrets',
+                },
+                {
+                    value: 'delete',
+                    label: 'Delete credentials',
+                    hint:
+                        defaultProfileIdForProvider === profileId
+                            ? 'Removes slot and clears default'
+                            : 'Removes slot',
+                },
+            ],
+        });
+
+        if (isCancel(action)) {
+            p.cancel('Connect cancelled');
+            return;
+        }
+
+        if (action === 'use_existing') {
+            await setDefaultLlmAuthProfile({ providerId: provider.providerId, profileId });
+            p.outro(chalk.green(`✅ Set default ${provider.label} auth to ${method.label}`));
+            return;
+        }
+
+        if (action === 'delete') {
+            const confirmed = await p.confirm({
+                message: `Delete saved ${method.label} credentials for ${provider.label}?`,
+                initialValue: false,
+            });
+
+            if (p.isCancel(confirmed) || !confirmed) {
+                p.cancel('Connect cancelled');
+                return;
+            }
+
+            await deleteLlmAuthProfile(profileId);
+            p.outro(chalk.green(`✅ Deleted ${provider.label} credentials for ${method.label}`));
+            return;
+        }
+    }
 
     if (method.kind === 'api_key') {
         const apiKey = await p.password({
