@@ -15,7 +15,8 @@
         "dist"
     ],
     "scripts": {
-        "build": "tsc",
+        "build": "tsup && node ../../scripts/clean-tsbuildinfo.mjs && tsc -b tsconfig.json --emitDeclarationOnly",
+        "dev": "tsup --watch",
         "clean": "rm -rf dist",
         "typecheck": "tsc --noEmit",
         "test": "vitest run",
@@ -31,6 +32,7 @@
         "@types/diff": "^7.0.0",
         "@types/node": "^22.10.5",
         "dotenv": "^16.4.7",
+        "tsup": "^8.0.0",
         "typescript": "^5.7.2",
         "vitest": "^2.1.8"
     },
