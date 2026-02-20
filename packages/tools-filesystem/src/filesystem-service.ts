@@ -8,7 +8,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { glob } from 'glob';
 import safeRegex from 'safe-regex';
-import { getDextoPath, Logger, DextoLogComponent } from '@dexto/core';
+import { DextoRuntimeError, getDextoPath, Logger, DextoLogComponent } from '@dexto/core';
 import {
     FileSystemConfig,
     FileContent,
@@ -213,6 +213,9 @@ export class FileSystemService {
                 );
             }
         } catch (error) {
+            if (error instanceof DextoRuntimeError && error.scope === 'filesystem') {
+                throw error;
+            }
             if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
                 throw FileSystemError.fileNotFound(normalizedPath);
             }
@@ -255,6 +258,9 @@ export class FileSystemService {
                 size: Buffer.byteLength(content, encoding),
             };
         } catch (error) {
+            if (error instanceof DextoRuntimeError && error.scope === 'filesystem') {
+                throw error;
+            }
             throw FileSystemError.readFailed(
                 normalizedPath,
                 error instanceof Error ? error.message : String(error)
@@ -357,6 +363,9 @@ export class FileSystemService {
                 throw FileSystemError.invalidPath(normalizedPath, 'Path is not a directory');
             }
         } catch (error) {
+            if (error instanceof DextoRuntimeError && error.scope === 'filesystem') {
+                throw error;
+            }
             if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
                 throw FileSystemError.directoryNotFound(normalizedPath);
             }
@@ -379,39 +388,8 @@ export class FileSystemService {
                 (entry) => includeHidden || !entry.name.startsWith('.')
             );
 
-            const mapWithConcurrency = async <T, R>(
-                items: T[],
-                limit: number,
-                mapper: (item: T, index: number) => Promise<R>
-            ): Promise<R[]> => {
-                if (items.length === 0) {
-                    return [];
-                }
-
-                const results = new Array<R>(items.length);
-                let nextIndex = 0;
-                const workerCount = Math.min(limit, items.length);
-
-                const workers = Array.from({ length: workerCount }, async () => {
-                    while (true) {
-                        const current = nextIndex++;
-                        if (current >= items.length) {
-                            return;
-                        }
-                        const item = items[current];
-                        if (item === undefined) {
-                            continue;
-                        }
-                        results[current] = await mapper(item, current);
-                    }
-                });
-
-                await Promise.all(workers);
-                return results;
-            };
-
-            const concurrency = Math.max(1, DEFAULT_LIST_CONCURRENCY);
-            const validatedEntries = await mapWithConcurrency(
+            const concurrency = DEFAULT_LIST_CONCURRENCY;
+            const validatedEntries = await this.mapWithConcurrency(
                 candidates,
                 concurrency,
                 async (entry) => {
@@ -459,7 +437,7 @@ export class FileSystemService {
                 };
             }
 
-            const metadataEntries = await mapWithConcurrency(
+            const metadataEntries = await this.mapWithConcurrency(
                 validEntries,
                 concurrency,
                 async (entry) => {
@@ -498,10 +476,13 @@ export class FileSystemService {
                 }
             }
 
+            const remainingSuccessful =
+                cutoffIndex >= 0
+                    ? metadataEntries.slice(cutoffIndex + 1).filter((entry) => entry !== null)
+                          .length
+                    : 0;
             const totalEntries =
-                successfulStats < maxEntries
-                    ? successfulStats
-                    : maxEntries + (validEntries.length - cutoffIndex - 1);
+                successfulStats < maxEntries ? successfulStats : maxEntries + remainingSuccessful;
 
             return {
                 path: normalizedPath,
@@ -515,6 +496,37 @@ export class FileSystemService {
                 error instanceof Error ? error.message : String(error)
             );
         }
+    }
+
+    private async mapWithConcurrency<T, R>(
+        items: T[],
+        limit: number,
+        mapper: (item: T, index: number) => Promise<R>
+    ): Promise<R[]> {
+        if (items.length === 0) {
+            return [];
+        }
+
+        const results = new Array<R>(items.length);
+        let nextIndex = 0;
+        const workerCount = Math.min(Math.max(1, limit), items.length);
+
+        const workers = Array.from({ length: workerCount }, async () => {
+            while (true) {
+                const current = nextIndex++;
+                if (current >= items.length) {
+                    return;
+                }
+                const item = items[current];
+                if (item === undefined) {
+                    continue;
+                }
+                results[current] = await mapper(item, current);
+            }
+        });
+
+        await Promise.all(workers);
+        return results;
     }
 
     /**

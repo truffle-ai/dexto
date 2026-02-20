@@ -84,7 +84,6 @@ export const processToolsFactory: ToolFactory<ProcessToolsConfig> = {
             const injectedService = resolveInjectedService(context);
             if (injectedService) {
                 const scopedService = getScopedInjectedService(context, injectedService);
-                applyWorkspace(context, scopedService);
                 return scopedService;
             }
 
