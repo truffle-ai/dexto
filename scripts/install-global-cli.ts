@@ -183,6 +183,9 @@ type RemoveResult = { removed: boolean; message?: string };
 function removeBunGlobalCliShim(toolName: string): RemoveResult {
     const bunInstallDir = process.env.BUN_INSTALL || join(homedir(), '.bun');
     const bunBinDir = join(bunInstallDir, 'bin');
+    const bunGlobalPkgDir = join(bunInstallDir, 'install', 'global', 'node_modules', toolName);
+    const bunGlobalPkgJson = join(bunGlobalPkgDir, 'package.json');
+    const bunGlobalInstalled = existsSync(bunGlobalPkgJson);
 
     const candidates =
         process.platform === 'win32'
@@ -202,13 +205,6 @@ function removeBunGlobalCliShim(toolName: string): RemoveResult {
             if (stat.isSymbolicLink()) {
                 const target = readlinkSync(candidate);
                 const resolvedTarget = resolve(bunBinDir, target);
-                const bunGlobalPkgDir = join(
-                    bunInstallDir,
-                    'install',
-                    'global',
-                    'node_modules',
-                    toolName
-                );
                 const looksLikeBunGlobalDexto =
                     resolvedTarget === bunGlobalPkgDir ||
                     resolvedTarget.startsWith(`${bunGlobalPkgDir}${sep}`);
@@ -228,8 +224,35 @@ function removeBunGlobalCliShim(toolName: string): RemoveResult {
 
             const isWindowsExe =
                 process.platform === 'win32' && candidate.toLowerCase().endsWith('.exe');
-            if (!isWindowsExe) {
-                const firstLine = readFileSync(candidate, 'utf8').split('\n')[0] ?? '';
+            const isWindowsCmd =
+                process.platform === 'win32' && candidate.toLowerCase().endsWith('.cmd');
+
+            if (isWindowsExe) {
+                if (!bunGlobalInstalled) {
+                    messages.push(
+                        `Found bun bin entry at ${candidate}, but ${bunGlobalPkgJson} does not exist.`
+                    );
+                    continue;
+                }
+            } else if (isWindowsCmd) {
+                const content = readFileSync(candidate, 'utf8');
+                const firstFewLines = content.split(/\r?\n/).slice(0, 5).join('\n');
+                const haystack = firstFewLines.toLowerCase();
+                const bunGlobalPosix = bunGlobalPkgDir.replaceAll('\\', '/').toLowerCase();
+                const bunGlobalWin = bunGlobalPkgDir.replaceAll('/', '\\').toLowerCase();
+                const looksLikeBunScript =
+                    haystack.includes('bun') ||
+                    haystack.includes(bunGlobalPosix) ||
+                    haystack.includes(bunGlobalWin);
+
+                if (!looksLikeBunScript && !bunGlobalInstalled) {
+                    messages.push(
+                        `Found bun bin entry at ${candidate}, but it doesn't look like a bun-managed script.`
+                    );
+                    continue;
+                }
+            } else {
+                const firstLine = readFileSync(candidate, 'utf8').split(/\r?\n/)[0] ?? '';
                 if (!firstLine.includes('bun')) {
                     messages.push(
                         `Found bun bin entry at ${candidate}, but it doesn't look like a bun script (first line: ${firstLine}).`
@@ -448,7 +471,7 @@ async function main() {
                 console.log(`  ⚠️  ${bunRemoval.message}`);
             }
         } catch {
-            // bun not installed or no bun shim found
+            // Unexpected OS-level error (e.g. homedir() unavailable); skip bun shim cleanup
         }
         if (!removedAny) {
             console.log('  (no existing installation)');

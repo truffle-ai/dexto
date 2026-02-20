@@ -189,7 +189,7 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                 setEnumIndex(0);
                 setArraySelections(new Set());
             },
-            [fields, formData, updateField]
+            [fields, formData]
         );
 
         const nextField = useCallback(() => {
@@ -426,15 +426,12 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                                 return true;
                             }
                             if (input === ' ') {
-                                setArraySelections((prev) => {
-                                    const next = new Set(prev);
-                                    if (next.has(enumIndex)) next.delete(enumIndex);
-                                    else next.add(enumIndex);
-
-                                    const selected = Array.from(next).map((i) => values[i]);
-                                    updateField(activeField.name, selected);
-                                    return next;
-                                });
+                                const nextSelections = new Set(arraySelections);
+                                if (nextSelections.has(enumIndex)) nextSelections.delete(enumIndex);
+                                else nextSelections.add(enumIndex);
+                                setArraySelections(nextSelections);
+                                const selected = Array.from(nextSelections).map((i) => values[i]);
+                                updateField(activeField.name, selected);
                                 return true;
                             }
                             if (key.return) {
@@ -532,6 +529,7 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
                 contentHeight,
                 confirmSubmit,
                 draftInputs,
+                enumIndex,
                 errors,
                 fields,
                 formData,
@@ -718,7 +716,7 @@ export const ElicitationForm = forwardRef<ElicitationFormHandle, ElicitationForm
 
         const headerText = isReviewing
             ? '📝 Review your answers'
-            : `📝 Please answer these ${fields.length} ${
+            : `📝 Please answer ${fields.length === 1 ? 'this' : 'these'} ${fields.length} ${
                   fields.length === 1 ? 'question' : 'questions'
               }.`;
 

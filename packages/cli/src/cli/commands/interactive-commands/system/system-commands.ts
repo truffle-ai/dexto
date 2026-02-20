@@ -25,6 +25,16 @@ import type {
     StatsStyledData,
 } from '../../../ink-cli/state/types.js';
 
+const validLevels = [
+    'error',
+    'warn',
+    'info',
+    'debug',
+    'silly',
+] as const satisfies readonly LogLevel[];
+const validLevelSet = new Set<string>(validLevels);
+const isLogLevel = (value: string): value is LogLevel => validLevelSet.has(value);
+
 /**
  * System commands for configuration and monitoring
  */
@@ -40,49 +50,50 @@ export const systemCommands: CommandDefinition[] = [
             agent: DextoAgent,
             _ctx: CommandContext
         ): Promise<CommandHandlerResult> => {
-            const validLevels = [
-                'error',
-                'warn',
-                'info',
-                'debug',
-                'silly',
-            ] as const satisfies readonly LogLevel[];
-            const validLevelSet = new Set<string>(validLevels);
-            const isLogLevel = (value: string): value is LogLevel => validLevelSet.has(value);
-            const level = args[0];
+            try {
+                const level = args[0];
 
-            if (!level) {
-                const currentLevel = agent.logger.getLevel();
-                const logFile = agent.logger.getLogFilePath();
+                if (!level) {
+                    const currentLevel = agent.logger.getLevel();
+                    const logFile = agent.logger.getLogFilePath();
 
-                const styledData: LogConfigStyledData = {
-                    currentLevel,
-                    logFile,
-                    availableLevels: [...validLevels],
-                };
+                    const styledData: LogConfigStyledData = {
+                        currentLevel,
+                        logFile,
+                        availableLevels: [...validLevels],
+                    };
 
-                const fallbackLines = [
-                    'Logging Configuration:',
-                    `  Current level: ${currentLevel}`,
-                    logFile ? `  Log file: ${logFile}` : '',
-                    `  Available levels: ${validLevels.join(', ')}`,
-                    '  Use /log <level> to change level',
-                ].filter(Boolean);
+                    const fallbackLines = [
+                        'Logging Configuration:',
+                        `  Current level: ${currentLevel}`,
+                        logFile ? `  Log file: ${logFile}` : '',
+                        `  Available levels: ${validLevels.join(', ')}`,
+                        '  Use /log <level> to change level',
+                    ].filter(Boolean);
 
-                return CommandOutputHelper.styled(
-                    'log-config',
-                    styledData,
-                    fallbackLines.join('\n')
-                );
+                    return CommandOutputHelper.styled(
+                        'log-config',
+                        styledData,
+                        fallbackLines.join('\n')
+                    );
+                }
+
+                if (isLogLevel(level)) {
+                    agent.logger.setLevel(level);
+                    return formatForInkCli(`✅ Log level set to ${level}`);
+                }
+
+                const errorMsg = `❌ Invalid log level: ${level}\nValid levels: ${validLevels.join(
+                    ', '
+                )}`;
+                return formatForInkCli(errorMsg);
+            } catch (error) {
+                const errorMsg = `Failed to update log level: ${
+                    error instanceof Error ? error.message : String(error)
+                }`;
+                agent.logger.error(errorMsg);
+                return formatForInkCli(`❌ ${errorMsg}`);
             }
-
-            if (isLogLevel(level)) {
-                agent.logger.setLevel(level);
-                return formatForInkCli(`✅ Log level set to ${level}`);
-            }
-
-            const errorMsg = `❌ Invalid log level: ${level}\nValid levels: ${validLevels.join(', ')}`;
-            return formatForInkCli(errorMsg);
         },
     },
     {
