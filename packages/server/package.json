@@ -33,10 +33,10 @@
     "@dexto/tools-scheduler": "workspace:*",
     "@hono/node-server": "1.19.5",
     "@hono/zod-openapi": "^0.19.1",
-    "hono": "^4.6.8",
+    "hono": "^4.11.10",
     "ws": "^8.18.1",
     "yaml": "^2.7.1",
-    "@modelcontextprotocol/sdk": "^1.25.2"
+    "@modelcontextprotocol/sdk": "^1.26.0"
   },
   "scripts": {
     "build": "cross-env NODE_OPTIONS='--max-old-space-size=8192' tsup && cross-env NODE_OPTIONS='--max-old-space-size=8192' tsc -b tsconfig.json --force --emitDeclarationOnly",
