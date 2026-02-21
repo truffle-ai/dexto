@@ -26,6 +26,7 @@ import { isDextoAuthEnabled } from '@dexto/agent-management';
 
 // Import modular command definitions
 import { generalCommands, createHelpCommand } from './general-commands.js';
+import { memoryCommand, handleMemoryAdd } from './memory-command.js';
 import { searchCommand, resumeCommand, renameCommand } from './session/index.js';
 import { exportCommand } from './export/index.js';
 import { modelCommands } from './model/index.js';
@@ -59,6 +60,9 @@ export const CLI_COMMANDS: CommandDefinition[] = [];
 const baseCommands: CommandDefinition[] = [
     // General commands (without help)
     ...generalCommands,
+
+    // Memory command - show loaded memory file
+    memoryCommand, // /memory - show agent memory file loaded to context
 
     // Session management
     searchCommand, // /search - opens search overlay
@@ -112,6 +116,12 @@ export async function executeCommand(
 ): Promise<CommandHandlerResult> {
     // Create command context with sessionId
     const ctx = { sessionId: sessionId ?? null, configFilePath: configFilePath ?? null };
+
+    // Handle memory-add command (triggered by # prefix)
+    if (command === 'memory-add') {
+        const content = args[0] ?? '';
+        return await handleMemoryAdd(content);
+    }
 
     // Find the command (including aliases)
     const cmd = CLI_COMMANDS.find(

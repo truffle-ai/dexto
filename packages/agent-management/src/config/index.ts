@@ -17,6 +17,7 @@ export {
     enrichAgentConfig,
     deriveAgentId,
     discoverCommandPrompts,
+    discoverAgentInstructionFile,
     type EnrichAgentConfigOptions,
 } from './config-enrichment.js';
 export { ConfigError } from './errors.js';

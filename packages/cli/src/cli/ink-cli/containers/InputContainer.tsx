@@ -19,6 +19,7 @@ import type {
     PendingImage,
     PastedBlock,
     TodoItem,
+    OverlayType,
 } from '../state/types.js';
 import { createUserMessage } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
@@ -476,6 +477,34 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                             configFilePath
                         );
 
+                        // If the command returned an overlay trigger, show it
+                        if (result && typeof result === 'object' && '__triggerOverlay' in result) {
+                            const overlayType = result.__triggerOverlay as OverlayType;
+                            const args = (result as any).args || [];
+
+                            setUi((prev) => {
+                                const updates: Partial<UIState> = {
+                                    isProcessing: false,
+                                    activeOverlay: overlayType,
+                                };
+
+                                // Special handling for memory-add-wizard to initialize its state from command args
+                                if (overlayType === 'memory-add-wizard') {
+                                    updates.memoryAddWizard = {
+                                        step: 'scope',
+                                        scope: null,
+                                        content: args.join(' '),
+                                    };
+                                }
+
+                                return { ...prev, ...updates };
+                            });
+
+                            buffer.setText('');
+                            setInput((prev) => ({ ...prev, images: [], pastedBlocks: [] }));
+                            return;
+                        }
+
                         if (result.type === 'output' && result.output) {
                             const output = result.output;
                             setMessages((prev) => [
@@ -796,6 +825,9 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             'model-selector',
             'export-wizard',
             'marketplace-add',
+            'memory-manager',
+            'memory-add-wizard',
+            'memory-remove-wizard',
         ];
         const hasOverlayWithOwnInput = overlaysWithOwnInput.includes(ui.activeOverlay);
         const isHistorySearchActive = ui.historySearch.isActive;

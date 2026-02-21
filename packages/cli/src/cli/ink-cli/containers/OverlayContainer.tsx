@@ -117,7 +117,23 @@ import MarketplaceBrowser, {
 import MarketplaceAddPrompt, {
     type MarketplaceAddPromptHandle,
 } from '../components/overlays/MarketplaceAddPrompt.js';
-import type { PromptAddScope } from '../state/types.js';
+import MemoryManager, {
+    type MemoryManagerHandle,
+    type MemoryAction,
+} from '../components/overlays/MemoryManager.js';
+import MemoryAddWizard, {
+    type MemoryAddWizardHandle,
+} from '../components/overlays/MemoryAddWizard.js';
+import MemoryRemoveWizard, {
+    type MemoryRemoveWizardHandle,
+} from '../components/overlays/MemoryRemoveWizard.js';
+import type {
+    PromptAddScope,
+    MemoryAddScope,
+    MemoryAddWizardState,
+    MemoryRemoveWizardState,
+} from '../state/types.js';
+import { listMemoryEntries } from '../../commands/interactive-commands/memory-utils.js';
 import type { PromptInfo, ResourceMetadata, LLMProvider, SearchResult } from '@dexto/core';
 import type { LogLevel } from '@dexto/core';
 import { DextoValidationError, LLMErrorCode, getModelDisplayName } from '@dexto/core';
@@ -213,6 +229,9 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         // State for selected plugin (for plugin-actions overlay)
         const [selectedPlugin, setSelectedPlugin] = useState<ListedPlugin | null>(null);
         const marketplaceAddPromptRef = useRef<MarketplaceAddPromptHandle>(null);
+        const memoryManagerRef = useRef<MemoryManagerHandle>(null);
+        const memoryAddWizardRef = useRef<MemoryAddWizardHandle>(null);
+        const memoryRemoveWizardRef = useRef<MemoryRemoveWizardHandle>(null);
 
         const getConfigFilePathOrWarn = useCallback(
             (action: string): string | null => {
@@ -323,6 +342,14 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         case 'marketplace-add':
                             return (
                                 marketplaceAddPromptRef.current?.handleInput(inputStr, key) ?? false
+                            );
+                        case 'memory-manager':
+                            return memoryManagerRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'memory-add-wizard':
+                            return memoryAddWizardRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'memory-remove-wizard':
+                            return (
+                                memoryRemoveWizardRef.current?.handleInput(inputStr, key) ?? false
                             );
                         default:
                             return false;
@@ -2297,6 +2324,142 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
         }, [setUi]);
 
+        // Handle MemoryManager actions
+        const handleMemoryManagerAction = useCallback(
+            (action: MemoryAction) => {
+                switch (action) {
+                    case 'show':
+                        setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
+                        // Execute /memory show command
+                        void onSubmitPromptCommand?.('/memory show');
+                        break;
+                    case 'add':
+                        setUi((prev) => ({
+                            ...prev,
+                            activeOverlay: 'memory-add-wizard',
+                            memoryAddWizard: { step: 'scope', scope: null, content: '' },
+                        }));
+                        break;
+                    case 'remove':
+                        setUi((prev) => ({
+                            ...prev,
+                            activeOverlay: 'memory-remove-wizard',
+                            memoryRemoveWizard: { step: 'scope', scope: null },
+                        }));
+                        break;
+                    default:
+                        setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
+                        break;
+                }
+            },
+            [setUi, onSubmitPromptCommand]
+        );
+
+        // Handle MemoryAddWizard state updates
+        const handleMemoryWizardUpdate = useCallback(
+            (updates: Partial<MemoryAddWizardState>) => {
+                setUi((prev) => ({
+                    ...prev,
+                    memoryAddWizard: prev.memoryAddWizard
+                        ? { ...prev.memoryAddWizard, ...updates }
+                        : null,
+                }));
+            },
+            [setUi]
+        );
+
+        // Handle MemoryAddWizard completion
+        const handleMemoryAddComplete = useCallback(
+            async (content: string, scope: MemoryAddScope) => {
+                setUi((prev) => ({ ...prev, activeOverlay: 'none', memoryAddWizard: null }));
+
+                try {
+                    const { addMemoryEntry } = await import(
+                        '../../commands/interactive-commands/memory-utils.js'
+                    );
+                    const result = addMemoryEntry(content, scope);
+
+                    if (result.success) {
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('system'),
+                                role: 'system',
+                                content: `✅ ${scope === 'global' ? 'Global' : 'Project'} memory entry added!`,
+                                timestamp: new Date(),
+                            },
+                        ]);
+                    } else {
+                        throw new Error(result.error || 'Unknown error');
+                    }
+                } catch (error) {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('error'),
+                            role: 'system',
+                            content: `❌ Failed to add memory: ${error instanceof Error ? error.message : String(error)}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                }
+            },
+            [setUi, setMessages]
+        );
+
+        // Handle MemoryRemoveWizard state updates
+        const handleMemoryRemoveWizardUpdate = useCallback(
+            (updates: Partial<MemoryRemoveWizardState>) => {
+                setUi((prev) => ({
+                    ...prev,
+                    memoryRemoveWizard: prev.memoryRemoveWizard
+                        ? { ...prev.memoryRemoveWizard, ...updates }
+                        : null,
+                }));
+            },
+            [setUi]
+        );
+
+        // Handle MemoryRemoveWizard completion
+        const handleMemoryRemoveComplete = useCallback(
+            async (index: number, scope: MemoryAddScope) => {
+                setUi((prev) => ({ ...prev, activeOverlay: 'none', memoryRemoveWizard: null }));
+
+                try {
+                    const { removeMemoryEntry } = await import(
+                        '../../commands/interactive-commands/memory-utils.js'
+                    );
+                    const result = removeMemoryEntry(index, scope);
+
+                    if (result.success) {
+                        const scopeLabel = scope === 'global' ? 'User (global)' : 'Project';
+                        setMessages((prev) => [
+                            ...prev,
+                            {
+                                id: generateMessageId('system'),
+                                role: 'system',
+                                content: `✅ ${scopeLabel} memory entry removed!`,
+                                timestamp: new Date(),
+                            },
+                        ]);
+                    } else {
+                        throw new Error(result.error || 'Unknown error');
+                    }
+                } catch (error) {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('error'),
+                            role: 'system',
+                            content: `❌ Failed to remove memory: ${error instanceof Error ? error.message : String(error)}`,
+                            timestamp: new Date(),
+                        },
+                    ]);
+                }
+            },
+            [setUi, setMessages]
+        );
+
         return (
             <>
                 {/* Approval prompt */}
@@ -2693,6 +2856,44 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         isVisible={true}
                         agent={agent}
                         sessionId={session.id}
+                        onClose={handleClose}
+                    />
+                )}
+
+                {/* Memory Manager */}
+                {ui.activeOverlay === 'memory-manager' && (
+                    <Box marginTop={1}>
+                        <MemoryManager
+                            ref={memoryManagerRef}
+                            isVisible={true}
+                            onAction={handleMemoryManagerAction}
+                            onClose={handleClose}
+                        />
+                    </Box>
+                )}
+
+                {/* Memory Add Wizard */}
+                {ui.activeOverlay === 'memory-add-wizard' && (
+                    <MemoryAddWizard
+                        ref={memoryAddWizardRef}
+                        isVisible={true}
+                        state={ui.memoryAddWizard}
+                        onUpdateState={handleMemoryWizardUpdate}
+                        onComplete={handleMemoryAddComplete}
+                        onClose={handleClose}
+                    />
+                )}
+
+                {/* Memory Remove Wizard */}
+                {ui.activeOverlay === 'memory-remove-wizard' && (
+                    <MemoryRemoveWizard
+                        ref={memoryRemoveWizardRef}
+                        isVisible={true}
+                        state={ui.memoryRemoveWizard}
+                        projectEntries={listMemoryEntries().project.entries}
+                        globalEntries={listMemoryEntries().global.entries}
+                        onUpdateState={handleMemoryRemoveWizardUpdate}
+                        onComplete={handleMemoryRemoveComplete}
                         onClose={handleClose}
                     />
                 )}

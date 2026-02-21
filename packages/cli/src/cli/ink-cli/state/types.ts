@@ -344,7 +344,10 @@ export type OverlayType =
     | 'plugin-list'
     | 'plugin-actions'
     | 'marketplace-browser'
-    | 'marketplace-add';
+    | 'marketplace-add'
+    | 'memory-manager'
+    | 'memory-add-wizard'
+    | 'memory-remove-wizard';
 
 /**
  * MCP server type for custom wizard (null = not yet selected)
@@ -387,6 +390,25 @@ export interface PromptAddWizardState {
 }
 
 /**
+ * Memory add wizard state
+ */
+export type MemoryAddScope = 'project' | 'global';
+
+export interface MemoryAddWizardState {
+    step: 'scope' | 'content';
+    scope: MemoryAddScope | null;
+    content: string;
+}
+
+/**
+ * Memory remove wizard state
+ */
+export interface MemoryRemoveWizardState {
+    step: 'scope' | 'selection';
+    scope: MemoryAddScope | null;
+}
+
+/**
  * History search state (Ctrl+R reverse search)
  */
 export interface HistorySearchState {
@@ -425,7 +447,9 @@ export interface UIState {
     }>; // Snapshot of background tasks
     // Plan mode state (Shift+Tab toggle)
     planModeActive: boolean; // True when plan mode indicator is shown
-    planModeInitialized: boolean; // True after first message sent in plan mode (prevents re-injection)
+    planModeInitialized: boolean; // True when plan tools have been injected once
+    memoryAddWizard: MemoryAddWizardState | null; // Memory add wizard state
+    memoryRemoveWizard: MemoryRemoveWizardState | null; // Memory remove wizard state
 }
 
 /**

@@ -1,0 +1,282 @@
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import * as path from 'path';
+import { discoverAgentInstructionFile } from '@dexto/agent-management';
+import { getDextoGlobalPath } from '@dexto/core';
+
+/**
+ * Memory section header in the instruction file
+ */
+const MEMORY_SECTION_HEADER = '## Memory';
+
+/**
+ * Discovers the instruction file in current directory.
+ */
+function findProjectInstructionFile(): string | null {
+    return discoverAgentInstructionFile();
+}
+
+/**
+ * Gets the global instruction file path (~/.dexto/AGENTS.md)
+ */
+function getGlobalInstructionFilePath(): string {
+    return getDextoGlobalPath('', 'AGENTS.md');
+}
+
+/**
+ * Gets or creates the instruction file for a given scope
+ */
+function getOrCreateInstructionFile(scope: 'project' | 'global'): string {
+    if (scope === 'global') {
+        const filePath = getGlobalInstructionFilePath();
+        if (existsSync(filePath)) return filePath;
+
+        // Ensure ~/.dexto directory exists
+        const dir = path.dirname(filePath);
+        mkdirSync(dir, { recursive: true });
+
+        // Create AGENTS.md with Memory section
+        const initialContent = `${MEMORY_SECTION_HEADER}\n`;
+        writeFileSync(filePath, initialContent, 'utf-8');
+        return filePath;
+    }
+
+    const existing = findProjectInstructionFile();
+    if (existing) {
+        return existing;
+    }
+
+    // Create AGENTS.md in current directory
+    const filePath = path.join(process.cwd(), 'AGENTS.md');
+    const initialContent = `${MEMORY_SECTION_HEADER}\n`;
+    writeFileSync(filePath, initialContent, 'utf-8');
+    return filePath;
+}
+
+/**
+ * Parse memory entries from file content
+ */
+function parseMemoryEntries(content: string): string[] {
+    const lines = content.split('\n');
+    const entries: string[] = [];
+    let inMemorySection = false;
+
+    for (const line of lines) {
+        const trimmed = line.trim();
+
+        // Check for memory section header
+        if (trimmed === MEMORY_SECTION_HEADER) {
+            inMemorySection = true;
+            continue;
+        }
+
+        // Check for next section (any ## header)
+        if (inMemorySection && trimmed.startsWith('##')) {
+            break;
+        }
+
+        // Collect bullet points in memory section
+        if (inMemorySection && trimmed.startsWith('-')) {
+            const entry = trimmed.slice(1).trim();
+            if (entry) {
+                entries.push(entry);
+            }
+        }
+    }
+
+    return entries;
+}
+
+/**
+ * Add a memory entry to the instruction file for a given scope
+ */
+export function addMemoryEntry(
+    content: string,
+    scope: 'project' | 'global' = 'project'
+): {
+    success: boolean;
+    filePath: string;
+    error?: string;
+} {
+    try {
+        if (!content || content.trim() === '') {
+            return {
+                success: false,
+                filePath: '',
+                error: 'Content cannot be empty',
+            };
+        }
+
+        const filePath = getOrCreateInstructionFile(scope);
+        let fileContent = existsSync(filePath) ? readFileSync(filePath, 'utf-8') : '';
+
+        // Check if memory section exists
+        if (!fileContent.includes(MEMORY_SECTION_HEADER)) {
+            // Add memory section at the end
+            if (!fileContent.endsWith('\n\n')) {
+                fileContent += fileContent.endsWith('\n') ? '\n' : '\n\n';
+            }
+            fileContent += `${MEMORY_SECTION_HEADER}\n`;
+        }
+
+        // Find the memory section and add the entry
+        const lines = fileContent.split('\n');
+        const newLines: string[] = [];
+        let inMemorySection = false;
+        let memorySectionEnd = -1;
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i] ?? '';
+            const trimmed = line.trim();
+
+            if (trimmed === MEMORY_SECTION_HEADER) {
+                inMemorySection = true;
+                newLines.push(line);
+                continue;
+            }
+
+            // Track where memory section ends
+            if (inMemorySection && trimmed.startsWith('##')) {
+                inMemorySection = false;
+                memorySectionEnd = i;
+            }
+
+            newLines.push(line);
+        }
+
+        // Add the new entry
+        const newEntry = `- ${content.trim()}`;
+
+        if (memorySectionEnd !== -1) {
+            // Insert before next section
+            newLines.splice(memorySectionEnd, 0, newEntry);
+        } else {
+            // Add at the end
+            newLines.push(newEntry);
+        }
+
+        writeFileSync(filePath, newLines.join('\n'), 'utf-8');
+
+        return { success: true, filePath };
+    } catch (error) {
+        return {
+            success: false,
+            filePath: '',
+            error: error instanceof Error ? error.message : String(error),
+        };
+    }
+}
+
+export interface MemoryListResult {
+    project: { entries: string[]; filePath: string | null };
+    global: { entries: string[]; filePath: string | null };
+}
+
+/**
+ * List all memory entries for both project and global scopes
+ */
+export function listMemoryEntries(): MemoryListResult {
+    const projectPath = findProjectInstructionFile();
+    const globalPath = getGlobalInstructionFilePath();
+
+    const result: MemoryListResult = {
+        project: { entries: [], filePath: projectPath || path.join(process.cwd(), 'AGENTS.md') },
+        global: { entries: [], filePath: globalPath },
+    };
+
+    if (projectPath && existsSync(projectPath)) {
+        const content = readFileSync(projectPath, 'utf-8');
+        result.project.entries = parseMemoryEntries(content);
+    }
+
+    if (existsSync(globalPath)) {
+        const content = readFileSync(globalPath, 'utf-8');
+        result.global.entries = parseMemoryEntries(content);
+    }
+
+    return result;
+}
+
+/**
+ * Remove a memory entry by index (0-based) and scope
+ */
+export function removeMemoryEntry(
+    index: number,
+    scope: 'project' | 'global' = 'project'
+): {
+    success: boolean;
+    filePath: string;
+    error?: string;
+} {
+    try {
+        const filePath =
+            scope === 'global' ? getGlobalInstructionFilePath() : findProjectInstructionFile();
+
+        if (!filePath || !existsSync(filePath)) {
+            return { success: false, filePath: '', error: `No ${scope} instruction file found` };
+        }
+
+        const content = readFileSync(filePath, 'utf-8');
+        const entries = parseMemoryEntries(content);
+
+        if (index < 0 || index >= entries.length) {
+            return { success: false, filePath, error: 'Invalid entry index' };
+        }
+
+        // Remove the entry
+        const entryToRemove = entries[index];
+        if (!entryToRemove) {
+            return { success: false, filePath, error: 'Entry not found' };
+        }
+
+        const lines = content.split('\n');
+        const newLines: string[] = [];
+        let inMemorySection = false;
+        let removed = false;
+
+        // Regex to extract bullet content: matches "- content" with any whitespace
+        const bulletRegex = /^\s*-\s*(.+)$/;
+
+        for (const line of lines) {
+            const trimmed = line.trim();
+
+            if (trimmed === MEMORY_SECTION_HEADER) {
+                inMemorySection = true;
+                newLines.push(line);
+                continue;
+            }
+
+            if (inMemorySection && trimmed.startsWith('##')) {
+                inMemorySection = false;
+            }
+
+            // Check if this line is a bullet point that matches the entry to remove
+            if (inMemorySection && !removed) {
+                const match = trimmed.match(bulletRegex);
+                if (match) {
+                    const bulletContent = match[1]?.trim();
+                    if (bulletContent === entryToRemove.trim()) {
+                        removed = true;
+                        continue; // Skip this line
+                    }
+                }
+            }
+
+            newLines.push(line);
+        }
+
+        // Only write to file if we actually removed something
+        if (!removed) {
+            return { success: false, filePath, error: 'Entry not found' };
+        }
+
+        writeFileSync(filePath, newLines.join('\n'), 'utf-8');
+
+        return { success: true, filePath };
+    } catch (error) {
+        return {
+            success: false,
+            filePath: '',
+            error: error instanceof Error ? error.message : String(error),
+        };
+    }
+}
