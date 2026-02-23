@@ -2,6 +2,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DextoAgent, Logger } from '@dexto/core';
 import { AgentSpawnerRuntime } from './runtime.js';
 
+const createMockLogger = (): Logger => {
+    const logger: Logger = {
+        debug: vi.fn(),
+        silly: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        trackException: vi.fn(),
+        createChild: vi.fn(() => logger),
+        createFileOnlyChild: vi.fn(() => logger),
+        destroy: vi.fn(async () => undefined),
+        setLevel: vi.fn(),
+        getLevel: vi.fn(() => 'info' as const),
+        getLogFilePath: vi.fn(() => null),
+    };
+    return logger;
+};
+
 const runtimeMocks = vi.hoisted(() => ({
     spawnAgent: vi.fn(),
     executeTask: vi.fn(),
@@ -20,23 +38,6 @@ vi.mock('../../runtime/AgentRuntime.js', () => {
 
     return { AgentRuntime };
 });
-
-const createMockLogger = (): Logger => {
-    const logger: Logger = {
-        debug: vi.fn(),
-        silly: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-        trackException: vi.fn(),
-        createChild: vi.fn(() => logger),
-        destroy: vi.fn(async () => undefined),
-        setLevel: vi.fn(),
-        getLevel: vi.fn(() => 'info' as const),
-        getLogFilePath: vi.fn(() => null),
-    };
-    return logger;
-};
 
 describe('AgentSpawnerRuntime workspace inheritance', () => {
     const config = {

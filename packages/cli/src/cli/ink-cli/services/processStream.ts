@@ -1055,6 +1055,8 @@ export async function processStream(
                             const progressData = data as {
                                 task: string;
                                 agentId: string;
+                                runtimeAgentId?: string;
+                                subAgentLogFilePath?: string;
                                 toolsCalled: number;
                                 currentTool: string;
                                 currentArgs?: Record<string, unknown>;
@@ -1074,6 +1076,12 @@ export async function processStream(
                                 subAgentProgress: {
                                     task: progressData.task,
                                     agentId: progressData.agentId,
+                                    ...(progressData.runtimeAgentId !== undefined && {
+                                        runtimeAgentId: progressData.runtimeAgentId,
+                                    }),
+                                    ...(progressData.subAgentLogFilePath !== undefined && {
+                                        subAgentLogFilePath: progressData.subAgentLogFilePath,
+                                    }),
                                     toolsCalled: progressData.toolsCalled,
                                     currentTool: progressData.currentTool,
                                     ...(progressData.currentArgs && {

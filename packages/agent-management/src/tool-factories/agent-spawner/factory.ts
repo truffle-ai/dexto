@@ -1,5 +1,5 @@
 import type { ToolFactory } from '@dexto/agent-config';
-import type { Tool, ToolExecutionContext } from '@dexto/core';
+import type { ToolExecutionContext } from '@dexto/core';
 import type { ToolBackgroundEvent } from '@dexto/core';
 import { ToolError } from '@dexto/core';
 import {
@@ -307,11 +307,15 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                             ? agentLabel.charAt(0).toUpperCase() + agentLabel.slice(1)
                             : 'Agent';
 
+                        const task = typeof input.task === 'string' ? input.task : '';
+                        const primaryText = task.length > 120 ? task.slice(0, 117) + '...' : task;
+
                         return {
                             version: 1,
                             source: { type: 'local' },
                             header: {
                                 title,
+                                ...(primaryText ? { primaryText } : {}),
                             },
                         };
                     },

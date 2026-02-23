@@ -67,11 +67,15 @@ export function createSpawnAgentTool(
                     ? agentLabel.charAt(0).toUpperCase() + agentLabel.slice(1)
                     : 'Agent';
 
+                const task = typeof input.task === 'string' ? input.task : '';
+                const primaryText = task.length > 120 ? task.slice(0, 117) + '...' : task;
+
                 return {
                     version: 1,
                     source: { type: 'local' },
                     header: {
                         title,
+                        ...(primaryText ? { primaryText } : {}),
                     },
                 };
             },

@@ -187,6 +187,10 @@ export interface SubAgentProgress {
     task: string;
     /** Agent ID (e.g., 'explore-agent') */
     agentId: string;
+    /** Runtime agent ID for ephemeral sub-agent (e.g., 'agent-ba01ae37') */
+    runtimeAgentId?: string;
+    /** Optional file path where the sub-agent logs are written */
+    subAgentLogFilePath?: string;
     /** Number of tools called by the sub-agent */
     toolsCalled: number;
     /** Current tool being executed */
