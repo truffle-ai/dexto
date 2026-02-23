@@ -119,9 +119,9 @@ Dexto infers its execution environment to enable context-aware defaults and path
 Dexto’s supported models live in core and are primarily sourced from `models.dev`.
 
 - **Registry source of truth:** `packages/core/src/llm/registry/index.ts` (consumes the generated snapshot + any manual overlays).
-- **Generated snapshot:** `packages/core/src/llm/registry/models.generated.ts` (generated from `models.dev` via `scripts/sync-llm-registry.ts`).
-  - Update: `pnpm run sync-llm-registry`
-  - Verify clean repo (CI-style): `pnpm run sync-llm-registry:check`
+- **Generated snapshot:** `packages/core/src/llm/registry/models.generated.ts` (generated from `models.dev` via `scripts/sync-llm-models.ts`).
+  - Update: `pnpm run sync-llm-models`
+  - Verify clean repo (CI-style): `pnpm run sync-llm-models:check`
 - **Gateway transform validation:** `packages/core/src/llm/registry/index.test.ts` includes a full-sweep check that our native→OpenRouter ID transform still matches the committed OpenRouter catalog snapshot (runs in `pnpm test`; catches naming drift like Anthropic dotted versions or Gemini `-001`).
 - **Manual overlays / missing models:** `packages/core/src/llm/registry/models.manual.ts` (e.g. models missing capability metadata upstream).
 - **Curation for UI/onboarding:** `packages/core/src/llm/curation-config.ts` (explicit curated model IDs; used by `/llm/catalog?scope=curated` and default pickers).
