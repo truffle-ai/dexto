@@ -203,7 +203,17 @@ type DextoProvider =
     | 'xai'
     | 'cohere'
     | 'minimax'
+    | 'minimax-cn'
+    | 'minimax-coding-plan'
+    | 'minimax-cn-coding-plan'
     | 'glm'
+    | 'zhipuai'
+    | 'zhipuai-coding-plan'
+    | 'zai'
+    | 'zai-coding-plan'
+    | 'moonshotai'
+    | 'moonshotai-cn'
+    | 'kimi-for-coding'
     | 'openrouter'
     | 'litellm'
     | 'glama'
@@ -343,7 +353,17 @@ async function syncLlmRegistry() {
         xai: 'grok-4',
         cohere: 'command-a-03-2025',
         minimax: 'MiniMax-M2.1',
+        'minimax-cn': 'MiniMax-M2.1',
+        'minimax-coding-plan': 'MiniMax-M2.1',
+        'minimax-cn-coding-plan': 'MiniMax-M2.1',
         glm: 'glm-4.7',
+        zhipuai: 'glm-4.7',
+        'zhipuai-coding-plan': 'glm-4.7',
+        zai: 'glm-4.7',
+        'zai-coding-plan': 'glm-4.7',
+        moonshotai: 'kimi-k2.5',
+        'moonshotai-cn': 'kimi-k2.5',
+        'kimi-for-coding': 'k2p5',
         vertex: 'gemini-3-flash-preview',
         bedrock: 'anthropic.claude-sonnet-4-5-20250929-v1:0',
         // gateway/dynamic providers intentionally omit defaults here
@@ -357,7 +377,17 @@ async function syncLlmRegistry() {
         xai: (id: string) => id.startsWith('grok-'),
         cohere: (id: string) => id.startsWith('command-'),
         minimax: (_id: string) => true,
+        'minimax-cn': (_id: string) => true,
+        'minimax-coding-plan': (_id: string) => true,
+        'minimax-cn-coding-plan': (_id: string) => true,
         glm: (id: string) => id.startsWith('glm-'),
+        zhipuai: (id: string) => id.startsWith('glm-'),
+        'zhipuai-coding-plan': (id: string) => id.startsWith('glm-'),
+        zai: (id: string) => id.startsWith('glm-'),
+        'zai-coding-plan': (id: string) => id.startsWith('glm-'),
+        moonshotai: (_id: string) => true,
+        'moonshotai-cn': (_id: string) => true,
+        'kimi-for-coding': (_id: string) => true,
         vertex: (_id: string) => true,
         bedrock: (_id: string) => true,
         openrouter: (_id: string) => true,
@@ -414,12 +444,82 @@ async function syncLlmRegistry() {
             defaultModelId: defaults.minimax,
             includeModelId: include.minimax,
         }),
+        'minimax-cn': buildModelsFromModelsDevProvider({
+            provider: 'minimax-cn',
+            modelsDevApi: modelsDevJson,
+            modelsDevProviderId: 'minimax-cn',
+            defaultModelId: defaults['minimax-cn'],
+            includeModelId: include['minimax-cn'],
+        }),
+        'minimax-coding-plan': buildModelsFromModelsDevProvider({
+            provider: 'minimax-coding-plan',
+            modelsDevApi: modelsDevJson,
+            modelsDevProviderId: 'minimax-coding-plan',
+            defaultModelId: defaults['minimax-coding-plan'],
+            includeModelId: include['minimax-coding-plan'],
+        }),
+        'minimax-cn-coding-plan': buildModelsFromModelsDevProvider({
+            provider: 'minimax-cn-coding-plan',
+            modelsDevApi: modelsDevJson,
+            modelsDevProviderId: 'minimax-cn-coding-plan',
+            defaultModelId: defaults['minimax-cn-coding-plan'],
+            includeModelId: include['minimax-cn-coding-plan'],
+        }),
         glm: buildModelsFromModelsDevProvider({
             provider: 'glm',
             modelsDevApi: modelsDevJson,
             modelsDevProviderId: 'zhipuai',
             defaultModelId: defaults.glm,
             includeModelId: include.glm,
+        }),
+        zhipuai: buildModelsFromModelsDevProvider({
+            provider: 'zhipuai',
+            modelsDevApi: modelsDevJson,
+            modelsDevProviderId: 'zhipuai',
+            defaultModelId: defaults.zhipuai,
+            includeModelId: include.zhipuai,
+        }),
+        'zhipuai-coding-plan': buildModelsFromModelsDevProvider({
+            provider: 'zhipuai-coding-plan',
+            modelsDevApi: modelsDevJson,
+            modelsDevProviderId: 'zhipuai-coding-plan',
+            defaultModelId: defaults['zhipuai-coding-plan'],
+            includeModelId: include['zhipuai-coding-plan'],
+        }),
+        zai: buildModelsFromModelsDevProvider({
+            provider: 'zai',
+            modelsDevApi: modelsDevJson,
+            modelsDevProviderId: 'zai',
+            defaultModelId: defaults.zai,
+            includeModelId: include.zai,
+        }),
+        'zai-coding-plan': buildModelsFromModelsDevProvider({
+            provider: 'zai-coding-plan',
+            modelsDevApi: modelsDevJson,
+            modelsDevProviderId: 'zai-coding-plan',
+            defaultModelId: defaults['zai-coding-plan'],
+            includeModelId: include['zai-coding-plan'],
+        }),
+        moonshotai: buildModelsFromModelsDevProvider({
+            provider: 'moonshotai',
+            modelsDevApi: modelsDevJson,
+            modelsDevProviderId: 'moonshotai',
+            defaultModelId: defaults.moonshotai,
+            includeModelId: include.moonshotai,
+        }),
+        'moonshotai-cn': buildModelsFromModelsDevProvider({
+            provider: 'moonshotai-cn',
+            modelsDevApi: modelsDevJson,
+            modelsDevProviderId: 'moonshotai-cn',
+            defaultModelId: defaults['moonshotai-cn'],
+            includeModelId: include['moonshotai-cn'],
+        }),
+        'kimi-for-coding': buildModelsFromModelsDevProvider({
+            provider: 'kimi-for-coding',
+            modelsDevApi: modelsDevJson,
+            modelsDevProviderId: 'kimi-for-coding',
+            defaultModelId: defaults['kimi-for-coding'],
+            includeModelId: include['kimi-for-coding'],
         }),
         openrouter: buildModelsFromModelsDevProvider({
             provider: 'openrouter',

@@ -272,7 +272,17 @@ export function buildModelsByProviderFromParsedSources(params: {
         xai: 'grok-4',
         cohere: 'command-a-03-2025',
         minimax: 'MiniMax-M2.1',
+        'minimax-cn': 'MiniMax-M2.1',
+        'minimax-coding-plan': 'MiniMax-M2.1',
+        'minimax-cn-coding-plan': 'MiniMax-M2.1',
         glm: 'glm-4.7',
+        zhipuai: 'glm-4.7',
+        'zhipuai-coding-plan': 'glm-4.7',
+        zai: 'glm-4.7',
+        'zai-coding-plan': 'glm-4.7',
+        moonshotai: 'kimi-k2.5',
+        'moonshotai-cn': 'kimi-k2.5',
+        'kimi-for-coding': 'k2p5',
         vertex: 'gemini-3-flash-preview',
         bedrock: 'anthropic.claude-sonnet-4-5-20250929-v1:0',
     };
@@ -285,7 +295,17 @@ export function buildModelsByProviderFromParsedSources(params: {
         xai: (id: string) => id.startsWith('grok-'),
         cohere: (id: string) => id.startsWith('command-'),
         minimax: (_id: string) => true,
+        'minimax-cn': (_id: string) => true,
+        'minimax-coding-plan': (_id: string) => true,
+        'minimax-cn-coding-plan': (_id: string) => true,
         glm: (id: string) => id.startsWith('glm-'),
+        zhipuai: (id: string) => id.startsWith('glm-'),
+        'zhipuai-coding-plan': (id: string) => id.startsWith('glm-'),
+        zai: (id: string) => id.startsWith('glm-'),
+        'zai-coding-plan': (id: string) => id.startsWith('glm-'),
+        moonshotai: (_id: string) => true,
+        'moonshotai-cn': (_id: string) => true,
+        'kimi-for-coding': (_id: string) => true,
         vertex: (_id: string) => true,
         bedrock: (_id: string) => true,
         openrouter: (_id: string) => true,
@@ -356,12 +376,112 @@ export function buildModelsByProviderFromParsedSources(params: {
             },
             modelsDevApi,
         }),
+        'minimax-cn': buildModelsFromModelsDevProvider({
+            spec: {
+                provider: 'minimax-cn',
+                modelsDevProviderId: 'minimax-cn',
+                ...(defaults['minimax-cn'] ? { defaultModelId: defaults['minimax-cn'] } : {}),
+                includeModelId: include['minimax-cn'],
+            },
+            modelsDevApi,
+        }),
+        'minimax-coding-plan': buildModelsFromModelsDevProvider({
+            spec: {
+                provider: 'minimax-coding-plan',
+                modelsDevProviderId: 'minimax-coding-plan',
+                ...(defaults['minimax-coding-plan']
+                    ? { defaultModelId: defaults['minimax-coding-plan'] }
+                    : {}),
+                includeModelId: include['minimax-coding-plan'],
+            },
+            modelsDevApi,
+        }),
+        'minimax-cn-coding-plan': buildModelsFromModelsDevProvider({
+            spec: {
+                provider: 'minimax-cn-coding-plan',
+                modelsDevProviderId: 'minimax-cn-coding-plan',
+                ...(defaults['minimax-cn-coding-plan']
+                    ? { defaultModelId: defaults['minimax-cn-coding-plan'] }
+                    : {}),
+                includeModelId: include['minimax-cn-coding-plan'],
+            },
+            modelsDevApi,
+        }),
         glm: buildModelsFromModelsDevProvider({
             spec: {
                 provider: 'glm',
                 modelsDevProviderId: 'zhipuai',
                 ...(defaults.glm ? { defaultModelId: defaults.glm } : {}),
                 includeModelId: include.glm,
+            },
+            modelsDevApi,
+        }),
+        zhipuai: buildModelsFromModelsDevProvider({
+            spec: {
+                provider: 'zhipuai',
+                modelsDevProviderId: 'zhipuai',
+                ...(defaults.zhipuai ? { defaultModelId: defaults.zhipuai } : {}),
+                includeModelId: include.zhipuai,
+            },
+            modelsDevApi,
+        }),
+        'zhipuai-coding-plan': buildModelsFromModelsDevProvider({
+            spec: {
+                provider: 'zhipuai-coding-plan',
+                modelsDevProviderId: 'zhipuai-coding-plan',
+                ...(defaults['zhipuai-coding-plan']
+                    ? { defaultModelId: defaults['zhipuai-coding-plan'] }
+                    : {}),
+                includeModelId: include['zhipuai-coding-plan'],
+            },
+            modelsDevApi,
+        }),
+        zai: buildModelsFromModelsDevProvider({
+            spec: {
+                provider: 'zai',
+                modelsDevProviderId: 'zai',
+                ...(defaults.zai ? { defaultModelId: defaults.zai } : {}),
+                includeModelId: include.zai,
+            },
+            modelsDevApi,
+        }),
+        'zai-coding-plan': buildModelsFromModelsDevProvider({
+            spec: {
+                provider: 'zai-coding-plan',
+                modelsDevProviderId: 'zai-coding-plan',
+                ...(defaults['zai-coding-plan']
+                    ? { defaultModelId: defaults['zai-coding-plan'] }
+                    : {}),
+                includeModelId: include['zai-coding-plan'],
+            },
+            modelsDevApi,
+        }),
+        moonshotai: buildModelsFromModelsDevProvider({
+            spec: {
+                provider: 'moonshotai',
+                modelsDevProviderId: 'moonshotai',
+                ...(defaults.moonshotai ? { defaultModelId: defaults.moonshotai } : {}),
+                includeModelId: include.moonshotai,
+            },
+            modelsDevApi,
+        }),
+        'moonshotai-cn': buildModelsFromModelsDevProvider({
+            spec: {
+                provider: 'moonshotai-cn',
+                modelsDevProviderId: 'moonshotai-cn',
+                ...(defaults['moonshotai-cn'] ? { defaultModelId: defaults['moonshotai-cn'] } : {}),
+                includeModelId: include['moonshotai-cn'],
+            },
+            modelsDevApi,
+        }),
+        'kimi-for-coding': buildModelsFromModelsDevProvider({
+            spec: {
+                provider: 'kimi-for-coding',
+                modelsDevProviderId: 'kimi-for-coding',
+                ...(defaults['kimi-for-coding']
+                    ? { defaultModelId: defaults['kimi-for-coding'] }
+                    : {}),
+                includeModelId: include['kimi-for-coding'],
             },
             modelsDevApi,
         }),

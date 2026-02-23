@@ -9,7 +9,7 @@ describe('Image Logger Agent - Import Integration', () => {
         const imageSpecifier = metaResolve
             ? metaResolve('@dexto/image-logger-agent')
             : pathToFileURL(
-                  path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'index.js')
+                  path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'index.ts')
               ).href;
 
         const image = await loadImage(imageSpecifier);

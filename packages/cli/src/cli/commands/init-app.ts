@@ -5,7 +5,7 @@ import fsExtra from 'fs-extra';
 import path from 'node:path';
 import { getPackageManager, getPackageManagerInstallCommand } from '../utils/package-mgmt.js';
 import { executeWithTimeout } from '../utils/execute.js';
-import { type LLMProvider, getDefaultModelForProvider } from '@dexto/core';
+import { type LLMProvider, LLM_PROVIDERS, getDefaultModelForProvider } from '@dexto/core';
 import { saveProviderApiKey } from '@dexto/agent-management';
 import {
     getProviderDisplayName,
@@ -20,6 +20,10 @@ function debug(message: string): void {
     }
 }
 
+function isLLMProvider(value: unknown): value is LLMProvider {
+    return typeof value === 'string' && (LLM_PROVIDERS as readonly string[]).includes(value);
+}
+
 /**
  * Get user preferences needed to initialize a Dexto app
  * @returns The user preferences
@@ -30,15 +34,23 @@ export async function getUserInputToInitDextoApp(): Promise<{
     directory: string;
     createExampleFile: boolean;
 }> {
-    const answers = await p.group(
+    const answers = await p.group<{
+        llmProvider: string | symbol;
+        llmApiKey: string | symbol;
+        directory: string | symbol;
+        createExampleFile: boolean | symbol;
+    }>(
         {
             llmProvider: () =>
-                p.select({
+                p.select<string>({
                     message: 'Choose your AI provider',
                     options: PROVIDER_OPTIONS,
                 }),
             llmApiKey: async ({ results }) => {
-                const llmProvider = results.llmProvider as LLMProvider;
+                const llmProvider = results.llmProvider;
+                if (!isLLMProvider(llmProvider)) {
+                    throw new Error(`Unknown provider selection: ${llmProvider}`);
+                }
                 const selection = await p.select({
                     message: `Enter your API key for ${getProviderDisplayName(llmProvider)}?`,
                     options: [
@@ -97,12 +109,15 @@ export async function getUserInputToInitDextoApp(): Promise<{
         }
     );
 
-    // Type assertion to bypass the possible 'Symbol' type returned by p.group which is handled in onCancel
-    return answers as {
-        llmProvider: LLMProvider;
-        directory: string;
-        llmApiKey: string;
-        createExampleFile: boolean;
+    if (!isLLMProvider(answers.llmProvider)) {
+        throw new Error(`Unknown provider selection: ${answers.llmProvider}`);
+    }
+
+    return {
+        llmProvider: answers.llmProvider,
+        llmApiKey: answers.llmApiKey,
+        directory: answers.directory,
+        createExampleFile: answers.createExampleFile,
     };
 }
 

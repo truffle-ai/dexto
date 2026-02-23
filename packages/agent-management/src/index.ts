@@ -98,6 +98,40 @@ export {
     canUseDextoProvider,
 } from './utils/dexto-auth.js';
 
+// LLM auth profiles (multi-method provider connect)
+export {
+    getLlmAuthProfilesPath,
+    loadLlmAuthProfilesStore,
+    loadLlmAuthProfilesStoreSync,
+    listLlmAuthProfiles,
+    upsertLlmAuthProfile,
+    deleteLlmAuthProfile,
+    setDefaultLlmAuthProfile,
+    getDefaultLlmAuthProfileId,
+    getDefaultLlmAuthProfileIdSync,
+    getLlmAuthProfile,
+    getLlmAuthProfileSync,
+    LlmAuthCredentialSchema,
+    LlmAuthProfileSchema,
+    LlmAuthProfilesStoreSchema,
+    type LlmAuthCredential,
+    type LlmAuthProfile,
+    type LlmAuthProfilesStore,
+} from './auth/llm-profiles.js';
+
+export {
+    CONNECT_PROVIDERS,
+    getConnectProvider,
+    ConnectProviderSchema,
+    ConnectMethodSchema,
+    ConnectMethodKindSchema,
+    type ConnectProvider,
+    type ConnectMethod,
+    type ConnectMethodKind,
+} from './auth/connect-catalog.js';
+
+export { createDefaultLlmAuthResolver } from './auth/runtime-auth-resolver.js';
+
 // Config management utilities
 export {
     updateAgentConfigFile,
