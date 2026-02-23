@@ -147,6 +147,7 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
     const {
         sessionId,
         content,
+        reasoning,
         tokenUsage,
         model,
         provider,
@@ -163,6 +164,7 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
         // Finalize streaming message with content and metadata
         chatStore.finalizeStreamingMessage(sessionId, {
             content: finalContent,
+            ...(reasoning && { reasoning }),
             tokenUsage,
             ...(model && { model }),
             ...(provider && { provider }),
@@ -218,6 +220,7 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
         // Update existing assistant message with final content and metadata
         chatStore.updateMessage(sessionId, recentAssistantMsg.id, {
             content: finalContent || recentAssistantMsg.content,
+            ...(reasoning && { reasoning }),
             tokenUsage,
             ...(model && { model }),
             ...(provider && { provider }),
@@ -229,6 +232,7 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
             id: generateMessageId(),
             role: 'assistant',
             content: finalContent,
+            ...(reasoning && { reasoning }),
             tokenUsage,
             ...(model && { model }),
             ...(provider && { provider }),

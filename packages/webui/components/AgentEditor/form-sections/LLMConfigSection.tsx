@@ -36,7 +36,9 @@ export function LLMConfigSection({
         value.provider ?? null,
         debouncedModel ? debouncedModel : null
     );
-    const reasoningPresets = capabilities?.reasoning?.supportedPresets ?? [];
+    const reasoningSupport = capabilities?.reasoning;
+    const reasoningPresets = reasoningSupport?.supportedPresets ?? [];
+    const reasoningCapable = reasoningSupport?.capable ?? false;
 
     const handleChange = <K extends keyof LLMConfig>(field: K, newValue: LLMConfig[K]) => {
         onChange({ ...value, [field]: newValue });
@@ -293,59 +295,62 @@ export function LLMConfigSection({
                 {/* Provider-Specific Options */}
 
                 {/* Reasoning tuning (server-resolved; safe for gateway providers). */}
-                {value.provider && value.model && reasoningPresets.length > 0 && (
-                    <div>
-                        <LabelWithTooltip
-                            htmlFor="reasoningPreset"
-                            tooltip="Controls reasoning tuning. Availability depends on provider+model (resolved by the server)."
-                        >
-                            Reasoning
-                        </LabelWithTooltip>
-                        <select
-                            id="reasoningPreset"
-                            value={
-                                value.reasoning?.preset === 'auto'
-                                    ? ''
-                                    : value.reasoning?.preset || ''
-                            }
-                            onChange={(e) => {
-                                if (!e.target.value) {
-                                    handleChange('reasoning', undefined);
-                                    return;
+                {value.provider &&
+                    value.model &&
+                    reasoningCapable &&
+                    reasoningPresets.length > 0 && (
+                        <div>
+                            <LabelWithTooltip
+                                htmlFor="reasoningPreset"
+                                tooltip="Controls reasoning tuning. Availability depends on provider+model (resolved by the server)."
+                            >
+                                Reasoning
+                            </LabelWithTooltip>
+                            <select
+                                id="reasoningPreset"
+                                value={
+                                    value.reasoning?.preset === 'auto'
+                                        ? ''
+                                        : value.reasoning?.preset || ''
                                 }
+                                onChange={(e) => {
+                                    if (!e.target.value) {
+                                        handleChange('reasoning', undefined);
+                                        return;
+                                    }
 
-                                const selectedPreset = reasoningPresets.find(
-                                    (preset) => preset === e.target.value
-                                );
-                                if (!selectedPreset || selectedPreset === 'auto') {
-                                    handleChange('reasoning', undefined);
-                                    return;
-                                }
+                                    const selectedPreset = reasoningPresets.find(
+                                        (preset) => preset === e.target.value
+                                    );
+                                    if (!selectedPreset || selectedPreset === 'auto') {
+                                        handleChange('reasoning', undefined);
+                                        return;
+                                    }
 
-                                handleChange(
-                                    'reasoning',
-                                    value.reasoning
-                                        ? { ...value.reasoning, preset: selectedPreset }
-                                        : { preset: selectedPreset }
-                                );
-                            }}
-                            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                        >
-                            <option value="">Auto (provider/model default)</option>
-                            {reasoningPresets
-                                .filter((p) => p !== 'auto')
-                                .map((preset) => (
-                                    <option key={preset} value={preset}>
-                                        {preset}
-                                    </option>
-                                ))}
-                        </select>
-                        <p className="text-xs text-muted-foreground mt-1">
-                            Supported presets:{' '}
-                            {reasoningPresets.filter((p) => p !== 'auto').join(', ')}
-                        </p>
-                    </div>
-                )}
+                                    handleChange(
+                                        'reasoning',
+                                        value.reasoning
+                                            ? { ...value.reasoning, preset: selectedPreset }
+                                            : { preset: selectedPreset }
+                                    );
+                                }}
+                                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            >
+                                <option value="">Auto (Recommended)</option>
+                                {reasoningPresets
+                                    .filter((p) => p !== 'auto')
+                                    .map((preset) => (
+                                        <option key={preset} value={preset}>
+                                            {preset}
+                                        </option>
+                                    ))}
+                            </select>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                Supported presets:{' '}
+                                {reasoningPresets.filter((p) => p !== 'auto').join(', ')}
+                            </p>
+                        </div>
+                    )}
             </div>
         </Collapsible>
     );
