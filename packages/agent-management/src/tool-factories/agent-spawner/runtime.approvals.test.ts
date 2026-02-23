@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DextoAgent, Logger } from '@dexto/core';
 import { AgentSpawnerRuntime } from './runtime.js';
-import * as approvalDelegation from '../../runtime/approval-delegation.js';
+import { ApprovalStatus, ApprovalType } from '@dexto/core';
+import type { ApprovalRequest } from '@dexto/core';
 
 const createMockLogger = (): Logger => {
     const logger: Logger = {
@@ -100,13 +101,24 @@ describe('AgentSpawnerRuntime sub-agent policies and approvals', () => {
 
     it('wires delegated approvals with parent sessionId when manual', async () => {
         const setApprovalHandler = vi.fn();
-        const childAgent = { setApprovalHandler } as unknown as DextoAgent;
+        const childAgent = {
+            setApprovalHandler,
+            config: { agentId: 'agent-child' },
+        } as unknown as DextoAgent;
         runtimeMocks.spawnAgent.mockImplementation(async (spawnConfig: any) => {
             await spawnConfig.onBeforeStart?.(childAgent);
             return { agentId: 'agent-child', agent: childAgent };
         });
         runtimeMocks.executeTask.mockResolvedValue({ success: true, response: 'ok' });
         runtimeMocks.stopAgent.mockResolvedValue(undefined);
+
+        const parentRequestApproval = vi.fn(async (details: any) => {
+            return {
+                approvalId: details.approvalId ?? 'approval-1',
+                status: ApprovalStatus.APPROVED,
+                sessionId: details.sessionId,
+            };
+        });
 
         const parentAgent = {
             config: {
@@ -120,19 +132,15 @@ describe('AgentSpawnerRuntime sub-agent policies and approvals', () => {
                 createdAt: 0,
                 lastActiveAt: 0,
             })),
-            services: { approvalManager: { requestApproval: vi.fn() } },
+            getSession: vi.fn(async () => ({ logger: createMockLogger() })),
+            services: {
+                approvalManager: {
+                    requestApproval: parentRequestApproval,
+                    cancelApproval: vi.fn(),
+                },
+            },
             emit: vi.fn(),
         } as unknown as DextoAgent;
-
-        const spy = vi.spyOn(approvalDelegation, 'createDelegatingApprovalHandler').mockReturnValue(
-            Object.assign(async () => ({ status: 'approved' }), {
-                cancel() {},
-                cancelAll() {},
-                getPending() {
-                    return [];
-                },
-            }) as any
-        );
 
         const runtime = new AgentSpawnerRuntime(parentAgent, config, createMockLogger());
 
@@ -143,8 +151,25 @@ describe('AgentSpawnerRuntime sub-agent policies and approvals', () => {
             sessionId: 'session-parent',
         });
 
-        expect(spy).toHaveBeenCalled();
-        expect(spy.mock.calls[0]![2]).toBe('session-parent');
         expect(setApprovalHandler).toHaveBeenCalledTimes(1);
+
+        const handler = setApprovalHandler.mock.calls[0]![0] as (
+            request: ApprovalRequest
+        ) => Promise<any>;
+
+        await handler({
+            approvalId: 'approval-sub',
+            type: ApprovalType.TOOL_APPROVAL,
+            sessionId: 'session-sub',
+            timeout: 0,
+            metadata: {
+                toolName: 'glob_files',
+                toolCallId: 'call-1',
+                args: { pattern: '**/*' },
+            },
+        } as any);
+
+        expect(parentRequestApproval).toHaveBeenCalledTimes(1);
+        expect(parentRequestApproval.mock.calls[0]![0].sessionId).toBe('session-parent');
     });
 });
