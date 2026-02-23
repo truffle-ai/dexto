@@ -36,6 +36,7 @@ export interface UseCLIStateProps {
     agent: DextoAgent;
     initialSessionId: string | null;
     startupInfo: StartupInfo;
+    initialBypassPermissions?: boolean;
     /** Optional keyboard scroll handler for alternate buffer mode */
     onKeyboardScroll?: (direction: 'up' | 'down') => void;
 }
@@ -90,6 +91,7 @@ export function useCLIState({
     agent,
     initialSessionId,
     startupInfo,
+    initialBypassPermissions = false,
     onKeyboardScroll: _onKeyboardScroll,
 }: UseCLIStateProps): CLIStateReturn {
     // Messages state - finalized messages (rendered in <Static>)
@@ -125,6 +127,7 @@ export function useCLIState({
         },
         promptAddWizard: null,
         autoApproveEdits: false,
+        bypassPermissions: initialBypassPermissions,
         todoExpanded: true, // Default to expanded to show full todo list
         backgroundTasksRunning: 0,
         backgroundTasksExpanded: false,

@@ -42,6 +42,7 @@ export function createInitialState(initialModelName: string = ''): CLIState {
             },
             promptAddWizard: null,
             autoApproveEdits: false,
+            bypassPermissions: false,
             todoExpanded: true,
             backgroundTasksRunning: 0,
             backgroundTasksExpanded: false,

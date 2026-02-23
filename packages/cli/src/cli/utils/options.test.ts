@@ -28,4 +28,9 @@ describe('validateCliOptions', () => {
         const optsWithoutFlag = { mode: 'cli', port: '8080' };
         expect(() => validateCliOptions(optsWithoutFlag)).not.toThrow();
     });
+
+    it('accepts bypassPermissions flag', () => {
+        const opts = { mode: 'cli', port: '8080', bypassPermissions: true };
+        expect(() => validateCliOptions(opts)).not.toThrow();
+    });
 });
