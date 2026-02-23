@@ -118,8 +118,8 @@ export const PreferenceSoundsSchema = z
         enabled: z.boolean().default(true).describe('Enable sound notifications (default: true)'),
         onStartup: z
             .boolean()
-            .default(true)
-            .describe('Play sound when the interactive CLI starts (default: true)'),
+            .default(false)
+            .describe('Play sound when the interactive CLI starts (default: false)'),
         startupSoundFile: z
             .string()
             .min(1)

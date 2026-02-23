@@ -134,7 +134,7 @@ type PickItem =
 
 const DEFAULT_CONFIG: SoundConfig = {
     enabled: true,
-    onStartup: true,
+    onStartup: false,
     onApprovalRequired: true,
     onTaskComplete: true,
 };

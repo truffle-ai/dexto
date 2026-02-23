@@ -208,7 +208,7 @@ export async function startInkCliRefactored(
     // Initialize sound config with defaults (enabled by default even without preferences file)
     let soundConfig: SoundConfig = {
         enabled: true,
-        onStartup: true,
+        onStartup: false,
         startupSoundFile: undefined,
         onApprovalRequired: true,
         approvalSoundFile: undefined,
