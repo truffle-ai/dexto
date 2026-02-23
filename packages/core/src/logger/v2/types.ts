@@ -74,11 +74,26 @@ export type Logger = {
     debug(message: string, context?: Record<string, unknown>): void;
 
     /**
-     * Log silly message (most verbose, for detailed debugging like full JSON dumps)
+     * Log silly/trivial message
      * @param message Log message
      * @param context Optional structured context
      */
     silly(message: string, context?: Record<string, unknown>): void;
+
+    /**
+     * Shares the same transports, agentId, and level but uses a different component identifier
+     * @param component Component identifier for the child logger
+     * @returns New logger instance with specified component
+     */
+    createChild(component: DextoLogComponent): Logger;
+
+    /**
+     * Create a child logger that only logs to file (no console).
+     * Useful for sub-agents where console output should be suppressed.
+     * @param component Component identifier for the child logger
+     * @returns New logger instance with file-only transports
+     */
+    createFileOnlyChild(component: DextoLogComponent): Logger;
 
     /**
      * Log info message

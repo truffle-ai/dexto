@@ -1244,8 +1244,10 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 buffer.setText('');
                 setInput((prev) => ({ ...prev, historyIndex: -1 }));
 
-                // Set level on agent's logger (propagates to all child loggers via shared ref)
-                agent.logger.setLevel(level as LogLevel);
+                void agent.setLogLevel(
+                    level as LogLevel,
+                    session.id ? { sessionId: session.id } : undefined
+                );
 
                 setMessages((prev) => [
                     ...prev,
@@ -1257,7 +1259,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     },
                 ]);
             },
-            [setUi, setInput, setMessages, agent, buffer, getConfigFilePathOrWarn]
+            [setUi, setInput, setMessages, agent, buffer, getConfigFilePathOrWarn, session.id]
         );
 
         // Handle stream mode selection

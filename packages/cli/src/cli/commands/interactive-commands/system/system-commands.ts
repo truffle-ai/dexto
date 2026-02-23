@@ -48,7 +48,7 @@ export const systemCommands: CommandDefinition[] = [
         handler: async (
             args: string[],
             agent: DextoAgent,
-            _ctx: CommandContext
+            ctx: CommandContext
         ): Promise<CommandHandlerResult> => {
             try {
                 const level = args[0];
@@ -79,7 +79,10 @@ export const systemCommands: CommandDefinition[] = [
                 }
 
                 if (isLogLevel(level)) {
-                    agent.logger.setLevel(level);
+                    await agent.setLogLevel(
+                        level,
+                        ctx.sessionId ? { sessionId: ctx.sessionId } : undefined
+                    );
                     return formatForInkCli(`✅ Log level set to ${level}`);
                 }
 
