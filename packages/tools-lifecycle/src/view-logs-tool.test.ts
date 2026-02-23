@@ -16,6 +16,7 @@ function createTestContext(logFilePath: string | null): ToolExecutionContext {
             error: () => {},
             trackException: () => {},
             createChild: () => createTestContext(logFilePath).logger,
+            createFileOnlyChild: () => createTestContext(logFilePath).logger,
             setLevel: () => {},
             getLevel: () => 'info',
             getLogFilePath: () => logFilePath,

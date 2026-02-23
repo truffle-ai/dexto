@@ -22,7 +22,6 @@ import type {
     ApprovalResponse,
     ApprovalRequestDetails,
     DirectoryAccessMetadata,
-    ToolApprovalMetadata,
 } from '../approval/types.js';
 import type { AllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
 import type { HookManager } from '../hooks/manager.js';
@@ -665,8 +664,7 @@ export class ToolManager {
                 if (typeof value !== 'object' || value === null) {
                     return false;
                 }
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                return typeof (value as any).then === 'function';
+                return typeof (value as { then?: unknown }).then === 'function';
             };
 
             if (isPromiseLike(described)) {
@@ -1831,7 +1829,6 @@ export class ToolManager {
         toolCallId: string,
         sessionId?: string
     ): Promise<ToolDisplayData | undefined> {
-        const tool = this.agentTools.get(toolName);
         const previewFn = this.getToolPreviewFn(toolName);
         if (!previewFn) {
             return undefined;

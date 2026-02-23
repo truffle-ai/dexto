@@ -21,6 +21,7 @@ export function createMockLogger(): Logger {
         error: vi.fn(),
         trackException: vi.fn(),
         createChild: () => logger,
+        createFileOnlyChild: () => logger,
         setLevel: vi.fn(),
         getLevel: () => 'info',
         getLogFilePath: () => null,
