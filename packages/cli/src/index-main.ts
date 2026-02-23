@@ -155,6 +155,10 @@ program
     .option('--skip-setup', 'Skip global setup validation (useful for MCP mode, automation)')
     .option('-m, --model <model>', 'Specify the LLM model to use')
     .option('--auto-approve', 'Always approve tool executions without confirmation prompts')
+    .option(
+        '--bypass-permissions',
+        'Start the interactive CLI in bypass permissions mode (auto-approve approval prompts)'
+    )
     .option('--no-elicitation', 'Disable elicitation (agent cannot prompt user for input)')
     .option('-c, --continue', 'Continue most recent session (CLI mode)')
     .option('-r, --resume <sessionId>', 'Resume a session by ID (CLI mode)')
@@ -1164,6 +1168,8 @@ program
             '  dexto -a agents/custom.yml       Short form with relative path\n\n' +
             'Tool Confirmation:\n' +
             '  dexto --auto-approve     Auto-approve all tool executions\n\n' +
+            'Ink CLI Modes:\n' +
+            '  dexto --bypass-permissions  Start in bypass permissions mode (skip approval prompts)\n\n' +
             'Advanced Modes:\n' +
             '  dexto --mode server      Run as API server\n' +
             '  dexto --mode mcp         Run as MCP server\n\n' +
@@ -1816,6 +1822,7 @@ program
                                 updateInfo: cliUpdateInfo ?? undefined,
                                 configFilePath: resolvedPath,
                                 ...(initialPrompt && { initialPrompt }),
+                                bypassPermissions: opts.bypassPermissions,
                             });
                         } catch (error) {
                             inkError = error;

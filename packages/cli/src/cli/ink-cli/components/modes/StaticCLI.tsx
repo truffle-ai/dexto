@@ -50,6 +50,7 @@ interface StaticCLIProps {
     initialPrompt?: string | undefined;
     startupInfo: StartupInfo;
     configFilePath: string | null;
+    initialBypassPermissions?: boolean;
     /** Whether to stream chunks or wait for complete response */
     useStreaming?: boolean;
 }
@@ -60,6 +61,7 @@ export function StaticCLI({
     initialPrompt,
     startupInfo,
     configFilePath,
+    initialBypassPermissions = false,
     useStreaming = true,
 }: StaticCLIProps) {
     // Use shared CLI state (no keyboard scroll in Static mode)
@@ -92,6 +94,7 @@ export function StaticCLI({
         agent,
         initialSessionId,
         startupInfo,
+        initialBypassPermissions,
         // No keyboard scroll handler - let terminal handle scrollback
     });
 
@@ -300,6 +303,7 @@ export function StaticCLI({
                         cwd={process.cwd()}
                         {...(branchName ? { branchName } : {})}
                         autoApproveEdits={ui.autoApproveEdits}
+                        bypassPermissions={ui.bypassPermissions}
                         planModeActive={ui.planModeActive}
                         isShellMode={buffer.text.startsWith('!')}
                     />

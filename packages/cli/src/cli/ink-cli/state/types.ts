@@ -428,6 +428,7 @@ export interface UIState {
     historySearch: HistorySearchState; // Ctrl+R reverse history search
     promptAddWizard: PromptAddWizardState | null; // Prompt add wizard state
     autoApproveEdits: boolean; // True when edit mode is on (auto-approve edit_file/write_file)
+    bypassPermissions: boolean; // True when bypass permissions mode is on (auto-approve all approvals)
     todoExpanded: boolean; // True when todo list is expanded (shows all tasks), false when collapsed (shows current task only)
     backgroundTasksRunning: number; // Count of running background tasks
     backgroundTasksExpanded: boolean; // True when background task list is expanded
