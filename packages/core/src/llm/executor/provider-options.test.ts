@@ -382,7 +382,7 @@ describe('buildProviderOptions', () => {
                     model: 'openai/gpt-5.2-codex',
                     reasoning: { preset: 'auto' },
                 })
-            ).toEqual({ openrouter: { includeReasoning: true } });
+            ).toEqual({ openrouter: { include_reasoning: true } });
         });
 
         it('applies budgetTokens even when preset is auto', () => {
@@ -394,20 +394,20 @@ describe('buildProviderOptions', () => {
                 })
             ).toEqual({
                 openrouter: {
-                    includeReasoning: true,
+                    include_reasoning: true,
                     reasoning: { enabled: true, max_tokens: 111 },
                 },
             });
         });
 
-        it('maps off to includeReasoning=false', () => {
+        it('maps off to include_reasoning=false', () => {
             expect(
                 buildProviderOptions({
                     provider: 'dexto-nova',
                     model: 'openai/gpt-5.2-codex',
                     reasoning: { preset: 'off' },
                 })
-            ).toEqual({ openrouter: { includeReasoning: false } });
+            ).toEqual({ openrouter: { include_reasoning: false } });
         });
 
         it('maps presets to openrouter.reasoning.effort', () => {
@@ -419,7 +419,7 @@ describe('buildProviderOptions', () => {
                 })
             ).toEqual({
                 openrouter: {
-                    includeReasoning: true,
+                    include_reasoning: true,
                     reasoning: { enabled: true, effort: 'high' },
                 },
             });
@@ -434,7 +434,7 @@ describe('buildProviderOptions', () => {
                 })
             ).toEqual({
                 openrouter: {
-                    includeReasoning: true,
+                    include_reasoning: true,
                     reasoning: { enabled: true, effort: 'high' },
                 },
             });
@@ -449,7 +449,7 @@ describe('buildProviderOptions', () => {
                 })
             ).toEqual({
                 openrouter: {
-                    includeReasoning: true,
+                    include_reasoning: true,
                     reasoning: { enabled: true, effort: 'high' },
                 },
             });
@@ -464,7 +464,7 @@ describe('buildProviderOptions', () => {
                 })
             ).toEqual({
                 openrouter: {
-                    includeReasoning: true,
+                    include_reasoning: true,
                     reasoning: { enabled: true, max_tokens: 111 },
                 },
             });

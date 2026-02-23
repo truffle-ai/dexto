@@ -6,7 +6,7 @@
  * - Bedrock: reasoningConfig for supported models
  * - Google/Vertex (Gemini): thinkingConfig includeThoughts + thinkingLevel/budget
  * - OpenAI: reasoningEffort for reasoning-capable models
- * - OpenRouter/Dexto: OpenRouter reasoning config (effort/max_tokens + includeReasoning)
+ * - OpenRouter/Dexto: OpenRouter reasoning config (effort/max_tokens + include_reasoning)
  *
  * Caching notes:
  * - Anthropic: Requires explicit cacheControl option (we enable it)
@@ -259,11 +259,11 @@ function buildOpenRouterProviderOptions(config: {
     const capable = isReasoningCapableModel(model);
 
     if (preset === 'off') {
-        return { openrouter: { includeReasoning: false } };
+        return { openrouter: { include_reasoning: false } };
     }
 
     // Default: request reasoning details when available; UI can decide whether to display.
-    const base = { includeReasoning: true };
+    const base = { include_reasoning: true };
 
     if (!capable) {
         return { openrouter: base };
