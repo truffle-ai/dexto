@@ -15,7 +15,7 @@ import { ToolManager } from '../../tools/tool-manager.js';
 import { ToolSet } from '../../tools/types.js';
 import { StreamProcessor } from './stream-processor.js';
 import { ExecutorResult } from './types.js';
-import { buildProviderOptions } from './provider-options.js';
+import { buildProviderOptions, getEffectiveReasoningBudgetTokens } from './provider-options.js';
 import type {
     TokenUsage,
     LLMReasoningConfig,
@@ -282,40 +282,7 @@ export class TurnExecutor {
                 });
 
                 const reasoningPreset = this.config.reasoning?.preset;
-                const reasoningBudgetTokens = (() => {
-                    if (providerOptions === undefined) return this.config.reasoning?.budgetTokens;
-                    switch (this.llmContext.provider) {
-                        case 'anthropic':
-                        case 'vertex': {
-                            const anthropic = providerOptions['anthropic'] as
-                                | { thinking?: { type?: string; budgetTokens?: number } }
-                                | undefined;
-                            const thinking = anthropic?.thinking;
-                            return thinking?.type === 'enabled' ? thinking.budgetTokens : undefined;
-                        }
-                        case 'google': {
-                            const google = providerOptions['google'] as
-                                | { thinkingConfig?: { thinkingBudget?: number } }
-                                | undefined;
-                            return google?.thinkingConfig?.thinkingBudget;
-                        }
-                        case 'bedrock': {
-                            const bedrock = providerOptions['bedrock'] as
-                                | { reasoningConfig?: { budgetTokens?: number } }
-                                | undefined;
-                            return bedrock?.reasoningConfig?.budgetTokens;
-                        }
-                        case 'openrouter':
-                        case 'dexto-nova': {
-                            const openrouter = providerOptions['openrouter'] as
-                                | { reasoning?: { max_tokens?: number } }
-                                | undefined;
-                            return openrouter?.reasoning?.max_tokens;
-                        }
-                        default:
-                            return this.config.reasoning?.budgetTokens;
-                    }
-                })();
+                const reasoningBudgetTokens = getEffectiveReasoningBudgetTokens(providerOptions);
 
                 const reasoningForStream = (() => {
                     const r = {

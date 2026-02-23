@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildProviderOptions } from './provider-options.js';
+import { buildProviderOptions, getEffectiveReasoningBudgetTokens } from './provider-options.js';
 
 describe('buildProviderOptions', () => {
     it('returns undefined for providers with no special options', () => {
@@ -71,14 +71,6 @@ describe('buildProviderOptions', () => {
                     reasoning: { preset: 'low' },
                 })
             ).toEqual({ openai: { reasoningEffort: 'high' } });
-
-            expect(
-                buildProviderOptions({
-                    provider: 'openai',
-                    model: 'gpt-5.2-pro',
-                    reasoning: { preset: 'low' },
-                })
-            ).toEqual({ openai: { reasoningEffort: 'medium' } });
         });
 
         it('does not send reasoningEffort for non-reasoning models', () => {
@@ -212,7 +204,7 @@ describe('buildProviderOptions', () => {
             expect(
                 buildProviderOptions({
                     provider: 'vertex',
-                    model: 'claude-3-7-sonnet-20250219',
+                    model: 'claude-3-7-sonnet@20250219',
                     reasoning: { preset: 'high' },
                 })
             ).toEqual({
@@ -232,7 +224,7 @@ describe('buildProviderOptions', () => {
                     reasoning: { preset: 'medium' },
                 })
             ).toEqual({
-                google: { thinkingConfig: { includeThoughts: true } },
+                google: { thinkingConfig: { includeThoughts: true, thinkingBudget: 2048 } },
             });
         });
 
@@ -279,12 +271,24 @@ describe('buildProviderOptions', () => {
             });
         });
 
-        it('omits thinkingLevel for Gemini 2.5 models', () => {
+        it('maps presets into google.thinkingConfig.thinkingBudget for Gemini 2.5 models', () => {
             expect(
                 buildProviderOptions({
                     provider: 'google',
                     model: 'gemini-2.5-pro',
                     reasoning: { preset: 'medium' },
+                })
+            ).toEqual({
+                google: { thinkingConfig: { includeThoughts: true, thinkingBudget: 2048 } },
+            });
+        });
+
+        it('omits thinkingBudget for auto when no explicit budgetTokens are set', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'google',
+                    model: 'gemini-2.5-pro',
+                    reasoning: { preset: 'auto' },
                 })
             ).toEqual({
                 google: { thinkingConfig: { includeThoughts: true } },
@@ -378,7 +382,7 @@ describe('buildProviderOptions', () => {
                     model: 'openai/gpt-5.2-codex',
                     reasoning: { preset: 'auto' },
                 })
-            ).toEqual({ openrouter: { includeReasoning: true } });
+            ).toEqual({ openrouter: { include_reasoning: true } });
         });
 
         it('applies budgetTokens even when preset is auto', () => {
@@ -390,20 +394,20 @@ describe('buildProviderOptions', () => {
                 })
             ).toEqual({
                 openrouter: {
-                    includeReasoning: true,
+                    include_reasoning: true,
                     reasoning: { enabled: true, max_tokens: 111 },
                 },
             });
         });
 
-        it('maps off to includeReasoning=false', () => {
+        it('maps off to include_reasoning=false', () => {
             expect(
                 buildProviderOptions({
                     provider: 'dexto-nova',
                     model: 'openai/gpt-5.2-codex',
                     reasoning: { preset: 'off' },
                 })
-            ).toEqual({ openrouter: { includeReasoning: false } });
+            ).toEqual({ openrouter: { include_reasoning: false } });
         });
 
         it('maps presets to openrouter.reasoning.effort', () => {
@@ -415,13 +419,28 @@ describe('buildProviderOptions', () => {
                 })
             ).toEqual({
                 openrouter: {
-                    includeReasoning: true,
+                    include_reasoning: true,
                     reasoning: { enabled: true, effort: 'high' },
                 },
             });
         });
 
-        it('maps max to xhigh for codex models (best-effort passthrough)', () => {
+        it('maps max to high when xhigh is not supported', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'openrouter',
+                    model: 'openai/gpt-5',
+                    reasoning: { preset: 'max' },
+                })
+            ).toEqual({
+                openrouter: {
+                    include_reasoning: true,
+                    reasoning: { enabled: true, effort: 'high' },
+                },
+            });
+        });
+
+        it('maps max to xhigh for models that support it (best-effort passthrough)', () => {
             expect(
                 buildProviderOptions({
                     provider: 'openrouter',
@@ -430,13 +449,28 @@ describe('buildProviderOptions', () => {
                 })
             ).toEqual({
                 openrouter: {
-                    includeReasoning: true,
+                    include_reasoning: true,
                     reasoning: { enabled: true, effort: 'xhigh' },
                 },
             });
         });
 
-        it('maps xhigh to xhigh for codex models (best-effort passthrough)', () => {
+        it('maps xhigh to high when xhigh is not supported', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'dexto-nova',
+                    model: 'openai/gpt-5',
+                    reasoning: { preset: 'xhigh' },
+                })
+            ).toEqual({
+                openrouter: {
+                    include_reasoning: true,
+                    reasoning: { enabled: true, effort: 'high' },
+                },
+            });
+        });
+
+        it('maps xhigh to xhigh for models that support it (best-effort passthrough)', () => {
             expect(
                 buildProviderOptions({
                     provider: 'dexto-nova',
@@ -445,7 +479,7 @@ describe('buildProviderOptions', () => {
                 })
             ).toEqual({
                 openrouter: {
-                    includeReasoning: true,
+                    include_reasoning: true,
                     reasoning: { enabled: true, effort: 'xhigh' },
                 },
             });
@@ -460,7 +494,7 @@ describe('buildProviderOptions', () => {
                 })
             ).toEqual({
                 openrouter: {
-                    includeReasoning: true,
+                    include_reasoning: true,
                     reasoning: { enabled: true, max_tokens: 111 },
                 },
             });
@@ -497,5 +531,25 @@ describe('buildProviderOptions', () => {
                 })
             ).toEqual({ openaiCompatible: { reasoningEffort: 'high' } });
         });
+    });
+});
+
+describe('getEffectiveReasoningBudgetTokens', () => {
+    it('extracts effective budgets from providerOptions (anthropic)', () => {
+        const providerOptions = buildProviderOptions({
+            provider: 'anthropic',
+            model: 'claude-3-7-sonnet-20250219',
+            reasoning: { preset: 'medium' },
+        });
+        expect(getEffectiveReasoningBudgetTokens(providerOptions)).toBe(2048);
+    });
+
+    it('returns undefined when no budget is present', () => {
+        const providerOptions = buildProviderOptions({
+            provider: 'openai',
+            model: 'gpt-5',
+            reasoning: { preset: 'high' },
+        });
+        expect(getEffectiveReasoningBudgetTokens(providerOptions)).toBeUndefined();
     });
 });

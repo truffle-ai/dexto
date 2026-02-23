@@ -9,21 +9,24 @@ export function getSupportedOpenAIReasoningEfforts(model: string): OpenAIReasoni
     const id = normalizeOpenAIModelId(model);
 
     // OpenAI docs (model pages / API reference) indicate per-model constraints.
-    // Keep this conservative and add cases only when we have reliable evidence.
+    // Keep this conservative and only add cases when we have reliable evidence.
+    //
+    // Note: The Vercel AI SDK's OpenAI provider docs mention:
+    // - `none` is only available for GPT-5.1 models
+    // - `xhigh` is only available for GPT-5.1-Codex-Max
+    // Pi-mono indicates `xhigh` is supported by GPT-5.2 and GPT-5.3 model families as well.
     if (id.includes('gpt-5-pro')) {
         return ['high'];
     }
-    if (id.includes('gpt-5.2-pro')) {
-        return ['medium', 'high', 'xhigh'];
-    }
-    if (id.includes('gpt-5.2-codex')) {
+
+    if (id.startsWith('gpt-5.3')) {
         return ['low', 'medium', 'high', 'xhigh'];
     }
-    if (id.includes('gpt-5.1-codex-max')) {
-        return ['none', 'medium', 'high', 'xhigh'];
+    if (id.startsWith('gpt-5.2')) {
+        return ['low', 'medium', 'high', 'xhigh'];
     }
 
-    if (id.startsWith('gpt-5.2')) {
+    if (id.includes('gpt-5.1-codex-max')) {
         return ['none', 'low', 'medium', 'high', 'xhigh'];
     }
     if (id.startsWith('gpt-5.1')) {

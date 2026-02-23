@@ -6,7 +6,7 @@
  * - Bedrock: reasoningConfig for supported models
  * - Google/Vertex (Gemini): thinkingConfig includeThoughts + thinkingLevel/budget
  * - OpenAI: reasoningEffort for reasoning-capable models
- * - OpenRouter/Dexto: OpenRouter reasoning config (effort/max_tokens + includeReasoning)
+ * - OpenRouter/Dexto: OpenRouter reasoning config (effort/max_tokens + include_reasoning)
  *
  * Caching notes:
  * - Anthropic: Requires explicit cacheControl option (we enable it)
@@ -39,6 +39,7 @@ function normalizePreset(reasoning?: LLMReasoningConfig | undefined): ReasoningP
 }
 
 const ANTHROPIC_MIN_THINKING_BUDGET_TOKENS = 1024;
+const ANTHROPIC_CACHE_CONTROL = { type: 'ephemeral' as const };
 
 function getAnthropicDefaultThinkingBudgetTokens(preset: ReasoningPreset): number | undefined {
     // Coarse defaults to make preset cycling meaningfully impact Anthropic-style "thinking budget"
@@ -101,6 +102,35 @@ function mapPresetToGoogleThinkingLevel(
         default:
             return undefined;
     }
+}
+
+function getGoogleDefaultThinkingBudgetTokens(preset: ReasoningPreset): number | undefined {
+    // Conservative defaults so preset cycling impacts Gemini 2.x/2.5 thinking budgets
+    // without requiring users to understand provider-specific token ranges.
+    //
+    // Note: For Gemini 3 we use thinkingLevel instead of thinkingBudget.
+    switch (preset) {
+        case 'off':
+        case 'auto':
+            return undefined;
+        case 'low':
+            return 1024;
+        case 'medium':
+            return 2048;
+        case 'high':
+            return 4096;
+        case 'max':
+        case 'xhigh':
+            return 8192;
+        default:
+            return undefined;
+    }
+}
+
+function coerceGoogleThinkingBudgetTokens(tokens: number | undefined): number | undefined {
+    if (tokens === undefined) return undefined;
+    if (!Number.isFinite(tokens)) return undefined;
+    return Math.max(1, Math.floor(tokens));
 }
 
 function mapPresetToAnthropicEffort(
@@ -173,6 +203,154 @@ function mapPresetToOpenAIReasoningEffort(
     return coerceOpenAIReasoningEffort(model, requested);
 }
 
+function buildAnthropicProviderOptions(config: {
+    model: string;
+    preset: ReasoningPreset;
+    budgetTokens: number | undefined;
+    capable: boolean;
+}): Record<string, Record<string, unknown>> {
+    const { model, preset, budgetTokens, capable } = config;
+    const adaptiveThinking = isAnthropicAdaptiveThinkingModel(model);
+
+    if (adaptiveThinking) {
+        if (preset === 'off') {
+            return {
+                anthropic: {
+                    cacheControl: ANTHROPIC_CACHE_CONTROL,
+                    sendReasoning: false,
+                    thinking: { type: 'disabled' },
+                },
+            };
+        }
+
+        const effort = mapPresetToAnthropicEffort(preset, model);
+
+        return {
+            anthropic: {
+                cacheControl: ANTHROPIC_CACHE_CONTROL,
+                sendReasoning: true,
+                thinking: { type: 'adaptive' },
+                ...(effort !== undefined && { effort }),
+            },
+        };
+    }
+
+    if (!capable) {
+        return {
+            anthropic: {
+                cacheControl: ANTHROPIC_CACHE_CONTROL,
+                sendReasoning: false,
+                ...(preset === 'off' ? { thinking: { type: 'disabled' } } : {}),
+            },
+        };
+    }
+
+    if (preset === 'off') {
+        return {
+            anthropic: {
+                cacheControl: ANTHROPIC_CACHE_CONTROL,
+                sendReasoning: false,
+                thinking: { type: 'disabled' },
+            },
+        };
+    }
+
+    const effectiveBudgetTokens = coerceAnthropicThinkingBudgetTokens(
+        budgetTokens ?? getAnthropicDefaultThinkingBudgetTokens(preset)
+    );
+
+    return {
+        anthropic: {
+            cacheControl: ANTHROPIC_CACHE_CONTROL,
+            // We want reasoning available; UI can hide it.
+            sendReasoning: true,
+            ...(effectiveBudgetTokens !== undefined
+                ? { thinking: { type: 'enabled', budgetTokens: effectiveBudgetTokens } }
+                : {}),
+        },
+    };
+}
+
+function buildOpenRouterProviderOptions(config: {
+    model: string;
+    preset: ReasoningPreset;
+    budgetTokens: number | undefined;
+}): Record<string, Record<string, unknown>> {
+    const { model, preset, budgetTokens } = config;
+    const capable = isReasoningCapableModel(model);
+
+    if (preset === 'off') {
+        return { openrouter: { include_reasoning: false } };
+    }
+
+    // Default: request reasoning details when available; UI can decide whether to display.
+    const base = { include_reasoning: true };
+
+    if (!capable) {
+        return { openrouter: base };
+    }
+
+    // budgetTokens is an explicit override: apply it even when preset is 'auto'.
+    if (budgetTokens !== undefined) {
+        return {
+            openrouter: {
+                ...base,
+                reasoning: { enabled: true, max_tokens: budgetTokens },
+            },
+        };
+    }
+
+    if (preset === 'auto') {
+        return { openrouter: base };
+    }
+
+    const effort = mapPresetToOpenRouterEffort(preset, model);
+
+    return {
+        openrouter: {
+            ...base,
+            ...(effort !== undefined ? { reasoning: { enabled: true, effort } } : {}),
+        },
+    };
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+    return value as Record<string, unknown>;
+}
+
+export function getEffectiveReasoningBudgetTokens(
+    providerOptions: Record<string, Record<string, unknown>> | undefined
+): number | undefined {
+    if (providerOptions === undefined) return undefined;
+
+    const anthropic = asRecord(providerOptions['anthropic']);
+    const thinking = asRecord(anthropic?.['thinking']);
+    if (thinking?.['type'] === 'enabled' && typeof thinking['budgetTokens'] === 'number') {
+        return thinking['budgetTokens'];
+    }
+
+    const google = asRecord(providerOptions['google']);
+    const thinkingConfig = asRecord(google?.['thinkingConfig']);
+    if (typeof thinkingConfig?.['thinkingBudget'] === 'number') {
+        return thinkingConfig['thinkingBudget'];
+    }
+
+    const bedrock = asRecord(providerOptions['bedrock']);
+    const reasoningConfig = asRecord(bedrock?.['reasoningConfig']);
+    if (typeof reasoningConfig?.['budgetTokens'] === 'number') {
+        return reasoningConfig['budgetTokens'];
+    }
+
+    const openrouter = asRecord(providerOptions['openrouter']);
+    const reasoning = asRecord(openrouter?.['reasoning']);
+    if (typeof reasoning?.['max_tokens'] === 'number') {
+        return reasoning['max_tokens'];
+    }
+
+    return undefined;
+}
+
 /**
  * Build provider-specific options for streamText/generateText.
  *
@@ -189,49 +367,8 @@ export function buildProviderOptions(
 
     // Anthropic: prompt caching + reasoning controls
     if (provider === 'anthropic') {
-        const capable = isReasoningCapableModel(model);
-        const adaptiveThinking = isAnthropicAdaptiveThinkingModel(model);
-        const allowReasoning = capable || adaptiveThinking;
-
-        // Claude 4.6+ uses the "adaptive thinking" paradigm (effort), not manual budget tokens.
-        if (adaptiveThinking) {
-            const effort =
-                preset === 'off' || !allowReasoning
-                    ? undefined
-                    : mapPresetToAnthropicEffort(preset, model);
-
-            return {
-                anthropic: {
-                    cacheControl: { type: 'ephemeral' },
-                    sendReasoning: preset !== 'off' && allowReasoning,
-                    ...(preset === 'off' || !allowReasoning
-                        ? { thinking: { type: 'disabled' } }
-                        : { thinking: { type: 'adaptive' } }),
-                    ...(effort !== undefined && { effort }),
-                },
-            };
-        }
-
-        const effectiveBudgetTokens =
-            preset === 'off' || !allowReasoning
-                ? undefined
-                : coerceAnthropicThinkingBudgetTokens(
-                      budgetTokens ?? getAnthropicDefaultThinkingBudgetTokens(preset)
-                  );
-
-        return {
-            anthropic: {
-                cacheControl: { type: 'ephemeral' },
-                // We want reasoning available; UI can hide it.
-                sendReasoning: preset !== 'off' && allowReasoning,
-                ...(preset === 'off'
-                    ? { thinking: { type: 'disabled' } }
-                    : effectiveBudgetTokens !== undefined
-                      ? { thinking: { type: 'enabled', budgetTokens: effectiveBudgetTokens } }
-                      : {}),
-                // Note: Anthropic effort is only supported on Claude 4.6+ (adaptive thinking).
-            },
-        };
+        const capable = isReasoningCapableModel(model, 'anthropic');
+        return buildAnthropicProviderOptions({ model, preset, budgetTokens, capable });
     }
 
     // Bedrock: reasoningConfig (provider-level, model-specific behavior handled by the SDK)
@@ -242,70 +379,34 @@ export function buildProviderOptions(
         }
 
         const maxReasoningEffort = mapPresetToLowMediumHigh(preset);
-        return {
-            bedrock: {
-                ...(preset === 'off'
-                    ? { reasoningConfig: { type: 'disabled' } }
-                    : preset === 'auto' &&
-                        budgetTokens === undefined &&
-                        maxReasoningEffort === undefined
-                      ? {}
-                      : {
-                            reasoningConfig: {
-                                type: 'enabled',
-                                ...(budgetTokens !== undefined && { budgetTokens }),
-                                ...(maxReasoningEffort !== undefined && { maxReasoningEffort }),
-                            },
-                        }),
-            },
-        };
+        const bedrock: Record<string, unknown> = {};
+
+        if (preset === 'off') {
+            bedrock['reasoningConfig'] = { type: 'disabled' };
+            return { bedrock };
+        }
+
+        const shouldEnableReasoningConfig =
+            preset !== 'auto' || budgetTokens !== undefined || maxReasoningEffort !== undefined;
+
+        if (shouldEnableReasoningConfig) {
+            bedrock['reasoningConfig'] = {
+                type: 'enabled',
+                ...(budgetTokens !== undefined && { budgetTokens }),
+                ...(maxReasoningEffort !== undefined && { maxReasoningEffort }),
+            };
+        }
+
+        return { bedrock };
     }
 
     // Vertex Claude uses Anthropic internals; providerOptions are parsed under `anthropic`.
     if (provider === 'vertex' && modelLower.includes('claude')) {
-        // Vertex Claude models use Anthropic model IDs in our config/registry.
-        const capable =
-            isReasoningCapableModel(model, 'anthropic') || isReasoningCapableModel(model);
-        const adaptiveThinking = isAnthropicAdaptiveThinkingModel(model);
-        const allowReasoning = capable || adaptiveThinking;
-
-        if (adaptiveThinking) {
-            const effort =
-                preset === 'off' || !allowReasoning
-                    ? undefined
-                    : mapPresetToAnthropicEffort(preset, model);
-
-            return {
-                anthropic: {
-                    cacheControl: { type: 'ephemeral' },
-                    sendReasoning: preset !== 'off' && allowReasoning,
-                    ...(preset === 'off' || !allowReasoning
-                        ? { thinking: { type: 'disabled' } }
-                        : { thinking: { type: 'adaptive' } }),
-                    ...(effort !== undefined && { effort }),
-                },
-            };
-        }
-
-        const effectiveBudgetTokens =
-            preset === 'off' || !allowReasoning
-                ? undefined
-                : coerceAnthropicThinkingBudgetTokens(
-                      budgetTokens ?? getAnthropicDefaultThinkingBudgetTokens(preset)
-                  );
-
-        return {
-            anthropic: {
-                cacheControl: { type: 'ephemeral' },
-                sendReasoning: preset !== 'off' && allowReasoning,
-                ...(preset === 'off'
-                    ? { thinking: { type: 'disabled' } }
-                    : effectiveBudgetTokens !== undefined
-                      ? { thinking: { type: 'enabled', budgetTokens: effectiveBudgetTokens } }
-                      : {}),
-                // Note: Anthropic effort is only supported on Claude 4.6+ (adaptive thinking).
-            },
-        };
+        // Important: capability lookup must use the *configured provider* ('vertex') because
+        // Vertex Anthropic model IDs are Vertex-specific (e.g. "claude-3-7-sonnet@20250219").
+        // Only the providerOptions key is `anthropic`.
+        const capable = isReasoningCapableModel(model, 'vertex');
+        return buildAnthropicProviderOptions({ model, preset, budgetTokens, capable });
     }
 
     // Google / Vertex Gemini: thinkingConfig + tuning
@@ -315,6 +416,9 @@ export function buildProviderOptions(
         const isGemini3 = modelLower.includes('gemini-3');
         const thinkingLevel =
             includeThoughts && isGemini3 ? mapPresetToGoogleThinkingLevel(preset) : undefined;
+        const thinkingBudgetTokens = coerceGoogleThinkingBudgetTokens(
+            budgetTokens ?? getGoogleDefaultThinkingBudgetTokens(preset)
+        );
         return {
             google: {
                 thinkingConfig: {
@@ -326,8 +430,8 @@ export function buildProviderOptions(
                         }),
                     ...(includeThoughts &&
                         !isGemini3 &&
-                        budgetTokens !== undefined && {
-                            thinkingBudget: budgetTokens,
+                        thinkingBudgetTokens !== undefined && {
+                            thinkingBudget: thinkingBudgetTokens,
                         }),
                 },
             },
@@ -349,39 +453,7 @@ export function buildProviderOptions(
     // OpenRouter gateway providers (OpenRouter/Dexto Nova) use `providerOptions.openrouter`.
     // Note: config.provider here is the Dexto provider (openrouter|dexto-nova), not the upstream model.
     if (provider === 'openrouter' || provider === 'dexto-nova') {
-        const capable = isReasoningCapableModel(model);
-
-        if (preset === 'off') {
-            return { openrouter: { includeReasoning: false } };
-        }
-
-        if (!capable) {
-            return { openrouter: { includeReasoning: true } };
-        }
-
-        // budgetTokens is an explicit override: apply it even when preset is 'auto'.
-        if (budgetTokens !== undefined) {
-            return {
-                openrouter: {
-                    includeReasoning: true,
-                    reasoning: { enabled: true, max_tokens: budgetTokens },
-                },
-            };
-        }
-
-        if (preset === 'auto') {
-            // Default: request reasoning details when available; UI can decide whether to display.
-            return { openrouter: { includeReasoning: true } };
-        }
-
-        const effort = mapPresetToOpenRouterEffort(preset, model);
-
-        return {
-            openrouter: {
-                includeReasoning: true,
-                ...(effort !== undefined ? { reasoning: { enabled: true, effort } } : {}),
-            },
-        };
+        return buildOpenRouterProviderOptions({ model, preset, budgetTokens });
     }
 
     // OpenAI-compatible endpoints: best-effort (provider-specific behavior varies).
