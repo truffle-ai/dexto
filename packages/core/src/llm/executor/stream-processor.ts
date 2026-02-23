@@ -200,7 +200,7 @@ export class StreamProcessor {
                         // Capture provider metadata for round-tripping (e.g., OpenAI itemId, Gemini thought signatures)
                         // This must be passed back to the provider on subsequent requests
                         if (event.providerMetadata) {
-                            this.reasoningMetadata = event.providerMetadata;
+                            this.mergeReasoningMetadata(event.providerMetadata);
                         }
 
                         // Only emit chunks in streaming mode
@@ -247,8 +247,7 @@ export class StreamProcessor {
                         // (e.g., Gemini thought signatures). OpenAI Responses metadata can cause invalid
                         // follow-up requests (function_call item references missing required reasoning items).
                         const shouldPersistProviderMetadata =
-                            this.config.provider === 'google' ||
-                            (this.config.provider as string) === 'vertex';
+                            this.config.provider === 'google' || this.config.provider === 'vertex';
 
                         if (shouldPersistProviderMetadata && event.providerMetadata) {
                             toolCall.providerOptions = {
@@ -426,14 +425,12 @@ export class StreamProcessor {
 
                         this.actualTokens = usage;
 
-                        // Log complete LLM response for debugging
+                        // Log LLM response metadata. Avoid logging full content at info level.
                         this.logger.info('LLM response complete', {
                             finishReason: event.finishReason,
                             contentLength: this.accumulatedText.length,
-                            content: this.accumulatedText,
                             ...(this.reasoningText && {
                                 reasoningLength: this.reasoningText.length,
-                                reasoning: this.reasoningText,
                             }),
                             usage,
                             provider: this.config.provider,
@@ -713,6 +710,42 @@ export class StreamProcessor {
             return undefined;
         }
         return metadata;
+    }
+
+    private mergeReasoningMetadata(providerMetadata: Record<string, unknown>): void {
+        if (!this.reasoningMetadata) {
+            this.reasoningMetadata = providerMetadata;
+            return;
+        }
+
+        const isRecord = (value: unknown): value is Record<string, unknown> =>
+            !!value && typeof value === 'object' && !Array.isArray(value);
+
+        const previous = this.reasoningMetadata;
+        const merged: Record<string, unknown> = { ...previous, ...providerMetadata };
+
+        const previousOpenRouter = previous['openrouter'];
+        const nextOpenRouter = providerMetadata['openrouter'];
+        if (isRecord(previousOpenRouter) && isRecord(nextOpenRouter)) {
+            const previousDetails = previousOpenRouter['reasoning_details'];
+            const nextDetails = nextOpenRouter['reasoning_details'];
+            const combinedDetails =
+                Array.isArray(previousDetails) && Array.isArray(nextDetails)
+                    ? [...previousDetails, ...nextDetails]
+                    : Array.isArray(nextDetails)
+                      ? nextDetails
+                      : Array.isArray(previousDetails)
+                        ? previousDetails
+                        : undefined;
+
+            merged['openrouter'] = {
+                ...previousOpenRouter,
+                ...nextOpenRouter,
+                ...(combinedDetails ? { reasoning_details: combinedDetails } : {}),
+            };
+        }
+
+        this.reasoningMetadata = merged;
     }
 
     private async createAssistantMessage(): Promise<string> {

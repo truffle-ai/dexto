@@ -1022,6 +1022,54 @@ describe('StreamProcessor', () => {
             );
         });
 
+        test('accumulates OpenRouter reasoning_details across multiple reasoning-delta events', async () => {
+            const mocks = createMocks();
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.resourceManager,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+
+            const providerMetadataA = {
+                openrouter: { reasoning_details: [{ type: 'reasoning.text', text: 'A' }] },
+            };
+            const providerMetadataB = {
+                openrouter: { reasoning_details: [{ type: 'reasoning.text', text: 'B' }] },
+            };
+
+            const events = [
+                { type: 'reasoning-delta', text: 'A', providerMetadata: providerMetadataA },
+                { type: 'reasoning-delta', text: 'B', providerMetadata: providerMetadataB },
+                { type: 'text-delta', text: 'Answer' },
+                {
+                    type: 'finish',
+                    finishReason: 'stop',
+                    totalUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+                },
+            ];
+
+            await processor.process(() => createMockStream(events) as never);
+
+            expect(mocks.contextManager.updateAssistantMessage).toHaveBeenCalledWith(
+                'msg-1',
+                expect.objectContaining({
+                    reasoning: 'AB',
+                    reasoningMetadata: {
+                        openrouter: {
+                            reasoning_details: [
+                                { type: 'reasoning.text', text: 'A' },
+                                { type: 'reasoning.text', text: 'B' },
+                            ],
+                        },
+                    },
+                })
+            );
+        });
+
         test('emits llm:response with content, usage, provider, model', async () => {
             const mocks = createMocks();
             const processor = new StreamProcessor(
