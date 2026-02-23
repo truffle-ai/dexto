@@ -245,6 +245,10 @@ Browser safety:
     - Prefer a single, required function signature.
     - Prefer a single `options` object (with defaults applied internally) over constructor overloads.
     - If runtime context is required, pass it explicitly rather than making it optional.
+- Avoid "multi-source" values encoded as `optional + fallback + fallback` chains (e.g. `a ?? b ?? c` across multiple layers).
+    - Prefer a single source of truth for a value.
+    - If backward compatibility is required, isolate it in a single `resolveX()` function at the boundary that returns a non-optional value and document the selection order.
+    - Do not mix multiple fields that can each be "the name" / "the title" / "the config" without an explicit resolver + tests.
 - Avoid non-null assertions (`!`) in production code. It is acceptable in tests when it improves clarity and the value is provably present.
 
 ## Module Organization
