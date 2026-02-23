@@ -49,6 +49,7 @@ export function createInitialState(initialModelName: string = ''): CLIState {
             backgroundTasks: [],
             planModeActive: false,
             planModeInitialized: false,
+            commandOutput: null,
         },
         session: {
             id: null,

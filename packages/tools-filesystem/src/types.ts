@@ -54,6 +54,79 @@ export interface FileMetadata {
 }
 
 /**
+ * Directory entry metadata
+ */
+export interface DirectoryEntry {
+    name: string;
+    path: string;
+    isDirectory: boolean;
+    size: number;
+    modified: Date;
+}
+
+/**
+ * Options for listing directory contents
+ */
+export interface ListDirectoryOptions {
+    /** Include hidden files/directories (dotfiles) */
+    includeHidden?: boolean | undefined;
+    /** Include stat metadata */
+    includeMetadata?: boolean | undefined;
+    /** Maximum number of entries to return */
+    maxEntries?: number | undefined;
+}
+
+/**
+ * Directory listing result
+ */
+export interface ListDirectoryResult {
+    path: string;
+    entries: DirectoryEntry[];
+    truncated: boolean;
+    totalEntries: number;
+}
+
+/**
+ * Options for creating directories
+ */
+export interface CreateDirectoryOptions {
+    /** Create intermediate directories if they don't exist */
+    recursive?: boolean | undefined;
+}
+
+/**
+ * Create directory result
+ */
+export interface CreateDirectoryResult {
+    path: string;
+    created: boolean;
+}
+
+/**
+ * Options for deleting paths
+ */
+export interface DeletePathOptions {
+    /** Recursively delete directories */
+    recursive?: boolean | undefined;
+}
+
+/**
+ * Delete path result
+ */
+export interface DeletePathResult {
+    path: string;
+    deleted: boolean;
+}
+
+/**
+ * Rename path result
+ */
+export interface RenamePathResult {
+    from: string;
+    to: string;
+}
+
+/**
  * Options for glob operations
  */
 export interface GlobOptions {

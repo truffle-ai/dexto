@@ -7,7 +7,7 @@
 
 import * as path from 'node:path';
 import { z } from 'zod';
-import { defineTool } from '@dexto/core';
+import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 import { ProcessService } from './process-service.js';
 import { ProcessError } from './errors.js';
@@ -53,7 +53,6 @@ export function createBashExecTool(
 ): Tool<typeof BashExecInputSchema> {
     return defineTool({
         id: 'bash_exec',
-        displayName: 'Bash',
         aliases: ['bash'],
         description: `Execute a shell command in the project root directory.
 
@@ -102,29 +101,32 @@ Each command runs in a fresh shell, so cd does not persist between calls.
 Security: Dangerous commands are blocked. Injection attempts are detected. Requires approval with pattern-based session memory.`,
         inputSchema: BashExecInputSchema,
 
-        getApprovalPatternKey(input): string | null {
-            const command = input.command;
-            return generateCommandPatternKey(command);
+        approval: {
+            patternKey: (input): string | null => generateCommandPatternKey(input.command),
+            suggestPatterns: (input): string[] => generateCommandPatternSuggestions(input.command),
         },
 
-        suggestApprovalPatterns(input): string[] {
-            const command = input.command;
-            return generateCommandPatternSuggestions(command);
-        },
-
-        /**
-         * Generate preview for approval UI - shows the command to be executed
-         */
-        async generatePreview(input, _context: ToolExecutionContext) {
-            const { command, run_in_background } = input;
-            const preview: ShellDisplayData = {
-                type: 'shell',
-                command,
-                exitCode: 0, // Placeholder - not executed yet
-                duration: 0, // Placeholder - not executed yet
-                isBackground: run_in_background,
-            };
-            return preview;
+        presentation: {
+            describeHeader: (input) =>
+                createLocalToolCallHeader({
+                    title: 'Bash',
+                    argsText: truncateForHeader(input.command, 140),
+                }),
+            /**
+             * Generate preview for approval UI - shows the command to be executed
+             */
+            preview: async (input, _context: ToolExecutionContext) => {
+                const { command, run_in_background } = input;
+                const preview: ShellDisplayData = {
+                    type: 'shell',
+                    title: 'Bash',
+                    command,
+                    exitCode: 0, // Placeholder - not executed yet
+                    duration: 0, // Placeholder - not executed yet
+                    isBackground: run_in_background,
+                };
+                return preview;
+            },
         },
 
         async execute(input, context: ToolExecutionContext) {
@@ -176,6 +178,7 @@ Security: Dangerous commands are blocked. Injection attempts are detected. Requi
                 // Foreground execution result
                 const _display: ShellDisplayData = {
                     type: 'shell',
+                    title: 'Bash',
                     command,
                     exitCode: result.exitCode,
                     duration: result.duration,
@@ -195,6 +198,7 @@ Security: Dangerous commands are blocked. Injection attempts are detected. Requi
                 // Background execution handle
                 const _display: ShellDisplayData = {
                     type: 'shell',
+                    title: 'Bash',
                     command,
                     exitCode: 0, // Background process hasn't exited yet
                     duration: 0, // Still running

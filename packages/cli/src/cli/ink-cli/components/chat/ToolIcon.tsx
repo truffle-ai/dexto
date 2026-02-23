@@ -3,17 +3,15 @@
  * Animated icon for tool calls with status-based visual feedback
  */
 
-import { useState, useEffect } from 'react';
 import { Text } from 'ink';
 import type { ToolStatus } from '../../state/types.js';
+import { useAnimationTick } from '../../hooks/useAnimationTick.js';
+import { BRAILLE_SPINNER_FRAMES } from '../../constants/spinnerFrames.js';
 
 interface ToolIconProps {
     status: ToolStatus;
     isError?: boolean;
 }
-
-// Spinner frames for running animation
-const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
 /**
  * Animated tool icon that changes based on execution status
@@ -22,20 +20,8 @@ const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', 
  * - Finished (error): Red dot
  */
 export function ToolIcon({ status, isError }: ToolIconProps) {
-    const [frame, setFrame] = useState(0);
-
-    // Animate spinner only when actually running (not during approval)
-    useEffect(() => {
-        if (status !== 'running') {
-            return;
-        }
-
-        const interval = setInterval(() => {
-            setFrame((prev) => (prev + 1) % SPINNER_FRAMES.length);
-        }, 80); // 80ms per frame for smooth animation
-
-        return () => clearInterval(interval);
-    }, [status]);
+    const tick = useAnimationTick({ enabled: status === 'running', intervalMs: 80 });
+    const frame = tick % BRAILLE_SPINNER_FRAMES.length;
 
     // Pending: static gray dot (tool call received, checking approval)
     if (status === 'pending') {
@@ -71,7 +57,7 @@ export function ToolIcon({ status, isError }: ToolIconProps) {
     // Running state with spinner
     return (
         <Text color="green" bold>
-            {SPINNER_FRAMES[frame]}{' '}
+            {BRAILLE_SPINNER_FRAMES[frame]}{' '}
         </Text>
     );
 }

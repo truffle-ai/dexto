@@ -132,6 +132,7 @@ export function useCLIState({
         backgroundTasks: [],
         planModeActive: false,
         planModeInitialized: false,
+        commandOutput: null,
     });
 
     // Input state

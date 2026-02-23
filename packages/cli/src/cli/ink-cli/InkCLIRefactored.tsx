@@ -43,6 +43,12 @@ import { getStartupInfo } from './utils/messageFormatting.js';
 //const USE_ALTERNATE_BUFFER = true;
 const USE_ALTERNATE_BUFFER = false;
 
+function formatCost(c: number): string {
+    if (c < 0.01) return `$${c.toFixed(4)}`;
+    if (c < 1) return `$${c.toFixed(3)}`;
+    return `$${c.toFixed(2)}`;
+}
+
 interface InkCLIProps {
     agent: DextoAgent;
     initialSessionId: string | null;
@@ -202,7 +208,7 @@ export async function startInkCliRefactored(
     // Initialize sound config with defaults (enabled by default even without preferences file)
     let soundConfig: SoundConfig = {
         enabled: true,
-        onStartup: true,
+        onStartup: false,
         startupSoundFile: undefined,
         onApprovalRequired: true,
         approvalSoundFile: undefined,
@@ -264,6 +270,11 @@ export async function startInkCliRefactored(
         }
     }
 
+    // Import exit handler before render to avoid race condition
+    const { registerExitHandler } = await import(
+        '../commands/interactive-commands/exit-handler.js'
+    );
+
     const inkApp = render(
         <InkCLIRefactored
             agent={agent}
@@ -282,8 +293,150 @@ export async function startInkCliRefactored(
         }
     );
 
+    // Register exit handler immediately after render (synchronous, before any await)
+    registerExitHandler(() => inkApp.unmount());
+
     await inkApp.waitUntilExit();
 
     // Disable bracketed paste mode to restore normal terminal behavior
     disableBracketedPaste();
+
+    // Display session stats if available (after Ink has unmounted)
+    const chalk = (await import('chalk')).default;
+    const { getExitStats, clearExitStats } = await import(
+        '../commands/interactive-commands/exit-stats.js'
+    );
+    const exitStats = getExitStats();
+    if (exitStats) {
+        // Add visual separation - clear space like Gemini CLI does
+        // This creates a clean slate showing only the exit command and summary
+        process.stdout.write('\n'.repeat(1));
+
+        process.stdout.write(chalk.bold.cyan('📊 Session Summary') + '\n');
+        process.stdout.write(chalk.dim('─'.repeat(50)) + '\n');
+
+        // Session ID
+        if (exitStats.sessionId) {
+            process.stdout.write(chalk.gray(`  Session ID:  ${exitStats.sessionId}`) + '\n');
+        }
+
+        // Duration
+        if (exitStats.duration) {
+            process.stdout.write(chalk.gray(`  Duration:    ${exitStats.duration}`) + '\n');
+        }
+
+        // Message count
+        if (exitStats.messageCount.total > 0) {
+            process.stdout.write(
+                chalk.gray(
+                    `  Messages:    ${exitStats.messageCount.total} total (${exitStats.messageCount.user} user, ${exitStats.messageCount.assistant} assistant)`
+                ) + '\n'
+            );
+        }
+        // Multi-model breakdown (if multiple models were used)
+        if (exitStats.modelStats && exitStats.modelStats.length > 1) {
+            process.stdout.write(chalk.gray('\n  Models Used:') + '\n');
+
+            for (const modelStat of exitStats.modelStats) {
+                const modelLabel = `${modelStat.model} (${modelStat.messageCount} msgs)`;
+                process.stdout.write(chalk.gray(`    • ${modelLabel}`) + '\n');
+
+                // Detailed token breakdown per model
+                const tokens = modelStat.tokenUsage;
+                process.stdout.write(
+                    chalk.gray(`      Input tokens:       ${tokens.inputTokens.toLocaleString()}`) +
+                        '\n'
+                );
+                process.stdout.write(
+                    chalk.gray(
+                        `      Output tokens:      ${tokens.outputTokens.toLocaleString()}`
+                    ) + '\n'
+                );
+                process.stdout.write(
+                    chalk.gray(
+                        `      Reasoning tokens:   ${tokens.reasoningTokens.toLocaleString()}`
+                    ) + '\n'
+                );
+                process.stdout.write(
+                    chalk.gray(
+                        `      Cache read tokens:  ${tokens.cacheReadTokens.toLocaleString()}`
+                    ) + '\n'
+                );
+                process.stdout.write(
+                    chalk.gray(
+                        `      Cache write tokens: ${tokens.cacheWriteTokens.toLocaleString()}`
+                    ) + '\n'
+                );
+                process.stdout.write(
+                    chalk.gray(`      Total tokens:       ${tokens.totalTokens.toLocaleString()}`) +
+                        '\n'
+                );
+
+                if (modelStat.estimatedCost !== undefined) {
+                    process.stdout.write(
+                        chalk.gray(
+                            `      Cost:               ${formatCost(modelStat.estimatedCost)}`
+                        ) + '\n'
+                    );
+                }
+            }
+        }
+
+        // Token usage - label depends on whether multi-model was shown
+        if (exitStats.tokenUsage) {
+            const {
+                inputTokens,
+                outputTokens,
+                reasoningTokens,
+                cacheReadTokens,
+                cacheWriteTokens,
+                totalTokens,
+            } = exitStats.tokenUsage;
+
+            // Calculate cache savings percentage
+            const totalInputWithCache = inputTokens + cacheReadTokens;
+            const cacheSavingsPercent =
+                totalInputWithCache > 0
+                    ? ((cacheReadTokens / totalInputWithCache) * 100).toFixed(1)
+                    : '0.0';
+
+            const tokenSectionLabel =
+                exitStats.modelStats && exitStats.modelStats.length > 1
+                    ? '\n  Total Token Usage:'
+                    : '\n  Token Usage:';
+            process.stdout.write(chalk.gray(tokenSectionLabel) + '\n');
+            process.stdout.write(
+                chalk.gray(`    Input tokens:       ${inputTokens.toLocaleString()}`) + '\n'
+            );
+            process.stdout.write(
+                chalk.gray(`    Output tokens:      ${outputTokens.toLocaleString()}`) + '\n'
+            );
+            process.stdout.write(
+                chalk.gray(`    Reasoning tokens:   ${reasoningTokens.toLocaleString()}`) + '\n'
+            );
+            const cacheReadLabel =
+                cacheReadTokens > 0
+                    ? `${cacheReadTokens.toLocaleString()} (💰 ${cacheSavingsPercent}% savings)`
+                    : cacheReadTokens.toLocaleString();
+            process.stdout.write(chalk.gray(`    Cache read tokens:  ${cacheReadLabel}`) + '\n');
+            process.stdout.write(
+                chalk.gray(`    Cache write tokens: ${cacheWriteTokens.toLocaleString()}`) + '\n'
+            );
+            process.stdout.write(
+                chalk.gray(`    Total tokens:       ${totalTokens.toLocaleString()}`) + '\n'
+            );
+        }
+
+        // Estimated cost
+        if (exitStats.estimatedCost !== undefined) {
+            process.stdout.write(
+                chalk.green(`\n  Estimated Cost: ${formatCost(exitStats.estimatedCost)}`) + '\n'
+            );
+        }
+
+        clearExitStats();
+    }
+
+    process.stdout.write(chalk.dim('─'.repeat(50)) + '\n');
+    process.stdout.write('\n' + chalk.rgb(255, 165, 0)('Exiting Dexto CLI. Goodbye!') + '\n');
 }

@@ -42,6 +42,7 @@ import { BackgroundTasksPanel } from '../BackgroundTasksPanel.js';
 // Containers
 import { InputContainer, type InputContainerHandle } from '../../containers/InputContainer.js';
 import { OverlayContainer } from '../../containers/OverlayContainer.js';
+import { shouldHideStatusChrome } from '../../utils/overlayPresentation.js';
 
 interface StaticCLIProps {
     agent: DextoAgent;
@@ -223,37 +224,43 @@ export function StaticCLI({
 
             {/* Controls area */}
             <Box flexDirection="column" flexShrink={0}>
-                <StatusBar
-                    agent={agent}
-                    isProcessing={ui.isProcessing}
-                    isThinking={ui.isThinking}
-                    isCompacting={ui.isCompacting}
-                    approvalQueueCount={approvalQueue.length}
-                    copyModeEnabled={ui.copyModeEnabled}
-                    isAwaitingApproval={approval !== null}
-                    todoExpanded={ui.todoExpanded}
-                    hasTodos={todos.some((t) => t.status !== 'completed')}
-                    planModeActive={ui.planModeActive}
-                    autoApproveEdits={ui.autoApproveEdits}
-                    backgroundTasksRunning={ui.backgroundTasksRunning}
-                />
+                {(() => {
+                    const hideChrome = shouldHideStatusChrome(ui.activeOverlay, approval);
+                    if (hideChrome) return null;
 
-                {/* Background tasks panel */}
-                <BackgroundTasksPanel
-                    tasks={ui.backgroundTasks}
-                    isExpanded={ui.backgroundTasksExpanded}
-                    isProcessing={ui.isProcessing}
-                />
+                    return (
+                        <>
+                            <StatusBar
+                                agent={agent}
+                                isProcessing={ui.isProcessing}
+                                isThinking={ui.isThinking}
+                                isCompacting={ui.isCompacting}
+                                approvalQueueCount={approvalQueue.length}
+                                copyModeEnabled={ui.copyModeEnabled}
+                                isAwaitingApproval={approval !== null}
+                                todoExpanded={ui.todoExpanded}
+                                hasTodos={todos.some((t) => t.status !== 'completed')}
+                                planModeActive={ui.planModeActive}
+                                autoApproveEdits={ui.autoApproveEdits}
+                                backgroundTasksRunning={ui.backgroundTasksRunning}
+                            />
 
-                {/* Todo panel - shown below status bar */}
-                <TodoPanel
-                    todos={todos}
-                    isExpanded={ui.todoExpanded}
-                    isProcessing={ui.isProcessing}
-                />
+                            <BackgroundTasksPanel
+                                tasks={ui.backgroundTasks}
+                                isExpanded={ui.backgroundTasksExpanded}
+                                isProcessing={ui.isProcessing}
+                            />
 
-                {/* Queued messages display (shows when messages are pending) */}
-                <QueuedMessagesDisplay messages={queuedMessages} />
+                            <TodoPanel
+                                todos={todos}
+                                isExpanded={ui.todoExpanded}
+                                isProcessing={ui.isProcessing}
+                            />
+
+                            <QueuedMessagesDisplay messages={queuedMessages} />
+                        </>
+                    );
+                })()}
 
                 <InputContainer
                     ref={inputContainerRef}
@@ -301,7 +308,7 @@ export function StaticCLI({
                 />
 
                 {/* Exit warning (Ctrl+C pressed once) - shown above footer */}
-                {ui.exitWarningShown && (
+                {!shouldHideStatusChrome(ui.activeOverlay, approval) && ui.exitWarningShown && (
                     <Box paddingX={1}>
                         <Text color="yellowBright" bold>
                             ⚠ Press Ctrl+C again to exit
@@ -311,24 +318,27 @@ export function StaticCLI({
                 )}
 
                 {/* Footer status line */}
-                <Footer
-                    agent={agent}
-                    sessionId={session.id}
-                    modelName={session.modelName}
-                    cwd={process.cwd()}
-                    {...(branchName ? { branchName } : {})}
-                    autoApproveEdits={ui.autoApproveEdits}
-                    planModeActive={ui.planModeActive}
-                    isShellMode={buffer.text.startsWith('!')}
-                />
-
-                {/* History search bar (Ctrl+R) - shown at very bottom */}
-                {ui.historySearch.isActive && (
-                    <HistorySearchBar
-                        query={ui.historySearch.query}
-                        hasMatch={historySearchHasMatch}
+                {!shouldHideStatusChrome(ui.activeOverlay, approval) && (
+                    <Footer
+                        agent={agent}
+                        sessionId={session.id}
+                        modelName={session.modelName}
+                        cwd={process.cwd()}
+                        {...(branchName ? { branchName } : {})}
+                        autoApproveEdits={ui.autoApproveEdits}
+                        planModeActive={ui.planModeActive}
+                        isShellMode={buffer.text.startsWith('!')}
                     />
                 )}
+
+                {/* History search bar (Ctrl+R) - shown at very bottom */}
+                {!shouldHideStatusChrome(ui.activeOverlay, approval) &&
+                    ui.historySearch.isActive && (
+                        <HistorySearchBar
+                            query={ui.historySearch.query}
+                            hasMatch={historySearchHasMatch}
+                        />
+                    )}
             </Box>
         </Box>
     );

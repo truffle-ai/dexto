@@ -7,12 +7,12 @@ import React, {
     useMemo,
 } from 'react';
 import { Box, Text } from 'ink';
-import type { ToolDisplayData, ElicitationMetadata } from '@dexto/core';
+import type { ToolDisplayData, ElicitationMetadata, ToolPresentationSnapshotV1 } from '@dexto/core';
 import type { Key } from '../hooks/useInputOrchestrator.js';
 import { ElicitationForm, type ElicitationFormHandle } from './ElicitationForm.js';
 import { DiffPreview, CreateFilePreview } from './renderers/index.js';
 import { isEditWriteTool } from '../utils/toolUtils.js';
-import { formatToolHeader } from '../utils/messageFormatting.js';
+import { formatPathForDisplay, formatToolHeader } from '../utils/messageFormatting.js';
 
 export interface ApprovalRequest {
     approvalId: string;
@@ -57,6 +57,7 @@ type SelectionOption =
     | 'yes'
     | 'yes-session'
     | 'yes-accept-edits'
+    | 'yes-directory-session'
     | 'no'
     | `pattern-${number}`
     // Plan review specific options
@@ -76,11 +77,36 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         const isCommandConfirmation = approval.type === 'command_confirmation';
         const isElicitation = approval.type === 'elicitation';
         const isDirectoryAccess = approval.type === 'directory_access';
+        const directoryAccess = approval.metadata.directoryAccess as
+            | {
+                  parentDir?: unknown;
+              }
+            | undefined;
+        const hasToolDirectoryAccess =
+            approval.type === 'tool_confirmation' &&
+            directoryAccess !== undefined &&
+            typeof directoryAccess === 'object' &&
+            directoryAccess !== null;
+        const directoryAccessParentDir =
+            hasToolDirectoryAccess && typeof directoryAccess.parentDir === 'string'
+                ? directoryAccess.parentDir
+                : null;
 
         // Extract tool metadata
         const toolName = approval.metadata.toolName as string | undefined;
         const toolArgs = (approval.metadata.args as Record<string, unknown>) || {};
-        const toolDisplayName = approval.metadata.toolDisplayName as string | undefined;
+        const callDescriptionRaw =
+            typeof approval.metadata.description === 'string'
+                ? approval.metadata.description
+                : undefined;
+        const callDescription = useMemo(() => {
+            if (!callDescriptionRaw) return null;
+            const singleLine = callDescriptionRaw.replace(/\s+/g, ' ').trim();
+            if (!singleLine) return null;
+            const maxLength = 120;
+            if (singleLine.length <= maxLength) return singleLine;
+            return `${singleLine.slice(0, Math.max(0, maxLength - 1))}…`;
+        }, [callDescriptionRaw]);
 
         // Check if this is a plan_review tool (shows custom approval options)
         const isPlanReview = toolName === 'plan_review';
@@ -94,14 +120,26 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         const isEditOrWriteTool = isEditWriteTool(toolName);
 
         // Format tool header using shared utility (same format as tool messages)
+        const presentationSnapshot = useMemo(() => {
+            const raw = (approval.metadata as { presentationSnapshot?: unknown })
+                .presentationSnapshot;
+            if (typeof raw !== 'object' || raw === null) {
+                return undefined;
+            }
+            if ((raw as { version?: unknown }).version !== 1) {
+                return undefined;
+            }
+            return raw as ToolPresentationSnapshotV1;
+        }, [approval.metadata]);
+
         const formattedTool = useMemo(() => {
             if (!toolName) return null;
             return formatToolHeader({
                 toolName,
                 args: toolArgs,
-                ...(toolDisplayName !== undefined && { toolDisplayName }),
+                ...(presentationSnapshot !== undefined && { presentationSnapshot }),
             });
-        }, [toolName, toolDisplayName, toolArgs]);
+        }, [toolName, toolArgs, presentationSnapshot]);
 
         const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -123,6 +161,14 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
             options.push({ id: 'plan-approve', label: 'Approve' });
             options.push({ id: 'plan-approve-accept-edits', label: 'Approve + Accept All Edits' });
             // Third "option" is the feedback input (handled specially in render)
+        } else if (hasToolDirectoryAccess) {
+            // Tool approval that includes directory access - offer session-scoped dir allow
+            const dirLabel = directoryAccessParentDir
+                ? ` ${formatPathForDisplay(directoryAccessParentDir)}`
+                : '';
+            options.push({ id: 'yes', label: 'Yes (once)' });
+            options.push({ id: 'yes-directory-session', label: `Yes, allow${dirLabel} (session)` });
+            options.push({ id: 'no', label: 'No' });
         } else if (hasSuggestedPatterns) {
             // Tool with pattern suggestions
             options.push({ id: 'yes', label: 'Yes (once)' });
@@ -141,7 +187,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         } else if (isDirectoryAccess) {
             // Directory access - offer session-scoped access
             const parentDir = approval.metadata.parentDir as string | undefined;
-            const dirLabel = parentDir ? ` "${parentDir}"` : '';
+            const dirLabel = parentDir ? ` ${formatPathForDisplay(parentDir)}` : '';
             options.push({ id: 'yes', label: 'Yes (once)' });
             options.push({ id: 'yes-session', label: `Yes, allow${dirLabel} (session)` });
             options.push({ id: 'no', label: 'No' });
@@ -236,6 +282,8 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                             } else {
                                 onApprove({ rememberChoice: true });
                             }
+                        } else if (option.id === 'yes-directory-session') {
+                            onApprove({ rememberDirectory: true });
                         } else if (option.id === 'yes-accept-edits') {
                             // Approve and enable "accept all edits" mode
                             onApprove({ enableAcceptEditsMode: true });
@@ -267,6 +315,7 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
                 isElicitation,
                 isEditOrWriteTool,
                 isDirectoryAccess,
+                hasToolDirectoryAccess,
                 isPlanReview,
                 options,
                 suggestedPatterns,
@@ -299,36 +348,44 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
             if (!displayPreview) return null;
 
             switch (displayPreview.type) {
-                case 'diff': {
-                    const isOverwrite = toolName === 'write_file';
-                    return (
-                        <DiffPreview
-                            data={displayPreview}
-                            headerType={isOverwrite ? 'overwrite' : 'edit'}
-                        />
-                    );
-                }
+                case 'diff':
+                    return <DiffPreview data={displayPreview} />;
                 case 'shell':
-                    // For shell preview, just show the command (no output yet)
+                    // For shell preview, show the command + optional description (no output yet)
                     return (
-                        <Box marginBottom={1} flexDirection="row">
-                            <Text color="gray">$ </Text>
-                            <Text color="yellowBright">{displayPreview.command}</Text>
-                            {displayPreview.isBackground && <Text color="gray"> (background)</Text>}
+                        <Box flexDirection="column" marginBottom={1}>
+                            <Box marginBottom={0}>
+                                <Text color="cyan" bold>
+                                    {displayPreview.title ?? 'Bash'}
+                                </Text>
+                            </Box>
+                            <Box
+                                flexDirection="column"
+                                borderStyle="round"
+                                borderColor="gray"
+                                paddingX={1}
+                            >
+                                {displayPreview.command.split('\n').map((line, i) => (
+                                    <Text key={i} color="yellowBright" wrap="wrap">
+                                        {i === 0 ? '$ ' : '  '}
+                                        {line}
+                                    </Text>
+                                ))}
+                                {displayPreview.isBackground && (
+                                    <Text color="gray">(background)</Text>
+                                )}
+                            </Box>
+                            {callDescription && (
+                                <Box marginTop={0}>
+                                    <Text color="gray">{callDescription}</Text>
+                                </Box>
+                            )}
                         </Box>
                     );
                 case 'file':
-                    // Use enhanced file preview with full content for file creation
-                    if (displayPreview.operation === 'create' && displayPreview.content) {
+                    // If content is provided, show the full content (create/review flows)
+                    if (displayPreview.content) {
                         return <CreateFilePreview data={displayPreview} />;
-                    }
-                    // For plan_review (read operation with content), show full content for review
-                    if (
-                        displayPreview.operation === 'read' &&
-                        displayPreview.content &&
-                        isPlanReview
-                    ) {
-                        return <CreateFilePreview data={displayPreview} header="Review plan" />;
                     }
                     // Fallback for other file operations
                     return (
@@ -353,43 +410,90 @@ export const ApprovalPrompt = forwardRef<ApprovalPromptHandle, ApprovalPromptPro
         const parentDir = approval.metadata.parentDir as string | undefined;
         const operation = approval.metadata.operation as string | undefined;
 
+        const directoryAccessTitle = !isDirectoryAccess
+            ? null
+            : operation === 'read'
+              ? 'Read file'
+              : operation === 'write'
+                ? 'Write file'
+                : operation === 'edit'
+                  ? 'Edit file'
+                  : 'Directory access';
+
+        const directoryAccessToolHeader =
+            !isDirectoryAccess || !toolName
+                ? null
+                : formatToolHeader({
+                      toolName,
+                      args:
+                          (directoryPath ?? parentDir) ? { path: directoryPath ?? parentDir } : {},
+                      ...(presentationSnapshot !== undefined && { presentationSnapshot }),
+                  }).header;
+
+        const showHeaderBlock = isDirectoryAccess || isCommandConfirmation || !displayPreview;
+
         return (
             <Box paddingX={0} paddingY={0} flexDirection="column">
-                {/* Compact header with context */}
-                <Box flexDirection="column" marginBottom={0}>
-                    {isDirectoryAccess ? (
-                        <>
-                            <Box flexDirection="row">
-                                <Text color="yellowBright" bold>
-                                    🔐 Directory Access:{' '}
-                                </Text>
-                                <Text color="cyan">{parentDir || directoryPath}</Text>
-                            </Box>
-                            <Box flexDirection="row" marginTop={0}>
-                                <Text color="gray">{'  '}</Text>
-                                <Text color="gray">
-                                    {formattedTool ? `"${formattedTool.displayName}"` : 'Tool'}{' '}
-                                    wants to {operation || 'access'} files outside working directory
-                                </Text>
-                            </Box>
-                        </>
-                    ) : (
-                        <>
-                            <Box flexDirection="row">
-                                <Text color="yellowBright" bold>
-                                    🔐 Approval:{' '}
-                                </Text>
-                                {formattedTool && <Text color="cyan">{formattedTool.header}</Text>}
-                            </Box>
-                            {isCommandConfirmation && command && (
-                                <Box flexDirection="row" marginTop={0}>
-                                    <Text color="gray">{'  Command: '}</Text>
-                                    <Text color="red">{command}</Text>
+                {/* Compact header with context (only when we don't have a rich preview) */}
+                {showHeaderBlock && (
+                    <Box flexDirection="column" marginBottom={0}>
+                        {isDirectoryAccess ? (
+                            <>
+                                <Box marginBottom={0}>
+                                    <Text color="cyan" bold>
+                                        {directoryAccessTitle ?? 'Directory access'}
+                                    </Text>
                                 </Box>
-                            )}
-                        </>
-                    )}
-                </Box>
+                                {directoryAccessToolHeader && (
+                                    <Box marginBottom={0}>
+                                        <Text wrap="wrap">{directoryAccessToolHeader}</Text>
+                                    </Box>
+                                )}
+                            </>
+                        ) : isCommandConfirmation ? (
+                            <>
+                                <Box flexDirection="row">
+                                    <Text color="yellowBright" bold>
+                                        Confirm command:{' '}
+                                    </Text>
+                                </Box>
+                                {command && (
+                                    <Box flexDirection="column" marginTop={0}>
+                                        <Box
+                                            flexDirection="column"
+                                            borderStyle="round"
+                                            borderColor="gray"
+                                            paddingX={1}
+                                        >
+                                            {command.split('\n').map((line, i) => (
+                                                <Text key={i} color="red" wrap="wrap">
+                                                    {line}
+                                                </Text>
+                                            ))}
+                                        </Box>
+                                    </Box>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                <Box flexDirection="row">
+                                    <Text color="yellowBright" bold>
+                                        Confirm:{' '}
+                                    </Text>
+                                    {formattedTool && (
+                                        <Text color="cyan">{formattedTool.header}</Text>
+                                    )}
+                                </Box>
+                                {callDescription && (
+                                    <Box flexDirection="row" marginTop={0}>
+                                        <Text color="gray">{'  '}</Text>
+                                        <Text color="gray">{callDescription}</Text>
+                                    </Box>
+                                )}
+                            </>
+                        )}
+                    </Box>
+                )}
 
                 {/* Preview section - shown BEFORE approval options */}
                 {renderPreview()}

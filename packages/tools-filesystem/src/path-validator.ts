@@ -73,6 +73,29 @@ export class PathValidator {
      * Validate a file path for security and policy compliance
      */
     async validatePath(filePath: string): Promise<PathValidation> {
+        return this.validatePathInternal(filePath, { skipAllowedCheck: false });
+    }
+
+    /**
+     * Validate a file path for preview purposes.
+     *
+     * This is identical to {@link validatePath} except it does NOT enforce config-allowed roots.
+     * It still enforces:
+     * - traversal protection
+     * - blocked paths (absolute blocked paths only; relative blocked paths are resolved against
+     *   config-allowed roots and may not match paths outside those roots)
+     * - blocked extensions
+     *
+     * Used for generating UI-only previews (e.g., diffs) before the user approves directory access.
+     */
+    async validatePathForPreview(filePath: string): Promise<PathValidation> {
+        return this.validatePathInternal(filePath, { skipAllowedCheck: true });
+    }
+
+    private async validatePathInternal(
+        filePath: string,
+        options: { skipAllowedCheck: boolean }
+    ): Promise<PathValidation> {
         // 1. Check for empty path
         if (!filePath || filePath.trim() === '') {
             return {
@@ -83,13 +106,15 @@ export class PathValidator {
 
         // 2. Normalize the path to absolute
         const workingDir = this.config.workingDirectory || process.cwd();
+        let resolvedPath: string;
         let normalizedPath: string;
 
         try {
             // Handle both absolute and relative paths
-            normalizedPath = path.isAbsolute(filePath)
+            resolvedPath = path.isAbsolute(filePath)
                 ? path.resolve(filePath)
                 : path.resolve(workingDir, filePath);
+            normalizedPath = resolvedPath;
 
             // Canonicalize to handle symlinks and resolve real paths (async, non-blocking)
             try {
@@ -113,8 +138,19 @@ export class PathValidator {
             };
         }
 
+        if (
+            options.skipAllowedCheck &&
+            this.isInConfigAllowedPaths(resolvedPath) &&
+            !this.isInConfigAllowedPaths(normalizedPath)
+        ) {
+            return {
+                isValid: false,
+                error: 'Symlink target escapes allowed paths',
+            };
+        }
+
         // 4. Check if path is within allowed paths
-        if (!this.isPathAllowed(normalizedPath)) {
+        if (!options.skipAllowedCheck && !this.isPathAllowed(normalizedPath)) {
             return {
                 isValid: false,
                 error: `Path is not within allowed paths. Allowed: ${this.normalizedAllowedPaths.join(', ')}`,

@@ -12,9 +12,7 @@
  * - /reasoning - Configure reasoning visibility and budget tokens
  * - /sounds - Configure sound notifications (interactive)
  */
-
-import chalk from 'chalk';
-import { logger, type DextoAgent } from '@dexto/core';
+import type { DextoAgent, LogLevel } from '@dexto/core';
 import {
     overlayOnlyHandler,
     type CommandDefinition,
@@ -23,7 +21,21 @@ import {
 } from '../command-parser.js';
 import { formatForInkCli } from '../utils/format-output.js';
 import { CommandOutputHelper } from '../utils/command-output.js';
-import type { ConfigStyledData, StatsStyledData } from '../../../ink-cli/state/types.js';
+import type {
+    ConfigStyledData,
+    LogConfigStyledData,
+    StatsStyledData,
+} from '../../../ink-cli/state/types.js';
+
+const validLevels = [
+    'error',
+    'warn',
+    'info',
+    'debug',
+    'silly',
+] as const satisfies readonly LogLevel[];
+const validLevelSet = new Set<string>(validLevels);
+const isLogLevel = (value: string): value is LogLevel => validLevelSet.has(value);
 
 /**
  * System commands for configuration and monitoring
@@ -37,57 +49,55 @@ export const systemCommands: CommandDefinition[] = [
         aliases: [],
         handler: async (
             args: string[],
-            _agent: DextoAgent,
-            _ctx: CommandContext
-        ): Promise<boolean | string> => {
-            const validLevels = ['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly'];
-            const level = args[0];
+            agent: DextoAgent,
+            ctx: CommandContext
+        ): Promise<CommandHandlerResult> => {
+            try {
+                const level = args[0];
 
-            if (!level) {
-                // Interactive view: show current level and options
-                const currentLevel = logger.getLevel();
-                const logFilePath = logger.getLogFilePath();
+                if (!level) {
+                    const currentLevel = agent.logger.getLevel();
+                    const logFile = agent.logger.getLogFilePath();
 
-                console.log(chalk.bold.blue('\n📊 Logging Configuration:\n'));
-                console.log(`  Current level: ${chalk.green.bold(currentLevel)}`);
-                if (logFilePath) {
-                    console.log(`  Log file: ${chalk.cyan(logFilePath)}`);
+                    const styledData: LogConfigStyledData = {
+                        currentLevel,
+                        logFile,
+                        availableLevels: [...validLevels],
+                    };
+
+                    const fallbackLines = [
+                        'Logging Configuration:',
+                        `  Current level: ${currentLevel}`,
+                        logFile ? `  Log file: ${logFile}` : '',
+                        `  Available levels: ${validLevels.join(', ')}`,
+                        '  Use /log <level> to change level',
+                    ].filter(Boolean);
+
+                    return CommandOutputHelper.styled(
+                        'log-config',
+                        styledData,
+                        fallbackLines.join('\n')
+                    );
                 }
-                console.log(chalk.gray('\n  Available levels (from least to most verbose):'));
-                validLevels.forEach((lvl) => {
-                    const isCurrent = lvl === currentLevel;
-                    const marker = isCurrent ? chalk.green('▶') : ' ';
-                    const levelText = isCurrent ? chalk.green.bold(lvl) : chalk.gray(lvl);
-                    console.log(`  ${marker} ${levelText}`);
-                });
-                console.log(
-                    chalk.gray('\n  💡 Use /log <level> to change level (e.g., /log debug)\n')
-                );
 
-                const output = [
-                    '\n📊 Logging Configuration:',
-                    `Current level: ${currentLevel}`,
-                    logFilePath ? `Log file: ${logFilePath}` : '',
-                    '\nAvailable levels: error, warn, info, http, verbose, debug, silly',
-                    '💡 Use /log <level> to change level',
-                ]
-                    .filter(Boolean)
-                    .join('\n');
+                if (isLogLevel(level)) {
+                    await agent.setLogLevel(
+                        level,
+                        ctx.sessionId ? { sessionId: ctx.sessionId } : undefined
+                    );
+                    return formatForInkCli(`✅ Log level set to ${level}`);
+                }
 
-                return formatForInkCli(output);
-            }
-
-            if (validLevels.includes(level)) {
-                logger.setLevel(level);
-                logger.info(`Log level set to ${level}`, null, 'green');
-                console.log(chalk.green(`✅ Log level changed to: ${chalk.bold(level)}`));
-                const output = `✅ Log level set to ${level}`;
-                return formatForInkCli(output);
-            } else {
-                const errorMsg = `❌ Invalid log level: ${level}\nValid levels: ${validLevels.join(', ')}`;
-                console.log(chalk.red(`❌ Invalid log level: ${chalk.bold(level)}`));
-                console.log(chalk.gray(`Valid levels: ${validLevels.join(', ')}`));
+                const errorMsg = `❌ Invalid log level: ${level}\nValid levels: ${validLevels.join(
+                    ', '
+                )}`;
                 return formatForInkCli(errorMsg);
+            } catch (error) {
+                const errorMsg = `Failed to update log level: ${
+                    error instanceof Error ? error.message : String(error)
+                }`;
+                agent.logger.error(errorMsg);
+                return formatForInkCli(`❌ ${errorMsg}`);
             }
         },
     },
@@ -247,7 +257,7 @@ export const systemCommands: CommandDefinition[] = [
     },
     {
         name: 'sounds',
-        description: 'Configure sound notifications (interactive)',
+        description: 'Configure sound notifications',
         usage: '/sounds',
         category: 'System',
         handler: overlayOnlyHandler,

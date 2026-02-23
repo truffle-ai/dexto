@@ -35,7 +35,7 @@ export async function getCurrentDate(_context: DynamicContributorContext): Promi
  * Note: This function uses dynamic imports for Node.js modules to maintain browser compatibility.
  * In browser environments, it returns a placeholder message.
  */
-export async function getEnvironmentInfo(_context: DynamicContributorContext): Promise<string> {
+export async function getEnvironmentInfo(context: DynamicContributorContext): Promise<string> {
     // Check if we're in a Node.js environment
     if (typeof process === 'undefined' || !process.cwd) {
         return '<environment>Environment info not available in browser context</environment>';
@@ -49,10 +49,13 @@ export async function getEnvironmentInfo(_context: DynamicContributorContext): P
             import('path'),
         ]);
 
-        const cwd = process.cwd();
-        const os = platform();
-        const isGitRepo = existsSync(join(cwd, '.git'));
-        const shell = process.env.SHELL || (os === 'win32' ? 'cmd.exe' : '/bin/sh');
+        const cwd = context.environment?.cwd || context.workspace?.path || process.cwd();
+        const os = context.environment?.platform || platform();
+        const isGitRepo = context.environment?.isGitRepo ?? existsSync(join(cwd, '.git'));
+        const shell =
+            context.environment?.shell ||
+            process.env.SHELL ||
+            (os === 'win32' ? 'cmd.exe' : '/bin/sh');
 
         return `<environment>
   <cwd>${cwd}</cwd>

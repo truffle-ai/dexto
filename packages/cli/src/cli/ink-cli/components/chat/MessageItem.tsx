@@ -275,6 +275,9 @@ export const MessageItem = memo(
                                 └─ {subAgentProgress.toolsCalled} tool
                                 {subAgentProgress.toolsCalled !== 1 ? 's' : ''} called | Current:{' '}
                                 {subAgentProgress.currentTool}
+                                {subAgentProgress.runtimeAgentId
+                                    ? ` | Agent: ${subAgentProgress.agentId} (${subAgentProgress.runtimeAgentId})`
+                                    : ` | Agent: ${subAgentProgress.agentId}`}
                                 {subAgentProgress.tokenUsage &&
                                 subAgentProgress.tokenUsage.total > 0
                                     ? ` | ${subAgentProgress.tokenUsage.total.toLocaleString()} tokens`

@@ -6,7 +6,7 @@
 
 import * as path from 'node:path';
 import { z } from 'zod';
-import { defineTool } from '@dexto/core';
+import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core';
 import type { SearchDisplayData } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
@@ -39,15 +39,28 @@ export function createGlobFilesTool(
 ): Tool<typeof GlobFilesInputSchema> {
     return defineTool({
         id: 'glob_files',
-        displayName: 'Find Files',
         aliases: ['glob'],
         description:
             'Find files matching a glob pattern. Supports standard glob syntax like **/*.js for recursive matches, *.ts for files in current directory, and src/**/*.tsx for nested paths. Returns array of file paths with metadata (size, modified date). Results are limited to allowed paths only.',
         inputSchema: GlobFilesInputSchema,
 
+        presentation: {
+            describeHeader: (input) => {
+                const bits = [`pattern=${input.pattern}`];
+                if (input.path) bits.push(`path=${input.path}`);
+                if (typeof input.max_results === 'number') bits.push(`max=${input.max_results}`);
+
+                return createLocalToolCallHeader({
+                    title: 'Find Files',
+                    argsText: truncateForHeader(bits.join(', '), 140),
+                });
+            },
+        },
+
         ...createDirectoryAccessApprovalHandlers({
             toolName: 'glob_files',
             operation: 'read',
+            inputSchema: GlobFilesInputSchema,
             getFileSystemService,
             resolvePaths: (input, fileSystemService) => {
                 const baseDir = fileSystemService.getWorkingDirectory();
@@ -62,7 +75,7 @@ export function createGlobFilesTool(
             // Input is validated by provider before reaching here
             const { pattern, path: searchPath, max_results } = input;
 
-            // Resolve the search directory consistently with getApprovalOverride
+            // Resolve the search directory consistently with directory-approval path handling
             const baseDir = resolvedFileSystemService.getWorkingDirectory();
             const resolvedSearchPath = path.resolve(baseDir, searchPath || '.');
 

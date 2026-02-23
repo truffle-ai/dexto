@@ -33,6 +33,7 @@ import { generateMessageId } from '../utils/idGenerator.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
 import { capture } from '../../../analytics/index.js';
+import { getOverlayPresentation } from '../utils/overlayPresentation.js';
 
 /** Type for pending session creation promise */
 type SessionCreationResult = { id: string };
@@ -509,6 +510,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                     isProcessing: true,
                     isCancelling: false,
                     activeOverlay: 'none',
+                    commandOutput: null,
                     exitWarningShown: false,
                     exitWarningTimestamp: null,
                 }));
@@ -545,30 +547,26 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
 
                         if (result.type === 'output' && result.output) {
                             const output = result.output;
-                            setMessages((prev) => [
+                            setUi((prev) => ({
                                 ...prev,
-                                {
-                                    id: generateMessageId('command'),
-                                    role: 'system',
+                                activeOverlay: 'command-output',
+                                commandOutput: {
+                                    title: `/${parsed.command}`,
                                     content: output,
-                                    timestamp: new Date(),
                                 },
-                            ]);
+                            }));
                         }
 
                         if (result.type === 'styled' && result.styled) {
-                            const { fallbackText, styledType, styledData } = result.styled;
-                            setMessages((prev) => [
+                            const { fallbackText } = result.styled;
+                            setUi((prev) => ({
                                 ...prev,
-                                {
-                                    id: generateMessageId('command'),
-                                    role: 'system',
+                                activeOverlay: 'command-output',
+                                commandOutput: {
+                                    title: `/${parsed.command}`,
                                     content: fallbackText,
-                                    timestamp: new Date(),
-                                    styledType,
-                                    styledData,
                                 },
-                            ]);
+                            }));
                         }
 
                         // Handle sendMessage - send through normal streaming flow
@@ -868,6 +866,10 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
         // Allow during processing so users can browse previous prompts while agent runs
         const canNavigateHistory = !approval && ui.activeOverlay === 'none';
 
+        // Hide the input area when a focused overlay/approval is active.
+        // This matches "full-screen overlay" UX (Claude-style) and prevents extra UI chrome/flicker.
+        const shouldHideInputArea = getOverlayPresentation(ui.activeOverlay, approval) === 'focus';
+
         const placeholder = approval
             ? 'Approval required above...'
             : 'Type your message or /help for commands';
@@ -877,6 +879,10 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
         useImperativeHandle(ref, () => ({
             submit: (text: string) => handleSubmit(text, true),
         }));
+
+        if (shouldHideInputArea) {
+            return null;
+        }
 
         return (
             <InputArea

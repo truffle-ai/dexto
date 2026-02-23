@@ -1,5 +1,15 @@
 # @dexto/tools-scheduler
 
+## 1.6.1
+
+### Patch Changes
+
+- 03d4564: consolidates scheduler runtime changes and workspace context propagation, and ensures sub‑agents inherit the parent workspace.
+- Updated dependencies [03d4564]
+- Updated dependencies [112dadf]
+    - @dexto/core@1.6.1
+    - @dexto/agent-config@1.6.1
+
 ## 1.6.0
 
 ### Patch Changes

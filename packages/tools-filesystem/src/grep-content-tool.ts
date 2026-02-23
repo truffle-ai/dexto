@@ -6,7 +6,7 @@
 
 import * as path from 'node:path';
 import { z } from 'zod';
-import { defineTool } from '@dexto/core';
+import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core';
 import type { SearchDisplayData } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
@@ -55,15 +55,29 @@ export function createGrepContentTool(
 ): Tool<typeof GrepContentInputSchema> {
     return defineTool({
         id: 'grep_content',
-        displayName: 'Search Files',
         aliases: ['grep'],
         description:
             'Search for text patterns in files using regular expressions. Returns matching lines with file path, line number, and optional context lines. Use glob parameter to filter specific file types (e.g., "*.ts"). Supports case-insensitive search. Great for finding code patterns, function definitions, or specific text across multiple files.',
         inputSchema: GrepContentInputSchema,
 
+        presentation: {
+            describeHeader: (input) => {
+                const bits = [`pattern=${input.pattern}`];
+                if (input.glob) bits.push(`glob=${input.glob}`);
+                if (input.path) bits.push(`path=${input.path}`);
+                if (typeof input.max_results === 'number') bits.push(`max=${input.max_results}`);
+
+                return createLocalToolCallHeader({
+                    title: 'Search Files',
+                    argsText: truncateForHeader(bits.join(', '), 140),
+                });
+            },
+        },
+
         ...createDirectoryAccessApprovalHandlers({
             toolName: 'grep_content',
             operation: 'read',
+            inputSchema: GrepContentInputSchema,
             getFileSystemService,
             resolvePaths: (input, fileSystemService) => {
                 const baseDir = fileSystemService.getWorkingDirectory();

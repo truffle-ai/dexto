@@ -13,7 +13,6 @@
  * see src/cli/commands/session-commands.ts
  */
 
-import chalk from 'chalk';
 import type { DextoAgent } from '@dexto/core';
 import type { CommandDefinition, CommandContext } from '../command-parser.js';
 
@@ -41,7 +40,6 @@ export const resumeCommand: CommandDefinition = {
             '\nType /resume to show the session selector\n',
         ].join('\n');
 
-        console.log(chalk.blue(helpText));
         return helpText;
     },
 };

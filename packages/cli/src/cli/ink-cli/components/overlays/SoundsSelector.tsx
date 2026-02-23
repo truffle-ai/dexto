@@ -134,7 +134,7 @@ type PickItem =
 
 const DEFAULT_CONFIG: SoundConfig = {
     enabled: true,
-    onStartup: true,
+    onStartup: false,
     onApprovalRequired: true,
     onTaskComplete: true,
 };
@@ -668,14 +668,14 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
             (item: MainItem | PickItem, isSelected: boolean) => {
                 if (item.type === 'enabled') {
                     return (
-                        <>
+                        <Text wrap="truncate-end">
                             <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
                                 sounds:{' '}
                             </Text>
                             <Text color={config.enabled ? 'green' : 'gray'} bold={isSelected}>
                                 {config.enabled ? 'On' : 'Off'}
                             </Text>
-                        </>
+                        </Text>
                     );
                 }
 
@@ -697,7 +697,11 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                         : 'Off';
 
                     return (
-                        <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
+                        <Text
+                            color={isSelected ? 'cyan' : 'gray'}
+                            bold={isSelected}
+                            wrap="truncate-end"
+                        >
                             {item.label}: {currentLabel}
                         </Text>
                     );
@@ -710,30 +714,37 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                     item.type === 'file'
                 ) {
                     return (
-                        <>
-                            <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
-                                {item.label}
-                            </Text>
-                            {item.isCurrent && <Text color="green"> *</Text>}
+                        <Box flexDirection="row">
+                            <Box flexGrow={1} flexDirection="row">
+                                <Text color="green">{item.isCurrent ? '* ' : '  '}</Text>
+                                <Text
+                                    color={isSelected ? 'cyan' : 'gray'}
+                                    bold={isSelected}
+                                    wrap="truncate-end"
+                                >
+                                    {item.label}
+                                </Text>
+                            </Box>
                             {isSelected && (
-                                <>
-                                    <Text> </Text>
+                                <Box flexDirection="row" marginLeft={1}>
                                     <Text
                                         inverse={pickAction === 'listen'}
                                         bold={pickAction === 'listen'}
                                     >
-                                        Listen
+                                        {' '}
+                                        Listen{' '}
                                     </Text>
                                     <Text> </Text>
                                     <Text
                                         inverse={pickAction === 'select'}
                                         bold={pickAction === 'select'}
                                     >
-                                        Select
+                                        {' '}
+                                        Select{' '}
                                     </Text>
-                                </>
+                                </Box>
                             )}
-                        </>
+                        </Box>
                     );
                 }
 
@@ -767,8 +778,8 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
                     title={title}
                     instructionsOverride={
                         viewMode === 'main'
-                            ? '↑↓ navigate, Enter toggle/select, Esc close'
-                            : '↑↓ navigate, ←→ Listen/Select, Enter run, Esc back'
+                            ? '↑↓ navigate • Enter toggle/select • Esc close'
+                            : `↑↓ navigate • ←/→ Listen/Select • Enter ${pickAction === 'listen' ? 'preview' : 'select'} • Esc back`
                     }
                     borderColor="magenta"
                     emptyMessage="No options available"
@@ -776,7 +787,9 @@ const SoundsSelector = forwardRef<SoundsSelectorHandle, SoundsSelectorProps>(
 
                 {error && (
                     <Box marginTop={1}>
-                        <Text color="red">{error}</Text>
+                        <Text color="red" wrap="wrap">
+                            {error}
+                        </Text>
                     </Box>
                 )}
             </Box>

@@ -6,9 +6,10 @@ import { truncateToolResult } from './tool-output-truncator.js';
 import { StreamProcessorResult } from './types.js';
 import { sanitizeToolResult } from '../../context/utils.js';
 import type { SanitizedToolResult } from '../../context/types.js';
-import { Logger } from '../../logger/v2/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
-import { LLMProvider, ReasoningPreset, TokenUsage } from '../types.js';
+import type { ToolPresentationSnapshotV1 } from '../../tools/types.js';
+import type { LLMProvider, ReasoningPreset, TokenUsage } from '../types.js';
 
 type UsageLike = {
     inputTokens?: number | undefined;
@@ -87,7 +88,7 @@ export class StreamProcessor {
      * @param config Provider/model configuration
      * @param logger Logger instance
      * @param streaming If true, emits llm:chunk events. Default true.
-     * @param toolCallMetadata Map of tool call IDs to tool-call metadata (approval + display name)
+     * @param toolCallMetadata Map of tool call IDs to tool-call metadata (approval + presentation)
      */
     constructor(
         private contextManager: ContextManager,
@@ -100,7 +101,7 @@ export class StreamProcessor {
         private toolCallMetadata?: Map<
             string,
             {
-                toolDisplayName?: string;
+                presentationSnapshot?: ToolPresentationSnapshotV1;
                 requireApproval?: boolean;
                 approvalStatus?: 'approved' | 'rejected';
             }
@@ -308,8 +309,8 @@ export class StreamProcessor {
 
                         this.eventBus.emit('llm:tool-result', {
                             toolName: event.toolName,
-                            ...(metadata?.toolDisplayName !== undefined && {
-                                toolDisplayName: metadata.toolDisplayName,
+                            ...(metadata?.presentationSnapshot !== undefined && {
+                                presentationSnapshot: metadata.presentationSnapshot,
                             }),
                             callId: event.toolCallId,
                             success: true,

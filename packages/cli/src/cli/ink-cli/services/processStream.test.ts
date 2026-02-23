@@ -56,6 +56,7 @@ function createSetters() {
         backgroundTasks: [],
         planModeActive: false,
         planModeInitialized: false,
+        commandOutput: null,
     });
     const session = createState<SessionState>({
         id: 'test-session',

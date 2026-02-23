@@ -13,6 +13,7 @@ function createMockLogger(): Logger {
         error: vi.fn(),
         trackException: vi.fn(),
         createChild: vi.fn(() => logger),
+        createFileOnlyChild: vi.fn(() => logger),
         setLevel: vi.fn(),
         getLevel: vi.fn(() => 'debug' as const),
         getLogFilePath: vi.fn(() => null),
