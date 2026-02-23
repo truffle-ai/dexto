@@ -1,5 +1,19 @@
 # @dexto/webui
 
+## 1.6.1
+
+### Patch Changes
+
+- 03d4564: consolidates scheduler runtime changes and workspace context propagation, and ensures sub‑agents inherit the parent workspace.
+- Updated dependencies [03d4564]
+- Updated dependencies [112dadf]
+    - @dexto/core@1.6.1
+    - @dexto/agent-config@1.6.1
+    - @dexto/client-sdk@1.6.1
+    - @dexto/analytics@1.6.1
+    - @dexto/registry@1.6.1
+    - @dexto/storage@1.6.1
+
 ## 1.6.0
 
 ### Minor Changes

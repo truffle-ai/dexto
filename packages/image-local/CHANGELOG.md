@@ -1,5 +1,29 @@
 # @dexto/image-local
 
+## 1.6.1
+
+### Patch Changes
+
+- 112dadf: - CLI/TUI: cleaner overlays (selectors, approvals, elicitation) with consistent sizing to reduce flicker on small terminals.
+    - Tools: richer pre-approval previews (files/diffs, bash commands, plans) and clearer tool output formatting in message history.
+    - Filesystem approvals: directory access checks now handle symlinks/realpaths consistently so approved directories actually work (e.g. `/tmp` on macOS).
+    - ask_user: wizard-style elicitation flow with a deterministic schema contract (field `title`/`description` + `x-dexto.stepLabel`).
+    - Reliability & build: deterministic `http_request` tests (no network) and faster builds by separating JS bundling from DTS generation.
+- Updated dependencies [03d4564]
+- Updated dependencies [526d906]
+- Updated dependencies [112dadf]
+    - @dexto/agent-management@1.6.1
+    - @dexto/tools-filesystem@1.6.1
+    - @dexto/tools-scheduler@1.6.1
+    - @dexto/tools-process@1.6.1
+    - @dexto/core@1.6.1
+    - @dexto/tools-lifecycle@1.6.1
+    - @dexto/tools-builtins@1.6.1
+    - @dexto/agent-config@1.6.1
+    - @dexto/tools-plan@1.6.1
+    - @dexto/tools-todo@1.6.1
+    - @dexto/storage@1.6.1
+
 ## 1.6.0
 
 ### Minor Changes
