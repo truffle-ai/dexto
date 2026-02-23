@@ -249,7 +249,7 @@ export function formatToolHeader(options: {
 
     const snapshotHeader = presentationSnapshot?.header;
     const displayName = snapshotHeader?.title ?? getToolDisplayName(toolName);
-    const argsFormatted = snapshotHeader?.primaryText ?? formatToolArgsForDisplay(toolName, args);
+    const argsFormatted = snapshotHeader?.primaryText ?? formatArgsFallback(args);
     const badge = getToolTypeBadge(toolName);
 
     // Only show badge for MCP tools (external tools worth distinguishing)
@@ -270,130 +270,22 @@ export function formatToolHeader(options: {
 }
 
 /**
- * Fallback primary argument names for unknown tools.
- * Used when we don't have a specific config for a tool.
+ * Simple fallback for formatting tool args when no snapshot is provided.
+ * Used for MCP tools that don't implement describeCall().
  */
-const FALLBACK_PRIMARY_ARGS = new Set([
-    'file_path',
-    'path',
-    'pattern',
-    'command',
-    'query',
-    'question',
-    'url',
-]);
+function formatArgsFallback(args: Record<string, unknown>): string {
+    const entries = Object.entries(args)
+        .filter(([k]) => !['__meta', 'description'].includes(k))
+        .slice(0, 4);
 
-/**
- * Arguments that are file paths and should use relative path formatting.
- * These get converted to relative paths and center-truncated if needed.
- */
-const PATH_ARGS = new Set(['file_path', 'path']);
-
-/**
- * Arguments that should never be truncated (urls, task descriptions, etc.)
- * These provide important context that users need to see in full.
- * Note: 'command' is handled specially - single-line commands are not truncated,
- * but multi-line commands (heredocs) are truncated to first line only.
- */
-const NEVER_TRUNCATE_ARGS = new Set(['url', 'task', 'pattern', 'question']);
-
-/**
- * Arguments that should be omitted from tool headers.
- * These are either large blobs (e.g., content/schema) or internal metadata.
- */
-const OMITTED_ARGS = new Set([
-    '__meta',
-    'content',
-    'schema',
-    // edit_file args are redundant with the diff preview
-    'old_string',
-    'new_string',
-    'replace_all',
-]);
-
-/**
- * Formats tool arguments for display.
- * Format: ToolName(primary_arg) or ToolName(primary_arg, key: value)
- *
- * Uses tool-specific config to determine which args to show.
- * - File paths: converted to relative paths, center-truncated if needed
- * - Commands/URLs: shown in full (never truncated)
- * - Other args: truncated at 40 chars
- */
-export function formatToolArgsForDisplay(toolName: string, args: Record<string, unknown>): string {
-    const entries = Object.entries(args);
-    if (entries.length === 0) return '';
-
-    const parts: string[] = [];
-
-    /**
-     * Format a single argument value for display
-     */
-    const formatArgValue = (argName: string, value: unknown): string => {
-        const strValue = typeof value === 'string' ? value : JSON.stringify(value);
-
-        // File paths: use relative path (no truncation)
-        if (PATH_ARGS.has(argName)) {
-            return makeRelativePath(strValue);
-        }
-
-        // Commands: show in full (never truncate). Replace newlines for consistent single-line headers.
-        if (argName === 'command') {
-            return strValue.replace(/\r?\n/g, ' ⏎ ');
-        }
-
-        // URLs: never truncate
-        if (NEVER_TRUNCATE_ARGS.has(argName)) {
-            return strValue;
-        }
-
-        // Other args: simple truncation
-        return strValue.length > 40 ? strValue.slice(0, 37) + '...' : strValue;
-    };
-
-    // Generic formatting for all tools:
-    // - Prefer common "primary" args (path/command/pattern/question/etc.)
-    // - Show up to 3 args total
-    // - Skip description (it's shown separately in the UI when present)
-    for (const [key, value] of entries) {
-        if (key === 'description') continue;
-        if (OMITTED_ARGS.has(key)) continue;
-        if (parts.length >= 3) break;
-
-        const formattedValue = formatArgValue(key, value);
-
-        if (FALLBACK_PRIMARY_ARGS.has(key) || PATH_ARGS.has(key)) {
-            parts.unshift(formattedValue);
-        } else {
-            parts.push(`${key}: ${formattedValue}`);
-        }
-    }
-
-    return parts.join(', ');
-}
-
-/**
- * Formats tool arguments for display (compact preview).
- * @deprecated Use formatToolArgsForDisplay instead
- */
-export function formatToolArgsPreview(
-    args: Record<string, unknown>,
-    maxLength: number = 60
-): string {
-    const entries = Object.entries(args);
-    if (entries.length === 0) return '';
-
-    // Show key parameters in a compact format
-    const preview = entries
-        .slice(0, 3) // Max 3 params
-        .map(([key, value]) => {
-            const strValue = typeof value === 'string' ? value : JSON.stringify(value);
-            const truncated = strValue.length > 30 ? strValue.slice(0, 27) + '...' : strValue;
-            return `${key}: "${truncated}"`;
+    const str = entries
+        .map(([k, v]) => {
+            const val = typeof v === 'string' ? v : JSON.stringify(v);
+            return val.length > 50 ? `${k}=${val.slice(0, 47)}...` : `${k}=${val}`;
         })
         .join(', ');
 
-    return preview.length > maxLength ? preview.slice(0, maxLength - 3) + '...' : preview;
+    return str.length > 150 ? str.slice(0, 147) + '...' : str;
 }
 
 /**
@@ -614,7 +506,7 @@ export function convertHistoryToUIMessages(
             if (!snapshotPrimaryText && toolCall) {
                 try {
                     const args = JSON.parse(toolCall.function.arguments || '{}');
-                    const argsFormatted = formatToolArgsForDisplay(msg.name, args);
+                    const argsFormatted = formatArgsFallback(args);
                     if (argsFormatted) {
                         toolContent = `${displayName}(${argsFormatted})`;
                     }
