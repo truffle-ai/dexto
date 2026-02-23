@@ -507,11 +507,6 @@ export class ToolManager {
 
     // ==================== Pattern Approval Helpers ====================
 
-    private getToolDisplayNameForUi(toolName: string): string | undefined {
-        const tool = this.agentTools.get(toolName);
-        return tool?.presentation?.displayName;
-    }
-
     private getToolApprovalPatternKeyFn(
         toolName: string
     ): ((args: Record<string, unknown>) => string | null) | undefined {
@@ -563,16 +558,34 @@ export class ToolManager {
         return tool?.presentation?.preview;
     }
 
-    private getToolDescribeCallFn(
+    private getToolDescribeHeaderFn(
         toolName: string
     ):
         | ((
               args: Record<string, unknown>,
               context: ToolExecutionContext
-          ) => Promise<ToolPresentationSnapshotV1 | null> | ToolPresentationSnapshotV1 | null)
+          ) =>
+              | Promise<ToolPresentationSnapshotV1['header'] | null>
+              | ToolPresentationSnapshotV1['header']
+              | null)
         | undefined {
         const tool = this.agentTools.get(toolName);
-        return tool?.presentation?.describeCall;
+        return tool?.presentation?.describeHeader;
+    }
+
+    private getToolDescribeArgsFn(
+        toolName: string
+    ):
+        | ((
+              args: Record<string, unknown>,
+              context: ToolExecutionContext
+          ) =>
+              | Promise<ToolPresentationSnapshotV1['args'] | null>
+              | ToolPresentationSnapshotV1['args']
+              | null)
+        | undefined {
+        const tool = this.agentTools.get(toolName);
+        return tool?.presentation?.describeArgs;
     }
 
     private getToolDescribeResultFn(
@@ -591,10 +604,7 @@ export class ToolManager {
         return tool?.presentation?.describeResult;
     }
 
-    private buildGenericToolPresentationSnapshot(
-        toolName: string,
-        toolDisplayName?: string
-    ): ToolPresentationSnapshotV1 {
+    private buildGenericToolPresentationSnapshot(toolName: string): ToolPresentationSnapshotV1 {
         const toTitleCase = (name: string): string =>
             name
                 .replace(/[_-]+/g, ' ')
@@ -621,7 +631,7 @@ export class ToolManager {
                 type: toolName.startsWith(ToolManager.MCP_TOOL_PREFIX) ? 'mcp' : 'local',
             },
             header: {
-                title: toolDisplayName ?? fallbackTitle,
+                title: fallbackTitle,
             },
         };
 
@@ -642,23 +652,21 @@ export class ToolManager {
         toolCallId: string,
         sessionId?: string
     ): ToolPresentationSnapshotV1 {
-        const toolDisplayName = this.getToolDisplayNameForUi(toolName);
-        const fallback = this.buildGenericToolPresentationSnapshot(toolName, toolDisplayName);
+        const fallback = this.buildGenericToolPresentationSnapshot(toolName);
 
         if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
             return fallback;
         }
 
-        const describeCall = this.getToolDescribeCallFn(toolName);
-        if (!describeCall) {
+        const describeHeader = this.getToolDescribeHeaderFn(toolName);
+        const describeArgs = this.getToolDescribeArgsFn(toolName);
+        if (!describeHeader && !describeArgs) {
             return fallback;
         }
 
         try {
             const validatedArgs = this.validateLocalToolArgs(toolName, args);
             const context = this.buildToolExecutionContext({ sessionId, toolCallId });
-
-            const described = describeCall(validatedArgs, context);
 
             const isPromiseLike = (value: unknown): value is PromiseLike<unknown> => {
                 if (typeof value !== 'object' || value === null) {
@@ -667,14 +675,29 @@ export class ToolManager {
                 return typeof (value as { then?: unknown }).then === 'function';
             };
 
-            if (isPromiseLike(described)) {
-                return fallback;
+            let nextSnapshot: ToolPresentationSnapshotV1 = fallback;
+
+            if (describeHeader) {
+                const header = describeHeader(validatedArgs, context);
+                if (!isPromiseLike(header) && header) {
+                    nextSnapshot = {
+                        ...nextSnapshot,
+                        header: { ...nextSnapshot.header, ...header },
+                    };
+                }
             }
 
-            if (described && described.version === 1) {
-                return described;
+            if (describeArgs) {
+                const argsPresentation = describeArgs(validatedArgs, context);
+                if (!isPromiseLike(argsPresentation) && argsPresentation) {
+                    nextSnapshot = {
+                        ...nextSnapshot,
+                        args: argsPresentation,
+                    };
+                }
             }
-            return fallback;
+
+            return nextSnapshot;
         } catch (error) {
             this.logger.debug(
                 `Tool presentation snapshot generation failed for '${toolName}': ${
@@ -691,25 +714,32 @@ export class ToolManager {
         toolCallId: string,
         sessionId?: string
     ): Promise<ToolPresentationSnapshotV1> {
-        const toolDisplayName = this.getToolDisplayNameForUi(toolName);
-        const fallback = this.buildGenericToolPresentationSnapshot(toolName, toolDisplayName);
+        const fallback = this.buildGenericToolPresentationSnapshot(toolName);
 
         if (toolName.startsWith(ToolManager.MCP_TOOL_PREFIX)) {
             return fallback;
         }
 
-        const describeCall = this.getToolDescribeCallFn(toolName);
-        if (!describeCall) {
+        const describeHeader = this.getToolDescribeHeaderFn(toolName);
+        const describeArgs = this.getToolDescribeArgsFn(toolName);
+        if (!describeHeader && !describeArgs) {
             return fallback;
         }
 
         try {
             const context = this.buildToolExecutionContext({ sessionId, toolCallId });
-            const described = await Promise.resolve(describeCall(args, context));
-            if (described && described.version === 1) {
-                return described;
-            }
-            return fallback;
+            const describedHeader = describeHeader
+                ? await Promise.resolve(describeHeader(args, context))
+                : null;
+            const describedArgs = describeArgs
+                ? await Promise.resolve(describeArgs(args, context))
+                : null;
+
+            return {
+                ...fallback,
+                ...(describedHeader ? { header: { ...fallback.header, ...describedHeader } } : {}),
+                ...(describedArgs ? { args: describedArgs } : {}),
+            };
         } catch (error) {
             this.logger.debug(
                 `Tool presentation snapshot generation failed for '${toolName}': ${

@@ -7,7 +7,7 @@
 
 import * as path from 'node:path';
 import { z } from 'zod';
-import { defineTool } from '@dexto/core';
+import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 import { ProcessService } from './process-service.js';
 import { ProcessError } from './errors.js';
@@ -107,7 +107,11 @@ Security: Dangerous commands are blocked. Injection attempts are detected. Requi
         },
 
         presentation: {
-            displayName: 'Bash',
+            describeHeader: (input) =>
+                createLocalToolCallHeader({
+                    title: 'Bash',
+                    argsText: truncateForHeader(input.command, 140),
+                }),
             /**
              * Generate preview for approval UI - shows the command to be executed
              */

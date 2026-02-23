@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { defineTool } from '@dexto/core';
+import { createLocalToolCallHeader, defineTool } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 
 const SleepInputSchema = z
@@ -21,7 +21,13 @@ export function createSleepTool(): Tool<typeof SleepInputSchema> {
         id: 'sleep',
         description: 'Pause execution for a specified number of milliseconds.',
         inputSchema: SleepInputSchema,
-        presentation: { displayName: 'Sleep' },
+        presentation: {
+            describeHeader: (input) =>
+                createLocalToolCallHeader({
+                    title: 'Sleep',
+                    argsText: `${input.ms}ms`,
+                }),
+        },
         async execute(input, _context: ToolExecutionContext) {
             const { ms } = input;
             await new Promise((resolve) => setTimeout(resolve, ms));

@@ -6,7 +6,7 @@
 
 import * as path from 'node:path';
 import { z } from 'zod';
-import { defineTool } from '@dexto/core';
+import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core';
 import type { SearchDisplayData } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
@@ -45,7 +45,16 @@ export function createGlobFilesTool(
         inputSchema: GlobFilesInputSchema,
 
         presentation: {
-            displayName: 'Find Files',
+            describeHeader: (input) => {
+                const bits = [`pattern=${input.pattern}`];
+                if (input.path) bits.push(`path=${input.path}`);
+                if (typeof input.max_results === 'number') bits.push(`max=${input.max_results}`);
+
+                return createLocalToolCallHeader({
+                    title: 'Find Files',
+                    argsText: truncateForHeader(bits.join(', '), 140),
+                });
+            },
         },
 
         ...createDirectoryAccessApprovalHandlers({

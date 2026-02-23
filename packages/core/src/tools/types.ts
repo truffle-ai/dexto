@@ -142,8 +142,11 @@ export type ToolPresentationSnapshotV1 = {
     /** Optional one-line identity of the call (used for headers/timelines). */
     header?: {
         title?: string;
-        primaryText?: string;
-        secondaryText?: string;
+        /**
+         * Pre-formatted one-line call detail shown in parentheses.
+         * Example: `Read(/path/to/file.ts)` where argsText is `/path/to/file.ts`.
+         */
+        argsText?: string;
     };
 
     /** Compact semantic tags. Use sparingly to avoid UI noise. */
@@ -285,18 +288,61 @@ export interface ToolApproval<TSchema extends ZodTypeAny = ZodTypeAny> {
 }
 
 export interface ToolPresentation<TSchema extends ZodTypeAny = ZodTypeAny> {
-    displayName?: string;
-
+    /**
+     * Optional rich preview used in approval prompts.
+     *
+     * CLI example:
+     * - `edit_file` / `write_file`: shows a diff preview
+     * - `bash_exec`: shows a shell command preview
+     * - `plan_review`: shows the plan as a file preview
+     */
     preview?(
         input: z.output<TSchema>,
         context: ToolExecutionContext
     ): Promise<ToolDisplayData | null> | ToolDisplayData | null;
 
-    describeCall?(
+    /**
+     * Describe the one-line tool call header for timelines and approval prompts.
+     *
+     * CLI example:
+     * - Tool message header line: `Read(src/app.ts)`
+     * - Here: header.title = "Read", header.argsText = "src/app.ts"
+     */
+    describeHeader?(
         input: z.output<TSchema>,
         context: ToolExecutionContext
-    ): Promise<ToolPresentationSnapshotV1 | null> | ToolPresentationSnapshotV1 | null;
+    ):
+        | Promise<ToolPresentationSnapshotV1['header'] | null>
+        | ToolPresentationSnapshotV1['header']
+        | null;
 
+    /**
+     * Describe structured argument presentation for this tool call.
+     *
+     * Not currently rendered by the Ink CLI, but intended for future "expanded transcript"
+     * views (e.g. Ctrl+O to inspect call details) and WebUI.
+     *
+     * Example (expanded details):
+     * - label: "method", display: "POST"
+     * - label: "timeout", display: "30s"
+     */
+    describeArgs?(
+        input: z.output<TSchema>,
+        context: ToolExecutionContext
+    ):
+        | Promise<ToolPresentationSnapshotV1['args'] | null>
+        | ToolPresentationSnapshotV1['args']
+        | null;
+
+    /**
+     * Describe a short post-execution summary.
+     *
+     * CLI example:
+     * - Tool result preview line (when supported): "Wrote 3 files" or "Request failed: 401"
+     *
+     * Note: This does not change the tool's actual returned data; it only affects optional
+     * presentation metadata.
+     */
     describeResult?(
         result: unknown,
         input: z.output<TSchema>,

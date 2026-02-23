@@ -1,4 +1,6 @@
 import type { ToolFactory } from '@dexto/agent-config';
+import { z } from 'zod';
+import { createLocalToolCallHeader, truncateForHeader } from '@dexto/core';
 import type { ToolExecutionContext } from '@dexto/core';
 import type { ToolBackgroundEvent } from '@dexto/core';
 import { ToolError } from '@dexto/core';
@@ -20,6 +22,9 @@ import {
 } from './schemas.js';
 import { AgentSpawnerRuntime } from './runtime.js';
 import { createSpawnAgentTool } from './spawn-agent-tool.js';
+
+type WaitForInput = z.output<typeof WaitForInputSchema>;
+type CheckTaskInput = z.output<typeof CheckTaskInputSchema>;
 
 function requireAgentContext(context: ToolExecutionContext): {
     agent: NonNullable<ToolExecutionContext['agent']>;
@@ -298,8 +303,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                 execute: (input, context) =>
                     ensureToolsInitialized(context).spawnAgent.execute(input, context),
                 presentation: {
-                    displayName: 'Agent',
-                    describeCall: (input) => {
+                    describeHeader: (input) => {
                         const agentId =
                             typeof input.agentId === 'string' ? input.agentId : undefined;
                         const agentLabel = agentId ? agentId.replace(/-agent$/, '') : undefined;
@@ -308,16 +312,12 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                             : 'Agent';
 
                         const task = typeof input.task === 'string' ? input.task : '';
-                        const primaryText = task.length > 120 ? task.slice(0, 117) + '...' : task;
+                        const argsText = task ? truncateForHeader(task, 120) : undefined;
 
-                        return {
-                            version: 1,
-                            source: { type: 'local' },
-                            header: {
-                                title,
-                                ...(primaryText ? { primaryText } : {}),
-                            },
-                        };
+                        return createLocalToolCallHeader({
+                            title,
+                            ...(argsText ? { argsText } : {}),
+                        });
                     },
                     preview: async (input, context) => {
                         const tool = ensureToolsInitialized(context).spawnAgent;
@@ -336,7 +336,18 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                 execute: (input, context) =>
                     ensureToolsInitialized(context).waitFor.execute(input, context),
                 presentation: {
-                    displayName: 'Wait',
+                    describeHeader: (input: WaitForInput) => {
+                        const argsText = input.taskId
+                            ? truncateForHeader(input.taskId, 80)
+                            : input.taskIds && input.taskIds.length > 0
+                              ? truncateForHeader(`${input.taskIds.length} tasks`, 80)
+                              : undefined;
+
+                        return createLocalToolCallHeader({
+                            title: 'Wait',
+                            ...(argsText ? { argsText } : {}),
+                        });
+                    },
                     preview: async (input, context) => {
                         const tool = ensureToolsInitialized(context).waitFor;
                         const previewFn = tool.presentation?.preview;
@@ -354,7 +365,14 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                 execute: (input, context) =>
                     ensureToolsInitialized(context).checkTask.execute(input, context),
                 presentation: {
-                    displayName: 'Check Task',
+                    describeHeader: (input: CheckTaskInput) => {
+                        const argsText = truncateForHeader(input.taskId, 80);
+
+                        return createLocalToolCallHeader({
+                            title: 'Check Task',
+                            ...(argsText ? { argsText } : {}),
+                        });
+                    },
                     preview: async (input, context) => {
                         const tool = ensureToolsInitialized(context).checkTask;
                         const previewFn = tool.presentation?.preview;
@@ -372,7 +390,10 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
                 execute: (input, context) =>
                     ensureToolsInitialized(context).listTasks.execute(input, context),
                 presentation: {
-                    displayName: 'List Tasks',
+                    describeHeader: () =>
+                        createLocalToolCallHeader({
+                            title: 'List Tasks',
+                        }),
                     preview: async (input, context) => {
                         const tool = ensureToolsInitialized(context).listTasks;
                         const previewFn = tool.presentation?.preview;

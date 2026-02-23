@@ -1,6 +1,13 @@
 import { z } from 'zod';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
-import { DextoRuntimeError, ErrorScope, ErrorType, defineTool } from '@dexto/core';
+import {
+    DextoRuntimeError,
+    ErrorScope,
+    ErrorType,
+    createLocalToolCallHeader,
+    defineTool,
+    truncateForHeader,
+} from '@dexto/core';
 import { promises as dns, type LookupAddress, type LookupOptions } from 'node:dns';
 import { isIP } from 'node:net';
 import { TextDecoder } from 'node:util';
@@ -357,7 +364,11 @@ export function createHttpRequestTool(): Tool<typeof HttpRequestInputSchema> {
             'Make a direct HTTP request using fetch. Supports method, headers, query params, JSON bodies, and timeouts. Returns status, headers, raw body text, and parsed JSON when available.',
         inputSchema: HttpRequestInputSchema,
         presentation: {
-            displayName: 'Fetch',
+            describeHeader: (input) =>
+                createLocalToolCallHeader({
+                    title: 'Fetch',
+                    argsText: truncateForHeader(input.url, 140),
+                }),
         },
         async execute(input, _context: ToolExecutionContext) {
             const { url, method, headers, query, body, timeoutMs } = input;

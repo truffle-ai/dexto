@@ -7,7 +7,7 @@
 
 import { z } from 'zod';
 import { createPatch } from 'diff';
-import { defineTool } from '@dexto/core';
+import { createLocalToolCallHeader, defineTool } from '@dexto/core';
 import type { Tool, ToolExecutionContext, DiffDisplayData } from '@dexto/core';
 import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
@@ -55,7 +55,10 @@ export function createPlanUpdateTool(
         inputSchema: PlanUpdateInputSchema,
 
         presentation: {
-            displayName: 'Update Plan',
+            describeHeader: () =>
+                createLocalToolCallHeader({
+                    title: 'Update Plan',
+                }),
             /**
              * Generate diff preview for approval UI
              */

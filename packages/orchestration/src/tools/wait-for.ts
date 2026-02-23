@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import { ConditionEngine } from '../condition-engine.js';
 import type { WaitCondition, Signal } from '../types.js';
+import { createLocalToolCallHeader, truncateForHeader } from '@dexto/core';
 import type { Tool } from '@dexto/core';
 
 /**
@@ -157,7 +158,20 @@ export function createWaitForTool(
             'Blocks execution until the condition is met. ' +
             'Use taskId for a single task, or taskIds with mode for multiple tasks.',
         inputSchema: WaitForInputSchema,
-        presentation: { displayName: 'Wait' },
+        presentation: {
+            describeHeader: (input) => {
+                const argsText = input.taskId
+                    ? truncateForHeader(input.taskId, 80)
+                    : input.taskIds && input.taskIds.length > 0
+                      ? truncateForHeader(`${input.taskIds.length} tasks`, 80)
+                      : undefined;
+
+                return createLocalToolCallHeader({
+                    title: 'Wait',
+                    ...(argsText ? { argsText } : {}),
+                });
+            },
+        },
         execute: async (input, _context): Promise<WaitForOutput> => {
             const condition = buildCondition(input);
 

@@ -5,6 +5,7 @@
  */
 
 import { z } from 'zod';
+import { createLocalToolCallHeader, truncateForHeader } from '@dexto/core';
 import type { Tool } from '@dexto/core';
 import type { TaskRegistry } from '../task-registry.js';
 
@@ -57,7 +58,13 @@ export function createCheckTaskTool(taskRegistry: TaskRegistry): Tool<typeof Che
             'Returns immediately without waiting. ' +
             'Use this to poll task status or check if a task is done.',
         inputSchema: CheckTaskInputSchema,
-        presentation: { displayName: 'Check Task' },
+        presentation: {
+            describeHeader: (input) =>
+                createLocalToolCallHeader({
+                    title: 'Check Task',
+                    argsText: truncateForHeader(input.taskId, 80),
+                }),
+        },
         execute: async (input, _context): Promise<CheckTaskOutput> => {
             const info = taskRegistry.getInfo(input.taskId);
 

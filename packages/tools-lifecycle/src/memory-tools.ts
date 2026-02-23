@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ToolError, defineTool } from '@dexto/core';
+import { ToolError, createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core';
 import type { ListMemoriesOptions, MemorySource, Tool, ToolExecutionContext } from '@dexto/core';
 
 const MemorySourceSchema = z.enum(['user', 'system']);
@@ -31,7 +31,27 @@ export function createMemoryListTool(): Tool<typeof MemoryListInputSchema> {
         id: 'memory_list',
         description: 'List stored memories for this agent, with optional filtering.',
         inputSchema: MemoryListInputSchema,
-        presentation: { displayName: 'List Memories' },
+        presentation: {
+            describeHeader: (input) => {
+                const filterParts: string[] = [];
+                if (input.tags && input.tags.length > 0) {
+                    filterParts.push(`tags=${input.tags.join(',')}`);
+                }
+                if (input.source) {
+                    filterParts.push(`source=${input.source}`);
+                }
+                if (input.pinned !== undefined) {
+                    filterParts.push(`pinned=${String(input.pinned)}`);
+                }
+                filterParts.push(`limit=${input.limit}`);
+                filterParts.push(`offset=${input.offset}`);
+
+                return createLocalToolCallHeader({
+                    title: 'List Memories',
+                    argsText: truncateForHeader(filterParts.join(' '), 140),
+                });
+            },
+        },
         async execute(input, context: ToolExecutionContext) {
             const agent = context.agent;
             if (!agent) {
@@ -60,7 +80,13 @@ export function createMemoryGetTool(): Tool<typeof MemoryGetInputSchema> {
         id: 'memory_get',
         description: 'Get a memory by ID.',
         inputSchema: MemoryGetInputSchema,
-        presentation: { displayName: 'Get Memory' },
+        presentation: {
+            describeHeader: (input) =>
+                createLocalToolCallHeader({
+                    title: 'Get Memory',
+                    argsText: truncateForHeader(input.id, 140),
+                }),
+        },
         async execute(input, context: ToolExecutionContext) {
             const agent = context.agent;
             if (!agent) {
@@ -89,7 +115,13 @@ export function createMemoryCreateTool(): Tool<typeof MemoryCreateInputSchema> {
         id: 'memory_create',
         description: 'Create a new memory.',
         inputSchema: MemoryCreateInputSchema,
-        presentation: { displayName: 'Create Memory' },
+        presentation: {
+            describeHeader: (input) =>
+                createLocalToolCallHeader({
+                    title: 'Create Memory',
+                    argsText: truncateForHeader(input.content, 140),
+                }),
+        },
         async execute(input, context: ToolExecutionContext) {
             const agent = context.agent;
             if (!agent) {
@@ -123,7 +155,25 @@ export function createMemoryUpdateTool(): Tool<typeof MemoryUpdateInputSchema> {
         id: 'memory_update',
         description: 'Update an existing memory.',
         inputSchema: MemoryUpdateInputSchema,
-        presentation: { displayName: 'Update Memory' },
+        presentation: {
+            describeHeader: (input) => {
+                const updateParts: string[] = [];
+                if (input.content !== undefined) updateParts.push('content');
+                if (input.tags !== undefined) updateParts.push('tags');
+                if (input.source !== undefined) updateParts.push('source');
+                if (input.pinned !== undefined) updateParts.push('pinned');
+
+                const argsText =
+                    updateParts.length > 0
+                        ? truncateForHeader(`${input.id} ${updateParts.join(',')}`, 140)
+                        : truncateForHeader(input.id, 140);
+
+                return createLocalToolCallHeader({
+                    title: 'Update Memory',
+                    argsText,
+                });
+            },
+        },
         async execute(input, context: ToolExecutionContext) {
             const agent = context.agent;
             if (!agent) {
@@ -151,7 +201,13 @@ export function createMemoryDeleteTool(): Tool<typeof MemoryDeleteInputSchema> {
         id: 'memory_delete',
         description: 'Delete a memory by ID.',
         inputSchema: MemoryDeleteInputSchema,
-        presentation: { displayName: 'Delete Memory' },
+        presentation: {
+            describeHeader: (input) =>
+                createLocalToolCallHeader({
+                    title: 'Delete Memory',
+                    argsText: truncateForHeader(input.id, 140),
+                }),
+        },
         async execute(input, context: ToolExecutionContext) {
             const agent = context.agent;
             if (!agent) {

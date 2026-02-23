@@ -249,7 +249,7 @@ export function formatToolHeader(options: {
 
     const snapshotHeader = presentationSnapshot?.header;
     const displayName = snapshotHeader?.title ?? getToolDisplayName(toolName);
-    const argsFormatted = snapshotHeader?.primaryText ?? formatArgsFallback(args);
+    const argsFormatted = snapshotHeader?.argsText ?? formatArgsFallback(args);
     const badge = getToolTypeBadge(toolName);
 
     // Only show badge for MCP tools (external tools worth distinguishing)
@@ -271,7 +271,7 @@ export function formatToolHeader(options: {
 
 /**
  * Simple fallback for formatting tool args when no snapshot is provided.
- * Used for MCP tools that don't implement describeCall().
+ * Used for MCP tools that don't implement tool header snapshots.
  */
 function formatArgsFallback(args: Record<string, unknown>): string {
     const entries = Object.entries(args)
@@ -499,11 +499,11 @@ export function convertHistoryToUIMessages(
 
             // Format args if we have them
             let toolContent = displayName;
-            const snapshotPrimaryText = msg.presentationSnapshot?.header?.primaryText;
-            if (typeof snapshotPrimaryText === 'string' && snapshotPrimaryText.length > 0) {
-                toolContent = `${displayName}(${snapshotPrimaryText})`;
+            const snapshotArgsText = msg.presentationSnapshot?.header?.argsText;
+            if (typeof snapshotArgsText === 'string' && snapshotArgsText.length > 0) {
+                toolContent = `${displayName}(${snapshotArgsText})`;
             }
-            if (!snapshotPrimaryText && toolCall) {
+            if (!snapshotArgsText && toolCall) {
                 try {
                     const args = JSON.parse(toolCall.function.arguments || '{}');
                     const argsFormatted = formatArgsFallback(args);

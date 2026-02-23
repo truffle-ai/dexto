@@ -161,9 +161,9 @@ export function ToolCallTimeline({
         return fallbackSource;
     })();
     const summary = (() => {
-        const primaryText = presentationSnapshot?.header?.primaryText;
-        if (typeof primaryText === 'string' && primaryText.length > 0) {
-            return { name: displayName, detail: primaryText };
+        const argsText = presentationSnapshot?.header?.argsText;
+        if (typeof argsText === 'string' && argsText.length > 0) {
+            return { name: displayName, detail: argsText };
         }
         return getSummary(displayName, toolArgs);
     })();

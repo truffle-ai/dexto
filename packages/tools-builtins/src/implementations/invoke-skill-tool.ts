@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ToolError, defineTool, flattenPromptResult } from '@dexto/core';
+import { ToolError, createLocalToolCallHeader, defineTool, flattenPromptResult } from '@dexto/core';
 import type { TaskForkOptions, Tool, ToolExecutionContext } from '@dexto/core';
 
 const InvokeSkillInputSchema = z
@@ -33,21 +33,16 @@ export function createInvokeSkillTool(): Tool<typeof InvokeSkillInputSchema> {
         description: buildToolDescription(),
         inputSchema: InvokeSkillInputSchema,
         presentation: {
-            displayName: 'Skill',
-            describeCall: (input) => {
+            describeHeader: (input) => {
                 const skillName = input.skill;
                 const colonIndex = skillName.indexOf(':');
                 const displaySkillName =
                     colonIndex >= 0 ? skillName.slice(colonIndex + 1) : skillName;
 
-                return {
-                    version: 1,
-                    source: { type: 'local' },
-                    header: {
-                        title: 'Skill',
-                        primaryText: `/${displaySkillName}`,
-                    },
-                };
+                return createLocalToolCallHeader({
+                    title: 'Skill',
+                    argsText: `/${displaySkillName}`,
+                });
             },
         },
         async execute(input, context: ToolExecutionContext) {

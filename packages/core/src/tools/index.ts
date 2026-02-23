@@ -17,6 +17,9 @@ export * from './display-types.js';
 // Schemas/types
 export * from './schemas.js';
 
+// Presentation helpers
+export * from './presentation.js';
+
 // Tool errors and error codes
 export { ToolError } from './errors.js';
 export { ToolErrorCode } from './error-codes.js';

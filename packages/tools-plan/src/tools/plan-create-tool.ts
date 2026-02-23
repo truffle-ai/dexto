@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import { defineTool } from '@dexto/core';
+import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core';
 import type { Tool, ToolExecutionContext, FileDisplayData } from '@dexto/core';
 import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
@@ -35,7 +35,11 @@ export function createPlanCreateTool(
         inputSchema: PlanCreateInputSchema,
 
         presentation: {
-            displayName: 'Plan',
+            describeHeader: (input) =>
+                createLocalToolCallHeader({
+                    title: 'Create Plan',
+                    argsText: truncateForHeader(input.title, 140),
+                }),
             /**
              * Generate preview for approval UI
              */

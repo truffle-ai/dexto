@@ -7,7 +7,13 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { createPatch } from 'diff';
-import { DextoRuntimeError, ToolError, defineTool } from '@dexto/core';
+import {
+    createLocalToolCallHeader,
+    DextoRuntimeError,
+    ToolError,
+    defineTool,
+    truncateForHeader,
+} from '@dexto/core';
 import type { DiffDisplayData, FileDisplayData } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 import { FileSystemErrorCode } from './error-codes.js';
@@ -99,7 +105,11 @@ export function createWriteFileTool(
         }),
 
         presentation: {
-            displayName: 'Write',
+            describeHeader: (input) =>
+                createLocalToolCallHeader({
+                    title: 'Write',
+                    argsText: truncateForHeader(input.file_path, 140),
+                }),
 
             /**
              * Generate preview for approval UI - shows diff or file creation info

@@ -7,7 +7,14 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { createPatch } from 'diff';
-import { DextoRuntimeError, ToolError, ToolErrorCode, defineTool } from '@dexto/core';
+import {
+    createLocalToolCallHeader,
+    DextoRuntimeError,
+    ToolError,
+    ToolErrorCode,
+    defineTool,
+    truncateForHeader,
+} from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 import type { DiffDisplayData } from '@dexto/core';
 import type { FileSystemServiceGetter } from './file-tool-types.js';
@@ -90,7 +97,11 @@ export function createEditFileTool(
         }),
 
         presentation: {
-            displayName: 'Update',
+            describeHeader: (input) =>
+                createLocalToolCallHeader({
+                    title: 'Update',
+                    argsText: truncateForHeader(input.file_path, 140),
+                }),
 
             /**
              * Generate preview for approval UI - shows diff without modifying file

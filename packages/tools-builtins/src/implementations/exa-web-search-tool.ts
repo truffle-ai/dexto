@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { defineTool } from '@dexto/core';
+import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 import { callExaTool } from './exa-mcp.js';
 
@@ -45,7 +45,13 @@ export function createWebSearchTool(): Tool<typeof WebSearchInputSchema> {
         description:
             'Search the web for current information and return clean, ready-to-use text. Use for news, facts, and up-to-date context.',
         inputSchema: WebSearchInputSchema,
-        presentation: { displayName: 'Web Search' },
+        presentation: {
+            describeHeader: (input) =>
+                createLocalToolCallHeader({
+                    title: 'Web Search',
+                    argsText: truncateForHeader(input.query, 140),
+                }),
+        },
         async execute(input, context: ToolExecutionContext) {
             const { query, numResults, livecrawl, type, contextMaxCharacters } = input;
 

@@ -1,6 +1,13 @@
 import { z } from 'zod';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
-import { DextoRuntimeError, ErrorScope, ErrorType, defineTool } from '@dexto/core';
+import {
+    DextoRuntimeError,
+    ErrorScope,
+    ErrorType,
+    createLocalToolCallHeader,
+    defineTool,
+    truncateForHeader,
+} from '@dexto/core';
 
 const DelegateToUrlInputSchema = z
     .object({
@@ -189,7 +196,13 @@ export function createDelegateToUrlTool(): Tool<typeof DelegateToUrlInputSchema>
         description:
             'Delegate a task to another A2A-compliant agent at a specific URL. Supports STATEFUL multi-turn conversations via sessionId parameter. USAGE: (1) First delegation: provide url + message. Tool returns a response AND a sessionId. (2) Follow-up: use the SAME sessionId to continue the conversation with that agent. The agent remembers previous context. EXAMPLE: First call {url: "http://agent:3001", message: "Analyze data X"} returns {sessionId: "xyz", response: "..."}. Second call {url: "http://agent:3001", message: "What was the top insight?", sessionId: "xyz"}. The agent will remember the first analysis and can answer specifically.',
         inputSchema: DelegateToUrlInputSchema,
-        presentation: { displayName: 'Delegate' },
+        presentation: {
+            describeHeader: (input) =>
+                createLocalToolCallHeader({
+                    title: 'Delegate',
+                    argsText: truncateForHeader(`${input.url} ${input.message}`, 140),
+                }),
+        },
         async execute(input, _context: ToolExecutionContext) {
             const { url, message, sessionId, timeout } = input;
 

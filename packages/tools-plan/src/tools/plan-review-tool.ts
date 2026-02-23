@@ -13,7 +13,7 @@
  */
 
 import { z } from 'zod';
-import { defineTool } from '@dexto/core';
+import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core';
 import type { Tool, ToolExecutionContext, FileDisplayData } from '@dexto/core';
 import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
@@ -42,7 +42,11 @@ export function createPlanReviewTool(
         inputSchema: PlanReviewInputSchema,
 
         presentation: {
-            displayName: 'Review Plan',
+            describeHeader: (input) =>
+                createLocalToolCallHeader({
+                    title: 'Review Plan',
+                    ...(input.summary ? { argsText: truncateForHeader(input.summary, 140) } : {}),
+                }),
             /**
              * Generate preview showing the plan content for review.
              * The ApprovalPrompt component detects plan_review and shows custom options.
