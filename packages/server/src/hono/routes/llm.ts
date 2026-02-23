@@ -354,7 +354,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                                     capable: z
                                         .boolean()
                                         .describe(
-                                            'Whether the registry marks this model as reasoning-capable'
+                                            'Whether Dexto considers this provider/model reasoning-capable (best-effort: registry + known heuristics)'
                                         ),
                                     supportedPresets: z
                                         .array(z.enum(REASONING_PRESETS))

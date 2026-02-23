@@ -100,4 +100,24 @@ describe('resolveAndValidateLLMConfig', () => {
             expect(result.data.reasoning).toEqual({ preset: 'low' });
         }
     });
+
+    it('clears reasoning config when updates.reasoning is null', async () => {
+        const configWithReasoning = LLMConfigSchema.parse({
+            provider: 'openai',
+            model: 'gpt-5',
+            apiKey: TEST_OPENAI_API_KEY,
+            reasoning: { preset: 'high', budgetTokens: 123 },
+        });
+
+        const result = await resolveAndValidateLLMConfig(
+            configWithReasoning,
+            { reasoning: null },
+            mockLogger
+        );
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+            expect(result.data.reasoning).toBeUndefined();
+        }
+    });
 });

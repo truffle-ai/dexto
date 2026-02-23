@@ -530,7 +530,11 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             provider: provider as LLMProvider,
                             model,
                             baseURL,
-                            ...(reasoningPreset ? { reasoning: { preset: reasoningPreset } } : {}),
+                            ...(reasoningPreset === undefined
+                                ? {}
+                                : reasoningPreset === 'auto'
+                                  ? ({ reasoning: null } as const)
+                                  : { reasoning: { preset: reasoningPreset } }),
                         },
                         session.id || undefined
                     );
@@ -620,9 +624,11 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                     const existingReasoning = existing?.llm.reasoning;
                     const nextReasoning =
-                        reasoningPreset !== undefined
-                            ? { ...(existingReasoning ?? {}), preset: reasoningPreset }
-                            : existingReasoning;
+                        reasoningPreset === undefined
+                            ? existingReasoning
+                            : reasoningPreset === 'auto'
+                              ? undefined
+                              : { preset: reasoningPreset };
 
                     type GlobalLLMPreferences = Awaited<
                         ReturnType<typeof loadGlobalPreferences>
@@ -634,6 +640,13 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         ...(baseURL ? { baseURL } : {}),
                         ...(nextReasoning ? { reasoning: nextReasoning } : {}),
                     };
+
+                    const switchReasoningUpdate =
+                        reasoningPreset === undefined
+                            ? {}
+                            : reasoningPreset === 'auto'
+                              ? ({ reasoning: null } as const)
+                              : { reasoning: { preset: reasoningPreset } };
 
                     // Only preserve the API key if the provider hasn't changed
                     // If provider changed, use the new provider's env var
@@ -653,7 +666,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                 provider: provider as LLMProvider,
                                 model,
                                 ...(baseURL ? { baseURL } : {}),
-                                ...(nextReasoning ? { reasoning: nextReasoning } : {}),
+                                ...switchReasoningUpdate,
                             },
                             session.id || undefined
                         );
@@ -822,9 +835,11 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             provider: pending.provider as LLMProvider,
                             model: pending.model,
                             ...(pending.baseURL && { baseURL: pending.baseURL }),
-                            ...(pending.reasoningPreset !== undefined && {
-                                reasoning: { preset: pending.reasoningPreset },
-                            }),
+                            ...(pending.reasoningPreset === undefined
+                                ? {}
+                                : pending.reasoningPreset === 'auto'
+                                  ? ({ reasoning: null } as const)
+                                  : { reasoning: { preset: pending.reasoningPreset } }),
                         },
                         session.id || undefined
                     );
@@ -1321,14 +1336,21 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 const preset = (current.reasoning?.preset ?? 'auto') as ReasoningPreset;
 
                 try {
+                    const reasoningUpdate =
+                        budgetTokens === undefined && preset === 'auto'
+                            ? ({ reasoning: null } as const)
+                            : {
+                                  reasoning: {
+                                      preset,
+                                      ...(typeof budgetTokens === 'number' ? { budgetTokens } : {}),
+                                  },
+                              };
+
                     await agent.switchLLM(
                         {
                             provider: current.provider,
                             model: current.model,
-                            reasoning: {
-                                preset,
-                                ...(typeof budgetTokens === 'number' ? { budgetTokens } : {}),
-                            },
+                            ...reasoningUpdate,
                         },
                         sessionId
                     );

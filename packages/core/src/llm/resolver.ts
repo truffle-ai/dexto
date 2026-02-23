@@ -222,6 +222,21 @@ export async function resolveLLMConfig(
         // 'unknown' after failed refresh = allow (network issue, graceful degradation)
     }
 
+    // Reasoning update semantics:
+    // - No key provided => preserve previous
+    // - `null` => clear reasoning config
+    // - object => replace reasoning config
+    const nextReasoning = (() => {
+        if (!Object.prototype.hasOwnProperty.call(updates, 'reasoning')) {
+            return previous.reasoning;
+        }
+
+        const updateReasoning = updates.reasoning;
+        if (updateReasoning === null) return undefined;
+        if (updateReasoning === undefined) return previous.reasoning;
+        return updateReasoning;
+    })();
+
     return {
         candidate: {
             provider,
@@ -232,7 +247,7 @@ export async function resolveLLMConfig(
             maxInputTokens: updates.maxInputTokens,
             maxOutputTokens: updates.maxOutputTokens ?? previous.maxOutputTokens,
             temperature: updates.temperature ?? previous.temperature,
-            reasoning: updates.reasoning ?? previous.reasoning,
+            reasoning: nextReasoning,
             allowedMediaTypes: updates.allowedMediaTypes ?? previous.allowedMediaTypes,
         },
         warnings,

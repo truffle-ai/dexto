@@ -5862,6 +5862,7 @@
                       },
                       "reasoning": {
                         "type": "object",
+                        "nullable": true,
                         "properties": {
                           "preset": {
                             "type": "string",
@@ -6502,7 +6503,7 @@
                       "properties": {
                         "capable": {
                           "type": "boolean",
-                          "description": "Whether the registry marks this model as reasoning-capable"
+                          "description": "Whether Dexto considers this provider/model reasoning-capable (best-effort: registry + known heuristics)"
                         },
                         "supportedPresets": {
                           "type": "array",

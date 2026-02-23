@@ -290,14 +290,21 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             const budgetTokens = current.reasoning?.budgetTokens;
             void (async () => {
                 try {
+                    const reasoningUpdate =
+                        nextPreset === 'auto' && budgetTokens === undefined
+                            ? ({ reasoning: null } as const)
+                            : {
+                                  reasoning: {
+                                      preset: nextPreset,
+                                      ...(typeof budgetTokens === 'number' ? { budgetTokens } : {}),
+                                  },
+                              };
+
                     await agent.switchLLM(
                         {
                             provider: current.provider,
                             model: current.model,
-                            reasoning: {
-                                preset: nextPreset,
-                                ...(typeof budgetTokens === 'number' ? { budgetTokens } : {}),
-                            },
+                            ...reasoningUpdate,
                         },
                         sessionId
                     );

@@ -465,6 +465,19 @@ describe('LLMConfigSchema', () => {
                 expect(() => LLMUpdatesSchema.parse(updates)).not.toThrow();
             });
 
+            it('should allow clearing reasoning config with null', () => {
+                const updates = { model: 'gpt-5', reasoning: null } as const;
+                expect(() => LLMUpdatesSchema.parse(updates)).not.toThrow();
+            });
+
+            it('should still reject null reasoning in full config schema', () => {
+                const config = {
+                    ...LLMTestHelpers.getValidConfigForProvider('openai'),
+                    reasoning: null,
+                } as const;
+                expect(() => LLMConfigSchema.parse(config)).toThrow();
+            });
+
             it('should reject empty updates object', () => {
                 const updates = {};
                 expect(() => LLMUpdatesSchema.parse(updates)).toThrow();

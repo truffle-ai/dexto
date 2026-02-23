@@ -245,7 +245,12 @@ export type ValidatedLLMConfig = z.output<typeof LLMConfigSchema>;
 
 // TODO: when moving to zod v4 we might be able to set this as strict
 export const LLMUpdatesSchema = z
-    .object({ ...LLMConfigFields })
+    .object({
+        ...LLMConfigFields,
+        // Special-case: allow `null` as an explicit "clear reasoning config" sentinel for switch flows.
+        // Full configs (LLMConfigSchema) still require `reasoning` to be an object when present.
+        reasoning: LLMConfigFields.reasoning.nullable(),
+    })
     .partial()
     .superRefine((data, ctx) => {
         // Require at least one meaningful change field: model or provider
