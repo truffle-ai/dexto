@@ -6,7 +6,7 @@
  * - Bedrock: reasoningConfig for supported models
  * - Google/Vertex (Gemini): thinkingConfig includeThoughts + thinkingLevel/budget
  * - OpenAI: reasoningEffort for reasoning-capable models
- * - OpenRouter/Dexto: OpenRouter reasoning config (effort/max_tokens + include_reasoning)
+ * - OpenRouter/Dexto: OpenRouter reasoning config (effort/max_tokens + includeReasoning)
  *
  * Caching notes:
  * - Anthropic: Requires explicit cacheControl option (we enable it)
@@ -22,9 +22,9 @@ import {
     isAnthropicAdaptiveThinkingModel,
     isAnthropicOpus46Model,
 } from '../reasoning/anthropic-thinking.js';
+import { supportsOpenRouterReasoningTuning } from '../reasoning/profiles/openrouter.js';
 import {
     coerceOpenAIReasoningEffort,
-    supportsOpenAIReasoningEffort,
     type OpenAIReasoningEffort,
 } from '../reasoning/openai-reasoning-effort.js';
 
@@ -156,27 +156,6 @@ function mapPresetToAnthropicEffort(
     return undefined;
 }
 
-function supportsOpenRouterXHigh(model: string): boolean {
-    // Best-effort. OpenRouter forwards reasoningEffort to OpenAI for OpenAI models.
-    return supportsOpenAIReasoningEffort(model, 'xhigh');
-}
-
-function mapPresetToOpenRouterEffort(
-    preset: ReasoningPreset,
-    model: string
-): 'low' | 'medium' | 'high' | 'xhigh' | undefined {
-    if (preset === 'xhigh') {
-        return supportsOpenRouterXHigh(model) ? 'xhigh' : 'high';
-    }
-    if (preset === 'max') {
-        return supportsOpenRouterXHigh(model) ? 'xhigh' : 'high';
-    }
-    if (preset === 'low' || preset === 'medium' || preset === 'high') {
-        return preset;
-    }
-    return undefined;
-}
-
 function mapPresetToOpenAIReasoningEffort(
     preset: ReasoningPreset,
     model: string
@@ -280,13 +259,18 @@ function buildOpenRouterProviderOptions(config: {
     const capable = isReasoningCapableModel(model);
 
     if (preset === 'off') {
-        return { openrouter: { include_reasoning: false } };
+        return { openrouter: { includeReasoning: false } };
     }
 
     // Default: request reasoning details when available; UI can decide whether to display.
-    const base = { include_reasoning: true };
+    const base = { includeReasoning: true };
 
     if (!capable) {
+        return { openrouter: base };
+    }
+
+    // Strict gating: avoid sending reasoning knobs to OpenRouter models where we expect errors.
+    if (!supportsOpenRouterReasoningTuning(model)) {
         return { openrouter: base };
     }
 
@@ -304,7 +288,7 @@ function buildOpenRouterProviderOptions(config: {
         return { openrouter: base };
     }
 
-    const effort = mapPresetToOpenRouterEffort(preset, model);
+    const effort = mapPresetToLowMediumHigh(preset);
 
     return {
         openrouter: {

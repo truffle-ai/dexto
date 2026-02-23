@@ -13,6 +13,7 @@ import {
     getMaxInputTokensForModel,
 } from './registry/index.js';
 import { LLM_PROVIDERS, REASONING_PRESETS } from './types.js';
+import { getReasoningSupport } from './reasoning/presets.js';
 
 /**
  * Default-free field definitions for LLM configuration.
@@ -234,6 +235,47 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
             }
         }
     }
+
+    if (data.reasoning) {
+        const support = getReasoningSupport(data.provider, data.model);
+        const preset = data.reasoning.preset;
+        const budgetTokens = data.reasoning.budgetTokens;
+
+        // OpenRouter gateway providers are especially sensitive to unsupported reasoning params.
+        // Validate presets strictly to avoid runtime errors.
+        if (
+            (data.provider === 'openrouter' || data.provider === 'dexto-nova') &&
+            !support.supportedPresets.includes(preset)
+        ) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['reasoning', 'preset'],
+                message:
+                    `Reasoning preset '${preset}' is not supported for provider '${data.provider}' ` +
+                    `model '${data.model}'. Supported: ${support.supportedPresets.join(', ')}`,
+                params: {
+                    code: LLMErrorCode.MODEL_INCOMPATIBLE,
+                    scope: ErrorScope.LLM,
+                    type: ErrorType.USER,
+                },
+            });
+        }
+
+        if (typeof budgetTokens === 'number' && !support.supportsBudgetTokens) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['reasoning', 'budgetTokens'],
+                message:
+                    `Reasoning budgetTokens are not supported for provider '${data.provider}' ` +
+                    `model '${data.model}'. Remove reasoning.budgetTokens to use provider defaults.`,
+                params: {
+                    code: LLMErrorCode.MODEL_INCOMPATIBLE,
+                    scope: ErrorScope.LLM,
+                    type: ErrorType.USER,
+                },
+            });
+        }
+    }
     // Note: OpenRouter model validation happens in resolver.ts during switchLLM only
     // to avoid network calls during startup/serverless cold starts
 });
@@ -260,6 +302,52 @@ export const LLMUpdatesSchema = z
                 message: 'At least model or provider must be specified for LLM switch',
                 path: [],
             });
+        }
+
+        // If we have enough context (provider+model), validate reasoning updates to avoid
+        // sending unsupported reasoning params at runtime.
+        if (
+            data.reasoning &&
+            data.reasoning !== null &&
+            typeof data.provider === 'string' &&
+            typeof data.model === 'string'
+        ) {
+            const support = getReasoningSupport(data.provider, data.model);
+            const preset = data.reasoning.preset;
+            const budgetTokens = data.reasoning.budgetTokens;
+
+            if (
+                (data.provider === 'openrouter' || data.provider === 'dexto-nova') &&
+                !support.supportedPresets.includes(preset)
+            ) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['reasoning', 'preset'],
+                    message:
+                        `Reasoning preset '${preset}' is not supported for provider '${data.provider}' ` +
+                        `model '${data.model}'. Supported: ${support.supportedPresets.join(', ')}`,
+                    params: {
+                        code: LLMErrorCode.MODEL_INCOMPATIBLE,
+                        scope: ErrorScope.LLM,
+                        type: ErrorType.USER,
+                    },
+                });
+            }
+
+            if (typeof budgetTokens === 'number' && !support.supportsBudgetTokens) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['reasoning', 'budgetTokens'],
+                    message:
+                        `Reasoning budgetTokens are not supported for provider '${data.provider}' ` +
+                        `model '${data.model}'. Remove reasoning.budgetTokens to use provider defaults.`,
+                    params: {
+                        code: LLMErrorCode.MODEL_INCOMPATIBLE,
+                        scope: ErrorScope.LLM,
+                        type: ErrorType.USER,
+                    },
+                });
+            }
         }
     });
 export type LLMUpdates = z.input<typeof LLMUpdatesSchema>;

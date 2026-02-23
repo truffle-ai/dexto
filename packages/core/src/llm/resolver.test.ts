@@ -6,6 +6,7 @@ import { LLMConfigSchema } from './schemas.js';
 
 const mockLogger = createMockLogger();
 const TEST_OPENAI_API_KEY = 'test-openai-key';
+const TEST_ANTHROPIC_API_KEY = 'test-anthropic-key';
 const TEST_DEXTO_API_KEY = 'test-dexto-key';
 
 const baseConfig = LLMConfigSchema.parse({
@@ -63,9 +64,9 @@ describe('resolveAndValidateLLMConfig', () => {
 
     it('preserves reasoning config when applying unrelated updates', async () => {
         const configWithReasoning = LLMConfigSchema.parse({
-            provider: 'openai',
-            model: 'gpt-5',
-            apiKey: TEST_OPENAI_API_KEY,
+            provider: 'anthropic',
+            model: 'claude-3-7-sonnet-20250219',
+            apiKey: TEST_ANTHROPIC_API_KEY,
             reasoning: { preset: 'high', budgetTokens: 123 },
         });
 
@@ -83,9 +84,9 @@ describe('resolveAndValidateLLMConfig', () => {
 
     it('replaces reasoning config when updates.reasoning is provided (clears previous budgetTokens)', async () => {
         const configWithReasoning = LLMConfigSchema.parse({
-            provider: 'openai',
-            model: 'gpt-5',
-            apiKey: TEST_OPENAI_API_KEY,
+            provider: 'anthropic',
+            model: 'claude-3-7-sonnet-20250219',
+            apiKey: TEST_ANTHROPIC_API_KEY,
             reasoning: { preset: 'high', budgetTokens: 123 },
         });
 
@@ -103,9 +104,9 @@ describe('resolveAndValidateLLMConfig', () => {
 
     it('clears reasoning config when updates.reasoning is null', async () => {
         const configWithReasoning = LLMConfigSchema.parse({
-            provider: 'openai',
-            model: 'gpt-5',
-            apiKey: TEST_OPENAI_API_KEY,
+            provider: 'anthropic',
+            model: 'claude-3-7-sonnet-20250219',
+            apiKey: TEST_ANTHROPIC_API_KEY,
             reasoning: { preset: 'high', budgetTokens: 123 },
         });
 

@@ -13,7 +13,7 @@ describe('getReasoningSupport', () => {
     it('returns openai presets for reasoning-capable models', () => {
         expect(getReasoningSupport('openai', 'gpt-5')).toEqual({
             capable: true,
-            supportedPresets: ['auto', 'off', 'low', 'medium', 'high', 'max'],
+            supportedPresets: ['auto', 'off', 'low', 'medium', 'high'],
             supportsBudgetTokens: false,
         });
     });
@@ -59,7 +59,7 @@ describe('getReasoningSupport', () => {
     it('returns gateway support for openrouter-format reasoning models', () => {
         expect(getReasoningSupport('openrouter', 'anthropic/claude-3.7-sonnet')).toEqual({
             capable: true,
-            supportedPresets: ['auto', 'off', 'low', 'medium', 'high', 'max'],
+            supportedPresets: ['auto', 'off', 'low', 'medium', 'high'],
             supportsBudgetTokens: true,
         });
     });
@@ -67,8 +67,16 @@ describe('getReasoningSupport', () => {
     it('returns gateway support for dexto-nova provider (OpenRouter-format IDs)', () => {
         expect(getReasoningSupport('dexto-nova', 'openai/gpt-5.2-codex')).toEqual({
             capable: true,
-            supportedPresets: ['auto', 'off', 'low', 'medium', 'high', 'max', 'xhigh'],
+            supportedPresets: ['auto', 'off', 'low', 'medium', 'high'],
             supportsBudgetTokens: true,
+        });
+    });
+
+    it('does not expose OpenRouter tuning presets for excluded model families', () => {
+        expect(getReasoningSupport('openrouter', 'deepseek/deepseek-r1:free')).toEqual({
+            capable: false,
+            supportedPresets: ['auto', 'off'],
+            supportsBudgetTokens: false,
         });
     });
 });

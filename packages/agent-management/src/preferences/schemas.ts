@@ -7,6 +7,7 @@ import {
     acceptsAnyModel,
     supportsCustomModels,
     supportsBaseURL,
+    getReasoningSupport,
     LLM_PROVIDERS,
     REASONING_PRESETS,
     NonEmptyTrimmed,
@@ -93,6 +94,45 @@ export const PreferenceLLMSchema = z
                     type: ErrorType.USER,
                 },
             });
+        }
+
+        if (data.reasoning) {
+            const support = getReasoningSupport(data.provider, data.model);
+            const preset = data.reasoning.preset;
+            const budgetTokens = data.reasoning.budgetTokens;
+
+            if (
+                (data.provider === 'openrouter' || data.provider === 'dexto-nova') &&
+                !support.supportedPresets.includes(preset)
+            ) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['reasoning', 'preset'],
+                    message:
+                        `Reasoning preset '${preset}' is not supported for provider '${data.provider}' ` +
+                        `model '${data.model}'. Supported: ${support.supportedPresets.join(', ')}`,
+                    params: {
+                        code: PreferenceErrorCode.INVALID_PREFERENCE_VALUE,
+                        scope: 'preference',
+                        type: ErrorType.USER,
+                    },
+                });
+            }
+
+            if (typeof budgetTokens === 'number' && !support.supportsBudgetTokens) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['reasoning', 'budgetTokens'],
+                    message:
+                        `Reasoning budgetTokens are not supported for provider '${data.provider}' ` +
+                        `model '${data.model}'. Remove reasoning.budgetTokens to use provider defaults.`,
+                    params: {
+                        code: PreferenceErrorCode.INVALID_PREFERENCE_VALUE,
+                        scope: 'preference',
+                        type: ErrorType.USER,
+                    },
+                });
+            }
         }
         // NOTE: baseURL requirement validation also relaxed - allow saving without baseURL
         // and let runtime validation catch missing baseURL when actually trying to connect.

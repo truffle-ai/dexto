@@ -382,7 +382,7 @@ describe('buildProviderOptions', () => {
                     model: 'openai/gpt-5.2-codex',
                     reasoning: { preset: 'auto' },
                 })
-            ).toEqual({ openrouter: { include_reasoning: true } });
+            ).toEqual({ openrouter: { includeReasoning: true } });
         });
 
         it('applies budgetTokens even when preset is auto', () => {
@@ -394,20 +394,20 @@ describe('buildProviderOptions', () => {
                 })
             ).toEqual({
                 openrouter: {
-                    include_reasoning: true,
+                    includeReasoning: true,
                     reasoning: { enabled: true, max_tokens: 111 },
                 },
             });
         });
 
-        it('maps off to include_reasoning=false', () => {
+        it('maps off to includeReasoning=false', () => {
             expect(
                 buildProviderOptions({
                     provider: 'dexto-nova',
                     model: 'openai/gpt-5.2-codex',
                     reasoning: { preset: 'off' },
                 })
-            ).toEqual({ openrouter: { include_reasoning: false } });
+            ).toEqual({ openrouter: { includeReasoning: false } });
         });
 
         it('maps presets to openrouter.reasoning.effort', () => {
@@ -419,13 +419,13 @@ describe('buildProviderOptions', () => {
                 })
             ).toEqual({
                 openrouter: {
-                    include_reasoning: true,
+                    includeReasoning: true,
                     reasoning: { enabled: true, effort: 'high' },
                 },
             });
         });
 
-        it('maps max to high when xhigh is not supported', () => {
+        it('maps max to high', () => {
             expect(
                 buildProviderOptions({
                     provider: 'openrouter',
@@ -434,28 +434,13 @@ describe('buildProviderOptions', () => {
                 })
             ).toEqual({
                 openrouter: {
-                    include_reasoning: true,
+                    includeReasoning: true,
                     reasoning: { enabled: true, effort: 'high' },
                 },
             });
         });
 
-        it('maps max to xhigh for models that support it (best-effort passthrough)', () => {
-            expect(
-                buildProviderOptions({
-                    provider: 'openrouter',
-                    model: 'openai/gpt-5.2-codex',
-                    reasoning: { preset: 'max' },
-                })
-            ).toEqual({
-                openrouter: {
-                    include_reasoning: true,
-                    reasoning: { enabled: true, effort: 'xhigh' },
-                },
-            });
-        });
-
-        it('maps xhigh to high when xhigh is not supported', () => {
+        it('maps xhigh to high', () => {
             expect(
                 buildProviderOptions({
                     provider: 'dexto-nova',
@@ -464,23 +449,8 @@ describe('buildProviderOptions', () => {
                 })
             ).toEqual({
                 openrouter: {
-                    include_reasoning: true,
+                    includeReasoning: true,
                     reasoning: { enabled: true, effort: 'high' },
-                },
-            });
-        });
-
-        it('maps xhigh to xhigh for models that support it (best-effort passthrough)', () => {
-            expect(
-                buildProviderOptions({
-                    provider: 'dexto-nova',
-                    model: 'openai/gpt-5.2-codex',
-                    reasoning: { preset: 'xhigh' },
-                })
-            ).toEqual({
-                openrouter: {
-                    include_reasoning: true,
-                    reasoning: { enabled: true, effort: 'xhigh' },
                 },
             });
         });
@@ -494,7 +464,7 @@ describe('buildProviderOptions', () => {
                 })
             ).toEqual({
                 openrouter: {
-                    include_reasoning: true,
+                    includeReasoning: true,
                     reasoning: { enabled: true, max_tokens: 111 },
                 },
             });

@@ -1,10 +1,8 @@
 import type { LLMProvider, ReasoningPreset } from '../types.js';
 import { isReasoningCapableModel } from '../registry/index.js';
 import { isAnthropicAdaptiveThinkingModel } from './anthropic-thinking.js';
-import {
-    getSupportedOpenAIReasoningEfforts,
-    supportsOpenAIReasoningEffort,
-} from './openai-reasoning-effort.js';
+import { getSupportedOpenAIReasoningEfforts } from './openai-reasoning-effort.js';
+import { supportsOpenRouterReasoningTuning } from './profiles/openrouter.js';
 
 export type ReasoningSupport = {
     capable: boolean;
@@ -46,7 +44,6 @@ export function getReasoningSupport(provider: LLMProvider, model: string): Reaso
             // but support varies per model. Our UI presets are intentionally coarser:
             // - We expose `off` (maps to OpenAI `none` where supported)
             // - We do not currently expose OpenAI's `minimal`
-            // - We expose `max` as "as much as possible" (maps to `high` or `xhigh` depending on model)
             if (!capable) {
                 return { capable, supportedPresets: base, supportsBudgetTokens: false };
             }
@@ -60,7 +57,6 @@ export function getReasoningSupport(provider: LLMProvider, model: string): Reaso
             if (efforts.includes('low')) presets.push('low');
             if (efforts.includes('medium')) presets.push('medium');
             presets.push('high');
-            if (!onlyHigh) presets.push('max');
             if (efforts.includes('xhigh')) presets.push('xhigh');
             return { capable, supportedPresets: uniq(presets), supportsBudgetTokens: false };
         }
@@ -75,27 +71,26 @@ export function getReasoningSupport(provider: LLMProvider, model: string): Reaso
             const supportsBudgetTokens = !isAnthropicAdaptiveThinkingModel(model);
             return { capable, supportedPresets: uniq(presets), supportsBudgetTokens };
         }
-        case 'bedrock':
-        case 'openrouter':
-        case 'dexto-nova': {
+        case 'bedrock': {
             // These providers support a budget-based paradigm and/or low|medium|high effort.
             // If the model isn't reasoning-capable, keep only base knobs (auto/off).
             const presets: ReasoningPreset[] = capable
-                ? [
-                      'auto',
-                      'off',
-                      'low',
-                      'medium',
-                      'high',
-                      'max',
-                      // Best-effort compatibility: OpenRouter supports passing OpenAI-like reasoning efforts
-                      // for OpenAI models (and opencode exposes xhigh for codex models via OpenRouter).
-                      ...(supportsOpenAIReasoningEffort(model, 'xhigh')
-                          ? (['xhigh'] as const)
-                          : []),
-                  ]
+                ? ['auto', 'off', 'low', 'medium', 'high', 'max']
                 : base;
             return { capable, supportedPresets: uniq(presets), supportsBudgetTokens: capable };
+        }
+        case 'openrouter':
+        case 'dexto-nova': {
+            if (!capable) {
+                return { capable, supportedPresets: base, supportsBudgetTokens: false };
+            }
+
+            if (!supportsOpenRouterReasoningTuning(model)) {
+                return { capable: false, supportedPresets: base, supportsBudgetTokens: false };
+            }
+
+            const presets: ReasoningPreset[] = ['auto', 'off', 'low', 'medium', 'high'];
+            return { capable: true, supportedPresets: uniq(presets), supportsBudgetTokens: true };
         }
         case 'google': {
             // Gemini 3 uses `thinkingLevel` (not budget tokens). Gemini 2.5 uses `thinkingBudget`.
