@@ -70,12 +70,29 @@ Image definition files use the convention `dexto.image.ts` and register provider
 All `@dexto/*` packages use **fixed versioning** (shared version number).
 
 When creating a new package:
+
 1. Add the package name to the `fixed` array in `.changeset/config.json`
 2. Set its `version` in `package.json` to match other packages (check `packages/core/package.json`)
+
+**Build pattern**: Use `tsup` for JS bundling + `tsc` for type generation:
+
+```json
+"build": "tsup && node ../../scripts/clean-tsbuildinfo.mjs && tsc -b tsconfig.json --emitDeclarationOnly"
+```
+
+- `tsup`: Fast ESM/CJS bundling via esbuild
+- `clean-tsbuildinfo.mjs`: Cleans tsc's cache after tsup (prevents stale cache issues)
+- `tsc -b --emitDeclarationOnly`: Generates `.d.ts` files (faster than tsup's dts)
+
+**Exceptions**:
+
+- **Apps** (cli, webui): Use `tsc -p` or `vite build` directly
+- **Simple libraries**: Can use just `tsc` if no bundling needed
 
 ## Avoiding Duplication (repo-wide)
 
 **Before adding any new helper/utility/service:**
+
 1. Search the codebase first (glob/grep for similar patterns).
 2. Prefer extending existing code over creating new.
 3. If new code is necessary, justify why existing code doesn't work.
@@ -88,9 +105,9 @@ This applies everywhere (core, server, cli, webui). Violations will be flagged i
 
 - Routes should be thin wrappers around core capabilities (primarily `DextoAgent` + core services).
 - Keep business logic out of routes; keep route code focused on:
-  - request parsing/validation
-  - calling core
-  - mapping errors + returning responses
+    - request parsing/validation
+    - calling core
+    - mapping errors + returning responses
 - `DextoAgent` class should also not have too much business logic; should call helper methods within services it owns.
 
 ### Service Initialization
@@ -98,18 +115,20 @@ This applies everywhere (core, server, cli, webui). Violations will be flagged i
 - **Config file is source of truth**: Agent YAML files in `agents/` directory (e.g., `agents/coding-agent/coding-agent.yml`).
 - **Override pattern for advanced use**: use `InitializeServicesOptions` only for top-level services (avoid wiring every internal dependency).
 - **CLI Config Enrichment**: CLI adds per-agent paths (logs, database, blobs) via `enrichAgentConfig()` before agent initialization.
-  - Source: `packages/agent-management/src/config/config-enrichment.ts`
+    - Source: `packages/agent-management/src/config/config-enrichment.ts`
 
 ### Execution Context Detection
 
 Dexto infers its execution environment to enable context-aware defaults and path resolution. Use these utilities when behavior should differ based on how dexto is running.
 
 **Context types:**
+
 - `dexto-source`: Running within the dexto monorepo itself (development)
 - `dexto-project`: Running in a project that has dexto as a dependency
 - `global-cli`: Running as globally installed CLI or in a non-dexto project
 
 **Key files:**
+
 - `packages/core/src/utils/execution-context.ts` - Context detection
 - `packages/core/src/utils/path.ts` - Context-aware path resolution
 - `packages/cli/src/cli/utils/api-key-setup.ts` - Context-aware setup UX
@@ -120,8 +139,8 @@ Dexto’s supported models live in core and are primarily sourced from `models.d
 
 - **Registry source of truth:** `packages/core/src/llm/registry/index.ts` (consumes the generated snapshot + any manual overlays).
 - **Generated snapshot:** `packages/core/src/llm/registry/models.generated.ts` (generated from `models.dev` via `scripts/sync-llm-models.ts`).
-  - Update: `pnpm run sync-llm-models`
-  - Verify clean repo (CI-style): `pnpm run sync-llm-models:check`
+    - Update: `pnpm run sync-llm-models`
+    - Verify clean repo (CI-style): `pnpm run sync-llm-models:check`
 - **Gateway transform validation:** `packages/core/src/llm/registry/index.test.ts` includes a full-sweep check that our native→OpenRouter ID transform still matches the committed OpenRouter catalog snapshot (runs in `pnpm test`; catches naming drift like Anthropic dotted versions or Gemini `-001`).
 - **Manual overlays / missing models:** `packages/core/src/llm/registry/models.manual.ts` (e.g. models missing capability metadata upstream).
 - **Curation for UI/onboarding:** `packages/core/src/llm/curation-config.ts` (explicit curated model IDs; used by `/llm/catalog?scope=curated` and default pickers).
@@ -137,6 +156,7 @@ Dexto’s supported models live in core and are primarily sourced from `models.d
 - Use `superRefine` for cross-field validation.
 
 Type extraction conventions (repo rule):
+
 - Use `z.input<typeof Schema>` for raw/unvalidated input types.
 - Use `z.output<typeof Schema>` for validated/output types.
 - Do not use `z.infer` (lint-restricted).
@@ -170,11 +190,11 @@ Use standardized helpers from: `packages/core/src/utils/result.ts`
 - Avoid `throw new Error()` in `packages/core`. Prefer typed errors.
 - Non-core packages may use plain `Error` when a typed error is not available.
 - Use module-specific **error factory** pattern for new modules.
-  - Reference examples:
-    - `packages/core/src/config/errors.ts`
-    - `packages/core/src/logger/v2/errors.ts`
-    - `packages/core/src/storage/errors.ts`
-    - `packages/core/src/telemetry/errors.ts`
+    - Reference examples:
+        - `packages/core/src/config/errors.ts`
+        - `packages/core/src/logger/v2/errors.ts`
+        - `packages/core/src/storage/errors.ts`
+        - `packages/core/src/telemetry/errors.ts`
 - **Exemption**: Build-time CLI tools and development tooling (bundlers, compilers, build scripts) are exempt from the strict `DextoRuntimeError`/`DextoValidationError` requirement. Plain `Error` is acceptable for build tool failures to align with standard build tool practices (tsc, esbuild, vite).
 
 ### Server/API error mapping
@@ -192,6 +212,7 @@ Use standardized helpers from: `packages/core/src/utils/result.ts`
 - OpenAPI is generated from Hono route definitions in `packages/server/src/hono/routes/*.ts`.
 
 Update process:
+
 1. Modify route definitions / Zod schemas in `packages/server/src/hono/routes/*.ts`
 2. Run `pnpm run sync-openapi-docs`
 3. Verify the generated output includes your changes
@@ -203,25 +224,31 @@ The repo contains logger v1 and logger v2 APIs (core). Prefer patterns compatibl
 - Prefer: `logger.info('Message', { contextKey: value })` (structured context as the second parameter where supported)
 - Avoid: `logger.error('Failed:', err)` style extra-arg logging; it's ambiguous across logger versions/transports.
 - Template literals are fine when interpolating values:
-  - `logger.info(\`Server running at \${url}\`)`
+    - `logger.info(\`Server running at \${url}\`)`
 
 Colors:
+
 - Color formatting exists (chalk-based), but treat color choice as optional and primarily CLI-facing (don't encode “must use exact color X” rules in new code unless the existing subsystem already does).
 
 Browser safety:
+
 - `packages/core/src/logger/logger.ts` is Node-oriented (fs/path/winston). Be careful not to import Node-only runtime modules into `packages/webui` bundles. Prefer `import type` when consuming core types from the WebUI.
 
 ## TypeScript Guidelines
 
 - Strict null safety: handle `null` / `undefined` explicitly.
 - Avoid `any` across the repo.
-  - Prefer `unknown` + type guards.
-  - If `any` is unavoidable (third-party typing gaps / boundary code), keep the usage local and justify it.
+    - Prefer `unknown` + type guards.
+    - If `any` is unavoidable (third-party typing gaps / boundary code), keep the usage local and justify it.
 - In tests, prefer `@ts-expect-error` over `as any` when intentionally testing invalid inputs.
 - Avoid optional parameters, overload signatures, and “fallback” union types (e.g. `Service | (() => Service)`) unless there is a strong, unavoidable reason.
-  - Prefer a single, required function signature.
-  - Prefer a single `options` object (with defaults applied internally) over constructor overloads.
-  - If runtime context is required, pass it explicitly rather than making it optional.
+    - Prefer a single, required function signature.
+    - Prefer a single `options` object (with defaults applied internally) over constructor overloads.
+    - If runtime context is required, pass it explicitly rather than making it optional.
+- Avoid "multi-source" values encoded as `optional + fallback + fallback` chains (e.g. `a ?? b ?? c` across multiple layers).
+    - Prefer a single source of truth for a value.
+    - If backward compatibility is required, isolate it in a single `resolveX()` function at the boundary that returns a non-optional value and document the selection order.
+    - Do not mix multiple fields that can each be "the name" / "the title" / "the config" without an explicit resolver + tests.
 - Avoid non-null assertions (`!`) in production code. It is acceptable in tests when it improves clarity and the value is provably present.
 
 ## Module Organization
@@ -248,12 +275,14 @@ Browser safety:
 ## Testing
 
 Test types:
+
 - Unit: `*.test.ts`
 - Integration: `*.integration.test.ts`
 
 Test location: Co-locate tests with source files (e.g., `foo.ts` → `foo.test.ts` in same directory).
 
 Common commands:
+
 - `pnpm test`
 - `pnpm run test:unit`
 - `pnpm run test:integ`
@@ -263,6 +292,7 @@ When fixing bugs, add regression coverage where feasible.
 ## Maintaining This File
 
 Keep `AGENTS.md` updated when:
+
 - Adding a new package: add a brief description under the appropriate Stack Rules section
 - Architecture boundaries change (server/webui/cli)
 - Repo-wide conventions change (lint/type patterns, errors, OpenAPI generation)

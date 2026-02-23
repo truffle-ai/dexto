@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Dexto API",
-    "version": "1.5.8",
+    "version": "1.6.0",
     "description": "OpenAPI spec for the Dexto REST API server"
   },
   "servers": [
@@ -39,8 +39,8 @@
       "description": "Create and manage conversation sessions"
     },
     {
-      "name": "workspaces",
-      "description": "Manage and switch active workspaces"
+      "name": "schedules",
+      "description": "Create and manage automation schedules"
     },
     {
       "name": "llm",
@@ -23972,6 +23972,1454 @@
                     "workspace"
                   ],
                   "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/schedules": {
+      "get": {
+        "summary": "List Schedules",
+        "description": "Retrieves all automation schedules",
+        "tags": [
+          "schedules"
+        ],
+        "responses": {
+          "200": {
+            "description": "List of schedules",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schedules": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "Schedule ID"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "Schedule name"
+                          },
+                          "cronExpression": {
+                            "type": "string",
+                            "description": "Cron expression"
+                          },
+                          "timezone": {
+                            "type": "string",
+                            "description": "Timezone for schedule"
+                          },
+                          "enabled": {
+                            "type": "boolean",
+                            "description": "Whether the schedule is enabled"
+                          },
+                          "task": {
+                            "type": "object",
+                            "properties": {
+                              "instruction": {
+                                "type": "string",
+                                "description": "Instruction to execute"
+                              },
+                              "metadata": {
+                                "type": "object",
+                                "additionalProperties": {
+                                  "nullable": true
+                                },
+                                "description": "Optional task metadata"
+                              }
+                            },
+                            "required": [
+                              "instruction"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Schedule task configuration"
+                          },
+                          "sessionMode": {
+                            "type": "string",
+                            "enum": [
+                              "ephemeral",
+                              "dedicated",
+                              "inherit",
+                              "fixed"
+                            ],
+                            "description": "Session context mode"
+                          },
+                          "sessionId": {
+                            "type": "string",
+                            "description": "Session ID when using fixed/inherit mode"
+                          },
+                          "workspacePath": {
+                            "type": "string",
+                            "description": "Workspace path override"
+                          },
+                          "createdAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "description": "Creation timestamp (Unix ms)"
+                          },
+                          "updatedAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "description": "Last update timestamp (Unix ms)"
+                          },
+                          "lastRunAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "description": "Last run timestamp (Unix ms)"
+                          },
+                          "nextRunAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "description": "Next run timestamp (Unix ms)"
+                          },
+                          "runCount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Total executions"
+                          },
+                          "successCount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Successful executions"
+                          },
+                          "failureCount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Failed executions"
+                          },
+                          "lastError": {
+                            "type": "string",
+                            "description": "Last execution error, if any"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "cronExpression",
+                          "timezone",
+                          "enabled",
+                          "task",
+                          "sessionMode",
+                          "createdAt",
+                          "updatedAt",
+                          "runCount",
+                          "successCount",
+                          "failureCount"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Automation schedule"
+                      },
+                      "description": "Schedule list"
+                    }
+                  },
+                  "required": [
+                    "schedules"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to list schedules",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scheduler tools are not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create Schedule",
+        "description": "Creates a new automation schedule",
+        "tags": [
+          "schedules"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Schedule name"
+                  },
+                  "instruction": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Instruction to run on schedule"
+                  },
+                  "cronExpression": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Cron expression"
+                  },
+                  "timezone": {
+                    "type": "string",
+                    "description": "Timezone for schedule"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "Whether the schedule is enabled"
+                  },
+                  "workspacePath": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Optional workspace path for scheduled runs"
+                  }
+                },
+                "required": [
+                  "name",
+                  "instruction",
+                  "cronExpression"
+                ],
+                "additionalProperties": false,
+                "description": "Request body for creating a schedule"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created schedule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schedule": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Schedule ID"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "Schedule name"
+                        },
+                        "cronExpression": {
+                          "type": "string",
+                          "description": "Cron expression"
+                        },
+                        "timezone": {
+                          "type": "string",
+                          "description": "Timezone for schedule"
+                        },
+                        "enabled": {
+                          "type": "boolean",
+                          "description": "Whether the schedule is enabled"
+                        },
+                        "task": {
+                          "type": "object",
+                          "properties": {
+                            "instruction": {
+                              "type": "string",
+                              "description": "Instruction to execute"
+                            },
+                            "metadata": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "nullable": true
+                              },
+                              "description": "Optional task metadata"
+                            }
+                          },
+                          "required": [
+                            "instruction"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Schedule task configuration"
+                        },
+                        "sessionMode": {
+                          "type": "string",
+                          "enum": [
+                            "ephemeral",
+                            "dedicated",
+                            "inherit",
+                            "fixed"
+                          ],
+                          "description": "Session context mode"
+                        },
+                        "sessionId": {
+                          "type": "string",
+                          "description": "Session ID when using fixed/inherit mode"
+                        },
+                        "workspacePath": {
+                          "type": "string",
+                          "description": "Workspace path override"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Creation timestamp (Unix ms)"
+                        },
+                        "updatedAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Last update timestamp (Unix ms)"
+                        },
+                        "lastRunAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Last run timestamp (Unix ms)"
+                        },
+                        "nextRunAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Next run timestamp (Unix ms)"
+                        },
+                        "runCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Total executions"
+                        },
+                        "successCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Successful executions"
+                        },
+                        "failureCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Failed executions"
+                        },
+                        "lastError": {
+                          "type": "string",
+                          "description": "Last execution error, if any"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "cronExpression",
+                        "timezone",
+                        "enabled",
+                        "task",
+                        "sessionMode",
+                        "createdAt",
+                        "updatedAt",
+                        "runCount",
+                        "successCount",
+                        "failureCount"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Automation schedule"
+                    }
+                  },
+                  "required": [
+                    "schedule"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Schedule limit reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to create schedule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scheduler tools are not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/schedules/{scheduleId}": {
+      "patch": {
+        "summary": "Update Schedule",
+        "description": "Updates an existing schedule",
+        "tags": [
+          "schedules"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Schedule ID"
+            },
+            "required": true,
+            "description": "Schedule ID",
+            "name": "scheduleId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Schedule name"
+                  },
+                  "instruction": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Instruction to run on schedule"
+                  },
+                  "cronExpression": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Cron expression"
+                  },
+                  "timezone": {
+                    "type": "string",
+                    "description": "Timezone for schedule"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "Whether the schedule is enabled"
+                  },
+                  "workspacePath": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Optional workspace path for scheduled runs"
+                  }
+                },
+                "additionalProperties": false,
+                "description": "Request body for updating a schedule"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated schedule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "schedule": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Schedule ID"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "Schedule name"
+                        },
+                        "cronExpression": {
+                          "type": "string",
+                          "description": "Cron expression"
+                        },
+                        "timezone": {
+                          "type": "string",
+                          "description": "Timezone for schedule"
+                        },
+                        "enabled": {
+                          "type": "boolean",
+                          "description": "Whether the schedule is enabled"
+                        },
+                        "task": {
+                          "type": "object",
+                          "properties": {
+                            "instruction": {
+                              "type": "string",
+                              "description": "Instruction to execute"
+                            },
+                            "metadata": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "nullable": true
+                              },
+                              "description": "Optional task metadata"
+                            }
+                          },
+                          "required": [
+                            "instruction"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Schedule task configuration"
+                        },
+                        "sessionMode": {
+                          "type": "string",
+                          "enum": [
+                            "ephemeral",
+                            "dedicated",
+                            "inherit",
+                            "fixed"
+                          ],
+                          "description": "Session context mode"
+                        },
+                        "sessionId": {
+                          "type": "string",
+                          "description": "Session ID when using fixed/inherit mode"
+                        },
+                        "workspacePath": {
+                          "type": "string",
+                          "description": "Workspace path override"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Creation timestamp (Unix ms)"
+                        },
+                        "updatedAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Last update timestamp (Unix ms)"
+                        },
+                        "lastRunAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Last run timestamp (Unix ms)"
+                        },
+                        "nextRunAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Next run timestamp (Unix ms)"
+                        },
+                        "runCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Total executions"
+                        },
+                        "successCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Successful executions"
+                        },
+                        "failureCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Failed executions"
+                        },
+                        "lastError": {
+                          "type": "string",
+                          "description": "Last execution error, if any"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "cronExpression",
+                        "timezone",
+                        "enabled",
+                        "task",
+                        "sessionMode",
+                        "createdAt",
+                        "updatedAt",
+                        "runCount",
+                        "successCount",
+                        "failureCount"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Automation schedule"
+                    }
+                  },
+                  "required": [
+                    "schedule"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Schedule not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to update schedule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scheduler tools are not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Schedule",
+        "description": "Deletes an automation schedule",
+        "tags": [
+          "schedules"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Schedule ID"
+            },
+            "required": true,
+            "description": "Schedule ID",
+            "name": "scheduleId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Schedule deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean",
+                      "description": "Whether the schedule was deleted"
+                    }
+                  },
+                  "required": [
+                    "deleted"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Delete schedule response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Schedule not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to delete schedule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scheduler tools are not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/schedules/{scheduleId}/trigger": {
+      "post": {
+        "summary": "Trigger Schedule",
+        "description": "Runs a schedule immediately and waits for execution to complete (bounded by executionTimeout, default 5 minutes). Clients should set timeouts accordingly.",
+        "tags": [
+          "schedules"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Schedule ID"
+            },
+            "required": true,
+            "description": "Schedule ID",
+            "name": "scheduleId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Schedule triggered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "scheduled": {
+                      "type": "boolean",
+                      "description": "Whether the schedule was queued. Execution is omitted when false."
+                    },
+                    "execution": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Execution log ID"
+                        },
+                        "scheduleId": {
+                          "type": "string",
+                          "description": "Schedule ID"
+                        },
+                        "triggeredAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Trigger timestamp (Unix ms)"
+                        },
+                        "completedAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Completion timestamp (Unix ms)"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "success",
+                            "failed",
+                            "timeout"
+                          ],
+                          "description": "Execution status"
+                        },
+                        "duration": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Execution duration in ms"
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Execution error, if any"
+                        },
+                        "result": {
+                          "type": "string",
+                          "description": "Execution result, if any"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "scheduleId",
+                        "triggeredAt",
+                        "status"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Execution log (present when scheduled is true)"
+                    }
+                  },
+                  "required": [
+                    "scheduled"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Trigger schedule response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Schedule not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to trigger schedule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scheduler tools are not enabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ],
+                      "description": "Indicates failed response"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "details": {
+                          "nullable": true,
+                          "description": "Additional error details"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Error details"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Error API response"
                 }
               }
             }

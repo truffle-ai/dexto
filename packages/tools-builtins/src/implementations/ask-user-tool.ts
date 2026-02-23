@@ -1,22 +1,67 @@
 import { z } from 'zod';
-import { ToolError, defineTool } from '@dexto/core';
+import { ToolError, createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 
 const AskUserInputSchema = z
     .object({
-        question: z.string().describe('The question or prompt to display to the user'),
+        question: z
+            .string()
+            .describe(
+                'High-level prompt/title for the form. Keep this short; clients may display or ignore it.'
+            ),
         schema: z
             .object({
                 type: z.literal('object'),
-                properties: z.record(z.unknown()),
+                properties: z.record(z.string(), z.record(z.unknown())),
                 required: z.array(z.string()).optional(),
             })
             .passthrough()
             .describe(
-                'JSON Schema defining form fields. Use descriptive property names as labels (e.g., "favorite_team", "World Cup winner country") - NOT generic names like "q1". Use "enum" for dropdowns, "boolean" for yes/no, "number" for numeric inputs, "string" for text. Include "required" array for mandatory fields.'
+                [
+                    'JSON Schema defining form fields (object schema only).',
+                    'Deterministic UI mapping (recommended):',
+                    '- `properties[field].title`: main question/label shown prominently (keep ≲ 80 chars).',
+                    '- `properties[field].description`: optional help text (keep ≲ 120 chars).',
+                    '- `properties[field]["x-dexto"].stepLabel`: short wizard/step label (keep ≲ 16 chars).',
+                    'Use stable, descriptive property keys (avoid generic names like "q1").',
+                    'Use `enum` for single-choice lists, `boolean` for yes/no, `number` for numeric inputs, `string` for text.',
+                    'For multi-select, use `type: "array"` with `items: { enum: [...] }`.',
+                    'Include a top-level `required` array for mandatory fields.',
+                ].join(' ')
             ),
     })
     .strict();
+
+type AskUserInput = z.output<typeof AskUserInputSchema>;
+type JsonSchema = AskUserInput['schema'];
+
+function toTitleCase(value: string): string {
+    return value
+        .trim()
+        .replace(/[_-]+/g, ' ')
+        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+        .replace(/\s+/g, ' ')
+        .split(' ')
+        .map((part) => (part ? part.charAt(0).toUpperCase() + part.slice(1) : part))
+        .join(' ');
+}
+
+function enrichSchemaTitles(schema: JsonSchema): JsonSchema {
+    if (schema.type !== 'object') return schema;
+    const properties = schema.properties;
+    if (!properties) return schema;
+
+    const nextProperties: JsonSchema['properties'] = { ...properties };
+
+    for (const [key, value] of Object.entries(nextProperties)) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+        const title = typeof value.title === 'string' ? value.title.trim() : '';
+        if (title) continue;
+        nextProperties[key] = { ...value, title: toTitleCase(key) };
+    }
+
+    return { ...schema, properties: nextProperties };
+}
 
 /**
  * Create the `ask_user` tool.
@@ -27,10 +72,16 @@ const AskUserInputSchema = z
 export function createAskUserTool(): Tool<typeof AskUserInputSchema> {
     return defineTool({
         id: 'ask_user',
-        displayName: 'Ask',
         description:
             'Collect structured input from the user through a form interface. ONLY use this tool when you need: 1) Multiple fields at once (e.g., name + email + preferences), 2) Pre-defined options/choices (use enum for dropdowns like ["small","medium","large"]), 3) Specific data types with validation (boolean for yes/no, number for quantities). DO NOT use for simple conversational questions - just ask those naturally in your response. This tool is for form-like data collection, not chat. Examples: collecting user profile info, configuration settings, or selecting from preset options.',
         inputSchema: AskUserInputSchema,
+        presentation: {
+            describeHeader: (input) =>
+                createLocalToolCallHeader({
+                    title: 'Ask',
+                    argsText: truncateForHeader(input.question, 140),
+                }),
+        },
         async execute(input, context: ToolExecutionContext) {
             const { question, schema } = input;
 
@@ -41,20 +92,12 @@ export function createAskUserTool(): Tool<typeof AskUserInputSchema> {
                 );
             }
 
-            const elicitationRequest: {
-                schema: Record<string, unknown>;
-                prompt: string;
-                serverName: string;
-                sessionId?: string;
-            } = {
-                schema,
+            const elicitationRequest = {
+                schema: enrichSchemaTitles(input.schema),
                 prompt: question,
                 serverName: 'Dexto Agent',
+                ...(context.sessionId && { sessionId: context.sessionId }),
             };
-
-            if (context.sessionId !== undefined) {
-                elicitationRequest.sessionId = context.sessionId;
-            }
 
             return approvalManager.getElicitationData(elicitationRequest);
         },

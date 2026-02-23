@@ -13,6 +13,7 @@ import { ContextManager } from '../../context/manager.js';
 import type { TextPart, ImagePart, FilePart, UIResourcePart } from '../../context/types.js';
 import { ToolManager } from '../../tools/tool-manager.js';
 import { ToolSet } from '../../tools/types.js';
+import type { ToolPresentationSnapshotV1 } from '../../tools/types.js';
 import { StreamProcessor } from './stream-processor.js';
 import { ExecutorResult } from './types.js';
 import { buildProviderOptions } from './provider-options.js';
@@ -68,12 +69,12 @@ export class TurnExecutor {
     private compactionStrategy: CompactionStrategy | null = null;
     /**
      * Map to track tool-call metadata by toolCallId.
-     * Used to pass execution-time info (approval + display name) to result persistence.
+     * Used to pass execution-time info (approval + presentation snapshot) to result persistence.
      */
     private toolCallMetadata = new Map<
         string,
         {
-            toolDisplayName?: string;
+            presentationSnapshot?: ToolPresentationSnapshotV1;
             requireApproval?: boolean;
             approvalStatus?: 'approved' | 'rejected';
         }
@@ -642,19 +643,20 @@ export class TurnExecutor {
 
                                     const metadata:
                                         | {
-                                              toolDisplayName?: string;
+                                              presentationSnapshot?: ToolPresentationSnapshotV1;
                                               requireApproval?: boolean;
                                               approvalStatus?: 'approved' | 'rejected';
                                           }
                                         | undefined = (() => {
                                         const meta: {
-                                            toolDisplayName?: string;
+                                            presentationSnapshot?: ToolPresentationSnapshotV1;
                                             requireApproval?: boolean;
                                             approvalStatus?: 'approved' | 'rejected';
                                         } = {};
 
-                                        if (executionResult.toolDisplayName !== undefined) {
-                                            meta.toolDisplayName = executionResult.toolDisplayName;
+                                        if (executionResult.presentationSnapshot !== undefined) {
+                                            meta.presentationSnapshot =
+                                                executionResult.presentationSnapshot;
                                         }
 
                                         // Store approval metadata for later retrieval by StreamProcessor

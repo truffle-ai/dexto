@@ -9,3 +9,4 @@ export * from './events/types.js';
 export * from './mcp/mcp-handler.js';
 export * from './approval/manual-approval-handler.js';
 export * from './approval/approval-coordinator.js';
+export { getSchedulerManager } from '@dexto/tools-scheduler/service';

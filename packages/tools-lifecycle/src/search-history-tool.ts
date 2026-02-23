@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ToolError, defineTool } from '@dexto/core';
+import { ToolError, createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 import type { SearchOptions } from '@dexto/core';
 
@@ -43,10 +43,16 @@ const SearchHistoryInputSchema = z
 export function createSearchHistoryTool(): Tool<typeof SearchHistoryInputSchema> {
     return defineTool({
         id: 'search_history',
-        displayName: 'Search History',
         description:
             'Search through conversation history across sessions. Use mode="messages" to search for specific messages, or mode="sessions" to find sessions containing the query. For message search, you can filter by sessionId (specific session), role (user/assistant/system/tool), limit results, and set pagination offset.',
         inputSchema: SearchHistoryInputSchema,
+        presentation: {
+            describeHeader: (input) =>
+                createLocalToolCallHeader({
+                    title: 'Search History',
+                    argsText: truncateForHeader(`${input.mode}: ${input.query}`, 140),
+                }),
+        },
         async execute(input, context: ToolExecutionContext) {
             const { query, mode, sessionId, role, limit, offset } = input;
 

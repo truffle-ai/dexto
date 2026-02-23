@@ -6,6 +6,7 @@
 
 import { z } from 'zod';
 import type { TaskStatus } from '../types.js';
+import { createLocalToolCallHeader, truncateForHeader } from '@dexto/core';
 import type { Tool } from '@dexto/core';
 import type { TaskRegistry } from '../task-registry.js';
 
@@ -65,11 +66,25 @@ export interface ListTasksOutput {
 export function createListTasksTool(taskRegistry: TaskRegistry): Tool<typeof ListTasksInputSchema> {
     return {
         id: 'list_tasks',
-        displayName: 'List Tasks',
         description:
             'List all background tasks with optional filtering by status or type. ' +
             'Returns task information and counts.',
         inputSchema: ListTasksInputSchema,
+        presentation: {
+            describeHeader: (input) => {
+                const bits: string[] = [];
+                if (input.status && input.status !== 'all') bits.push(`status=${input.status}`);
+                if (input.type) bits.push(`type=${input.type}`);
+
+                const argsText =
+                    bits.length > 0 ? truncateForHeader(bits.join(', '), 120) : undefined;
+
+                return createLocalToolCallHeader({
+                    title: 'List Tasks',
+                    ...(argsText ? { argsText } : {}),
+                });
+            },
+        },
         execute: async (input, _context): Promise<ListTasksOutput> => {
             // Build filter
             const filter: {

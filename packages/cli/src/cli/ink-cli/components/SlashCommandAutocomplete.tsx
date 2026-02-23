@@ -7,12 +7,14 @@ import React, {
     forwardRef,
     useImperativeHandle,
 } from 'react';
-import { Box, Text, useStdout } from 'ink';
+import { Box, Text } from 'ink';
 import type { Key } from '../hooks/useInputOrchestrator.js';
 import type { PromptInfo } from '@dexto/core';
 import type { DextoAgent } from '@dexto/core';
 import { getAllCommands } from '../../commands/interactive-commands/commands.js';
 import type { CommandDefinition } from '../../commands/interactive-commands/command-parser.js';
+import { useTerminalSize } from '../hooks/useTerminalSize.js';
+import { getMaxVisibleItemsForTerminalRows } from '../utils/overlaySizing.js';
 
 export interface SlashCommandAutocompleteHandle {
     handleInput: (input: string, key: Key) => boolean;
@@ -127,15 +129,6 @@ function matchesSystemCommandQuery(cmd: CommandMatchCandidate, query: string): b
 }
 
 /**
- * Truncate text to fit within maxLength, adding ellipsis if truncated
- */
-function truncateText(text: string, maxLength: number): string {
-    if (text.length <= maxLength) return text;
-    if (maxLength <= 3) return text.slice(0, maxLength);
-    return text.slice(0, maxLength - 1) + '…';
-}
-
-/**
  * Inner component - wrapped with React.memo below
  */
 const SlashCommandAutocompleteInner = forwardRef<
@@ -157,12 +150,18 @@ const SlashCommandAutocompleteInner = forwardRef<
     const [prompts, setPrompts] = useState<PromptItem[]>([]);
     const [systemCommands, setSystemCommands] = useState<SystemCommandItem[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const { columns: terminalWidth, rows: terminalRows } = useTerminalSize();
+    const maxVisibleItems = useMemo(() => {
+        return getMaxVisibleItemsForTerminalRows({
+            rows: terminalRows,
+            hardCap: 8,
+            reservedRows: 8,
+        });
+    }, [terminalRows]);
+
     // Combined state to guarantee single render on navigation
     const [selection, setSelection] = useState({ index: 0, offset: 0 });
     const selectedIndexRef = useRef(0);
-    const { stdout } = useStdout();
-    const terminalWidth = stdout?.columns || 80;
-    const MAX_VISIBLE_ITEMS = 8;
 
     // Update selection AND scroll offset in a single state update
     // This guarantees exactly one render per navigation action
@@ -177,14 +176,14 @@ const SlashCommandAutocompleteInner = forwardRef<
                 let newOffset = prev.offset;
                 if (newIndex < prev.offset) {
                     newOffset = newIndex;
-                } else if (newIndex >= prev.offset + MAX_VISIBLE_ITEMS) {
-                    newOffset = Math.max(0, newIndex - MAX_VISIBLE_ITEMS + 1);
+                } else if (newIndex >= prev.offset + maxVisibleItems) {
+                    newOffset = Math.max(0, newIndex - maxVisibleItems + 1);
                 }
 
                 return { index: newIndex, offset: newOffset };
             });
         },
-        [MAX_VISIBLE_ITEMS]
+        [maxVisibleItems]
     );
 
     // Fetch prompts and system commands from agent
@@ -344,7 +343,7 @@ const SlashCommandAutocompleteInner = forwardRef<
         : Math.min(selection.index, Math.max(0, combinedItems.length - 1));
     const scrollOffset = itemsChanged
         ? 0
-        : Math.min(selection.offset, Math.max(0, combinedItems.length - MAX_VISIBLE_ITEMS));
+        : Math.min(selection.offset, Math.max(0, combinedItems.length - maxVisibleItems));
 
     // Sync state only when items actually changed AND state differs
     // This effect runs AFTER render, updating state for next user interaction
@@ -363,8 +362,8 @@ const SlashCommandAutocompleteInner = forwardRef<
 
     // Calculate visible items based on scroll offset
     const visibleItems = useMemo(() => {
-        return combinedItems.slice(scrollOffset, scrollOffset + MAX_VISIBLE_ITEMS);
-    }, [combinedItems, scrollOffset, MAX_VISIBLE_ITEMS]);
+        return combinedItems.slice(scrollOffset, scrollOffset + maxVisibleItems);
+    }, [combinedItems, scrollOffset, maxVisibleItems]);
 
     // Expose handleInput method via ref
     useImperativeHandle(
@@ -492,20 +491,12 @@ const SlashCommandAutocompleteInner = forwardRef<
         return null;
     }
 
-    const totalItems = combinedItems.length;
-
-    // Show simplified header when user is typing arguments
-    const headerText = hasArguments
-        ? 'Press Enter to execute'
-        : `Commands (${selectedIndex + 1}/${totalItems}) - ↑↓ navigate, Tab load, Enter execute, Esc close`;
+    const nameColumnWidth = Math.max(16, Math.min(28, Math.floor(terminalWidth * 0.32)));
+    const descriptionColor = (isSelected: boolean) => (isSelected ? 'white' : 'gray');
+    const commandColor = (isSelected: boolean) => (isSelected ? 'cyan' : 'gray');
 
     return (
         <Box flexDirection="column" width={terminalWidth}>
-            <Box paddingX={0} paddingY={0}>
-                <Text color="purple" bold>
-                    {headerText}
-                </Text>
-            </Box>
             {visibleItems.map((item, visibleIndex) => {
                 const actualIndex = scrollOffset + visibleIndex;
                 const isSelected = actualIndex === selectedIndex;
@@ -513,22 +504,29 @@ const SlashCommandAutocompleteInner = forwardRef<
                 if (item.kind === 'system') {
                     const cmd = item.command;
                     const nameText = `/${cmd.name}`;
-                    const categoryText = cmd.category ? ` (${cmd.category})` : '';
                     const descText = cmd.description || '';
 
-                    // Two-line layout:
-                    // Line 1: /command-name
-                    // Line 2:     Description text (category)
                     return (
-                        <Box key={`system-${cmd.name}`} flexDirection="column" paddingX={0}>
-                            <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
-                                {nameText}
-                            </Text>
-                            <Text color={isSelected ? 'white' : 'gray'}>
-                                {'    '}
-                                {descText}
-                                {categoryText}
-                            </Text>
+                        <Box key={`system-${cmd.name}`} flexDirection="row">
+                            <Box marginRight={1}>
+                                <Text color={commandColor(isSelected)}>
+                                    {isSelected ? '❯' : ' '}
+                                </Text>
+                            </Box>
+                            <Box width={nameColumnWidth}>
+                                <Text
+                                    wrap="truncate-end"
+                                    color={commandColor(isSelected)}
+                                    bold={isSelected}
+                                >
+                                    {nameText}
+                                </Text>
+                            </Box>
+                            <Box flexGrow={1} minWidth={0}>
+                                <Text wrap="truncate-end" color={descriptionColor(isSelected)}>
+                                    {descText}
+                                </Text>
+                            </Box>
                         </Box>
                     );
                 }
@@ -549,30 +547,29 @@ const SlashCommandAutocompleteInner = forwardRef<
                         : '';
                 const description = prompt.title || prompt.description || '';
 
-                // Two-line layout:
-                // Line 1: /command-name <args>
-                // Line 2:     Description text (source)
                 const commandText = nameText + argsString;
-                // Show source as label, with collision indicator if needed
-                // For plugin skills, show namespace (plugin name) instead of "config"
-                const metadata = prompt.metadata as Record<string, unknown> | undefined;
-                const displaySource = metadata?.namespace
-                    ? String(metadata.namespace)
-                    : prompt.source || 'prompt';
-                const sourceLabel = hasCollision
-                    ? `${displaySource} - use /${prompt.commandName}`
-                    : displaySource;
+                const collisionSuffix = hasCollision ? ` (use /${prompt.commandName})` : '';
 
                 return (
-                    <Box key={`prompt-${prompt.name}`} flexDirection="column" paddingX={0}>
-                        <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
-                            {commandText}
-                        </Text>
-                        <Text color={isSelected ? 'white' : 'gray'}>
-                            {'    '}
-                            {description}
-                            {` (${sourceLabel})`}
-                        </Text>
+                    <Box key={`prompt-${prompt.name}`} flexDirection="row">
+                        <Box marginRight={1}>
+                            <Text color={commandColor(isSelected)}>{isSelected ? '❯' : ' '}</Text>
+                        </Box>
+                        <Box width={nameColumnWidth}>
+                            <Text
+                                wrap="truncate-end"
+                                color={commandColor(isSelected)}
+                                bold={isSelected}
+                            >
+                                {commandText}
+                            </Text>
+                        </Box>
+                        <Box flexGrow={1} minWidth={0}>
+                            <Text wrap="truncate-end" color={descriptionColor(isSelected)}>
+                                {description}
+                                {collisionSuffix}
+                            </Text>
+                        </Box>
                     </Box>
                 );
             })}

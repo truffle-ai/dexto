@@ -15,7 +15,7 @@ import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
 import type { SessionMetadata } from '../session/index.js';
 import { AgentServices, type InitializeServicesOptions } from '../utils/service-initializer.js';
-import type { Logger } from '../logger/v2/types.js';
+import type { Logger, LogLevel } from '../logger/v2/types.js';
 import { Telemetry } from '../telemetry/telemetry.js';
 import { InstrumentClass } from '../telemetry/decorators.js';
 import { trace, context, propagation, type BaggageEntry } from '@opentelemetry/api';
@@ -492,6 +492,17 @@ export class DextoAgent {
             } catch (error) {
                 const err = error instanceof Error ? error : new Error(String(error));
                 shutdownErrors.push(new Error(`SessionManager cleanup failed: ${err.message}`));
+            }
+
+            // 1.5 Clean up tool-managed resources (custom tool providers, subagents, etc.)
+            try {
+                if (this.toolManager) {
+                    await this.toolManager.cleanup();
+                    this.logger.debug('ToolManager cleaned up successfully');
+                }
+            } catch (error) {
+                const err = error instanceof Error ? error : new Error(String(error));
+                shutdownErrors.push(new Error(`ToolManager cleanup failed: ${err.message}`));
             }
 
             // 2. Clean up hooks (close file handles, connections, etc.)
@@ -1520,6 +1531,33 @@ export class DextoAgent {
     }
 
     /**
+     * Sets the log level for this agent.
+     *
+     * Note: In some hosts (e.g. interactive CLI), session logs may be written by
+     * session-scoped file loggers rather than the base agent logger. When a sessionId
+     * is provided, this also updates the in-memory session logger so file logs reflect
+     * the new level immediately.
+     */
+    public async setLogLevel(level: LogLevel, options?: { sessionId?: string }): Promise<void> {
+        this.ensureStarted();
+
+        this.logger.setLevel(level);
+
+        const sessionId = options?.sessionId;
+        if (!sessionId) {
+            return;
+        }
+
+        const session = await this.sessionManager.getSession(sessionId, false);
+        if (!session) {
+            return;
+        }
+
+        session.logger.setLevel(level);
+        session.logger.debug(`Log level changed to '${level}'`);
+    }
+
+    /**
      * Ends a session by removing it from memory without deleting conversation history.
      * Used for cleanup, agent shutdown, and session expiry.
      * @param sessionId The session ID to end
@@ -1831,7 +1869,7 @@ export class DextoAgent {
 
         // Get full context estimate BEFORE compaction (includes system prompt, tools, messages)
         // This uses the same calculation as /context command for consistency
-        const contributorContext = { mcpManager: this.mcpManager };
+        const contributorContext = await this.toolManager.buildContributorContext();
         const tools = await llmService.getEnabledTools();
         const beforeEstimate = await contextManager.getContextTokenEstimate(
             contributorContext,
@@ -1972,7 +2010,7 @@ export class DextoAgent {
         const contextManager = session.getContextManager();
 
         // Get token estimate using ContextManager's method (single source of truth)
-        const contributorContext = { mcpManager: this.mcpManager };
+        const contributorContext = await this.toolManager.buildContributorContext();
         const llmService = session.getLLMService();
         const tools = await llmService.getEnabledTools();
 
@@ -2937,9 +2975,7 @@ export class DextoAgent {
      */
     public async getSystemPrompt(): Promise<string> {
         this.ensureStarted();
-        const context = {
-            mcpManager: this.mcpManager,
-        };
+        const context = await this.toolManager.buildContributorContext();
         return await this.systemPromptManager.build(context);
     }
 

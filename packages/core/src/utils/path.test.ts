@@ -135,6 +135,45 @@ describe('getDextoGlobalPath', () => {
         });
     });
 
+    describe('in dexto source with DEXTO_DEV_MODE=true', () => {
+        let originalCwd: string;
+        const originalDevMode = process.env.DEXTO_DEV_MODE;
+
+        beforeEach(() => {
+            originalCwd = process.cwd();
+            tempDir = createTempDirStructure({
+                'package.json': {
+                    name: 'dexto-monorepo',
+                    version: '1.0.0',
+                },
+            });
+            process.chdir(tempDir);
+            process.env.DEXTO_DEV_MODE = 'true';
+        });
+
+        afterEach(() => {
+            process.chdir(originalCwd);
+            if (originalDevMode === undefined) {
+                delete process.env.DEXTO_DEV_MODE;
+            } else {
+                process.env.DEXTO_DEV_MODE = originalDevMode;
+            }
+        });
+
+        it('uses repo-local .dexto for global paths', () => {
+            const result = getDextoGlobalPath('sounds', 'ping.wav');
+            // On macOS, temp paths may appear as /var/... or /private/var/... depending on resolution.
+            const expected = path.join(tempDir, '.dexto', 'sounds', 'ping.wav');
+            const expectedReal = path.join(
+                fs.realpathSync(tempDir),
+                '.dexto',
+                'sounds',
+                'ping.wav'
+            );
+            expect([expected, expectedReal]).toContain(result);
+        });
+    });
+
     describe('in dexto project context', () => {
         beforeEach(() => {
             tempDir = createTempDirStructure({

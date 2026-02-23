@@ -20,6 +20,7 @@ export const AgentRegistryEntrySchema = z
         tags: z.array(z.string()),
         source: z.string(),
         main: z.string().optional(),
+        enabled: z.boolean().optional(),
         type: z.enum(['builtin', 'custom']).default('builtin').describe('Agent type'),
     })
     .strict();
@@ -64,6 +65,10 @@ export function normalizeRegistryJson(raw: unknown): RawRegistry {
         if (!value || typeof value !== 'object') continue;
 
         const entry = { ...(value as Record<string, unknown>) };
+
+        if (entry.enabled === false) {
+            continue;
+        }
 
         // Ensure id field exists and matches the key
         if (!entry.id || typeof entry.id !== 'string' || entry.id.trim() !== agentId) {

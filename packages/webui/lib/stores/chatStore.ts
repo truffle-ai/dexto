@@ -6,7 +6,13 @@
  */
 
 import { create } from 'zustand';
-import type { InternalMessage, Issue, SanitizedToolResult, LLMProvider } from '@dexto/core';
+import type {
+    InternalMessage,
+    Issue,
+    SanitizedToolResult,
+    LLMProvider,
+    ToolPresentationSnapshotV1,
+} from '@dexto/core';
 import type { TextPart, ImagePart, AudioPart, FilePart, FileData, UIResourcePart } from '@/types';
 
 // =============================================================================
@@ -61,7 +67,7 @@ export interface Message extends Omit<InternalMessage, 'content' | 'role'> {
 
     // Tool-related fields
     toolName?: string;
-    toolDisplayName?: string;
+    presentationSnapshot?: ToolPresentationSnapshotV1;
     toolArgs?: Record<string, unknown>;
     toolCallId?: string;
     toolResult?: ToolResult;

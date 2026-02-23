@@ -30,6 +30,7 @@ import { fileSystemToolsFactory } from '@dexto/tools-filesystem';
 import { processToolsFactory } from '@dexto/tools-process';
 import { todoToolsFactory } from '@dexto/tools-todo';
 import { planToolsFactory } from '@dexto/tools-plan';
+import { schedulerToolsFactory } from '@dexto/tools-scheduler';
 import { lifecycleToolsFactory } from '@dexto/tools-lifecycle';
 import { agentSpawnerToolsFactory } from '@dexto/agent-management';
 
@@ -109,6 +110,7 @@ const imageLocal: DextoImage = {
             { type: 'process-tools' },
             { type: 'todo-tools' },
             { type: 'plan-tools' },
+            { type: 'scheduler-tools' },
             { type: 'lifecycle-tools' },
             { type: 'agent-spawner' },
         ],
@@ -148,6 +150,7 @@ const imageLocal: DextoImage = {
         'process-tools': processToolsFactory,
         'todo-tools': todoToolsFactory,
         'plan-tools': planToolsFactory,
+        'scheduler-tools': schedulerToolsFactory,
         'lifecycle-tools': lifecycleToolsFactory,
         'agent-spawner': agentSpawnerToolsFactory,
     },

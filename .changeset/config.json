@@ -21,6 +21,7 @@
     "@dexto/tools-process",
     "@dexto/tools-todo",
     "@dexto/tools-plan",
+    "@dexto/tools-scheduler",
     "@dexto/tools-lifecycle",
     "@dexto/orchestration"
   ]],

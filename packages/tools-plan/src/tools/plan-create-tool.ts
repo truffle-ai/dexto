@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import { defineTool } from '@dexto/core';
+import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core';
 import type { Tool, ToolExecutionContext, FileDisplayData } from '@dexto/core';
 import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
@@ -30,40 +30,47 @@ export function createPlanCreateTool(
 ): Tool<typeof PlanCreateInputSchema> {
     return defineTool({
         id: 'plan_create',
-        displayName: 'Plan',
         description:
             'Create a new implementation plan for the current session. Shows the plan for approval before saving. Use markdown format for the plan content with clear steps and file references.',
         inputSchema: PlanCreateInputSchema,
 
-        /**
-         * Generate preview for approval UI
-         */
-        generatePreview: async (input, context: ToolExecutionContext): Promise<FileDisplayData> => {
-            const { content } = input;
+        presentation: {
+            describeHeader: (input) =>
+                createLocalToolCallHeader({
+                    title: 'Create Plan',
+                    argsText: truncateForHeader(input.title, 140),
+                }),
+            /**
+             * Generate preview for approval UI
+             */
+            preview: async (input, context: ToolExecutionContext): Promise<FileDisplayData> => {
+                const { content } = input;
 
-            if (!context.sessionId) {
-                throw PlanError.sessionIdRequired();
-            }
+                if (!context.sessionId) {
+                    throw PlanError.sessionIdRequired();
+                }
 
-            const resolvedPlanService = await getPlanService(context);
+                const resolvedPlanService = await getPlanService(context);
 
-            // Check if plan already exists
-            const exists = await resolvedPlanService.exists(context.sessionId);
-            if (exists) {
-                throw PlanError.planAlreadyExists(context.sessionId);
-            }
+                // Check if plan already exists
+                const exists = await resolvedPlanService.exists(context.sessionId);
+                if (exists) {
+                    throw PlanError.planAlreadyExists(context.sessionId);
+                }
 
-            // Return preview for approval UI
-            const lineCount = content.split('\n').length;
-            const planPath = resolvedPlanService.getPlanPath(context.sessionId);
-            return {
-                type: 'file',
-                path: planPath,
-                operation: 'create',
-                content,
-                size: Buffer.byteLength(content, 'utf8'),
-                lineCount,
-            };
+                // Return preview for approval UI
+                const lineCount = content.split('\n').length;
+                const planPath = resolvedPlanService.getPlanPath(context.sessionId);
+                return {
+                    type: 'file',
+                    title: 'Create Plan',
+                    path: planPath,
+                    operation: 'create',
+                    content,
+                    size: Buffer.byteLength(content, 'utf8'),
+                    lineCount,
+                };
+            },
         },
 
         async execute(input, context: ToolExecutionContext) {
@@ -86,6 +93,7 @@ export function createPlanCreateTool(
             const planPath = resolvedPlanService.getPlanPath(context.sessionId);
             const _display: FileDisplayData = {
                 type: 'file',
+                title: 'Create Plan',
                 path: planPath,
                 operation: 'create',
                 size: Buffer.byteLength(content, 'utf8'),

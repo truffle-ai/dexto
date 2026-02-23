@@ -1,55 +1,55 @@
 {
-  "name": "@dexto/storage",
-  "version": "1.5.8",
-  "description": "Storage backends and factories for Dexto agents",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+    "name": "@dexto/storage",
+    "version": "1.6.1",
+    "description": "Storage backends and factories for Dexto agents",
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        },
+        "./schemas": {
+            "types": "./dist/schemas.d.ts",
+            "import": "./dist/schemas.js"
+        }
     },
-    "./schemas": {
-      "types": "./dist/schemas.d.ts",
-      "import": "./dist/schemas.js"
-    }
-  },
-  "scripts": {
-    "build": "tsup",
-    "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
-  },
-  "keywords": [
-    "dexto",
-    "storage"
-  ],
-  "dependencies": {
-    "@dexto/core": "workspace:*",
-    "zod": "^3.25.0"
-  },
-  "peerDependencies": {
-    "better-sqlite3": "^11.10.0",
-    "ioredis": "^5.7.0",
-    "pg": "^8.15.4"
-  },
-  "peerDependenciesMeta": {
-    "better-sqlite3": {
-      "optional": true
+    "scripts": {
+        "build": "tsup && node ../../scripts/clean-tsbuildinfo.mjs && tsc -b tsconfig.json --emitDeclarationOnly",
+        "typecheck": "tsc --noEmit",
+        "clean": "rm -rf dist"
     },
-    "ioredis": {
-      "optional": true
+    "keywords": [
+        "dexto",
+        "storage"
+    ],
+    "dependencies": {
+        "@dexto/core": "workspace:*",
+        "zod": "^3.25.0"
     },
-    "pg": {
-      "optional": true
-    }
-  },
-  "devDependencies": {
-    "tsup": "^8.0.0",
-    "typescript": "^5.3.3"
-  },
-  "files": [
-    "dist",
-    "README.md"
-  ]
+    "peerDependencies": {
+        "better-sqlite3": "^11.10.0",
+        "ioredis": "^5.7.0",
+        "pg": "^8.15.4"
+    },
+    "peerDependenciesMeta": {
+        "better-sqlite3": {
+            "optional": true
+        },
+        "ioredis": {
+            "optional": true
+        },
+        "pg": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "tsup": "^8.0.0",
+        "typescript": "^5.3.3"
+    },
+    "files": [
+        "dist",
+        "README.md"
+    ]
 }

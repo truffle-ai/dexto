@@ -1,50 +1,51 @@
 {
-  "name": "@dexto/image-local",
-  "version": "1.5.8",
-  "description": "Local development base image for Dexto agents with filesystem and process tools",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "scripts": {
-    "build": "tsup",
-    "test": "vitest run",
-    "test:integ": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
-  },
-  "keywords": [
-    "dexto",
-    "image",
-    "local-development",
-    "base-image",
-    "filesystem",
-    "process"
-  ],
-  "dependencies": {
-    "@dexto/agent-config": "workspace:*",
-    "@dexto/agent-management": "workspace:*",
-    "@dexto/core": "workspace:*",
-    "@dexto/storage": "workspace:*",
-    "@dexto/tools-builtins": "workspace:*",
-    "@dexto/tools-filesystem": "workspace:*",
-    "@dexto/tools-lifecycle": "workspace:*",
-    "@dexto/tools-plan": "workspace:*",
-    "@dexto/tools-process": "workspace:*",
-    "@dexto/tools-todo": "workspace:*",
-    "zod": "^3.25.0"
-  },
-  "devDependencies": {
-    "tsup": "^8.0.0",
-    "typescript": "^5.3.3"
-  },
-  "files": [
-    "dist",
-    "README.md"
-  ]
+    "name": "@dexto/image-local",
+    "version": "1.6.1",
+    "description": "Local development base image for Dexto agents with filesystem and process tools",
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsup && node ../../scripts/clean-tsbuildinfo.mjs && tsc -b tsconfig.json --emitDeclarationOnly",
+        "test": "vitest run",
+        "test:integ": "vitest run",
+        "typecheck": "tsc --noEmit",
+        "clean": "rm -rf dist"
+    },
+    "keywords": [
+        "dexto",
+        "image",
+        "local-development",
+        "base-image",
+        "filesystem",
+        "process"
+    ],
+    "dependencies": {
+        "@dexto/agent-config": "workspace:*",
+        "@dexto/agent-management": "workspace:*",
+        "@dexto/core": "workspace:*",
+        "@dexto/storage": "workspace:*",
+        "@dexto/tools-builtins": "workspace:*",
+        "@dexto/tools-filesystem": "workspace:*",
+        "@dexto/tools-lifecycle": "workspace:*",
+        "@dexto/tools-plan": "workspace:*",
+        "@dexto/tools-process": "workspace:*",
+        "@dexto/tools-scheduler": "workspace:*",
+        "@dexto/tools-todo": "workspace:*",
+        "zod": "^3.25.0"
+    },
+    "devDependencies": {
+        "tsup": "^8.0.0",
+        "typescript": "^5.3.3"
+    },
+    "files": [
+        "dist",
+        "README.md"
+    ]
 }

@@ -14,8 +14,18 @@
  * exactly as they would when users install from npm.
  */
 import { execSync, spawn, ChildProcess } from 'child_process';
-import { existsSync, rmSync, mkdirSync, writeFileSync, readdirSync, readFileSync } from 'fs';
-import { join } from 'path';
+import {
+    existsSync,
+    rmSync,
+    mkdirSync,
+    writeFileSync,
+    readdirSync,
+    readFileSync,
+    lstatSync,
+    readlinkSync,
+} from 'fs';
+import { join, resolve, sep } from 'path';
+import { homedir } from 'os';
 
 const REGISTRY_URL = 'http://localhost:4873';
 const VERDACCIO_CONFIG_DIR = join(process.cwd(), '.verdaccio');
@@ -166,6 +176,104 @@ function resolvePublishPlan(rootDir: string): WorkspacePackage[] {
     }
 
     return ordered;
+}
+
+type RemoveResult = { removed: boolean; message?: string };
+
+function removeBunGlobalCliShim(toolName: string): RemoveResult {
+    const bunInstallDir = process.env.BUN_INSTALL || join(homedir(), '.bun');
+    const bunBinDir = join(bunInstallDir, 'bin');
+    const bunGlobalPkgDir = join(bunInstallDir, 'install', 'global', 'node_modules', toolName);
+    const bunGlobalPkgJson = join(bunGlobalPkgDir, 'package.json');
+    const bunGlobalInstalled = existsSync(bunGlobalPkgJson);
+
+    const candidates =
+        process.platform === 'win32'
+            ? [join(bunBinDir, `${toolName}.exe`), join(bunBinDir, `${toolName}.cmd`)]
+            : [join(bunBinDir, toolName)];
+
+    const messages: string[] = [];
+    let removedAny = false;
+
+    for (const candidate of candidates) {
+        if (!existsSync(candidate)) {
+            continue;
+        }
+
+        try {
+            const stat = lstatSync(candidate);
+            if (stat.isSymbolicLink()) {
+                const target = readlinkSync(candidate);
+                const resolvedTarget = resolve(bunBinDir, target);
+                const looksLikeBunGlobalDexto =
+                    resolvedTarget === bunGlobalPkgDir ||
+                    resolvedTarget.startsWith(`${bunGlobalPkgDir}${sep}`);
+
+                if (!looksLikeBunGlobalDexto) {
+                    messages.push(
+                        `Found bun shim at ${candidate}, but its target doesn't look like a bun-managed install (${target}).`
+                    );
+                    continue;
+                }
+
+                rmSync(candidate, { force: true });
+                removedAny = true;
+                messages.push(`Removed bun shim at ${candidate}`);
+                continue;
+            }
+
+            const isWindowsExe =
+                process.platform === 'win32' && candidate.toLowerCase().endsWith('.exe');
+            const isWindowsCmd =
+                process.platform === 'win32' && candidate.toLowerCase().endsWith('.cmd');
+
+            if (isWindowsExe) {
+                if (!bunGlobalInstalled) {
+                    messages.push(
+                        `Found bun bin entry at ${candidate}, but ${bunGlobalPkgJson} does not exist.`
+                    );
+                    continue;
+                }
+            } else if (isWindowsCmd) {
+                const content = readFileSync(candidate, 'utf8');
+                const firstFewLines = content.split(/\r?\n/).slice(0, 5).join('\n');
+                const haystack = firstFewLines.toLowerCase();
+                const bunGlobalPosix = bunGlobalPkgDir.replaceAll('\\', '/').toLowerCase();
+                const bunGlobalWin = bunGlobalPkgDir.replaceAll('/', '\\').toLowerCase();
+                const looksLikeBunScript =
+                    haystack.includes('bun') ||
+                    haystack.includes(bunGlobalPosix) ||
+                    haystack.includes(bunGlobalWin);
+
+                if (!looksLikeBunScript && !bunGlobalInstalled) {
+                    messages.push(
+                        `Found bun bin entry at ${candidate}, but it doesn't look like a bun-managed script.`
+                    );
+                    continue;
+                }
+            } else {
+                const firstLine = readFileSync(candidate, 'utf8').split(/\r?\n/)[0] ?? '';
+                if (!firstLine.includes('bun')) {
+                    messages.push(
+                        `Found bun bin entry at ${candidate}, but it doesn't look like a bun script (first line: ${firstLine}).`
+                    );
+                    continue;
+                }
+            }
+
+            rmSync(candidate, { force: true });
+            removedAny = true;
+            messages.push(`Removed bun bin entry at ${candidate}`);
+        } catch (error) {
+            messages.push(
+                `Failed to inspect/remove bun shim at ${candidate}: ${
+                    error instanceof Error ? error.message : String(error)
+                }`
+            );
+        }
+    }
+
+    return { removed: removedAny, message: messages.length ? messages.join('; ') : undefined };
 }
 
 function sleep(ms: number): Promise<void> {
@@ -353,6 +461,17 @@ async function main() {
             }
         } catch {
             // pnpm not available or no global link
+        }
+        try {
+            const bunRemoval = removeBunGlobalCliShim('dexto');
+            if (bunRemoval.removed) {
+                console.log(`  ✓ ${bunRemoval.message}`);
+                removedAny = true;
+            } else if (bunRemoval.message) {
+                console.log(`  ⚠️  ${bunRemoval.message}`);
+            }
+        } catch {
+            // Unexpected OS-level error (e.g. homedir() unavailable); skip bun shim cleanup
         }
         if (!removedAny) {
             console.log('  (no existing installation)');

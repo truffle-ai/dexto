@@ -45,6 +45,7 @@ tools:
 Notes:
 - Omit `tools:` to use `image.defaults.tools`.
 - Storage defaults come from `image.defaults.storage` (override with `storage:` in YAML).
+- `filesystem-tools.allowedPaths` defines the static sandbox. In manual mode, attempts to access paths outside the sandbox trigger a directory access approval prompt; if approved, access is granted for the current session or for a single occurrence.
 
 ## App usage (direct import)
 

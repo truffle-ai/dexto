@@ -111,7 +111,9 @@ const PromptList = forwardRef<PromptListHandle, PromptListProps>(function Prompt
                 setIsLoading(false);
             })
             .catch((err) => {
-                console.error(`PromptList: Failed to load prompts: ${err}`);
+                agent.logger.error(
+                    `PromptList: Failed to load prompts: ${err instanceof Error ? err.message : String(err)}`
+                );
                 setPrompts([]);
                 setIsLoading(false);
             });
@@ -140,24 +142,17 @@ const PromptList = forwardRef<PromptListHandle, PromptListProps>(function Prompt
 
     // Build list items: prompts + Add/Delete actions
     const items = useMemo<ListItem[]>(() => {
-        const list: ListItem[] = prompts.map((prompt) => ({
-            id: prompt.name,
-            type: 'prompt' as const,
-            prompt,
-        }));
-
-        // Add action items at the end
-        list.push({
-            id: '__add__',
-            type: 'add',
-        });
-
-        list.push({
-            id: '__delete__',
-            type: 'delete',
-        });
-
-        return list;
+        return [
+            // Action items at the top
+            { id: '__add__', type: 'add' as const },
+            { id: '__delete__', type: 'delete' as const },
+            // Prompts list
+            ...prompts.map((prompt) => ({
+                id: prompt.name,
+                type: 'prompt' as const,
+                prompt,
+            })),
+        ];
     }, [prompts]);
 
     // Format item for display

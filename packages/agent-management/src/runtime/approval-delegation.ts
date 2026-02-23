@@ -22,6 +22,9 @@ interface DelegatedMetadata {
     [key: string]: unknown;
     /** ID of the sub-agent that originated the request */
     delegatedFromAgent: string;
+
+    /** Original sessionId from the sub-agent */
+    delegatedFromSessionId?: string;
 }
 
 /**
@@ -40,6 +43,7 @@ interface DelegatedMetadata {
  * const delegatingHandler = createDelegatingApprovalHandler(
  *   parentAgent.services.approvalManager,
  *   subAgentId,
+ *   parentSessionId,
  *   logger
  * );
  * subAgent.services.approvalManager.setHandler(delegatingHandler);
@@ -48,6 +52,7 @@ interface DelegatedMetadata {
 export function createDelegatingApprovalHandler(
     parentApprovalManager: ApprovalManager,
     subAgentId: string,
+    parentSessionId: string | undefined,
     logger: Logger
 ): ApprovalHandler {
     // Track pending approvals for this sub-agent (for cancellation)
@@ -67,10 +72,13 @@ export function createDelegatingApprovalHandler(
                 const delegatedDetails: ApprovalRequestDetails = {
                     type: request.type,
                     timeout: request.timeout,
-                    sessionId: request.sessionId,
+                    // IMPORTANT: use the parent sessionId so the interactive CLI surfaces
+                    // the approval in the correct active session.
+                    sessionId: parentSessionId ?? request.sessionId,
                     metadata: {
                         ...request.metadata,
                         delegatedFromAgent: subAgentId,
+                        delegatedFromSessionId: request.sessionId,
                     } as DelegatedMetadata,
                 };
 

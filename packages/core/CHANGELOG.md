@@ -1,5 +1,92 @@
 # @dexto/core
 
+## 1.6.1
+
+### Patch Changes
+
+- 03d4564: consolidates scheduler runtime changes and workspace context propagation, and ensures sub‑agents inherit the parent workspace.
+- 112dadf: - CLI/TUI: cleaner overlays (selectors, approvals, elicitation) with consistent sizing to reduce flicker on small terminals.
+    - Tools: richer pre-approval previews (files/diffs, bash commands, plans) and clearer tool output formatting in message history.
+    - Filesystem approvals: directory access checks now handle symlinks/realpaths consistently so approved directories actually work (e.g. `/tmp` on macOS).
+    - ask_user: wizard-style elicitation flow with a deterministic schema contract (field `title`/`description` + `x-dexto.stepLabel`).
+    - Reliability & build: deterministic `http_request` tests (no network) and faster builds by separating JS bundling from DTS generation.
+
+## 1.6.0
+
+### Minor Changes
+
+- facabe1: Rebuild DI + image-based config resolution
+
+    This release rebuilds Dexto’s core/runtime to be DI-first, and moves YAML/config concerns into a dedicated adapter layer.
+
+    **Highlights**
+    - **DI-first `@dexto/core`**: `DextoAgent` is now constructed with concrete dependencies (logger, storage backends, tools, plugins, compaction strategy). Core no longer creates these from YAML.
+    - **New `@dexto/agent-config` package**: owns the YAML/Zod schemas and provides the “YAML → validated config → resolved services → `DextoAgentOptions`” pipeline (including image loading + defaults).
+    - **Images define the YAML surface**: agents can reference an `image:` (e.g. `@dexto/image-local`) that provides defaults + factories for tools/plugins/compaction/storage. The CLI can install/manage images in the user image store (`~/.dexto/images` by default).
+    - **New `@dexto/storage` package**: extracted concrete storage implementations out of core. Core keeps storage interfaces + `StorageManager`; images/hosts provide implementations.
+    - **Tools refactor**: tool packs are now configured via image tool factories; tool execution uses a required `ToolExecutionContext`. Built-in tools ship via **new** `@dexto/tools-builtins`.
+    - **Agent events**: event bus is no longer exposed directly; use `agent.on()/off()` and `agent.registerSubscriber()` (server SSE/webhook subscribers updated).
+
+    **Breaking/migration notes**
+    - Programmatic usage must construct the agent via `new DextoAgent({ ...runtimeSettings, logger, storage, tools, plugins, compaction })` (the old config-first construction path is removed).
+    - Config/YAML usage should go through `@dexto/agent-management` (load/enrich) + `@dexto/agent-config` (validate + resolve services + `toDextoAgentOptions()`).
+    - Server “save/apply config” endpoints now rely on host-owned config paths (core no longer tracks file paths and no longer supports `agent.reload()`).
+
+### Patch Changes
+
+- d6b4368: Tool type-safety + validation improvements
+    - Preserve Zod-derived input types through `defineTool()`/`Tool<TSchema>` so tool factories expose typed `execute()` inputs to callers.
+    - Centralize local tool arg validation in ToolManager (and re-validate after hook mutation) so tools always receive schema-validated args and defaults/coercions are consistently applied.
+    - Refactor filesystem tool directory-access approvals to share a single helper and keep approval/execution path resolution consistent.
+    - Small UX/consistency fixes across plan/process/orchestration tools and the CLI config summary output.
+
+- 99cf1c6: Refactors
+    - Agent config terminology updates:
+        - `toolConfirmation` → `permissions`
+        - `internalResources` → `resources` (and removes the unused `enabled` flag)
+        - runtime “plugins” → “hooks” (to avoid confusion with Claude Code-style plugins)
+    - CLI UX: removes headless/positional prompt mode; `--prompt` now starts the interactive CLI with an initial prompt.
+    - CLI UX: the “Agent config updates available” sync prompt reappears on subsequent runs until agents are synced (no per-version dismissal).
+    - Tool surface refactor: removes `custom`/`internal` tool ID prefixes; MCP tools remain namespaced.
+    - Approval UX:
+        - Directory access prompts now auto-approve parallel pending requests after the first approval (reduces repetitive prompts during multi-tool flows).
+        - Remembering a tool for the session now auto-approves parallel pending tool approvals for that tool.
+    - New and updated tools:
+        - Adds built-in Exa `web_search` + `code_search` tools.
+        - Enables built-in `http_request` (“Fetch”) in the default and coding agents.
+        - Refines tool display names for readability (e.g. “Update Todos”, “Web Search”, “Code Search”, “Check Task”, “List Tasks”).
+        - Adds `@dexto/tools-lifecycle` (view logs + memory management) and moves session search into lifecycle tools.
+    - UI terminology: “task list” → “todo list”.
+    - Images:
+        - `DextoImageModule` renamed to `DextoImage`.
+        - `dexto image create` scaffold includes minimal examples for tools/hooks/storage/compaction.
+- c862605: Add workspace management across core and server, improve MCP server configuration handling, and expand tool behavior (streaming tool-input events, new built-in http_request/sleep with safer request handling, and workspace-aware filesystem/process tools).
+- 8d37b8a: Add per-model token usage tracking for multi-model sessions
+
+    **Features:**
+    - Track token usage and costs separately for each model used within a session
+    - New `modelStats` field in session metadata provides per-model breakdown:
+        - Provider and model identifiers
+        - Message count per model
+        - Token usage breakdown (input, output, reasoning, cache read/write)
+        - Estimated cost per model
+        - First and last used timestamps
+    - Session-level aggregates (total tokens, total cost) now accurately sum across all models
+    - Pricing calculations now use the actual model from response payload, ensuring correct cost attribution when switching models mid-session
+
+    **Implementation:**
+    - Added `ModelStatistics` interface and schema for per-model tracking
+    - Added `SessionTokenUsageSchema` for comprehensive token accounting
+    - Extracted `accumulateTokensInto()` helper to eliminate duplication
+    - Updated OpenAPI documentation with new schema fields
+
+    **Bug Fixes:**
+    - Fixed pricing calculation to use response payload's model instead of session config, preventing incorrect costs when models are switched via `/model` command
+
+    This enables accurate resource tracking and cost attribution in sessions that use multiple models (e.g., switching from GPT-4 to Claude mid-conversation).
+
+- 7ffa399: Added scheduler service and related tool providers.
+
 ## 1.5.8
 
 ### Patch Changes

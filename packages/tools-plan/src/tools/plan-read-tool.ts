@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import { defineTool } from '@dexto/core';
+import { createLocalToolCallHeader, defineTool } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
@@ -21,10 +21,15 @@ export function createPlanReadTool(
 ): Tool<typeof PlanReadInputSchema> {
     return defineTool({
         id: 'plan_read',
-        displayName: 'Read Plan',
         description:
             'Read the current implementation plan for this session. Returns the plan content and metadata including status. Use markdown checkboxes (- [ ] and - [x]) in the content to track progress.',
         inputSchema: PlanReadInputSchema,
+        presentation: {
+            describeHeader: () =>
+                createLocalToolCallHeader({
+                    title: 'Read Plan',
+                }),
+        },
 
         async execute(_input, context: ToolExecutionContext) {
             const resolvedPlanService = await getPlanService(context);

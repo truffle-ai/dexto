@@ -24,6 +24,7 @@ const createMockLogger = (): Logger => {
         error: vi.fn(),
         trackException: vi.fn(),
         createChild: vi.fn(() => logger),
+        createFileOnlyChild: vi.fn(() => logger),
         setLevel: vi.fn(),
         getLevel: vi.fn(() => 'debug' as const),
         getLogFilePath: vi.fn(() => null),
@@ -70,12 +71,16 @@ describe('plan_create tool', () => {
             const sessionId = 'test-session';
             const content = '# Implementation Plan\n\n## Steps\n1. First step';
 
-            const preview = (await tool.generatePreview!(
+            const previewFn = tool.presentation?.preview;
+            expect(previewFn).toBeDefined();
+
+            const preview = (await previewFn!(
                 { title: 'Test Plan', content },
                 createToolContext(logger, { sessionId })
             )) as FileDisplayData;
 
             expect(preview.type).toBe('file');
+            expect(preview.title).toBe('Create Plan');
             expect(preview.operation).toBe('create');
             // Path is now absolute, check it ends with the expected suffix
             expect(preview.path).toContain(sessionId);
@@ -87,11 +92,11 @@ describe('plan_create tool', () => {
         it('should throw error when sessionId is missing', async () => {
             const tool = createPlanCreateTool(async () => planService);
 
+            const previewFn = tool.presentation?.preview;
+            expect(previewFn).toBeDefined();
+
             try {
-                await tool.generatePreview!(
-                    { title: 'Test', content: '# Plan' },
-                    createToolContext(logger)
-                );
+                await previewFn!({ title: 'Test', content: '# Plan' }, createToolContext(logger));
                 expect.fail('Should have thrown an error');
             } catch (error) {
                 expect(error).toBeInstanceOf(DextoRuntimeError);
@@ -103,11 +108,14 @@ describe('plan_create tool', () => {
             const tool = createPlanCreateTool(async () => planService);
             const sessionId = 'test-session';
 
+            const previewFn = tool.presentation?.preview;
+            expect(previewFn).toBeDefined();
+
             // Create existing plan
             await planService.create(sessionId, '# Existing Plan');
 
             try {
-                await tool.generatePreview!(
+                await previewFn!(
                     { title: 'New Plan', content: '# New Content' },
                     createToolContext(logger, { sessionId })
                 );
@@ -188,6 +196,7 @@ describe('plan_create tool', () => {
 
             expect(result._display).toBeDefined();
             expect(result._display.type).toBe('file');
+            expect(result._display.title).toBe('Create Plan');
             expect(result._display.operation).toBe('create');
             expect(result._display.lineCount).toBe(2);
         });
