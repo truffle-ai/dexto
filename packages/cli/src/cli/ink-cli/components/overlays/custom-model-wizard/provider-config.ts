@@ -10,6 +10,7 @@ import {
     refreshOpenRouterModelCache,
     getLocalModelById,
     isReasoningCapableModel,
+    REASONING_PRESETS,
 } from '@dexto/core';
 import type { ReasoningPreset } from '@dexto/core';
 import type { ProviderConfig, WizardStep } from './types.js';
@@ -56,13 +57,13 @@ const DISPLAY_NAME_STEP: WizardStep = {
 const REASONING_PRESET_STEP: WizardStep = {
     field: 'reasoningPreset',
     label: 'Reasoning Preset (optional)',
-    placeholder: 'auto | off | low | medium | high | max | xhigh (blank for auto)',
+    placeholder: `${REASONING_PRESETS.join(' | ')} (blank for auto)`,
     required: false,
     validate: (value: string) => {
         if (!value?.trim()) return null;
-        const validValues = ['auto', 'off', 'low', 'medium', 'high', 'max', 'xhigh'];
-        if (!validValues.includes(value.toLowerCase())) {
-            return `Invalid reasoning preset. Use: ${validValues.join(', ')}`;
+        const normalized = value.toLowerCase();
+        if (!REASONING_PRESETS.includes(normalized as ReasoningPreset)) {
+            return `Invalid reasoning preset. Use: ${REASONING_PRESETS.join(', ')}`;
         }
         return null;
     },

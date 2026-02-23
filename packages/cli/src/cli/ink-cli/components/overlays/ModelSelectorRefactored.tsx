@@ -464,6 +464,20 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         }
     };
 
+    const beginReasoningPresetSelection = (item: ModelOption, settingDefault: boolean): boolean => {
+        const support = getReasoningSupport(item.provider, item.name);
+        if (!support.capable) {
+            return false;
+        }
+
+        setPendingReasoningModel(item);
+        setIsSettingDefault(settingDefault);
+        setReasoningPresetIndex(
+            getInitialPresetIndex(item.reasoningPreset, support.supportedPresets)
+        );
+        return true;
+    };
+
     // Expose handleInput method via ref
     useImperativeHandle(
         ref,
@@ -574,17 +588,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
                         const actionItem = currentItem as ModelOption;
 
-                        // Check if reasoning-capable, show reasoning preset selection
-                        const support = getReasoningSupport(actionItem.provider, actionItem.name);
-                        if (support.capable) {
-                            setPendingReasoningModel(actionItem);
-                            setIsSettingDefault(true);
-                            setReasoningPresetIndex(
-                                getInitialPresetIndex(
-                                    actionItem.reasoningPreset,
-                                    support.supportedPresets
-                                )
-                            );
+                        if (beginReasoningPresetSelection(actionItem, true)) {
                             return true;
                         }
 
@@ -729,17 +733,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         }
 
                         if (customModelAction === 'default') {
-                            // Check if reasoning-capable, show reasoning preset selection
-                            const support = getReasoningSupport(item.provider, item.name);
-                            if (support.capable) {
-                                setPendingReasoningModel(item);
-                                setIsSettingDefault(true);
-                                setReasoningPresetIndex(
-                                    getInitialPresetIndex(
-                                        item.reasoningPreset,
-                                        support.supportedPresets
-                                    )
-                                );
+                            if (beginReasoningPresetSelection(item, true)) {
                                 return true;
                             }
 
@@ -778,16 +772,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         }
 
                         // Normal selection - check if reasoning-capable
-                        const support = getReasoningSupport(item.provider, item.name);
-                        if (support.capable) {
-                            // Show reasoning preset sub-step
-                            setPendingReasoningModel(item);
-                            setReasoningPresetIndex(
-                                getInitialPresetIndex(
-                                    item.reasoningPreset,
-                                    support.supportedPresets
-                                )
-                            );
+                        if (beginReasoningPresetSelection(item, false)) {
                             return true;
                         }
                         onSelectModel(item.provider, item.name, item.displayName, item.baseURL);
@@ -814,6 +799,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             reasoningPresetIndex,
             reasoningPresetOptions,
             isSettingDefault,
+            beginReasoningPresetSelection,
         ]
     );
 
