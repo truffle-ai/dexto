@@ -26,12 +26,13 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     xai: 'Grok',
     cohere: 'Cohere',
     minimax: 'MiniMax',
-    glm: 'GLM',
+    zhipuai: 'GLM',
     openrouter: 'OpenRouter',
     litellm: 'LiteLLM',
     glama: 'Glama',
-    vertex: 'Vertex AI',
-    bedrock: 'Bedrock',
+    'google-vertex': 'Vertex AI',
+    'google-vertex-anthropic': 'Vertex AI (Claude)',
+    'amazon-bedrock': 'Bedrock',
     'openai-compatible': 'Custom',
     'dexto-nova': 'Dexto Nova',
 };
@@ -43,8 +44,7 @@ const MULTI_VENDOR_PROVIDERS = new Set([
     'openai-compatible',
     'litellm',
     'glama',
-    'bedrock',
-    'vertex',
+    'amazon-bedrock',
 ]);
 
 export function CompactModelCard({

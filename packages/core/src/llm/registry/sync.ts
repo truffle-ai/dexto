@@ -264,7 +264,16 @@ export function buildModelsByProviderFromParsedSources(params: {
 }): Record<LLMProvider, ModelInfo[]> {
     const { modelsDevApi } = params;
 
-    const defaults: Partial<Record<LLMProvider, string>> = {
+    const overlayProviderIds: LLMProvider[] = [
+        'dexto-nova',
+        'openai-compatible',
+        'litellm',
+        'glama',
+        'local',
+        'ollama',
+    ];
+
+    const defaults: Partial<Record<string, string>> = {
         openai: 'gpt-5-mini',
         anthropic: 'claude-haiku-4-5-20251001',
         google: 'gemini-3-flash-preview',
@@ -272,264 +281,47 @@ export function buildModelsByProviderFromParsedSources(params: {
         xai: 'grok-4',
         cohere: 'command-a-03-2025',
         minimax: 'MiniMax-M2.1',
-        'minimax-cn': 'MiniMax-M2.1',
-        'minimax-coding-plan': 'MiniMax-M2.1',
-        'minimax-cn-coding-plan': 'MiniMax-M2.1',
-        glm: 'glm-4.7',
         zhipuai: 'glm-4.7',
-        'zhipuai-coding-plan': 'glm-4.7',
-        zai: 'glm-4.7',
-        'zai-coding-plan': 'glm-4.7',
         moonshotai: 'kimi-k2.5',
-        'moonshotai-cn': 'kimi-k2.5',
-        'kimi-for-coding': 'k2p5',
-        vertex: 'gemini-3-flash-preview',
-        bedrock: 'anthropic.claude-sonnet-4-5-20250929-v1:0',
     };
 
-    const include = {
-        openai: (id: string) => id.startsWith('gpt-') || id.startsWith('o'),
-        anthropic: (id: string) => id.startsWith('claude-'),
-        google: (id: string) => id.startsWith('gemini-'),
-        groq: (_id: string) => true,
-        xai: (id: string) => id.startsWith('grok-'),
-        cohere: (id: string) => id.startsWith('command-'),
-        minimax: (_id: string) => true,
-        'minimax-cn': (_id: string) => true,
-        'minimax-coding-plan': (_id: string) => true,
-        'minimax-cn-coding-plan': (_id: string) => true,
-        glm: (id: string) => id.startsWith('glm-'),
-        zhipuai: (id: string) => id.startsWith('glm-'),
-        'zhipuai-coding-plan': (id: string) => id.startsWith('glm-'),
-        zai: (id: string) => id.startsWith('glm-'),
-        'zai-coding-plan': (id: string) => id.startsWith('glm-'),
-        moonshotai: (_id: string) => true,
-        'moonshotai-cn': (_id: string) => true,
-        'kimi-for-coding': (_id: string) => true,
-        vertex: (_id: string) => true,
-        bedrock: (_id: string) => true,
-        openrouter: (_id: string) => true,
-    } as const;
+    function includeModel(providerId: string, modelId: string): boolean {
+        if (providerId === 'openai') return modelId.startsWith('gpt-') || modelId.startsWith('o');
+        if (providerId === 'anthropic') return modelId.startsWith('claude-');
+        if (providerId === 'google') return modelId.startsWith('gemini-');
+        if (providerId === 'xai') return modelId.startsWith('grok-');
+        if (providerId === 'cohere') return modelId.startsWith('command-');
+        return true;
+    }
 
-    const modelsByProvider: Record<LLMProvider, ModelInfo[]> = {
-        openai: buildModelsFromModelsDevProvider({
+    const providerIds = Object.keys(modelsDevApi).sort();
+    const modelsByProvider = {} as Record<LLMProvider, ModelInfo[]>;
+
+    for (const providerId of providerIds) {
+        const providerKey = providerId as LLMProvider;
+        const models = buildModelsFromModelsDevProvider({
             spec: {
-                provider: 'openai',
-                modelsDevProviderId: 'openai',
-                ...(defaults.openai ? { defaultModelId: defaults.openai } : {}),
-                includeModelId: include.openai,
+                provider: providerKey,
+                modelsDevProviderId: providerId,
+                ...(defaults[providerId] ? { defaultModelId: defaults[providerId] } : {}),
+                includeModelId: (id) => includeModel(providerId, id),
             },
             modelsDevApi,
-        }),
-        'openai-compatible': [],
-        anthropic: buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'anthropic',
-                modelsDevProviderId: 'anthropic',
-                ...(defaults.anthropic ? { defaultModelId: defaults.anthropic } : {}),
-                includeModelId: include.anthropic,
-            },
-            modelsDevApi,
-        }),
-        google: buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'google',
-                modelsDevProviderId: 'google',
-                ...(defaults.google ? { defaultModelId: defaults.google } : {}),
-                includeModelId: include.google,
-            },
-            modelsDevApi,
-        }),
-        groq: buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'groq',
-                modelsDevProviderId: 'groq',
-                ...(defaults.groq ? { defaultModelId: defaults.groq } : {}),
-                includeModelId: include.groq,
-            },
-            modelsDevApi,
-        }),
-        xai: buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'xai',
-                modelsDevProviderId: 'xai',
-                ...(defaults.xai ? { defaultModelId: defaults.xai } : {}),
-                includeModelId: include.xai,
-            },
-            modelsDevApi,
-        }),
-        cohere: buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'cohere',
-                modelsDevProviderId: 'cohere',
-                ...(defaults.cohere ? { defaultModelId: defaults.cohere } : {}),
-                includeModelId: include.cohere,
-            },
-            modelsDevApi,
-        }),
-        minimax: buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'minimax',
-                modelsDevProviderId: 'minimax',
-                ...(defaults.minimax ? { defaultModelId: defaults.minimax } : {}),
-                includeModelId: include.minimax,
-            },
-            modelsDevApi,
-        }),
-        'minimax-cn': buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'minimax-cn',
-                modelsDevProviderId: 'minimax-cn',
-                ...(defaults['minimax-cn'] ? { defaultModelId: defaults['minimax-cn'] } : {}),
-                includeModelId: include['minimax-cn'],
-            },
-            modelsDevApi,
-        }),
-        'minimax-coding-plan': buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'minimax-coding-plan',
-                modelsDevProviderId: 'minimax-coding-plan',
-                ...(defaults['minimax-coding-plan']
-                    ? { defaultModelId: defaults['minimax-coding-plan'] }
-                    : {}),
-                includeModelId: include['minimax-coding-plan'],
-            },
-            modelsDevApi,
-        }),
-        'minimax-cn-coding-plan': buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'minimax-cn-coding-plan',
-                modelsDevProviderId: 'minimax-cn-coding-plan',
-                ...(defaults['minimax-cn-coding-plan']
-                    ? { defaultModelId: defaults['minimax-cn-coding-plan'] }
-                    : {}),
-                includeModelId: include['minimax-cn-coding-plan'],
-            },
-            modelsDevApi,
-        }),
-        glm: buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'glm',
-                modelsDevProviderId: 'zhipuai',
-                ...(defaults.glm ? { defaultModelId: defaults.glm } : {}),
-                includeModelId: include.glm,
-            },
-            modelsDevApi,
-        }),
-        zhipuai: buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'zhipuai',
-                modelsDevProviderId: 'zhipuai',
-                ...(defaults.zhipuai ? { defaultModelId: defaults.zhipuai } : {}),
-                includeModelId: include.zhipuai,
-            },
-            modelsDevApi,
-        }),
-        'zhipuai-coding-plan': buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'zhipuai-coding-plan',
-                modelsDevProviderId: 'zhipuai-coding-plan',
-                ...(defaults['zhipuai-coding-plan']
-                    ? { defaultModelId: defaults['zhipuai-coding-plan'] }
-                    : {}),
-                includeModelId: include['zhipuai-coding-plan'],
-            },
-            modelsDevApi,
-        }),
-        zai: buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'zai',
-                modelsDevProviderId: 'zai',
-                ...(defaults.zai ? { defaultModelId: defaults.zai } : {}),
-                includeModelId: include.zai,
-            },
-            modelsDevApi,
-        }),
-        'zai-coding-plan': buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'zai-coding-plan',
-                modelsDevProviderId: 'zai-coding-plan',
-                ...(defaults['zai-coding-plan']
-                    ? { defaultModelId: defaults['zai-coding-plan'] }
-                    : {}),
-                includeModelId: include['zai-coding-plan'],
-            },
-            modelsDevApi,
-        }),
-        moonshotai: buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'moonshotai',
-                modelsDevProviderId: 'moonshotai',
-                ...(defaults.moonshotai ? { defaultModelId: defaults.moonshotai } : {}),
-                includeModelId: include.moonshotai,
-            },
-            modelsDevApi,
-        }),
-        'moonshotai-cn': buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'moonshotai-cn',
-                modelsDevProviderId: 'moonshotai-cn',
-                ...(defaults['moonshotai-cn'] ? { defaultModelId: defaults['moonshotai-cn'] } : {}),
-                includeModelId: include['moonshotai-cn'],
-            },
-            modelsDevApi,
-        }),
-        'kimi-for-coding': buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'kimi-for-coding',
-                modelsDevProviderId: 'kimi-for-coding',
-                ...(defaults['kimi-for-coding']
-                    ? { defaultModelId: defaults['kimi-for-coding'] }
-                    : {}),
-                includeModelId: include['kimi-for-coding'],
-            },
-            modelsDevApi,
-        }),
-        openrouter: buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'openrouter',
-                modelsDevProviderId: 'openrouter',
-                includeModelId: include.openrouter,
-            },
-            modelsDevApi,
-        }),
-        litellm: [],
-        glama: [],
-        vertex: [
-            ...buildModelsFromModelsDevProvider({
-                spec: {
-                    provider: 'vertex',
-                    modelsDevProviderId: 'google-vertex',
-                    ...(defaults.vertex ? { defaultModelId: defaults.vertex } : {}),
-                    includeModelId: include.vertex,
-                },
-                modelsDevApi,
-            }),
-            ...buildModelsFromModelsDevProvider({
-                spec: {
-                    provider: 'vertex',
-                    modelsDevProviderId: 'google-vertex-anthropic',
-                    includeModelId: include.vertex,
-                },
-                modelsDevApi,
-            }),
-        ].sort((a, b) => a.name.localeCompare(b.name)),
-        bedrock: buildModelsFromModelsDevProvider({
-            spec: {
-                provider: 'bedrock',
-                modelsDevProviderId: 'amazon-bedrock',
-                ...(defaults.bedrock ? { defaultModelId: defaults.bedrock } : {}),
-                includeModelId: include.bedrock,
-            },
-            modelsDevApi,
-        })
-            .map((m) => ({ ...m, name: m.name.replace(/^(eu\.|us\.|global\.)/i, '') }))
-            .filter((m, idx, arr) => arr.findIndex((x) => x.name === m.name) === idx)
-            .sort((a, b) => a.name.localeCompare(b.name)),
-        local: [],
-        ollama: [],
-        'dexto-nova': [],
-    };
+        });
+
+        if (providerId === 'amazon-bedrock') {
+            modelsByProvider[providerKey] = models
+                .map((m) => ({ ...m, name: m.name.replace(/^(eu\.|us\.|global\.)/i, '') }))
+                .filter((m, idx, arr) => arr.findIndex((x) => x.name === m.name) === idx)
+                .sort((a, b) => a.name.localeCompare(b.name));
+        } else {
+            modelsByProvider[providerKey] = models;
+        }
+    }
+
+    for (const overlayId of overlayProviderIds) {
+        modelsByProvider[overlayId] = [];
+    }
 
     return modelsByProvider;
 }

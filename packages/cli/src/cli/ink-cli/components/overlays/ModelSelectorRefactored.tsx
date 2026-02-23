@@ -244,13 +244,12 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         provider === 'openai-compatible' ||
                         provider === 'openrouter' ||
                         provider === 'litellm' ||
-                        provider === 'glama' ||
-                        provider === 'bedrock'
+                        provider === 'glama'
                     )
                         continue;
 
-                    // Skip ollama, local, and vertex - they'll be added dynamically below
-                    if (provider === 'ollama' || provider === 'local' || provider === 'vertex') {
+                    // Skip ollama and local - they'll be added dynamically below
+                    if (provider === 'ollama' || provider === 'local') {
                         continue;
                     }
 
@@ -326,29 +325,6 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                             currentConfig.model === localModel.id,
                         isCustom: false,
                     });
-                }
-
-                // Add Vertex AI models from registry
-                const vertexModels = allModels['vertex'];
-                if (vertexModels) {
-                    for (const model of vertexModels) {
-                        modelList.push({
-                            provider: 'vertex',
-                            name: model.name,
-                            displayName: model.displayName,
-                            maxInputTokens: model.maxInputTokens,
-                            isDefault: defaultProvider === 'vertex' && defaultModel === model.name,
-                            isCurrent:
-                                currentConfig.provider === 'vertex' &&
-                                currentConfig.model === model.name,
-                            isCustom: false,
-                            ...(defaultReasoningEffort &&
-                            defaultProvider === 'vertex' &&
-                            defaultModel === model.name
-                                ? { reasoningEffort: defaultReasoningEffort }
-                                : {}),
-                        });
-                    }
                 }
 
                 if (!cancelled) {

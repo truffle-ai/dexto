@@ -77,8 +77,9 @@ const EXCLUDED_PROVIDERS = [
     'local', // Local GGUF, no key needed
     'openai-compatible', // Needs baseURL + model name (use ModelPicker)
     'litellm', // Needs baseURL (use ModelPicker)
-    'bedrock', // Uses AWS credentials, not API key
-    'vertex', // Uses Google Cloud ADC, not API key
+    'amazon-bedrock', // Uses AWS credentials, not API key
+    'google-vertex', // Uses Google Cloud ADC, not API key
+    'google-vertex-anthropic', // Uses Google Cloud ADC, not API key
 ];
 
 type ProviderRowProps = {

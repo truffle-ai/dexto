@@ -51,7 +51,7 @@ export function buildProviderOptions(
     }
 
     // Bedrock: Enable caching and reasoning for Claude models
-    if (provider === 'bedrock' && modelLower.includes('claude')) {
+    if (provider === 'amazon-bedrock' && modelLower.includes('claude')) {
         return {
             bedrock: {
                 cacheControl: { type: 'ephemeral' },
@@ -61,7 +61,7 @@ export function buildProviderOptions(
     }
 
     // Vertex: Enable caching and reasoning for Claude models
-    if (provider === 'vertex' && modelLower.includes('claude')) {
+    if (provider === 'google-vertex-anthropic') {
         return {
             'vertex-anthropic': {
                 cacheControl: { type: 'ephemeral' },
@@ -73,7 +73,7 @@ export function buildProviderOptions(
     // Google: Enable thinking for models that support it
     // Note: Google automatically enables thinking for thinking models,
     // but we explicitly enable includeThoughts to receive the reasoning
-    if (provider === 'google' || (provider === 'vertex' && !modelLower.includes('claude'))) {
+    if (provider === 'google' || provider === 'google-vertex') {
         return {
             google: {
                 thinkingConfig: {

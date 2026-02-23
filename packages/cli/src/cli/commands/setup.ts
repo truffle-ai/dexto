@@ -1304,10 +1304,11 @@ async function promptCustomModelValues(
         'openrouter',
         'litellm',
         'glama',
-        'bedrock',
+        'amazon-bedrock',
         'ollama',
         'local',
-        'vertex',
+        'google-vertex',
+        'google-vertex-anthropic',
         ...(isDextoAuthEnabled() ? ['dexto-nova'] : []),
     ] as const;
 
@@ -1400,7 +1401,11 @@ async function promptCustomModelValues(
     }
 
     let apiKey: string | undefined;
-    if (provider !== 'bedrock' && provider !== 'vertex') {
+    if (
+        provider !== 'amazon-bedrock' &&
+        provider !== 'google-vertex' &&
+        provider !== 'google-vertex-anthropic'
+    ) {
         const apiKeyInput = await p.text({
             message: 'API key (optional)',
             initialValue: initialModel?.apiKey ?? '',
@@ -1928,7 +1933,7 @@ async function updateApiKey(currentProvider?: LLMProvider): Promise<void> {
     }
 
     // Handle providers that use non-API-key authentication
-    if (provider === 'vertex') {
+    if (provider === 'google-vertex' || provider === 'google-vertex-anthropic') {
         p.note(
             `Google Vertex AI uses Application Default Credentials (ADC).\n\n` +
                 `To authenticate:\n` +
@@ -1940,7 +1945,7 @@ async function updateApiKey(currentProvider?: LLMProvider): Promise<void> {
         return;
     }
 
-    if (provider === 'bedrock') {
+    if (provider === 'amazon-bedrock') {
         p.note(
             `Amazon Bedrock uses AWS credentials.\n\n` +
                 `To authenticate, set these environment variables:\n` +

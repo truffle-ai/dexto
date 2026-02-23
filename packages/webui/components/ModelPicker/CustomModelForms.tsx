@@ -27,7 +27,7 @@ export type CustomModelProvider =
     | 'openrouter'
     | 'litellm'
     | 'glama'
-    | 'bedrock'
+    | 'amazon-bedrock'
     | 'ollama'
     | 'local'
     | 'dexto-nova';
@@ -75,7 +75,7 @@ const PROVIDER_OPTIONS: { value: CustomModelProvider; label: string; description
         description: 'OpenAI-compatible gateway for multiple providers',
     },
     {
-        value: 'bedrock',
+        value: 'amazon-bedrock',
         label: 'AWS Bedrock',
         description: 'Custom Bedrock model IDs (uses AWS credentials)',
     },
@@ -1110,7 +1110,7 @@ export function CustomModelForm({
                     return;
                 }
                 break;
-            case 'bedrock':
+            case 'amazon-bedrock':
                 if (!formData.name.trim()) {
                     setLocalError('Model ID is required');
                     return;
@@ -1171,7 +1171,7 @@ export function CustomModelForm({
             case 'openrouter':
             case 'glama':
                 return formData.name.trim() && formData.name.includes('/');
-            case 'bedrock':
+            case 'amazon-bedrock':
                 return formData.name.trim().length > 0;
             case 'ollama':
                 return formData.name.trim().length > 0;
@@ -1205,7 +1205,7 @@ export function CustomModelForm({
         };
 
         switch (formData.provider) {
-            case 'bedrock':
+            case 'amazon-bedrock':
                 return <BedrockFields {...props} />;
             case 'openrouter':
                 return <OpenRouterFields {...props} />;

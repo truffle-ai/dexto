@@ -41,7 +41,7 @@ export function getProviderKeyStatus(provider: LLMProvider): {
     //
     // TODO: Improve Vertex setup flow - add dedicated setup modal with these instructions
     // For now, we check GOOGLE_VERTEX_PROJECT as the "key" equivalent
-    if (provider === 'vertex') {
+    if (provider === 'google-vertex' || provider === 'google-vertex-anthropic') {
         const projectId = process.env.GOOGLE_VERTEX_PROJECT;
         return {
             hasApiKey: Boolean(projectId && projectId.trim()),
@@ -54,7 +54,7 @@ export function getProviderKeyStatus(provider: LLMProvider): {
     // 2. AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY + AWS_REGION (IAM credentials, for production)
     //
     // We check for API key first, then fall back to checking AWS_REGION
-    if (provider === 'bedrock') {
+    if (provider === 'amazon-bedrock') {
         const apiKey = process.env.AWS_BEARER_TOKEN_BEDROCK;
         if (apiKey && apiKey.trim()) {
             return {

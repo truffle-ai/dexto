@@ -4,7 +4,7 @@ import type { LLMProvider } from '@dexto/core';
 
 // Provider logo file mapping - single source of truth
 // Empty string means "use Bot icon fallback" in components
-export const PROVIDER_LOGOS: Record<LLMProvider, string> = {
+export const PROVIDER_LOGOS: Partial<Record<LLMProvider, string>> = {
     openai: '/logos/openai.svg',
     anthropic: '/logos/claude-color.svg',
     google: '/logos/gemini-color.svg',
@@ -16,7 +16,6 @@ export const PROVIDER_LOGOS: Record<LLMProvider, string> = {
     'minimax-cn': '',
     'minimax-coding-plan': '',
     'minimax-cn-coding-plan': '',
-    glm: '',
     zhipuai: '',
     'zhipuai-coding-plan': '',
     zai: '',
@@ -27,8 +26,9 @@ export const PROVIDER_LOGOS: Record<LLMProvider, string> = {
     openrouter: '/logos/openrouter.svg',
     litellm: '/logos/litellm.svg',
     glama: '/logos/glama.svg',
-    vertex: '/logos/gemini-color.svg', // Vertex AI uses Gemini logo (primary model family)
-    bedrock: '/logos/aws-color.svg',
+    'google-vertex': '/logos/gemini-color.svg',
+    'google-vertex-anthropic': '/logos/claude-color.svg',
+    'amazon-bedrock': '/logos/aws-color.svg',
     local: '', // Uses Bot icon fallback - local GGUF models via node-llama-cpp
     ollama: '/logos/ollama.svg', // Ollama server
     'dexto-nova': '/logos/dexto/dexto_logo_icon.svg', // Dexto gateway - use Dexto logo
@@ -43,12 +43,13 @@ export const PROVIDER_PRICING_URLS: Partial<Record<LLMProvider, string>> = {
     xai: 'https://docs.x.ai/docs/models',
     cohere: 'https://cohere.com/pricing',
     minimax: 'https://platform.minimax.io/docs/pricing/overview',
-    glm: 'https://open.bigmodel.cn/pricing',
+    zhipuai: 'https://open.bigmodel.cn/pricing',
     openrouter: 'https://openrouter.ai/models',
     litellm: 'https://docs.litellm.ai/',
     glama: 'https://glama.ai/',
-    vertex: 'https://cloud.google.com/vertex-ai/generative-ai/pricing',
-    bedrock: 'https://aws.amazon.com/bedrock/pricing/',
+    'google-vertex': 'https://cloud.google.com/vertex-ai/generative-ai/pricing',
+    'google-vertex-anthropic': 'https://cloud.google.com/vertex-ai/generative-ai/pricing',
+    'amazon-bedrock': 'https://aws.amazon.com/bedrock/pricing/',
     // TODO: make this a valid URL
     'dexto-nova': 'https://dexto.ai/pricing',
     // 'openai-compatible' intentionally omitted (varies by vendor)
@@ -86,7 +87,8 @@ export const COLORED_LOGOS: readonly LLMProvider[] = [
     'google',
     'cohere',
     'anthropic',
-    'vertex',
+    'google-vertex',
+    'google-vertex-anthropic',
     'dexto-nova',
 ] as const;
 

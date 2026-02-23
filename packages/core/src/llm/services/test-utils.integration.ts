@@ -1,9 +1,9 @@
 // NOTE: Shared helpers for LLM service integration tests (not itself a test file).
 import { DextoAgent } from '../../agent/DextoAgent.js';
 import {
+    getApiKeyEnvVarsForProvider,
     resolveApiKeyForProvider,
     getPrimaryApiKeyEnvVar,
-    PROVIDER_API_KEY_MAP,
 } from '../../utils/api-key-resolver.js';
 import type { LLMProvider } from '../types.js';
 import type { AgentRuntimeSettings } from '../../agent/runtime-config.js';
@@ -21,6 +21,7 @@ import {
     createInMemoryCache,
     createInMemoryDatabase,
 } from '../../test-utils/in-memory-storage.js';
+import { getDefaultModelForProvider } from '../registry/index.js';
 
 /**
  * Shared utilities for LLM service integration tests
@@ -180,7 +181,7 @@ export const TestConfigs = {
         }
 
         // Default models for common providers
-        const defaultModels: Record<LLMProvider, string> = {
+        const defaultModels: Partial<Record<LLMProvider, string>> = {
             openai: 'gpt-4o-mini',
             anthropic: 'claude-haiku-4-5-20251001',
             google: 'gemini-2.0-flash',
@@ -191,7 +192,6 @@ export const TestConfigs = {
             'minimax-cn': 'MiniMax-M2.1',
             'minimax-coding-plan': 'MiniMax-M2.1',
             'minimax-cn-coding-plan': 'MiniMax-M2.1',
-            glm: 'glm-4.7',
             zhipuai: 'glm-4.7',
             'zhipuai-coding-plan': 'glm-4.7',
             zai: 'glm-4.7',
@@ -203,12 +203,21 @@ export const TestConfigs = {
             openrouter: 'anthropic/claude-3.5-haiku', // OpenRouter model format: provider/model
             litellm: 'gpt-4', // LiteLLM model names follow the provider's convention
             glama: 'openai/gpt-4o', // Glama model format: provider/model
-            vertex: 'gemini-2.5-pro', // Vertex AI uses ADC auth, not API keys
-            bedrock: 'anthropic.claude-3-5-haiku-20241022-v1:0', // Bedrock uses AWS credentials, not API keys
+            'google-vertex': 'gemini-2.5-pro', // Vertex AI uses ADC auth, not API keys
+            'google-vertex-anthropic': 'claude-sonnet-4@20250514',
+            'amazon-bedrock': 'anthropic.claude-3-5-haiku-20241022-v1:0', // Bedrock uses AWS credentials, not API keys
             local: 'llama-3.2-3b-q4', // Native node-llama-cpp GGUF models
             ollama: 'llama3.2', // Ollama server models
             'dexto-nova': 'anthropic/claude-4.5-sonnet', // Dexto gateway (OpenRouter model format)
         };
+
+        const resolvedModel =
+            model || defaultModels[provider] || getDefaultModelForProvider(provider);
+        if (!resolvedModel) {
+            throw new Error(
+                `No default model found for provider '${provider}'. Pass an explicit model.`
+            );
+        }
 
         return {
             systemPrompt: SystemPromptConfigSchema.parse(
@@ -216,7 +225,7 @@ export const TestConfigs = {
             ),
             llm: LLMConfigSchema.parse({
                 provider,
-                model: model || defaultModels[provider],
+                model: resolvedModel,
                 apiKey,
                 maxOutputTokens: 1000, // Enough for reasoning models (reasoning + answer)
                 temperature: 0,
@@ -244,11 +253,10 @@ export const TestConfigs = {
 
 /**
  * Helper to check if a provider requires an API key
- * Providers with empty arrays in PROVIDER_API_KEY_MAP don't require API keys (e.g., local, ollama, vertex)
+ * Providers with no key-like env vars don't require API keys (e.g., local, ollama, google-vertex)
  */
 export function providerRequiresApiKey(provider: LLMProvider): boolean {
-    const envVars = PROVIDER_API_KEY_MAP[provider];
-    return envVars && envVars.length > 0;
+    return getApiKeyEnvVarsForProvider(provider).length > 0;
 }
 
 /**

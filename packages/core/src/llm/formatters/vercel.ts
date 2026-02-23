@@ -75,8 +75,8 @@ export class VercelMessageFormatter {
             const isClaudeModel = modelLower.includes('claude');
             const isAnthropicProvider =
                 context.provider === 'anthropic' ||
-                (context.provider === 'bedrock' && isClaudeModel) ||
-                (context.provider === 'vertex' && isClaudeModel);
+                (context.provider === 'amazon-bedrock' && isClaudeModel) ||
+                context.provider === 'google-vertex-anthropic';
 
             formatted.push({
                 role: 'system',

@@ -58,11 +58,21 @@ export async function resolveLLMConfig(
 ): Promise<{ candidate: LLMConfig; warnings: Issue<LLMUpdateContext>[] }> {
     const warnings: Issue<LLMUpdateContext>[] = [];
 
-    // Provider inference (if not provided, infer from native model IDs or fall back to previous provider)
+    // Provider inference
+    // - If user explicitly sets provider: use it.
+    // - If user only changes model: keep previous provider when it supports the model.
+    // - Otherwise, attempt to infer provider from the model ID (best-effort).
     const provider =
         updates.provider ??
         (updates.model && !updates.model.includes('/')
             ? (() => {
+                  if (
+                      acceptsAnyModel(previous.provider) ||
+                      supportsCustomModels(previous.provider) ||
+                      isValidProviderModel(previous.provider, updates.model)
+                  ) {
+                      return previous.provider;
+                  }
                   try {
                       return getProviderFromModel(updates.model);
                   } catch {
@@ -154,7 +164,7 @@ export async function resolveLLMConfig(
 
     // Vertex AI validation - requires GOOGLE_VERTEX_PROJECT for ADC authentication
     // This upfront check provides immediate feedback rather than failing at first API call
-    if (provider === 'vertex') {
+    if (provider === 'google-vertex' || provider === 'google-vertex-anthropic') {
         const projectId = process.env.GOOGLE_VERTEX_PROJECT;
         if (!projectId || !projectId.trim()) {
             warnings.push({
@@ -174,7 +184,7 @@ export async function resolveLLMConfig(
     // Auth can be either:
     // 1. AWS_BEARER_TOKEN_BEDROCK (API key - simplest)
     // 2. AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY (IAM credentials)
-    if (provider === 'bedrock') {
+    if (provider === 'amazon-bedrock') {
         const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION;
         if (!region || !region.trim()) {
             warnings.push({

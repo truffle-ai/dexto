@@ -43,15 +43,19 @@ export async function verifyApiKey(
                 return await verifyGlama(apiKey);
             case 'minimax':
                 return await verifyMiniMax(apiKey);
-            case 'glm':
+            case 'zhipuai':
+            case 'zhipuai-coding-plan':
+            case 'zai':
+            case 'zai-coding-plan':
                 return await verifyGLM(apiKey);
             case 'openai-compatible':
             case 'litellm':
                 // For custom endpoints, we can't verify without a baseURL
                 // Just do basic format check
                 return { success: true, modelUsed: 'custom' };
-            case 'vertex':
-            case 'bedrock':
+            case 'google-vertex':
+            case 'google-vertex-anthropic':
+            case 'amazon-bedrock':
                 // These use cloud credentials, not API keys
                 // Skip verification
                 return { success: true, modelUsed: 'cloud-auth' };

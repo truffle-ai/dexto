@@ -124,10 +124,10 @@ export const PROVIDER_REGISTRY: Partial<Record<LLMProvider, ProviderOption>> = {
         apiKeyUrl: 'https://platform.minimax.io/docs/faq/about-apis',
         envVar: 'MINIMAX_API_KEY',
     },
-    glm: {
-        value: 'glm',
-        label: 'GLM (Zhipu)',
-        hint: 'GLM-4.7 series models',
+    zhipuai: {
+        value: 'zhipuai',
+        label: 'Zhipu AI (GLM)',
+        hint: 'GLM series models',
         category: 'cloud',
         apiKeyUrl: 'https://open.bigmodel.cn/',
         envVar: 'ZHIPU_API_KEY',
@@ -166,17 +166,25 @@ export const PROVIDER_REGISTRY: Partial<Record<LLMProvider, ProviderOption>> = {
         requiresBaseURL: true,
         envVar: 'OPENAI_COMPATIBLE_API_KEY',
     },
-    vertex: {
-        value: 'vertex',
-        label: 'Google Vertex AI',
-        hint: 'GCP-hosted Gemini & Claude (uses ADC)',
+    'google-vertex': {
+        value: 'google-vertex',
+        label: 'Google Vertex AI (Gemini)',
+        hint: 'GCP-hosted Gemini models (uses ADC)',
         category: 'enterprise',
         apiKeyUrl: 'https://console.cloud.google.com/apis/credentials',
         envVar: 'GOOGLE_VERTEX_PROJECT',
     },
-    bedrock: {
-        value: 'bedrock',
-        label: 'AWS Bedrock',
+    'google-vertex-anthropic': {
+        value: 'google-vertex-anthropic',
+        label: 'Google Vertex AI (Claude)',
+        hint: 'GCP-hosted Claude models (uses ADC)',
+        category: 'enterprise',
+        apiKeyUrl: 'https://console.cloud.google.com/apis/credentials',
+        envVar: 'GOOGLE_VERTEX_PROJECT',
+    },
+    'amazon-bedrock': {
+        value: 'amazon-bedrock',
+        label: 'Amazon Bedrock',
         hint: 'AWS-hosted Claude & Nova (uses AWS creds)',
         category: 'enterprise',
         apiKeyUrl: 'https://console.aws.amazon.com/bedrock',

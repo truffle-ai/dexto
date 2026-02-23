@@ -244,7 +244,7 @@ export class StreamProcessor {
                         // follow-up requests (function_call item references missing required reasoning items).
                         const shouldPersistProviderMetadata =
                             this.config.provider === 'google' ||
-                            (this.config.provider as string) === 'vertex';
+                            this.config.provider === 'google-vertex';
 
                         if (shouldPersistProviderMetadata && event.providerMetadata) {
                             toolCall.providerOptions = {

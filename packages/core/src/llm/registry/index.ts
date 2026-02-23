@@ -37,6 +37,48 @@ const LEGACY_MODEL_ID_ALIASES: Partial<Record<LLMProvider, Record<string, string
     },
 };
 
+// Provider inference should prefer canonical providers over resellers/proxies when model IDs overlap.
+// This keeps `--model gpt-5` and similar flows stable even as models.dev adds more providers.
+const PROVIDER_INFERENCE_PRIORITY: LLMProvider[] = [
+    'openai',
+    'anthropic',
+    'google',
+    'xai',
+    'groq',
+    'cohere',
+    'minimax',
+    'zhipuai',
+    'moonshotai',
+    'google-vertex',
+    'google-vertex-anthropic',
+    'amazon-bedrock',
+    // Gateways/proxies/local last
+    'openai-compatible',
+    'openrouter',
+    'dexto-nova',
+    'ollama',
+    'local',
+];
+
+const PROVIDERS_FOR_MODEL_INFERENCE: LLMProvider[] = (() => {
+    const seen = new Set<LLMProvider>();
+    const ordered: LLMProvider[] = [];
+
+    for (const provider of PROVIDER_INFERENCE_PRIORITY) {
+        if (seen.has(provider)) continue;
+        seen.add(provider);
+        ordered.push(provider);
+    }
+
+    for (const provider of LLM_PROVIDERS) {
+        if (seen.has(provider)) continue;
+        seen.add(provider);
+        ordered.push(provider);
+    }
+
+    return ordered;
+})();
+
 function getNormalizedModelIdForLookup(provider: LLMProvider, model: string): string {
     const stripped = stripBedrockRegionPrefix(model);
     const lower = stripped.toLowerCase();
@@ -146,178 +188,100 @@ export const DEFAULT_MAX_INPUT_TOKENS = 128000;
  * - DO NOT use empty arrays as "unknown" - research the model's actual capabilities
  * - The web UI directly reflects these capabilities without fallback logic
  */
-export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
-    openai: {
-        models: mergeModels(MODELS_BY_PROVIDER.openai, MANUAL_MODELS_BY_PROVIDER.openai),
-        baseURLSupport: 'none',
-        supportedFileTypes: [], // No defaults - models must explicitly specify support
-    },
-    'openai-compatible': {
+export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = (() => {
+    const registry = {} as Record<LLMProvider, ProviderInfo>;
+
+    for (const provider of LLM_PROVIDERS) {
+        registry[provider] = {
+            models: mergeModels(MODELS_BY_PROVIDER[provider], MANUAL_MODELS_BY_PROVIDER[provider]),
+            baseURLSupport: 'none',
+            supportedFileTypes: [], // No defaults - models must explicitly specify support
+        };
+    }
+
+    registry['openai-compatible'] = {
         models: [], // Empty - accepts any model name for custom endpoints
         baseURLSupport: 'required',
         supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types for custom endpoints
         supportsCustomModels: true,
-    },
-    anthropic: {
-        models: MODELS_BY_PROVIDER.anthropic,
-        baseURLSupport: 'none',
-        supportedFileTypes: [], // No defaults - models must explicitly specify support
-    },
-    google: {
-        models: MODELS_BY_PROVIDER.google,
-        baseURLSupport: 'none',
-        supportedFileTypes: [], // No defaults - models must explicitly specify support
-    },
-    // https://console.groq.com/docs/models
-    groq: {
-        models: MODELS_BY_PROVIDER.groq,
-        baseURLSupport: 'none',
-        supportedFileTypes: [], // Groq currently doesn't support file uploads
-    },
-    // https://docs.x.ai/docs/models
-    // Note: XAI API only supports image uploads (JPG/PNG up to 20MB), not PDFs
-    xai: {
-        models: MODELS_BY_PROVIDER.xai,
-        baseURLSupport: 'none',
-        supportedFileTypes: [], // No defaults - models must explicitly specify support
-    },
-    // https://docs.cohere.com/reference/models
-    cohere: {
-        models: MODELS_BY_PROVIDER.cohere,
-        baseURLSupport: 'none',
-        supportedFileTypes: [], // No defaults - models must explicitly specify support
-    },
-    // https://platform.minimax.io/docs/guides/quickstart
-    // MiniMax provides an Anthropic-compatible endpoint (models.dev):
-    // https://api.minimax.io/anthropic/v1
-    minimax: {
-        models: MODELS_BY_PROVIDER.minimax,
-        baseURLSupport: 'none',
-        supportedFileTypes: [], // No defaults - models must explicitly specify support
-    },
-    // https://api.minimaxi.com/anthropic/v1 (CN)
-    'minimax-cn': {
-        models: MODELS_BY_PROVIDER['minimax-cn'],
-        baseURLSupport: 'none',
-        supportedFileTypes: [],
-    },
-    // Coding plan routes through the same API base URL, but is modeled as a separate provider in models.dev
-    'minimax-coding-plan': {
-        models: MODELS_BY_PROVIDER['minimax-coding-plan'],
-        baseURLSupport: 'none',
-        supportedFileTypes: [],
-    },
-    'minimax-cn-coding-plan': {
-        models: MODELS_BY_PROVIDER['minimax-cn-coding-plan'],
-        baseURLSupport: 'none',
-        supportedFileTypes: [],
-    },
-    // https://open.bigmodel.cn/dev/api/normal-model/glm-4
-    // GLM (Zhipu AI) provides an OpenAI-compatible endpoint
-    glm: {
-        models: MODELS_BY_PROVIDER.glm,
-        baseURLSupport: 'none',
-        supportedFileTypes: [], // No defaults - models must explicitly specify support
-    },
-    // models.dev-aligned aliases/presets
-    zhipuai: {
-        models: MODELS_BY_PROVIDER.zhipuai,
-        baseURLSupport: 'none',
-        supportedFileTypes: [],
-    },
-    'zhipuai-coding-plan': {
-        models: MODELS_BY_PROVIDER['zhipuai-coding-plan'],
-        baseURLSupport: 'none',
-        supportedFileTypes: [],
-    },
-    zai: {
-        models: MODELS_BY_PROVIDER.zai,
-        baseURLSupport: 'none',
-        supportedFileTypes: [],
-    },
-    'zai-coding-plan': {
-        models: MODELS_BY_PROVIDER['zai-coding-plan'],
-        baseURLSupport: 'none',
-        supportedFileTypes: [],
-    },
-    // Moonshot (Kimi) OpenAI-compatible endpoints
-    moonshotai: {
-        models: MODELS_BY_PROVIDER.moonshotai,
-        baseURLSupport: 'none',
-        supportedFileTypes: [],
-    },
-    'moonshotai-cn': {
-        models: MODELS_BY_PROVIDER['moonshotai-cn'],
-        baseURLSupport: 'none',
-        supportedFileTypes: [],
-    },
-    // Kimi For Coding (Anthropic-compatible)
-    'kimi-for-coding': {
-        models: MODELS_BY_PROVIDER['kimi-for-coding'],
-        baseURLSupport: 'none',
-        supportedFileTypes: [],
-    },
-    // https://openrouter.ai/docs
-    // OpenRouter is a unified API gateway providing access to 100+ models from various providers.
-    // Model validation is handled dynamically via openrouter-model-registry.ts
-    openrouter: {
+    };
+
+    // OpenRouter is a unified API gateway providing access to many models.
+    registry.openrouter = {
         models: MODELS_BY_PROVIDER.openrouter,
-        baseURLSupport: 'none', // Fixed endpoint - baseURL auto-injected in resolver, no user override allowed
+        baseURLSupport: 'none',
         supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types - user assumes responsibility
         supportsCustomModels: true,
-        supportsAllRegistryModels: true, // Can serve models from all other providers
-    },
-    // https://docs.litellm.ai/
-    // LiteLLM is an OpenAI-compatible proxy that unifies 100+ LLM providers.
-    // User must host their own LiteLLM proxy and provide the baseURL.
-    litellm: {
+        supportsAllRegistryModels: true,
+    };
+
+    // LiteLLM: user-hosted OpenAI-compatible proxy (baseURL required)
+    registry.litellm = {
         models: [],
         baseURLSupport: 'required',
         supportedFileTypes: ['pdf', 'image', 'audio'],
         supportsCustomModels: true,
-    },
-    // https://glama.ai/
-    // Glama is an OpenAI-compatible gateway providing unified access to multiple LLM providers.
-    // Fixed endpoint: https://glama.ai/api/gateway/openai/v1
-    glama: {
+    };
+
+    // Glama: fixed OpenAI-compatible gateway
+    registry.glama = {
         models: [],
         baseURLSupport: 'none',
         supportedFileTypes: ['pdf', 'image', 'audio'],
         supportsCustomModels: true,
-    },
-    // https://cloud.google.com/vertex-ai
-    vertex: {
-        models: MODELS_BY_PROVIDER.vertex,
-        baseURLSupport: 'none',
-        supportedFileTypes: [], // No defaults - models must explicitly specify support
-    },
-    // https://docs.aws.amazon.com/bedrock/latest/userguide/models.html
-    bedrock: {
-        models: MODELS_BY_PROVIDER.bedrock,
-        baseURLSupport: 'none',
-        supportedFileTypes: [], // No defaults - models must explicitly specify support
-        supportsCustomModels: true,
-    },
+    };
+
+    // Amazon Bedrock: allow custom/unknown IDs (region prefixes, profile routing, etc.)
+    if (registry['amazon-bedrock']) {
+        const models = registry['amazon-bedrock'].models;
+        const hasDefault = models.some((m) => m.default);
+        if (!hasDefault) {
+            const preferredDefault =
+                models.find((m) => m.name === 'anthropic.claude-sonnet-4-5-20250929-v1:0') ??
+                models.find((m) => /^anthropic\.claude-sonnet/i.test(m.name)) ??
+                models.find((m) => /^anthropic\.claude/i.test(m.name)) ??
+                models[0];
+
+            if (preferredDefault) {
+                registry['amazon-bedrock'] = {
+                    ...registry['amazon-bedrock'],
+                    models: models.map((m) =>
+                        m.name === preferredDefault.name ? { ...m, default: true } : m
+                    ),
+                    supportsCustomModels: true,
+                };
+            } else {
+                registry['amazon-bedrock'] = {
+                    ...registry['amazon-bedrock'],
+                    supportsCustomModels: true,
+                };
+            }
+        } else {
+            registry['amazon-bedrock'] = {
+                ...registry['amazon-bedrock'],
+                supportsCustomModels: true,
+            };
+        }
+    }
+
     // Native local model execution via node-llama-cpp
-    local: {
+    registry.local = {
         models: [], // Populated dynamically from local model registry
         baseURLSupport: 'none',
         supportedFileTypes: ['image'],
         supportsCustomModels: true,
-    },
+    };
+
     // Ollama server integration
-    ollama: {
+    registry.ollama = {
         models: [], // Populated dynamically from Ollama API
         baseURLSupport: 'optional',
         supportedFileTypes: ['image'],
         supportsCustomModels: true,
-    },
-    // Dexto Gateway - OpenAI-compatible proxy through api.dexto.ai
-    // Routes to OpenRouter with per-request billing (balance decrement)
-    // Requires DEXTO_API_KEY from dexto login
-    //
-    // Model IDs are in OpenRouter format (e.g., 'anthropic/claude-sonnet-4.5')
-    'dexto-nova': {
+    };
+
+    // Dexto Gateway (OpenRouter proxy) - OpenAI-compatible proxy through api.dexto.ai
+    registry['dexto-nova'] = {
         models: [
             // Claude models (Anthropic via OpenRouter)
             {
@@ -458,8 +422,10 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         supportedFileTypes: ['pdf', 'image', 'audio'],
         supportsCustomModels: true,
         supportsAllRegistryModels: true,
-    },
-};
+    };
+
+    return registry;
+})();
 
 /**
  * Strips Bedrock cross-region inference profile prefix (eu., us., global.) from model ID.
@@ -577,7 +543,7 @@ export function getProviderFromModel(model: string): LLMProvider {
         throw LLMError.modelProviderUnknown(model);
     }
 
-    for (const provider of LLM_PROVIDERS) {
+    for (const provider of PROVIDERS_FOR_MODEL_INFERENCE) {
         const info = LLM_REGISTRY[provider];
         const normalizedModel = getNormalizedModelIdForLookup(provider, model);
         if (info.models.some((m) => m.name.toLowerCase() === normalizedModel)) {
@@ -659,7 +625,6 @@ const OPENROUTER_PREFIX_BY_PROVIDER: Partial<Record<LLMProvider, string>> = {
     'minimax-cn': 'minimax',
     'minimax-coding-plan': 'minimax',
     'minimax-cn-coding-plan': 'minimax',
-    glm: 'z-ai',
     zhipuai: 'z-ai',
     'zhipuai-coding-plan': 'z-ai',
     zai: 'z-ai',
@@ -854,15 +819,16 @@ export function isModelValidForProvider(provider: LLMProvider, model: string): b
  * - Native local providers (local for node-llama-cpp, ollama for Ollama server)
  * - Local/self-hosted providers (openai-compatible for vLLM, LocalAI)
  * - Proxies that handle auth internally (litellm)
- * - Cloud auth providers (vertex uses ADC, bedrock uses AWS credentials)
+ * - Cloud auth providers (Vertex uses ADC, Bedrock uses AWS credentials)
  */
 const API_KEY_OPTIONAL_PROVIDERS: Set<LLMProvider> = new Set([
     'local', // Native node-llama-cpp execution - no auth needed
     'ollama', // Ollama server - no auth needed by default
     'openai-compatible', // vLLM, LocalAI - often no auth needed
     'litellm', // Self-hosted proxy - handles auth internally
-    'vertex', // Uses Google Cloud ADC (Application Default Credentials)
-    'bedrock', // Uses AWS credentials (access key + secret or IAM role)
+    'google-vertex', // Uses Google Cloud ADC (Application Default Credentials)
+    'google-vertex-anthropic', // Uses Google Cloud ADC (Application Default Credentials)
+    'amazon-bedrock', // Uses AWS credentials (access key + secret or IAM role)
 ]);
 
 /**
@@ -870,7 +836,7 @@ const API_KEY_OPTIONAL_PROVIDERS: Set<LLMProvider> = new Set([
  * Returns false for:
  * - Local providers (openai-compatible for Ollama, vLLM, LocalAI)
  * - Self-hosted proxies (litellm)
- * - Cloud auth providers (vertex, bedrock)
+ * - Cloud auth providers (Vertex, Bedrock)
  *
  * @param provider The name of the provider.
  * @returns True if the provider requires an API key, false otherwise.

@@ -165,7 +165,7 @@ export {
 export {
     resolveApiKeyForProvider,
     getPrimaryApiKeyEnvVar,
-    PROVIDER_API_KEY_MAP,
+    getApiKeyEnvVarsForProvider,
 } from './utils/api-key-resolver.js';
 
 // Custom models

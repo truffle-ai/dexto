@@ -34,7 +34,7 @@ export const CURATED_MODEL_IDS_BY_PROVIDER: Partial<Record<LLMProvider, string[]
         'gemini-2.5-pro',
         'gemini-2.5-flash',
     ],
-    vertex: [
+    'google-vertex': [
         'gemini-3-pro-preview',
         'gemini-3-flash-preview',
         'gemini-2.5-pro',
@@ -44,8 +44,8 @@ export const CURATED_MODEL_IDS_BY_PROVIDER: Partial<Record<LLMProvider, string[]
     groq: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'qwen-qwq-32b'],
     cohere: ['command-a-03-2025', 'command-r-plus-08-2024', 'command-r-08-2024'],
     minimax: ['MiniMax-M2.1', 'MiniMax-M2'],
-    glm: ['glm-4.7', 'glm-4.5'],
-    bedrock: [
+    zhipuai: ['glm-4.7', 'glm-4.5'],
+    'amazon-bedrock': [
         'anthropic.claude-sonnet-4-5-20250929-v1:0',
         'anthropic.claude-haiku-4-5-20251001-v1:0',
         'amazon.nova-pro-v1:0',

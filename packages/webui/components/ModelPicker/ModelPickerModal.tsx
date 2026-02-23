@@ -426,13 +426,13 @@ export default function ModelPickerModal() {
     );
 
     const editCustomModel = useCallback((model: CustomModel) => {
-        // Map provider to form-supported provider (vertex uses openai-compatible form)
+        // Map provider to form-supported provider
         const formSupportedProviders: CustomModelProvider[] = [
             'openai-compatible',
             'openrouter',
             'litellm',
             'glama',
-            'bedrock',
+            'amazon-bedrock',
             'ollama',
             'local',
         ];

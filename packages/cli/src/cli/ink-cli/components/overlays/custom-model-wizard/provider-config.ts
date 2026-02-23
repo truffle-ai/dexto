@@ -264,8 +264,8 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
         },
     },
 
-    bedrock: {
-        displayName: 'AWS Bedrock',
+    'amazon-bedrock': {
+        displayName: 'Amazon Bedrock',
         description: 'Custom model IDs via AWS credentials',
         steps: [
             {
@@ -422,21 +422,59 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
         },
     },
 
-    vertex: {
-        displayName: 'Google Vertex AI',
-        description: 'Custom Vertex model IDs',
+    'google-vertex': {
+        displayName: 'Google Vertex AI (Gemini)',
+        description: 'Custom Gemini model IDs via Vertex AI',
         steps: [
             {
                 field: 'name',
                 label: 'Vertex Model ID',
-                placeholder: 'e.g., gemini-2.0-flash-exp, claude-4-5-sonnet@20250929',
+                placeholder: 'e.g., gemini-2.5-pro, gemini-2.5-flash',
                 required: true,
                 validate: validators.required('Model ID'),
             },
-            { ...DISPLAY_NAME_STEP, placeholder: 'e.g., Gemini 2.0 Flash Exp' },
+            { ...DISPLAY_NAME_STEP, placeholder: 'e.g., Gemini 2.5 Pro' },
             {
                 ...MAX_INPUT_TOKENS_STEP,
                 placeholder: 'e.g., 1048576 (leave blank for default)',
+            },
+        ],
+        buildModel: (values, provider) => {
+            const model: CustomModel = {
+                name: values.name || '',
+                provider,
+            };
+            if (values.displayName?.trim()) {
+                model.displayName = values.displayName.trim();
+            }
+            if (values.maxInputTokens?.trim()) {
+                model.maxInputTokens = parseInt(values.maxInputTokens, 10);
+            }
+            return model;
+        },
+        setupInfo: {
+            title: 'Google Vertex AI Setup',
+            description:
+                'Vertex AI uses Google Cloud Application Default Credentials (ADC). Set GOOGLE_VERTEX_PROJECT and optionally GOOGLE_VERTEX_LOCATION. Run: gcloud auth application-default login',
+            docsUrl: 'https://docs.dexto.ai/docs/guides/supported-llm-providers#google-vertex-ai',
+        },
+    },
+
+    'google-vertex-anthropic': {
+        displayName: 'Google Vertex AI (Claude)',
+        description: 'Custom Claude model IDs via Vertex AI',
+        steps: [
+            {
+                field: 'name',
+                label: 'Vertex Model ID',
+                placeholder: 'e.g., claude-sonnet-4@20250514',
+                required: true,
+                validate: validators.required('Model ID'),
+            },
+            { ...DISPLAY_NAME_STEP, placeholder: 'e.g., Claude Sonnet 4' },
+            {
+                ...MAX_INPUT_TOKENS_STEP,
+                placeholder: 'e.g., 200000 (leave blank for default)',
             },
         ],
         buildModel: (values, provider) => {

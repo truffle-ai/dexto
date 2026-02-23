@@ -1,53 +1,59 @@
 import type { LLMProvider } from '../llm/types.js';
+import { PROVIDERS_BY_ID } from '../llm/providers.generated.js';
 
 /**
  * Utility for resolving API keys from environment variables.
- * This consolidates the API key resolution logic used across CLI and core components.
+ *
+ * This is intentionally derived from the committed models.dev provider snapshot so we can
+ * support many providers without maintaining a giant hardcoded map.
  */
 
-// Map the provider to its corresponding API key name (in order of preference)
-export const PROVIDER_API_KEY_MAP: Record<LLMProvider, string[]> = {
-    openai: ['OPENAI_API_KEY', 'OPENAI_KEY'],
-    'openai-compatible': ['OPENAI_API_KEY', 'OPENAI_KEY'], // Uses same keys as openai
-    anthropic: ['ANTHROPIC_API_KEY', 'ANTHROPIC_KEY', 'CLAUDE_API_KEY'],
-    google: ['GOOGLE_GENERATIVE_AI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_API_KEY'],
-    groq: ['GROQ_API_KEY'],
-    cohere: ['COHERE_API_KEY'],
-    xai: ['XAI_API_KEY', 'X_AI_API_KEY'],
-    minimax: ['MINIMAX_API_KEY'],
-    'minimax-cn': ['MINIMAX_API_KEY'],
-    'minimax-coding-plan': ['MINIMAX_API_KEY'],
-    'minimax-cn-coding-plan': ['MINIMAX_API_KEY'],
-    glm: ['ZHIPU_API_KEY', 'ZHIPUAI_API_KEY'],
-    zhipuai: ['ZHIPU_API_KEY', 'ZHIPUAI_API_KEY'],
-    'zhipuai-coding-plan': ['ZHIPU_API_KEY', 'ZHIPUAI_API_KEY'],
-    zai: ['ZHIPU_API_KEY'],
-    'zai-coding-plan': ['ZHIPU_API_KEY'],
-    moonshotai: ['MOONSHOT_API_KEY'],
-    'moonshotai-cn': ['MOONSHOT_API_KEY'],
-    'kimi-for-coding': ['KIMI_API_KEY'],
-    openrouter: ['OPENROUTER_API_KEY'],
-    litellm: ['LITELLM_API_KEY', 'LITELLM_KEY'],
-    glama: ['GLAMA_API_KEY'],
-    // Vertex uses ADC (Application Default Credentials), not API keys
-    // GOOGLE_APPLICATION_CREDENTIALS points to service account JSON (optional)
-    // Primary config is GOOGLE_VERTEX_PROJECT (required) + GOOGLE_VERTEX_LOCATION (optional)
-    vertex: [],
-    // Bedrock supports two auth methods:
-    // 1. AWS_BEARER_TOKEN_BEDROCK - Bedrock API key (simplest)
-    // 2. AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY + AWS_REGION (IAM credentials)
-    // AWS_SESSION_TOKEN (optional, for temporary credentials)
-    bedrock: ['AWS_BEARER_TOKEN_BEDROCK'],
-    // Local providers don't require API keys
-    local: [], // Native node-llama-cpp execution
-    ollama: [], // Ollama server (no authentication required)
-    // Dexto gateway - requires key from `dexto login`
-    'dexto-nova': ['DEXTO_API_KEY'],
-    // perplexity: ['PERPLEXITY_API_KEY'],
-    // together: ['TOGETHER_API_KEY'],
-    // fireworks: ['FIREWORKS_API_KEY'],
-    // deepseek: ['DEEPSEEK_API_KEY'],
-};
+const EXTRA_API_KEY_ENV_VARS: Record<string, string[]> = {
+    openai: ['OPENAI_KEY'],
+    anthropic: ['ANTHROPIC_KEY', 'CLAUDE_API_KEY'],
+    google: ['GOOGLE_API_KEY', 'GEMINI_API_KEY'],
+    xai: ['X_AI_API_KEY'],
+    zhipuai: ['ZHIPUAI_API_KEY'],
+} as const;
+
+function isLikelyApiKeyEnvVar(name: string): boolean {
+    return /(API_KEY|API_TOKEN|TOKEN|SECRET)\b/i.test(name);
+}
+
+function uniqueInOrder(values: string[]): string[] {
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const value of values) {
+        if (seen.has(value)) continue;
+        seen.add(value);
+        result.push(value);
+    }
+    return result;
+}
+
+export function getApiKeyEnvVarsForProvider(provider: LLMProvider): string[] {
+    // Providers that don't use a single API key string
+    if (
+        provider === 'google-vertex' ||
+        provider === 'google-vertex-anthropic' ||
+        provider === 'local' ||
+        provider === 'ollama'
+    ) {
+        return [];
+    }
+
+    // Bedrock supports an optional bearer token for the Converse API.
+    // When absent, auth is handled via AWS credential chain (env/roles/SSO).
+    if (provider === 'amazon-bedrock') {
+        return ['AWS_BEARER_TOKEN_BEDROCK'];
+    }
+
+    const snapshot = PROVIDERS_BY_ID[provider];
+    const fromSnapshot = snapshot?.env ?? [];
+    const filtered = fromSnapshot.filter(isLikelyApiKeyEnvVar);
+    const extras = EXTRA_API_KEY_ENV_VARS[provider] ?? [];
+    return uniqueInOrder([...filtered, ...extras]);
+}
 
 /**
  * Resolves API key for a given provider from environment variables.
@@ -56,10 +62,7 @@ export const PROVIDER_API_KEY_MAP: Record<LLMProvider, string[]> = {
  * @returns Resolved API key or undefined if not found
  */
 export function resolveApiKeyForProvider(provider: LLMProvider): string | undefined {
-    const envVars = PROVIDER_API_KEY_MAP[provider];
-    if (!envVars) {
-        return undefined;
-    }
+    const envVars = getApiKeyEnvVarsForProvider(provider);
 
     // Try each environment variable in order of preference
     for (const envVar of envVars) {
@@ -79,6 +82,6 @@ export function resolveApiKeyForProvider(provider: LLMProvider): string | undefi
  * @returns Primary environment variable name
  */
 export function getPrimaryApiKeyEnvVar(provider: LLMProvider): string {
-    const envVars = PROVIDER_API_KEY_MAP[provider];
-    return envVars?.[0] || `${provider.toUpperCase()}_API_KEY`;
+    const envVars = getApiKeyEnvVarsForProvider(provider);
+    return envVars[0] || `${provider.toUpperCase()}_API_KEY`;
 }

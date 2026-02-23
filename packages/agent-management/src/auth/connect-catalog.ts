@@ -155,7 +155,7 @@ export const CONNECT_PROVIDERS: ConnectProvider[] = [
         ],
     },
     {
-        providerId: 'bedrock',
+        providerId: 'amazon-bedrock',
         label: 'Amazon Bedrock',
         modelsDevProviderId: 'amazon-bedrock',
         methods: [
@@ -168,9 +168,22 @@ export const CONNECT_PROVIDERS: ConnectProvider[] = [
         ],
     },
     {
-        providerId: 'vertex',
-        label: 'Google Vertex AI',
+        providerId: 'google-vertex',
+        label: 'Google Vertex AI (Gemini)',
         modelsDevProviderId: 'google-vertex',
+        methods: [
+            {
+                id: 'guidance',
+                label: 'Guided setup',
+                kind: 'guidance',
+                hint: 'Use Application Default Credentials (gcloud auth application-default login)',
+            },
+        ],
+    },
+    {
+        providerId: 'google-vertex-anthropic',
+        label: 'Google Vertex AI (Claude)',
+        modelsDevProviderId: 'google-vertex-anthropic',
         methods: [
             {
                 id: 'guidance',

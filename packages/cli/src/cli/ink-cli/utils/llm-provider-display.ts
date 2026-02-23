@@ -1,6 +1,6 @@
 import type { LLMProvider } from '@dexto/core';
 
-const LLM_PROVIDER_DISPLAY_NAMES: Record<LLMProvider, string> = {
+const LLM_PROVIDER_DISPLAY_NAMES: Partial<Record<LLMProvider, string>> = {
     openai: 'OpenAI',
     'openai-compatible': 'OpenAI-Compatible',
     anthropic: 'Anthropic',
@@ -12,7 +12,6 @@ const LLM_PROVIDER_DISPLAY_NAMES: Record<LLMProvider, string> = {
     'minimax-cn': 'MiniMax (CN)',
     'minimax-coding-plan': 'MiniMax (Coding Plan)',
     'minimax-cn-coding-plan': 'MiniMax (CN, Coding Plan)',
-    glm: 'GLM',
     zhipuai: 'Zhipu AI (GLM)',
     'zhipuai-coding-plan': 'Zhipu AI (Coding Plan)',
     zai: 'Z.AI',
@@ -23,8 +22,9 @@ const LLM_PROVIDER_DISPLAY_NAMES: Record<LLMProvider, string> = {
     openrouter: 'OpenRouter',
     litellm: 'LiteLLM',
     glama: 'Glama',
-    vertex: 'Vertex',
-    bedrock: 'Bedrock',
+    'google-vertex': 'Google Vertex AI (Gemini)',
+    'google-vertex-anthropic': 'Google Vertex AI (Claude)',
+    'amazon-bedrock': 'Amazon Bedrock',
     local: 'Local',
     ollama: 'Ollama',
     'dexto-nova': 'Dexto Nova',

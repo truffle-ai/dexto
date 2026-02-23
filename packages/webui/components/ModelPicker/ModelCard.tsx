@@ -32,11 +32,14 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     xai: 'Grok',
     cohere: 'Cohere',
     minimax: 'MiniMax',
-    glm: 'GLM',
+    zhipuai: 'GLM',
     openrouter: 'OpenRouter',
     'openai-compatible': 'Custom',
     litellm: 'LiteLLM',
     glama: 'Glama',
+    'google-vertex': 'Vertex AI',
+    'google-vertex-anthropic': 'Vertex AI (Claude)',
+    'amazon-bedrock': 'Bedrock',
     local: 'Local',
     ollama: 'Ollama',
     'dexto-nova': 'Dexto Nova',
@@ -56,8 +59,9 @@ function parseModelName(
         provider === 'openai-compatible' ||
         provider === 'litellm' ||
         provider === 'glama' ||
-        provider === 'bedrock' ||
-        provider === 'vertex'
+        provider === 'amazon-bedrock' ||
+        provider === 'google-vertex' ||
+        provider === 'google-vertex-anthropic'
     ) {
         return { providerName, modelName: displayName };
     }
@@ -99,7 +103,14 @@ export function ModelCard({
     const displayName = model.displayName || model.name;
     // Local/ollama/installed models don't need API keys
     // Custom models are user-configured, so don't show lock (they handle their own auth)
-    const noApiKeyNeeded = isInstalled || isCustom || provider === 'local' || provider === 'ollama';
+    const noApiKeyNeeded =
+        isInstalled ||
+        isCustom ||
+        provider === 'local' ||
+        provider === 'ollama' ||
+        provider === 'google-vertex' ||
+        provider === 'google-vertex-anthropic' ||
+        provider === 'amazon-bedrock';
     const hasApiKey = noApiKeyNeeded || (providerInfo?.hasApiKey ?? false);
     const { providerName, modelName, suffix } = parseModelName(displayName, provider);
 

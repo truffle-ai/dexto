@@ -144,16 +144,6 @@ export function createVercelModel(
                 ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
             })(model);
         }
-        case 'glm': {
-            // Zhipu AI (GLM) - OpenAI-compatible endpoint
-            const glmBaseURL = baseURL || 'https://open.bigmodel.cn/api/paas/v4';
-            return createOpenAI({
-                apiKey: apiKey ?? '',
-                baseURL: glmBaseURL,
-                ...(extraHeaders ? { headers: extraHeaders } : {}),
-                ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
-            }).chat(model);
-        }
         case 'zhipuai': {
             const zhipuBaseURL = baseURL || 'https://open.bigmodel.cn/api/paas/v4';
             return createOpenAI({
@@ -272,39 +262,34 @@ export function createVercelModel(
                 ...(runtimeFetch ? { fetch: runtimeFetch } : {}),
             }).chat(model);
         }
-        case 'vertex': {
-            // Google Vertex AI - supports both Gemini and Claude models
+        case 'google-vertex': {
+            // Google Vertex AI (Gemini)
             // Auth via Application Default Credentials (ADC)
-            //
-            // TODO: Integrate with agent config (llmConfig.vertex?.projectId) as primary,
-            // falling back to env vars. This would allow per-agent Vertex configuration.
             const projectId = process.env.GOOGLE_VERTEX_PROJECT;
             if (!projectId) {
                 throw LLMError.missingConfig(
-                    'vertex',
+                    'google-vertex',
                     'GOOGLE_VERTEX_PROJECT environment variable'
                 );
             }
-            const location = process.env.GOOGLE_VERTEX_LOCATION;
-
-            // Route based on model type: Claude models use /anthropic subpath
-            if (model.includes('claude')) {
-                // Claude models on Vertex use the /anthropic subpath export
-                // Default to us-east5 for Claude (limited region availability)
-                return createVertexAnthropic({
-                    project: projectId,
-                    location: location || 'us-east5',
-                })(model);
-            }
-
-            // Gemini models use the main export
-            // Default to us-central1 for Gemini (widely available)
-            return createVertex({
-                project: projectId,
-                location: location || 'us-central1',
-            })(model);
+            const location = process.env.GOOGLE_VERTEX_LOCATION || 'us-central1';
+            return createVertex({ project: projectId, location })(model);
         }
-        case 'bedrock': {
+        case 'google-vertex-anthropic': {
+            // Anthropic models on Google Vertex AI
+            // Auth via Application Default Credentials (ADC)
+            const projectId = process.env.GOOGLE_VERTEX_PROJECT;
+            if (!projectId) {
+                throw LLMError.missingConfig(
+                    'google-vertex-anthropic',
+                    'GOOGLE_VERTEX_PROJECT environment variable'
+                );
+            }
+            // Default to us-east5 for Claude (limited region availability)
+            const location = process.env.GOOGLE_VERTEX_LOCATION || 'us-east5';
+            return createVertexAnthropic({ project: projectId, location })(model);
+        }
+        case 'amazon-bedrock': {
             // Amazon Bedrock - AWS-hosted gateway for Claude, Nova, Llama, Mistral
             // Auth via AWS credentials (env vars or credential provider)
             //
@@ -322,7 +307,7 @@ export function createVercelModel(
             const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION;
             if (!region) {
                 throw LLMError.missingConfig(
-                    'bedrock',
+                    'amazon-bedrock',
                     'AWS_REGION or AWS_DEFAULT_REGION environment variable'
                 );
             }

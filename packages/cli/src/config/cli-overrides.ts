@@ -20,7 +20,7 @@
  */
 
 import type { AgentConfig } from '@dexto/agent-config';
-import type { LLMConfig, LLMProvider } from '@dexto/core';
+import { getPrimaryApiKeyEnvVar, type LLMConfig, type LLMProvider } from '@dexto/core';
 import type { GlobalPreferences } from '@dexto/agent-management';
 
 /**
@@ -200,36 +200,15 @@ export function checkAgentCompatibility(
  * Get the environment variable name for a provider's API key
  */
 function getEnvVarForProvider(provider: LLMProvider): string {
-    const envVarMap: Record<LLMProvider, string> = {
-        openai: 'OPENAI_API_KEY',
-        'openai-compatible': 'OPENAI_API_KEY',
-        anthropic: 'ANTHROPIC_API_KEY',
-        google: 'GOOGLE_GENERATIVE_AI_API_KEY',
-        groq: 'GROQ_API_KEY',
-        xai: 'XAI_API_KEY',
-        cohere: 'COHERE_API_KEY',
-        minimax: 'MINIMAX_API_KEY',
-        'minimax-cn': 'MINIMAX_API_KEY',
-        'minimax-coding-plan': 'MINIMAX_API_KEY',
-        'minimax-cn-coding-plan': 'MINIMAX_API_KEY',
-        glm: 'ZHIPU_API_KEY',
-        zhipuai: 'ZHIPU_API_KEY',
-        'zhipuai-coding-plan': 'ZHIPU_API_KEY',
-        zai: 'ZHIPU_API_KEY',
-        'zai-coding-plan': 'ZHIPU_API_KEY',
-        moonshotai: 'MOONSHOT_API_KEY',
-        'moonshotai-cn': 'MOONSHOT_API_KEY',
-        'kimi-for-coding': 'KIMI_API_KEY',
-        openrouter: 'OPENROUTER_API_KEY',
-        litellm: 'LITELLM_API_KEY',
-        glama: 'GLAMA_API_KEY',
-        vertex: 'GOOGLE_APPLICATION_CREDENTIALS',
-        bedrock: 'AWS_ACCESS_KEY_ID',
-        // Local providers don't require API keys (empty string signals no key needed)
-        local: '',
-        ollama: '',
-        // Dexto gateway uses DEXTO_API_KEY from `dexto login`
-        'dexto-nova': 'DEXTO_API_KEY',
-    };
-    return envVarMap[provider];
+    if (provider === 'local' || provider === 'ollama') return '';
+    if (provider === 'google-vertex' || provider === 'google-vertex-anthropic') {
+        return 'GOOGLE_VERTEX_PROJECT';
+    }
+    if (provider === 'amazon-bedrock') {
+        return 'AWS_REGION';
+    }
+    if (provider === 'dexto-nova') {
+        return 'DEXTO_API_KEY';
+    }
+    return getPrimaryApiKeyEnvVar(provider).replace(/-/g, '_');
 }
