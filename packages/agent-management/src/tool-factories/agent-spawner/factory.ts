@@ -1,5 +1,7 @@
 import type { ToolFactory } from '@dexto/agent-config';
-import type { Tool, ToolExecutionContext } from '@dexto/core';
+import { z } from 'zod';
+import { createLocalToolCallHeader, truncateForHeader } from '@dexto/core';
+import type { ToolExecutionContext } from '@dexto/core';
 import type { ToolBackgroundEvent } from '@dexto/core';
 import { ToolError } from '@dexto/core';
 import {
@@ -21,6 +23,9 @@ import {
 import { AgentSpawnerRuntime } from './runtime.js';
 import { createSpawnAgentTool } from './spawn-agent-tool.js';
 
+type WaitForInput = z.output<typeof WaitForInputSchema>;
+type CheckTaskInput = z.output<typeof CheckTaskInputSchema>;
+
 function requireAgentContext(context: ToolExecutionContext): {
     agent: NonNullable<ToolExecutionContext['agent']>;
     logger: ToolExecutionContext['logger'];
@@ -38,10 +43,10 @@ function requireAgentContext(context: ToolExecutionContext): {
 }
 
 type InitializedAgentSpawnerTools = {
-    spawnAgent: Tool;
-    waitFor: Tool;
-    checkTask: Tool;
-    listTasks: Tool;
+    spawnAgent: ReturnType<typeof createSpawnAgentTool>;
+    waitFor: ReturnType<typeof createWaitForTool>;
+    checkTask: ReturnType<typeof createCheckTaskTool>;
+    listTasks: ReturnType<typeof createListTasksTool>;
 };
 
 type AgentSpawnerToolState = {
@@ -293,62 +298,110 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
         return [
             {
                 id: 'spawn_agent',
-                displayName: 'Agent',
                 description: 'Spawn a sub-agent to handle a task and return its result.',
                 inputSchema: SpawnAgentInputSchema,
                 execute: (input, context) =>
                     ensureToolsInitialized(context).spawnAgent.execute(input, context),
-                generatePreview: async (input, context) => {
-                    const tool = ensureToolsInitialized(context).spawnAgent;
-                    if (!tool.generatePreview) {
-                        return null;
-                    }
-                    return await tool.generatePreview(input, context);
+                presentation: {
+                    describeHeader: (input) => {
+                        const agentId =
+                            typeof input.agentId === 'string' ? input.agentId : undefined;
+                        const agentLabel = agentId ? agentId.replace(/-agent$/, '') : undefined;
+                        const title = agentLabel
+                            ? agentLabel.charAt(0).toUpperCase() + agentLabel.slice(1)
+                            : 'Agent';
+
+                        const task = typeof input.task === 'string' ? input.task : '';
+                        const argsText = task ? truncateForHeader(task, 120) : undefined;
+
+                        return createLocalToolCallHeader({
+                            title,
+                            ...(argsText ? { argsText } : {}),
+                        });
+                    },
+                    preview: async (input, context) => {
+                        const tool = ensureToolsInitialized(context).spawnAgent;
+                        const previewFn = tool.presentation?.preview;
+                        if (!previewFn) {
+                            return null;
+                        }
+                        return await previewFn(input, context);
+                    },
                 },
             },
             {
                 id: 'wait_for',
-                displayName: 'Wait',
                 description: 'Wait for background task(s) to complete.',
                 inputSchema: WaitForInputSchema,
                 execute: (input, context) =>
                     ensureToolsInitialized(context).waitFor.execute(input, context),
-                generatePreview: async (input, context) => {
-                    const tool = ensureToolsInitialized(context).waitFor;
-                    if (!tool.generatePreview) {
-                        return null;
-                    }
-                    return await tool.generatePreview(input, context);
+                presentation: {
+                    describeHeader: (input: WaitForInput) => {
+                        const argsText = input.taskId
+                            ? truncateForHeader(input.taskId, 80)
+                            : input.taskIds && input.taskIds.length > 0
+                              ? truncateForHeader(`${input.taskIds.length} tasks`, 80)
+                              : undefined;
+
+                        return createLocalToolCallHeader({
+                            title: 'Wait',
+                            ...(argsText ? { argsText } : {}),
+                        });
+                    },
+                    preview: async (input, context) => {
+                        const tool = ensureToolsInitialized(context).waitFor;
+                        const previewFn = tool.presentation?.preview;
+                        if (!previewFn) {
+                            return null;
+                        }
+                        return await previewFn(input, context);
+                    },
                 },
             },
             {
                 id: 'check_task',
-                displayName: 'Check Task',
                 description: 'Check the status of a background task.',
                 inputSchema: CheckTaskInputSchema,
                 execute: (input, context) =>
                     ensureToolsInitialized(context).checkTask.execute(input, context),
-                generatePreview: async (input, context) => {
-                    const tool = ensureToolsInitialized(context).checkTask;
-                    if (!tool.generatePreview) {
-                        return null;
-                    }
-                    return await tool.generatePreview(input, context);
+                presentation: {
+                    describeHeader: (input: CheckTaskInput) => {
+                        const argsText = truncateForHeader(input.taskId, 80);
+
+                        return createLocalToolCallHeader({
+                            title: 'Check Task',
+                            ...(argsText ? { argsText } : {}),
+                        });
+                    },
+                    preview: async (input, context) => {
+                        const tool = ensureToolsInitialized(context).checkTask;
+                        const previewFn = tool.presentation?.preview;
+                        if (!previewFn) {
+                            return null;
+                        }
+                        return await previewFn(input, context);
+                    },
                 },
             },
             {
                 id: 'list_tasks',
-                displayName: 'List Tasks',
                 description: 'List background tasks and their statuses.',
                 inputSchema: ListTasksInputSchema,
                 execute: (input, context) =>
                     ensureToolsInitialized(context).listTasks.execute(input, context),
-                generatePreview: async (input, context) => {
-                    const tool = ensureToolsInitialized(context).listTasks;
-                    if (!tool.generatePreview) {
-                        return null;
-                    }
-                    return await tool.generatePreview(input, context);
+                presentation: {
+                    describeHeader: () =>
+                        createLocalToolCallHeader({
+                            title: 'List Tasks',
+                        }),
+                    preview: async (input, context) => {
+                        const tool = ensureToolsInitialized(context).listTasks;
+                        const previewFn = tool.presentation?.preview;
+                        if (!previewFn) {
+                            return null;
+                        }
+                        return await previewFn(input, context);
+                    },
                 },
             },
         ];

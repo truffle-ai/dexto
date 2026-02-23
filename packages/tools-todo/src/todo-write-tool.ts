@@ -5,7 +5,7 @@
  */
 
 import { z } from 'zod';
-import { defineTool } from '@dexto/core';
+import { createLocalToolCallHeader, defineTool } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 import type { TodoService } from './todo-service.js';
 import { TODO_STATUS_VALUES } from './types.js';
@@ -68,7 +68,6 @@ export function createTodoWriteTool(
 ): Tool<typeof TodoWriteInputSchema> {
     return defineTool({
         id: 'todo_write',
-        displayName: 'Update Todos',
         description: `Track progress on multi-step tasks. Use for:
 - Implementation tasks with 3+ steps (features, refactors, bug fixes)
 - Tasks where the user asks for a plan or breakdown
@@ -78,6 +77,14 @@ Do NOT use for simple single-file edits, quick questions, or explanations.
 
 IMPORTANT: This replaces the entire todo list. Always include ALL tasks (pending, in_progress, completed). Only ONE task should be in_progress at a time. Update status as you work: pending → in_progress → completed.`,
         inputSchema: TodoWriteInputSchema,
+
+        presentation: {
+            describeHeader: (input) =>
+                createLocalToolCallHeader({
+                    title: 'Update Todos',
+                    argsText: `${input.todos.length} items`,
+                }),
+        },
 
         async execute(input, context: ToolExecutionContext): Promise<unknown> {
             const resolvedTodoService = await getTodoService(context);

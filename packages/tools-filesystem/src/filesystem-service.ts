@@ -182,20 +182,24 @@ export class FileSystemService {
         return this.pathValidator.isPathWithinAllowed(filePath);
     }
 
-    /**
-     * Read a file with validation and size limits
-     */
-    async readFile(filePath: string, options: ReadFileOptions = {}): Promise<FileContent> {
-        await this.ensureInitialized();
-
-        // Validate path (async for non-blocking symlink resolution)
-        const validation = await this.pathValidator.validatePath(filePath);
+    private async validateReadPath(
+        filePath: string,
+        mode: 'execute' | 'toolPreview'
+    ): Promise<string> {
+        const validation =
+            mode === 'toolPreview'
+                ? await this.pathValidator.validatePathForPreview(filePath)
+                : await this.pathValidator.validatePath(filePath);
         if (!validation.isValid || !validation.normalizedPath) {
             throw FileSystemError.invalidPath(filePath, validation.error || 'Unknown error');
         }
+        return validation.normalizedPath;
+    }
 
-        const normalizedPath = validation.normalizedPath;
-
+    private async readNormalizedFile(
+        normalizedPath: string,
+        options: ReadFileOptions = {}
+    ): Promise<FileContent> {
         // Check if file exists
         try {
             const stats = await fs.stat(normalizedPath);
@@ -221,6 +225,9 @@ export class FileSystemService {
             }
             if ((error as NodeJS.ErrnoException).code === 'EACCES') {
                 throw FileSystemError.permissionDenied(normalizedPath, 'read');
+            }
+            if (error instanceof DextoRuntimeError) {
+                throw error;
             }
             throw FileSystemError.readFailed(
                 normalizedPath,
@@ -250,12 +257,13 @@ export class FileSystemService {
                 selectedLines = lines;
             }
 
+            const returnedContent = selectedLines.join('\n');
             return {
-                content: selectedLines.join('\n'),
+                content: returnedContent,
                 lines: selectedLines.length,
                 encoding,
                 truncated,
-                size: Buffer.byteLength(content, encoding),
+                size: Buffer.byteLength(returnedContent, encoding),
             };
         } catch (error) {
             if (error instanceof DextoRuntimeError && error.scope === 'filesystem') {
@@ -266,6 +274,33 @@ export class FileSystemService {
                 error instanceof Error ? error.message : String(error)
             );
         }
+    }
+
+    /**
+     * Read a file with validation and size limits
+     */
+    async readFile(filePath: string, options: ReadFileOptions = {}): Promise<FileContent> {
+        await this.ensureInitialized();
+
+        const normalizedPath = await this.validateReadPath(filePath, 'execute');
+        return await this.readNormalizedFile(normalizedPath, options);
+    }
+
+    /**
+     * Preview-only file read that bypasses config-allowed roots.
+     *
+     * This is intended for UI previews (diffs, create previews) shown BEFORE a user
+     * confirms directory access for the tool call. The returned content is UI-only
+     * and should not be forwarded to the LLM.
+     */
+    async readFileForToolPreview(
+        filePath: string,
+        options: ReadFileOptions = {}
+    ): Promise<FileContent> {
+        await this.ensureInitialized();
+
+        const normalizedPath = await this.validateReadPath(filePath, 'toolPreview');
+        return await this.readNormalizedFile(normalizedPath, options);
     }
 
     /**

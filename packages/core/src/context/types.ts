@@ -1,5 +1,6 @@
 import type { LLMProvider, TokenUsage } from '../llm/types.js';
 import type { ToolDisplayData } from '../tools/display-types.js';
+import type { ToolPresentationSnapshotV1 } from '../tools/types.js';
 
 // =============================================================================
 // Content Part Types
@@ -273,8 +274,8 @@ export interface ToolMessage extends MessageBase {
     /** Name of the tool that produced this result (REQUIRED) */
     name: string;
 
-    /** Optional user-facing name for the tool (UI convenience) */
-    toolDisplayName?: string;
+    /** Optional UI-agnostic presentation snapshot for this tool call/result */
+    presentationSnapshot?: ToolPresentationSnapshotV1;
 
     /** Whether the tool execution was successful */
     success?: boolean;

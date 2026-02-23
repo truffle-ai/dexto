@@ -1,0 +1,27 @@
+---
+'@dexto/image-logger-agent': patch
+'@dexto/agent-management': patch
+'@dexto/tools-filesystem': patch
+'@dexto/tools-lifecycle': patch
+'@dexto/tools-builtins': patch
+'@dexto/image-bundler': patch
+'@dexto/orchestration': patch
+'@dexto/tools-process': patch
+'@dexto/agent-config': patch
+'@dexto/image-local': patch
+'@dexto/client-sdk': patch
+'@dexto/tools-plan': patch
+'@dexto/tools-todo': patch
+'@dexto/analytics': patch
+'@dexto/registry': patch
+'@dexto/storage': patch
+'@dexto/server': patch
+'@dexto/core': patch
+'dexto': patch
+---
+
+- CLI/TUI: cleaner overlays (selectors, approvals, elicitation) with consistent sizing to reduce flicker on small terminals.
+- Tools: richer pre-approval previews (files/diffs, bash commands, plans) and clearer tool output formatting in message history.
+- Filesystem approvals: directory access checks now handle symlinks/realpaths consistently so approved directories actually work (e.g. `/tmp` on macOS).
+- ask_user: wizard-style elicitation flow with a deterministic schema contract (field `title`/`description` + `x-dexto.stepLabel`).
+- Reliability & build: deterministic `http_request` tests (no network) and faster builds by separating JS bundling from DTS generation.

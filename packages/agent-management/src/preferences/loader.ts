@@ -348,7 +348,7 @@ export function createInitialPreferences(options: CreatePreferencesOptions): Glo
         },
         sounds: {
             enabled: options.sounds?.enabled ?? true,
-            onStartup: options.sounds?.onStartup ?? true,
+            onStartup: options.sounds?.onStartup ?? false,
             ...(options.sounds?.startupSoundFile
                 ? { startupSoundFile: options.sounds.startupSoundFile }
                 : {}),

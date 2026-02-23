@@ -1,49 +1,49 @@
 {
-  "name": "@dexto/tools-scheduler",
-  "version": "1.6.0",
-  "description": "Scheduler tools provider for Dexto agents - enables proactive task scheduling",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+    "name": "@dexto/tools-scheduler",
+    "version": "1.6.0",
+    "description": "Scheduler tools provider for Dexto agents - enables proactive task scheduling",
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        },
+        "./service": {
+            "types": "./dist/service/index.d.ts",
+            "import": "./dist/service/index.js"
+        },
+        "./tools": {
+            "types": "./dist/tools/index.d.ts",
+            "import": "./dist/tools/index.js"
+        }
     },
-    "./service": {
-      "types": "./dist/service/index.d.ts",
-      "import": "./dist/service/index.js"
+    "scripts": {
+        "build": "tsup && node ../../scripts/clean-tsbuildinfo.mjs && tsc -b tsconfig.json --emitDeclarationOnly",
+        "typecheck": "tsc --noEmit",
+        "clean": "rm -rf dist"
     },
-    "./tools": {
-      "types": "./dist/tools/index.d.ts",
-      "import": "./dist/tools/index.js"
-    }
-  },
-  "scripts": {
-    "build": "tsup",
-    "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
-  },
-  "keywords": [
-    "dexto",
-    "tools",
-    "scheduler",
-    "cron",
-    "automation"
-  ],
-  "dependencies": {
-    "@dexto/agent-config": "workspace:*",
-    "@dexto/core": "workspace:*",
-    "cron-parser": "^4.9.0",
-    "node-cron": "^4.2.1",
-    "zod": "^3.25.0"
-  },
-  "devDependencies": {
-    "tsup": "^8.0.0",
-    "typescript": "^5.3.3"
-  },
-  "files": [
-    "dist",
-    "README.md"
-  ]
+    "keywords": [
+        "dexto",
+        "tools",
+        "scheduler",
+        "cron",
+        "automation"
+    ],
+    "dependencies": {
+        "@dexto/agent-config": "workspace:*",
+        "@dexto/core": "workspace:*",
+        "cron-parser": "^4.9.0",
+        "node-cron": "^4.2.1",
+        "zod": "^3.25.0"
+    },
+    "devDependencies": {
+        "tsup": "^8.0.0",
+        "typescript": "^5.3.3"
+    },
+    "files": [
+        "dist",
+        "README.md"
+    ]
 }

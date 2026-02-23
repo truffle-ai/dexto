@@ -114,6 +114,48 @@ describe('HookManager', () => {
         });
     });
 
+    it('always throws when cancel is true (even if ok is true)', async () => {
+        const logger = createMockLogger();
+
+        let hookBExecuted = false;
+
+        const hookA: Hook = {
+            async beforeResponse(_payload, _context: HookExecutionContext): Promise<HookResult> {
+                return { ok: true, cancel: true, message: 'blocked' };
+            },
+        };
+
+        const hookB: Hook = {
+            async beforeResponse(): Promise<HookResult> {
+                hookBExecuted = true;
+                return { ok: true };
+            },
+        };
+
+        const hookManager = new HookManager(
+            {
+                agentEventBus: {} as unknown as import('../events/index.js').AgentEventBus,
+                storageManager: {} as unknown as import('../storage/index.js').StorageManager,
+            },
+            [hookA, hookB],
+            logger
+        );
+        await hookManager.initialize();
+
+        const options = createExecutionContextOptions();
+        await expect(
+            hookManager.executeHooks(
+                'beforeResponse',
+                { content: 'orig', provider: 'openai' },
+                options
+            )
+        ).rejects.toMatchObject({
+            code: HookErrorCode.HOOK_BLOCKED_EXECUTION,
+        });
+
+        expect(hookBExecuted).toBe(false);
+    });
+
     it('wraps thrown errors as HOOK_EXECUTION_FAILED', async () => {
         const logger = createMockLogger();
 

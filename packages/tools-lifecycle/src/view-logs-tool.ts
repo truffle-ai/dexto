@@ -1,6 +1,6 @@
 import * as fs from 'node:fs/promises';
 import { z } from 'zod';
-import { ToolError, defineTool } from '@dexto/core';
+import { ToolError, createLocalToolCallHeader, defineTool } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 
 const LOG_LEVEL_VALUES = ['debug', 'info', 'warn', 'error', 'silly'] as const;
@@ -109,10 +109,16 @@ export function createViewLogsTool(options: {
 }): Tool<typeof ViewLogsInputSchema> {
     return defineTool({
         id: 'view_logs',
-        displayName: 'View Logs',
         description:
             'View this session log file (tail). Returns the most recent log lines for debugging. If file logging is not configured, returns a message instead.',
         inputSchema: ViewLogsInputSchema,
+        presentation: {
+            describeHeader: (input) =>
+                createLocalToolCallHeader({
+                    title: 'View Logs',
+                    argsText: `${input.lines} lines`,
+                }),
+        },
         async execute(parsed, context: ToolExecutionContext) {
             const logFilePath = context.logger.getLogFilePath();
             if (!logFilePath) {

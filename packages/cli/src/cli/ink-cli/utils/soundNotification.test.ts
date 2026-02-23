@@ -20,7 +20,7 @@ const mockedExecFile = vi.mocked(execFile);
 // Full config for testing (mirrors defaults from PreferenceSoundsSchema)
 const TEST_CONFIG: SoundConfig = {
     enabled: true,
-    onStartup: true,
+    onStartup: false,
     onApprovalRequired: true,
     onTaskComplete: true,
 };

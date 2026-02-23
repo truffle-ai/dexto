@@ -13,7 +13,7 @@
  */
 
 import { z } from 'zod';
-import { defineTool } from '@dexto/core';
+import { createLocalToolCallHeader, defineTool, truncateForHeader } from '@dexto/core';
 import type { Tool, ToolExecutionContext, FileDisplayData } from '@dexto/core';
 import type { PlanServiceGetter } from '../plan-service-getter.js';
 import { PlanError } from '../errors.js';
@@ -37,45 +37,52 @@ export function createPlanReviewTool(
 ): Tool<typeof PlanReviewInputSchema> {
     return defineTool({
         id: 'plan_review',
-        displayName: 'Review Plan',
         description:
             'Request user review of the current plan. Shows the full plan content for review with options to approve, request changes, or reject. Use after creating or updating a plan to get user approval before implementation.',
         inputSchema: PlanReviewInputSchema,
 
-        /**
-         * Generate preview showing the plan content for review.
-         * The ApprovalPrompt component detects plan_review and shows custom options.
-         */
-        generatePreview: async (input, context: ToolExecutionContext): Promise<FileDisplayData> => {
-            const resolvedPlanService = await getPlanService(context);
-            const { summary } = input;
+        presentation: {
+            describeHeader: (input) =>
+                createLocalToolCallHeader({
+                    title: 'Review Plan',
+                    ...(input.summary ? { argsText: truncateForHeader(input.summary, 140) } : {}),
+                }),
+            /**
+             * Generate preview showing the plan content for review.
+             * The ApprovalPrompt component detects plan_review and shows custom options.
+             */
+            preview: async (input, context: ToolExecutionContext): Promise<FileDisplayData> => {
+                const resolvedPlanService = await getPlanService(context);
+                const { summary } = input;
 
-            if (!context.sessionId) {
-                throw PlanError.sessionIdRequired();
-            }
+                if (!context.sessionId) {
+                    throw PlanError.sessionIdRequired();
+                }
 
-            // Read the current plan
-            const plan = await resolvedPlanService.read(context.sessionId);
-            if (!plan) {
-                throw PlanError.planNotFound(context.sessionId);
-            }
+                // Read the current plan
+                const plan = await resolvedPlanService.read(context.sessionId);
+                if (!plan) {
+                    throw PlanError.planNotFound(context.sessionId);
+                }
 
-            // Build content with optional summary header
-            let displayContent = plan.content;
-            if (summary) {
-                displayContent = `## Summary\n${summary}\n\n---\n\n${plan.content}`;
-            }
+                // Build content with optional summary header
+                let displayContent = plan.content;
+                if (summary) {
+                    displayContent = `## Summary\n${summary}\n\n---\n\n${plan.content}`;
+                }
 
-            const lineCount = displayContent.split('\n').length;
-            const planPath = resolvedPlanService.getPlanPath(context.sessionId);
-            return {
-                type: 'file',
-                path: planPath,
-                operation: 'read', // 'read' indicates this is for viewing, not creating/modifying
-                content: displayContent,
-                size: Buffer.byteLength(displayContent, 'utf8'),
-                lineCount,
-            };
+                const lineCount = displayContent.split('\n').length;
+                const planPath = resolvedPlanService.getPlanPath(context.sessionId);
+                return {
+                    type: 'file',
+                    title: 'Review Plan',
+                    path: planPath,
+                    operation: 'read', // 'read' indicates this is for viewing, not creating/modifying
+                    content: displayContent,
+                    size: Buffer.byteLength(displayContent, 'utf8'),
+                    lineCount,
+                };
+            },
         },
 
         async execute(_input, context: ToolExecutionContext) {

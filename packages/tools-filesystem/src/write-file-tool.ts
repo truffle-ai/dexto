@@ -7,7 +7,13 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { createPatch } from 'diff';
-import { DextoRuntimeError, ToolError, defineTool } from '@dexto/core';
+import {
+    createLocalToolCallHeader,
+    DextoRuntimeError,
+    ToolError,
+    defineTool,
+    truncateForHeader,
+} from '@dexto/core';
 import type { DiffDisplayData, FileDisplayData } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 import { FileSystemErrorCode } from './error-codes.js';
@@ -68,6 +74,7 @@ function generateDiffPreview(
 
     return {
         type: 'diff',
+        title: 'Update file',
         unified,
         filename: filePath,
         additions,
@@ -83,7 +90,6 @@ export function createWriteFileTool(
 ): Tool<typeof WriteFileInputSchema> {
     return defineTool({
         id: 'write_file',
-        displayName: 'Write',
         aliases: ['write'],
         description:
             'Write content to a file. Creates a new file or overwrites existing file. Automatically creates backup of existing files before overwriting. Use create_dirs to create parent directories. Requires approval for all write operations. Returns success status, path, bytes written, and backup path if applicable.',
@@ -92,65 +98,91 @@ export function createWriteFileTool(
         ...createDirectoryAccessApprovalHandlers({
             toolName: 'write_file',
             operation: 'write',
+            inputSchema: WriteFileInputSchema,
             getFileSystemService,
             resolvePaths: (input, fileSystemService) =>
                 resolveFilePath(fileSystemService.getWorkingDirectory(), input.file_path),
         }),
 
-        /**
-         * Generate preview for approval UI - shows diff or file creation info
-         * Stores content hash for change detection in execute phase.
-         */
-        async generatePreview(input, context: ToolExecutionContext) {
-            const { file_path, content } = input;
+        presentation: {
+            describeHeader: (input) =>
+                createLocalToolCallHeader({
+                    title: 'Write',
+                    argsText: truncateForHeader(input.file_path, 140),
+                }),
 
-            const resolvedFileSystemService = await getFileSystemService(context);
-            const { path: resolvedPath } = resolveFilePath(
-                resolvedFileSystemService.getWorkingDirectory(),
-                file_path
-            );
+            /**
+             * Generate preview for approval UI - shows diff or file creation info
+             * Stores content hash for change detection in execute phase.
+             */
+            preview: async (input, context: ToolExecutionContext) => {
+                const { file_path, content } = input;
 
-            try {
-                // Try to read existing file
-                const originalFile = await resolvedFileSystemService.readFile(resolvedPath);
-                const originalContent = originalFile.content;
+                const resolvedFileSystemService = await getFileSystemService(context);
+                const { path: resolvedPath } = resolveFilePath(
+                    resolvedFileSystemService.getWorkingDirectory(),
+                    file_path
+                );
 
-                // Store content hash for change detection in execute phase
-                if (context.toolCallId) {
-                    previewContentHashCache.set(
-                        context.toolCallId,
-                        computeContentHash(originalContent)
-                    );
-                }
-
-                // File exists - show diff preview
-                return generateDiffPreview(resolvedPath, originalContent, content);
-            } catch (error) {
-                // Only treat FILE_NOT_FOUND as "create new file", rethrow other errors
-                if (
-                    error instanceof DextoRuntimeError &&
-                    error.code === FileSystemErrorCode.FILE_NOT_FOUND
-                ) {
-                    // Store marker that file didn't exist at preview time
-                    if (context.toolCallId) {
-                        previewContentHashCache.set(context.toolCallId, FILE_NOT_EXISTS_MARKER);
+                try {
+                    // Try to read existing file
+                    let originalContent: string;
+                    try {
+                        const originalFile = await resolvedFileSystemService.readFile(resolvedPath);
+                        originalContent = originalFile.content;
+                    } catch (error) {
+                        if (
+                            error instanceof DextoRuntimeError &&
+                            error.code === FileSystemErrorCode.INVALID_PATH
+                        ) {
+                            const originalFile =
+                                await resolvedFileSystemService.readFileForToolPreview(
+                                    resolvedPath
+                                );
+                            originalContent = originalFile.content;
+                        } else {
+                            throw error;
+                        }
                     }
 
-                    // File doesn't exist - show as file creation with full content
-                    const lineCount = content.split('\n').length;
-                    const preview: FileDisplayData = {
-                        type: 'file',
-                        path: resolvedPath,
-                        operation: 'create',
-                        size: Buffer.byteLength(content, 'utf8'),
-                        lineCount,
-                        content, // Include content for approval preview
-                    };
-                    return preview;
+                    // Store content hash for change detection in execute phase
+                    if (context.toolCallId) {
+                        previewContentHashCache.set(
+                            context.toolCallId,
+                            computeContentHash(originalContent)
+                        );
+                    }
+
+                    // File exists - show diff preview
+                    return generateDiffPreview(resolvedPath, originalContent, content);
+                } catch (error) {
+                    // Only treat FILE_NOT_FOUND as "create new file", rethrow other errors
+                    if (
+                        error instanceof DextoRuntimeError &&
+                        error.code === FileSystemErrorCode.FILE_NOT_FOUND
+                    ) {
+                        // Store marker that file didn't exist at preview time
+                        if (context.toolCallId) {
+                            previewContentHashCache.set(context.toolCallId, FILE_NOT_EXISTS_MARKER);
+                        }
+
+                        // File doesn't exist - show as file creation with full content
+                        const lineCount = content.split('\n').length;
+                        const preview: FileDisplayData = {
+                            type: 'file',
+                            title: 'Create file',
+                            path: resolvedPath,
+                            operation: 'create',
+                            size: Buffer.byteLength(content, 'utf8'),
+                            lineCount,
+                            content, // Include content for approval preview
+                        };
+                        return preview;
+                    }
+                    // Permission denied, I/O errors, etc. - rethrow
+                    throw error;
                 }
-                // Permission denied, I/O errors, etc. - rethrow
-                throw error;
-            }
+            },
         },
 
         async execute(input, context: ToolExecutionContext) {
@@ -231,10 +263,12 @@ export function createWriteFileTool(
                 const lineCount = content.split('\n').length;
                 _display = {
                     type: 'file',
+                    title: 'Create file',
                     path: resolvedPath,
                     operation: 'create',
                     size: result.bytesWritten,
                     lineCount,
+                    content,
                 };
             } else {
                 // File overwrite - generate diff using shared helper

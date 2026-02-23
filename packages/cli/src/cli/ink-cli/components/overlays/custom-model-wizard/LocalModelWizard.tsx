@@ -12,6 +12,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import type { Key } from '../../../hooks/useInputOrchestrator.js';
+import { useAnimationTick } from '../../../hooks/useAnimationTick.js';
+import { BRAILLE_SPINNER_FRAMES } from '../../../constants/spinnerFrames.js';
 import {
     saveCustomModel,
     getAllInstalledModels,
@@ -82,8 +84,13 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
         const [nodeLlamaChecked, setNodeLlamaChecked] = useState(false); // Track if we've checked installation
         const [isInstallingNodeLlama, setIsInstallingNodeLlama] = useState(false);
         const [installConfirmIndex, setInstallConfirmIndex] = useState(0); // 0 = Yes, 1 = No
-        const [installSpinnerFrame, setInstallSpinnerFrame] = useState(0);
         const [refreshTrigger, setRefreshTrigger] = useState(0); // Increment to trigger data reload
+
+        const installSpinnerTick = useAnimationTick({
+            enabled: isInstallingNodeLlama,
+            intervalMs: 80,
+        });
+        const installSpinnerFrame = installSpinnerTick % BRAILLE_SPINNER_FRAMES.length;
 
         // Custom path input state
         const [customPath, setCustomPath] = useState('');
@@ -128,21 +135,8 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
             setError(null);
             setIsInstallingNodeLlama(false);
             setInstallConfirmIndex(0);
-            setInstallSpinnerFrame(0);
             setNodeLlamaChecked(false);
         }, [isVisible]);
-
-        // Spinner animation for installation
-        useEffect(() => {
-            if (!isInstallingNodeLlama) return;
-
-            const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-            const interval = setInterval(() => {
-                setInstallSpinnerFrame((prev) => (prev + 1) % spinnerFrames.length);
-            }, 80);
-
-            return () => clearInterval(interval);
-        }, [isInstallingNodeLlama]);
 
         // Load models when visible or when showAllModels changes
         useEffect(() => {
@@ -708,12 +702,8 @@ const LocalModelWizard = forwardRef<LocalModelWizardHandle, LocalModelWizardProp
                         <Box marginTop={1} flexDirection="column">
                             <Box>
                                 <Text color="cyan">
-                                    {
-                                        ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'][
-                                            installSpinnerFrame
-                                        ]
-                                    }{' '}
-                                    Installing node-llama-cpp (compiling native bindings)...
+                                    {BRAILLE_SPINNER_FRAMES[installSpinnerFrame]} Installing
+                                    node-llama-cpp (compiling native bindings)...
                                 </Text>
                             </Box>
                             <Text color="gray">This may take 1-2 minutes.</Text>

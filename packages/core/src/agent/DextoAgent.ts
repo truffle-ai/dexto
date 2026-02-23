@@ -15,7 +15,7 @@ import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
 import type { SessionMetadata } from '../session/index.js';
 import { AgentServices, type InitializeServicesOptions } from '../utils/service-initializer.js';
-import type { Logger } from '../logger/v2/types.js';
+import type { Logger, LogLevel } from '../logger/v2/types.js';
 import { Telemetry } from '../telemetry/telemetry.js';
 import { InstrumentClass } from '../telemetry/decorators.js';
 import { trace, context, propagation, type BaggageEntry } from '@opentelemetry/api';
@@ -1528,6 +1528,33 @@ export class DextoAgent {
     public async listSessions(): Promise<string[]> {
         this.ensureStarted();
         return await this.sessionManager.listSessions();
+    }
+
+    /**
+     * Sets the log level for this agent.
+     *
+     * Note: In some hosts (e.g. interactive CLI), session logs may be written by
+     * session-scoped file loggers rather than the base agent logger. When a sessionId
+     * is provided, this also updates the in-memory session logger so file logs reflect
+     * the new level immediately.
+     */
+    public async setLogLevel(level: LogLevel, options?: { sessionId?: string }): Promise<void> {
+        this.ensureStarted();
+
+        this.logger.setLevel(level);
+
+        const sessionId = options?.sessionId;
+        if (!sessionId) {
+            return;
+        }
+
+        const session = await this.sessionManager.getSession(sessionId, false);
+        if (!session) {
+            return;
+        }
+
+        session.logger.setLevel(level);
+        session.logger.debug(`Log level changed to '${level}'`);
     }
 
     /**

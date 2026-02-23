@@ -9,11 +9,18 @@
  */
 
 import { Box, Text } from 'ink';
-import Spinner from 'ink-spinner';
 import type { DextoAgent } from '@dexto/core';
 import { usePhraseCycler } from '../hooks/usePhraseCycler.js';
 import { useElapsedTime } from '../hooks/useElapsedTime.js';
 import { useTokenCounter } from '../hooks/useTokenCounter.js';
+import { useAnimationTick } from '../hooks/useAnimationTick.js';
+import { BRAILLE_SPINNER_FRAMES } from '../constants/spinnerFrames.js';
+
+function StatusSpinner({ enabled, color }: { enabled: boolean; color: string }) {
+    const tick = useAnimationTick({ enabled, intervalMs: 80 });
+    const frame = BRAILLE_SPINNER_FRAMES[tick % BRAILLE_SPINNER_FRAMES.length];
+    return <Text color={color}>{frame}</Text>;
+}
 
 interface StatusBarProps {
     agent: DextoAgent;
@@ -120,9 +127,7 @@ export function StatusBar({
             <Box paddingX={1} marginTop={1} flexDirection="column">
                 {/* Line 1: spinner + compacting message */}
                 <Box flexDirection="row" alignItems="center">
-                    <Text color="yellow">
-                        <Spinner type="dots" />
-                    </Text>
+                    <StatusSpinner enabled={true} color="yellow" />
                     <Text color="yellow"> 📦 Compacting context...</Text>
                 </Box>
                 {/* Line 2: meta info */}
@@ -154,9 +159,7 @@ export function StatusBar({
             <Box paddingX={1} marginTop={1} flexDirection="column">
                 {/* Line 1: spinner + phrase */}
                 <Box flexDirection="row" alignItems="center">
-                    <Text color="green">
-                        <Spinner type="dots" />
-                    </Text>
+                    <StatusSpinner enabled={true} color="green" />
                     <Text color="green"> {phrase}</Text>
                 </Box>
                 {/* Line 2: meta info */}
@@ -185,9 +188,7 @@ export function StatusBar({
         <Box paddingX={1} marginTop={1} flexDirection="column">
             {/* Line 1: spinner + phrase + queue count */}
             <Box flexDirection="row" alignItems="center">
-                <Text color="green">
-                    <Spinner type="dots" />
-                </Text>
+                <StatusSpinner enabled={true} color="green" />
                 <Text color="green"> {phrase}</Text>
                 {approvalQueueCount > 0 && (
                     <Text color="yellowBright"> • {approvalQueueCount} queued</Text>
