@@ -25,7 +25,7 @@
     "dependencies": {
         "@dexto/agent-config": "workspace:*",
         "@dexto/core": "workspace:*",
-        "diff": "^7.0.0",
+        "diff": "^8.0.3",
         "zod": "^3.24.1"
     },
     "devDependencies": {
