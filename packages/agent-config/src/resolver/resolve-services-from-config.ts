@@ -1,5 +1,5 @@
-import type { Hook } from '@dexto/core';
-import type { ValidatedAgentConfig } from '../schemas/agent-config.js';
+import type { Hook, Logger, Tool } from '@dexto/core';
+import type { ToolFactoryEntry, ValidatedAgentConfig } from '../schemas/agent-config.js';
 import type { DextoImage } from '../image/types.js';
 import type { ResolvedServices } from './types.js';
 import type { PlainObject } from './utils.js';
@@ -82,37 +82,7 @@ export async function resolveServicesFromConfig(
 
     // 3) Tools
     const toolEntries = config.tools ?? image.defaults?.tools ?? [];
-    const tools: ResolvedServices['tools'] = [];
-    const toolIds = new Set<string>();
-
-    for (const entry of toolEntries) {
-        if (entry.enabled === false) {
-            continue;
-        }
-
-        const factory = resolveByType({
-            kind: 'tool',
-            type: entry.type,
-            factories: image.tools,
-            imageName,
-        });
-
-        const validatedConfig = factory.configSchema.parse(stripEnabled(entry));
-        for (const tool of factory.create(validatedConfig)) {
-            if (tool.id.startsWith(MCP_TOOL_PREFIX)) {
-                throw new Error(
-                    `Invalid local tool id '${tool.id}': '${MCP_TOOL_PREFIX}' prefix is reserved for MCP tools.`
-                );
-            }
-
-            if (toolIds.has(tool.id)) {
-                logger.warn(`Tool id conflict for '${tool.id}'. Skipping duplicate tool.`);
-                continue;
-            }
-            toolIds.add(tool.id);
-            tools.push(tool);
-        }
-    }
+    const tools = resolveToolsFromEntries({ entries: toolEntries, image, logger });
 
     // 4) Hooks
     const hookEntries = config.hooks ?? image.defaults?.hooks ?? [];
@@ -156,4 +126,46 @@ export async function resolveServicesFromConfig(
     }
 
     return { logger, storage, tools, hooks, compaction };
+}
+
+export function resolveToolsFromEntries(options: {
+    entries: ToolFactoryEntry[];
+    image: DextoImage;
+    logger: Logger;
+}): Tool[] {
+    const { entries, image, logger } = options;
+    const imageName = image.metadata.name;
+    const tools: Tool[] = [];
+    const toolIds = new Set<string>();
+
+    for (const entry of entries) {
+        if (entry.enabled === false) {
+            continue;
+        }
+
+        const factory = resolveByType({
+            kind: 'tool',
+            type: entry.type,
+            factories: image.tools,
+            imageName,
+        });
+
+        const validatedConfig = factory.configSchema.parse(stripEnabled(entry));
+        for (const tool of factory.create(validatedConfig)) {
+            if (tool.id.startsWith(MCP_TOOL_PREFIX)) {
+                throw new Error(
+                    `Invalid local tool id '${tool.id}': '${MCP_TOOL_PREFIX}' prefix is reserved for MCP tools.`
+                );
+            }
+
+            if (toolIds.has(tool.id)) {
+                logger.warn(`Tool id conflict for '${tool.id}'. Skipping duplicate tool.`);
+                continue;
+            }
+            toolIds.add(tool.id);
+            tools.push(tool);
+        }
+    }
+
+    return tools;
 }

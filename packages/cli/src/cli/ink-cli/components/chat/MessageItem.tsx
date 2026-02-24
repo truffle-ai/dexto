@@ -18,6 +18,7 @@ import type {
     RunSummaryStyledData,
     ShortcutsStyledData,
     SysPromptStyledData,
+    ExternalTriggerStyledData,
 } from '../../state/types.js';
 import {
     ConfigBox,
@@ -68,6 +69,33 @@ function formatDuration(ms: number): string {
     const hours = Math.floor(minutes / 60);
     const remainingMinutes = minutes % 60;
     return `${hours}h ${remainingMinutes}m`;
+}
+
+function formatTime(timestamp: Date | string): string {
+    const value = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
+    if (Number.isNaN(value.getTime())) {
+        return '';
+    }
+    return value.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+}
+
+function getExternalTriggerColors(source: ExternalTriggerStyledData['source']): {
+    background: string;
+    foreground: string;
+} {
+    switch (source) {
+        case 'scheduler':
+            return { background: '#3A235A', foreground: 'white' };
+        case 'a2a':
+            return { background: '#0E3B2E', foreground: 'white' };
+        case 'api':
+            return { background: '#1E3B5A', foreground: 'white' };
+        default:
+            return { background: 'gray', foreground: 'white' };
+    }
 }
 
 interface MessageItemProps {
@@ -123,6 +151,33 @@ export const MessageItem = memo(
                     return <ShortcutsBox data={message.styledData as ShortcutsStyledData} />;
                 case 'sysprompt':
                     return <SyspromptBox data={message.styledData as SysPromptStyledData} />;
+                case 'external-trigger': {
+                    const data = message.styledData as ExternalTriggerStyledData;
+                    const timeLabel = formatTime(data.timestamp);
+                    const colors = getExternalTriggerColors(data.source);
+
+                    return (
+                        <Box marginTop={1} marginBottom={1} width={terminalWidth}>
+                            <Box
+                                backgroundColor={colors.background}
+                                paddingX={1}
+                                borderStyle="round"
+                                borderColor={colors.background}
+                                marginLeft={1}
+                                flexDirection="row"
+                            >
+                                <Text color={colors.foreground} bold>
+                                    {data.label}
+                                </Text>
+                                {timeLabel && (
+                                    <Box marginLeft={1}>
+                                        <Text color={colors.foreground}>{timeLabel}</Text>
+                                    </Box>
+                                )}
+                            </Box>
+                        </Box>
+                    );
+                }
             }
         }
 

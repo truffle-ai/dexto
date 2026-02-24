@@ -51,7 +51,8 @@ export type StyledMessageType =
     | 'run-summary'
     | 'prompts'
     | 'sysprompt'
-    | 'shortcuts';
+    | 'shortcuts'
+    | 'external-trigger';
 
 /**
  * Structured data for styled messages
@@ -133,6 +134,12 @@ export interface RunSummaryStyledData {
     totalTokens: number;
 }
 
+export interface ExternalTriggerStyledData {
+    label: string;
+    source: 'scheduler' | 'a2a' | 'api' | 'external';
+    timestamp: Date | string;
+}
+
 export interface PromptsStyledData {
     mcpPrompts: Array<{
         name: string;
@@ -175,6 +182,7 @@ export type StyledData =
     | SessionHistoryStyledData
     | LogConfigStyledData
     | RunSummaryStyledData
+    | ExternalTriggerStyledData
     | PromptsStyledData
     | SysPromptStyledData
     | ShortcutsStyledData;

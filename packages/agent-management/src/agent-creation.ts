@@ -5,7 +5,9 @@ import {
     cleanNullValues,
     loadImage,
     resolveServicesFromConfig,
+    resolveToolsFromEntries,
     toDextoAgentOptions,
+    type ToolFactoryEntry,
 } from '@dexto/agent-config';
 import { DextoAgent, logger, type InitializeServicesOptions } from '@dexto/core';
 import { enrichAgentConfig, type EnrichAgentConfigOptions } from './config/index.js';
@@ -106,12 +108,22 @@ export async function createDextoAgentFromConfig(
 
     const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
     const services = await resolveServicesFromConfig(validatedConfig, image);
+    const toolkitLoader =
+        overrides?.toolkitLoader ??
+        (async (toolkits: string[]) => {
+            const entries: ToolFactoryEntry[] = toolkits.map((type) => ({ type }));
+            return resolveToolsFromEntries({ entries, image, logger: services.logger });
+        });
+    const mergedOverrides: InitializeServicesOptions | undefined = {
+        ...(overrides ?? {}),
+        toolkitLoader,
+    };
 
     return new DextoAgent(
         toDextoAgentOptions({
             config: validatedConfig,
             services,
-            overrides,
+            overrides: mergedOverrides,
         })
     );
 }

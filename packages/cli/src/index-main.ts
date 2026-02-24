@@ -45,9 +45,11 @@ import {
     AgentConfigSchema,
     loadImage,
     resolveServicesFromConfig,
+    resolveToolsFromEntries,
     setImageImporter,
     toDextoAgentOptions,
     type DextoImage,
+    type ToolFactoryEntry,
     type ValidatedAgentConfig,
 } from '@dexto/agent-config';
 import {
@@ -777,7 +779,13 @@ async function bootstrapAgentFromGlobalOpts() {
 
     const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
     const services = await resolveServicesFromConfig(validatedConfig, image);
-    const agent = new DextoAgent(toDextoAgentOptions({ config: validatedConfig, services }));
+    const toolkitLoader = async (toolkits: string[]) => {
+        const entries: ToolFactoryEntry[] = toolkits.map((type) => ({ type }));
+        return resolveToolsFromEntries({ entries, image, logger: services.logger });
+    };
+    const agent = new DextoAgent(
+        toDextoAgentOptions({ config: validatedConfig, services, overrides: { toolkitLoader } })
+    );
     await agent.start();
 
     // Register graceful shutdown
@@ -1648,11 +1656,19 @@ program
                             : null;
 
                     const services = await resolveServicesFromConfig(validatedConfig, image);
+                    const toolkitLoader = async (toolkits: string[]) => {
+                        const entries: ToolFactoryEntry[] = toolkits.map((type) => ({ type }));
+                        return resolveToolsFromEntries({ entries, image, logger: services.logger });
+                    };
                     agent = new DextoAgent(
                         toDextoAgentOptions({
                             config: validatedConfig,
                             services,
-                            overrides: { sessionLoggerFactory, mcpAuthProviderFactory },
+                            overrides: {
+                                sessionLoggerFactory,
+                                mcpAuthProviderFactory,
+                                toolkitLoader,
+                            },
                         })
                     );
 
