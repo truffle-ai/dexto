@@ -282,6 +282,18 @@ export class TurnExecutor {
                     reasoning: this.config.reasoning,
                 });
 
+                // Debug log for verifying reasoning + provider options are actually being sent.
+                // (Avoids logging headers/body; providerOptions captures the effective request knobs.)
+                this.logger.debug('LLM request options', {
+                    provider: this.llmContext.provider,
+                    model: this.llmContext.model,
+                    requestedReasoning: {
+                        preset: this.config.reasoning?.preset ?? 'medium',
+                        budgetTokens: this.config.reasoning?.budgetTokens,
+                    },
+                    providerOptions,
+                });
+
                 const reasoningPreset = this.config.reasoning?.preset;
                 const reasoningBudgetTokens = getEffectiveReasoningBudgetTokens(providerOptions);
 
