@@ -54,6 +54,7 @@ vi.mock('@dexto/agent-management', async () => {
         loadGlobalPreferences: vi.fn().mockResolvedValue(null),
         getGlobalPreferencesPath: vi.fn(() => '/tmp/preferences.yml'),
         updateGlobalPreferences: vi.fn().mockResolvedValue(undefined),
+        globalPreferencesExist: vi.fn(),
     };
 });
 
@@ -98,6 +99,7 @@ describe('Setup Command', () => {
     let mockSelectProvider: any;
     let mockRequiresSetup: any;
     let mockResolveApiKeyForProvider: any;
+    let mockGlobalPreferencesExist: any;
     let mockPrompts: any;
     let consoleSpy: any;
     let consoleErrorSpy: any;
@@ -121,6 +123,7 @@ describe('Setup Command', () => {
 
         mockCreateInitialPreferences = vi.mocked(prefLoader.createInitialPreferences);
         mockSaveGlobalPreferences = vi.mocked(prefLoader.saveGlobalPreferences);
+        mockGlobalPreferencesExist = vi.mocked(prefLoader.globalPreferencesExist);
         mockInteractiveApiKeySetup = vi.mocked(apiKeySetup.interactiveApiKeySetup);
         mockHasApiKeyConfigured = vi.mocked(apiKeySetup.hasApiKeyConfigured);
         mockResolveApiKeyForProvider = vi.mocked(apiKeyResolver.resolveApiKeyForProvider);
@@ -164,6 +167,7 @@ describe('Setup Command', () => {
             };
         });
         mockSaveGlobalPreferences.mockResolvedValue(undefined);
+        mockGlobalPreferencesExist.mockReturnValue(true);
         mockInteractiveApiKeySetup.mockResolvedValue({ success: true });
         mockHasApiKeyConfigured.mockReturnValue(true); // Default: API key exists
         mockResolveApiKeyForProvider.mockReturnValue(undefined); // Default: no API key exists (for analytics)
@@ -643,6 +647,24 @@ describe('Setup Command', () => {
 
                 // Should not throw, just exit gracefully
                 expect(mockCreateInitialPreferences).not.toHaveBeenCalled();
+            });
+
+            it('re-enters setup when preferences are missing', async () => {
+                mockGlobalPreferencesExist.mockReturnValue(false);
+                mockPrompts.select.mockResolvedValueOnce(Symbol.for('cancel'));
+                mockPrompts.isCancel.mockReturnValue(true);
+
+                const options = {
+                    interactive: true,
+                };
+
+                await expect(handleSetupCommand(options)).rejects.toThrow(
+                    'Process exit called with code 0'
+                );
+
+                expect(mockPrompts.log.warn).toHaveBeenCalledWith(
+                    expect.stringContaining('No preferences found')
+                );
             });
         });
 
