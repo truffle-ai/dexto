@@ -13,6 +13,7 @@ import {
     FileAudio,
     File,
     Brain,
+    Upload,
 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { useChatContext } from './hooks/ChatContext';
@@ -62,6 +63,8 @@ export default function InputArea({
         mimeType: string;
         filename?: string;
     } | null>(null);
+    const [isDragging, setIsDragging] = useState<boolean>(false);
+
     const fileInputRef = useRef<HTMLInputElement>(null);
     const pdfInputRef = useRef<HTMLInputElement>(null);
     const audioInputRef = useRef<HTMLInputElement>(null);
@@ -592,6 +595,7 @@ export default function InputArea({
         }
     };
     const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+        handleFilePaste(e);
         const pasted = e.clipboardData.getData('text/plain');
         if (!pasted) return;
         if (pasted.length <= LARGE_PASTE_THRESHOLD) return;
@@ -608,6 +612,34 @@ export default function InputArea({
         } else {
             const preview = pasted.slice(0, LARGE_PASTE_THRESHOLD);
             setText((prev) => prev + preview);
+        }
+    };
+
+    const handleFilePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+
+            if (item.type.indexOf('image') !== -1) {
+                e.preventDefault();
+
+                const file = item.getAsFile();
+                if (file) {
+                    handlePasteImageFile(file);
+                }
+                return;
+            }
+
+            if (item.type === 'application/pdf') {
+                e.preventDefault();
+                const file = item.getAsFile();
+                if (file) {
+                    handleFile(file);
+                }
+                return;
+            }
         }
     };
 
@@ -733,6 +765,55 @@ export default function InputArea({
         setIsRecording(false);
     };
 
+    const handlePasteImageFile = (file: File) => {
+        if (file.size > MAX_FILE_SIZE) {
+            showUserError('Image file too large. Maximum size is 64MB.');
+            return;
+        }
+
+        if (!file.type.startsWith('image/')) {
+            showUserError('Please select a valid image file.');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            try {
+                const result = reader.result as string;
+                const commaIndex = result.indexOf(',');
+                if (commaIndex === -1) throw new Error('Invalid Data URL format');
+
+                const meta = result.substring(0, commaIndex);
+                const image = result.substring(commaIndex + 1);
+
+                const mimeMatch = meta.match(/data:(.*);base64/);
+                const mimeType = mimeMatch ? mimeMatch[1] : file.type;
+
+                if (!mimeType) throw new Error('Could not determine MIME type');
+
+                setImageData({ image, mimeType });
+                setFileUploadError(null); // Clear any previous errors
+
+                // Track image upload
+                if (currentSessionId) {
+                    analyticsRef.current.trackImageAttached({
+                        imageType: mimeType,
+                        imageSizeBytes: file.size,
+                        sessionId: currentSessionId,
+                    });
+                }
+            } catch {
+                showUserError('Failed to process image file. Please try again.');
+                setImageData(null);
+            }
+        };
+        reader.onerror = () => {
+            showUserError('Failed to read image file. Please try again.');
+            setImageData(null);
+        };
+        reader.readAsDataURL(file);
+    };
+
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -787,6 +868,46 @@ export default function InputArea({
         };
         reader.readAsDataURL(file);
         e.target.value = '';
+    };
+
+    const handleFile = (file: File) => {
+        // File size validation
+        if (file.size > MAX_FILE_SIZE) {
+            showUserError('PDF file too large. Maximum size is 64MB.');
+            return;
+        }
+
+        if (file.type !== 'application/pdf') {
+            showUserError('Please select a valid PDF file.');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            try {
+                const result = reader.result as string;
+                const commaIndex = result.indexOf(',');
+                const data = result.substring(commaIndex + 1);
+                setFileData({ data, mimeType: 'application/pdf', filename: file.name });
+                setFileUploadError(null);
+
+                if (currentSessionId) {
+                    analyticsRef.current.trackFileAttached({
+                        fileType: 'application/pdf',
+                        fileSizeBytes: file.size,
+                        sessionId: currentSessionId,
+                    });
+                }
+            } catch {
+                showUserError('Failed to process PDF file. Please try again.');
+                setFileData(null);
+            }
+        };
+        reader.onerror = () => {
+            showUserError('Failed to read PDF file. Please try again.');
+            setFileData(null);
+        };
+        reader.readAsDataURL(file);
     };
 
     const removeImage = () => setImageData(null);
@@ -851,6 +972,54 @@ export default function InputArea({
         };
         reader.readAsDataURL(file);
         e.target.value = '';
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    const handleDragEnter = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (e.dataTransfer.types.includes('Files')) {
+            setIsDragging(true);
+        }
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = e.clientX;
+        const y = e.clientY;
+
+        if (x <= rect.left || x >= rect.right || y <= rect.top || y >= rect.bottom) {
+            setIsDragging(false);
+        }
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+
+        const files = e.dataTransfer.files;
+        if (!files || files.length === 0) return;
+
+        // Process all dropped image files
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            if (file.type.startsWith('image/')) {
+                handlePasteImageFile(file);
+            }
+
+            if (file.type === 'application/pdf') {
+                handleFile(file);
+            }
+        }
     };
 
     // Unified input panel: use the same full-featured chat composer in both welcome and chat states
@@ -976,7 +1145,23 @@ export default function InputArea({
                         )}
 
                         {/* Editor area: scrollable, independent from footer */}
-                        <div className="flex-auto overflow-y-auto relative">
+                        <div
+                            className="flex-auto overflow-y-auto relative"
+                            onDrop={handleDrop}
+                            onDragOver={handleDragOver}
+                            onDragEnter={handleDragEnter}
+                            onDragLeave={handleDragLeave}
+                        >
+                            {isDragging && (
+                                <div className="absolute inset-0 bg-accent/10 border-2 border-accent/40 border-dashed rounded-lg z-10 flex items-center justify-center pointer-events-none">
+                                    <div className="bg-card px-4 py-2 rounded-lg shadow-lg border border-border">
+                                        <p className="text-card-foreground font-medium flex items-center gap-2">
+                                            <Upload className="w-5 h-5" />
+                                            Drop images or PDFs here
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
                             {fontsReady ? (
                                 <TextareaAutosize
                                     ref={textareaRef}
