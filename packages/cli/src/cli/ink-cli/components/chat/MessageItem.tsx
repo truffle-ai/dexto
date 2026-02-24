@@ -166,8 +166,10 @@ export const MessageItem = memo(
             const reasoningBlock =
                 showReasoning && message.reasoning ? (
                     <Box flexDirection="column" marginBottom={1}>
-                        <Text color="gray">Reasoning</Text>
-                        <MarkdownText color="gray">{message.reasoning}</MarkdownText>
+                        <MarkdownText
+                            color="gray"
+                            bulletPrefix="⏺ "
+                        >{`**Reasoning**\n${message.reasoning}`}</MarkdownText>
                     </Box>
                 ) : null;
 
