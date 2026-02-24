@@ -72,6 +72,22 @@ describe('getReasoningSupport', () => {
         });
     });
 
+    it('advertises budget tokens for Bedrock Anthropic reasoning models', () => {
+        expect(getReasoningSupport('bedrock', 'anthropic.claude-haiku-4-5-20251001-v1:0')).toEqual({
+            capable: true,
+            supportedPresets: ['off', 'low', 'medium', 'high', 'max'],
+            supportsBudgetTokens: true,
+        });
+    });
+
+    it('advertises effort-only presets for Bedrock Nova reasoning models', () => {
+        expect(getReasoningSupport('bedrock', 'amazon.nova-premier-v1:0')).toEqual({
+            capable: true,
+            supportedPresets: ['off', 'low', 'medium', 'high'],
+            supportsBudgetTokens: false,
+        });
+    });
+
     it('does not expose OpenRouter tuning presets for excluded model families', () => {
         expect(getReasoningSupport('openrouter', 'deepseek/deepseek-r1:free')).toEqual({
             capable: false,

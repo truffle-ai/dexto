@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildProviderOptions, getEffectiveReasoningBudgetTokens } from './provider-options.js';
+import { ANTHROPIC_INTERLEAVED_THINKING_BETA } from '../reasoning/anthropic-betas.js';
 
 describe('buildProviderOptions', () => {
     it('returns undefined for providers with no special options', () => {
@@ -309,14 +310,17 @@ describe('buildProviderOptions', () => {
     });
 
     describe('bedrock', () => {
-        it('defaults to bedrock.reasoningConfig enabled (medium)', () => {
+        it('defaults to Bedrock Anthropic budget tokens (medium)', () => {
             expect(
                 buildProviderOptions({
                     provider: 'bedrock',
                     model: 'anthropic.claude-haiku-4-5-20251001-v1:0',
                 })
             ).toEqual({
-                bedrock: { reasoningConfig: { type: 'enabled', maxReasoningEffort: 'medium' } },
+                bedrock: {
+                    reasoningConfig: { type: 'enabled', budgetTokens: 2048 },
+                    anthropicBeta: [ANTHROPIC_INTERLEAVED_THINKING_BETA],
+                },
             });
         });
 
@@ -330,7 +334,7 @@ describe('buildProviderOptions', () => {
             ).toEqual({ bedrock: { reasoningConfig: { type: 'disabled' } } });
         });
 
-        it('maps active presets to bedrock.reasoningConfig enabled', () => {
+        it('maps active presets to Bedrock Anthropic budget tokens', () => {
             expect(
                 buildProviderOptions({
                     provider: 'bedrock',
@@ -338,21 +342,41 @@ describe('buildProviderOptions', () => {
                     reasoning: { preset: 'high' },
                 })
             ).toEqual({
+                bedrock: {
+                    reasoningConfig: { type: 'enabled', budgetTokens: 4096 },
+                    anthropicBeta: [ANTHROPIC_INTERLEAVED_THINKING_BETA],
+                },
+            });
+        });
+
+        it('maps explicit budgetTokens for Bedrock Anthropic models', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'bedrock',
+                    model: 'anthropic.claude-haiku-4-5-20251001-v1:0',
+                    reasoning: { preset: 'medium', budgetTokens: 987 },
+                })
+            ).toEqual({
+                bedrock: {
+                    reasoningConfig: { type: 'enabled', budgetTokens: 987 },
+                    anthropicBeta: [ANTHROPIC_INTERLEAVED_THINKING_BETA],
+                },
+            });
+        });
+
+        it('maps active presets to Bedrock Nova maxReasoningEffort', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'bedrock',
+                    model: 'amazon.nova-premier-v1:0',
+                    reasoning: { preset: 'high' },
+                })
+            ).toEqual({
                 bedrock: { reasoningConfig: { type: 'enabled', maxReasoningEffort: 'high' } },
             });
         });
 
-        it('does not send reasoningConfig for non-reasoning Bedrock Claude models', () => {
-            expect(
-                buildProviderOptions({
-                    provider: 'bedrock',
-                    model: 'anthropic.claude-instant-v1:2',
-                    reasoning: { preset: 'high' },
-                })
-            ).toEqual({ bedrock: {} });
-        });
-
-        it('does not send reasoningConfig for non-capable models', () => {
+        it('does not send reasoningConfig for non-reasoning Bedrock models', () => {
             expect(
                 buildProviderOptions({
                     provider: 'bedrock',

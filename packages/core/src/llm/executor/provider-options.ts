@@ -22,6 +22,7 @@ import {
     isAnthropicAdaptiveThinkingModel,
     isAnthropicOpus46Model,
 } from '../reasoning/anthropic-thinking.js';
+import { ANTHROPIC_INTERLEAVED_THINKING_BETA } from '../reasoning/anthropic-betas.js';
 import { supportsOpenRouterReasoningTuning } from '../reasoning/profiles/openrouter.js';
 import {
     coerceOpenAIReasoningEffort,
@@ -124,7 +125,34 @@ function getGoogleDefaultThinkingBudgetTokens(preset: ReasoningPreset): number |
     }
 }
 
+function getBedrockDefaultThinkingBudgetTokens(preset: ReasoningPreset): number | undefined {
+    // Conservative defaults for Claude models on Bedrock (budget-tokens based).
+    //
+    // Note: Bedrock also supports Amazon Nova reasoning via effort levels; those are handled separately.
+    switch (preset) {
+        case 'off':
+            return undefined;
+        case 'low':
+            return 1024;
+        case 'medium':
+            return 2048;
+        case 'high':
+            return 4096;
+        case 'max':
+        case 'xhigh':
+            return 8192;
+        default:
+            return 2048;
+    }
+}
+
 function coerceGoogleThinkingBudgetTokens(tokens: number | undefined): number | undefined {
+    if (tokens === undefined) return undefined;
+    if (!Number.isFinite(tokens)) return undefined;
+    return Math.max(1, Math.floor(tokens));
+}
+
+function coerceBedrockThinkingBudgetTokens(tokens: number | undefined): number | undefined {
     if (tokens === undefined) return undefined;
     if (!Number.isFinite(tokens)) return undefined;
     return Math.max(1, Math.floor(tokens));
@@ -169,6 +197,18 @@ function mapPresetToOpenAIReasoningEffort(
 
     if (requested === undefined) return undefined;
     return coerceOpenAIReasoningEffort(model, requested);
+}
+
+function isBedrockAnthropicModel(model: string): boolean {
+    // Bedrock model IDs use prefixes like:
+    // - "anthropic.claude-..." or "us.anthropic.claude-..."
+    return model.toLowerCase().includes('anthropic');
+}
+
+function isBedrockNovaModel(model: string): boolean {
+    // Nova model IDs use prefixes like:
+    // - "amazon.nova-..." or "us.amazon.nova-..."
+    return model.toLowerCase().includes('nova');
 }
 
 function buildAnthropicProviderOptions(config: {
@@ -347,19 +387,44 @@ export function buildProviderOptions(
             return { bedrock: {} };
         }
 
-        const maxReasoningEffort = mapPresetToLowMediumHigh(preset);
+        const isAnthropic = isBedrockAnthropicModel(model);
+        const isNova = isBedrockNovaModel(model);
+
+        // Bedrock supports distinct reasoning paradigms:
+        // - Anthropic Claude: budget tokens (thinking) via budgetTokens
+        // - Amazon Nova: effort tuning via maxReasoningEffort
+        //
+        // Keep this conservative: if we don't recognize the family, do not send knobs.
+        if (!isAnthropic && !isNova) {
+            return { bedrock: {} };
+        }
+
         const bedrock: Record<string, unknown> = {};
 
         if (preset === 'off') {
             bedrock['reasoningConfig'] = { type: 'disabled' };
             return { bedrock };
         }
-        if (budgetTokens !== undefined || maxReasoningEffort !== undefined) {
-            bedrock['reasoningConfig'] = {
-                type: 'enabled',
-                ...(budgetTokens !== undefined && { budgetTokens }),
-                ...(maxReasoningEffort !== undefined && { maxReasoningEffort }),
-            };
+
+        if (isAnthropic) {
+            const effectiveBudgetTokens = coerceBedrockThinkingBudgetTokens(
+                budgetTokens ?? getBedrockDefaultThinkingBudgetTokens(preset)
+            );
+            if (effectiveBudgetTokens === undefined) {
+                return { bedrock: {} };
+            }
+
+            bedrock['reasoningConfig'] = { type: 'enabled', budgetTokens: effectiveBudgetTokens };
+
+            // Enable Claude interleaved thinking (no extra token cost; unlocks capability).
+            bedrock['anthropicBeta'] = [ANTHROPIC_INTERLEAVED_THINKING_BETA];
+
+            return { bedrock };
+        }
+
+        const maxReasoningEffort = mapPresetToLowMediumHigh(preset);
+        if (maxReasoningEffort !== undefined) {
+            bedrock['reasoningConfig'] = { type: 'enabled', maxReasoningEffort };
         }
 
         return { bedrock };

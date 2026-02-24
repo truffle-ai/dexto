@@ -18,6 +18,14 @@ function isGemini3Model(model: string): boolean {
     return model.toLowerCase().includes('gemini-3');
 }
 
+function isBedrockAnthropicModel(model: string): boolean {
+    return model.toLowerCase().includes('anthropic');
+}
+
+function isBedrockNovaModel(model: string): boolean {
+    return model.toLowerCase().includes('nova');
+}
+
 /**
  * Returns a conservative, provider-aware view of which reasoning presets we can meaningfully
  * translate into provider options today.
@@ -72,12 +80,33 @@ export function getReasoningSupport(provider: LLMProvider, model: string): Reaso
             return { capable, supportedPresets: uniq(presets), supportsBudgetTokens };
         }
         case 'bedrock': {
-            // These providers support a budget-based paradigm and/or low|medium|high effort.
-            // If the model isn't reasoning-capable, keep only base knobs (off).
-            const presets: ReasoningPreset[] = capable
-                ? ['off', 'low', 'medium', 'high', 'max']
-                : base;
-            return { capable, supportedPresets: uniq(presets), supportsBudgetTokens: capable };
+            if (!capable) {
+                return { capable, supportedPresets: base, supportsBudgetTokens: false };
+            }
+
+            // Bedrock supports different reasoning paradigms by model family:
+            // - Anthropic Claude: budget tokens
+            // - Amazon Nova: effort levels (low|medium|high)
+            const isAnthropic = isBedrockAnthropicModel(model);
+            if (isAnthropic) {
+                return {
+                    capable,
+                    supportedPresets: ['off', 'low', 'medium', 'high', 'max'],
+                    supportsBudgetTokens: true,
+                };
+            }
+
+            const isNova = isBedrockNovaModel(model);
+            if (isNova) {
+                return {
+                    capable,
+                    supportedPresets: ['off', 'low', 'medium', 'high'],
+                    supportsBudgetTokens: false,
+                };
+            }
+
+            // Unknown Bedrock family: we don't have reliable tuning knobs.
+            return { capable, supportedPresets: base, supportsBudgetTokens: false };
         }
         case 'openrouter':
         case 'dexto-nova': {
