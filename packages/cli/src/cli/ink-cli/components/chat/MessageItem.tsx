@@ -47,6 +47,14 @@ function stripPlanModeTags(content: string): string {
     return stripped === content ? content : stripped.trim();
 }
 
+function stripAutomationTriggerTags(content: string): string {
+    const stripped = content.replace(
+        /<scheduled_automation_trigger>[\s\S]*?<\/scheduled_automation_trigger>\s*/g,
+        ''
+    );
+    return stripped === content ? content : stripped.trim();
+}
+
 /**
  * Format milliseconds into a compact human-readable string
  * Examples: "1.2s", "1m 23s", "1h 2m"
@@ -157,13 +165,12 @@ export const MessageItem = memo(
                     const colors = getExternalTriggerColors(data.source);
 
                     return (
-                        <Box marginTop={1} marginBottom={1} width={terminalWidth}>
+                        <Box marginBottom={1} width={terminalWidth}>
                             <Box
                                 backgroundColor={colors.background}
                                 paddingX={1}
                                 borderStyle="round"
                                 borderColor={colors.background}
-                                marginLeft={1}
                                 flexDirection="row"
                             >
                                 <Text color={colors.foreground} bold>
@@ -188,7 +195,7 @@ export const MessageItem = memo(
             const prefix = '> ';
             const paddingChars = 2; // paddingX={1} = 1 char on each side
             const availableWidth = Math.max(20, terminalWidth - prefix.length - paddingChars);
-            const displayContent = stripPlanModeTags(message.content);
+            const displayContent = stripAutomationTriggerTags(stripPlanModeTags(message.content));
             const wrappedContent = wrapAnsi(displayContent, availableWidth, {
                 hard: true,
                 wordWrap: true,
