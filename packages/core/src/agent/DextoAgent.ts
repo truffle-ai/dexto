@@ -2721,12 +2721,16 @@ export class DextoAgent {
             return { loaded: [], skipped };
         }
 
-        toLoad.forEach((toolkit) => this.loadingToolkits.add(toolkit));
+        toLoad.forEach((toolkit) => {
+            this.loadingToolkits.add(toolkit);
+        });
         let tools: Tool[];
         try {
             tools = await this.toolkitLoader(toLoad);
         } finally {
-            toLoad.forEach((toolkit) => this.loadingToolkits.delete(toolkit));
+            toLoad.forEach((toolkit) => {
+                this.loadingToolkits.delete(toolkit);
+            });
         }
         const existingIds = new Set(this.tools.map((tool) => tool.id));
         const newTools = tools.filter((tool) => !existingIds.has(tool.id));
