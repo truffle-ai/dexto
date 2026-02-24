@@ -2,7 +2,7 @@
 name: "create-skill"
 description: "Create a new standalone skill (SKILL.md) using creator-tools, including toolkits and allowed tools."
 toolkits: ["creator-tools"]
-allowed-tools: ["skill_create", "skill_update", "skill_search", "skill_list", "tool_catalog"]
+allowed-tools: ["skill_create", "skill_update", "skill_search", "skill_list", "tool_catalog", "invoke_skill"]
 ---
 
 # Create Skill

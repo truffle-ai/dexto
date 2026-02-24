@@ -70,7 +70,6 @@ export type InitializeServicesOptions = {
     toolManagerFactory?: ToolManagerFactory;
     storageManager?: StorageManager;
     hooks?: Hook[] | undefined;
-    toolkitLoader?: ToolkitLoader;
 };
 
 // High-level factory to load, validate, and wire up all agent services in one call

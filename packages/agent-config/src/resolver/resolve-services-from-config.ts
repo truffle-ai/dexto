@@ -83,6 +83,10 @@ export async function resolveServicesFromConfig(
     // 3) Tools
     const toolEntries = config.tools ?? image.defaults?.tools ?? [];
     const tools = resolveToolsFromEntries({ entries: toolEntries, image, logger });
+    const toolkitLoader = async (toolkits: string[]) => {
+        const entries: ToolFactoryEntry[] = toolkits.map((type) => ({ type }));
+        return resolveToolsFromEntries({ entries, image, logger });
+    };
 
     // 4) Hooks
     const hookEntries = config.hooks ?? image.defaults?.hooks ?? [];
@@ -125,7 +129,7 @@ export async function resolveServicesFromConfig(
         compaction = await factory.create(parsedConfig);
     }
 
-    return { logger, storage, tools, hooks, compaction };
+    return { logger, storage, tools, toolkitLoader, hooks, compaction };
 }
 
 export function resolveToolsFromEntries(options: {

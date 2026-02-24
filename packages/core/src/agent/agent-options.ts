@@ -5,7 +5,7 @@ import type { CompactionStrategy } from '../context/compaction/types.js';
 import type { Logger } from '../logger/v2/types.js';
 import type { Hook } from '../hooks/types.js';
 import type { Tool } from '../tools/types.js';
-import type { InitializeServicesOptions } from '../utils/service-initializer.js';
+import type { InitializeServicesOptions, ToolkitLoader } from '../utils/service-initializer.js';
 import type { DextoAgentConfigInput } from './runtime-config.js';
 
 /**
@@ -49,6 +49,12 @@ export interface DextoAgentOptions {
 
     /** Concrete tool implementations (DI-first). */
     tools?: Tool[] | undefined;
+
+    /**
+     * Toolkits loader resolved from image factories.
+     * Used to dynamically load toolkits requested by prompts/skills.
+     */
+    toolkitLoader?: ToolkitLoader | undefined;
 
     /** Concrete hooks installed for the agent (DI-first). */
     hooks?: Hook[] | undefined;

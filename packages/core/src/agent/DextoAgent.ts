@@ -299,7 +299,7 @@ export class DextoAgent {
         }
 
         this.overrides = overrides;
-        this.toolkitLoader = overrides.toolkitLoader;
+        this.toolkitLoader = options.toolkitLoader;
 
         if (overrides.mcpAuthProviderFactory !== undefined) {
             this.mcpAuthProviderFactory = overrides.mcpAuthProviderFactory;
