@@ -2736,8 +2736,8 @@ export class DextoAgent {
         const newTools = tools.filter((tool) => !existingIds.has(tool.id));
 
         if (newTools.length > 0) {
-            this.tools = [...this.tools, ...newTools];
             this.toolManager.addTools(newTools);
+            this.tools = [...this.tools, ...newTools];
         }
 
         for (const toolkit of toLoad) {
