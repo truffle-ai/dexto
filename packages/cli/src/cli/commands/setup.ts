@@ -632,17 +632,17 @@ async function handleDextoProviderSetup(
             // Claude models (Anthropic via Dexto gateway)
             {
                 value: 'anthropic/claude-haiku-4.5',
-                label: 'Claude 4.5 Haiku',
+                label: 'Claude Haiku 4.5',
                 hint: 'Fast & affordable (recommended)',
             },
             {
                 value: 'anthropic/claude-sonnet-4.5',
-                label: 'Claude 4.5 Sonnet',
+                label: 'Claude Sonnet 4.5',
                 hint: 'Balanced performance and cost',
             },
             {
                 value: 'anthropic/claude-opus-4.5',
-                label: 'Claude 4.5 Opus',
+                label: 'Claude Opus 4.5',
                 hint: 'Most capable Claude model',
             },
             // OpenAI models (via Dexto gateway)

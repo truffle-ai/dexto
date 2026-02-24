@@ -275,7 +275,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             // Claude models (Anthropic via OpenRouter)
             {
                 name: 'anthropic/claude-haiku-4.5',
-                displayName: 'Claude 4.5 Haiku',
+                displayName: 'Claude Haiku 4.5',
                 maxInputTokens: 200000,
                 default: true,
                 supportedFileTypes: ['pdf', 'image'],
@@ -290,7 +290,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             },
             {
                 name: 'anthropic/claude-sonnet-4.5',
-                displayName: 'Claude 4.5 Sonnet',
+                displayName: 'Claude Sonnet 4.5',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -304,7 +304,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             },
             {
                 name: 'anthropic/claude-opus-4.5',
-                displayName: 'Claude 4.5 Opus',
+                displayName: 'Claude Opus 4.5',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
