@@ -183,33 +183,45 @@ describe('VercelMessageFormatter', () => {
         });
     });
 
-    describe('Reasoning round-trip', () => {
-        test('should include reasoning part in assistant message when reasoning is present', () => {
+    describe('Tool call round-trip', () => {
+        test('should pass through toolCall.providerOptions on tool-call parts', () => {
             const formatter = new VercelMessageFormatter(mockLogger);
+            const toolProviderOptions = { google: { thoughtSignature: 'sig_123' } };
             const messages: InternalMessage[] = [
                 {
                     role: 'assistant',
-                    content: [{ type: 'text', text: 'Here is my answer' }],
-                    reasoning: 'Let me think about this carefully...',
+                    content: [{ type: 'text', text: 'Calling tool' }],
+                    toolCalls: [
+                        {
+                            id: 'call-1',
+                            type: 'function',
+                            function: { name: 'search', arguments: '{"q":"test"}' },
+                            providerOptions: toolProviderOptions,
+                        },
+                    ],
                 },
             ];
 
             const result = formatter.format(
                 messages,
-                { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022' },
-                'You are helpful'
+                { provider: 'google', model: 'gemini-3-flash-preview' },
+                null
             );
 
             const assistantMessage = result.find((m) => m.role === 'assistant');
-            expect(assistantMessage).toBeDefined();
+            const content = assistantMessage!.content as Array<{
+                type: string;
+                providerOptions?: Record<string, unknown>;
+            }>;
+            const toolCallPart = content.find((p) => p.type === 'tool-call');
 
-            const content = assistantMessage!.content as Array<{ type: string; text?: string }>;
-            const reasoningPart = content.find((p) => p.type === 'reasoning');
-            expect(reasoningPart).toBeDefined();
-            expect(reasoningPart!.text).toBe('Let me think about this carefully...');
+            expect(toolCallPart).toBeDefined();
+            expect(toolCallPart!.providerOptions).toEqual(toolProviderOptions);
         });
+    });
 
-        test('should omit reasoning parts for OpenAI prompts to avoid Responses API item ordering errors', () => {
+    describe('Reasoning (UI-only)', () => {
+        test('should omit reasoning parts from prompts even when reasoning is present', () => {
             const formatter = new VercelMessageFormatter(mockLogger);
             const messages: InternalMessage[] = [
                 {
@@ -222,7 +234,7 @@ describe('VercelMessageFormatter', () => {
 
             const result = formatter.format(
                 messages,
-                { provider: 'openai', model: 'gpt-5.2' },
+                { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022' },
                 null
             );
 
@@ -231,61 +243,6 @@ describe('VercelMessageFormatter', () => {
             const reasoningPart = content.find((p) => p.type === 'reasoning');
 
             expect(reasoningPart).toBeUndefined();
-        });
-
-        test('should include providerOptions in reasoning part when reasoningMetadata is present', () => {
-            const formatter = new VercelMessageFormatter(mockLogger);
-            const reasoningMetadata = { anthropic: { cacheId: 'cache-123' } };
-            const messages: InternalMessage[] = [
-                {
-                    role: 'assistant',
-                    content: [{ type: 'text', text: 'Answer' }],
-                    reasoning: 'Thinking...',
-                    reasoningMetadata,
-                },
-            ];
-
-            const result = formatter.format(
-                messages,
-                { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022' },
-                'You are helpful'
-            );
-
-            const assistantMessage = result.find((m) => m.role === 'assistant');
-            const content = assistantMessage!.content as Array<{
-                type: string;
-                providerOptions?: Record<string, unknown>;
-            }>;
-            const reasoningPart = content.find((p) => p.type === 'reasoning');
-
-            expect(reasoningPart).toBeDefined();
-            expect(reasoningPart!.providerOptions).toEqual(reasoningMetadata);
-        });
-
-        test('should place reasoning part before text content', () => {
-            const formatter = new VercelMessageFormatter(mockLogger);
-            const messages: InternalMessage[] = [
-                {
-                    role: 'assistant',
-                    content: [{ type: 'text', text: 'Final answer' }],
-                    reasoning: 'Step by step reasoning...',
-                },
-            ];
-
-            const result = formatter.format(
-                messages,
-                { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022' },
-                'You are helpful'
-            );
-
-            const assistantMessage = result.find((m) => m.role === 'assistant');
-            const content = assistantMessage!.content as Array<{ type: string }>;
-
-            // Reasoning should come before text
-            const reasoningIndex = content.findIndex((p) => p.type === 'reasoning');
-            const textIndex = content.findIndex((p) => p.type === 'text');
-
-            expect(reasoningIndex).toBeLessThan(textIndex);
         });
 
         test('should not include reasoning part when reasoning is not present', () => {

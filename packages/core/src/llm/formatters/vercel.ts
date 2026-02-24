@@ -147,7 +147,11 @@ export class VercelMessageFormatter {
                     formatted.push({
                         role: 'assistant',
                         ...this.formatAssistantMessage(msg, {
-                            includeReasoning: context.provider !== 'openai',
+                            // Reasoning parts are UI-only; do not round-trip them into prompts.
+                            // Providers have strict replay requirements (e.g. OpenAI item ordering,
+                            // Anthropic thinking signatures) and we don't currently preserve the
+                            // full structured reasoning stream required for safe replay.
+                            includeReasoning: false,
                         }),
                     });
                     // Track tool call IDs and names as pending
@@ -224,7 +228,7 @@ export class VercelMessageFormatter {
         function_call?: { name: string; arguments: string };
     } {
         const contentParts: AssistantContent = [];
-        const includeReasoning = config?.includeReasoning ?? true;
+        const includeReasoning = config?.includeReasoning ?? false;
 
         // Add reasoning part if present (for round-tripping extended thinking)
         //
