@@ -21,6 +21,10 @@ import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { requiresApiKey } from '../registry/index.js';
 import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
+import {
+    ANTHROPIC_BETA_HEADER,
+    ANTHROPIC_INTERLEAVED_THINKING_BETA,
+} from '../reasoning/anthropic-betas.js';
 
 // Dexto Gateway headers for usage tracking
 const DEXTO_GATEWAY_HEADERS = {
@@ -175,6 +179,7 @@ export function createVercelModel(
                 return createVertexAnthropic({
                     project: projectId,
                     location: location || 'us-east5',
+                    headers: { [ANTHROPIC_BETA_HEADER]: ANTHROPIC_INTERLEAVED_THINKING_BETA },
                 })(model);
             }
 
@@ -222,7 +227,10 @@ export function createVercelModel(
             return createAmazonBedrock({ region })(modelId);
         }
         case 'anthropic':
-            return createAnthropic({ apiKey: apiKey ?? '' })(model);
+            return createAnthropic({
+                apiKey: apiKey ?? '',
+                headers: { [ANTHROPIC_BETA_HEADER]: ANTHROPIC_INTERLEAVED_THINKING_BETA },
+            })(model);
         case 'google':
             return createGoogleGenerativeAI({ apiKey: apiKey ?? '' })(model);
         case 'groq':
