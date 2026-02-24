@@ -541,7 +541,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             baseURL,
                             ...(reasoningPreset === undefined
                                 ? {}
-                                : reasoningPreset === 'auto'
+                                : reasoningPreset === 'medium'
                                   ? ({ reasoning: null } as const)
                                   : { reasoning: { preset: reasoningPreset } }),
                         },
@@ -635,7 +635,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     const nextReasoning =
                         reasoningPreset === undefined
                             ? existingReasoning
-                            : reasoningPreset === 'auto'
+                            : reasoningPreset === 'medium'
                               ? undefined
                               : { preset: reasoningPreset };
 
@@ -653,7 +653,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     const switchReasoningUpdate =
                         reasoningPreset === undefined
                             ? {}
-                            : reasoningPreset === 'auto'
+                            : reasoningPreset === 'medium'
                               ? ({ reasoning: null } as const)
                               : { reasoning: { preset: reasoningPreset } };
 
@@ -846,7 +846,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             ...(pending.baseURL && { baseURL: pending.baseURL }),
                             ...(pending.reasoningPreset === undefined
                                 ? {}
-                                : pending.reasoningPreset === 'auto'
+                                : pending.reasoningPreset === 'medium'
                                   ? ({ reasoning: null } as const)
                                   : { reasoning: { preset: pending.reasoningPreset } }),
                         },
@@ -1349,11 +1349,11 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             async (budgetTokens: number | undefined) => {
                 const sessionId = session.id || undefined;
                 const current = agent.getCurrentLLMConfig(sessionId);
-                const preset = (current.reasoning?.preset ?? 'auto') as ReasoningPreset;
+                const preset = (current.reasoning?.preset ?? 'medium') as ReasoningPreset;
 
                 try {
                     const reasoningUpdate =
-                        budgetTokens === undefined && preset === 'auto'
+                        budgetTokens === undefined && preset === 'medium'
                             ? ({ reasoning: null } as const)
                             : {
                                   reasoning: {

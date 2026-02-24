@@ -72,8 +72,14 @@ const LLMConfigFields = {
     reasoning: z
         .object({
             preset: z
-                .enum(REASONING_PRESETS)
-                .default('auto')
+                .preprocess(
+                    (value) =>
+                        typeof value === 'string' && value.toLowerCase() === 'auto'
+                            ? 'medium'
+                            : value,
+                    z.enum(REASONING_PRESETS)
+                )
+                .default('medium')
                 .describe(
                     `Reasoning tuning preset. Note: supported presets depend on provider+model. ` +
                         `Options: ${REASONING_PRESETS.join(', ')}`

@@ -35,7 +35,7 @@ export interface ProviderOptionsConfig {
 }
 
 function normalizePreset(reasoning?: LLMReasoningConfig | undefined): ReasoningPreset {
-    return reasoning?.preset ?? 'auto';
+    return reasoning?.preset ?? 'medium';
 }
 
 const ANTHROPIC_MIN_THINKING_BUDGET_TOKENS = 1024;
@@ -59,7 +59,6 @@ function getAnthropicDefaultThinkingBudgetTokens(preset: ReasoningPreset): numbe
         case 'max':
         case 'xhigh':
             return 8192;
-        case 'auto':
         default:
             return 2048;
     }
@@ -97,7 +96,6 @@ function mapPresetToGoogleThinkingLevel(
         case 'max':
         case 'xhigh':
             return 'high';
-        case 'auto':
         case 'off':
         default:
             return undefined;
@@ -111,7 +109,6 @@ function getGoogleDefaultThinkingBudgetTokens(preset: ReasoningPreset): number |
     // Note: For Gemini 3 we use thinkingLevel instead of thinkingBudget.
     switch (preset) {
         case 'off':
-        case 'auto':
             return undefined;
         case 'low':
             return 1024;
@@ -139,11 +136,6 @@ function mapPresetToAnthropicEffort(
 ): 'low' | 'medium' | 'high' | 'max' | undefined {
     if (preset === 'off') return undefined;
 
-    if (preset === 'auto') {
-        // Keep "auto" cost-conscious by default. Anthropic's server-side default is `high`.
-        return 'medium';
-    }
-
     if (preset === 'low' || preset === 'medium' || preset === 'high') {
         return preset;
     }
@@ -167,9 +159,6 @@ function mapPresetToOpenAIReasoningEffort(
     if (!isReasoningCapableModel(model)) {
         return undefined;
     }
-
-    // Auto: omit the option to allow the provider/model default (varies by model).
-    if (preset === 'auto') return undefined;
 
     const requested: OpenAIReasoningEffort | undefined = (() => {
         if (preset === 'off') return 'none';
@@ -274,7 +263,7 @@ function buildOpenRouterProviderOptions(config: {
         return { openrouter: base };
     }
 
-    // budgetTokens is an explicit override: apply it even when preset is 'auto'.
+    // budgetTokens is an explicit override: apply it even when preset is the default.
     if (budgetTokens !== undefined) {
         return {
             openrouter: {
@@ -282,10 +271,6 @@ function buildOpenRouterProviderOptions(config: {
                 reasoning: { enabled: true, max_tokens: budgetTokens },
             },
         };
-    }
-
-    if (preset === 'auto') {
-        return { openrouter: base };
     }
 
     const effort = mapPresetToLowMediumHigh(preset);
@@ -369,11 +354,7 @@ export function buildProviderOptions(
             bedrock['reasoningConfig'] = { type: 'disabled' };
             return { bedrock };
         }
-
-        const shouldEnableReasoningConfig =
-            preset !== 'auto' || budgetTokens !== undefined || maxReasoningEffort !== undefined;
-
-        if (shouldEnableReasoningConfig) {
+        if (budgetTokens !== undefined || maxReasoningEffort !== undefined) {
             bedrock['reasoningConfig'] = {
                 type: 'enabled',
                 ...(budgetTokens !== undefined && { budgetTokens }),
@@ -442,7 +423,8 @@ export function buildProviderOptions(
 
     // OpenAI-compatible endpoints: best-effort (provider-specific behavior varies).
     if (provider === 'openai-compatible') {
-        if (preset === 'auto') return undefined;
+        const capable = isReasoningCapableModel(model, provider);
+        if (!capable) return undefined;
 
         const reasoningEffort = preset === 'off' ? 'none' : mapPresetToLowMediumHigh(preset);
         if (reasoningEffort === undefined) return undefined;

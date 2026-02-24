@@ -39,6 +39,8 @@ export function LLMConfigSection({
     const reasoningSupport = capabilities?.reasoning;
     const reasoningPresets = reasoningSupport?.supportedPresets ?? [];
     const reasoningCapable = reasoningSupport?.capable ?? false;
+    const reasoningPresetValue =
+        typeof value.reasoning?.preset === 'string' ? value.reasoning.preset : undefined;
 
     const handleChange = <K extends keyof LLMConfig>(field: K, newValue: LLMConfig[K]) => {
         onChange({ ...value, [field]: newValue });
@@ -309,9 +311,9 @@ export function LLMConfigSection({
                             <select
                                 id="reasoningPreset"
                                 value={
-                                    value.reasoning?.preset === 'auto'
+                                    !reasoningPresetValue || reasoningPresetValue === 'medium'
                                         ? ''
-                                        : value.reasoning?.preset || ''
+                                        : reasoningPresetValue
                                 }
                                 onChange={(e) => {
                                     if (!e.target.value) {
@@ -322,7 +324,7 @@ export function LLMConfigSection({
                                     const selectedPreset = reasoningPresets.find(
                                         (preset) => preset === e.target.value
                                     );
-                                    if (!selectedPreset || selectedPreset === 'auto') {
+                                    if (!selectedPreset || selectedPreset === 'medium') {
                                         handleChange('reasoning', undefined);
                                         return;
                                     }
@@ -336,9 +338,9 @@ export function LLMConfigSection({
                                 }}
                                 className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                             >
-                                <option value="">Auto (Recommended)</option>
+                                <option value="">Medium (Recommended)</option>
                                 {reasoningPresets
-                                    .filter((p) => p !== 'auto')
+                                    .filter((p) => p !== 'medium')
                                     .map((preset) => (
                                         <option key={preset} value={preset}>
                                             {preset}
@@ -346,8 +348,7 @@ export function LLMConfigSection({
                                     ))}
                             </select>
                             <p className="text-xs text-muted-foreground mt-1">
-                                Supported presets:{' '}
-                                {reasoningPresets.filter((p) => p !== 'auto').join(', ')}
+                                Supported presets: {reasoningPresets.join(', ')}
                             </p>
                         </div>
                     )}

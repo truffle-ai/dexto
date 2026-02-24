@@ -137,11 +137,6 @@ const REASONING_PRESET_OPTIONS: {
     label: string;
     description: string;
 }[] = [
-    {
-        value: 'auto',
-        label: 'Auto',
-        description: 'Let Dexto/provider choose an appropriate reasoning level',
-    },
     { value: 'off', label: 'Off', description: 'Disable reasoning (fastest)' },
     { value: 'low', label: 'Low', description: 'Light reasoning, faster responses' },
     { value: 'medium', label: 'Medium', description: 'Balanced reasoning' },
@@ -157,8 +152,8 @@ function getInitialPresetIndex(
     const filteredOptions = REASONING_PRESET_OPTIONS.filter((option) =>
         supportedPresets.includes(option.value)
     );
-    if (!savedPreset) return 0;
-    const idx = filteredOptions.findIndex((option) => option.value === savedPreset);
+    const preferredPreset = savedPreset ?? 'medium';
+    const idx = filteredOptions.findIndex((option) => option.value === preferredPreset);
     return idx >= 0 ? idx : 0;
 }
 
@@ -200,7 +195,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
     // Reasoning effort sub-step state
     const [pendingReasoningModel, setPendingReasoningModel] = useState<ModelOption | null>(null);
-    const [reasoningPresetIndex, setReasoningPresetIndex] = useState(0); // Default to 'Auto' (index 0)
+    const [reasoningPresetIndex, setReasoningPresetIndex] = useState(0);
     const [isSettingDefault, setIsSettingDefault] = useState(false); // Track if setting as default vs normal selection
     const [refreshVersion, setRefreshVersion] = useState(0);
 
@@ -243,7 +238,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         setPendingDeleteConfirm(false);
         setPendingReasoningModel(null);
         setIsSettingDefault(false);
-        setReasoningPresetIndex(0); // Default to 'Auto'
+        setReasoningPresetIndex(0);
         if (deleteTimeoutRef.current) {
             clearTimeout(deleteTimeoutRef.current);
             deleteTimeoutRef.current = null;
@@ -599,7 +594,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         const selectedOption =
                             reasoningPresetOptions[reasoningPresetIndex] ??
                             reasoningPresetOptions[0];
-                        const reasoningPreset = selectedOption?.value ?? 'auto';
+                        const reasoningPreset = selectedOption?.value ?? 'medium';
 
                         if (isSettingDefault) {
                             // Setting as default model

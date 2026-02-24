@@ -284,7 +284,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             }
 
             const presets = support.supportedPresets;
-            const currentPreset = (current.reasoning?.preset ?? 'auto') as ReasoningPreset;
+            const currentPreset = (current.reasoning?.preset ?? 'medium') as ReasoningPreset;
             const idx = presets.indexOf(currentPreset);
             const nextPreset = presets[(idx >= 0 ? idx + 1 : 0) % presets.length];
 
@@ -292,7 +292,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             void (async () => {
                 try {
                     const reasoningUpdate =
-                        nextPreset === 'auto' && budgetTokens === undefined
+                        nextPreset === 'medium' && budgetTokens === undefined
                             ? ({ reasoning: null } as const)
                             : {
                                   reasoning: {

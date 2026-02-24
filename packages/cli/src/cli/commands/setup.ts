@@ -104,13 +104,9 @@ export type CLISetupOptions = z.output<typeof SetupCommandSchema>;
 export type CLISetupOptionsInput = z.input<typeof SetupCommandSchema>;
 
 const REASONING_PRESET_SELECT_META: Record<ReasoningPreset, { label: string; hint: string }> = {
-    auto: {
-        label: 'Auto (Recommended)',
-        hint: 'Let Dexto/provider choose an appropriate reasoning level',
-    },
     off: { label: 'Off', hint: 'Disable reasoning (fastest)' },
     low: { label: 'Low', hint: 'Light reasoning, faster responses' },
-    medium: { label: 'Medium', hint: 'Balanced reasoning' },
+    medium: { label: 'Medium (Recommended)', hint: 'Balanced reasoning (default)' },
     high: { label: 'High', hint: 'Thorough reasoning' },
     max: { label: 'Max', hint: 'Maximize reasoning within provider limits' },
     xhigh: { label: 'XHigh', hint: 'Extra high (only on some models, e.g. codex)' },
@@ -950,6 +946,9 @@ async function wizardStepReasoning(state: SetupWizardState): Promise<SetupWizard
     showStepProgress('reasoning', provider, model);
 
     const support = getReasoningSupport(provider, model);
+    const initialValue = support.supportedPresets.includes('medium')
+        ? 'medium'
+        : support.supportedPresets[0];
 
     const result = await p.select({
         message: 'Select reasoning preset',
@@ -957,6 +956,7 @@ async function wizardStepReasoning(state: SetupWizardState): Promise<SetupWizard
             ...getReasoningPresetSelectOptions(support.supportedPresets),
             { value: '_back' as const, label: chalk.gray('← Back'), hint: 'Change model' },
         ],
+        ...(initialValue ? { initialValue } : {}),
     });
 
     if (p.isCancel(result)) {
@@ -970,7 +970,12 @@ async function wizardStepReasoning(state: SetupWizardState): Promise<SetupWizard
 
     // Determine next step based on provider type
     const nextStep = isLocalProvider ? 'mode' : 'apiKey';
-    return { ...state, step: nextStep, reasoningPreset: result };
+    return {
+        ...state,
+        step: nextStep,
+        // Keep preferences minimal: selecting the default preset ('medium') results in no override.
+        reasoningPreset: result === 'medium' ? undefined : result,
+    };
 }
 
 /**
@@ -1443,8 +1448,8 @@ async function promptCustomModelValues(
         if (preset === null) {
             return null;
         }
-        // Keep the custom model config minimal: only store an override when not auto.
-        if (preset !== 'auto') {
+        // Keep the custom model config minimal: only store an override when not default.
+        if (preset !== 'medium') {
             reasoningPreset = preset;
         }
     }
@@ -1797,7 +1802,9 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
                 p.log.warn('Model change cancelled');
                 return;
             }
-            llmUpdate.reasoning = { preset: reasoningPreset };
+            if (reasoningPreset !== 'medium') {
+                llmUpdate.reasoning = { preset: reasoningPreset };
+            }
         }
 
         await updateGlobalPreferences({ llm: llmUpdate });
@@ -1829,7 +1836,9 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
                 p.log.warn('Model change cancelled');
                 return;
             }
-            llmUpdate.reasoning = { preset: reasoningPreset };
+            if (reasoningPreset !== 'medium') {
+                llmUpdate.reasoning = { preset: reasoningPreset };
+            }
         }
 
         await updateGlobalPreferences({ llm: llmUpdate });
@@ -1891,7 +1900,9 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
             p.log.warn('Model change cancelled');
             return;
         }
-        llmUpdate.reasoning = { preset: reasoningPreset };
+        if (reasoningPreset !== 'medium') {
+            llmUpdate.reasoning = { preset: reasoningPreset };
+        }
     }
 
     await updateGlobalPreferences({ llm: llmUpdate });
@@ -2074,9 +2085,13 @@ async function selectReasoningPreset(
     model: string
 ): Promise<ReasoningPreset | null> {
     const support = getReasoningSupport(provider, model);
+    const initialValue = support.supportedPresets.includes('medium')
+        ? 'medium'
+        : support.supportedPresets[0];
     const preset = await p.select({
         message: 'Select reasoning preset',
         options: getReasoningPresetSelectOptions(support.supportedPresets),
+        ...(initialValue ? { initialValue } : {}),
     });
 
     if (p.isCancel(preset)) {

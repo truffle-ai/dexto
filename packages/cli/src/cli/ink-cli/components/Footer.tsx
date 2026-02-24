@@ -50,7 +50,7 @@ export function Footer({
     const llmConfig = sessionId ? agent.getCurrentLLMConfig(sessionId) : null;
     const provider = llmConfig?.provider ?? null;
     const providerLabel = provider ? getLLMProviderDisplayName(provider) : null;
-    const reasoningPreset = llmConfig?.reasoning?.preset ?? 'auto';
+    const reasoningPreset = llmConfig?.reasoning?.preset ?? 'medium';
     const reasoningSupport =
         provider && llmConfig ? getReasoningSupport(provider, llmConfig.model) : null;
     const showReasoningPreset = reasoningSupport ? reasoningSupport.capable : false;

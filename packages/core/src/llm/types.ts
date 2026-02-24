@@ -25,7 +25,7 @@ export type SupportedFileType = (typeof SUPPORTED_FILE_TYPES)[number];
 
 // Reasoning tuning is intentionally a small, "preset" shaped knob.
 // Supported presets vary by provider+model; validation happens at runtime.
-export const REASONING_PRESETS = ['auto', 'off', 'low', 'medium', 'high', 'max', 'xhigh'] as const;
+export const REASONING_PRESETS = ['off', 'low', 'medium', 'high', 'max', 'xhigh'] as const;
 export type ReasoningPreset = (typeof REASONING_PRESETS)[number];
 
 export interface LLMReasoningConfig {

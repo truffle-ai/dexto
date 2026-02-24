@@ -65,7 +65,7 @@ export const ReasoningOverlay = React.forwardRef<ReasoningOverlayHandle, Reasoni
         const llmConfig = agent.getCurrentLLMConfig(sessionId || undefined);
         const provider = llmConfig.provider as LLMProvider;
         const model = llmConfig.model;
-        const currentPreset = (llmConfig.reasoning?.preset ?? 'auto') as ReasoningPreset;
+        const currentPreset = (llmConfig.reasoning?.preset ?? 'medium') as ReasoningPreset;
         const currentBudgetTokens = llmConfig.reasoning?.budgetTokens;
         const support = getReasoningSupport(provider, model);
 

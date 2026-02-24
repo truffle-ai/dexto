@@ -35,8 +35,8 @@ export function getReasoningSupport(provider: LLMProvider, model: string): Reaso
             provider === 'dexto-nova') &&
             isAnthropicAdaptiveThinkingModel(model));
 
-    // Always allow "auto" (default) and "off" (hide/disable reasoning when possible).
-    const base: ReasoningPreset[] = ['auto', 'off'];
+    // Always allow "off" (hide/disable reasoning when possible).
+    const base: ReasoningPreset[] = ['off'];
 
     switch (provider) {
         case 'openai': {
@@ -48,7 +48,7 @@ export function getReasoningSupport(provider: LLMProvider, model: string): Reaso
                 return { capable, supportedPresets: base, supportsBudgetTokens: false };
             }
             const efforts = getSupportedOpenAIReasoningEfforts(model);
-            const presets: ReasoningPreset[] = ['auto'];
+            const presets: ReasoningPreset[] = [];
 
             // `gpt-5-pro` only supports `high` (no meaningful tuning).
             const onlyHigh = efforts.length === 1 && efforts[0] === 'high';
@@ -65,7 +65,7 @@ export function getReasoningSupport(provider: LLMProvider, model: string): Reaso
                 return { capable, supportedPresets: base, supportsBudgetTokens: false };
             }
 
-            const presets: ReasoningPreset[] = ['auto', 'off', 'low', 'medium', 'high', 'max'];
+            const presets: ReasoningPreset[] = ['off', 'low', 'medium', 'high', 'max'];
 
             // Claude 4.6 uses adaptive thinking; budget tokens are deprecated and will be removed.
             const supportsBudgetTokens = !isAnthropicAdaptiveThinkingModel(model);
@@ -73,9 +73,9 @@ export function getReasoningSupport(provider: LLMProvider, model: string): Reaso
         }
         case 'bedrock': {
             // These providers support a budget-based paradigm and/or low|medium|high effort.
-            // If the model isn't reasoning-capable, keep only base knobs (auto/off).
+            // If the model isn't reasoning-capable, keep only base knobs (off).
             const presets: ReasoningPreset[] = capable
-                ? ['auto', 'off', 'low', 'medium', 'high', 'max']
+                ? ['off', 'low', 'medium', 'high', 'max']
                 : base;
             return { capable, supportedPresets: uniq(presets), supportsBudgetTokens: capable };
         }
@@ -89,14 +89,14 @@ export function getReasoningSupport(provider: LLMProvider, model: string): Reaso
                 return { capable: false, supportedPresets: base, supportsBudgetTokens: false };
             }
 
-            const presets: ReasoningPreset[] = ['auto', 'off', 'low', 'medium', 'high'];
+            const presets: ReasoningPreset[] = ['off', 'low', 'medium', 'high'];
             return { capable: true, supportedPresets: uniq(presets), supportsBudgetTokens: true };
         }
         case 'google': {
             // Gemini 3 uses `thinkingLevel` (not budget tokens). Gemini 2.5 uses `thinkingBudget`.
             // We only advertise budget tokens when the model accepts them.
             const presets: ReasoningPreset[] = capable
-                ? ['auto', 'off', 'low', 'medium', 'high', 'max']
+                ? ['off', 'low', 'medium', 'high', 'max']
                 : base;
             return {
                 capable,
@@ -107,7 +107,7 @@ export function getReasoningSupport(provider: LLMProvider, model: string): Reaso
         case 'vertex': {
             // Vertex can be Gemini or Claude; we still expose the shared set.
             const presets: ReasoningPreset[] = capable
-                ? ['auto', 'off', 'low', 'medium', 'high', 'max']
+                ? ['off', 'low', 'medium', 'high', 'max']
                 : base;
 
             const supportsBudgetTokens =
@@ -121,12 +121,12 @@ export function getReasoningSupport(provider: LLMProvider, model: string): Reaso
         case 'openai-compatible': {
             // Best-effort: we can send a string reasoningEffort; support the common set.
             const presets: ReasoningPreset[] = capable
-                ? ['auto', 'off', 'low', 'medium', 'high', 'max']
+                ? ['off', 'low', 'medium', 'high', 'max']
                 : base;
             return { capable, supportedPresets: uniq(presets), supportsBudgetTokens: false };
         }
         default: {
-            // Unknown/unsupported: we don't have tuning knobs, but "auto/off" remains safe.
+            // Unknown/unsupported: we don't have tuning knobs, but "off" remains safe.
             return { capable, supportedPresets: base, supportsBudgetTokens: false };
         }
     }

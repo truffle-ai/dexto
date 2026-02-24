@@ -65,7 +65,7 @@ interface TextBufferInputProps {
     onPasteBlockRemove?: ((blockId: string) => void) | undefined;
     /** Query to highlight in input text (for history search) */
     highlightQuery?: string | undefined;
-    /** Cycle the current reasoning preset (e.g. auto -> off -> low -> ...). */
+    /** Cycle the current reasoning preset. */
     onCycleReasoningPreset?: (() => void) | undefined;
 }
 

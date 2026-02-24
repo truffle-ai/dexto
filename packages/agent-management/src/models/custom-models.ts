@@ -58,7 +58,15 @@ export const CustomModelSchema = z
         filePath: z.string().optional(),
         reasoning: z
             .object({
-                preset: z.enum(REASONING_PRESETS).default('auto'),
+                preset: z
+                    .preprocess(
+                        (value) =>
+                            typeof value === 'string' && value.toLowerCase() === 'auto'
+                                ? 'medium'
+                                : value,
+                        z.enum(REASONING_PRESETS)
+                    )
+                    .default('medium'),
                 budgetTokens: z.number().int().positive().optional(),
             })
             .strict()

@@ -41,8 +41,14 @@ export const PreferenceLLMSchema = z
         reasoning: z
             .object({
                 preset: z
-                    .enum(REASONING_PRESETS)
-                    .default('auto')
+                    .preprocess(
+                        (value) =>
+                            typeof value === 'string' && value.toLowerCase() === 'auto'
+                                ? 'medium'
+                                : value,
+                        z.enum(REASONING_PRESETS)
+                    )
+                    .default('medium')
                     .describe(`Reasoning tuning preset. Options: ${REASONING_PRESETS.join(', ')}`),
                 budgetTokens: z
                     .number()
