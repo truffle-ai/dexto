@@ -29,6 +29,19 @@ export type LookupStatus = 'valid' | 'invalid' | 'unknown';
 export interface OpenRouterModelInfo {
     id: string;
     contextLength: number;
+    /**
+     * Human-friendly model name from OpenRouter (e.g. "Claude Sonnet 4.5").
+     */
+    displayName?: string;
+    /**
+     * OpenRouter expiration date (YYYY-MM-DD) when present.
+     * Models past this date should be treated as invalid/deprecated.
+     */
+    expirationDate?: string;
+    /**
+     * OpenRouter supported parameters (e.g. includes "reasoning" for reasoning-capable models).
+     */
+    supportedParameters?: string[];
 }
 
 interface CacheFile {
@@ -39,6 +52,12 @@ interface CacheFile {
 interface RefreshOptions {
     apiKey?: string;
     force?: boolean;
+    timeoutMs?: number;
+    /**
+     * Test-only escape hatch for unit tests that want to validate refresh behavior.
+     * Network fetch is disabled by default when NODE_ENV === 'test' or VITEST is set.
+     */
+    allowInTests?: boolean;
 }
 
 /** Default context length when not available from API */
@@ -54,6 +73,27 @@ class OpenRouterModelRegistry {
 
     constructor(private readonly cachePath: string) {
         this.loadCacheFromDisk();
+    }
+
+    private parseExpirationDateEndUtc(expirationDate: string): number | null {
+        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(expirationDate.trim());
+        if (!match) return null;
+
+        const year = Number(match[1]);
+        const monthIndex = Number(match[2]) - 1; // 0-based
+        const day = Number(match[3]);
+        if (!Number.isFinite(year) || !Number.isFinite(monthIndex) || !Number.isFinite(day)) {
+            return null;
+        }
+
+        return Date.UTC(year, monthIndex, day, 23, 59, 59, 999);
+    }
+
+    private isExpired(model: OpenRouterModelInfo): boolean {
+        if (!model.expirationDate) return false;
+        const expiresAt = this.parseExpirationDateEndUtc(model.expirationDate);
+        if (!expiresAt) return false;
+        return Date.now() > expiresAt;
     }
 
     /**
@@ -72,13 +112,18 @@ class OpenRouterModelRegistry {
             return 'unknown';
         }
 
+        const info = this.models.get(normalized);
+        if (info && this.isExpired(info)) {
+            return 'invalid';
+        }
+
         if (!this.isCacheFresh()) {
             // Don't rely on stale data - refresh in background and treat as unknown
             this.scheduleRefresh();
             return 'unknown';
         }
 
-        return this.models.has(normalized) ? 'valid' : 'invalid';
+        return info ? 'valid' : 'invalid';
     }
 
     /**
@@ -96,6 +141,7 @@ class OpenRouterModelRegistry {
         }
 
         const info = this.models.get(normalized);
+        if (info && this.isExpired(info)) return null;
         return info?.contextLength ?? null;
     }
 
@@ -113,7 +159,9 @@ class OpenRouterModelRegistry {
             return null;
         }
 
-        return this.models.get(normalized) ?? null;
+        const info = this.models.get(normalized) ?? null;
+        if (info && this.isExpired(info)) return null;
+        return info;
     }
 
     /**
@@ -123,6 +171,13 @@ class OpenRouterModelRegistry {
         const apiKey = options?.apiKey ?? this.lastUsedApiKey;
         if (apiKey) {
             this.lastUsedApiKey = apiKey;
+        }
+
+        if (
+            (process.env.NODE_ENV === 'test' || process.env.VITEST) &&
+            options?.allowInTests !== true
+        ) {
+            return;
         }
 
         if (this.refreshPromise) {
@@ -139,7 +194,7 @@ class OpenRouterModelRegistry {
         }
 
         this.lastRefreshAttemptAt = now;
-        this.refreshPromise = this.refreshInternal(apiKey)
+        this.refreshPromise = this.refreshInternal(apiKey, options?.timeoutMs)
             .catch((error) => {
                 logger.warn(
                     `Failed to refresh OpenRouter model registry: ${error instanceof Error ? error.message : String(error)}`
@@ -157,6 +212,13 @@ class OpenRouterModelRegistry {
         const apiKey = options?.apiKey ?? this.lastUsedApiKey;
         if (apiKey) {
             this.lastUsedApiKey = apiKey;
+        }
+
+        if (
+            (process.env.NODE_ENV === 'test' || process.env.VITEST) &&
+            options?.allowInTests !== true
+        ) {
+            return;
         }
 
         if (!options?.force && this.refreshPromise) {
@@ -180,7 +242,7 @@ class OpenRouterModelRegistry {
             this.lastRefreshAttemptAt = Date.now();
         }
 
-        const promise = this.refreshInternal(apiKey).finally(() => {
+        const promise = this.refreshInternal(apiKey, options?.timeoutMs).finally(() => {
             this.refreshPromise = null;
         });
 
@@ -195,7 +257,12 @@ class OpenRouterModelRegistry {
         if (!this.models || this.models.size === 0) {
             return null;
         }
-        return Array.from(this.models.keys());
+        const ids: string[] = [];
+        for (const info of this.models.values()) {
+            if (this.isExpired(info)) continue;
+            ids.push(info.id);
+        }
+        return ids;
     }
 
     /**
@@ -205,7 +272,7 @@ class OpenRouterModelRegistry {
         if (!this.models || this.models.size === 0) {
             return null;
         }
-        return Array.from(this.models.values());
+        return Array.from(this.models.values()).filter((info) => !this.isExpired(info));
     }
 
     /**
@@ -219,7 +286,7 @@ class OpenRouterModelRegistry {
         };
     }
 
-    private async refreshInternal(apiKey?: string): Promise<void> {
+    private async refreshInternal(apiKey?: string, timeoutMs?: number): Promise<void> {
         try {
             const headers: Record<string, string> = {
                 Accept: 'application/json',
@@ -229,7 +296,10 @@ class OpenRouterModelRegistry {
             }
 
             logger.debug('Refreshing OpenRouter model registry from remote source');
-            const response = await fetch(OPENROUTER_MODELS_ENDPOINT, { headers });
+            const response = await fetch(OPENROUTER_MODELS_ENDPOINT, {
+                headers,
+                signal: AbortSignal.timeout(timeoutMs ?? 30_000),
+            });
             if (!response.ok) {
                 const body = await response.text();
                 throw new Error(`HTTP ${response.status}: ${body}`);
@@ -266,10 +336,11 @@ class OpenRouterModelRegistry {
             for (const model of parsed.models) {
                 if (
                     typeof model === 'object' &&
-                    model.id &&
-                    typeof model.contextLength === 'number'
+                    typeof (model as { id?: unknown }).id === 'string' &&
+                    (model as { id: string }).id.trim().length > 0 &&
+                    typeof (model as { contextLength?: unknown }).contextLength === 'number'
                 ) {
-                    this.models.set(model.id.toLowerCase(), model);
+                    this.models.set((model as { id: string }).id.toLowerCase(), model);
                 }
             }
 
@@ -357,7 +428,27 @@ class OpenRouterModelRegistry {
                         contextLength = (record.top_provider as Record<string, unknown>)
                             .context_length as number;
                     }
-                    models.push({ id, contextLength });
+                    const displayName =
+                        typeof record.name === 'string' && record.name.trim().length > 0
+                            ? record.name
+                            : undefined;
+                    const expirationDate =
+                        typeof record.expiration_date === 'string' &&
+                        record.expiration_date.trim().length > 0
+                            ? record.expiration_date
+                            : undefined;
+                    const supportedParameters = Array.isArray(record.supported_parameters)
+                        ? record.supported_parameters.filter(
+                              (p): p is string => typeof p === 'string' && p.trim().length > 0
+                          )
+                        : undefined;
+                    models.push({
+                        id,
+                        contextLength,
+                        ...(displayName ? { displayName } : {}),
+                        ...(expirationDate ? { expirationDate } : {}),
+                        ...(supportedParameters ? { supportedParameters } : {}),
+                    });
                 }
             }
         }
@@ -405,6 +496,14 @@ export async function refreshOpenRouterModelCache(options?: RefreshOptions): Pro
  */
 export function getCachedOpenRouterModels(): string[] | null {
     return openRouterModelRegistry.getCachedModels();
+}
+
+/**
+ * Get all cached OpenRouter model info (or null if cache is empty).
+ * Expired models are filtered out.
+ */
+export function getCachedOpenRouterModelsWithInfo(): OpenRouterModelInfo[] | null {
+    return openRouterModelRegistry.getCachedModelsWithInfo();
 }
 
 /**

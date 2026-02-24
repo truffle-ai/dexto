@@ -24,7 +24,12 @@ import {
     type TokenUsage,
 } from '../types.js';
 import type { Logger } from '../../logger/v2/types.js';
-import { getOpenRouterModelContextLength } from '../providers/openrouter-model-registry.js';
+import {
+    getCachedOpenRouterModelsWithInfo,
+    getOpenRouterModelCacheInfo,
+    getOpenRouterModelContextLength,
+    scheduleOpenRouterModelRefresh,
+} from '../providers/openrouter-model-registry.js';
 import { MODELS_BY_PROVIDER } from './models.generated.js';
 import { MANUAL_MODELS_BY_PROVIDER } from './models.manual.js';
 
@@ -672,6 +677,69 @@ function findModelInfo(provider: LLMProvider, model: string): ModelInfo | null {
     return null;
 }
 
+function getOpenRouterGatewayCatalogModels(): ModelInfo[] {
+    const cacheInfo = getOpenRouterModelCacheInfo();
+    if (cacheInfo.modelCount === 0) {
+        scheduleOpenRouterModelRefresh({ force: true });
+    } else if (!cacheInfo.isFresh) {
+        scheduleOpenRouterModelRefresh();
+    }
+
+    const cached = getCachedOpenRouterModelsWithInfo();
+    if (!cached || cached.length === 0) {
+        return LLM_REGISTRY.openrouter.models.map((m) => ({ ...m }));
+    }
+
+    const providerDefaults = LLM_REGISTRY.openrouter.supportedFileTypes;
+    const snapshotById = new Map<string, ModelInfo>();
+    for (const model of LLM_REGISTRY.openrouter.models) {
+        snapshotById.set(model.name.toLowerCase(), model);
+    }
+
+    const models: ModelInfo[] = cached
+        .map((cachedModel): ModelInfo => {
+            const snapshot = snapshotById.get(cachedModel.id.toLowerCase());
+            const displayName = snapshot?.displayName ?? cachedModel.displayName;
+            const supportedFileTypes = snapshot?.supportedFileTypes ?? providerDefaults;
+            const maxInputTokens =
+                typeof cachedModel.contextLength === 'number' && cachedModel.contextLength > 0
+                    ? cachedModel.contextLength
+                    : (snapshot?.maxInputTokens ?? DEFAULT_MAX_INPUT_TOKENS);
+
+            const inferredReasoning =
+                cachedModel.supportedParameters?.includes('reasoning') === true ? true : undefined;
+            const inferredSupportsTemperature =
+                cachedModel.supportedParameters?.includes('temperature') === true
+                    ? true
+                    : undefined;
+
+            return {
+                name: snapshot?.name ?? cachedModel.id,
+                maxInputTokens,
+                supportedFileTypes,
+                ...(snapshot?.default ? { default: true } : {}),
+                ...(displayName ? { displayName } : {}),
+                ...(typeof snapshot?.reasoning === 'boolean'
+                    ? { reasoning: snapshot.reasoning }
+                    : typeof inferredReasoning === 'boolean'
+                      ? { reasoning: inferredReasoning }
+                      : {}),
+                ...(typeof snapshot?.supportsTemperature === 'boolean'
+                    ? { supportsTemperature: snapshot.supportsTemperature }
+                    : typeof inferredSupportsTemperature === 'boolean'
+                      ? { supportsTemperature: inferredSupportsTemperature }
+                      : {}),
+                ...(typeof snapshot?.supportsInterleaved === 'boolean'
+                    ? { supportsInterleaved: snapshot.supportsInterleaved }
+                    : {}),
+                ...(snapshot?.pricing ? { pricing: snapshot.pricing } : {}),
+            };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+    return models;
+}
+
 /**
  * Gets all models available for a provider, including inherited models
  * when supportsAllRegistryModels is true.
@@ -682,6 +750,13 @@ export function getAllModelsForProvider(
     provider: LLMProvider
 ): Array<ModelInfo & { originalProvider?: LLMProvider }> {
     const providerInfo = LLM_REGISTRY[provider];
+
+    if (provider === 'openrouter') {
+        return getOpenRouterGatewayCatalogModels().map((m) => ({
+            ...m,
+            originalProvider: 'openrouter',
+        }));
+    }
 
     // If provider doesn't support all registry models, return its own models
     if (!providerInfo.supportsAllRegistryModels) {
@@ -701,7 +776,7 @@ export function getAllModelsForProvider(
     // Gateway providers inherit the OpenRouter gateway catalog (OpenRouter-format IDs).
     // This keeps the "all models" list useful without requiring per-model OpenRouter ID mapping.
     if (provider !== 'openrouter') {
-        for (const model of LLM_REGISTRY.openrouter.models) {
+        for (const model of getOpenRouterGatewayCatalogModels()) {
             const key = model.name.toLowerCase();
             if (seen.has(key)) continue;
             seen.add(key);
