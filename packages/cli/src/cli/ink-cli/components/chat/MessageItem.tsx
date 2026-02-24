@@ -33,7 +33,10 @@ import {
 import { ToolResultRenderer } from '../renderers/index.js';
 import { MarkdownText } from '../shared/MarkdownText.js';
 import { ToolIcon } from './ToolIcon.js';
-import { formatToolResultPreview } from '../../utils/messageFormatting.js';
+import {
+    formatToolResultPreview,
+    stripAutomationTriggerTags,
+} from '../../utils/messageFormatting.js';
 
 /**
  * Strip <plan-mode>...</plan-mode> tags from content.
@@ -44,14 +47,6 @@ function stripPlanModeTags(content: string): string {
     // Remove <plan-mode>...</plan-mode> including any trailing whitespace
     const stripped = content.replace(/<plan-mode>[\s\S]*?<\/plan-mode>\s*/g, '');
     // Only trim if a tag was actually removed
-    return stripped === content ? content : stripped.trim();
-}
-
-function stripAutomationTriggerTags(content: string): string {
-    const stripped = content.replace(
-        /<scheduled_automation_trigger>[\s\S]*?<\/scheduled_automation_trigger>\s*/g,
-        ''
-    );
     return stripped === content ? content : stripped.trim();
 }
 
@@ -104,6 +99,52 @@ function getExternalTriggerColors(source: ExternalTriggerStyledData['source']): 
         default:
             return { background: 'gray', foreground: 'white' };
     }
+}
+
+function getExternalTriggerSource(label: string): ExternalTriggerStyledData['source'] | null {
+    if (label.startsWith('⏰ Scheduled Task')) {
+        return 'scheduler';
+    }
+    if (label.startsWith('🤖 A2A Request')) {
+        return 'a2a';
+    }
+    if (label.startsWith('🔌 API Request')) {
+        return 'api';
+    }
+    if (label.startsWith('📥 External Request')) {
+        return 'external';
+    }
+    return null;
+}
+
+function renderExternalTriggerPill(
+    label: string,
+    timeLabel: string | null,
+    source: ExternalTriggerStyledData['source'],
+    terminalWidth: number
+) {
+    const colors = getExternalTriggerColors(source);
+
+    return (
+        <Box marginBottom={0} width={terminalWidth}>
+            <Box
+                backgroundColor={colors.background}
+                paddingX={1}
+                borderStyle="round"
+                borderColor={colors.background}
+                flexDirection="row"
+            >
+                <Text color={colors.foreground} bold>
+                    {label}
+                </Text>
+                {timeLabel && (
+                    <Box marginLeft={1}>
+                        <Text color={colors.foreground}>{timeLabel}</Text>
+                    </Box>
+                )}
+            </Box>
+        </Box>
+    );
 }
 
 interface MessageItemProps {
@@ -165,7 +206,7 @@ export const MessageItem = memo(
                     const colors = getExternalTriggerColors(data.source);
 
                     return (
-                        <Box marginBottom={1} width={terminalWidth}>
+                        <Box marginBottom={0} width={terminalWidth}>
                             <Box
                                 backgroundColor={colors.background}
                                 paddingX={1}
@@ -204,7 +245,7 @@ export const MessageItem = memo(
             const lines = wrappedContent.split('\n');
 
             return (
-                <Box flexDirection="column" marginTop={2} marginBottom={1} width={terminalWidth}>
+                <Box flexDirection="column" marginTop={1} marginBottom={0} width={terminalWidth}>
                     <Box flexDirection="column" paddingX={1} backgroundColor="gray">
                         {lines.map((line, i) => (
                             <Box key={i} flexDirection="row">
@@ -351,7 +392,29 @@ export const MessageItem = memo(
             );
         }
 
-        // System message: Compact gray text
+        // System message: Compact gray text (or derived external trigger pill)
+        if (message.role === 'system') {
+            const detectedSource = getExternalTriggerSource(message.content);
+            if (detectedSource) {
+                const colors = getExternalTriggerColors(detectedSource);
+                return (
+                    <Box marginBottom={0} width={terminalWidth}>
+                        <Box
+                            backgroundColor={colors.background}
+                            paddingX={1}
+                            borderStyle="round"
+                            borderColor={colors.background}
+                            flexDirection="row"
+                        >
+                            <Text color={colors.foreground} bold>
+                                {message.content}
+                            </Text>
+                        </Box>
+                    </Box>
+                );
+            }
+        }
+
         return (
             <Box flexDirection="column" marginBottom={1} width={terminalWidth}>
                 <Text color="gray">{message.content}</Text>
