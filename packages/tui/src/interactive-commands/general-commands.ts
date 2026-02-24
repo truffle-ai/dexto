@@ -20,6 +20,7 @@ import type { HelpStyledData, ShortcutsStyledData } from '../state/types.js';
 import { writeToClipboard } from '../utils/clipboardUtils.js';
 import { setExitStats } from './exit-stats.js';
 import { triggerExit } from './exit-handler.js';
+import { createSendMessageMarker } from '../../ink-cli/services/index.js';
 
 /**
  * Get the shell rc file path for the given shell
@@ -153,6 +154,30 @@ export function createHelpCommand(getAllCommands: () => CommandDefinition[]): Co
  * Note: The help command is created separately to avoid circular dependencies
  */
 export const generalCommands: CommandDefinition[] = [
+    {
+        name: 'init',
+        description: 'Analyze this codebase and create an AGENTS.md file',
+        usage: '/init',
+        category: 'General',
+        handler: async (
+            _args: string[],
+            _agent: DextoAgent,
+            _ctx: CommandContext
+        ): Promise<CommandHandlerResult> => {
+            const cwd = process.cwd();
+            const prompt = `Please analyze this codebase and create an AGENTS.md file at ${cwd}/AGENTS.md containing:
+1. Build/lint/test commands - especially for running a single test
+2. Code style guidelines including imports, formatting, types, naming conventions, error handling, etc.
+
+The file you create will be given to agentic coding agents (such as yourself) that operate in this repository. Make it about 150 lines long.
+
+If there are Cursor rules (in .cursor/rules/ or .cursorrules) or Copilot rules (in .github/copilot-instructions.md), make sure to include them.
+
+If there is already an AGENTS.md at ${cwd}/AGENTS.md, improve it instead of creating it from scratch.`;
+
+            return createSendMessageMarker(prompt);
+        },
+    },
     {
         name: 'shell',
         description: 'Execute shell command directly (use !command as shortcut)',

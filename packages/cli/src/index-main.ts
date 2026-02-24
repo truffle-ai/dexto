@@ -837,12 +837,19 @@ program
                     // Enrichment adds filesystem paths to storage (schema has in-memory defaults)
                     // Interactive CLI mode: only log to file (console would interfere with chat UI)
                     const isInteractiveCli = opts.mode === 'cli';
+                    const logLevelEnv = process.env.DEXTO_LOG_LEVEL?.toLowerCase();
+                    const validLevels = ['debug', 'info', 'warn', 'error'] as const;
+                    const logLevel = validLevels.includes(
+                        logLevelEnv as (typeof validLevels)[number]
+                    )
+                        ? (logLevelEnv as (typeof validLevels)[number])
+                        : 'info';
                     const enrichedConfig = enrichAgentConfig(
                         configWithImageDefaults,
                         resolvedPath,
                         {
                             isInteractiveCli,
-                            logLevel: 'info', // CLI uses info-level logging for visibility
+                            logLevel, // CLI uses info-level logging for visibility
                         }
                     );
 
