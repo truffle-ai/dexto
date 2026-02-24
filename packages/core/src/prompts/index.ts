@@ -21,3 +21,9 @@ export type {
 } from './types.js';
 export { flattenPromptResult, normalizePromptArgs, appendContext } from './utils.js';
 export type { FlattenedPromptResult } from './utils.js';
+export {
+    PROMPT_NAME_REGEX,
+    PROMPT_NAME_GUIDANCE,
+    isValidPromptName,
+    assertValidPromptName,
+} from './name-validation.js';
