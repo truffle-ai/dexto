@@ -90,7 +90,7 @@ describe('buildProviderOptions', () => {
                 buildProviderOptions({
                     provider: 'anthropic',
                     model: 'claude-3-7-sonnet-20250219',
-                    reasoning: { preset: 'auto' },
+                    reasoning: undefined,
                 })
             ).toEqual({
                 anthropic: {
@@ -106,7 +106,7 @@ describe('buildProviderOptions', () => {
                 buildProviderOptions({
                     provider: 'anthropic',
                     model: 'claude-sonnet-4-6',
-                    reasoning: { preset: 'auto' },
+                    reasoning: undefined,
                 })
             ).toEqual({
                 anthropic: {
@@ -123,7 +123,7 @@ describe('buildProviderOptions', () => {
                 buildProviderOptions({
                     provider: 'anthropic',
                     model: 'claude-opus-4-6',
-                    reasoning: { preset: 'auto', budgetTokens: 1234 },
+                    reasoning: { preset: 'medium', budgetTokens: 1234 },
                 })
             ).toEqual({
                 anthropic: {
@@ -140,7 +140,7 @@ describe('buildProviderOptions', () => {
                 buildProviderOptions({
                     provider: 'anthropic',
                     model: 'claude-3-5-sonnet-20240620',
-                    reasoning: { preset: 'auto', budgetTokens: 1234 },
+                    reasoning: { preset: 'medium', budgetTokens: 1234 },
                 })
             ).toEqual({
                 anthropic: {
@@ -155,7 +155,7 @@ describe('buildProviderOptions', () => {
                 buildProviderOptions({
                     provider: 'anthropic',
                     model: 'claude-3-7-sonnet-20250219',
-                    reasoning: { preset: 'auto', budgetTokens: 1234 },
+                    reasoning: { preset: 'medium', budgetTokens: 1234 },
                 })
             ).toEqual({
                 anthropic: {
@@ -283,24 +283,12 @@ describe('buildProviderOptions', () => {
             });
         });
 
-        it('omits thinkingBudget for auto when no explicit budgetTokens are set', () => {
-            expect(
-                buildProviderOptions({
-                    provider: 'google',
-                    model: 'gemini-2.5-pro',
-                    reasoning: { preset: 'auto' },
-                })
-            ).toEqual({
-                google: { thinkingConfig: { includeThoughts: true } },
-            });
-        });
-
         it('maps budgetTokens into google.thinkingConfig.thinkingBudget', () => {
             expect(
                 buildProviderOptions({
                     provider: 'google',
                     model: 'gemini-2.5-pro',
-                    reasoning: { preset: 'auto', budgetTokens: 987 },
+                    reasoning: { preset: 'medium', budgetTokens: 987 },
                 })
             ).toEqual({
                 google: { thinkingConfig: { includeThoughts: true, thinkingBudget: 987 } },
@@ -321,14 +309,15 @@ describe('buildProviderOptions', () => {
     });
 
     describe('bedrock', () => {
-        it('returns empty bedrock options for auto (no-op)', () => {
+        it('defaults to bedrock.reasoningConfig enabled (medium)', () => {
             expect(
                 buildProviderOptions({
                     provider: 'bedrock',
                     model: 'anthropic.claude-haiku-4-5-20251001-v1:0',
-                    reasoning: { preset: 'auto' },
                 })
-            ).toEqual({ bedrock: {} });
+            ).toEqual({
+                bedrock: { reasoningConfig: { type: 'enabled', maxReasoningEffort: 'medium' } },
+            });
         });
 
         it('maps off to bedrock.reasoningConfig disabled', () => {
@@ -375,22 +364,26 @@ describe('buildProviderOptions', () => {
     });
 
     describe('openrouter/dexto-nova', () => {
-        it('requests reasoning by default (auto)', () => {
+        it('requests reasoning by default (medium)', () => {
             expect(
                 buildProviderOptions({
                     provider: 'openrouter',
                     model: 'openai/gpt-5.2-codex',
-                    reasoning: { preset: 'auto' },
                 })
-            ).toEqual({ openrouter: { include_reasoning: true } });
+            ).toEqual({
+                openrouter: {
+                    include_reasoning: true,
+                    reasoning: { enabled: true, effort: 'medium' },
+                },
+            });
         });
 
-        it('applies budgetTokens even when preset is auto', () => {
+        it('applies budgetTokens even when preset is the default (medium)', () => {
             expect(
                 buildProviderOptions({
                     provider: 'openrouter',
                     model: 'openai/gpt-5.2-codex',
-                    reasoning: { preset: 'auto', budgetTokens: 111 },
+                    reasoning: { preset: 'medium', budgetTokens: 111 },
                 })
             ).toEqual({
                 openrouter: {
@@ -472,12 +465,12 @@ describe('buildProviderOptions', () => {
     });
 
     describe('openai-compatible', () => {
-        it('does nothing for auto', () => {
+        it('does nothing for non-capable models', () => {
             expect(
                 buildProviderOptions({
                     provider: 'openai-compatible',
-                    model: 'whatever',
-                    reasoning: { preset: 'auto' },
+                    model: 'gpt-4o-mini',
+                    reasoning: { preset: 'high' },
                 })
             ).toBeUndefined();
         });
@@ -486,7 +479,7 @@ describe('buildProviderOptions', () => {
             expect(
                 buildProviderOptions({
                     provider: 'openai-compatible',
-                    model: 'whatever',
+                    model: 'gpt-5',
                     reasoning: { preset: 'off' },
                 })
             ).toEqual({ openaiCompatible: { reasoningEffort: 'none' } });
@@ -496,7 +489,7 @@ describe('buildProviderOptions', () => {
             expect(
                 buildProviderOptions({
                     provider: 'openai-compatible',
-                    model: 'whatever',
+                    model: 'gpt-5',
                     reasoning: { preset: 'high' },
                 })
             ).toEqual({ openaiCompatible: { reasoningEffort: 'high' } });

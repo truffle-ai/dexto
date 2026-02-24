@@ -128,7 +128,8 @@ describe('Hono API Integration Tests', () => {
             };
 
             expect(reasoning.capable).toBe(true);
-            expect(reasoning.supportedPresets).toContain('auto');
+            expect(reasoning.supportedPresets).toContain('medium');
+            expect(reasoning.supportedPresets).not.toContain('auto');
             expect(reasoning.supportedPresets).toContain('off');
             expect(reasoning.supportedPresets).toContain('high');
             expect(reasoning.supportsBudgetTokens).toBe(true);
