@@ -209,6 +209,30 @@ describe('VercelMessageFormatter', () => {
             expect(reasoningPart!.text).toBe('Let me think about this carefully...');
         });
 
+        test('should omit reasoning parts for OpenAI prompts to avoid Responses API item ordering errors', () => {
+            const formatter = new VercelMessageFormatter(mockLogger);
+            const messages: InternalMessage[] = [
+                {
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'Answer' }],
+                    reasoning: 'Thinking...',
+                    reasoningMetadata: { openai: { itemId: 'rs_123' } },
+                },
+            ];
+
+            const result = formatter.format(
+                messages,
+                { provider: 'openai', model: 'gpt-5.2' },
+                null
+            );
+
+            const assistantMessage = result.find((m) => m.role === 'assistant');
+            const content = assistantMessage!.content as Array<{ type: string }>;
+            const reasoningPart = content.find((p) => p.type === 'reasoning');
+
+            expect(reasoningPart).toBeUndefined();
+        });
+
         test('should include providerOptions in reasoning part when reasoningMetadata is present', () => {
             const formatter = new VercelMessageFormatter(mockLogger);
             const reasoningMetadata = { anthropic: { cacheId: 'cache-123' } };
