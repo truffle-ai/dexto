@@ -410,6 +410,11 @@ export function buildProviderOptions(
             return {
                 openai: {
                     reasoningEffort,
+                    // OpenAI reasoning models do not expose chain-of-thought, but can stream a
+                    // model-generated reasoning summary when explicitly requested.
+                    //
+                    // Use `auto` to keep this lightweight while still allowing the UI to display reasoning.
+                    ...(preset !== 'off' && { reasoningSummary: 'auto' }),
                 },
             };
         }

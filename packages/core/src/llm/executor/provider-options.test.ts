@@ -16,7 +16,7 @@ describe('buildProviderOptions', () => {
                     model: 'gpt-5',
                     reasoning: { preset: 'low' },
                 })
-            ).toEqual({ openai: { reasoningEffort: 'low' } });
+            ).toEqual({ openai: { reasoningEffort: 'low', reasoningSummary: 'auto' } });
 
             expect(
                 buildProviderOptions({
@@ -24,7 +24,7 @@ describe('buildProviderOptions', () => {
                     model: 'gpt-5',
                     reasoning: { preset: 'max' },
                 })
-            ).toEqual({ openai: { reasoningEffort: 'high' } });
+            ).toEqual({ openai: { reasoningEffort: 'high', reasoningSummary: 'auto' } });
         });
 
         it('supports xhigh for models that support it', () => {
@@ -34,7 +34,7 @@ describe('buildProviderOptions', () => {
                     model: 'gpt-5.2',
                     reasoning: { preset: 'max' },
                 })
-            ).toEqual({ openai: { reasoningEffort: 'xhigh' } });
+            ).toEqual({ openai: { reasoningEffort: 'xhigh', reasoningSummary: 'auto' } });
 
             expect(
                 buildProviderOptions({
@@ -42,7 +42,7 @@ describe('buildProviderOptions', () => {
                     model: 'gpt-5.2-codex',
                     reasoning: { preset: 'max' },
                 })
-            ).toEqual({ openai: { reasoningEffort: 'xhigh' } });
+            ).toEqual({ openai: { reasoningEffort: 'xhigh', reasoningSummary: 'auto' } });
         });
 
         it('coerces off to the lowest supported effort per model', () => {
@@ -70,7 +70,7 @@ describe('buildProviderOptions', () => {
                     model: 'gpt-5-pro',
                     reasoning: { preset: 'low' },
                 })
-            ).toEqual({ openai: { reasoningEffort: 'high' } });
+            ).toEqual({ openai: { reasoningEffort: 'high', reasoningSummary: 'auto' } });
         });
 
         it('does not send reasoningEffort for non-reasoning models', () => {
