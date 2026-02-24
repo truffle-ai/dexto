@@ -7,8 +7,6 @@ allowed-tools: ["skill_create", "skill_update", "skill_search", "skill_list", "t
 
 # Create Skill
 
-# Create Skill
-
 You help the user create a new standalone skill using the `skill_create` tool. Be **suggestive** and minimize back-and-forth. Prefer proposing defaults derived from the user’s description and ask for confirmation rather than asking multiple open-ended questions.
 
 ## Core Flow

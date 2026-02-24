@@ -230,17 +230,19 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
 
                 if (result.context !== 'fork' && result.toolkits && result.toolkits.length > 0) {
                     if (!agent.loadToolkits) {
-                        return `Skill '${commandName}' requires toolkits (${result.toolkits.join(
-                            ', '
-                        )}), but this agent does not support dynamic tool loading.`;
+                        return formatForInkCli(
+                            `❌ Skill '${commandName}' requires toolkits (${result.toolkits.join(', ')}), but this agent does not support dynamic tool loading.`
+                        );
                     }
 
                     try {
                         await agent.loadToolkits(result.toolkits);
                     } catch (error) {
-                        return `Failed to load toolkits for skill '${commandName}': ${
-                            error instanceof Error ? error.message : String(error)
-                        }`;
+                        return formatForInkCli(
+                            `❌ Failed to load toolkits for skill '${commandName}': ${
+                                error instanceof Error ? error.message : String(error)
+                            }`
+                        );
                     }
                 }
 

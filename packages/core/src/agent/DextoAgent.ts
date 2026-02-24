@@ -2693,17 +2693,14 @@ export class DextoAgent {
         toolkits: string[]
     ): Promise<{ loaded: string[]; skipped: string[] }> {
         this.ensureStarted();
-        if (!Array.isArray(toolkits)) {
-            throw AgentError.apiValidationError('toolkits must be an array of strings');
+        if (
+            !Array.isArray(toolkits) ||
+            toolkits.some((toolkit) => typeof toolkit !== 'string' || toolkit.trim() === '')
+        ) {
+            throw AgentError.apiValidationError('toolkits must be an array of non-empty strings');
         }
 
-        const normalized = Array.from(
-            new Set(
-                toolkits
-                    .map((toolkit) => (typeof toolkit === 'string' ? toolkit.trim() : ''))
-                    .filter(Boolean)
-            )
-        );
+        const normalized = Array.from(new Set(toolkits.map((toolkit) => toolkit.trim())));
 
         if (normalized.length === 0) {
             return { loaded: [], skipped: [] };

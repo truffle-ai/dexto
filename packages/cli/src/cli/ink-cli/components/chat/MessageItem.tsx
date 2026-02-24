@@ -202,28 +202,11 @@ export const MessageItem = memo(
                     return <SyspromptBox data={message.styledData as SysPromptStyledData} />;
                 case 'external-trigger': {
                     const data = message.styledData as ExternalTriggerStyledData;
-                    const timeLabel = formatTime(data.timestamp);
-                    const colors = getExternalTriggerColors(data.source);
-
-                    return (
-                        <Box marginBottom={0} width={terminalWidth}>
-                            <Box
-                                backgroundColor={colors.background}
-                                paddingX={1}
-                                borderStyle="round"
-                                borderColor={colors.background}
-                                flexDirection="row"
-                            >
-                                <Text color={colors.foreground} bold>
-                                    {data.label}
-                                </Text>
-                                {timeLabel && (
-                                    <Box marginLeft={1}>
-                                        <Text color={colors.foreground}>{timeLabel}</Text>
-                                    </Box>
-                                )}
-                            </Box>
-                        </Box>
+                    return renderExternalTriggerPill(
+                        data.label,
+                        formatTime(data.timestamp),
+                        data.source,
+                        terminalWidth
                     );
                 }
             }
@@ -396,21 +379,11 @@ export const MessageItem = memo(
         if (message.role === 'system') {
             const detectedSource = getExternalTriggerSource(message.content);
             if (detectedSource) {
-                const colors = getExternalTriggerColors(detectedSource);
-                return (
-                    <Box marginBottom={0} width={terminalWidth}>
-                        <Box
-                            backgroundColor={colors.background}
-                            paddingX={1}
-                            borderStyle="round"
-                            borderColor={colors.background}
-                            flexDirection="row"
-                        >
-                            <Text color={colors.foreground} bold>
-                                {message.content}
-                            </Text>
-                        </Box>
-                    </Box>
+                return renderExternalTriggerPill(
+                    message.content,
+                    null,
+                    detectedSource,
+                    terminalWidth
                 );
             }
         }

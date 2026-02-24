@@ -7,8 +7,6 @@ allowed-tools: ["create_schedule", "update_schedule", "list_schedules", "get_sch
 
 # Create Automations
 
-# Create Automations
-
 ## Purpose
 Create, update, list, and manage scheduled automations using the scheduler tools with suggestive defaults and minimal back-and-forth.
 

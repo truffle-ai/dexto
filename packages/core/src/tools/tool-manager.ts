@@ -328,9 +328,10 @@ export class ToolManager {
             seen.add(toolName);
         }
 
+        const actuallyAdded = Math.max(0, merged.length - existing.length);
         this.sessionAutoApproveTools.set(sessionId, merged);
         this.logger.info(
-            `Session auto-approve tools updated for '${sessionId}': +${normalized.length} tools`
+            `Session auto-approve tools updated for '${sessionId}': +${actuallyAdded} tools`
         );
         this.logger.debug(`Auto-approve tools: ${merged.join(', ')}`);
     }
