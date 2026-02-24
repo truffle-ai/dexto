@@ -3210,7 +3210,6 @@
                             "preset": {
                               "type": "string",
                               "enum": [
-                                "auto",
                                 "off",
                                 "low",
                                 "medium",
@@ -3218,8 +3217,8 @@
                                 "max",
                                 "xhigh"
                               ],
-                              "default": "auto",
-                              "description": "Reasoning tuning preset. Note: supported presets depend on provider+model. Options: auto, off, low, medium, high, max, xhigh"
+                              "default": "medium",
+                              "description": "Reasoning tuning preset. Note: supported presets depend on provider+model. Options: off, low, medium, high, max, xhigh"
                             },
                             "budgetTokens": {
                               "type": "integer",
@@ -5867,7 +5866,6 @@
                           "preset": {
                             "type": "string",
                             "enum": [
-                              "auto",
                               "off",
                               "low",
                               "medium",
@@ -5875,8 +5873,8 @@
                               "max",
                               "xhigh"
                             ],
-                            "default": "auto",
-                            "description": "Reasoning tuning preset. Note: supported presets depend on provider+model. Options: auto, off, low, medium, high, max, xhigh"
+                            "default": "medium",
+                            "description": "Reasoning tuning preset. Note: supported presets depend on provider+model. Options: off, low, medium, high, max, xhigh"
                           },
                           "budgetTokens": {
                             "type": "integer",
@@ -5985,7 +5983,6 @@
                             "preset": {
                               "type": "string",
                               "enum": [
-                                "auto",
                                 "off",
                                 "low",
                                 "medium",
@@ -5993,8 +5990,8 @@
                                 "max",
                                 "xhigh"
                               ],
-                              "default": "auto",
-                              "description": "Reasoning tuning preset. Note: supported presets depend on provider+model. Options: auto, off, low, medium, high, max, xhigh"
+                              "default": "medium",
+                              "description": "Reasoning tuning preset. Note: supported presets depend on provider+model. Options: off, low, medium, high, max, xhigh"
                             },
                             "budgetTokens": {
                               "type": "integer",
@@ -6102,7 +6099,6 @@
                               "preset": {
                                 "type": "string",
                                 "enum": [
-                                  "auto",
                                   "off",
                                   "low",
                                   "medium",
@@ -6110,7 +6106,7 @@
                                   "max",
                                   "xhigh"
                                 ],
-                                "default": "auto"
+                                "default": "medium"
                               },
                               "budgetTokens": {
                                 "type": "integer",
@@ -6197,7 +6193,6 @@
                       "preset": {
                         "type": "string",
                         "enum": [
-                          "auto",
                           "off",
                           "low",
                           "medium",
@@ -6205,7 +6200,7 @@
                           "max",
                           "xhigh"
                         ],
-                        "default": "auto"
+                        "default": "medium"
                       },
                       "budgetTokens": {
                         "type": "integer",
@@ -6289,7 +6284,6 @@
                             "preset": {
                               "type": "string",
                               "enum": [
-                                "auto",
                                 "off",
                                 "low",
                                 "medium",
@@ -6297,7 +6291,7 @@
                                 "max",
                                 "xhigh"
                               ],
-                              "default": "auto"
+                              "default": "medium"
                             },
                             "budgetTokens": {
                               "type": "integer",
@@ -6510,7 +6504,6 @@
                           "items": {
                             "type": "string",
                             "enum": [
-                              "auto",
                               "off",
                               "low",
                               "medium",
