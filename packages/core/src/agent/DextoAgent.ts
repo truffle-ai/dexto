@@ -212,6 +212,7 @@ export class DextoAgent {
     private readonly overrides: InitializeServicesOptions;
     private readonly toolkitLoader: ToolkitLoader | undefined;
     private readonly loadedToolkits: Set<string> = new Set();
+    private readonly loadingToolkits: Set<string> = new Set();
 
     // DI-provided local tools.
     private tools: Tool[];
@@ -2710,12 +2711,23 @@ export class DextoAgent {
             throw AgentError.initializationFailed('Toolkit loader not configured');
         }
 
-        const toLoad = normalized.filter((toolkit) => !this.loadedToolkits.has(toolkit));
+        const toLoad = normalized.filter(
+            (toolkit) => !this.loadedToolkits.has(toolkit) && !this.loadingToolkits.has(toolkit)
+        );
+        const skipped = normalized.filter(
+            (toolkit) => this.loadedToolkits.has(toolkit) || this.loadingToolkits.has(toolkit)
+        );
         if (toLoad.length === 0) {
-            return { loaded: [], skipped: normalized };
+            return { loaded: [], skipped };
         }
 
-        const tools = await this.toolkitLoader(toLoad);
+        toLoad.forEach((toolkit) => this.loadingToolkits.add(toolkit));
+        let tools: Tool[];
+        try {
+            tools = await this.toolkitLoader(toLoad);
+        } finally {
+            toLoad.forEach((toolkit) => this.loadingToolkits.delete(toolkit));
+        }
         const existingIds = new Set(this.tools.map((tool) => tool.id));
         const newTools = tools.filter((tool) => !existingIds.has(tool.id));
 
@@ -2730,7 +2742,7 @@ export class DextoAgent {
 
         return {
             loaded: toLoad,
-            skipped: normalized.filter((toolkit) => !toLoad.includes(toolkit)),
+            skipped,
         };
     }
 
