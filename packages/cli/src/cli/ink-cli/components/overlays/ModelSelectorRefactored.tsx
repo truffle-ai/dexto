@@ -22,7 +22,9 @@ import {
     listOllamaModels,
     DEFAULT_OLLAMA_URL,
     getLocalModelById,
+    getOpenRouterModelCacheInfo,
     getReasoningSupport,
+    refreshOpenRouterModelCache,
 } from '@dexto/core';
 import {
     loadCustomModels,
@@ -246,6 +248,17 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
         const fetchModels = async () => {
             try {
+                try {
+                    const cacheInfo = getOpenRouterModelCacheInfo();
+                    if (cacheInfo.modelCount === 0) {
+                        await refreshOpenRouterModelCache({ force: true, timeoutMs: 10_000 });
+                    }
+                } catch (error) {
+                    agent.logger.debug(
+                        `OpenRouter catalog refresh skipped: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                }
+
                 const [allModels, providers, currentConfig, loadedCustomModels, preferences] =
                     await Promise.all([
                         Promise.resolve(agent.getSupportedModels()),
@@ -310,7 +323,6 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     // These are only accessible via the "Add custom model" wizard
                     if (
                         provider === 'openai-compatible' ||
-                        provider === 'openrouter' ||
                         provider === 'litellm' ||
                         provider === 'glama' ||
                         provider === 'bedrock'
