@@ -3,6 +3,7 @@ import type { DextoAgent, Logger } from '@dexto/core';
 import { AgentSpawnerRuntime } from './runtime.js';
 import { ApprovalStatus, ApprovalType } from '@dexto/core';
 import type { ApprovalRequest } from '@dexto/core';
+import { AgentSpawnerConfigSchema } from './schemas.js';
 
 const createMockLogger = (): Logger => {
     const logger: Logger = {
@@ -42,12 +43,12 @@ vi.mock('../../runtime/AgentRuntime.js', () => {
 });
 
 describe('AgentSpawnerRuntime sub-agent policies and approvals', () => {
-    const config = {
-        type: 'agent-spawner' as const,
+    const config = AgentSpawnerConfigSchema.parse({
+        type: 'agent-spawner',
         maxConcurrentAgents: 1,
         defaultTimeout: 1000,
         allowSpawning: true,
-    };
+    });
 
     beforeEach(() => {
         runtimeMocks.spawnAgent.mockReset();
@@ -97,6 +98,10 @@ describe('AgentSpawnerRuntime sub-agent policies and approvals', () => {
             'glob_files'
         );
         expect(spawnConfig.agentConfig.permissions.toolPolicies.alwaysDeny).toContain('bash_exec');
+
+        // Safety defaults: keep spawned sub-agents lightweight even if parent is configured for heavy reasoning.
+        expect(spawnConfig.agentConfig.llm.maxIterations).toBe(100);
+        expect(spawnConfig.agentConfig.llm.reasoning).toEqual({ preset: 'off' });
     });
 
     it('wires delegated approvals with parent sessionId when manual', async () => {

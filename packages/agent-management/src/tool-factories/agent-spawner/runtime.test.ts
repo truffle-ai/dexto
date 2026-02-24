@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DextoAgent, Logger } from '@dexto/core';
 import { AgentSpawnerRuntime } from './runtime.js';
+import { AgentSpawnerConfigSchema } from './schemas.js';
 
 const createMockLogger = (): Logger => {
     const logger: Logger = {
@@ -40,12 +41,12 @@ vi.mock('../../runtime/AgentRuntime.js', () => {
 });
 
 describe('AgentSpawnerRuntime workspace inheritance', () => {
-    const config = {
-        type: 'agent-spawner' as const,
+    const config = AgentSpawnerConfigSchema.parse({
+        type: 'agent-spawner',
         maxConcurrentAgents: 1,
         defaultTimeout: 1000,
         allowSpawning: true,
-    };
+    });
 
     beforeEach(() => {
         runtimeMocks.spawnAgent.mockReset();

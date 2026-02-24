@@ -4,11 +4,15 @@
  * Zod schemas for the agent spawner tools factory configuration and inputs.
  */
 
+import { REASONING_PRESETS, type ReasoningPreset } from '@dexto/core';
 import { z } from 'zod';
 
 // ============================================================================
 // Factory Configuration Schema
 // ============================================================================
+
+export const DEFAULT_SUB_AGENT_MAX_ITERATIONS = 100;
+export const DEFAULT_SUB_AGENT_REASONING_PRESET: ReasoningPreset = 'off';
 
 /**
  * Configuration schema for the agent spawner tools factory.
@@ -33,6 +37,24 @@ export const AgentSpawnerConfigSchema = z
             .nonnegative()
             .default(3_600_000)
             .describe('Default task timeout in milliseconds (0 = no timeout)'),
+
+        subAgentMaxIterations: z
+            .number()
+            .int()
+            .positive()
+            .default(DEFAULT_SUB_AGENT_MAX_ITERATIONS)
+            .describe(
+                'Max outer-loop tool-call iterations for spawned sub-agents. ' +
+                    'Acts as a safety cap to prevent runaway exploration.'
+            ),
+
+        subAgentReasoningPreset: z
+            .enum(REASONING_PRESETS)
+            .default(DEFAULT_SUB_AGENT_REASONING_PRESET)
+            .describe(
+                'Reasoning tuning preset applied to spawned sub-agents. ' +
+                    "Default is 'off' to keep sub-agents fast and lightweight."
+            ),
 
         /** Whether spawning is enabled (default: true) */
         allowSpawning: z.boolean().default(true).describe('Whether agent spawning is enabled'),

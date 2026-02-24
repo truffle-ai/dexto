@@ -23,7 +23,11 @@ import type { AgentRegistryEntry } from '../../registry/types.js';
 import { deriveDisplayName } from '../../registry/types.js';
 import { getDextoPath, resolveBundledScript } from '../../utils/path.js';
 import * as path from 'path';
-import type { AgentSpawnerConfig } from './schemas.js';
+import {
+    DEFAULT_SUB_AGENT_MAX_ITERATIONS,
+    DEFAULT_SUB_AGENT_REASONING_PRESET,
+    type AgentSpawnerConfig,
+} from './schemas.js';
 import type { SpawnAgentOutput } from './types.js';
 import { resolveSubAgentLLM } from './llm-resolution.js';
 
@@ -33,6 +37,31 @@ export class AgentSpawnerRuntime implements TaskForker {
     private parentAgent: DextoAgent;
     private config: AgentSpawnerConfig;
     private logger: Logger;
+
+    private applySubAgentLlmPolicy(llm: AgentConfig['llm']): AgentConfig['llm'] {
+        const maxIterationsCap =
+            this.config.subAgentMaxIterations ?? DEFAULT_SUB_AGENT_MAX_ITERATIONS;
+        const reasoningPreset =
+            this.config.subAgentReasoningPreset ?? DEFAULT_SUB_AGENT_REASONING_PRESET;
+
+        const existingMaxIterations = llm.maxIterations;
+        const cappedMaxIterations =
+            typeof existingMaxIterations === 'number'
+                ? Math.min(existingMaxIterations, maxIterationsCap)
+                : maxIterationsCap;
+
+        const adjusted = {
+            ...llm,
+            maxIterations: cappedMaxIterations,
+            reasoning: { preset: reasoningPreset },
+        };
+
+        this.logger.debug(
+            `[AgentSpawnerRuntime] Applied sub-agent LLM policy: maxIterations=${adjusted.maxIterations}, reasoning=${reasoningPreset}`
+        );
+
+        return adjusted;
+    }
 
     private resolveBundledAgentConfig(agentId: string): string | null {
         const baseDir = 'agents';
@@ -810,6 +839,8 @@ export class AgentSpawnerRuntime implements TaskForker {
                     llmConfig = resolution.llm;
                 }
 
+                llmConfig = this.applySubAgentLlmPolicy(llmConfig);
+
                 // Override certain settings for sub-agent behavior
                 return {
                     ...loadedConfig,
@@ -830,7 +861,7 @@ export class AgentSpawnerRuntime implements TaskForker {
 
         // Fallback: minimal config inheriting parent's LLM + MCP servers
         const config: AgentConfig = {
-            llm: { ...currentParentLLM },
+            llm: this.applySubAgentLlmPolicy({ ...currentParentLLM }),
 
             // Default system prompt for sub-agents
             systemPrompt:
