@@ -1,11 +1,11 @@
 ---
-name: "create-automations"
+name: "automations"
 description: "Create and manage automations using the scheduler tools with suggestive defaults."
 toolkits: ["scheduler-tools"]
 allowed-tools: ["create_schedule", "update_schedule", "list_schedules", "get_schedule", "get_schedule_history", "trigger_schedule_now", "delete_schedule"]
 ---
 
-# Create Automations
+# Automations
 
 ## Purpose
 Create, update, list, and manage scheduled automations using the scheduler tools with suggestive defaults and minimal back-and-forth.
@@ -16,8 +16,8 @@ Create, update, list, and manage scheduled automations using the scheduler tools
 - Optional: timezone, enable/disable, immediate run
 
 ## Steps
-1. Infer a sensible default schedule from the user’s request (e.g., “every 10 minutes” → `*/10 * * * *`).
-2. Propose a compact configuration (name, cron, enabled, session mode, instruction). Ask for confirmation or a specific tweak.
+1. Infer a sensible default schedule from the user’s request and keep the canonical cron internal (do not display it).
+2. Propose a compact, human-friendly configuration (name, cadence, enabled, instruction). Inherit the default session mode unless the user specifies one.
 3. Create the automation with `create_schedule` after confirmation.
 4. If the user asks to edit an existing automation, use `update_schedule` with only the changed fields.
 5. For review or troubleshooting, use:
@@ -29,5 +29,5 @@ Create, update, list, and manage scheduled automations using the scheduler tools
 
 ## Output Format
 - Confirm action taken (created/updated/triggered/deleted).
-- Provide the schedule id and key fields (name, cron, enabled).
-- If listing, show a compact table of schedules (id, name, next run, enabled).
+- Provide the schedule id and key fields (name, cadence, enabled).
+- If listing, show a compact table of schedules (id, name, cadence, next run, enabled).
