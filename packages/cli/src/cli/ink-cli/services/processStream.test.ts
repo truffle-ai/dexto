@@ -1,19 +1,23 @@
 import { describe, expect, it, vi } from 'vitest';
 import type React from 'react';
-import type { AgentEventBus, QueuedMessage, StreamingEvent } from '@dexto/core';
+import type { QueuedMessage, StreamingEvent } from '@dexto/core';
 import type { Message, UIState, SessionState } from '../state/types.js';
 import { processStream } from './processStream.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 
-type SetStateAction<T> = T | ((prev: T) => T);
-type Dispatch<T> = (value: SetStateAction<T>) => void;
+type SetStateAction<T> = React.SetStateAction<T>;
+type Dispatch<T> = React.Dispatch<SetStateAction<T>>;
+
+function isStateUpdater<T>(action: SetStateAction<T>): action is (prev: T) => T {
+    return typeof action === 'function';
+}
 
 function createState<T>(initial: T): { get: () => T; set: Dispatch<T> } {
     let state = initial;
     return {
         get: () => state,
         set: (action: SetStateAction<T>) => {
-            state = typeof action === 'function' ? (action as (p: T) => T)(state) : action;
+            state = isStateUpdater(action) ? action(state) : action;
         },
     };
 }
@@ -65,37 +69,24 @@ function createSetters() {
         modelName: 'test-model',
     });
 
-    const setMessages = messages.set as unknown as React.Dispatch<React.SetStateAction<Message[]>>;
-    const setPendingMessages = pendingMessages.set as unknown as React.Dispatch<
-        React.SetStateAction<Message[]>
-    >;
-    const setDequeuedBuffer = dequeuedBuffer.set as unknown as React.Dispatch<
-        React.SetStateAction<Message[]>
-    >;
-    const setUi = ui.set as unknown as React.Dispatch<React.SetStateAction<UIState>>;
-    const setSession = session.set as unknown as React.Dispatch<React.SetStateAction<SessionState>>;
-
-    const noopDispatch = ((_: unknown) => {}) as unknown;
+    const createNoopDispatch =
+        <T>(): React.Dispatch<React.SetStateAction<T>> =>
+        () =>
+            undefined;
 
     return {
         getMessages: messages.get,
         getPendingMessages: pendingMessages.get,
         getUi: ui.get,
         setters: {
-            setMessages,
-            setPendingMessages,
-            setDequeuedBuffer,
-            setUi,
-            setSession,
-            setQueuedMessages: noopDispatch as React.Dispatch<
-                React.SetStateAction<QueuedMessage[]>
-            >,
-            setApproval: noopDispatch as React.Dispatch<
-                React.SetStateAction<ApprovalRequest | null>
-            >,
-            setApprovalQueue: noopDispatch as React.Dispatch<
-                React.SetStateAction<ApprovalRequest[]>
-            >,
+            setMessages: messages.set,
+            setPendingMessages: pendingMessages.set,
+            setDequeuedBuffer: dequeuedBuffer.set,
+            setUi: ui.set,
+            setSession: session.set,
+            setQueuedMessages: createNoopDispatch<QueuedMessage[]>(),
+            setApproval: createNoopDispatch<ApprovalRequest | null>(),
+            setApprovalQueue: createNoopDispatch<ApprovalRequest[]>(),
         },
     };
 }
@@ -144,7 +135,7 @@ describe('processStream (reasoning)', () => {
             useStreaming: true,
             autoApproveEditsRef: { current: false },
             bypassPermissionsRef: { current: false },
-            eventBus: { emit: vi.fn() } as unknown as AgentEventBus,
+            eventBus: { emit: vi.fn() },
         });
 
         expect(getPendingMessages()).toEqual([]);
@@ -194,7 +185,7 @@ describe('processStream (reasoning)', () => {
             useStreaming: true,
             autoApproveEditsRef: { current: false },
             bypassPermissionsRef: { current: false },
-            eventBus: { emit: vi.fn() } as unknown as AgentEventBus,
+            eventBus: { emit: vi.fn() },
         });
 
         const assistantMessages = getMessages().filter((m) => m.role === 'assistant');
@@ -244,7 +235,7 @@ describe('processStream (reasoning)', () => {
             useStreaming: false,
             autoApproveEditsRef: { current: false },
             bypassPermissionsRef: { current: false },
-            eventBus: { emit: vi.fn() } as unknown as AgentEventBus,
+            eventBus: { emit: vi.fn() },
         });
 
         const assistantMessages = getMessages().filter((m) => m.role === 'assistant');
@@ -291,7 +282,7 @@ describe('processStream (reasoning)', () => {
             useStreaming: false,
             autoApproveEditsRef: { current: false },
             bypassPermissionsRef: { current: false },
-            eventBus: { emit: vi.fn() } as unknown as AgentEventBus,
+            eventBus: { emit: vi.fn() },
         });
 
         const assistantMessages = getMessages().filter((m) => m.role === 'assistant');

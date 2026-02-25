@@ -7,14 +7,7 @@
  */
 
 import React, { useCallback, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
-import type {
-    DextoAgent,
-    ContentPart,
-    ImagePart,
-    TextPart,
-    QueuedMessage,
-    ReasoningPreset,
-} from '@dexto/core';
+import type { DextoAgent, ContentPart, ImagePart, TextPart, QueuedMessage } from '@dexto/core';
 import { getReasoningSupport } from '@dexto/core';
 import { InputArea, type OverlayTrigger } from '../components/input/InputArea.js';
 import { InputService, processStream } from '../services/index.js';
@@ -290,7 +283,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             }
 
             const presets = support.supportedPresets;
-            const currentPreset = (current.reasoning?.preset ?? 'medium') as ReasoningPreset;
+            const currentPreset = current.reasoning?.preset ?? 'medium';
             const idx = presets.indexOf(currentPreset);
             const nextPreset = presets[(idx >= 0 ? idx + 1 : 0) % presets.length];
 
@@ -864,7 +857,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
         const mainInputAllowed = mainInputAllowedOverlays.includes(ui.activeOverlay);
         const isHistorySearchActive = ui.historySearch.isActive;
         const isInputActive = !approval && mainInputAllowed && !isHistorySearchActive;
-        const isInputDisabled = !!approval || !mainInputAllowed || isHistorySearchActive;
+        const isInputDisabled = approval !== null || !mainInputAllowed || isHistorySearchActive;
         // Allow submit when:
         // - no overlay active
         // - approval active

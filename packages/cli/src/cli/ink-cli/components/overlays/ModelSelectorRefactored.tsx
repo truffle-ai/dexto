@@ -89,10 +89,6 @@ function isAddCustomOption(item: SelectorItem): item is AddCustomOption {
     return 'type' in item && item.type === 'add-custom';
 }
 
-function asModelOption(item: SelectorItem): ModelOption {
-    return item as ModelOption;
-}
-
 function getRowPrefix({
     isSelected,
     isDefault,
@@ -294,8 +290,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
                 // Add custom models first
                 for (const custom of loadedCustomModels) {
-                    // Use provider from custom model, default to openai-compatible for legacy models
-                    const customProvider = (custom.provider ?? 'openai-compatible') as LLMProvider;
+                    const customProvider: LLMProvider = custom.provider;
                     const modelOption: ModelOption = {
                         provider: customProvider,
                         name: custom.name,
@@ -965,7 +960,9 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
     const selectedIndex = selection.index;
     const scrollOffset = selection.offset;
-    const modelsOnly = filteredItems.slice(1) as ModelOption[];
+    const modelsOnly = filteredItems.filter(
+        (item): item is ModelOption => !isAddCustomOption(item)
+    );
     const visibleModels = modelsOnly.slice(scrollOffset, scrollOffset + modelsViewportItems);
     const selectedItem = filteredItems[selectedIndex];
     const hasActionableItems = selectedItem && !isAddCustomOption(selectedItem);

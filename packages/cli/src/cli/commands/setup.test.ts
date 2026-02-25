@@ -393,7 +393,7 @@ describe('Setup Command', () => {
                         return undefined;
                     }
 
-                    const message = (firstArg as { message?: unknown }).message;
+                    const message = Reflect.get(firstArg, 'message');
                     return typeof message === 'string' ? message : undefined;
                 }
             );

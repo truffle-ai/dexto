@@ -61,8 +61,7 @@ const REASONING_PRESET_STEP: WizardStep = {
     required: false,
     validate: (value: string) => {
         if (!value?.trim()) return null;
-        const normalized = value.trim().toLowerCase();
-        if (!REASONING_PRESETS.includes(normalized as ReasoningPreset)) {
+        if (!parseReasoningPreset(value)) {
             return `Invalid reasoning preset. Use: ${REASONING_PRESETS.join(', ')}`;
         }
         return null;
@@ -72,6 +71,15 @@ const REASONING_PRESET_STEP: WizardStep = {
         return isReasoningCapableModel(modelName);
     },
 };
+
+function parseReasoningPreset(value: string | undefined): ReasoningPreset | undefined {
+    const normalized = value?.trim().toLowerCase();
+    if (!normalized) return undefined;
+    for (const preset of REASONING_PRESETS) {
+        if (preset === normalized) return preset;
+    }
+    return undefined;
+}
 
 /**
  * Provider configuration registry.
@@ -115,9 +123,9 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
             if (values.maxInputTokens?.trim()) {
                 model.maxInputTokens = parseInt(values.maxInputTokens, 10);
             }
-            const reasoningPreset = values.reasoningPreset?.trim()?.toLowerCase();
+            const reasoningPreset = parseReasoningPreset(values.reasoningPreset);
             if (reasoningPreset && reasoningPreset !== 'medium') {
-                model.reasoning = { preset: reasoningPreset as ReasoningPreset };
+                model.reasoning = { preset: reasoningPreset };
             }
             return model;
         },
@@ -153,9 +161,9 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
             if (values.maxInputTokens?.trim()) {
                 model.maxInputTokens = parseInt(values.maxInputTokens, 10);
             }
-            const reasoningPreset = values.reasoningPreset?.trim()?.toLowerCase();
+            const reasoningPreset = parseReasoningPreset(values.reasoningPreset);
             if (reasoningPreset && reasoningPreset !== 'medium') {
-                model.reasoning = { preset: reasoningPreset as ReasoningPreset };
+                model.reasoning = { preset: reasoningPreset };
             }
             return model;
         },
@@ -210,9 +218,9 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
             if (values.displayName?.trim()) {
                 model.displayName = values.displayName.trim();
             }
-            const reasoningPreset = values.reasoningPreset?.trim()?.toLowerCase();
+            const reasoningPreset = parseReasoningPreset(values.reasoningPreset);
             if (reasoningPreset && reasoningPreset !== 'medium') {
-                model.reasoning = { preset: reasoningPreset as ReasoningPreset };
+                model.reasoning = { preset: reasoningPreset };
             }
             return model;
         },
@@ -258,9 +266,9 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
             if (values.maxInputTokens?.trim()) {
                 model.maxInputTokens = parseInt(values.maxInputTokens, 10);
             }
-            const reasoningPreset = values.reasoningPreset?.trim()?.toLowerCase();
+            const reasoningPreset = parseReasoningPreset(values.reasoningPreset);
             if (reasoningPreset && reasoningPreset !== 'medium') {
-                model.reasoning = { preset: reasoningPreset as ReasoningPreset };
+                model.reasoning = { preset: reasoningPreset };
             }
             return model;
         },
@@ -489,9 +497,9 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
             if (values.maxInputTokens?.trim()) {
                 model.maxInputTokens = parseInt(values.maxInputTokens, 10);
             }
-            const reasoningPreset = values.reasoningPreset?.trim()?.toLowerCase();
+            const reasoningPreset = parseReasoningPreset(values.reasoningPreset);
             if (reasoningPreset && reasoningPreset !== 'medium') {
-                model.reasoning = { preset: reasoningPreset as ReasoningPreset };
+                model.reasoning = { preset: reasoningPreset };
             }
             return model;
         },
@@ -578,7 +586,7 @@ export function getProviderByMenuIndex(index: number): CustomModelProvider | und
  * Check if a provider has async validation.
  */
 export function hasAsyncValidation(provider: CustomModelProvider): boolean {
-    return !!PROVIDER_CONFIGS[provider].asyncValidation;
+    return PROVIDER_CONFIGS[provider].asyncValidation !== undefined;
 }
 
 /**

@@ -9,6 +9,7 @@ import type {
     ContentPart,
     McpConnectionStatus,
     McpServerType,
+    LLMProvider,
     ReasoningPreset,
 } from '@dexto/core';
 
@@ -387,7 +388,7 @@ export interface SelectedMcpServer {
  * Pending model switch info (when waiting for API key input)
  */
 export interface PendingModelSwitch {
-    provider: string;
+    provider: LLMProvider;
     model: string;
     displayName?: string;
     baseURL?: string;

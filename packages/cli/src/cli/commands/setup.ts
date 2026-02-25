@@ -159,7 +159,10 @@ function getWizardSteps(
     model?: string
 ): Array<{ key: SetupStep; label: string }> {
     const isLocalProvider = provider === 'local' || provider === 'ollama';
-    const showReasoningStep = !!(provider && model && getReasoningSupport(provider, model).capable);
+    const showReasoningStep =
+        provider !== undefined &&
+        model !== undefined &&
+        getReasoningSupport(provider, model).capable;
 
     if (isLocalProvider) {
         const steps: Array<{ key: SetupStep; label: string }> = [

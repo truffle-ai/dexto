@@ -18,7 +18,7 @@ import React, {
 } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import type { DextoAgent, LLMProvider, ReasoningPreset } from '@dexto/core';
+import type { DextoAgent } from '@dexto/core';
 import { getModelDisplayName, getReasoningSupport } from '@dexto/core';
 import { getLLMProviderDisplayName } from '../../utils/llm-provider-display.js';
 
@@ -63,9 +63,9 @@ export const ReasoningOverlay = React.forwardRef<ReasoningOverlayHandle, Reasoni
         const isSavingRef = useRef(false);
 
         const llmConfig = agent.getCurrentLLMConfig(sessionId || undefined);
-        const provider = llmConfig.provider as LLMProvider;
+        const provider = llmConfig.provider;
         const model = llmConfig.model;
-        const currentPreset = (llmConfig.reasoning?.preset ?? 'medium') as ReasoningPreset;
+        const currentPreset = llmConfig.reasoning?.preset ?? 'medium';
         const currentBudgetTokens = llmConfig.reasoning?.budgetTokens;
         const support = getReasoningSupport(provider, model);
 

@@ -134,13 +134,32 @@ import type {
     SearchResult,
 } from '@dexto/core';
 import type { LogLevel } from '@dexto/core';
-import { DextoValidationError, LLMErrorCode, getModelDisplayName } from '@dexto/core';
+import {
+    DextoValidationError,
+    LLMErrorCode,
+    LLM_PROVIDERS,
+    getModelDisplayName,
+} from '@dexto/core';
 import { InputService } from '../services/InputService.js';
 import { createUserMessage, convertHistoryToUIMessages } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import { capture } from '../../../analytics/index.js';
 import { FocusOverlayFrame } from '../components/shared/FocusOverlayFrame.js';
 import { shouldHideCliChrome } from '../utils/overlayPresentation.js';
+
+function isLLMProvider(value: unknown): value is LLMProvider {
+    if (typeof value !== 'string') return false;
+    for (const provider of LLM_PROVIDERS) {
+        if (provider === value) return true;
+    }
+    return false;
+}
+
+function getProviderFromIssueContext(context: unknown): LLMProvider | null {
+    if (typeof context !== 'object' || context === null) return null;
+    const provider = Reflect.get(context, 'provider');
+    return isLLMProvider(provider) ? provider : null;
+}
 
 export interface OverlayContainerHandle {
     handleInput: (input: string, key: Key) => boolean;
@@ -463,11 +482,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     (issue) => issue.code === LLMErrorCode.API_KEY_MISSING
                 );
                 if (apiKeyIssue && apiKeyIssue.context) {
-                    // Extract provider from context
-                    const context = apiKeyIssue.context as { provider?: string };
-                    if (context.provider) {
-                        return context.provider as LLMProvider;
-                    }
+                    return getProviderFromIssueContext(apiKeyIssue.context);
                 }
             }
             return null;
@@ -476,7 +491,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         // Handle model selection (session-only)
         const handleModelSelect = useCallback(
             async (
-                provider: string,
+                provider: LLMProvider,
                 model: string,
                 displayName?: string,
                 baseURL?: string,
@@ -536,7 +551,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                     await agent.switchLLM(
                         {
-                            provider: provider as LLMProvider,
+                            provider,
                             model,
                             baseURL,
                             ...(reasoningPreset === undefined
@@ -672,7 +687,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     try {
                         await agent.switchLLM(
                             {
-                                provider: provider as LLMProvider,
+                                provider,
                                 model,
                                 ...(baseURL ? { baseURL } : {}),
                                 ...switchReasoningUpdate,
@@ -841,7 +856,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                     await agent.switchLLM(
                         {
-                            provider: pending.provider as LLMProvider,
+                            provider: pending.provider,
                             model: pending.model,
                             ...(pending.baseURL && { baseURL: pending.baseURL }),
                             ...(pending.reasoningPreset === undefined
@@ -1349,7 +1364,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             async (budgetTokens: number | undefined) => {
                 const sessionId = session.id || undefined;
                 const current = agent.getCurrentLLMConfig(sessionId);
-                const preset = (current.reasoning?.preset ?? 'medium') as ReasoningPreset;
+                const preset = current.reasoning?.preset ?? 'medium';
 
                 const reasoningUpdate =
                     budgetTokens === undefined && preset === 'medium'
@@ -2732,7 +2747,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     <ApiKeyInput
                         ref={apiKeyInputRef}
                         isVisible={true}
-                        provider={ui.pendingModelSwitch.provider as LLMProvider}
+                        provider={ui.pendingModelSwitch.provider}
                         onSaved={handleApiKeySaved}
                         onClose={handleApiKeyClose}
                     />
