@@ -297,13 +297,13 @@ export class TurnExecutor {
                 const reasoningVariant = this.config.reasoning?.variant;
                 const reasoningBudgetTokens = getEffectiveReasoningBudgetTokens(providerOptions);
 
-                const reasoningForStream = (() => {
-                    const r = {
-                        ...(reasoningVariant !== undefined && { reasoningVariant }),
-                        ...(reasoningBudgetTokens !== undefined && { reasoningBudgetTokens }),
-                    };
-                    return Object.keys(r).length > 0 ? r : undefined;
-                })();
+                const reasoningForStream =
+                    reasoningVariant !== undefined || reasoningBudgetTokens !== undefined
+                        ? {
+                              ...(reasoningVariant !== undefined && { reasoningVariant }),
+                              ...(reasoningBudgetTokens !== undefined && { reasoningBudgetTokens }),
+                          }
+                        : undefined;
 
                 const streamProcessor = new StreamProcessor(
                     this.contextManager,

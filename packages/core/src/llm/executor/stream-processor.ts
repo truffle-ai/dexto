@@ -457,21 +457,8 @@ export class StreamProcessor {
                         // The meaningful response will come after tool execution completes
                         const hasContent = this.accumulatedText || this.reasoningText;
                         if (this.finishReason !== 'tool-calls' || hasContent) {
-                            this.eventBus.emit('llm:response', {
-                                content: this.accumulatedText,
-                                ...(this.reasoningText && { reasoning: this.reasoningText }),
-                                provider: this.config.provider,
-                                model: this.config.model,
-                                ...(this.config.reasoningVariant !== undefined && {
-                                    reasoningVariant: this.config.reasoningVariant,
-                                }),
-                                ...(this.config.reasoningBudgetTokens !== undefined && {
-                                    reasoningBudgetTokens: this.config.reasoningBudgetTokens,
-                                }),
+                            this.emitLLMResponse({
                                 tokenUsage: usage,
-                                ...(this.config.estimatedInputTokens !== undefined && {
-                                    estimatedInputTokens: this.config.estimatedInputTokens,
-                                }),
                                 finishReason: this.finishReason,
                             });
                         }
@@ -537,7 +524,7 @@ export class StreamProcessor {
                             event.error instanceof Error
                                 ? event.error
                                 : new Error(String(event.error));
-                        this.logger.error(`LLM error: ${err.toString()}}`);
+                        this.logger.error('LLM error', { error: err });
                         this.eventBus.emit('llm:error', {
                             error: err,
                         });
@@ -552,21 +539,8 @@ export class StreamProcessor {
                         // Persist cancelled results for any pending tool calls
                         await this.persistCancelledToolResults();
 
-                        this.eventBus.emit('llm:response', {
-                            content: this.accumulatedText,
-                            ...(this.reasoningText && { reasoning: this.reasoningText }),
-                            provider: this.config.provider,
-                            model: this.config.model,
-                            ...(this.config.reasoningVariant !== undefined && {
-                                reasoningVariant: this.config.reasoningVariant,
-                            }),
-                            ...(this.config.reasoningBudgetTokens !== undefined && {
-                                reasoningBudgetTokens: this.config.reasoningBudgetTokens,
-                            }),
+                        this.emitLLMResponse({
                             tokenUsage: this.actualTokens,
-                            ...(this.config.estimatedInputTokens !== undefined && {
-                                estimatedInputTokens: this.config.estimatedInputTokens,
-                            }),
                             finishReason: 'cancelled',
                         });
 
@@ -592,21 +566,8 @@ export class StreamProcessor {
                 // Persist cancelled results for any pending tool calls
                 await this.persistCancelledToolResults();
 
-                this.eventBus.emit('llm:response', {
-                    content: this.accumulatedText,
-                    ...(this.reasoningText && { reasoning: this.reasoningText }),
-                    provider: this.config.provider,
-                    model: this.config.model,
-                    ...(this.config.reasoningVariant !== undefined && {
-                        reasoningVariant: this.config.reasoningVariant,
-                    }),
-                    ...(this.config.reasoningBudgetTokens !== undefined && {
-                        reasoningBudgetTokens: this.config.reasoningBudgetTokens,
-                    }),
+                this.emitLLMResponse({
                     tokenUsage: this.actualTokens,
-                    ...(this.config.estimatedInputTokens !== undefined && {
-                        estimatedInputTokens: this.config.estimatedInputTokens,
-                    }),
                     finishReason: 'cancelled',
                 });
 
@@ -711,6 +672,38 @@ export class StreamProcessor {
             return undefined;
         }
         return metadata;
+    }
+
+    private getReasoningResponseFields(): {
+        reasoningVariant?: ReasoningVariant;
+        reasoningBudgetTokens?: number;
+    } {
+        return {
+            ...(this.config.reasoningVariant !== undefined && {
+                reasoningVariant: this.config.reasoningVariant,
+            }),
+            ...(this.config.reasoningBudgetTokens !== undefined && {
+                reasoningBudgetTokens: this.config.reasoningBudgetTokens,
+            }),
+        };
+    }
+
+    private emitLLMResponse(config: {
+        tokenUsage: TokenUsage;
+        finishReason: LLMFinishReason;
+    }): void {
+        this.eventBus.emit('llm:response', {
+            content: this.accumulatedText,
+            ...(this.reasoningText && { reasoning: this.reasoningText }),
+            provider: this.config.provider,
+            model: this.config.model,
+            ...this.getReasoningResponseFields(),
+            tokenUsage: config.tokenUsage,
+            ...(this.config.estimatedInputTokens !== undefined && {
+                estimatedInputTokens: this.config.estimatedInputTokens,
+            }),
+            finishReason: config.finishReason,
+        });
     }
 
     private mergeReasoningMetadata(providerMetadata: Record<string, unknown>): void {
