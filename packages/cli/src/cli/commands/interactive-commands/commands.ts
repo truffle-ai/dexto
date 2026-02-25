@@ -35,7 +35,7 @@ import { systemCommands } from './system/index.js';
 import { toolCommands } from './tool-commands.js';
 import { promptCommands } from './prompt-commands.js';
 import { documentationCommands } from './documentation-commands.js';
-import { loginCommand } from './auth/index.js';
+import { loginCommand, logoutCommand } from './auth/index.js';
 
 /**
  * Complete list of all available CLI commands.
@@ -88,7 +88,7 @@ const baseCommands: CommandDefinition[] = [
     ...documentationCommands,
 
     // Auth commands (feature-flagged)
-    ...(isDextoAuthEnabled() ? [loginCommand] : []),
+    ...(isDextoAuthEnabled() ? [loginCommand, logoutCommand] : []),
 ];
 
 // Add help command that can see all commands

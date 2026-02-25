@@ -14,6 +14,8 @@ import type { OverlayType } from '../state/types.js';
 const ALWAYS_OVERLAY: Record<string, OverlayType> = {
     search: 'search',
     find: 'search', // alias
+    login: 'login',
+    logout: 'logout',
     model: 'model-selector',
     resume: 'session-selector',
     switch: 'session-selector',

@@ -88,11 +88,59 @@ function ensurePortAvailable(port: number): Promise<number> {
     });
 }
 
+interface CallbackServerOptions {
+    timeoutMs?: number | undefined;
+    signal?: AbortSignal | undefined;
+}
+
 /**
  * Start local HTTP server to receive OAuth callback
  */
-function startCallbackServer(port: number, config: OAuthConfig): Promise<OAuthResult> {
+function startCallbackServer(
+    port: number,
+    config: OAuthConfig,
+    options: CallbackServerOptions = {}
+): Promise<OAuthResult> {
     return new Promise((resolve, reject) => {
+        let settled = false;
+        const timeoutMs = options.timeoutMs ?? 5 * 60 * 1000;
+        let timeoutHandle: NodeJS.Timeout | null = null;
+        let abortHandler: () => void = () => {};
+
+        const safeCloseServer = (server: http.Server) => {
+            try {
+                if (server.listening) {
+                    server.close();
+                }
+            } catch (_error) {
+                // ignore
+            }
+        };
+
+        const cleanup = () => {
+            if (timeoutHandle) {
+                clearTimeout(timeoutHandle);
+            }
+            oauthStateStore.delete(port);
+            if (options.signal) {
+                options.signal.removeEventListener('abort', abortHandler);
+            }
+        };
+
+        const safeResolve = (result: OAuthResult) => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            resolve(result);
+        };
+
+        const safeReject = (error: unknown) => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            reject(error);
+        };
+
         const server = http.createServer(async (req, res) => {
             try {
                 if (!req.url) {
@@ -232,8 +280,8 @@ function startCallbackServer(port: number, config: OAuthConfig): Promise<OAuthRe
                             if (data.error) {
                                 res.writeHead(200);
                                 res.end('OK');
-                                server.close();
-                                reject(new Error(`OAuth error: ${data.error}`));
+                                safeCloseServer(server);
+                                safeReject(new Error(`OAuth error: ${data.error}`));
                                 return;
                             }
 
@@ -264,19 +312,19 @@ function startCallbackServer(port: number, config: OAuthConfig): Promise<OAuthRe
 
                                 res.writeHead(200);
                                 res.end('OK');
-                                server.close();
-                                resolve(result);
+                                safeCloseServer(server);
+                                safeResolve(result);
                             } else {
                                 res.writeHead(400);
                                 res.end('Missing tokens');
-                                server.close();
-                                reject(new Error('No access token received'));
+                                safeCloseServer(server);
+                                safeReject(new Error('No access token received'));
                             }
                         } catch (_err) {
                             res.writeHead(400);
                             res.end('Invalid data');
-                            server.close();
-                            reject(new Error('Invalid callback data'));
+                            safeCloseServer(server);
+                            safeReject(new Error('Invalid callback data'));
                         }
                     });
                 } else {
@@ -287,34 +335,91 @@ function startCallbackServer(port: number, config: OAuthConfig): Promise<OAuthRe
                 logger.error(`Callback server error: ${error}`);
                 res.writeHead(500);
                 res.end('Internal Server Error');
-                server.close();
-                oauthStateStore.delete(port);
-                reject(error);
+                safeCloseServer(server);
+                safeReject(error);
             }
         });
 
-        const timeoutMs = 5 * 60 * 1000;
-        const timeoutHandle = setTimeout(() => {
-            server.close();
-            oauthStateStore.delete(port);
-            reject(new Error('Authentication timed out'));
+        timeoutHandle = setTimeout(() => {
+            safeCloseServer(server);
+            safeReject(new Error('Authentication timed out'));
         }, timeoutMs);
 
-        const cleanup = () => {
-            clearTimeout(timeoutHandle);
-            oauthStateStore.delete(port);
+        abortHandler = () => {
+            const reason = options.signal?.reason;
+            const error =
+                reason instanceof Error
+                    ? reason
+                    : new Error(typeof reason === 'string' ? reason : 'Authentication cancelled');
+            safeCloseServer(server);
+            safeReject(error);
         };
 
         server.listen(port, 'localhost', () => {
             logger.debug(`OAuth callback server listening on http://localhost:${port}`);
         });
 
-        server.on('close', cleanup);
         server.on('error', (error) => {
-            cleanup();
-            reject(new Error(`Failed to start callback server: ${error.message}`));
+            safeCloseServer(server);
+            safeReject(new Error(`Failed to start callback server: ${error.message}`));
         });
+
+        if (options.signal) {
+            if (options.signal.aborted) {
+                abortHandler();
+            } else {
+                options.signal.addEventListener('abort', abortHandler, { once: true });
+            }
+        }
     });
+}
+
+export interface OAuthLoginSession {
+    authUrl: string;
+    result: Promise<OAuthResult>;
+    cancel: () => void;
+}
+
+export async function beginOAuthLogin(
+    config: OAuthConfig,
+    options: { timeoutMs?: number | undefined; signal?: AbortSignal | undefined } = {}
+): Promise<OAuthLoginSession> {
+    const port = await ensurePortAvailable(OAUTH_CALLBACK_PORT);
+    const redirectUri = `http://localhost:${port}`;
+
+    oauthStateStore.set(port, 'active');
+    logger.debug(`Registered OAuth callback server on port ${port}`);
+
+    const provider = config.provider || 'google';
+    const authParams = querystring.stringify({
+        redirect_to: redirectUri,
+    });
+
+    const authUrl = `${config.authUrl}/auth/v1/authorize?provider=${provider}&${authParams}`;
+
+    const abortController = new AbortController();
+    if (options.signal) {
+        if (options.signal.aborted) {
+            abortController.abort(options.signal.reason);
+        } else {
+            options.signal.addEventListener(
+                'abort',
+                () => abortController.abort(options.signal?.reason),
+                { once: true }
+            );
+        }
+    }
+
+    const result = startCallbackServer(port, config, {
+        timeoutMs: options.timeoutMs,
+        signal: abortController.signal,
+    });
+
+    return {
+        authUrl,
+        result,
+        cancel: () => abortController.abort(new Error('Authentication cancelled')),
+    };
 }
 
 /**
@@ -322,36 +427,23 @@ function startCallbackServer(port: number, config: OAuthConfig): Promise<OAuthRe
  */
 export async function performOAuthLogin(config: OAuthConfig): Promise<OAuthResult> {
     try {
-        const port = await ensurePortAvailable(OAUTH_CALLBACK_PORT);
-        const redirectUri = `http://localhost:${port}`;
-
-        oauthStateStore.set(port, 'active');
-        logger.debug(`Registered OAuth callback server on port ${port}`);
-
-        const provider = config.provider || 'google';
-        const authParams = querystring.stringify({
-            redirect_to: redirectUri,
-        });
-
-        const authUrl = `${config.authUrl}/auth/v1/authorize?provider=${provider}&${authParams}`;
-
-        const tokenPromise = startCallbackServer(port, config);
+        const session = await beginOAuthLogin(config);
 
         console.log(chalk.cyan('🌐 Opening browser for authentication...'));
 
         try {
             const { default: open } = await import('open');
-            await open(authUrl);
+            await open(session.authUrl);
             console.log(chalk.green('✅ Browser opened'));
         } catch (_error) {
-            console.log(chalk.yellow(`💡 Please open manually: ${authUrl}`));
+            console.log(chalk.yellow(`💡 Please open manually: ${session.authUrl}`));
         }
 
         const spinner = p.spinner();
         spinner.start('Waiting for authentication...');
 
         try {
-            const result = await tokenPromise;
+            const result = await session.result;
             spinner.stop('Authentication successful!');
             return result;
         } catch (error) {
