@@ -106,12 +106,15 @@ export async function createDextoAgentFromConfig(
 
     const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
     const services = await resolveServicesFromConfig(validatedConfig, image);
+    const mergedOverrides: InitializeServicesOptions | undefined = overrides
+        ? { ...overrides }
+        : undefined;
 
     return new DextoAgent(
         toDextoAgentOptions({
             config: validatedConfig,
             services,
-            overrides,
+            overrides: mergedOverrides,
         })
     );
 }

@@ -1,42 +1,42 @@
 {
-  "name": "@dexto/image-logger-agent",
-  "version": "1.6.0",
-  "description": "Example image for the Logger Agent (adds request-logger hook)",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "scripts": {
-    "build": "tsup",
-    "test": "vitest run",
-    "test:integ": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
-  },
-  "keywords": [
-    "dexto",
-    "image",
-    "hooks",
-    "logging",
-    "examples"
-  ],
-  "dependencies": {
-    "@dexto/agent-config": "workspace:*",
-    "@dexto/core": "workspace:*",
-    "@dexto/image-local": "workspace:*",
-    "zod": "^3.25.0"
-  },
-  "devDependencies": {
-    "tsup": "^8.0.0",
-    "typescript": "^5.3.3"
-  },
-  "files": [
-    "dist",
-    "README.md"
-  ]
+    "name": "@dexto/image-logger-agent",
+    "version": "1.6.1",
+    "description": "Example image for the Logger Agent (adds request-logger hook)",
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsup && node ../../scripts/clean-tsbuildinfo.mjs && tsc -b tsconfig.json --emitDeclarationOnly",
+        "test": "vitest run",
+        "test:integ": "vitest run",
+        "typecheck": "tsc --noEmit",
+        "clean": "rm -rf dist"
+    },
+    "keywords": [
+        "dexto",
+        "image",
+        "hooks",
+        "logging",
+        "examples"
+    ],
+    "dependencies": {
+        "@dexto/agent-config": "workspace:*",
+        "@dexto/core": "workspace:*",
+        "@dexto/image-local": "workspace:*",
+        "zod": "^3.25.0"
+    },
+    "devDependencies": {
+        "tsup": "^8.0.0",
+        "typescript": "^5.3.3"
+    },
+    "files": [
+        "dist",
+        "README.md"
+    ]
 }

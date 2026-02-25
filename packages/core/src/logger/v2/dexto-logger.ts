@@ -176,6 +176,49 @@ export class DextoLogger implements Logger {
     }
 
     /**
+     * Create a new logger that shares the same level reference but allows overriding
+     * component/agent/session/transports.
+     *
+     * This is useful for session-scoped file logging in interactive CLI where the base
+     * logger is silent (no console), but we still want runtime log level changes to apply
+     * to the file logger.
+     */
+    createScopedLogger(options: {
+        component: DextoLogComponent;
+        agentId?: string;
+        sessionId?: string;
+        transports?: LoggerTransport[];
+    }): DextoLogger {
+        return new DextoLogger({
+            level: this.levelRef.value,
+            component: options.component,
+            agentId: options.agentId ?? this.agentId,
+            ...(options.sessionId !== undefined && { sessionId: options.sessionId }),
+            transports: options.transports ?? this.transports,
+            _levelRef: this.levelRef,
+        });
+    }
+
+    /**
+     * Create a child logger that only logs to file (no console).
+     * Useful for sub-agents where console output should be suppressed.
+     */
+    createFileOnlyChild(component: DextoLogComponent): DextoLogger {
+        const fileTransports = this.transports.filter(
+            (transport) => 'getFilePath' in transport && typeof transport.getFilePath === 'function'
+        );
+
+        return new DextoLogger({
+            level: this.levelRef.value,
+            component,
+            agentId: this.agentId,
+            ...(this.sessionId !== undefined && { sessionId: this.sessionId }),
+            transports: fileTransports,
+            _levelRef: this.levelRef,
+        });
+    }
+
+    /**
      * Cleanup all transports
      */
     async destroy(): Promise<void> {

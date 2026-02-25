@@ -27,7 +27,7 @@ import {
     ChevronDown,
     Server,
 } from 'lucide-react';
-import type { AgentConfig } from '@dexto/agent-config';
+import type { AgentConfig, ToolFactoryEntry } from '@dexto/agent-config';
 import type { ContributorConfig } from '@dexto/core';
 import { LLM_PROVIDERS, MCP_SERVER_TYPES } from '@dexto/core';
 import { cn } from '@/lib/utils';
@@ -120,6 +120,24 @@ interface TabProps {
     errors: Record<string, string>;
 }
 
+type CatalogModelOption = {
+    name: string;
+    displayName?: string;
+};
+
+type BuiltinToolInfo = {
+    name: string;
+    description?: string;
+};
+
+type ToolFactoryInfo = {
+    type: string;
+    metadata?: {
+        displayName?: string;
+        description?: string;
+    };
+};
+
 function ModelTab({ config, onChange, errors }: TabProps) {
     const [showApiKey, setShowApiKey] = useState(false);
     const [showAdvanced, setShowAdvanced] = useState(false);
@@ -138,7 +156,7 @@ function ModelTab({ config, onChange, errors }: TabProps) {
         const providerData =
             catalogData.providers[currentProvider as keyof typeof catalogData.providers];
         if (!providerData?.models) return [];
-        return providerData.models.map((m) => ({
+        return providerData.models.map((m: CatalogModelOption) => ({
             id: m.name,
             displayName: m.displayName || m.name,
         }));
@@ -202,11 +220,13 @@ function ModelTab({ config, onChange, errors }: TabProps) {
                                         <SelectValue placeholder="Select model..." />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {providerModels.map((m) => (
-                                            <SelectItem key={m.id} value={m.id}>
-                                                {m.displayName}
-                                            </SelectItem>
-                                        ))}
+                                        {providerModels.map(
+                                            (m: { id: string; displayName: string }) => (
+                                                <SelectItem key={m.id} value={m.id}>
+                                                    {m.displayName}
+                                                </SelectItem>
+                                            )
+                                        )}
                                     </SelectContent>
                                 </Select>
                             ) : (
@@ -397,26 +417,28 @@ function ToolsTab({ config, onChange, errors }: TabProps) {
     const { data: discovery, isLoading: discoveryLoading } = useDiscovery();
     const servers = Object.entries(config.mcpServers || {});
 
-    const toolEntries = config.tools ?? [];
-    const builtinToolsEntry = toolEntries.find((t) => t.type === 'builtin-tools');
+    const toolEntries: ToolFactoryEntry[] = config.tools ?? [];
+    const builtinToolsEntry = toolEntries.find((t: ToolFactoryEntry) => t.type === 'builtin-tools');
 
     const enabledBuiltinTools = (() => {
         const enabledTools = builtinToolsEntry?.enabledTools;
         if (
             Array.isArray(enabledTools) &&
-            enabledTools.every((toolName) => typeof toolName === 'string')
+            enabledTools.every((toolName: string) => typeof toolName === 'string')
         ) {
             return enabledTools;
         }
-        return discovery?.builtinTools?.map((tool) => tool.name) ?? [];
+        return discovery?.builtinTools?.map((tool: BuiltinToolInfo) => tool.name) ?? [];
     })();
 
     const toggleBuiltinTool = (toolName: string) => {
         const nextEnabledTools = enabledBuiltinTools.includes(toolName)
-            ? enabledBuiltinTools.filter((t) => t !== toolName)
+            ? enabledBuiltinTools.filter((t: string) => t !== toolName)
             : [...enabledBuiltinTools, toolName];
 
-        const otherEntries = toolEntries.filter((t) => t.type !== 'builtin-tools');
+        const otherEntries = toolEntries.filter(
+            (t: ToolFactoryEntry) => t.type !== 'builtin-tools'
+        );
         const nextBuiltinToolsEntry = {
             ...(builtinToolsEntry ?? { type: 'builtin-tools' }),
             enabledTools: nextEnabledTools,
@@ -426,12 +448,12 @@ function ToolsTab({ config, onChange, errors }: TabProps) {
     };
 
     const enabledToolFactories = toolEntries
-        .filter((t) => t.type !== 'builtin-tools')
-        .map((t) => t.type);
+        .filter((t: ToolFactoryEntry) => t.type !== 'builtin-tools')
+        .map((t: ToolFactoryEntry) => t.type);
     const toggleToolFactory = (toolType: string) => {
-        const isEnabled = toolEntries.some((t) => t.type === toolType);
+        const isEnabled = toolEntries.some((t: ToolFactoryEntry) => t.type === toolType);
         const nextTools = isEnabled
-            ? toolEntries.filter((t) => t.type !== toolType)
+            ? toolEntries.filter((t: ToolFactoryEntry) => t.type !== toolType)
             : [...toolEntries, { type: toolType }];
 
         onChange({ ...config, tools: nextTools });
@@ -447,7 +469,7 @@ function ToolsTab({ config, onChange, errors }: TabProps) {
 
     const toggleToolAutoApprove = (qualifiedName: string) => {
         const newAlwaysAllow = isToolAutoApproved(qualifiedName)
-            ? alwaysAllowList.filter((t) => t !== qualifiedName)
+            ? alwaysAllowList.filter((t: string) => t !== qualifiedName)
             : [...alwaysAllowList, qualifiedName];
 
         onChange({
@@ -494,8 +516,10 @@ function ToolsTab({ config, onChange, errors }: TabProps) {
         });
     };
 
-    const builtinToolsCount = discovery?.builtinTools?.length || 0;
-    const toolFactoriesCount = discovery?.toolFactories?.length || 0;
+    const builtinTools = discovery?.builtinTools ?? [];
+    const toolFactories = discovery?.toolFactories ?? [];
+    const builtinToolsCount = builtinTools.length;
+    const toolFactoriesCount = toolFactories.length;
 
     return (
         <div className="p-5 space-y-8">
@@ -508,7 +532,7 @@ function ToolsTab({ config, onChange, errors }: TabProps) {
                     </div>
                 ) : builtinToolsCount > 0 ? (
                     <div className="space-y-1">
-                        {discovery!.builtinTools.map((tool) => {
+                        {builtinTools.map((tool: BuiltinToolInfo) => {
                             const isEnabled = enabledBuiltinTools.includes(tool.name);
                             const qualifiedName = tool.name;
                             const isAutoApproved = isToolAutoApproved(qualifiedName);
@@ -541,7 +565,7 @@ function ToolsTab({ config, onChange, errors }: TabProps) {
             {toolFactoriesCount > 0 && (
                 <Section title="Tool Factories" description="Additional tool packs from the image">
                     <div className="space-y-1">
-                        {discovery!.toolFactories.map((tool) => {
+                        {toolFactories.map((tool: ToolFactoryInfo) => {
                             const isEnabled = enabledToolFactories.includes(tool.type);
                             const displayName = tool.metadata?.displayName || tool.type;
                             const description = tool.metadata?.description;

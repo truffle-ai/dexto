@@ -22,6 +22,7 @@
     { "path": "../image-logger-agent" },
     { "path": "../registry" },
     { "path": "../server" },
-    { "path": "../storage" }
+    { "path": "../storage" },
+    { "path": "../tui" }
   ]
 }

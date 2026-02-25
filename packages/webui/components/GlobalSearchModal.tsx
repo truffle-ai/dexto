@@ -193,7 +193,7 @@ export default function GlobalSearchModal({
                                 <div className="p-2">
                                     {results.length > 0 ? (
                                         <div className="space-y-1">
-                                            {results.map((result, index) => (
+                                            {results.map((result: SearchResult, index: number) => (
                                                 <div
                                                     key={index}
                                                     className={cn(

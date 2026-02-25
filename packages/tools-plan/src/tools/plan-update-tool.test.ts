@@ -24,6 +24,7 @@ const createMockLogger = (): Logger => {
         error: vi.fn(),
         trackException: vi.fn(),
         createChild: vi.fn(() => logger),
+        createFileOnlyChild: vi.fn(() => logger),
         setLevel: vi.fn(),
         getLevel: vi.fn(() => 'debug' as const),
         getLogFilePath: vi.fn(() => null),
@@ -70,14 +71,18 @@ describe('plan_update tool', () => {
             const originalContent = '# Plan\n\n## Steps\n1. First step';
             const newContent = '# Plan\n\n## Steps\n1. First step\n2. Second step';
 
+            const previewFn = tool.presentation?.preview;
+            expect(previewFn).toBeDefined();
+
             await planService.create(sessionId, originalContent);
 
-            const preview = (await tool.generatePreview!(
+            const preview = (await previewFn!(
                 { content: newContent },
                 createToolContext(logger, { sessionId })
             )) as DiffDisplayData;
 
             expect(preview.type).toBe('diff');
+            expect(preview.title).toBe('Update Plan');
             // Path is now absolute, check it ends with the expected suffix
             expect(preview.filename).toContain(sessionId);
             expect(preview.filename).toMatch(/plan\.md$/);
@@ -91,8 +96,11 @@ describe('plan_update tool', () => {
             const tool = createPlanUpdateTool(async () => planService);
             const sessionId = 'test-session';
 
+            const previewFn = tool.presentation?.preview;
+            expect(previewFn).toBeDefined();
+
             try {
-                await tool.generatePreview!(
+                await previewFn!(
                     { content: '# New Content' },
                     createToolContext(logger, { sessionId })
                 );
@@ -106,8 +114,11 @@ describe('plan_update tool', () => {
         it('should throw error when sessionId is missing', async () => {
             const tool = createPlanUpdateTool(async () => planService);
 
+            const previewFn = tool.presentation?.preview;
+            expect(previewFn).toBeDefined();
+
             try {
-                await tool.generatePreview!({ content: '# Content' }, createToolContext(logger));
+                await previewFn!({ content: '# Content' }, createToolContext(logger));
                 expect.fail('Should have thrown an error');
             } catch (error) {
                 expect(error).toBeInstanceOf(DextoRuntimeError);
@@ -121,9 +132,12 @@ describe('plan_update tool', () => {
             const originalContent = '# Plan\n\nLine to remove\nKeep this';
             const newContent = '# Plan\n\nKeep this';
 
+            const previewFn = tool.presentation?.preview;
+            expect(previewFn).toBeDefined();
+
             await planService.create(sessionId, originalContent);
 
-            const preview = (await tool.generatePreview!(
+            const preview = (await previewFn!(
                 { content: newContent },
                 createToolContext(logger, { sessionId })
             )) as DiffDisplayData;
@@ -176,6 +190,7 @@ describe('plan_update tool', () => {
 
             expect(result._display).toBeDefined();
             expect(result._display.type).toBe('diff');
+            expect(result._display.title).toBe('Update Plan');
             expect(result._display.unified).toContain('-# Original');
             expect(result._display.unified).toContain('+# Updated');
         });

@@ -12,8 +12,23 @@ export {
     getAuthFilePath,
 } from './service.js';
 
-export { type OAuthResult, performOAuthLogin, DEFAULT_OAUTH_CONFIG } from './oauth.js';
+export {
+    type OAuthResult,
+    type OAuthLoginSession,
+    beginOAuthLogin,
+    performOAuthLogin,
+    DEFAULT_OAUTH_CONFIG,
+} from './oauth.js';
 
 export { type UsageSummaryResponse, DextoApiClient, getDextoApiClient } from './api-client.js';
 
 export { SUPABASE_URL, SUPABASE_ANON_KEY, DEXTO_API_URL } from './constants.js';
+
+export {
+    type DextoApiKeyProvisionStatus,
+    type DextoApiKeyProvisionStatusLevel,
+    type EnsureDextoApiKeyOptions,
+    ensureDextoApiKeyForAuthToken,
+    saveDextoApiKeyToEnv,
+    removeDextoApiKeyFromEnv,
+} from './dexto-api-key.js';

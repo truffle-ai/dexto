@@ -8,7 +8,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { glob } from 'glob';
 import safeRegex from 'safe-regex';
-import { getDextoPath, Logger, DextoLogComponent } from '@dexto/core';
+import { DextoRuntimeError, getDextoPath, Logger, DextoLogComponent } from '@dexto/core';
 import {
     FileSystemConfig,
     FileContent,
@@ -24,6 +24,14 @@ import {
     EditResult,
     EditOperation,
     FileMetadata,
+    DirectoryEntry,
+    ListDirectoryOptions,
+    ListDirectoryResult,
+    CreateDirectoryOptions,
+    CreateDirectoryResult,
+    DeletePathOptions,
+    DeletePathResult,
+    RenamePathResult,
     BufferEncoding,
 } from './types.js';
 import { PathValidator } from './path-validator.js';
@@ -32,6 +40,8 @@ import { FileSystemError } from './errors.js';
 const DEFAULT_ENCODING: BufferEncoding = 'utf-8';
 const DEFAULT_MAX_RESULTS = 1000;
 const DEFAULT_MAX_SEARCH_RESULTS = 100;
+const DEFAULT_MAX_LIST_RESULTS = 5000;
+const DEFAULT_LIST_CONCURRENCY = 16;
 
 /**
  * FileSystemService - Handles all file system operations with security checks
@@ -172,20 +182,24 @@ export class FileSystemService {
         return this.pathValidator.isPathWithinAllowed(filePath);
     }
 
-    /**
-     * Read a file with validation and size limits
-     */
-    async readFile(filePath: string, options: ReadFileOptions = {}): Promise<FileContent> {
-        await this.ensureInitialized();
-
-        // Validate path (async for non-blocking symlink resolution)
-        const validation = await this.pathValidator.validatePath(filePath);
+    private async validateReadPath(
+        filePath: string,
+        mode: 'execute' | 'toolPreview'
+    ): Promise<string> {
+        const validation =
+            mode === 'toolPreview'
+                ? await this.pathValidator.validatePathForPreview(filePath)
+                : await this.pathValidator.validatePath(filePath);
         if (!validation.isValid || !validation.normalizedPath) {
             throw FileSystemError.invalidPath(filePath, validation.error || 'Unknown error');
         }
+        return validation.normalizedPath;
+    }
 
-        const normalizedPath = validation.normalizedPath;
-
+    private async readNormalizedFile(
+        normalizedPath: string,
+        options: ReadFileOptions = {}
+    ): Promise<FileContent> {
         // Check if file exists
         try {
             const stats = await fs.stat(normalizedPath);
@@ -203,11 +217,17 @@ export class FileSystemService {
                 );
             }
         } catch (error) {
+            if (error instanceof DextoRuntimeError && error.scope === 'filesystem') {
+                throw error;
+            }
             if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
                 throw FileSystemError.fileNotFound(normalizedPath);
             }
             if ((error as NodeJS.ErrnoException).code === 'EACCES') {
                 throw FileSystemError.permissionDenied(normalizedPath, 'read');
+            }
+            if (error instanceof DextoRuntimeError) {
+                throw error;
             }
             throw FileSystemError.readFailed(
                 normalizedPath,
@@ -237,19 +257,50 @@ export class FileSystemService {
                 selectedLines = lines;
             }
 
+            const returnedContent = selectedLines.join('\n');
             return {
-                content: selectedLines.join('\n'),
+                content: returnedContent,
                 lines: selectedLines.length,
                 encoding,
                 truncated,
-                size: Buffer.byteLength(content, encoding),
+                size: Buffer.byteLength(returnedContent, encoding),
             };
         } catch (error) {
+            if (error instanceof DextoRuntimeError && error.scope === 'filesystem') {
+                throw error;
+            }
             throw FileSystemError.readFailed(
                 normalizedPath,
                 error instanceof Error ? error.message : String(error)
             );
         }
+    }
+
+    /**
+     * Read a file with validation and size limits
+     */
+    async readFile(filePath: string, options: ReadFileOptions = {}): Promise<FileContent> {
+        await this.ensureInitialized();
+
+        const normalizedPath = await this.validateReadPath(filePath, 'execute');
+        return await this.readNormalizedFile(normalizedPath, options);
+    }
+
+    /**
+     * Preview-only file read that bypasses config-allowed roots.
+     *
+     * This is intended for UI previews (diffs, create previews) shown BEFORE a user
+     * confirms directory access for the tool call. The returned content is UI-only
+     * and should not be forwarded to the LLM.
+     */
+    async readFileForToolPreview(
+        filePath: string,
+        options: ReadFileOptions = {}
+    ): Promise<FileContent> {
+        await this.ensureInitialized();
+
+        const normalizedPath = await this.validateReadPath(filePath, 'toolPreview');
+        return await this.readNormalizedFile(normalizedPath, options);
     }
 
     /**
@@ -320,6 +371,335 @@ export class FileSystemService {
         } catch (error) {
             throw FileSystemError.globFailed(
                 pattern,
+                error instanceof Error ? error.message : String(error)
+            );
+        }
+    }
+
+    /**
+     * List contents of a directory (non-recursive)
+     */
+    async listDirectory(
+        dirPath: string,
+        options: ListDirectoryOptions = {}
+    ): Promise<ListDirectoryResult> {
+        await this.ensureInitialized();
+
+        const validation = await this.pathValidator.validatePath(dirPath);
+        if (!validation.isValid || !validation.normalizedPath) {
+            throw FileSystemError.invalidPath(dirPath, validation.error || 'Unknown error');
+        }
+
+        const normalizedPath = validation.normalizedPath;
+
+        try {
+            const stats = await fs.stat(normalizedPath);
+            if (!stats.isDirectory()) {
+                throw FileSystemError.invalidPath(normalizedPath, 'Path is not a directory');
+            }
+        } catch (error) {
+            if (error instanceof DextoRuntimeError && error.scope === 'filesystem') {
+                throw error;
+            }
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                throw FileSystemError.directoryNotFound(normalizedPath);
+            }
+            if ((error as NodeJS.ErrnoException).code === 'EACCES') {
+                throw FileSystemError.permissionDenied(normalizedPath, 'read');
+            }
+            throw FileSystemError.listFailed(
+                normalizedPath,
+                error instanceof Error ? error.message : String(error)
+            );
+        }
+
+        const includeHidden = options.includeHidden ?? true;
+        const includeMetadata = options.includeMetadata !== false;
+        const maxEntries = options.maxEntries ?? DEFAULT_MAX_LIST_RESULTS;
+
+        try {
+            const dirEntries = await fs.readdir(normalizedPath, { withFileTypes: true });
+            const candidates = dirEntries.filter(
+                (entry) => includeHidden || !entry.name.startsWith('.')
+            );
+
+            const concurrency = DEFAULT_LIST_CONCURRENCY;
+            const validatedEntries = await this.mapWithConcurrency(
+                candidates,
+                concurrency,
+                async (entry) => {
+                    const entryPath = path.join(normalizedPath, entry.name);
+                    const entryValidation = await this.pathValidator.validatePath(entryPath);
+                    if (!entryValidation.isValid || !entryValidation.normalizedPath) {
+                        return null;
+                    }
+
+                    return {
+                        entry,
+                        normalizedPath: entryValidation.normalizedPath,
+                    };
+                }
+            );
+
+            type ValidEntry = {
+                entry: (typeof candidates)[number];
+                normalizedPath: string;
+            };
+            const validEntries = validatedEntries.filter(Boolean) as ValidEntry[];
+
+            if (maxEntries <= 0) {
+                return {
+                    path: normalizedPath,
+                    entries: [],
+                    truncated: validEntries.length > 0,
+                    totalEntries: validEntries.length,
+                };
+            }
+
+            if (!includeMetadata) {
+                const entries = validEntries.slice(0, maxEntries).map((entry) => ({
+                    name: entry.entry.name,
+                    path: entry.normalizedPath,
+                    isDirectory: entry.entry.isDirectory(),
+                    size: 0,
+                    modified: new Date(),
+                }));
+                return {
+                    path: normalizedPath,
+                    entries,
+                    truncated: validEntries.length > maxEntries,
+                    totalEntries: validEntries.length,
+                };
+            }
+
+            const metadataEntries = await this.mapWithConcurrency(
+                validEntries,
+                concurrency,
+                async (entry) => {
+                    try {
+                        const stat = await fs.stat(entry.normalizedPath);
+                        return {
+                            name: entry.entry.name,
+                            path: entry.normalizedPath,
+                            isDirectory: entry.entry.isDirectory(),
+                            size: stat.size,
+                            modified: stat.mtime,
+                        } satisfies DirectoryEntry;
+                    } catch {
+                        return null;
+                    }
+                }
+            );
+
+            const entries: DirectoryEntry[] = [];
+            let successfulStats = 0;
+            let cutoffIndex = -1;
+
+            for (let index = 0; index < metadataEntries.length; index += 1) {
+                const entry = metadataEntries[index];
+                if (!entry) {
+                    continue;
+                }
+
+                successfulStats += 1;
+                if (entries.length < maxEntries) {
+                    entries.push(entry);
+                }
+
+                if (successfulStats === maxEntries) {
+                    cutoffIndex = index;
+                }
+            }
+
+            const remainingSuccessful =
+                cutoffIndex >= 0
+                    ? metadataEntries.slice(cutoffIndex + 1).filter((entry) => entry !== null)
+                          .length
+                    : 0;
+            const totalEntries =
+                successfulStats < maxEntries ? successfulStats : maxEntries + remainingSuccessful;
+
+            return {
+                path: normalizedPath,
+                entries,
+                truncated: totalEntries > maxEntries,
+                totalEntries,
+            };
+        } catch (error) {
+            throw FileSystemError.listFailed(
+                normalizedPath,
+                error instanceof Error ? error.message : String(error)
+            );
+        }
+    }
+
+    private async mapWithConcurrency<T, R>(
+        items: T[],
+        limit: number,
+        mapper: (item: T, index: number) => Promise<R>
+    ): Promise<R[]> {
+        if (items.length === 0) {
+            return [];
+        }
+
+        const results = new Array<R>(items.length);
+        let nextIndex = 0;
+        const workerCount = Math.min(Math.max(1, limit), items.length);
+
+        const workers = Array.from({ length: workerCount }, async () => {
+            while (true) {
+                const current = nextIndex++;
+                if (current >= items.length) {
+                    return;
+                }
+                const item = items[current];
+                if (item === undefined) {
+                    continue;
+                }
+                results[current] = await mapper(item, current);
+            }
+        });
+
+        await Promise.all(workers);
+        return results;
+    }
+
+    /**
+     * Create a directory
+     */
+    async createDirectory(
+        dirPath: string,
+        options: CreateDirectoryOptions = {}
+    ): Promise<CreateDirectoryResult> {
+        await this.ensureInitialized();
+
+        const validation = await this.pathValidator.validatePath(dirPath);
+        if (!validation.isValid || !validation.normalizedPath) {
+            throw FileSystemError.invalidPath(dirPath, validation.error || 'Unknown error');
+        }
+
+        const normalizedPath = validation.normalizedPath;
+        const recursive = options.recursive ?? false;
+
+        try {
+            const firstCreated = await fs.mkdir(normalizedPath, { recursive });
+            const created = recursive ? typeof firstCreated === 'string' : true;
+            return { path: normalizedPath, created };
+        } catch (error) {
+            const code = (error as NodeJS.ErrnoException).code;
+            if (code === 'EEXIST') {
+                try {
+                    const stat = await fs.stat(normalizedPath);
+                    if (stat.isDirectory()) {
+                        return { path: normalizedPath, created: false };
+                    }
+                } catch {
+                    // fallthrough to error
+                }
+            }
+            if (code === 'EACCES' || code === 'EPERM') {
+                throw FileSystemError.permissionDenied(normalizedPath, 'create directory');
+            }
+            throw FileSystemError.createDirFailed(
+                normalizedPath,
+                error instanceof Error ? error.message : String(error)
+            );
+        }
+    }
+
+    /**
+     * Delete a file or directory
+     */
+    async deletePath(
+        targetPath: string,
+        options: DeletePathOptions = {}
+    ): Promise<DeletePathResult> {
+        await this.ensureInitialized();
+
+        const validation = await this.pathValidator.validatePath(targetPath);
+        if (!validation.isValid || !validation.normalizedPath) {
+            throw FileSystemError.invalidPath(targetPath, validation.error || 'Unknown error');
+        }
+
+        const normalizedPath = validation.normalizedPath;
+
+        try {
+            await fs.rm(normalizedPath, { recursive: options.recursive ?? false, force: false });
+            return { path: normalizedPath, deleted: true };
+        } catch (error) {
+            const code = (error as NodeJS.ErrnoException).code;
+            if (code === 'ENOENT') {
+                throw FileSystemError.fileNotFound(normalizedPath);
+            }
+            if (code === 'EACCES' || code === 'EPERM') {
+                throw FileSystemError.permissionDenied(normalizedPath, 'delete');
+            }
+            throw FileSystemError.deleteFailed(
+                normalizedPath,
+                error instanceof Error ? error.message : String(error)
+            );
+        }
+    }
+
+    /**
+     * Rename or move a file or directory
+     */
+    async renamePath(fromPath: string, toPath: string): Promise<RenamePathResult> {
+        await this.ensureInitialized();
+
+        const fromValidation = await this.pathValidator.validatePath(fromPath);
+        if (!fromValidation.isValid || !fromValidation.normalizedPath) {
+            throw FileSystemError.invalidPath(fromPath, fromValidation.error || 'Unknown error');
+        }
+
+        const toValidation = await this.pathValidator.validatePath(toPath);
+        if (!toValidation.isValid || !toValidation.normalizedPath) {
+            throw FileSystemError.invalidPath(toPath, toValidation.error || 'Unknown error');
+        }
+
+        const normalizedFrom = fromValidation.normalizedPath;
+        const normalizedTo = toValidation.normalizedPath;
+
+        if (normalizedFrom === normalizedTo) {
+            return { from: normalizedFrom, to: normalizedTo };
+        }
+
+        try {
+            await fs.access(normalizedTo);
+            throw FileSystemError.renameFailed(
+                normalizedFrom,
+                `Target already exists: ${normalizedTo}`
+            );
+        } catch (error) {
+            const code = (error as NodeJS.ErrnoException).code;
+            if (!code) {
+                throw error;
+            }
+            if (code === 'ENOENT') {
+                // Destination doesn't exist
+            } else if (code === 'EACCES' || code === 'EPERM') {
+                throw FileSystemError.permissionDenied(normalizedTo, 'rename');
+            } else {
+                throw FileSystemError.renameFailed(
+                    normalizedFrom,
+                    error instanceof Error ? error.message : String(error)
+                );
+            }
+        }
+
+        try {
+            await fs.rename(normalizedFrom, normalizedTo);
+            return { from: normalizedFrom, to: normalizedTo };
+        } catch (error) {
+            const code = (error as NodeJS.ErrnoException).code;
+            if (code === 'ENOENT') {
+                throw FileSystemError.fileNotFound(normalizedFrom);
+            }
+            if (code === 'EACCES' || code === 'EPERM') {
+                throw FileSystemError.permissionDenied(normalizedFrom, 'rename');
+            }
+            throw FileSystemError.renameFailed(
+                normalizedFrom,
                 error instanceof Error ? error.message : String(error)
             );
         }

@@ -12,7 +12,7 @@
  * @see packages/webui/components/hooks/useChat.ts (original implementation)
  */
 
-import type { StreamingEvent, ApprovalStatus } from '@dexto/core';
+import type { StreamingEvent, StreamingEventName, ApprovalStatus } from '@dexto/core';
 import { useChatStore, generateMessageId } from '../stores/chatStore.js';
 import { useAgentStore } from '../stores/agentStore.js';
 import { useApprovalStore } from '../stores/approvalStore.js';
@@ -34,10 +34,7 @@ type EventHandler<T = StreamingEvent> = (event: T) => void;
  * Extract specific event type by name
  * For events not in StreamingEvent, we use a broader constraint
  */
-type EventByName<T extends string> =
-    Extract<StreamingEvent, { name: T }> extends never
-        ? { name: T; sessionId: string; [key: string]: any }
-        : Extract<StreamingEvent, { name: T }>;
+type EventByName<T extends StreamingEventName> = Extract<StreamingEvent, { name: T }>;
 
 // =============================================================================
 // Handler Registry
@@ -47,7 +44,14 @@ type EventByName<T extends string> =
  * Map of event names to their handlers
  * Uses string as key type to support all event names
  */
-const handlers = new Map<string, EventHandler<any>>();
+const handlers = new Map<StreamingEventName, EventHandler<StreamingEvent>>();
+
+function registerHandler<TName extends StreamingEventName>(
+    name: TName,
+    handler: EventHandler<EventByName<TName>>
+): void {
+    handlers.set(name, handler as EventHandler<StreamingEvent>);
+}
 
 // =============================================================================
 // Helper Functions
@@ -144,7 +148,17 @@ function handleLLMChunk(event: EventByName<'llm:chunk'>): void {
  * 3. Multi-turn: assistant message already in messages array → update it
  */
 function handleLLMResponse(event: EventByName<'llm:response'>): void {
-    const { sessionId, content, tokenUsage, model, provider, estimatedInputTokens } = event;
+    const {
+        sessionId,
+        content,
+        reasoning,
+        tokenUsage,
+        model,
+        provider,
+        estimatedInputTokens,
+        reasoningVariant,
+        reasoningBudgetTokens,
+    } = event;
     const chatStore = useChatStore.getState();
     const sessionState = chatStore.getSessionState(sessionId);
     const finalContent = typeof content === 'string' ? content : '';
@@ -154,6 +168,7 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
         // Finalize streaming message with content and metadata
         chatStore.finalizeStreamingMessage(sessionId, {
             content: finalContent,
+            ...(reasoning && { reasoning }),
             tokenUsage,
             ...(model && { model }),
             ...(provider && { provider }),
@@ -172,6 +187,8 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
                 sessionId,
                 provider,
                 model,
+                reasoningVariant,
+                reasoningBudgetTokens,
                 inputTokens: tokenUsage.inputTokens,
                 outputTokens: tokenUsage.outputTokens,
                 reasoningTokens: tokenUsage.reasoningTokens,
@@ -207,6 +224,7 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
         // Update existing assistant message with final content and metadata
         chatStore.updateMessage(sessionId, recentAssistantMsg.id, {
             content: finalContent || recentAssistantMsg.content,
+            ...(reasoning && { reasoning }),
             tokenUsage,
             ...(model && { model }),
             ...(provider && { provider }),
@@ -218,6 +236,7 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
             id: generateMessageId(),
             role: 'assistant',
             content: finalContent,
+            ...(reasoning && { reasoning }),
             tokenUsage,
             ...(model && { model }),
             ...(provider && { provider }),
@@ -239,6 +258,8 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
             sessionId,
             provider,
             model,
+            reasoningVariant,
+            reasoningBudgetTokens,
             inputTokens: tokenUsage.inputTokens,
             outputTokens: tokenUsage.outputTokens,
             reasoningTokens: tokenUsage.reasoningTokens,
@@ -259,7 +280,7 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
  * This handles cases where approval:request arrives before llm:tool-call.
  */
 function handleToolCall(event: EventByName<'llm:tool-call'>): void {
-    const { sessionId, toolName, toolDisplayName, args, callId } = event;
+    const { sessionId, toolName, args, callId, presentationSnapshot } = event;
     const chatStore = useChatStore.getState();
 
     // Finalize any streaming message to maintain proper sequence
@@ -277,7 +298,7 @@ function handleToolCall(event: EventByName<'llm:tool-call'>): void {
         // Approval message already exists - update with args if needed
         chatStore.updateMessage(sessionId, existingMessage.id, {
             toolArgs: args,
-            ...(toolDisplayName !== undefined && { toolDisplayName }),
+            ...(presentationSnapshot !== undefined && { presentationSnapshot }),
         });
         console.debug('[handlers] Tool call message already exists:', existingMessage.id);
         return;
@@ -303,7 +324,7 @@ function handleToolCall(event: EventByName<'llm:tool-call'>): void {
         chatStore.updateMessage(sessionId, pendingApprovalMessage.id, {
             toolCallId: callId,
             toolArgs: args,
-            ...(toolDisplayName !== undefined && { toolDisplayName }),
+            ...(presentationSnapshot !== undefined && { presentationSnapshot }),
         });
         console.debug(
             '[handlers] Updated existing approval message with callId:',
@@ -318,7 +339,7 @@ function handleToolCall(event: EventByName<'llm:tool-call'>): void {
         role: 'tool' as const,
         content: null,
         toolName,
-        ...(toolDisplayName !== undefined && { toolDisplayName }),
+        ...(presentationSnapshot !== undefined && { presentationSnapshot }),
         toolArgs: args,
         toolCallId: callId,
         createdAt: Date.now(),
@@ -346,9 +367,9 @@ function handleToolResult(event: EventByName<'llm:tool-result'>): void {
         callId,
         success,
         sanitized,
-        toolDisplayName,
         requireApproval,
         approvalStatus,
+        presentationSnapshot,
     } = event;
     const chatStore = useChatStore.getState();
 
@@ -378,7 +399,7 @@ function handleToolResult(event: EventByName<'llm:tool-result'>): void {
             toolResult: sanitized,
             toolResultMeta: sanitized?.meta,
             toolResultSuccess: success,
-            ...(toolDisplayName !== undefined && { toolDisplayName }),
+            ...(presentationSnapshot !== undefined && { presentationSnapshot }),
             ...(requireApproval !== undefined && { requireApproval }),
             ...(approvalStatus !== undefined && { approvalStatus }),
         });
@@ -433,9 +454,8 @@ function handleApprovalRequest(event: EventByName<'approval:request'>): void {
     // Extract tool info from the approval event
     const approvalId = (event as any).approvalId;
     const toolName = (event as any).metadata?.toolName || (event as any).toolName || 'unknown';
-    const toolDisplayName =
-        (event as any).metadata?.toolDisplayName || (event as any).toolDisplayName;
     const toolArgs = (event as any).metadata?.args || (event as any).args || {};
+    const presentationSnapshot = (event as any).metadata?.presentationSnapshot;
     const approvalType = (event as any).type;
 
     // Helper to strip prefixes for matching
@@ -458,7 +478,7 @@ function handleApprovalRequest(event: EventByName<'approval:request'>): void {
         chatStore.updateMessage(sessionId, existingToolMessage.id, {
             requireApproval: true,
             approvalStatus: 'pending',
-            ...(toolDisplayName !== undefined && { toolDisplayName }),
+            ...(presentationSnapshot !== undefined && { presentationSnapshot }),
         });
         console.debug(
             '[handlers] Updated existing tool message with approval:',
@@ -488,7 +508,7 @@ function handleApprovalRequest(event: EventByName<'approval:request'>): void {
                 role: 'tool' as const,
                 content: null,
                 toolName,
-                ...(toolDisplayName !== undefined && { toolDisplayName }),
+                ...(presentationSnapshot !== undefined && { presentationSnapshot }),
                 toolArgs,
                 toolCallId: approvalId, // Use approvalId as callId for correlation
                 createdAt: Date.now(),
@@ -727,19 +747,19 @@ export function registerHandlers(): void {
     handlers.clear();
 
     // Register each handler
-    handlers.set('llm:thinking', handleLLMThinking);
-    handlers.set('llm:chunk', handleLLMChunk);
-    handlers.set('llm:response', handleLLMResponse);
-    handlers.set('llm:tool-call', handleToolCall);
-    handlers.set('llm:tool-result', handleToolResult);
-    handlers.set('llm:error', handleLLMError);
-    handlers.set('approval:request', handleApprovalRequest);
-    handlers.set('approval:response', handleApprovalResponse);
-    handlers.set('run:complete', handleRunComplete);
-    handlers.set('session:title-updated', handleSessionTitleUpdated);
-    handlers.set('message:dequeued', handleMessageDequeued);
-    handlers.set('context:compacted', handleContextCompacted);
-    handlers.set('service:event', handleServiceEvent);
+    registerHandler('llm:thinking', handleLLMThinking);
+    registerHandler('llm:chunk', handleLLMChunk);
+    registerHandler('llm:response', handleLLMResponse);
+    registerHandler('llm:tool-call', handleToolCall);
+    registerHandler('llm:tool-result', handleToolResult);
+    registerHandler('llm:error', handleLLMError);
+    registerHandler('approval:request', handleApprovalRequest);
+    registerHandler('approval:response', handleApprovalResponse);
+    registerHandler('run:complete', handleRunComplete);
+    registerHandler('session:title-updated', handleSessionTitleUpdated);
+    registerHandler('message:dequeued', handleMessageDequeued);
+    registerHandler('context:compacted', handleContextCompacted);
+    registerHandler('service:event', handleServiceEvent);
 }
 
 /**
@@ -748,8 +768,8 @@ export function registerHandlers(): void {
  * @param name - Event name
  * @returns Handler function or undefined if not registered
  */
-export function getHandler(name: string): EventHandler | undefined {
-    return handlers.get(name);
+export function getHandler(name: string): EventHandler<StreamingEvent> | undefined {
+    return handlers.get(name as StreamingEventName);
 }
 
 /**
@@ -775,10 +795,7 @@ export function setupEventHandlers(bus: ClientEventBus): () => void {
     const subscriptions: Array<{ unsubscribe: () => void }> = [];
 
     handlers.forEach((handler, eventName) => {
-        // Cast to any to bypass strict typing - handlers map uses string keys
-        // but bus.on expects specific event names. This is safe because
-        // registerHandlers() only adds valid event names.
-        const subscription = bus.on(eventName as any, handler);
+        const subscription = bus.on(eventName, handler);
         subscriptions.push(subscription);
     });
 

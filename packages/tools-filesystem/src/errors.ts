@@ -173,6 +173,58 @@ export class FileSystemError {
     }
 
     /**
+     * List directory operation failed
+     */
+    static listFailed(path: string, cause: string): DextoRuntimeError {
+        return new DextoRuntimeError(
+            FileSystemErrorCode.LIST_FAILED,
+            FILESYSTEM_SCOPE,
+            ErrorType.SYSTEM,
+            `Failed to list directory: ${path}. ${cause}`,
+            { path, cause }
+        );
+    }
+
+    /**
+     * Create directory operation failed
+     */
+    static createDirFailed(path: string, cause: string): DextoRuntimeError {
+        return new DextoRuntimeError(
+            FileSystemErrorCode.CREATE_DIR_FAILED,
+            FILESYSTEM_SCOPE,
+            ErrorType.SYSTEM,
+            `Failed to create directory: ${path}. ${cause}`,
+            { path, cause }
+        );
+    }
+
+    /**
+     * Delete operation failed
+     */
+    static deleteFailed(path: string, cause: string): DextoRuntimeError {
+        return new DextoRuntimeError(
+            FileSystemErrorCode.DELETE_FAILED,
+            FILESYSTEM_SCOPE,
+            ErrorType.SYSTEM,
+            `Failed to delete path: ${path}. ${cause}`,
+            { path, cause }
+        );
+    }
+
+    /**
+     * Rename operation failed
+     */
+    static renameFailed(path: string, cause: string): DextoRuntimeError {
+        return new DextoRuntimeError(
+            FileSystemErrorCode.RENAME_FAILED,
+            FILESYSTEM_SCOPE,
+            ErrorType.SYSTEM,
+            `Failed to rename path: ${path}. ${cause}`,
+            { path, cause }
+        );
+    }
+
+    /**
      * Write operation failed
      */
     static writeFailed(path: string, cause: string): DextoRuntimeError {

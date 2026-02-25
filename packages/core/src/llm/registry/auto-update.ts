@@ -97,6 +97,25 @@ function applyModelsByProvider(modelsByProvider: Record<LLMProvider, ModelInfo[]
                     : m.supportedFileTypes;
 
                 const displayName = updated.displayName ?? m.displayName;
+                const reasoning =
+                    typeof updated.reasoning === 'boolean' ? updated.reasoning : m.reasoning;
+                const supportsTemperature =
+                    typeof updated.supportsTemperature === 'boolean'
+                        ? updated.supportsTemperature
+                        : m.supportsTemperature;
+                const supportsInterleaved =
+                    typeof updated.supportsInterleaved === 'boolean'
+                        ? updated.supportsInterleaved
+                        : m.supportsInterleaved;
+                const supportsToolCall =
+                    typeof updated.supportsToolCall === 'boolean'
+                        ? updated.supportsToolCall
+                        : m.supportsToolCall;
+                const releaseDate = updated.releaseDate ?? m.releaseDate;
+                const status = updated.status ?? m.status;
+                const modalities = updated.modalities ?? m.modalities;
+                const providerMetadata = updated.providerMetadata ?? m.providerMetadata;
+                const interleaved = updated.interleaved ?? m.interleaved;
                 const pricing = updated.pricing ?? m.pricing;
 
                 merged.push({
@@ -104,6 +123,15 @@ function applyModelsByProvider(modelsByProvider: Record<LLMProvider, ModelInfo[]
                     maxInputTokens,
                     supportedFileTypes,
                     ...(displayName ? { displayName } : {}),
+                    ...(typeof reasoning === 'boolean' ? { reasoning } : {}),
+                    ...(typeof supportsTemperature === 'boolean' ? { supportsTemperature } : {}),
+                    ...(typeof supportsInterleaved === 'boolean' ? { supportsInterleaved } : {}),
+                    ...(typeof supportsToolCall === 'boolean' ? { supportsToolCall } : {}),
+                    ...(releaseDate ? { releaseDate } : {}),
+                    ...(status ? { status } : {}),
+                    ...(modalities ? { modalities } : {}),
+                    ...(providerMetadata ? { providerMetadata } : {}),
+                    ...(interleaved ? { interleaved } : {}),
                     ...(pricing ? { pricing } : {}),
                 });
             }

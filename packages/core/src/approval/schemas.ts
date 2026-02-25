@@ -7,6 +7,7 @@ import type { JSONSchema7 } from 'json-schema';
 import { ApprovalType, ApprovalStatus, DenialReason } from './types.js';
 import type { ToolDisplayData } from '../tools/display-types.js';
 import { isValidDisplayData } from '../tools/display-types.js';
+import type { ToolPresentationSnapshotV1 } from '../tools/types.js';
 
 // Zod schema that validates as object but types as JSONSchema7
 const JsonSchema7Schema = z.record(z.unknown()) as z.ZodType<JSONSchema7>;
@@ -31,21 +32,45 @@ const ToolDisplayDataSchema = z.custom<ToolDisplayData>((val) => isValidDisplayD
     message: 'Invalid ToolDisplayData',
 });
 
+const ToolPresentationSnapshotV1Schema = z.custom<ToolPresentationSnapshotV1>(
+    (val) =>
+        typeof val === 'object' && val !== null && (val as { version?: unknown }).version === 1,
+    {
+        message: 'Invalid ToolPresentationSnapshotV1',
+    }
+);
+
+/**
+ * Directory access metadata schema
+ * Used when a tool tries to access files outside the working directory
+ */
+export const DirectoryAccessMetadataSchema = z
+    .object({
+        path: z.string().describe('Full path being accessed'),
+        parentDir: z.string().describe('Parent directory (what gets approved for session)'),
+        operation: z.enum(['read', 'write', 'edit']).describe('Type of file operation'),
+        toolName: z.string().describe('Name of the tool requesting access'),
+    })
+    .strict()
+    .describe('Directory access metadata');
+
 /**
  * Tool approval metadata schema
  */
 export const ToolApprovalMetadataSchema = z
     .object({
         toolName: z.string().describe('Name of the tool to confirm'),
-        toolDisplayName: z
-            .string()
-            .optional()
-            .describe('Optional user-facing name for the tool (UI convenience)'),
+        presentationSnapshot: ToolPresentationSnapshotV1Schema.optional().describe(
+            'Optional UI-agnostic presentation snapshot for the tool call. Clients MUST ignore unknown fields.'
+        ),
         toolCallId: z.string().describe('Unique tool call ID for tracking parallel tool calls'),
         args: z.record(z.unknown()).describe('Arguments for the tool'),
         description: z.string().optional().describe('Description of the tool'),
         displayPreview: ToolDisplayDataSchema.optional().describe(
             'Preview display data for approval UI (e.g., diff preview)'
+        ),
+        directoryAccess: DirectoryAccessMetadataSchema.optional().describe(
+            'Optional directory access metadata when the tool targets a path outside config-allowed roots'
         ),
         suggestedPatterns: z
             .array(z.string())
@@ -80,7 +105,7 @@ export const CommandConfirmationMetadataSchema = z
 export const ElicitationMetadataSchema = z
     .object({
         schema: JsonSchema7Schema.describe('JSON Schema for the form'),
-        prompt: z.string().describe('Prompt to show the user'),
+        prompt: z.string().describe('High-level prompt/context for the form (clients may show it)'),
         serverName: z.string().describe('MCP server requesting input'),
         context: z.record(z.unknown()).optional().describe('Additional context'),
     })
@@ -91,20 +116,6 @@ export const ElicitationMetadataSchema = z
  * Custom approval metadata schema - flexible
  */
 export const CustomApprovalMetadataSchema = z.record(z.unknown()).describe('Custom metadata');
-
-/**
- * Directory access metadata schema
- * Used when a tool tries to access files outside the working directory
- */
-export const DirectoryAccessMetadataSchema = z
-    .object({
-        path: z.string().describe('Full path being accessed'),
-        parentDir: z.string().describe('Parent directory (what gets approved for session)'),
-        operation: z.enum(['read', 'write', 'edit']).describe('Type of file operation'),
-        toolName: z.string().describe('Name of the tool requesting access'),
-    })
-    .strict()
-    .describe('Directory access metadata');
 
 /**
  * Base approval request schema
@@ -190,6 +201,12 @@ export const ToolApprovalResponseDataSchema = z
             .describe(
                 'Remember an approval pattern (e.g., "git *"). ' +
                     'Only applicable when the tool provides pattern-based approval support.'
+            ),
+        rememberDirectory: z
+            .boolean()
+            .optional()
+            .describe(
+                'Remember this directory for the session (allows future access without prompting again)'
             ),
     })
     .strict()

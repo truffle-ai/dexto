@@ -1,6 +1,13 @@
 import { z } from 'zod';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
-import { DextoRuntimeError, ErrorScope, ErrorType, defineTool } from '@dexto/core';
+import {
+    DextoRuntimeError,
+    ErrorScope,
+    ErrorType,
+    createLocalToolCallHeader,
+    defineTool,
+    truncateForHeader,
+} from '@dexto/core';
 import { promises as dns, type LookupAddress, type LookupOptions } from 'node:dns';
 import { isIP } from 'node:net';
 import { TextDecoder } from 'node:util';
@@ -63,6 +70,10 @@ const BLOCKED_HOSTNAMES = new Set(['localhost']);
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 const SAFE_DISPATCHER = createSafeDispatcher();
 
+type LookupCallback =
+    | ((err: NodeJS.ErrnoException | null, address: string, family: number) => void)
+    | ((err: NodeJS.ErrnoException | null, addresses: LookupAddress[]) => void);
+
 function isPrivateIpv4(ip: string): boolean {
     const parts = ip.split('.').map((part) => Number(part));
     if (parts.length !== 4 || parts.some((part) => Number.isNaN(part))) {
@@ -113,68 +124,130 @@ function isPrivateAddress(ip: string): boolean {
     return false;
 }
 
-function createSafeDispatcher(): Dispatcher {
-    const lookup = (
-        hostname: string,
-        _options: LookupOptions,
-        callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void
-    ) => {
+export function createSafeLookup(config?: {
+    dnsLookup?: typeof dns.lookup;
+}): (hostname: string, options: LookupOptions, callback: LookupCallback) => void {
+    const dnsLookup = config?.dnsLookup ?? dns.lookup;
+
+    return (hostname, options, callback) => {
         void (async () => {
+            const toErrnoException = (err: DextoRuntimeError): NodeJS.ErrnoException =>
+                err as unknown as NodeJS.ErrnoException;
+            const emitError = (err: NodeJS.ErrnoException) => {
+                try {
+                    if (options.all) {
+                        (
+                            callback as (
+                                err: NodeJS.ErrnoException,
+                                addresses: LookupAddress[]
+                            ) => void
+                        )(err, []);
+                        return;
+                    }
+
+                    (
+                        callback as (
+                            err: NodeJS.ErrnoException,
+                            address: string,
+                            family: number
+                        ) => void
+                    )(err, '', 0);
+                } catch {
+                    // Swallow callback exceptions: dns.lookup callbacks should not throw, and
+                    // we don't want this to surface as an unhandled rejection.
+                }
+            };
+
             try {
                 if (BLOCKED_HOSTNAMES.has(hostname) || hostname.endsWith('.localhost')) {
-                    callback(
-                        new DextoRuntimeError(
-                            'HTTP_REQUEST_UNSAFE_TARGET',
-                            ErrorScope.TOOLS,
-                            ErrorType.FORBIDDEN,
-                            `Blocked request to local hostname: ${hostname}`
-                        ),
-                        '',
-                        0
+                    emitError(
+                        toErrnoException(
+                            new DextoRuntimeError(
+                                'HTTP_REQUEST_UNSAFE_TARGET',
+                                ErrorScope.TOOLS,
+                                ErrorType.FORBIDDEN,
+                                `Blocked request to local hostname: ${hostname}`
+                            )
+                        )
                     );
                     return;
                 }
 
-                const records = (await dns.lookup(hostname, {
+                // Always resolve all addresses so we can validate none are private.
+                const records = (await dnsLookup(hostname, {
                     all: true,
                     verbatim: true,
+                    family: options.family,
+                    hints: options.hints,
                 })) as LookupAddress[];
+
                 if (!records.length) {
-                    callback(
-                        new DextoRuntimeError(
-                            'HTTP_REQUEST_DNS_FAILED',
-                            ErrorScope.TOOLS,
-                            ErrorType.THIRD_PARTY,
-                            `Failed to resolve hostname: ${hostname}`
-                        ),
-                        '',
-                        0
+                    emitError(
+                        toErrnoException(
+                            new DextoRuntimeError(
+                                'HTTP_REQUEST_DNS_FAILED',
+                                ErrorScope.TOOLS,
+                                ErrorType.THIRD_PARTY,
+                                `Failed to resolve hostname: ${hostname}`
+                            )
+                        )
                     );
                     return;
                 }
 
                 for (const record of records) {
                     if (isPrivateAddress(record.address)) {
-                        callback(
-                            new DextoRuntimeError(
-                                'HTTP_REQUEST_UNSAFE_TARGET',
-                                ErrorScope.TOOLS,
-                                ErrorType.FORBIDDEN,
-                                `Blocked request to private address: ${record.address}`
-                            ),
-                            '',
-                            0
+                        emitError(
+                            toErrnoException(
+                                new DextoRuntimeError(
+                                    'HTTP_REQUEST_UNSAFE_TARGET',
+                                    ErrorScope.TOOLS,
+                                    ErrorType.FORBIDDEN,
+                                    `Blocked request to private address: ${record.address}`
+                                )
+                            )
                         );
                         return;
                     }
                 }
 
-                const selected = records[0]!;
-                callback(
-                    null,
-                    selected.address,
-                    selected.family ?? (isIP(selected.address) === 6 ? 6 : 4)
-                );
+                // undici passes { all: true } and expects the dns.lookup(all:true) callback signature.
+                if (options.all) {
+                    try {
+                        (callback as (err: null, addresses: LookupAddress[]) => void)(
+                            null,
+                            records
+                        );
+                    } catch {
+                        // Swallow callback exceptions to avoid unhandled rejection.
+                    }
+                    return;
+                }
+
+                const selected = records[0];
+                if (!selected) {
+                    emitError(
+                        toErrnoException(
+                            new DextoRuntimeError(
+                                'HTTP_REQUEST_DNS_FAILED',
+                                ErrorScope.TOOLS,
+                                ErrorType.THIRD_PARTY,
+                                `Failed to resolve hostname: ${hostname}`
+                            )
+                        )
+                    );
+                    return;
+                }
+
+                try {
+                    (callback as (err: null, address: string, family: number) => void)(
+                        null,
+                        selected.address,
+                        selected.family ?? (isIP(selected.address) === 6 ? 6 : 4)
+                    );
+                } catch {
+                    // Swallow callback exceptions to avoid unhandled rejection.
+                }
             } catch (error) {
                 const err =
                     error instanceof DextoRuntimeError
@@ -185,10 +258,15 @@ function createSafeDispatcher(): Dispatcher {
                               ErrorType.THIRD_PARTY,
                               `Failed to resolve hostname: ${hostname}`
                           );
-                callback(err, '', 0);
+
+                emitError(toErrnoException(err));
             }
         })();
     };
+}
+
+function createSafeDispatcher(): Dispatcher {
+    const lookup = createSafeLookup();
 
     return new Agent({ connect: { lookup } });
 }
@@ -282,10 +360,16 @@ async function readResponseTextWithLimit(response: Response): Promise<string> {
 export function createHttpRequestTool(): Tool<typeof HttpRequestInputSchema> {
     return defineTool({
         id: 'http_request',
-        displayName: 'Fetch',
         description:
             'Make a direct HTTP request using fetch. Supports method, headers, query params, JSON bodies, and timeouts. Returns status, headers, raw body text, and parsed JSON when available.',
         inputSchema: HttpRequestInputSchema,
+        presentation: {
+            describeHeader: (input) =>
+                createLocalToolCallHeader({
+                    title: 'Fetch',
+                    argsText: truncateForHeader(input.url, 140),
+                }),
+        },
         async execute(input, _context: ToolExecutionContext) {
             const { url, method, headers, query, body, timeoutMs } = input;
 

@@ -25,8 +25,10 @@ export interface PromptDefinition {
     /** Show in slash command menu (false = hidden but auto-invocable by LLM) */
     userInvocable?: boolean | undefined;
     // Per-prompt overrides (Phase 2)
-    /** Tools allowed when this prompt is active (overrides global policies) */
+    /** Tools to auto-approve when this prompt is active (additive) */
     allowedTools?: string[] | undefined;
+    /** Toolkits to load when this prompt is invoked */
+    toolkits?: string[] | undefined;
     /** Model to use when this prompt is invoked */
     model?: string | undefined;
     /** Execution context: 'inline' runs in current session, 'fork' spawns isolated subagent */
@@ -89,8 +91,10 @@ export interface ResolvedPromptResult {
     text: string;
     /** Resource URIs referenced by the prompt */
     resources: string[];
-    /** Tools allowed when this prompt is active (overrides global policies) */
+    /** Tools to auto-approve when this prompt is active (additive) */
     allowedTools?: string[] | undefined;
+    /** Toolkits to load when this prompt is invoked */
+    toolkits?: string[] | undefined;
     /** Model to use when this prompt is invoked */
     model?: string | undefined;
     /** Execution context: 'inline' runs in current session, 'fork' spawns isolated subagent */

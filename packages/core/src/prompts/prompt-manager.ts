@@ -114,6 +114,7 @@ export class PromptManager {
             }),
             ...(info.userInvocable !== undefined && { userInvocable: info.userInvocable }),
             ...(info.allowedTools !== undefined && { allowedTools: info.allowedTools }),
+            ...(info.toolkits !== undefined && { toolkits: info.toolkits }),
             ...(info.model !== undefined && { model: info.model }),
             ...(info.context !== undefined && { context: info.context }),
             ...(info.agent !== undefined && { agent: info.agent }),
@@ -310,6 +311,7 @@ export class PromptManager {
             resources: flattened.resourceUris,
             // Include per-prompt overrides from prompt definition
             ...(promptDef?.allowedTools && { allowedTools: promptDef.allowedTools }),
+            ...(promptDef?.toolkits && { toolkits: promptDef.toolkits }),
             ...(promptDef?.model && { model: promptDef.model }),
             ...(promptDef?.context && { context: promptDef.context }),
             ...(promptDef?.agent && { agent: promptDef.agent }),

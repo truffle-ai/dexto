@@ -106,13 +106,126 @@ export interface ToolExecutionContext extends ToolExecutionContextBase {
 export interface ToolExecutionResult {
     /** The actual result data from tool execution */
     result: unknown;
-    /** Optional display name for the tool (UI convenience) */
-    toolDisplayName?: string;
+    /** Optional UI-agnostic presentation snapshot for this call/result */
+    presentationSnapshot?: ToolPresentationSnapshotV1;
     /** Whether this tool required user approval before execution */
     requireApproval?: boolean;
     /** The approval status (only present if requireApproval is true) */
     approvalStatus?: 'approved' | 'rejected';
 }
+
+// =========================================================================
+// PRESENTATION SNAPSHOT (UI-AGNOSTIC)
+// =========================================================================
+
+/**
+ * UI-agnostic, runtime-computed presentation snapshot for tool calls/approvals/results.
+ *
+ * This is intended to decouple UIs (CLI/WebUI) from tool-specific heuristics (toolName parsing,
+ * hardcoded argument omission, etc.). It must remain:
+ * - JSON-serializable (plain objects/arrays/strings/numbers/booleans/null)
+ * - Optional everywhere (UIs MUST fall back to generic defaults when absent)
+ * - Forward-compatible (UIs MUST ignore unknown fields)
+ *
+ * SECURITY: Do not include secrets (tokens, full file contents, credentials). Prefer previews via
+ * {@link ToolDisplayData} for large content and rely on UIs to render those previews.
+ */
+export type ToolPresentationSnapshotV1 = {
+    version: 1;
+
+    /** Optional source information (prevents UIs from parsing tool ids like `mcp--server--tool`). */
+    source?: {
+        type: 'local' | 'mcp';
+        mcpServerName?: string;
+    };
+
+    /** Optional one-line identity of the call (used for headers/timelines). */
+    header?: {
+        title?: string;
+        /**
+         * Pre-formatted one-line call detail shown in parentheses.
+         * Example: `Read(/path/to/file.ts)` where argsText is `/path/to/file.ts`.
+         */
+        argsText?: string;
+    };
+
+    /** Compact semantic tags. Use sparingly to avoid UI noise. */
+    chips?: Array<{
+        kind: 'neutral' | 'info' | 'warning' | 'danger' | 'success';
+        text: string;
+    }>;
+
+    /** Human-facing argument presentation. Prefer `display` over leaking raw values. */
+    args?: {
+        summary?: Array<{
+            label: string;
+            display: string;
+            kind?: 'path' | 'command' | 'url' | 'text' | 'json';
+            sensitive?: boolean;
+        }>;
+
+        groups?: Array<{
+            id: string;
+            label: string;
+            collapsedByDefault?: boolean;
+            items: Array<{
+                label: string;
+                display: string;
+                kind?: 'path' | 'command' | 'url' | 'text' | 'json';
+                sensitive?: boolean;
+            }>;
+        }>;
+    };
+
+    /** Optional capabilities that UIs may use to enable modes without toolName branching. */
+    capabilities?: string[];
+
+    /** Optional approval UX hints. If absent, UIs use their existing generic approval flows. */
+    approval?: {
+        actions?: Array<
+            | {
+                  id: string;
+                  label: string;
+                  kind?: 'primary' | 'secondary' | 'danger';
+                  responseData?: Record<string, unknown>;
+                  uiEffects?: UiEffect[];
+              }
+            | {
+                  id: string;
+                  label: string;
+                  kind?: 'danger';
+                  denyWithFeedback?: {
+                      placeholder?: string;
+                      messageTemplate?: string;
+                  };
+              }
+        >;
+    };
+
+    /** Optional post-result presentation and UI effects. */
+    result?: {
+        summaryText?: string;
+        uiEffects?: UiEffect[];
+    };
+};
+
+/**
+ * Optional, UI-local side effects driven by tool approvals/results.
+ *
+ * UIs MAY ignore these. They are intended to replace toolName-based UI logic (plan mode, accept
+ * edits mode, etc.) with declarative data.
+ */
+export type UiEffect =
+    | {
+          type: 'setFlag';
+          flag: 'autoApproveEdits' | 'planModeActive' | 'planModeInitialized';
+          value: boolean;
+      }
+    | {
+          type: 'toast';
+          kind: 'info' | 'warning' | 'success' | 'error';
+          message: string;
+      };
 
 // ============================================================================
 // CORE TOOL INTERFACES
@@ -125,12 +238,6 @@ export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
     /** Unique identifier for the tool */
     id: string;
 
-    /**
-     * Short, user-facing name for this tool (UI convenience).
-     * Defaults to a title-cased version of {@link id} when omitted.
-     */
-    displayName?: string | undefined;
-
     /** Human-readable description of what the tool does */
     description: string;
 
@@ -141,14 +248,14 @@ export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
     execute(input: z.output<TSchema>, context: ToolExecutionContext): Promise<unknown> | unknown;
 
     /**
-     * Optional preview generator for approval UI.
-     * Called before requesting user approval to generate display data (e.g., diff preview).
-     * Returns null if no preview is available.
+     * Optional grouped approval-related behavior.
      */
-    generatePreview?(
-        input: z.output<TSchema>,
-        context: ToolExecutionContext
-    ): Promise<ToolDisplayData | null>;
+    approval?: ToolApproval<TSchema> | undefined;
+
+    /**
+     * Optional grouped UI/presentation-related behavior.
+     */
+    presentation?: ToolPresentation<TSchema> | undefined;
 
     /**
      * Optional aliases for this tool id.
@@ -159,74 +266,91 @@ export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
      */
     aliases?: string[] | undefined;
 
-    /**
-     * Optional pattern key generator for approval memory.
-     *
-     * If provided, ToolManager will:
-     * - Skip confirmation when the pattern key is covered by previously approved patterns.
-     * - Offer suggested patterns (if {@link suggestApprovalPatterns} is provided) in the approval UI.
-     *
-     * Return null to disable pattern approvals for the given input (e.g. dangerous commands).
-     */
-    getApprovalPatternKey?(input: z.output<TSchema>): string | null;
+    // NOTE: Legacy top-level approval/presentation hooks were removed.
+    // All approval and UI behavior must be expressed via `tool.approval` and `tool.presentation`.
+}
 
-    /**
-     * Optional pattern suggestions for the approval UI.
-     *
-     * Returned patterns are shown as quick "remember pattern" options.
-     */
-    suggestApprovalPatterns?(input: z.output<TSchema>): string[];
-
-    /**
-     * Optional custom approval override.
-     * If present and returns non-null, this approval request is used instead of
-     * the default tool confirmation. Allows tools to request specialized approval
-     * flows (e.g., directory access approval for file tools).
-     *
-     * @param input The validated input arguments for the tool
-     * @returns ApprovalRequestDetails for custom approval, or null to use default tool confirmation
-     *
-     * @example
-     * ```typescript
-     * // File tool requesting directory access approval for external paths
-     * getApprovalOverride: async (input) => {
-     *   const filePath = (input as {file_path: string}).file_path;
-     *   if (!await isPathWithinAllowed(filePath)) {
-     *     return {
-     *       type: ApprovalType.DIRECTORY_ACCESS,
-     *       metadata: { path: filePath, operation: 'read', ... }
-     *     };
-     *   }
-     *   return null; // Use default tool confirmation
-     * }
-     * ```
-     */
-    getApprovalOverride?(
+export interface ToolApproval<TSchema extends ZodTypeAny = ZodTypeAny> {
+    override?(
         input: z.output<TSchema>,
         context: ToolExecutionContext
     ): Promise<ApprovalRequestDetails | null> | ApprovalRequestDetails | null;
 
-    /**
-     * Optional callback invoked when custom approval is granted.
-     * Allows tools to handle approval responses (e.g., remember approved directories).
-     * Only called when getApprovalOverride returned non-null and approval was granted.
-     *
-     * @param response The approval response from ApprovalManager
-     *
-     * @example
-     * ```typescript
-     * onApprovalGranted: (response) => {
-     *   if (response.data?.rememberDirectory) {
-     *     directoryApproval.addApproved(parentDir, 'session');
-     *   }
-     * }
-     * ```
-     */
-    onApprovalGranted?(
+    onGranted?(
         response: ApprovalResponse,
         context: ToolExecutionContext,
         approvalRequest: ApprovalRequestDetails
-    ): void;
+    ): Promise<void> | void;
+
+    patternKey?(input: z.output<TSchema>): string | null;
+
+    suggestPatterns?(input: z.output<TSchema>): string[];
+}
+
+export interface ToolPresentation<TSchema extends ZodTypeAny = ZodTypeAny> {
+    /**
+     * Optional rich preview used in approval prompts.
+     *
+     * CLI example:
+     * - `edit_file` / `write_file`: shows a diff preview
+     * - `bash_exec`: shows a shell command preview
+     * - `plan_review`: shows the plan as a file preview
+     */
+    preview?(
+        input: z.output<TSchema>,
+        context: ToolExecutionContext
+    ): Promise<ToolDisplayData | null> | ToolDisplayData | null;
+
+    /**
+     * Describe the one-line tool call header for timelines and approval prompts.
+     *
+     * CLI example:
+     * - Tool message header line: `Read(src/app.ts)`
+     * - Here: header.title = "Read", header.argsText = "src/app.ts"
+     */
+    describeHeader?(
+        input: z.output<TSchema>,
+        context: ToolExecutionContext
+    ):
+        | Promise<ToolPresentationSnapshotV1['header'] | null>
+        | ToolPresentationSnapshotV1['header']
+        | null;
+
+    /**
+     * Describe structured argument presentation for this tool call.
+     *
+     * Not currently rendered by the Ink CLI, but intended for future "expanded transcript"
+     * views (e.g. Ctrl+O to inspect call details) and WebUI.
+     *
+     * Example (expanded details):
+     * - label: "method", display: "POST"
+     * - label: "timeout", display: "30s"
+     */
+    describeArgs?(
+        input: z.output<TSchema>,
+        context: ToolExecutionContext
+    ):
+        | Promise<ToolPresentationSnapshotV1['args'] | null>
+        | ToolPresentationSnapshotV1['args']
+        | null;
+
+    /**
+     * Describe a short post-execution summary.
+     *
+     * CLI example:
+     * - Tool result preview line (when supported): "Wrote 3 files" or "Request failed: 401"
+     *
+     * Note: This does not change the tool's actual returned data; it only affects optional
+     * presentation metadata.
+     */
+    describeResult?(
+        result: unknown,
+        input: z.output<TSchema>,
+        context: ToolExecutionContext
+    ):
+        | Promise<ToolPresentationSnapshotV1['result'] | null>
+        | ToolPresentationSnapshotV1['result']
+        | null;
 }
 
 /**

@@ -1,6 +1,6 @@
 {
   "name": "dexto",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "type": "module",
   "bin": {
     "dexto": "./dist/index.js"
@@ -16,6 +16,7 @@
     "@dexto/registry": "workspace:*",
     "@dexto/server": "workspace:*",
     "@dexto/storage": "workspace:*",
+    "@dexto/tui": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.25.2",
     "@opentelemetry/instrumentation-http": "^0.210.0",
     "@opentelemetry/instrumentation-undici": "^0.20.0",
@@ -29,41 +30,29 @@
     "better-sqlite3": "^11.10.0",
     "boxen": "^7.1.1",
     "chalk": "^5.6.0",
-    "cli-highlight": "^2.1.11",
     "commander": "^11.1.0",
-    "diff": "^8.0.2",
     "dotenv": "^16.4.7",
     "fs-extra": "^11.3.0",
-    "hono": "^4.7.13",
-    "ink": "npm:@jrichman/ink@6.4.6",
-    "ink-spinner": "^5.0.0",
-    "ink-text-input": "^6.0.0",
+    "hono": "^4.11.10",
     "ioredis": "^5.7.0",
     "open": "^10.2.0",
     "pg": "^8.15.4",
     "posthog-node": "^4.2.1",
-    "react": "19.1.1",
-    "react-dom": "19.1.1",
-    "react-devtools-core": "^6.1.2",
-    "string-width": "^8.1.0",
-    "strip-ansi": "^7.1.2",
     "tsx": "^4.19.2",
-    "wrap-ansi": "^9.0.2",
     "ws": "^8.18.1",
     "yaml": "^2.7.1",
     "zod": "^3.25.0"
   },
-    "scripts": {
-      "build": "cross-env NODE_OPTIONS='--max-old-space-size=4096' tsc -p tsconfig.json && pnpm run copy-agents && pnpm run copy-assets",
-      "_comment_build": "TODO: (355) This is a known issue with MCP SDK >= 1.18.1 taking heap space, see if we can solve this without heap size hacks - https://github.com/truffle-ai/dexto/pull/355#discussion_r2412949424",
-      "copy-agents": "tsx scripts/copy-agents.ts",
-      "copy-assets": "tsx scripts/copy-assets.ts",
-      "start": "node dist/index.js",
-      "typecheck": "tsc -p tsconfig.typecheck.json --noEmit",
-      "lint": "eslint . --ext .ts"
-    },
+  "scripts": {
+    "build": "cross-env NODE_OPTIONS='--max-old-space-size=4096' tsc -p tsconfig.json && pnpm run copy-agents && pnpm run copy-assets",
+    "_comment_build": "TODO: (355) This is a known issue with MCP SDK >= 1.18.1 taking heap space, see if we can solve this without heap size hacks - https://github.com/truffle-ai/dexto/pull/355#discussion_r2412949424",
+    "copy-agents": "tsx scripts/copy-agents.ts",
+    "copy-assets": "tsx scripts/copy-assets.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.typecheck.json --noEmit",
+    "lint": "eslint . --ext .ts"
+  },
   "devDependencies": {
-    "@types/react": "^19.0.0",
     "@types/ws": "^8.5.11",
     "type-fest": "^4.26.1"
   },

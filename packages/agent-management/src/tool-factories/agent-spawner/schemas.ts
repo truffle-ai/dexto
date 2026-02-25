@@ -4,11 +4,15 @@
  * Zod schemas for the agent spawner tools factory configuration and inputs.
  */
 
+import type { ReasoningVariant } from '@dexto/core';
 import { z } from 'zod';
 
 // ============================================================================
 // Factory Configuration Schema
 // ============================================================================
+
+export const DEFAULT_SUB_AGENT_MAX_ITERATIONS = 100;
+export const DEFAULT_SUB_AGENT_REASONING_VARIANT: ReasoningVariant = 'disabled';
 
 /**
  * Configuration schema for the agent spawner tools factory.
@@ -26,13 +30,33 @@ export const AgentSpawnerConfigSchema = z
             .default(5)
             .describe('Maximum concurrent sub-agents'),
 
-        /** Default timeout for task execution in milliseconds (default: 300000 = 5 min) */
+        /** Default timeout for task execution in milliseconds (default: 3600000 = 1 hour) */
         defaultTimeout: z
             .number()
             .int()
+            .nonnegative()
+            .default(3_600_000)
+            .describe('Default task timeout in milliseconds (0 = no timeout)'),
+
+        subAgentMaxIterations: z
+            .number()
+            .int()
             .positive()
-            .default(300000)
-            .describe('Default task timeout in milliseconds'),
+            .default(DEFAULT_SUB_AGENT_MAX_ITERATIONS)
+            .describe(
+                'Max outer-loop tool-call iterations for spawned sub-agents. ' +
+                    'Acts as a safety cap to prevent runaway exploration.'
+            ),
+
+        subAgentReasoningVariant: z
+            .string()
+            .trim()
+            .min(1)
+            .default(DEFAULT_SUB_AGENT_REASONING_VARIANT)
+            .describe(
+                'Preferred reasoning variant for spawned sub-agents. ' +
+                    "Default is 'disabled'. If unsupported by the resolved model, Dexto falls back to the lowest available variant."
+            ),
 
         /** Whether spawning is enabled (default: true) */
         allowSpawning: z.boolean().default(true).describe('Whether agent spawning is enabled'),

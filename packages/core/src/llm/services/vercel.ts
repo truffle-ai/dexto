@@ -138,7 +138,7 @@ export class VercelLLMService {
                 temperature: this.config.temperature,
                 baseURL: this.config.baseURL,
                 // Provider-specific options
-                reasoningEffort: this.config.reasoningEffort,
+                reasoning: this.config.reasoning,
             },
             { provider: this.config.provider, model: this.getModelId() },
             this.logger,
@@ -212,7 +212,7 @@ export class VercelLLMService {
             const executor = this.createTurnExecutor(options?.signal);
 
             // Execute with streaming enabled
-            const contributorContext = { mcpManager: this.toolManager.getMcpManager() };
+            const contributorContext = await this.toolManager.buildContributorContext();
             const result = await executor.execute(contributorContext, true);
 
             return {

@@ -27,7 +27,7 @@ export interface HookResult {
     /** Partial modifications to apply to payload */
     modify?: Record<string, unknown>;
 
-    /** Should execution stop? When true, HookManager blocks execution. */
+    /** Should execution stop immediately? When true, HookManager aborts execution regardless of ok. */
     cancel?: boolean;
 
     /** User-facing message (shown when cancelled) */
@@ -159,26 +159,3 @@ export type Hook = {
     /** Called when agent shuts down (cleanup) */
     cleanup?(): Promise<void>;
 };
-
-/**
- * Hook configuration from YAML (custom hooks).
- *
- * Note: core is DI-first; most hosts should resolve hooks outside core.
- */
-export interface HookConfig {
-    name: string;
-    module: string;
-    enabled: boolean;
-    blocking: boolean;
-    priority: number;
-    config?: Record<string, unknown> | undefined;
-}
-
-/**
- * Loaded hook with its configuration.
- * Internal type used by HookManager.
- */
-export interface LoadedHook {
-    hook: Hook;
-    config: HookConfig;
-}

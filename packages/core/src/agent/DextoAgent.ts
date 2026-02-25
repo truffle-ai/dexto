@@ -14,8 +14,12 @@ import type { PromptsConfig } from '../prompts/schemas.js';
 import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
 import type { SessionMetadata } from '../session/index.js';
-import { AgentServices, type InitializeServicesOptions } from '../utils/service-initializer.js';
-import type { Logger } from '../logger/v2/types.js';
+import {
+    AgentServices,
+    type InitializeServicesOptions,
+    type ToolkitLoader,
+} from '../utils/service-initializer.js';
+import type { Logger, LogLevel } from '../logger/v2/types.js';
 import { Telemetry } from '../telemetry/telemetry.js';
 import { InstrumentClass } from '../telemetry/decorators.js';
 import { trace, context, propagation, type BaggageEntry } from '@opentelemetry/api';
@@ -206,9 +210,12 @@ export class DextoAgent {
 
     // Host overrides for service initialization (e.g. session logger factory)
     private readonly overrides: InitializeServicesOptions;
+    private readonly toolkitLoader: ToolkitLoader | undefined;
+    private readonly loadedToolkits: Set<string> = new Set();
+    private readonly loadingToolkits: Set<string> = new Set();
 
     // DI-provided local tools.
-    private readonly tools: Tool[];
+    private tools: Tool[];
     private readonly compactionStrategy: CompactionStrategy | null;
 
     // Logger instance for this agent (dependency injection)
@@ -293,6 +300,7 @@ export class DextoAgent {
         }
 
         this.overrides = overrides;
+        this.toolkitLoader = options.toolkitLoader;
 
         if (overrides.mcpAuthProviderFactory !== undefined) {
             this.mcpAuthProviderFactory = overrides.mcpAuthProviderFactory;
@@ -1531,6 +1539,33 @@ export class DextoAgent {
     }
 
     /**
+     * Sets the log level for this agent.
+     *
+     * Note: In some hosts (e.g. interactive CLI), session logs may be written by
+     * session-scoped file loggers rather than the base agent logger. When a sessionId
+     * is provided, this also updates the in-memory session logger so file logs reflect
+     * the new level immediately.
+     */
+    public async setLogLevel(level: LogLevel, options?: { sessionId?: string }): Promise<void> {
+        this.ensureStarted();
+
+        this.logger.setLevel(level);
+
+        const sessionId = options?.sessionId;
+        if (!sessionId) {
+            return;
+        }
+
+        const session = await this.sessionManager.getSession(sessionId, false);
+        if (!session) {
+            return;
+        }
+
+        session.logger.setLevel(level);
+        session.logger.debug(`Log level changed to '${level}'`);
+    }
+
+    /**
      * Ends a session by removing it from memory without deleting conversation history.
      * Used for cleanup, agent shutdown, and session expiry.
      * @param sessionId The session ID to end
@@ -1842,7 +1877,7 @@ export class DextoAgent {
 
         // Get full context estimate BEFORE compaction (includes system prompt, tools, messages)
         // This uses the same calculation as /context command for consistency
-        const contributorContext = { mcpManager: this.mcpManager };
+        const contributorContext = await this.toolManager.buildContributorContext();
         const tools = await llmService.getEnabledTools();
         const beforeEstimate = await contextManager.getContextTokenEstimate(
             contributorContext,
@@ -1983,7 +2018,7 @@ export class DextoAgent {
         const contextManager = session.getContextManager();
 
         // Get token estimate using ContextManager's method (single source of truth)
-        const contributorContext = { mcpManager: this.mcpManager };
+        const contributorContext = await this.toolManager.buildContributorContext();
         const llmService = session.getLLMService();
         const tools = await llmService.getEnabledTools();
 
@@ -2652,6 +2687,70 @@ export class DextoAgent {
     }
 
     /**
+     * Dynamically load toolkits (tool factory types) at runtime.
+     * Toolkits are resolved by the host-provided toolkitLoader and appended to the tool manager.
+     */
+    public async loadToolkits(
+        toolkits: string[]
+    ): Promise<{ loaded: string[]; skipped: string[] }> {
+        this.ensureStarted();
+        if (
+            !Array.isArray(toolkits) ||
+            toolkits.some((toolkit) => typeof toolkit !== 'string' || toolkit.trim() === '')
+        ) {
+            throw AgentError.apiValidationError('toolkits must be an array of non-empty strings');
+        }
+
+        const normalized = Array.from(new Set(toolkits.map((toolkit) => toolkit.trim())));
+
+        if (normalized.length === 0) {
+            return { loaded: [], skipped: [] };
+        }
+
+        if (!this.toolkitLoader) {
+            throw AgentError.initializationFailed('Toolkit loader not configured');
+        }
+
+        const toLoad = normalized.filter(
+            (toolkit) => !this.loadedToolkits.has(toolkit) && !this.loadingToolkits.has(toolkit)
+        );
+        const skipped = normalized.filter(
+            (toolkit) => this.loadedToolkits.has(toolkit) || this.loadingToolkits.has(toolkit)
+        );
+        if (toLoad.length === 0) {
+            return { loaded: [], skipped };
+        }
+
+        toLoad.forEach((toolkit) => {
+            this.loadingToolkits.add(toolkit);
+        });
+        let tools: Tool[];
+        try {
+            tools = await this.toolkitLoader(toLoad);
+        } finally {
+            toLoad.forEach((toolkit) => {
+                this.loadingToolkits.delete(toolkit);
+            });
+        }
+        const existingIds = new Set(this.tools.map((tool) => tool.id));
+        const newTools = tools.filter((tool) => !existingIds.has(tool.id));
+
+        if (newTools.length > 0) {
+            this.toolManager.addTools(newTools);
+            this.tools = [...this.tools, ...newTools];
+        }
+
+        for (const toolkit of toLoad) {
+            this.loadedToolkits.add(toolkit);
+        }
+
+        return {
+            loaded: toLoad,
+            skipped,
+        };
+    }
+
+    /**
      * Gets tools enabled for LLM context (applies session overrides + global preferences).
      */
     public async getEnabledTools(sessionId?: string): Promise<ToolSet> {
@@ -2948,9 +3047,7 @@ export class DextoAgent {
      */
     public async getSystemPrompt(): Promise<string> {
         this.ensureStarted();
-        const context = {
-            mcpManager: this.mcpManager,
-        };
+        const context = await this.toolManager.buildContributorContext();
         return await this.systemPromptManager.build(context);
     }
 

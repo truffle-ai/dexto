@@ -135,8 +135,12 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
                     textContent = msg.content;
                 } else if (Array.isArray(msg.content)) {
                     // Extract text from ContentPart array
-                    const textParts = msg.content
-                        .filter((part): part is TextPart => part.type === 'text')
+                    const textParts = (msg.content as unknown[])
+                        .filter((part: unknown): part is TextPart => {
+                            if (typeof part !== 'object' || part === null) return false;
+                            const maybe = part as { type?: unknown; text?: unknown };
+                            return maybe.type === 'text' && typeof maybe.text === 'string';
+                        })
                         .map((part) => part.text);
                     textContent = textParts.length > 0 ? textParts.join('\n') : null;
                 }
@@ -196,10 +200,6 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
         if (msg.role === 'tool') {
             const toolCallId = typeof msg.toolCallId === 'string' ? msg.toolCallId : undefined;
             const toolName = typeof msg.name === 'string' ? msg.name : 'unknown';
-            const toolDisplayName =
-                typeof (msg as any).toolDisplayName === 'string'
-                    ? ((msg as any).toolDisplayName as string)
-                    : undefined;
             const normalizedContent: Array<TextPart | ImagePart | FilePart> = Array.isArray(
                 msg.content
             )
@@ -244,7 +244,6 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
                     toolResult: sanitizedFromHistory,
                     toolResultMeta: sanitizedFromHistory.meta,
                     toolResultSuccess: sanitizedFromHistory.meta?.success,
-                    ...(toolDisplayName !== undefined && { toolDisplayName }),
                     ...(requireApproval !== undefined && { requireApproval }),
                     ...(approvalStatus !== undefined && { approvalStatus }),
                 };
@@ -257,7 +256,6 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
                     createdAt,
                     sessionId,
                     toolName,
-                    ...(toolDisplayName !== undefined && { toolDisplayName }),
                     toolCallId,
                     toolResult: sanitizedFromHistory,
                     toolResultMeta: sanitizedFromHistory.meta,
@@ -546,7 +544,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                         param: { sessionId: currentSessionId },
                         json: { clearQueue: true },
                     })
-                    .catch((e) => console.warn('Failed to cancel busy session:', e));
+                    .catch((e: unknown) => console.warn('Failed to cancel busy session:', e));
             }
         }
     }, [sessionHistoryData, currentSessionId]);

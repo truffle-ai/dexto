@@ -1,39 +1,39 @@
 {
-  "name": "@dexto/orchestration",
-  "version": "1.6.0",
-  "description": "Agent orchestration layer for background task management, event-driven completion handling, and async workflows",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "scripts": {
-    "build": "tsup",
-    "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
-  },
-  "keywords": [
-    "dexto",
-    "orchestration",
-    "background-tasks",
-    "async",
-    "multi-agent",
-    "workflow"
-  ],
-  "dependencies": {
-    "@dexto/core": "workspace:*",
-    "zod": "^3.25.0"
-  },
-  "devDependencies": {
-    "tsup": "^8.0.0",
-    "typescript": "^5.3.3"
-  },
-  "files": [
-    "dist",
-    "README.md"
-  ]
+    "name": "@dexto/orchestration",
+    "version": "1.6.1",
+    "description": "Agent orchestration layer for background task management, event-driven completion handling, and async workflows",
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsup && node ../../scripts/clean-tsbuildinfo.mjs && tsc -b tsconfig.json --emitDeclarationOnly",
+        "typecheck": "tsc --noEmit",
+        "clean": "rm -rf dist"
+    },
+    "keywords": [
+        "dexto",
+        "orchestration",
+        "background-tasks",
+        "async",
+        "multi-agent",
+        "workflow"
+    ],
+    "dependencies": {
+        "@dexto/core": "workspace:*",
+        "zod": "^3.25.0"
+    },
+    "devDependencies": {
+        "tsup": "^8.0.0",
+        "typescript": "^5.3.3"
+    },
+    "files": [
+        "dist",
+        "README.md"
+    ]
 }

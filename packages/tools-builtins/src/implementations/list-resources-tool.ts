@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ToolError, defineTool } from '@dexto/core';
+import { ToolError, createLocalToolCallHeader, defineTool } from '@dexto/core';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 
 const ListResourcesInputSchema = z
@@ -44,12 +44,24 @@ interface ResourceInfo {
 export function createListResourcesTool(): Tool<typeof ListResourcesInputSchema> {
     return defineTool({
         id: 'list_resources',
-        displayName: 'List Resources',
         description:
             'List available resources (images, files, etc.). Returns resource references ' +
             'that can be used with get_resource to obtain shareable URLs or metadata. ' +
             'Filter by source (tool/user) or kind (image/audio/video/binary).',
         inputSchema: ListResourcesInputSchema,
+        presentation: {
+            describeHeader: (input) => {
+                const parts: string[] = [];
+                if (input.source && input.source !== 'all') parts.push(`source=${input.source}`);
+                if (input.kind && input.kind !== 'all') parts.push(`kind=${input.kind}`);
+                if (typeof input.limit === 'number') parts.push(`limit=${input.limit}`);
+
+                return createLocalToolCallHeader({
+                    title: 'List Resources',
+                    ...(parts.length > 0 ? { argsText: parts.join(', ') } : {}),
+                });
+            },
+        },
         async execute(input, context: ToolExecutionContext) {
             const { source, kind, limit } = input;
 

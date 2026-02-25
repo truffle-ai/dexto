@@ -7,6 +7,7 @@
 
 // Main factory export (image-compatible)
 export { processToolsFactory } from './tool-factory.js';
+export { ProcessToolsConfigSchema, type ProcessToolsConfig } from './tool-factory-config.js';
 
 // Service and utilities (for advanced use cases)
 export { ProcessService } from './process-service.js';

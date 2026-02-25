@@ -70,7 +70,7 @@ export function withAnalytics<A extends unknown[], R = unknown>(
                               };
                               capture('dexto_cli_command', payload);
                           } catch {
-                              // Timeout instrumentation is best-effort.
+                              // Timeout instrumentation must never throw.
                           }
                       }, timeoutMs);
                       // Prevent timeout from keeping process alive

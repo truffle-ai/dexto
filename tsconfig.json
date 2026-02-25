@@ -40,6 +40,7 @@
     { "path": "./packages/tools-plan" },
     { "path": "./packages/tools-process" },
     { "path": "./packages/tools-todo" },
+    { "path": "./packages/tui" },
     { "path": "./packages/webui" }
   ]
 }

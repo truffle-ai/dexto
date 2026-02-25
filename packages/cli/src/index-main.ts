@@ -193,6 +193,10 @@ program
     .option('--skip-setup', 'Skip global setup validation (useful for MCP mode, automation)')
     .option('-m, --model <model>', 'Specify the LLM model to use')
     .option('--auto-approve', 'Always approve tool executions without confirmation prompts')
+    .option(
+        '--bypass-permissions',
+        'Start the interactive CLI in bypass permissions mode (auto-approve approval prompts)'
+    )
     .option('--no-elicitation', 'Disable elicitation (agent cannot prompt user for input)')
     .option('-c, --continue', 'Continue most recent session (CLI mode)')
     .option('-r, --resume <sessionId>', 'Resume a session by ID (CLI mode)')
@@ -1202,6 +1206,8 @@ program
             '  dexto -a agents/custom.yml       Short form with relative path\n\n' +
             'Tool Confirmation:\n' +
             '  dexto --auto-approve     Auto-approve all tool executions\n\n' +
+            'Ink CLI Modes:\n' +
+            '  dexto --bypass-permissions  Start in bypass permissions mode (skip approval prompts)\n\n' +
             'Advanced Modes:\n' +
             '  dexto --mode server      Run as API server\n' +
             '  dexto --mode mcp         Run as MCP server\n\n' +
@@ -1690,7 +1696,10 @@ program
                         toDextoAgentOptions({
                             config: validatedConfig,
                             services,
-                            overrides: { sessionLoggerFactory, mcpAuthProviderFactory },
+                            overrides: {
+                                sessionLoggerFactory,
+                                mcpAuthProviderFactory,
+                            },
                         })
                     );
 
@@ -1847,13 +1856,61 @@ program
 
                         let inkError: unknown = undefined;
                         try {
-                            const { startInkCliRefactored } = await import(
-                                './cli/ink-cli/InkCLIRefactored.js'
-                            );
+                            const [
+                                { startInkCliRefactored, setTuiRuntimeServices },
+                                { registerGracefulShutdown },
+                                { applyLayeredEnvironmentLoading },
+                                {
+                                    getProviderDisplayName,
+                                    isValidApiKeyFormat,
+                                    getProviderInstructions,
+                                },
+                                {
+                                    beginOAuthLogin,
+                                    DEFAULT_OAUTH_CONFIG,
+                                    ensureDextoApiKeyForAuthToken,
+                                    loadAuth,
+                                    storeAuth,
+                                    removeAuth,
+                                    removeDextoApiKeyFromEnv,
+                                },
+                                { isUsingDextoCredits },
+                                { canUseDextoProvider },
+                            ] = await Promise.all([
+                                import('@dexto/tui'),
+                                import('./utils/graceful-shutdown.js'),
+                                import('./utils/env.js'),
+                                import('./cli/utils/provider-setup.js'),
+                                import('./cli/auth/index.js'),
+                                import('./config/effective-llm.js'),
+                                import('./cli/utils/dexto-setup.js'),
+                            ]);
+
+                            setTuiRuntimeServices({
+                                registerGracefulShutdown,
+                                capture: (event, properties) => {
+                                    capture(event as never, properties as never);
+                                },
+                                applyLayeredEnvironmentLoading,
+                                getProviderDisplayName,
+                                isValidApiKeyFormat,
+                                getProviderInstructions,
+                                beginOAuthLogin,
+                                defaultOAuthConfig: DEFAULT_OAUTH_CONFIG,
+                                ensureDextoApiKeyForAuthToken,
+                                loadAuth,
+                                storeAuth,
+                                removeAuth,
+                                removeDextoApiKeyFromEnv,
+                                isUsingDextoCredits,
+                                canUseDextoProvider,
+                            });
+
                             await startInkCliRefactored(agent, cliSessionId, {
                                 updateInfo: cliUpdateInfo ?? undefined,
                                 configFilePath: resolvedPath,
                                 ...(initialPrompt && { initialPrompt }),
+                                bypassPermissions: opts.bypassPermissions,
                             });
                         } catch (error) {
                             inkError = error;

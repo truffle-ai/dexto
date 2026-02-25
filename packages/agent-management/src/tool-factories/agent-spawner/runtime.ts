@@ -11,20 +11,38 @@
  * - Always cleans up agents after task completion (synchronous model)
  */
 
+import { randomUUID } from 'crypto';
 import type { AgentConfig } from '@dexto/agent-config';
 import type { DextoAgent, Logger, TaskForker } from '@dexto/core';
-import { DextoRuntimeError, ErrorType } from '@dexto/core';
+import {
+    DextoRuntimeError,
+    ErrorType,
+    getReasoningProfile,
+    supportsReasoningVariant,
+} from '@dexto/core';
 import { AgentRuntime } from '../../runtime/AgentRuntime.js';
 import { createDelegatingApprovalHandler } from '../../runtime/approval-delegation.js';
 import { loadAgentConfig } from '../../config/loader.js';
 import { getAgentRegistry } from '../../registry/registry.js';
 import type { AgentRegistryEntry } from '../../registry/types.js';
 import { deriveDisplayName } from '../../registry/types.js';
-import { resolveBundledScript } from '../../utils/path.js';
+import { getDextoPath, resolveBundledScript } from '../../utils/path.js';
 import * as path from 'path';
-import type { AgentSpawnerConfig } from './schemas.js';
+import { type AgentSpawnerConfig } from './schemas.js';
 import type { SpawnAgentOutput } from './types.js';
 import { resolveSubAgentLLM } from './llm-resolution.js';
+
+const REASONING_VARIANT_FALLBACK_ORDER = [
+    'disabled',
+    'none',
+    'minimal',
+    'low',
+    'enabled',
+    'medium',
+    'high',
+    'max',
+    'xhigh',
+] as const;
 
 export class AgentSpawnerRuntime implements TaskForker {
     private runtime: AgentRuntime;
@@ -32,6 +50,59 @@ export class AgentSpawnerRuntime implements TaskForker {
     private parentAgent: DextoAgent;
     private config: AgentSpawnerConfig;
     private logger: Logger;
+
+    private selectLowestReasoningVariant(
+        provider: AgentConfig['llm']['provider'],
+        model: AgentConfig['llm']['model'],
+        preferredVariant: string
+    ): string | undefined {
+        const profile = getReasoningProfile(provider, model);
+        if (!profile.capable || profile.supportedVariants.length === 0) {
+            return undefined;
+        }
+
+        if (supportsReasoningVariant(profile, preferredVariant)) {
+            return preferredVariant;
+        }
+
+        for (const variant of REASONING_VARIANT_FALLBACK_ORDER) {
+            if (supportsReasoningVariant(profile, variant)) {
+                return variant;
+            }
+        }
+
+        return profile.defaultVariant ?? profile.supportedVariants[0];
+    }
+
+    private applySubAgentLlmPolicy(llm: AgentConfig['llm']): AgentConfig['llm'] {
+        const maxIterationsCap = this.config.subAgentMaxIterations;
+        const preferredReasoningVariant = this.config.subAgentReasoningVariant;
+        const reasoningVariant = this.selectLowestReasoningVariant(
+            llm.provider,
+            llm.model,
+            preferredReasoningVariant
+        );
+
+        const existingMaxIterations = llm.maxIterations;
+        const cappedMaxIterations =
+            typeof existingMaxIterations === 'number'
+                ? Math.min(existingMaxIterations, maxIterationsCap)
+                : maxIterationsCap;
+
+        const adjusted = {
+            ...llm,
+            maxIterations: cappedMaxIterations,
+            ...(reasoningVariant !== undefined
+                ? { reasoning: { variant: reasoningVariant } }
+                : { reasoning: undefined }),
+        };
+
+        this.logger.debug(
+            `[AgentSpawnerRuntime] Applied sub-agent LLM policy: maxIterations=${adjusted.maxIterations}, preferredReasoning=${preferredReasoningVariant}, selectedReasoning=${reasoningVariant ?? 'none'}`
+        );
+
+        return adjusted;
+    }
 
     private resolveBundledAgentConfig(agentId: string): string | null {
         const baseDir = 'agents';
@@ -236,6 +307,11 @@ export class AgentSpawnerRuntime implements TaskForker {
 
         // Helper to emit progress event
         const emitProgress = (tool: string, args?: Record<string, unknown>) => {
+            const subAgentLogFilePath = this.getSubAgentLogFilePath({
+                runtimeAgentId: subAgentHandle.agentId,
+                sessionId,
+            });
+
             this.parentAgent.emit('service:event', {
                 service: 'agent-spawner',
                 event: 'progress',
@@ -244,6 +320,8 @@ export class AgentSpawnerRuntime implements TaskForker {
                 data: {
                     task: input.task,
                     agentId: input.agentId ?? 'default',
+                    runtimeAgentId: subAgentHandle.agentId,
+                    ...(subAgentLogFilePath ? { subAgentLogFilePath } : {}),
                     toolsCalled: toolCount,
                     currentTool: tool,
                     currentArgs: args,
@@ -309,6 +387,59 @@ export class AgentSpawnerRuntime implements TaskForker {
     }
 
     /**
+     * Ensure spawned agent inherits the parent's workspace context.
+     */
+    private async applyParentWorkspace(agent: DextoAgent): Promise<void> {
+        let parentWorkspace: Awaited<ReturnType<DextoAgent['getWorkspace']>>;
+        try {
+            parentWorkspace = await this.parentAgent.getWorkspace();
+        } catch (error) {
+            this.logger.warn(
+                `Failed to read parent workspace for sub-agent: ${error instanceof Error ? error.message : String(error)}`
+            );
+            return;
+        }
+
+        if (!parentWorkspace?.path) {
+            return;
+        }
+
+        try {
+            await agent.setWorkspace({
+                path: parentWorkspace.path,
+                ...(parentWorkspace.name ? { name: parentWorkspace.name } : {}),
+            });
+        } catch (error) {
+            this.logger.warn(
+                `Failed to apply parent workspace to sub-agent: ${error instanceof Error ? error.message : String(error)}`
+            );
+        }
+    }
+
+    private getSubAgentLogFilePath(options: {
+        runtimeAgentId: string;
+        sessionId?: string;
+    }): string | null {
+        const { runtimeAgentId, sessionId } = options;
+
+        if (!sessionId) {
+            return null;
+        }
+
+        const safeSessionId = sessionId.replace(/[^a-zA-Z0-9._-]/g, '_');
+        // Keep sub-agent logs next to the parent session log for easy discovery.
+        // Parent session log: logs/<parentId>/<safeSessionId>.log
+        // Sub-agent log:      logs/<parentId>/<safeSessionId>.subagent.<runtimeAgentId>.log
+        // TODO(logging): If we ever want sub-agent logs in the *same* parent session log file,
+        // we should share a single FileTransport instance between parent session + sub-agents.
+        // Separate FileTransport instances writing to the same file can interleave/corrupt JSON lines.
+        return getDextoPath(
+            'logs',
+            path.join(this.parentId, `${safeSessionId}.subagent.${runtimeAgentId}.log`)
+        );
+    }
+
+    /**
      * Check if an error is LLM-related (API errors, credit issues, model not found, etc.)
      */
     private isLLMError(error: unknown): boolean {
@@ -354,7 +485,11 @@ export class AgentSpawnerRuntime implements TaskForker {
                 agentId?: string;
                 inheritLlm?: boolean;
                 autoApprove?: boolean;
-            } = {};
+                runtimeAgentId: string;
+            } = {
+                // Pre-generate the runtime agentId so we can deterministically route logs.
+                runtimeAgentId: `agent-${randomUUID().slice(0, 8)}`,
+            };
 
             if (input.agentId !== undefined) {
                 buildOptions.agentId = input.agentId;
@@ -371,6 +506,7 @@ export class AgentSpawnerRuntime implements TaskForker {
             try {
                 // Spawn the agent
                 handle = await this.runtime.spawnAgent({
+                    agentId: buildOptions.runtimeAgentId,
                     agentConfig: subAgentConfig,
                     ephemeral: true,
                     group: this.parentId,
@@ -385,6 +521,7 @@ export class AgentSpawnerRuntime implements TaskForker {
                             const delegatingHandler = createDelegatingApprovalHandler(
                                 this.parentAgent.services.approvalManager,
                                 agent.config.agentId ?? 'unknown',
+                                sessionId,
                                 this.logger
                             );
                             agent.setApprovalHandler(delegatingHandler);
@@ -392,6 +529,7 @@ export class AgentSpawnerRuntime implements TaskForker {
                     },
                 });
                 spawnedAgentId = handle.agentId;
+                await this.applyParentWorkspace(handle.agent);
             } catch (spawnError) {
                 // Check if it's an LLM-related error (model not supported, API key missing, etc.)
                 const isLlmError = this.isLLMError(spawnError);
@@ -415,6 +553,7 @@ export class AgentSpawnerRuntime implements TaskForker {
                     subAgentConfig = await this.buildSubAgentConfig(buildOptions, sessionId);
 
                     handle = await this.runtime.spawnAgent({
+                        agentId: buildOptions.runtimeAgentId,
                         agentConfig: subAgentConfig,
                         ephemeral: true,
                         group: this.parentId,
@@ -431,6 +570,7 @@ export class AgentSpawnerRuntime implements TaskForker {
                                 const delegatingHandler = createDelegatingApprovalHandler(
                                     this.parentAgent.services.approvalManager,
                                     agent.config.agentId ?? 'unknown',
+                                    sessionId,
                                     this.logger
                                 );
                                 agent.setApprovalHandler(delegatingHandler);
@@ -438,6 +578,7 @@ export class AgentSpawnerRuntime implements TaskForker {
                         },
                     });
                     spawnedAgentId = handle.agentId;
+                    await this.applyParentWorkspace(handle.agent);
                 } else {
                     // Not an LLM error or already used fallback or no agentId
                     throw spawnError;
@@ -447,6 +588,28 @@ export class AgentSpawnerRuntime implements TaskForker {
             this.logger.info(
                 `Spawned sub-agent '${spawnedAgentId}' for task: ${input.task}${autoApprove ? ' (auto-approve)' : ''}${llmMode === 'parent' ? ' (using parent LLM)' : ''}`
             );
+
+            const subAgentLogFilePath = this.getSubAgentLogFilePath(
+                sessionId
+                    ? { runtimeAgentId: buildOptions.runtimeAgentId, sessionId }
+                    : { runtimeAgentId: buildOptions.runtimeAgentId }
+            );
+            if (subAgentLogFilePath) {
+                this.logger.info(`Sub-agent logs: ${subAgentLogFilePath}`);
+            }
+
+            // Always write a pointer into the parent session log (the file users tail in the CLI).
+            if (sessionId) {
+                const parentSession = await this.parentAgent.getSession(sessionId);
+                if (parentSession) {
+                    parentSession.logger.info('Sub-agent spawned', {
+                        runtimeAgentId: spawnedAgentId,
+                        registryAgentId: input.agentId ?? 'default',
+                        task: input.task,
+                        ...(subAgentLogFilePath ? { subAgentLogFilePath } : {}),
+                    });
+                }
+            }
 
             // Set up progress event tracking before executing
             cleanupProgressTracking = this.setupProgressTracking(
@@ -498,6 +661,7 @@ export class AgentSpawnerRuntime implements TaskForker {
 
                     // Spawn new agent with parent's LLM config
                     handle = await this.runtime.spawnAgent({
+                        agentId: buildOptions.runtimeAgentId,
                         agentConfig: subAgentConfig,
                         ephemeral: true,
                         group: this.parentId,
@@ -514,6 +678,7 @@ export class AgentSpawnerRuntime implements TaskForker {
                                 const delegatingHandler = createDelegatingApprovalHandler(
                                     this.parentAgent.services.approvalManager,
                                     agent.config.agentId ?? 'unknown',
+                                    sessionId,
                                     this.logger
                                 );
                                 agent.setApprovalHandler(delegatingHandler);
@@ -521,6 +686,7 @@ export class AgentSpawnerRuntime implements TaskForker {
                         },
                     });
                     spawnedAgentId = handle.agentId;
+                    await this.applyParentWorkspace(handle.agent);
 
                     this.logger.info(
                         `Re-spawned sub-agent '${spawnedAgentId}' for task: ${input.task} (using parent LLM)`
@@ -598,10 +764,11 @@ export class AgentSpawnerRuntime implements TaskForker {
             agentId?: string;
             inheritLlm?: boolean;
             autoApprove?: boolean;
+            runtimeAgentId: string;
         },
         sessionId?: string
     ): Promise<AgentConfig> {
-        const { agentId, inheritLlm, autoApprove } = options;
+        const { agentId, inheritLlm, autoApprove, runtimeAgentId } = options;
         const parentSettings = this.parentAgent.config;
 
         // Get runtime LLM config (respects session-specific model switches)
@@ -613,6 +780,57 @@ export class AgentSpawnerRuntime implements TaskForker {
 
         // Determine permissions mode (auto-approve vs manual)
         const permissionsMode = autoApprove ? ('auto-approve' as const) : ('manual' as const);
+
+        const parentToolPolicies = parentSettings.permissions?.toolPolicies;
+        const mergeToolPolicies = (subAgentPolicies?: {
+            alwaysAllow?: string[] | undefined;
+            alwaysDeny?: string[] | undefined;
+        }): { alwaysAllow: string[]; alwaysDeny: string[] } => {
+            const alwaysAllow = [
+                ...(parentToolPolicies?.alwaysAllow ?? []),
+                ...(subAgentPolicies?.alwaysAllow ?? []),
+            ];
+            const alwaysDeny = [
+                ...(parentToolPolicies?.alwaysDeny ?? []),
+                ...(subAgentPolicies?.alwaysDeny ?? []),
+            ];
+
+            return {
+                alwaysAllow: Array.from(new Set(alwaysAllow)),
+                alwaysDeny: Array.from(new Set(alwaysDeny)),
+            };
+        };
+
+        // In interactive CLI, base agent logging is typically silent to avoid interfering with Ink.
+        // Sub-agents should still be debuggable, so when we have an active session log file,
+        // route sub-agent logs to a file under that session.
+        const inheritedLoggerConfig = await (async () => {
+            if (!sessionId) {
+                return undefined;
+            }
+
+            const session = await this.parentAgent.getSession(sessionId);
+            if (!session) {
+                return undefined;
+            }
+
+            // Only apply file logging override when the parent session has a file logger.
+            // (Interactive CLI uses session-scoped file logs; other hosts may not.)
+            const parentSessionLogPath = session.logger.getLogFilePath();
+            if (!parentSessionLogPath) {
+                return undefined;
+            }
+
+            const subAgentLogFilePath = this.getSubAgentLogFilePath({ runtimeAgentId, sessionId });
+            if (!subAgentLogFilePath) {
+                return undefined;
+            }
+
+            return {
+                level: session.logger.getLevel(),
+                transports: [{ type: 'file' as const, path: subAgentLogFilePath }],
+            };
+        })();
 
         // If agentId is provided, resolve from registry
         if (agentId) {
@@ -662,6 +880,8 @@ export class AgentSpawnerRuntime implements TaskForker {
                     llmConfig = resolution.llm;
                 }
 
+                llmConfig = this.applySubAgentLlmPolicy(llmConfig);
+
                 // Override certain settings for sub-agent behavior
                 return {
                     ...loadedConfig,
@@ -669,12 +889,9 @@ export class AgentSpawnerRuntime implements TaskForker {
                     permissions: {
                         ...loadedConfig.permissions,
                         mode: permissionsMode,
+                        toolPolicies: mergeToolPolicies(loadedConfig.permissions?.toolPolicies),
                     },
-                    // Suppress sub-agent console logs entirely using silent transport
-                    logger: {
-                        level: 'error' as const,
-                        transports: [{ type: 'silent' as const }],
-                    },
+                    ...(inheritedLoggerConfig !== undefined && { logger: inheritedLoggerConfig }),
                 };
             }
 
@@ -685,7 +902,7 @@ export class AgentSpawnerRuntime implements TaskForker {
 
         // Fallback: minimal config inheriting parent's LLM + MCP servers
         const config: AgentConfig = {
-            llm: { ...currentParentLLM },
+            llm: this.applySubAgentLlmPolicy({ ...currentParentLLM }),
 
             // Default system prompt for sub-agents
             systemPrompt:
@@ -693,16 +910,13 @@ export class AgentSpawnerRuntime implements TaskForker {
 
             permissions: {
                 mode: permissionsMode,
+                toolPolicies: mergeToolPolicies(undefined),
             },
 
             // Inherit MCP servers from parent so subagent has tool access
             mcpServers: parentSettings.mcpServers ? { ...parentSettings.mcpServers } : {},
 
-            // Suppress sub-agent console logs entirely using silent transport
-            logger: {
-                level: 'error' as const,
-                transports: [{ type: 'silent' as const }],
-            },
+            ...(inheritedLoggerConfig !== undefined && { logger: inheritedLoggerConfig }),
         };
 
         return config;

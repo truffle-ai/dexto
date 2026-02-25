@@ -7,11 +7,13 @@ import {
     acceptsAnyModel,
     supportsCustomModels,
     supportsBaseURL,
+    getReasoningProfile,
+    supportsReasoningVariant,
+    LLM_PROVIDERS,
+    NonEmptyTrimmed,
+    ErrorType,
 } from '@dexto/core';
-import { LLM_PROVIDERS } from '@dexto/core';
-import { NonEmptyTrimmed } from '@dexto/core';
 import { PreferenceErrorCode } from './error-codes.js';
-import { ErrorType } from '@dexto/core';
 
 export const PreferenceLLMSchema = z
     .object({
@@ -36,12 +38,27 @@ export const PreferenceLLMSchema = z
             .optional()
             .describe('Custom base URL for providers that support it (openai-compatible, litellm)'),
 
-        reasoningEffort: z
-            .enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh'])
+        reasoning: z
+            .object({
+                variant: z
+                    .string()
+                    .trim()
+                    .min(1)
+                    .describe(
+                        'Reasoning variant. Use a model/provider-native variant from the active reasoning profile.'
+                    ),
+                budgetTokens: z
+                    .number()
+                    .int()
+                    .positive()
+                    .optional()
+                    .describe(
+                        'Advanced escape hatch for budget-based providers (e.g., Anthropic/Gemini/Bedrock/OpenRouter).'
+                    ),
+            })
+            .strict()
             .optional()
-            .describe(
-                'Reasoning effort level for OpenAI reasoning models (o1, o3, codex, gpt-5.x). Auto-detected if not set.'
-            ),
+            .describe('Reasoning configuration (tuning only; display is controlled separately).'),
     })
     .strict()
     .superRefine((data, ctx) => {
@@ -81,6 +98,42 @@ export const PreferenceLLMSchema = z
                 },
             });
         }
+
+        if (data.reasoning) {
+            const profile = getReasoningProfile(data.provider, data.model);
+            const variant = data.reasoning.variant;
+            const budgetTokens = data.reasoning.budgetTokens;
+
+            if (!supportsReasoningVariant(profile, variant)) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['reasoning', 'variant'],
+                    message:
+                        `Reasoning variant '${variant}' is not supported for provider '${data.provider}' ` +
+                        `model '${data.model}'. Supported: ${profile.variants.map((entry) => entry.id).join(', ')}`,
+                    params: {
+                        code: PreferenceErrorCode.INVALID_PREFERENCE_VALUE,
+                        scope: 'preference',
+                        type: ErrorType.USER,
+                    },
+                });
+            }
+
+            if (typeof budgetTokens === 'number' && !profile.supportsBudgetTokens) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['reasoning', 'budgetTokens'],
+                    message:
+                        `Reasoning budgetTokens are not supported for provider '${data.provider}' ` +
+                        `model '${data.model}'. Remove reasoning.budgetTokens to use provider defaults.`,
+                    params: {
+                        code: PreferenceErrorCode.INVALID_PREFERENCE_VALUE,
+                        scope: 'preference',
+                        type: ErrorType.USER,
+                    },
+                });
+            }
+        }
         // NOTE: baseURL requirement validation also relaxed - allow saving without baseURL
         // and let runtime validation catch missing baseURL when actually trying to connect.
     });
@@ -118,8 +171,8 @@ export const PreferenceSoundsSchema = z
         enabled: z.boolean().default(true).describe('Enable sound notifications (default: true)'),
         onStartup: z
             .boolean()
-            .default(true)
-            .describe('Play sound when the interactive CLI starts (default: true)'),
+            .default(false)
+            .describe('Play sound when the interactive CLI starts (default: false)'),
         startupSoundFile: z
             .string()
             .min(1)

@@ -1,31 +1,33 @@
 import { describe, expect, it, vi } from 'vitest';
 import { agentSpawnerToolsFactory } from './factory.js';
 import type { Logger, ToolExecutionContext } from '@dexto/core';
+import { AgentSpawnerConfigSchema } from './schemas.js';
+
+const createMockLogger = (): Logger => {
+    const logger: Logger = {
+        debug: vi.fn(),
+        silly: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        trackException: vi.fn(),
+        createChild: vi.fn(() => logger),
+        createFileOnlyChild: vi.fn(() => logger),
+        destroy: vi.fn(async () => undefined),
+        setLevel: vi.fn(),
+        getLevel: vi.fn(() => 'info' as const),
+        getLogFilePath: vi.fn(() => null),
+    };
+    return logger;
+};
 
 describe('agentSpawnerToolsFactory', () => {
-    const createMockLogger = (): Logger => {
-        const logger: Logger = {
-            debug: vi.fn(),
-            silly: vi.fn(),
-            info: vi.fn(),
-            warn: vi.fn(),
-            error: vi.fn(),
-            trackException: vi.fn(),
-            createChild: vi.fn(() => logger),
-            destroy: vi.fn(async () => undefined),
-            setLevel: vi.fn(),
-            getLevel: vi.fn(() => 'info' as const),
-            getLogFilePath: vi.fn(() => null),
-        };
-        return logger;
-    };
-
-    const config = {
-        type: 'agent-spawner' as const,
+    const config = AgentSpawnerConfigSchema.parse({
+        type: 'agent-spawner',
         maxConcurrentAgents: 1,
         defaultTimeout: 1000,
         allowSpawning: true,
-    };
+    });
 
     it('throws when ToolExecutionContext.agent is missing', () => {
         const tools = agentSpawnerToolsFactory.create(config);

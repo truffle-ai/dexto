@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { client } from '@/lib/client';
 import { queryKeys } from '@/lib/queryKeys';
 import { isTextPart } from '../../types';
+import type { TextPart } from '../../types';
 
 const MAX_HISTORY_SIZE = 100;
 
@@ -30,8 +31,8 @@ function useSessionUserMessages(sessionId: string | null) {
 
                 const textParts = msg.content
                     .filter(isTextPart)
-                    .map((part) => part.text.trim())
-                    .filter((t) => t.length > 0);
+                    .map((part: TextPart) => part.text.trim())
+                    .filter((t: string) => t.length > 0);
 
                 if (textParts.length > 0) {
                     userTexts.push(textParts.join('\n'));
