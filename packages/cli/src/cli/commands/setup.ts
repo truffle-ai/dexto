@@ -12,7 +12,6 @@ import {
     LLM_PROVIDERS,
     LLM_REGISTRY,
     logger,
-    REASONING_PRESETS,
     isValidProviderModel,
     supportsCustomModels,
     requiresApiKey,

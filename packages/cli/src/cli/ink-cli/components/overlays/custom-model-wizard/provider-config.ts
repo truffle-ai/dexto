@@ -61,7 +61,7 @@ const REASONING_PRESET_STEP: WizardStep = {
     required: false,
     validate: (value: string) => {
         if (!value?.trim()) return null;
-        const normalized = value.toLowerCase();
+        const normalized = value.trim().toLowerCase();
         if (!REASONING_PRESETS.includes(normalized as ReasoningPreset)) {
             return `Invalid reasoning preset. Use: ${REASONING_PRESETS.join(', ')}`;
         }

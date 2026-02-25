@@ -574,7 +574,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                 model,
                                 ...(displayName && { displayName }),
                                 ...(baseURL && { baseURL }),
-                                ...(reasoningPreset && { reasoningPreset }),
+                                ...(reasoningPreset !== undefined && { reasoningPreset }),
                             },
                         }));
                         setMessages((prev) => [

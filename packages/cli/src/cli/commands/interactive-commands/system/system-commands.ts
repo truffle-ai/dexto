@@ -9,7 +9,7 @@
  * - /config - Show current configuration
  * - /stats - Show system statistics
  * - /stream - Toggle streaming mode for LLM responses
- * - /reasoning - Configure reasoning visibility and budget tokens
+ * - /reasoning - Configure reasoning display and budget tokens
  * - /sounds - Configure sound notifications (interactive)
  */
 import type { DextoAgent, LogLevel } from '@dexto/core';

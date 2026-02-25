@@ -656,8 +656,9 @@ export async function processStream(
                             // Mark that we finalized text early - prevents duplicate in llm:response
                             state.textFinalizedBeforeTool = true;
                             // Explicitly reset reasoning tracking (was preserved via msg spread in finalizeMessage)
+                            const hadReasoning = state.reasoningFinalized || !!state.reasoning;
                             state.reasoning = '';
-                            state.reasoningFinalized = true;
+                            state.reasoningFinalized = hadReasoning;
                         } else {
                             const hasReasoning = !state.reasoningFinalized && !!state.reasoning;
                             if (hasReasoning) {
