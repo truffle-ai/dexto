@@ -1,4 +1,5 @@
 import type { DextoImage, HookFactory } from '@dexto/agent-config';
+import { getDextoPackageRoot } from '@dexto/agent-management';
 import imageLocal from '@dexto/image-local';
 import { z } from 'zod';
 import { existsSync, readFileSync } from 'node:fs';
@@ -47,7 +48,7 @@ function resolveImageMetadata(defaultName: string): { name: string; version: str
         }
     }
 
-    const packageRoot = process.env.DEXTO_PACKAGE_ROOT;
+    const packageRoot = getDextoPackageRoot();
     if (packageRoot) {
         const bundledPackageJson = readPackageJson(path.join(packageRoot, 'package.json'));
         if (bundledPackageJson) {

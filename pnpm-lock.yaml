@@ -511,6 +511,9 @@ importers:
       '@dexto/agent-config':
         specifier: workspace:*
         version: link:../agent-config
+      '@dexto/agent-management':
+        specifier: workspace:*
+        version: link:../agent-management
       '@dexto/core':
         specifier: workspace:*
         version: link:../core

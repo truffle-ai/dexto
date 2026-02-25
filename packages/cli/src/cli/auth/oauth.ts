@@ -16,6 +16,7 @@ import * as querystring from 'querystring';
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
 import { logger } from '@dexto/core';
+import { getDextoPackageRoot } from '@dexto/agent-management';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './constants.js';
@@ -24,7 +25,7 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from './constants.js';
 const oauthStateStore = new Map<number, string>();
 
 function resolveLogoPath(): string | null {
-    const packageRoot = process.env.DEXTO_PACKAGE_ROOT;
+    const packageRoot = getDextoPackageRoot();
     if (packageRoot) {
         const standaloneAssetPath = path.join(
             packageRoot,

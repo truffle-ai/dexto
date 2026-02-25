@@ -7,6 +7,7 @@
 import { existsSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getDextoPackageRoot } from '@dexto/agent-management';
 
 function isValidWebRoot(webRootPath: string): boolean {
     if (!existsSync(webRootPath)) {
@@ -25,7 +26,7 @@ function isValidWebRoot(webRootPath: string): boolean {
 export function resolveWebRoot(): string | undefined {
     const scriptDir = path.dirname(fileURLToPath(import.meta.url));
     const roots = Array.from(
-        new Set([process.env.DEXTO_PACKAGE_ROOT, path.dirname(process.execPath), scriptDir])
+        new Set([getDextoPackageRoot(), path.dirname(process.execPath), scriptDir])
     ).filter((value): value is string => Boolean(value));
 
     for (const root of roots) {

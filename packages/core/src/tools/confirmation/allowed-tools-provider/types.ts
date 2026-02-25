@@ -10,7 +10,7 @@
  *      AllowedToolsProvider.forUser(userId)
  *
  * AllowedToolsProvider supports both single-user and multi-user scenarios.
- * - If `userId` is omitted, the implementation will use a default user (e.g., from getUserId()).
+ * - If `userId` is omitted, the implementation will use a configured default user id.
  * - For multi-user/admin scenarios, always pass `userId` explicitly.
  * - We can enforce this by having a separate env variable/feature-flag for multi-user and having
  *   strict check for the user id if the feature flag is set.

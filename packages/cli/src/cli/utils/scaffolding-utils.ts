@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
+import { getDextoPackageRoot } from '@dexto/agent-management';
 import { executeWithTimeout } from './execute.js';
 import { textOrExit } from './prompt-helpers.js';
 import { getPackageManager, getPackageManagerInstallCommand } from './package-mgmt.js';
@@ -34,7 +35,7 @@ function resolveCliPackageVersion(): string | undefined {
         return localVersion;
     }
 
-    const packageRoot = process.env.DEXTO_PACKAGE_ROOT;
+    const packageRoot = getDextoPackageRoot();
     if (packageRoot) {
         const packageJsonPath = path.join(packageRoot, 'package.json');
         const packageVersion = readVersionFromPackageJson(packageJsonPath);

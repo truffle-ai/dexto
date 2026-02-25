@@ -2,6 +2,7 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import type { Context } from 'hono';
 import type { DextoAgent, AgentCard } from '@dexto/core';
 import { logger } from '@dexto/core';
+import { getDextoPackageRoot } from '@dexto/agent-management';
 import { createHealthRouter } from './routes/health.js';
 import { createGreetingRouter } from './routes/greeting.js';
 import { createMessagesRouter } from './routes/messages.js';
@@ -70,7 +71,7 @@ function resolveServerVersion(): string {
         return localVersion;
     }
 
-    const packageRoot = process.env.DEXTO_PACKAGE_ROOT;
+    const packageRoot = getDextoPackageRoot();
     if (packageRoot) {
         const standaloneVersion = readPackageVersion(join(packageRoot, 'package.json'));
         if (standaloneVersion) {

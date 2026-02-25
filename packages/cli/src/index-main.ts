@@ -36,7 +36,7 @@ function resolveCliVersion(): string {
     }
 
     // Standalone release archives ship package.json next to the executable.
-    const packageRoot = process.env.DEXTO_PACKAGE_ROOT;
+    const packageRoot = getDextoPackageRoot();
     if (packageRoot) {
         const packageJsonPath = path.join(packageRoot, 'package.json');
         const packageVersion = readVersionFromPackageJson(packageJsonPath);
@@ -89,6 +89,7 @@ import {
     type ValidatedAgentConfig,
 } from '@dexto/agent-config';
 import {
+    getDextoPackageRoot,
     resolveAgentPath,
     loadAgentConfig,
     globalPreferencesExist,

@@ -74,6 +74,7 @@ export {
 
 // Path utilities (duplicated from core for short-term compatibility)
 export {
+    getDextoPackageRoot,
     getDextoPath,
     getDextoGlobalPath,
     getDextoEnvPath,

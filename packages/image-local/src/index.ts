@@ -34,7 +34,11 @@ import { todoToolsFactory } from '@dexto/tools-todo';
 import { planToolsFactory } from '@dexto/tools-plan';
 import { schedulerToolsFactory } from '@dexto/tools-scheduler';
 import { lifecycleToolsFactory } from '@dexto/tools-lifecycle';
-import { agentSpawnerToolsFactory, creatorToolsFactory } from '@dexto/agent-management';
+import {
+    agentSpawnerToolsFactory,
+    creatorToolsFactory,
+    getDextoPackageRoot,
+} from '@dexto/agent-management';
 
 function readPackageJson(packageJsonPath: string): { name?: string; version?: string } | null {
     if (!existsSync(packageJsonPath)) {
@@ -77,7 +81,7 @@ function resolveImageMetadata(defaultName: string): { name: string; version: str
         }
     }
 
-    const packageRoot = process.env.DEXTO_PACKAGE_ROOT;
+    const packageRoot = getDextoPackageRoot();
     if (packageRoot) {
         const bundledPackageJson = readPackageJson(path.join(packageRoot, 'package.json'));
         if (bundledPackageJson) {
