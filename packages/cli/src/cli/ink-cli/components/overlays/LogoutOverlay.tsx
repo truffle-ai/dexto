@@ -1,7 +1,7 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import { loadAuth, removeAuth } from '../../../auth/index.js';
+import { loadAuth, removeAuth, removeDextoApiKeyFromEnv } from '../../../auth/index.js';
 import { isUsingDextoCredits } from '../../../../config/effective-llm.js';
 
 export type LogoutOverlayOutcome =
@@ -35,19 +35,11 @@ const LogoutOverlay = forwardRef<LogoutOverlayHandle, LogoutOverlayProps>(functi
 
         try {
             const auth = await loadAuth();
-            const envKey = process.env.DEXTO_API_KEY;
 
             await removeAuth();
 
-            // If this process key came from auth.json provisioning, clear it immediately.
-            // (We avoid clearing keys that don't match auth.json to respect explicit user env vars.)
-            if (
-                auth?.dextoApiKey &&
-                auth.dextoApiKeySource === 'provisioned' &&
-                envKey &&
-                envKey === auth.dextoApiKey
-            ) {
-                delete process.env.DEXTO_API_KEY;
+            if (auth?.dextoApiKey && auth.dextoApiKeySource === 'provisioned') {
+                await removeDextoApiKeyFromEnv({ expectedValue: auth.dextoApiKey });
             }
 
             onDone({ outcome: 'success', wasUsingDextoCredits: usingDextoCredits });

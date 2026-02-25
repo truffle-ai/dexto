@@ -8,6 +8,16 @@ export interface EnsureDextoApiKeyOptions {
     onStatus?: ((message: string) => void) | undefined;
 }
 
+async function ensureOwnerOnlyPermissions(filePath: string): Promise<void> {
+    try {
+        await fs.chmod(filePath, 0o600);
+    } catch (error) {
+        logger.warn(
+            `Failed to set permissions on ${filePath}: ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
+}
+
 /**
  * Save DEXTO_API_KEY to the resolved dexto .env path and populate the current
  * process environment immediately.
@@ -36,8 +46,69 @@ export async function saveDextoApiKeyToEnv(apiKey: string): Promise<void> {
         lines.push(`${envVar}=${apiKey}`);
     }
 
-    await fs.writeFile(targetEnvPath, lines.filter(Boolean).join('\n') + '\n', 'utf-8');
+    const nextContent = lines.filter(Boolean).join('\n') + '\n';
+    await fs.writeFile(targetEnvPath, nextContent, { encoding: 'utf-8', mode: 0o600 });
+    await ensureOwnerOnlyPermissions(targetEnvPath);
     process.env[envVar] = apiKey;
+}
+
+export async function removeDextoApiKeyFromEnv(options: { expectedValue?: string } = {}): Promise<{
+    removed: boolean;
+    targetEnvPath: string;
+}> {
+    const envVar = 'DEXTO_API_KEY';
+    const targetEnvPath = getDextoEnvPath();
+    const clearProcessEnv = () => {
+        const currentValue = process.env[envVar];
+        if (!currentValue) return;
+        if (!options.expectedValue || currentValue === options.expectedValue) {
+            delete process.env[envVar];
+        }
+    };
+
+    let envContent = '';
+    try {
+        envContent = await fs.readFile(targetEnvPath, 'utf-8');
+    } catch {
+        clearProcessEnv();
+        return { removed: false, targetEnvPath };
+    }
+
+    const lines = envContent.split('\n');
+    const keyPattern = new RegExp(`^${envVar}=(.*)$`);
+    const keyLineIndex = lines.findIndex((line) => keyPattern.test(line));
+
+    if (keyLineIndex < 0) {
+        clearProcessEnv();
+        return { removed: false, targetEnvPath };
+    }
+
+    if (options.expectedValue) {
+        const match = lines[keyLineIndex]?.match(keyPattern);
+        const currentValue = match?.[1] ?? '';
+        if (currentValue !== options.expectedValue) {
+            clearProcessEnv();
+            return { removed: false, targetEnvPath };
+        }
+    }
+
+    lines.splice(keyLineIndex, 1);
+
+    const nextLines = lines.filter(Boolean);
+    const nextContent = nextLines.length ? nextLines.join('\n') + '\n' : '';
+
+    try {
+        await fs.writeFile(targetEnvPath, nextContent, { encoding: 'utf-8', mode: 0o600 });
+        await ensureOwnerOnlyPermissions(targetEnvPath);
+    } catch (error) {
+        clearProcessEnv();
+        throw new Error(
+            `Failed to remove ${envVar} from ${targetEnvPath}: ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
+
+    clearProcessEnv();
+    return { removed: true, targetEnvPath };
 }
 
 /**

@@ -28,4 +28,5 @@ export {
     type EnsureDextoApiKeyOptions,
     ensureDextoApiKeyForAuthToken,
     saveDextoApiKeyToEnv,
+    removeDextoApiKeyFromEnv,
 } from './dexto-api-key.js';
