@@ -58,7 +58,7 @@ export function isAnthropicAdaptiveThinkingModel(model: string): boolean {
     return isAtLeast(version, { major: 4, minor: 6 });
 }
 
-export function isAnthropicOpus46Model(model: string): boolean {
+export function isAnthropicOpusAdaptiveThinkingModel(model: string): boolean {
     const version = parseClaudeVersion(model);
     if (!version || version.variant !== 'opus') return false;
     return isAtLeast(version, { major: 4, minor: 6 });

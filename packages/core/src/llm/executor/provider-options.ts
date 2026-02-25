@@ -20,7 +20,7 @@ import type { LLMProvider, LLMReasoningConfig, ReasoningPreset } from '../types.
 import { isReasoningCapableModel } from '../registry/index.js';
 import {
     isAnthropicAdaptiveThinkingModel,
-    isAnthropicOpus46Model,
+    isAnthropicOpusAdaptiveThinkingModel,
     supportsAnthropicInterleavedThinking,
 } from '../reasoning/anthropic-thinking.js';
 import { ANTHROPIC_INTERLEAVED_THINKING_BETA } from '../reasoning/anthropic-betas.js';
@@ -172,7 +172,7 @@ function mapPresetToAnthropicEffort(
 
     if (preset === 'max' || preset === 'xhigh') {
         // `max` effort is only supported on Opus 4.6 today; map conservatively for other models.
-        return isAnthropicOpus46Model(model) ? 'max' : 'high';
+        return isAnthropicOpusAdaptiveThinkingModel(model) ? 'max' : 'high';
     }
 
     return undefined;

@@ -1,6 +1,9 @@
 import type { LLMProvider, ReasoningPreset } from '../types.js';
 import { isReasoningCapableModel } from '../registry/index.js';
-import { isAnthropicAdaptiveThinkingModel, isAnthropicOpus46Model } from './anthropic-thinking.js';
+import {
+    isAnthropicAdaptiveThinkingModel,
+    isAnthropicOpusAdaptiveThinkingModel,
+} from './anthropic-thinking.js';
 import { getSupportedOpenAIReasoningEfforts } from './openai-reasoning-effort.js';
 import { supportsOpenRouterReasoningTuning } from './profiles/openrouter.js';
 
@@ -74,7 +77,10 @@ export function getReasoningSupport(provider: LLMProvider, model: string): Reaso
 
             const presets: ReasoningPreset[] = ['off', 'low', 'medium', 'high'];
             // Anthropic adaptive `effort=max` is Opus-only today.
-            if (!isAnthropicAdaptiveThinkingModel(model) || isAnthropicOpus46Model(model)) {
+            if (
+                !isAnthropicAdaptiveThinkingModel(model) ||
+                isAnthropicOpusAdaptiveThinkingModel(model)
+            ) {
                 presets.push('max');
             }
 
@@ -143,7 +149,7 @@ export function getReasoningSupport(provider: LLMProvider, model: string): Reaso
                 const isClaudeModel = model.toLowerCase().includes('claude');
                 if (isClaudeModel && isAnthropicAdaptiveThinkingModel(model)) {
                     presets = ['off', 'low', 'medium', 'high'];
-                    if (isAnthropicOpus46Model(model)) {
+                    if (isAnthropicOpusAdaptiveThinkingModel(model)) {
                         presets.push('max');
                     }
                 } else {
