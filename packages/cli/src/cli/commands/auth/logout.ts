@@ -2,7 +2,12 @@
 
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
-import { isAuthenticated, removeAuth } from '../../auth/index.js';
+import {
+    isAuthenticated,
+    loadAuth,
+    removeAuth,
+    removeDextoApiKeyFromEnv,
+} from '../../auth/index.js';
 import { isUsingDextoCredits } from '../../../config/effective-llm.js';
 import { logger } from '@dexto/core';
 
@@ -53,7 +58,17 @@ export async function handleLogoutCommand(
             }
         }
 
+        let provisionedApiKey: string | null = null;
+        const auth = await loadAuth();
+        if (auth?.dextoApiKey && auth.dextoApiKeySource === 'provisioned') {
+            provisionedApiKey = auth.dextoApiKey;
+        }
+
         await removeAuth();
+        if (provisionedApiKey) {
+            await removeDextoApiKeyFromEnv({ expectedValue: provisionedApiKey });
+        }
+
         console.log(chalk.green('✅ Successfully logged out'));
 
         if (usingDextoCredits) {

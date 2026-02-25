@@ -32,6 +32,13 @@ export interface TuiOAuthResult {
         | undefined;
 }
 
+export interface TuiDeviceLoginPrompt {
+    userCode: string;
+    verificationUrl: string;
+    verificationUrlComplete: string | null;
+    expiresIn: number;
+}
+
 export interface TuiOAuthLoginSession {
     authUrl: string;
     result: Promise<TuiOAuthResult>;
@@ -42,6 +49,13 @@ export type TuiDextoApiKeyProvisionStatusLevel = 'info' | 'success' | 'warning' 
 export interface TuiDextoApiKeyProvisionStatus {
     level: TuiDextoApiKeyProvisionStatusLevel;
     message: string;
+}
+
+export interface TuiPersistedLoginResult {
+    email?: string | undefined;
+    userId?: string | undefined;
+    keyId?: string | undefined;
+    hasDextoApiKey: boolean;
 }
 
 export interface TuiRuntimeServices {
@@ -58,6 +72,17 @@ export interface TuiRuntimeServices {
         options?: { signal?: AbortSignal | undefined }
     ) => Promise<TuiOAuthLoginSession>;
     defaultOAuthConfig?: TuiOAuthConfig;
+    performDeviceCodeLogin?: (options?: {
+        signal?: AbortSignal | undefined;
+        onPrompt?: ((prompt: TuiDeviceLoginPrompt) => void) | undefined;
+    }) => Promise<TuiOAuthResult>;
+    persistOAuthLoginResult?: (
+        result: TuiOAuthResult,
+        options?: {
+            onProvisionStatus?: ((status: TuiDextoApiKeyProvisionStatus) => void) | undefined;
+        }
+    ) => Promise<TuiPersistedLoginResult>;
+    shouldAttemptBrowserLaunch?: () => boolean;
     ensureDextoApiKeyForAuthToken?: (
         authToken: string,
         options?: {
@@ -137,6 +162,30 @@ export async function beginOAuthLogin(
         throw missingHostMethod('beginOAuthLogin');
     }
     return runtimeServices.beginOAuthLogin(config, options);
+}
+
+export async function performDeviceCodeLogin(options?: {
+    signal?: AbortSignal | undefined;
+    onPrompt?: ((prompt: TuiDeviceLoginPrompt) => void) | undefined;
+}): Promise<TuiOAuthResult> {
+    if (!runtimeServices.performDeviceCodeLogin) {
+        throw missingHostMethod('performDeviceCodeLogin');
+    }
+    return runtimeServices.performDeviceCodeLogin(options);
+}
+
+export async function persistOAuthLoginResult(
+    result: TuiOAuthResult,
+    options?: { onProvisionStatus?: ((status: TuiDextoApiKeyProvisionStatus) => void) | undefined }
+): Promise<TuiPersistedLoginResult> {
+    if (!runtimeServices.persistOAuthLoginResult) {
+        throw missingHostMethod('persistOAuthLoginResult');
+    }
+    return runtimeServices.persistOAuthLoginResult(result, options);
+}
+
+export function shouldAttemptBrowserLaunch(): boolean {
+    return runtimeServices.shouldAttemptBrowserLaunch?.() ?? true;
 }
 
 export async function ensureDextoApiKeyForAuthToken(
