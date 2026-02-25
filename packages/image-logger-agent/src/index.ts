@@ -21,14 +21,29 @@ function readPackageJson(packageJsonPath: string): { name?: string; version?: st
     }
 }
 
+function resolveModuleDir(): string | undefined {
+    const importMetaUrl = typeof import.meta !== 'undefined' ? import.meta.url : undefined;
+    if (importMetaUrl) {
+        return path.dirname(fileURLToPath(importMetaUrl));
+    }
+
+    if (typeof __filename === 'string' && __filename.length > 0) {
+        return path.dirname(__filename);
+    }
+
+    return undefined;
+}
+
 function resolveImageMetadata(defaultName: string): { name: string; version: string } {
-    const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-    const localPackageJson = readPackageJson(path.resolve(scriptDir, '..', 'package.json'));
-    if (localPackageJson) {
-        return {
-            name: localPackageJson.name ?? defaultName,
-            version: localPackageJson.version ?? '0.0.0',
-        };
+    const moduleDir = resolveModuleDir();
+    if (moduleDir) {
+        const localPackageJson = readPackageJson(path.resolve(moduleDir, '..', 'package.json'));
+        if (localPackageJson) {
+            return {
+                name: localPackageJson.name ?? defaultName,
+                version: localPackageJson.version ?? '0.0.0',
+            };
+        }
     }
 
     const packageRoot = process.env.DEXTO_PACKAGE_ROOT;
@@ -44,7 +59,7 @@ function resolveImageMetadata(defaultName: string): { name: string; version: str
 
     return {
         name: defaultName,
-        version: process.env.DEXTO_CLI_VERSION ?? '0.0.0',
+        version: process.env.DEXTO_CLI_VERSION || '0.0.0',
     };
 }
 
