@@ -112,15 +112,15 @@ class OpenRouterModelRegistry {
             return 'unknown';
         }
 
-        const info = this.models.get(normalized);
-        if (info && this.isExpired(info)) {
-            return 'invalid';
-        }
-
         if (!this.isCacheFresh()) {
             // Don't rely on stale data - refresh in background and treat as unknown
             this.scheduleRefresh();
             return 'unknown';
+        }
+
+        const info = this.models.get(normalized);
+        if (info && this.isExpired(info)) {
+            return 'invalid';
         }
 
         return info ? 'valid' : 'invalid';

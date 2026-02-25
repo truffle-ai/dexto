@@ -13,7 +13,9 @@ function parseClaudeVersion(model: string): ParsedClaudeVersion | null {
     // - "claude-opus-4-6"
     // - "anthropic/claude-opus-4.6"
     // - "anthropic.claude-haiku-4-5-20251001-v1:0"
-    const variantFirst = /claude-(opus|sonnet|haiku)-(\d+)(?:[.-](\d+))?/i.exec(modelLower);
+    const variantFirst = /claude-(opus|sonnet|haiku)-(\d+)(?:[.-](\d{1,2})(?!\d))?/i.exec(
+        modelLower
+    );
     if (variantFirst) {
         const [, variant, majorRaw, minorRaw] = variantFirst;
         if (!variant || !majorRaw) return null;
@@ -26,7 +28,9 @@ function parseClaudeVersion(model: string): ParsedClaudeVersion | null {
     // Vertex-style IDs often put the variant after the version:
     // - "claude-3-7-sonnet@20250219"
     // - "anthropic/claude-4.5-opus"
-    const versionFirst = /claude-(\d+)(?:[.-](\d+))?-(opus|sonnet|haiku)/i.exec(modelLower);
+    const versionFirst = /claude-(\d+)(?:[.-](\d{1,2})(?!\d))?-(opus|sonnet|haiku)/i.exec(
+        modelLower
+    );
     if (versionFirst) {
         const [, majorRaw, minorRaw, variant] = versionFirst;
         if (!majorRaw || !variant) return null;

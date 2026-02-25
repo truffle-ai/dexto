@@ -1184,6 +1184,14 @@ export function isReasoningCapableModel(model: string, provider?: LLMProvider): 
         }
     })();
 
+    if (registryProvider === 'openrouter' && model.includes('/')) {
+        const dynamicModel = getOpenRouterGatewayCatalogModels().find(
+            (m) => m.name.toLowerCase() === model.toLowerCase()
+        );
+        if (dynamicModel?.reasoning === true) return true;
+        if (dynamicModel?.reasoning === false) return false;
+    }
+
     if (registryProvider) {
         const modelInfo = findModelInfo(registryProvider, model);
         if (modelInfo?.reasoning === true) return true;
