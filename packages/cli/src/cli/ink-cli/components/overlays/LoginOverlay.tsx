@@ -131,7 +131,7 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
             onDone({
                 outcome: 'success',
                 email: result.user?.email,
-                keyId: ensured?.keyId,
+                keyId: ensured?.keyId ?? undefined,
                 hasDextoApiKey: Boolean(ensured?.dextoApiKey),
             });
         } catch (err) {

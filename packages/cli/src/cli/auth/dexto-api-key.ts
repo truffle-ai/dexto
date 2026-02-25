@@ -12,9 +12,10 @@ async function ensureOwnerOnlyPermissions(filePath: string): Promise<void> {
     try {
         await fs.chmod(filePath, 0o600);
     } catch (error) {
-        logger.warn(
-            `Failed to set permissions on ${filePath}: ${error instanceof Error ? error.message : String(error)}`
-        );
+        logger.warn('Failed to set permissions on env file', {
+            filePath,
+            error: error instanceof Error ? error.message : String(error),
+        });
     }
 }
 
@@ -124,7 +125,7 @@ export async function removeDextoApiKeyFromEnv(options: { expectedValue?: string
 export async function ensureDextoApiKeyForAuthToken(
     authToken: string,
     options: EnsureDextoApiKeyOptions = {}
-): Promise<{ dextoApiKey: string; keyId: string } | null> {
+): Promise<{ dextoApiKey: string; keyId: string | null } | null> {
     const status = (message: string) => options.onStatus?.(message);
 
     try {
@@ -148,7 +149,7 @@ export async function ensureDextoApiKeyForAuthToken(
                     });
                 }
                 await saveDextoApiKeyToEnv(auth.dextoApiKey);
-                return { dextoApiKey: auth.dextoApiKey, keyId: auth.dextoKeyId ?? '' };
+                return { dextoApiKey: auth.dextoApiKey, keyId: auth.dextoKeyId ?? null };
             }
 
             status('⚠️  Existing key is invalid, rotating...');
@@ -185,7 +186,7 @@ export async function ensureDextoApiKeyForAuthToken(
         return { dextoApiKey: provisioned.dextoApiKey, keyId: provisioned.keyId };
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.warn(`Failed to ensure DEXTO_API_KEY: ${errorMessage}`);
+        logger.warn('Failed to ensure DEXTO_API_KEY', { error: errorMessage });
         status(`❌ Failed to provision Dexto API key: ${errorMessage}`);
         return null;
     }

@@ -1,4 +1,11 @@
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from 'react';
+import React, {
+    forwardRef,
+    useCallback,
+    useEffect,
+    useImperativeHandle,
+    useRef,
+    useState,
+} from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { loadAuth, removeAuth, removeDextoApiKeyFromEnv } from '../../../auth/index.js';
@@ -28,6 +35,7 @@ const LogoutOverlay = forwardRef<LogoutOverlayHandle, LogoutOverlayProps>(functi
     const [userLabel, setUserLabel] = useState<string | null>(null);
     const [usingDextoCredits, setUsingDextoCredits] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const provisionedApiKeyRef = useRef<string | null>(null);
 
     const performLogout = useCallback(async () => {
         setError(null);
@@ -35,11 +43,14 @@ const LogoutOverlay = forwardRef<LogoutOverlayHandle, LogoutOverlayProps>(functi
 
         try {
             const auth = await loadAuth();
+            if (auth?.dextoApiKey && auth.dextoApiKeySource === 'provisioned') {
+                provisionedApiKeyRef.current = auth.dextoApiKey;
+            }
 
             await removeAuth();
 
-            if (auth?.dextoApiKey && auth.dextoApiKeySource === 'provisioned') {
-                await removeDextoApiKeyFromEnv({ expectedValue: auth.dextoApiKey });
+            if (provisionedApiKeyRef.current) {
+                await removeDextoApiKeyFromEnv({ expectedValue: provisionedApiKeyRef.current });
             }
 
             onDone({ outcome: 'success', wasUsingDextoCredits: usingDextoCredits });
@@ -52,6 +63,7 @@ const LogoutOverlay = forwardRef<LogoutOverlayHandle, LogoutOverlayProps>(functi
     useEffect(() => {
         if (!isVisible) return;
         let cancelled = false;
+        provisionedApiKeyRef.current = null;
 
         setStep('checking');
         setUserLabel(null);
