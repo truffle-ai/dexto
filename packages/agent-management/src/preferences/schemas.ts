@@ -107,10 +107,7 @@ export const PreferenceLLMSchema = z
             const preset = data.reasoning.preset;
             const budgetTokens = data.reasoning.budgetTokens;
 
-            if (
-                (data.provider === 'openrouter' || data.provider === 'dexto-nova') &&
-                !support.supportedPresets.includes(preset)
-            ) {
+            if (!support.supportedPresets.includes(preset)) {
                 ctx.addIssue({
                     code: z.ZodIssueCode.custom,
                     path: ['reasoning', 'preset'],
