@@ -623,6 +623,23 @@ describe('ConfigPromptProvider', () => {
             expect(def!.allowedTools).toEqual(['bash', 'Read', 'WRITE', 'edit', 'keep_as_is']);
         });
 
+        test('captures toolkits in file prompt metadata', async () => {
+            const config = makeAgentConfig([
+                {
+                    type: 'file',
+                    file: join(FIXTURES_DIR, 'skill-with-tools.md'),
+                    showInStarters: false,
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, mockLogger);
+            const list = await provider.listPrompts();
+            const prompt = list.prompts.find((item) => item.name === 'config:skill-with-tools');
+
+            expect(prompt?.metadata?.toolkits).toEqual(['creator-tools']);
+            expect(prompt?.toolkits).toEqual(['creator-tools']);
+        });
+
         test('preserves allowed-tools from inline prompts', async () => {
             const config = makeAgentConfig([
                 {
