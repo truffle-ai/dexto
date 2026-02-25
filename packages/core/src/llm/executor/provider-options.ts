@@ -33,6 +33,25 @@ function coerceBudgetTokens(tokens: number | undefined, minimum: number): number
     return Math.max(minimum, Math.floor(tokens));
 }
 
+function toOpenAIReasoningEffort(variant: string | undefined): OpenAIReasoningEffort | undefined {
+    return variant === 'none' ||
+        variant === 'minimal' ||
+        variant === 'low' ||
+        variant === 'medium' ||
+        variant === 'high' ||
+        variant === 'xhigh'
+        ? variant
+        : undefined;
+}
+
+function toOpenAICompatibleReasoningEffort(
+    variant: string | undefined
+): 'none' | 'low' | 'medium' | 'high' | undefined {
+    return variant === 'none' || variant === 'low' || variant === 'medium' || variant === 'high'
+        ? variant
+        : undefined;
+}
+
 function getSelectedVariant(config: ProviderOptionsConfig): {
     variant: string | undefined;
     hasInvalidRequestedVariant: boolean;
@@ -160,21 +179,10 @@ function buildOpenRouterProviderOptions(config: {
         return undefined;
     }
 
+    const explicitEffort = toOpenAIReasoningEffort(variant);
     const effort =
-        variant === 'none' ||
-        variant === 'minimal' ||
-        variant === 'low' ||
-        variant === 'medium' ||
-        variant === 'high' ||
-        variant === 'xhigh'
-            ? variant
-            : profile.paradigm === 'adaptive-effort'
-              ? variant === 'max'
-                  ? 'xhigh'
-                  : variant === 'low' || variant === 'medium' || variant === 'high'
-                    ? variant
-                    : undefined
-              : undefined;
+        explicitEffort ??
+        (profile.paradigm === 'adaptive-effort' && variant === 'max' ? 'xhigh' : undefined);
 
     return {
         openrouter: {
@@ -331,15 +339,7 @@ export function buildProviderOptions(
     }
 
     if (provider === 'openai') {
-        const effortCandidate =
-            variant === 'none' ||
-            variant === 'minimal' ||
-            variant === 'low' ||
-            variant === 'medium' ||
-            variant === 'high' ||
-            variant === 'xhigh'
-                ? (variant as OpenAIReasoningEffort)
-                : undefined;
+        const effortCandidate = toOpenAIReasoningEffort(variant);
 
         if (effortCandidate && supportsOpenAIReasoningEffort(model, effortCandidate)) {
             return {
@@ -359,10 +359,7 @@ export function buildProviderOptions(
         const profile = getReasoningProfile(provider, model);
         if (!profile.capable) return undefined;
 
-        const reasoningEffort =
-            variant === 'none' || variant === 'low' || variant === 'medium' || variant === 'high'
-                ? variant
-                : undefined;
+        const reasoningEffort = toOpenAICompatibleReasoningEffort(variant);
         if (reasoningEffort === undefined) return undefined;
 
         return {

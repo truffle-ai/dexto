@@ -75,15 +75,7 @@ export function getCommandOverlay(command: string, args: string[]): OverlayType 
  * @returns Overlay type to show, or null to execute command
  */
 export function getCommandOverlayForSelect(command: string): OverlayType | null {
-    // Check "always overlay" commands first
-    const alwaysOverlay = ALWAYS_OVERLAY[command];
-    if (alwaysOverlay) return alwaysOverlay;
-
-    // Check "no args overlay" commands (selecting = no args)
-    const noArgsOverlay = NO_ARGS_OVERLAY[command];
-    if (noArgsOverlay) return noArgsOverlay;
-
-    return null;
+    return getCommandOverlay(command, []);
 }
 
 /**

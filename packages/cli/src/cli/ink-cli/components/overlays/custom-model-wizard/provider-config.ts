@@ -14,7 +14,6 @@ import {
     supportsReasoningVariant,
     type LLMProvider,
 } from '@dexto/core';
-import type { ReasoningVariant } from '@dexto/core';
 import type { ProviderConfig, WizardStep } from './types.js';
 import { validators } from './types.js';
 import * as fs from 'fs';
@@ -67,16 +66,16 @@ const REASONING_PRESET_STEP: WizardStep = {
     },
 };
 
-function parseReasoningVariant(value: string | undefined): ReasoningVariant | undefined {
+function parseReasoningVariant(value: string | undefined): string | undefined {
     const normalized = value?.trim().toLowerCase();
-    return normalized ? (normalized as ReasoningVariant) : undefined;
+    return normalized || undefined;
 }
 
 function resolveReasoningOverride(
     provider: CustomModelProvider,
     modelName: string,
     rawVariant: string | undefined
-): { variant: ReasoningVariant } | undefined {
+): { variant: string } | undefined {
     const variant = parseReasoningVariant(rawVariant);
     if (!variant) return undefined;
 

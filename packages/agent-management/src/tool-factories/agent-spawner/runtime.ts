@@ -28,13 +28,21 @@ import type { AgentRegistryEntry } from '../../registry/types.js';
 import { deriveDisplayName } from '../../registry/types.js';
 import { getDextoPath, resolveBundledScript } from '../../utils/path.js';
 import * as path from 'path';
-import {
-    DEFAULT_SUB_AGENT_MAX_ITERATIONS,
-    DEFAULT_SUB_AGENT_REASONING_VARIANT,
-    type AgentSpawnerConfig,
-} from './schemas.js';
+import { type AgentSpawnerConfig } from './schemas.js';
 import type { SpawnAgentOutput } from './types.js';
 import { resolveSubAgentLLM } from './llm-resolution.js';
+
+const REASONING_VARIANT_FALLBACK_ORDER = [
+    'disabled',
+    'none',
+    'minimal',
+    'low',
+    'enabled',
+    'medium',
+    'high',
+    'max',
+    'xhigh',
+] as const;
 
 export class AgentSpawnerRuntime implements TaskForker {
     private runtime: AgentRuntime;
@@ -57,19 +65,7 @@ export class AgentSpawnerRuntime implements TaskForker {
             return preferredVariant;
         }
 
-        const fallbackOrder = [
-            'disabled',
-            'none',
-            'minimal',
-            'low',
-            'enabled',
-            'medium',
-            'high',
-            'max',
-            'xhigh',
-        ];
-
-        for (const variant of fallbackOrder) {
+        for (const variant of REASONING_VARIANT_FALLBACK_ORDER) {
             if (supportsReasoningVariant(profile, variant)) {
                 return variant;
             }
@@ -79,10 +75,8 @@ export class AgentSpawnerRuntime implements TaskForker {
     }
 
     private applySubAgentLlmPolicy(llm: AgentConfig['llm']): AgentConfig['llm'] {
-        const maxIterationsCap =
-            this.config.subAgentMaxIterations ?? DEFAULT_SUB_AGENT_MAX_ITERATIONS;
-        const preferredReasoningVariant =
-            this.config.subAgentReasoningVariant ?? DEFAULT_SUB_AGENT_REASONING_VARIANT;
+        const maxIterationsCap = this.config.subAgentMaxIterations;
+        const preferredReasoningVariant = this.config.subAgentReasoningVariant;
         const reasoningVariant = this.selectLowestReasoningVariant(
             llm.provider,
             llm.model,

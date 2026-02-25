@@ -22,11 +22,6 @@ interface FooterProps {
     isShellMode?: boolean;
 }
 
-function getDirectoryName(cwd: string): string {
-    const base = path.basename(cwd);
-    return base || cwd;
-}
-
 /**
  * Pure presentational component for footer status line
  */
@@ -41,7 +36,7 @@ export function Footer({
     planModeActive,
     isShellMode,
 }: FooterProps) {
-    const displayPath = cwd ? getDirectoryName(cwd) : '';
+    const displayPath = cwd ? path.basename(cwd) || cwd : '';
     const displayModelName = getModelDisplayName(modelName);
     const [contextLeft, setContextLeft] = useState<{
         percentLeft: number;

@@ -12,7 +12,7 @@
  * @see packages/webui/components/hooks/useChat.ts (original implementation)
  */
 
-import type { StreamingEvent, ApprovalStatus } from '@dexto/core';
+import type { StreamingEvent, StreamingEventName, ApprovalStatus } from '@dexto/core';
 import { useChatStore, generateMessageId } from '../stores/chatStore.js';
 import { useAgentStore } from '../stores/agentStore.js';
 import { useApprovalStore } from '../stores/approvalStore.js';
@@ -34,10 +34,7 @@ type EventHandler<T = StreamingEvent> = (event: T) => void;
  * Extract specific event type by name
  * For events not in StreamingEvent, we use a broader constraint
  */
-type EventByName<T extends string> =
-    Extract<StreamingEvent, { name: T }> extends never
-        ? { name: T; sessionId: string; [key: string]: any }
-        : Extract<StreamingEvent, { name: T }>;
+type EventByName<T extends StreamingEventName> = Extract<StreamingEvent, { name: T }>;
 
 // =============================================================================
 // Handler Registry
@@ -47,7 +44,14 @@ type EventByName<T extends string> =
  * Map of event names to their handlers
  * Uses string as key type to support all event names
  */
-const handlers = new Map<string, EventHandler<any>>();
+const handlers = new Map<StreamingEventName, EventHandler<StreamingEvent>>();
+
+function registerHandler<TName extends StreamingEventName>(
+    name: TName,
+    handler: EventHandler<EventByName<TName>>
+): void {
+    handlers.set(name, handler as EventHandler<StreamingEvent>);
+}
 
 // =============================================================================
 // Helper Functions
@@ -743,19 +747,19 @@ export function registerHandlers(): void {
     handlers.clear();
 
     // Register each handler
-    handlers.set('llm:thinking', handleLLMThinking);
-    handlers.set('llm:chunk', handleLLMChunk);
-    handlers.set('llm:response', handleLLMResponse);
-    handlers.set('llm:tool-call', handleToolCall);
-    handlers.set('llm:tool-result', handleToolResult);
-    handlers.set('llm:error', handleLLMError);
-    handlers.set('approval:request', handleApprovalRequest);
-    handlers.set('approval:response', handleApprovalResponse);
-    handlers.set('run:complete', handleRunComplete);
-    handlers.set('session:title-updated', handleSessionTitleUpdated);
-    handlers.set('message:dequeued', handleMessageDequeued);
-    handlers.set('context:compacted', handleContextCompacted);
-    handlers.set('service:event', handleServiceEvent);
+    registerHandler('llm:thinking', handleLLMThinking);
+    registerHandler('llm:chunk', handleLLMChunk);
+    registerHandler('llm:response', handleLLMResponse);
+    registerHandler('llm:tool-call', handleToolCall);
+    registerHandler('llm:tool-result', handleToolResult);
+    registerHandler('llm:error', handleLLMError);
+    registerHandler('approval:request', handleApprovalRequest);
+    registerHandler('approval:response', handleApprovalResponse);
+    registerHandler('run:complete', handleRunComplete);
+    registerHandler('session:title-updated', handleSessionTitleUpdated);
+    registerHandler('message:dequeued', handleMessageDequeued);
+    registerHandler('context:compacted', handleContextCompacted);
+    registerHandler('service:event', handleServiceEvent);
 }
 
 /**
@@ -764,8 +768,8 @@ export function registerHandlers(): void {
  * @param name - Event name
  * @returns Handler function or undefined if not registered
  */
-export function getHandler(name: string): EventHandler | undefined {
-    return handlers.get(name);
+export function getHandler(name: string): EventHandler<StreamingEvent> | undefined {
+    return handlers.get(name as StreamingEventName);
 }
 
 /**
@@ -791,10 +795,7 @@ export function setupEventHandlers(bus: ClientEventBus): () => void {
     const subscriptions: Array<{ unsubscribe: () => void }> = [];
 
     handlers.forEach((handler, eventName) => {
-        // Cast to any to bypass strict typing - handlers map uses string keys
-        // but bus.on expects specific event names. This is safe because
-        // registerHandlers() only adds valid event names.
-        const subscription = bus.on(eventName as any, handler);
+        const subscription = bus.on(eventName, handler);
         subscriptions.push(subscription);
     });
 
