@@ -27,30 +27,10 @@ const GOOGLE_DEFAULT_BUDGET_TOKENS = 2048;
 const BEDROCK_DEFAULT_BUDGET_TOKENS = 2048;
 const ANTHROPIC_CACHE_CONTROL = { type: 'ephemeral' as const };
 
-function coerceAnthropicThinkingBudgetTokens(tokens: number | undefined): number | undefined {
+function coerceBudgetTokens(tokens: number | undefined, minimum: number): number | undefined {
     if (tokens === undefined) return undefined;
     if (!Number.isFinite(tokens)) return undefined;
-    return Math.max(ANTHROPIC_MIN_THINKING_BUDGET_TOKENS, Math.floor(tokens));
-}
-
-function coerceGoogleThinkingBudgetTokens(tokens: number | undefined): number | undefined {
-    if (tokens === undefined) return undefined;
-    if (!Number.isFinite(tokens)) return undefined;
-    return Math.max(1, Math.floor(tokens));
-}
-
-function coerceBedrockThinkingBudgetTokens(tokens: number | undefined): number | undefined {
-    if (tokens === undefined) return undefined;
-    if (!Number.isFinite(tokens)) return undefined;
-    return Math.max(1, Math.floor(tokens));
-}
-
-function isBedrockAnthropicModel(model: string): boolean {
-    return model.toLowerCase().includes('anthropic');
-}
-
-function isBedrockNovaModel(model: string): boolean {
-    return model.toLowerCase().includes('nova');
+    return Math.max(minimum, Math.floor(tokens));
 }
 
 function getSelectedVariant(config: ProviderOptionsConfig): {
@@ -127,8 +107,9 @@ function buildAnthropicProviderOptions(config: {
         };
     }
 
-    const effectiveBudgetTokens = coerceAnthropicThinkingBudgetTokens(
-        budgetTokens ?? ANTHROPIC_DEFAULT_BUDGET_TOKENS
+    const effectiveBudgetTokens = coerceBudgetTokens(
+        budgetTokens ?? ANTHROPIC_DEFAULT_BUDGET_TOKENS,
+        ANTHROPIC_MIN_THINKING_BUDGET_TOKENS
     );
 
     return {
@@ -268,9 +249,9 @@ export function buildProviderOptions(
             return { bedrock: {} };
         }
 
-        const isAnthropic = isBedrockAnthropicModel(model);
-        const isNova = isBedrockNovaModel(model);
-        if (!isAnthropic && !isNova) {
+        const isAnthropicModel = modelLower.includes('anthropic');
+        const isNovaModel = modelLower.includes('nova');
+        if (!isAnthropicModel && !isNovaModel) {
             return { bedrock: {} };
         }
 
@@ -281,9 +262,10 @@ export function buildProviderOptions(
             return { bedrock };
         }
 
-        if (isAnthropic) {
-            const effectiveBudgetTokens = coerceBedrockThinkingBudgetTokens(
-                budgetTokens ?? BEDROCK_DEFAULT_BUDGET_TOKENS
+        if (isAnthropicModel) {
+            const effectiveBudgetTokens = coerceBudgetTokens(
+                budgetTokens ?? BEDROCK_DEFAULT_BUDGET_TOKENS,
+                1
             );
             if (effectiveBudgetTokens === undefined) {
                 return { bedrock: {} };
@@ -324,8 +306,9 @@ export function buildProviderOptions(
                 variant === 'high')
                 ? variant
                 : undefined;
-        const thinkingBudgetTokens = coerceGoogleThinkingBudgetTokens(
-            budgetTokens ?? GOOGLE_DEFAULT_BUDGET_TOKENS
+        const thinkingBudgetTokens = coerceBudgetTokens(
+            budgetTokens ?? GOOGLE_DEFAULT_BUDGET_TOKENS,
+            1
         );
 
         return {

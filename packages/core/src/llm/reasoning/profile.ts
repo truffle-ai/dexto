@@ -27,6 +27,70 @@ function option(id: string, label?: string): ReasoningVariantOption {
     return { id, label: label ?? id };
 }
 
+function buildBudgetProfile(config: {
+    includeDisabled: boolean;
+    supportsBudgetTokens: boolean;
+}): ReasoningProfile {
+    const variants = config.includeDisabled
+        ? [option('disabled'), option('enabled')]
+        : [option('enabled')];
+
+    return withDefault(
+        {
+            capable: true,
+            paradigm: 'budget',
+            variants,
+            supportsBudgetTokens: config.supportsBudgetTokens,
+        },
+        'enabled'
+    );
+}
+
+function buildThinkingLevelProfile(config: {
+    includeDisabled: boolean;
+    supportsBudgetTokens: boolean;
+}): ReasoningProfile {
+    const variants = config.includeDisabled
+        ? [option('disabled'), option('minimal'), option('low'), option('medium'), option('high')]
+        : [option('minimal'), option('low'), option('medium'), option('high')];
+
+    return withDefault(
+        {
+            capable: true,
+            paradigm: 'thinking-level',
+            variants,
+            supportsBudgetTokens: config.supportsBudgetTokens,
+        },
+        'medium'
+    );
+}
+
+function buildAnthropicAdaptiveProfile(config: {
+    model: string;
+    includeDisabled: boolean;
+    supportsBudgetTokens: boolean;
+}): ReasoningProfile {
+    const variants: ReasoningVariantOption[] = [];
+    if (config.includeDisabled) {
+        variants.push(option('disabled'));
+    }
+    variants.push(option('low'), option('medium'), option('high'));
+
+    if (isAnthropicOpusAdaptiveThinkingModel(config.model)) {
+        variants.push(option('max'));
+    }
+
+    return withDefault(
+        {
+            capable: true,
+            paradigm: 'adaptive-effort',
+            variants,
+            supportsBudgetTokens: config.supportsBudgetTokens,
+        },
+        'medium'
+    );
+}
+
 function isGemini3Model(model: string): boolean {
     return model.toLowerCase().includes('gemini-3');
 }
@@ -98,47 +162,24 @@ export function getReasoningProfile(provider: LLMProvider, model: string): Reaso
         }
         case 'anthropic': {
             if (isAnthropicAdaptiveThinkingModel(model)) {
-                const variants: ReasoningVariantOption[] = [
-                    option('disabled'),
-                    option('low'),
-                    option('medium'),
-                    option('high'),
-                ];
-                if (isAnthropicOpusAdaptiveThinkingModel(model)) {
-                    variants.push(option('max'));
-                }
-                return withDefault(
-                    {
-                        capable: true,
-                        paradigm: 'adaptive-effort',
-                        variants,
-                        supportsBudgetTokens: false,
-                    },
-                    'medium'
-                );
+                return buildAnthropicAdaptiveProfile({
+                    model,
+                    includeDisabled: true,
+                    supportsBudgetTokens: false,
+                });
             }
 
-            return withDefault(
-                {
-                    capable: true,
-                    paradigm: 'budget',
-                    variants: [option('disabled'), option('enabled')],
-                    supportsBudgetTokens: true,
-                },
-                'enabled'
-            );
+            return buildBudgetProfile({
+                includeDisabled: true,
+                supportsBudgetTokens: true,
+            });
         }
         case 'bedrock': {
             if (isBedrockAnthropicModel(model)) {
-                return withDefault(
-                    {
-                        capable: true,
-                        paradigm: 'budget',
-                        variants: [option('disabled'), option('enabled')],
-                        supportsBudgetTokens: true,
-                    },
-                    'enabled'
-                );
+                return buildBudgetProfile({
+                    includeDisabled: true,
+                    supportsBudgetTokens: true,
+                });
             }
 
             if (isBedrockNovaModel(model)) {
@@ -162,32 +203,16 @@ export function getReasoningProfile(provider: LLMProvider, model: string): Reaso
         }
         case 'google': {
             if (isGemini3Model(model)) {
-                return withDefault(
-                    {
-                        capable: true,
-                        paradigm: 'thinking-level',
-                        variants: [
-                            option('disabled'),
-                            option('minimal'),
-                            option('low'),
-                            option('medium'),
-                            option('high'),
-                        ],
-                        supportsBudgetTokens: false,
-                    },
-                    'medium'
-                );
+                return buildThinkingLevelProfile({
+                    includeDisabled: true,
+                    supportsBudgetTokens: false,
+                });
             }
 
-            return withDefault(
-                {
-                    capable: true,
-                    paradigm: 'budget',
-                    variants: [option('disabled'), option('enabled')],
-                    supportsBudgetTokens: true,
-                },
-                'enabled'
-            );
+            return buildBudgetProfile({
+                includeDisabled: true,
+                supportsBudgetTokens: true,
+            });
         }
         case 'vertex': {
             const modelLower = model.toLowerCase();
@@ -195,64 +220,30 @@ export function getReasoningProfile(provider: LLMProvider, model: string): Reaso
 
             if (isClaudeModel) {
                 if (isAnthropicAdaptiveThinkingModel(model)) {
-                    const variants: ReasoningVariantOption[] = [
-                        option('disabled'),
-                        option('low'),
-                        option('medium'),
-                        option('high'),
-                    ];
-                    if (isAnthropicOpusAdaptiveThinkingModel(model)) {
-                        variants.push(option('max'));
-                    }
-                    return withDefault(
-                        {
-                            capable: true,
-                            paradigm: 'adaptive-effort',
-                            variants,
-                            supportsBudgetTokens: false,
-                        },
-                        'medium'
-                    );
+                    return buildAnthropicAdaptiveProfile({
+                        model,
+                        includeDisabled: true,
+                        supportsBudgetTokens: false,
+                    });
                 }
 
-                return withDefault(
-                    {
-                        capable: true,
-                        paradigm: 'budget',
-                        variants: [option('disabled'), option('enabled')],
-                        supportsBudgetTokens: true,
-                    },
-                    'enabled'
-                );
+                return buildBudgetProfile({
+                    includeDisabled: true,
+                    supportsBudgetTokens: true,
+                });
             }
 
             if (isGemini3Model(model)) {
-                return withDefault(
-                    {
-                        capable: true,
-                        paradigm: 'thinking-level',
-                        variants: [
-                            option('disabled'),
-                            option('minimal'),
-                            option('low'),
-                            option('medium'),
-                            option('high'),
-                        ],
-                        supportsBudgetTokens: false,
-                    },
-                    'medium'
-                );
+                return buildThinkingLevelProfile({
+                    includeDisabled: true,
+                    supportsBudgetTokens: false,
+                });
             }
 
-            return withDefault(
-                {
-                    capable: true,
-                    paradigm: 'budget',
-                    variants: [option('disabled'), option('enabled')],
-                    supportsBudgetTokens: true,
-                },
-                'enabled'
-            );
+            return buildBudgetProfile({
+                includeDisabled: true,
+                supportsBudgetTokens: true,
+            });
         }
         case 'openrouter':
         case 'dexto-nova': {
@@ -276,51 +267,24 @@ export function getReasoningProfile(provider: LLMProvider, model: string): Reaso
 
             if (target.kind === 'anthropic') {
                 if (isAnthropicAdaptiveThinkingModel(target.modelId)) {
-                    const variants: ReasoningVariantOption[] = [
-                        option('low'),
-                        option('medium'),
-                        option('high'),
-                    ];
-                    if (isAnthropicOpusAdaptiveThinkingModel(target.modelId)) {
-                        variants.push(option('max'));
-                    }
-                    return withDefault(
-                        {
-                            capable: true,
-                            paradigm: 'adaptive-effort',
-                            variants,
-                            supportsBudgetTokens: true,
-                        },
-                        'medium'
-                    );
+                    return buildAnthropicAdaptiveProfile({
+                        model: target.modelId,
+                        includeDisabled: false,
+                        supportsBudgetTokens: true,
+                    });
                 }
 
-                return withDefault(
-                    {
-                        capable: true,
-                        paradigm: 'budget',
-                        variants: [option('enabled')],
-                        supportsBudgetTokens: true,
-                    },
-                    'enabled'
-                );
+                return buildBudgetProfile({
+                    includeDisabled: false,
+                    supportsBudgetTokens: true,
+                });
             }
 
             if (target.kind === 'google-gemini-3') {
-                return withDefault(
-                    {
-                        capable: true,
-                        paradigm: 'thinking-level',
-                        variants: [
-                            option('minimal'),
-                            option('low'),
-                            option('medium'),
-                            option('high'),
-                        ],
-                        supportsBudgetTokens: true,
-                    },
-                    'medium'
-                );
+                return buildThinkingLevelProfile({
+                    includeDisabled: false,
+                    supportsBudgetTokens: true,
+                });
             }
 
             return nonCapableProfile();
