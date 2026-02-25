@@ -247,12 +247,8 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
         const preset = data.reasoning.preset;
         const budgetTokens = data.reasoning.budgetTokens;
 
-        // OpenRouter gateway providers are especially sensitive to unsupported reasoning params.
-        // Validate presets strictly to avoid runtime errors.
-        if (
-            (data.provider === 'openrouter' || data.provider === 'dexto-nova') &&
-            !support.supportedPresets.includes(preset)
-        ) {
+        // Validate presets strictly to avoid silent provider-side coercion.
+        if (!support.supportedPresets.includes(preset)) {
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,
                 path: ['reasoning', 'preset'],
@@ -322,10 +318,7 @@ export const LLMUpdatesSchema = z
             const preset = data.reasoning.preset;
             const budgetTokens = data.reasoning.budgetTokens;
 
-            if (
-                (data.provider === 'openrouter' || data.provider === 'dexto-nova') &&
-                !support.supportedPresets.includes(preset)
-            ) {
+            if (!support.supportedPresets.includes(preset)) {
                 ctx.addIssue({
                     code: z.ZodIssueCode.custom,
                     path: ['reasoning', 'preset'],

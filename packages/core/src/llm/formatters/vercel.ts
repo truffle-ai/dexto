@@ -147,11 +147,10 @@ export class VercelMessageFormatter {
                     formatted.push({
                         role: 'assistant',
                         ...this.formatAssistantMessage(msg, {
-                            // Reasoning parts are UI-only; do not round-trip them into prompts.
-                            // Providers have strict replay requirements (e.g. OpenAI item ordering,
-                            // Anthropic thinking signatures) and we don't currently preserve the
-                            // full structured reasoning stream required for safe replay.
-                            includeReasoning: false,
+                            // OpenAI/OpenRouter reasoning items can require strict output-item replay.
+                            // Keep those providers on "no reasoning replay" to avoid invalid_request errors.
+                            // For other providers we continue to round-trip reasoning where available.
+                            includeReasoning: this.shouldRoundTripReasoning(context),
                         }),
                     });
                     // Track tool call IDs and names as pending
@@ -217,6 +216,15 @@ export class VercelMessageFormatter {
      */
     formatSystemPrompt(): null {
         return null;
+    }
+
+    private shouldRoundTripReasoning(context: LLMContext): boolean {
+        return (
+            context.provider !== 'openai' &&
+            context.provider !== 'openai-compatible' &&
+            context.provider !== 'openrouter' &&
+            context.provider !== 'dexto-nova'
+        );
     }
 
     // Helper to format Assistant messages (with optional tool calls and reasoning)

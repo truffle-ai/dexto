@@ -13,7 +13,7 @@ describe('getReasoningSupport', () => {
     it('returns openai presets for reasoning-capable models', () => {
         expect(getReasoningSupport('openai', 'gpt-5')).toEqual({
             capable: true,
-            supportedPresets: ['off', 'low', 'medium', 'high'],
+            supportedPresets: ['low', 'medium', 'high'],
             supportsBudgetTokens: false,
         });
     });
@@ -34,6 +34,14 @@ describe('getReasoningSupport', () => {
 
     it('does not advertise budget tokens for Claude 4.6 (adaptive thinking)', () => {
         expect(getReasoningSupport('anthropic', 'claude-sonnet-4-6')).toEqual({
+            capable: true,
+            supportedPresets: ['off', 'low', 'medium', 'high'],
+            supportsBudgetTokens: false,
+        });
+    });
+
+    it('advertises max for Claude Opus 4.6 (adaptive max effort)', () => {
+        expect(getReasoningSupport('anthropic', 'claude-opus-4-6')).toEqual({
             capable: true,
             supportedPresets: ['off', 'low', 'medium', 'high', 'max'],
             supportsBudgetTokens: false,

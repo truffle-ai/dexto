@@ -661,6 +661,11 @@ function pickExistingOpenRouterModelId(candidates: string[]): string | null {
 }
 
 function findModelInfo(provider: LLMProvider, model: string): ModelInfo | null {
+    if (provider === 'openrouter' && model.includes('/')) {
+        const dynamicOpenRouterModel = getOpenRouterGatewayModelById(model);
+        if (dynamicOpenRouterModel) return dynamicOpenRouterModel;
+    }
+
     const providerInfo = LLM_REGISTRY[provider];
     const normalizedModel = getNormalizedModelIdForLookup(provider, model);
     const direct = providerInfo.models.find((m) => m.name.toLowerCase() === normalizedModel);
@@ -668,73 +673,103 @@ function findModelInfo(provider: LLMProvider, model: string): ModelInfo | null {
 
     // Gateway providers can also surface OpenRouter models (OpenRouter-format IDs with "/").
     if (provider !== 'openrouter' && hasAllRegistryModelsSupport(provider) && model.includes('/')) {
-        const openrouterModel = LLM_REGISTRY.openrouter.models.find(
-            (m) => m.name.toLowerCase() === model.toLowerCase()
-        );
+        const openrouterModel = getOpenRouterGatewayModelById(model);
         if (openrouterModel) return openrouterModel;
     }
 
     return null;
 }
 
-function getOpenRouterGatewayCatalogModels(): ModelInfo[] {
+function ensureOpenRouterCatalogRefreshScheduled(): void {
     const cacheInfo = getOpenRouterModelCacheInfo();
     if (cacheInfo.modelCount === 0) {
         scheduleOpenRouterModelRefresh({ force: true });
     } else if (!cacheInfo.isFresh) {
         scheduleOpenRouterModelRefresh();
     }
+}
+
+function findOpenRouterSnapshotModelById(modelId: string): ModelInfo | null {
+    const normalized = modelId.toLowerCase();
+    return LLM_REGISTRY.openrouter.models.find((m) => m.name.toLowerCase() === normalized) ?? null;
+}
+
+function buildOpenRouterGatewayModelInfo(
+    cachedModel: {
+        id: string;
+        contextLength: number;
+        displayName?: string;
+        supportedParameters?: string[];
+    },
+    snapshot: ModelInfo | null
+): ModelInfo {
+    const providerDefaults = LLM_REGISTRY.openrouter.supportedFileTypes;
+    const displayName = snapshot?.displayName ?? cachedModel.displayName;
+    const supportedFileTypes = snapshot?.supportedFileTypes ?? providerDefaults;
+    const maxInputTokens =
+        typeof cachedModel.contextLength === 'number' && cachedModel.contextLength > 0
+            ? cachedModel.contextLength
+            : (snapshot?.maxInputTokens ?? DEFAULT_MAX_INPUT_TOKENS);
+
+    const inferredReasoning =
+        cachedModel.supportedParameters?.includes('reasoning') === true ? true : undefined;
+    const inferredSupportsTemperature =
+        cachedModel.supportedParameters?.includes('temperature') === true ? true : undefined;
+
+    return {
+        name: snapshot?.name ?? cachedModel.id,
+        maxInputTokens,
+        supportedFileTypes,
+        ...(snapshot?.default ? { default: true } : {}),
+        ...(displayName ? { displayName } : {}),
+        ...(typeof snapshot?.reasoning === 'boolean'
+            ? { reasoning: snapshot.reasoning }
+            : typeof inferredReasoning === 'boolean'
+              ? { reasoning: inferredReasoning }
+              : {}),
+        ...(typeof snapshot?.supportsTemperature === 'boolean'
+            ? { supportsTemperature: snapshot.supportsTemperature }
+            : typeof inferredSupportsTemperature === 'boolean'
+              ? { supportsTemperature: inferredSupportsTemperature }
+              : {}),
+        ...(typeof snapshot?.supportsInterleaved === 'boolean'
+            ? { supportsInterleaved: snapshot.supportsInterleaved }
+            : {}),
+        ...(snapshot?.pricing ? { pricing: snapshot.pricing } : {}),
+    };
+}
+
+function getOpenRouterGatewayModelById(modelId: string): ModelInfo | null {
+    ensureOpenRouterCatalogRefreshScheduled();
+
+    const snapshot = findOpenRouterSnapshotModelById(modelId);
+    const cached = getCachedOpenRouterModelsWithInfo();
+    if (!cached || cached.length === 0) {
+        return snapshot ? { ...snapshot } : null;
+    }
+
+    const normalized = modelId.toLowerCase();
+    const cachedModel = cached.find((m) => m.id.toLowerCase() === normalized);
+    if (!cachedModel) return snapshot ? { ...snapshot } : null;
+
+    return buildOpenRouterGatewayModelInfo(cachedModel, snapshot);
+}
+
+function getOpenRouterGatewayCatalogModels(): ModelInfo[] {
+    ensureOpenRouterCatalogRefreshScheduled();
 
     const cached = getCachedOpenRouterModelsWithInfo();
     if (!cached || cached.length === 0) {
         return LLM_REGISTRY.openrouter.models.map((m) => ({ ...m }));
     }
 
-    const providerDefaults = LLM_REGISTRY.openrouter.supportedFileTypes;
-    const snapshotById = new Map<string, ModelInfo>();
-    for (const model of LLM_REGISTRY.openrouter.models) {
-        snapshotById.set(model.name.toLowerCase(), model);
-    }
-
     const models: ModelInfo[] = cached
-        .map((cachedModel): ModelInfo => {
-            const snapshot = snapshotById.get(cachedModel.id.toLowerCase());
-            const displayName = snapshot?.displayName ?? cachedModel.displayName;
-            const supportedFileTypes = snapshot?.supportedFileTypes ?? providerDefaults;
-            const maxInputTokens =
-                typeof cachedModel.contextLength === 'number' && cachedModel.contextLength > 0
-                    ? cachedModel.contextLength
-                    : (snapshot?.maxInputTokens ?? DEFAULT_MAX_INPUT_TOKENS);
-
-            const inferredReasoning =
-                cachedModel.supportedParameters?.includes('reasoning') === true ? true : undefined;
-            const inferredSupportsTemperature =
-                cachedModel.supportedParameters?.includes('temperature') === true
-                    ? true
-                    : undefined;
-
-            return {
-                name: snapshot?.name ?? cachedModel.id,
-                maxInputTokens,
-                supportedFileTypes,
-                ...(snapshot?.default ? { default: true } : {}),
-                ...(displayName ? { displayName } : {}),
-                ...(typeof snapshot?.reasoning === 'boolean'
-                    ? { reasoning: snapshot.reasoning }
-                    : typeof inferredReasoning === 'boolean'
-                      ? { reasoning: inferredReasoning }
-                      : {}),
-                ...(typeof snapshot?.supportsTemperature === 'boolean'
-                    ? { supportsTemperature: snapshot.supportsTemperature }
-                    : typeof inferredSupportsTemperature === 'boolean'
-                      ? { supportsTemperature: inferredSupportsTemperature }
-                      : {}),
-                ...(typeof snapshot?.supportsInterleaved === 'boolean'
-                    ? { supportsInterleaved: snapshot.supportsInterleaved }
-                    : {}),
-                ...(snapshot?.pricing ? { pricing: snapshot.pricing } : {}),
-            };
-        })
+        .map((cachedModel) =>
+            buildOpenRouterGatewayModelInfo(
+                cachedModel,
+                findOpenRouterSnapshotModelById(cachedModel.id)
+            )
+        )
         .sort((a, b) => a.name.localeCompare(b.name));
 
     return models;
@@ -1185,9 +1220,7 @@ export function isReasoningCapableModel(model: string, provider?: LLMProvider): 
     })();
 
     if (registryProvider === 'openrouter' && model.includes('/')) {
-        const dynamicModel = getOpenRouterGatewayCatalogModels().find(
-            (m) => m.name.toLowerCase() === model.toLowerCase()
-        );
+        const dynamicModel = getOpenRouterGatewayModelById(model);
         if (dynamicModel?.reasoning === true) return true;
         if (dynamicModel?.reasoning === false) return false;
     }

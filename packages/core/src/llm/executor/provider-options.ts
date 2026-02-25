@@ -26,8 +26,8 @@ import {
 import { ANTHROPIC_INTERLEAVED_THINKING_BETA } from '../reasoning/anthropic-betas.js';
 import { supportsOpenRouterReasoningTuning } from '../reasoning/profiles/openrouter.js';
 import {
-    coerceOpenAIReasoningEffort,
     type OpenAIReasoningEffort,
+    supportsOpenAIReasoningEffort,
 } from '../reasoning/openai-reasoning-effort.js';
 
 export interface ProviderOptionsConfig {
@@ -198,7 +198,7 @@ function mapPresetToOpenAIReasoningEffort(
     })();
 
     if (requested === undefined) return undefined;
-    return coerceOpenAIReasoningEffort(model, requested);
+    return supportsOpenAIReasoningEffort(model, requested) ? requested : undefined;
 }
 
 function isBedrockAnthropicModel(model: string): boolean {
@@ -285,31 +285,27 @@ function buildOpenRouterProviderOptions(config: {
     model: string;
     preset: ReasoningPreset;
     budgetTokens: number | undefined;
-}): Record<string, Record<string, unknown>> {
+}): Record<string, Record<string, unknown>> | undefined {
     const { model, preset, budgetTokens } = config;
     const capable = isReasoningCapableModel(model);
+    const supportsTuning = supportsOpenRouterReasoningTuning(model);
+
+    // Strict gating: avoid sending OpenRouter reasoning knobs to models where we expect errors.
+    // Keep this aligned with getReasoningSupport(): if tuning is not supported, don't send
+    // `openrouter.reasoning` or `include_reasoning` at all.
+    if (!capable || !supportsTuning) {
+        return undefined;
+    }
 
     if (preset === 'off') {
         return { openrouter: { include_reasoning: false } };
-    }
-
-    // Default: request reasoning details when available; UI can decide whether to display.
-    const base = { include_reasoning: true };
-
-    if (!capable) {
-        return { openrouter: base };
-    }
-
-    // Strict gating: avoid sending reasoning knobs to OpenRouter models where we expect errors.
-    if (!supportsOpenRouterReasoningTuning(model)) {
-        return { openrouter: base };
     }
 
     // budgetTokens is an explicit override: apply it even when preset is the default.
     if (budgetTokens !== undefined) {
         return {
             openrouter: {
-                ...base,
+                include_reasoning: true,
                 reasoning: { enabled: true, max_tokens: budgetTokens },
             },
         };
@@ -319,7 +315,7 @@ function buildOpenRouterProviderOptions(config: {
 
     return {
         openrouter: {
-            ...base,
+            include_reasoning: true,
             ...(effort !== undefined ? { reasoning: { enabled: true, effort } } : {}),
         },
     };

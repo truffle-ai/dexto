@@ -22,10 +22,10 @@ describe('buildProviderOptions', () => {
             expect(
                 buildProviderOptions({
                     provider: 'openai',
-                    model: 'gpt-5',
+                    model: 'gpt-5.2',
                     reasoning: { preset: 'max' },
                 })
-            ).toEqual({ openai: { reasoningEffort: 'high', reasoningSummary: 'auto' } });
+            ).toEqual({ openai: { reasoningEffort: 'xhigh', reasoningSummary: 'auto' } });
         });
 
         it('supports xhigh for models that support it', () => {
@@ -46,14 +46,14 @@ describe('buildProviderOptions', () => {
             ).toEqual({ openai: { reasoningEffort: 'xhigh', reasoningSummary: 'auto' } });
         });
 
-        it('coerces off to the lowest supported effort per model', () => {
+        it('sends off only when the model supports it natively', () => {
             expect(
                 buildProviderOptions({
                     provider: 'openai',
                     model: 'gpt-5',
                     reasoning: { preset: 'off' },
                 })
-            ).toEqual({ openai: { reasoningEffort: 'minimal' } });
+            ).toBeUndefined();
 
             expect(
                 buildProviderOptions({
@@ -64,14 +64,14 @@ describe('buildProviderOptions', () => {
             ).toEqual({ openai: { reasoningEffort: 'none' } });
         });
 
-        it('coerces unsupported levels to avoid invalid OpenAI API calls', () => {
+        it('does not send unsupported levels for a constrained model', () => {
             expect(
                 buildProviderOptions({
                     provider: 'openai',
                     model: 'gpt-5-pro',
                     reasoning: { preset: 'low' },
                 })
-            ).toEqual({ openai: { reasoningEffort: 'high', reasoningSummary: 'auto' } });
+            ).toBeUndefined();
         });
 
         it('does not send reasoningEffort for non-reasoning models', () => {
@@ -455,6 +455,16 @@ describe('buildProviderOptions', () => {
                     reasoning: { enabled: true, effort: 'high' },
                 },
             });
+        });
+
+        it('does not send OpenRouter reasoning params for excluded families', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'openrouter',
+                    model: 'deepseek/deepseek-r1:free',
+                    reasoning: { preset: 'medium' },
+                })
+            ).toBeUndefined();
         });
 
         it('maps xhigh to high', () => {

@@ -220,8 +220,8 @@ describe('VercelMessageFormatter', () => {
         });
     });
 
-    describe('Reasoning (UI-only)', () => {
-        test('should omit reasoning parts from prompts even when reasoning is present', () => {
+    describe('Reasoning round-trip', () => {
+        test('omits reasoning parts for OpenAI contexts', () => {
             const formatter = new VercelMessageFormatter(mockLogger);
             const messages: InternalMessage[] = [
                 {
@@ -234,7 +234,7 @@ describe('VercelMessageFormatter', () => {
 
             const result = formatter.format(
                 messages,
-                { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022' },
+                { provider: 'openai', model: 'gpt-5.2' },
                 null
             );
 
@@ -243,6 +243,36 @@ describe('VercelMessageFormatter', () => {
             const reasoningPart = content.find((p) => p.type === 'reasoning');
 
             expect(reasoningPart).toBeUndefined();
+        });
+
+        test('includes reasoning parts for Anthropic contexts', () => {
+            const formatter = new VercelMessageFormatter(mockLogger);
+            const messages: InternalMessage[] = [
+                {
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'Answer' }],
+                    reasoning: 'Thinking...',
+                    reasoningMetadata: { anthropic: { cacheId: 'cache-123' } },
+                },
+            ];
+
+            const result = formatter.format(
+                messages,
+                { provider: 'anthropic', model: 'claude-3-7-sonnet-20250219' },
+                null
+            );
+
+            const assistantMessage = result.find((m) => m.role === 'assistant');
+            const content = assistantMessage!.content as Array<{
+                type: string;
+                text?: string;
+                providerOptions?: Record<string, unknown>;
+            }>;
+            const reasoningPart = content.find((p) => p.type === 'reasoning');
+
+            expect(reasoningPart).toBeDefined();
+            expect(reasoningPart?.text).toBe('Thinking...');
+            expect(reasoningPart?.providerOptions).toEqual({ anthropic: { cacheId: 'cache-123' } });
         });
 
         test('should not include reasoning part when reasoning is not present', () => {

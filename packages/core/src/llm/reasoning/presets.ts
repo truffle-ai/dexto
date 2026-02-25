@@ -1,6 +1,6 @@
 import type { LLMProvider, ReasoningPreset } from '../types.js';
 import { isReasoningCapableModel } from '../registry/index.js';
-import { isAnthropicAdaptiveThinkingModel } from './anthropic-thinking.js';
+import { isAnthropicAdaptiveThinkingModel, isAnthropicOpus46Model } from './anthropic-thinking.js';
 import { getSupportedOpenAIReasoningEfforts } from './openai-reasoning-effort.js';
 import { supportsOpenRouterReasoningTuning } from './profiles/openrouter.js';
 
@@ -58,9 +58,8 @@ export function getReasoningSupport(provider: LLMProvider, model: string): Reaso
             const efforts = getSupportedOpenAIReasoningEfforts(model);
             const presets: ReasoningPreset[] = [];
 
-            // `gpt-5-pro` only supports `high` (no meaningful tuning).
-            const onlyHigh = efforts.length === 1 && efforts[0] === 'high';
-            if (!onlyHigh) presets.push('off');
+            // `off` requires provider-native support for disabling reasoning.
+            if (efforts.includes('none')) presets.push('off');
 
             if (efforts.includes('low')) presets.push('low');
             if (efforts.includes('medium')) presets.push('medium');
@@ -73,7 +72,11 @@ export function getReasoningSupport(provider: LLMProvider, model: string): Reaso
                 return { capable, supportedPresets: base, supportsBudgetTokens: false };
             }
 
-            const presets: ReasoningPreset[] = ['off', 'low', 'medium', 'high', 'max'];
+            const presets: ReasoningPreset[] = ['off', 'low', 'medium', 'high'];
+            // Anthropic adaptive `effort=max` is Opus-only today.
+            if (!isAnthropicAdaptiveThinkingModel(model) || isAnthropicOpus46Model(model)) {
+                presets.push('max');
+            }
 
             // Claude 4.6 uses adaptive thinking; budget tokens are deprecated and will be removed.
             const supportsBudgetTokens = !isAnthropicAdaptiveThinkingModel(model);
@@ -135,9 +138,18 @@ export function getReasoningSupport(provider: LLMProvider, model: string): Reaso
         }
         case 'vertex': {
             // Vertex can be Gemini or Claude; we still expose the shared set.
-            const presets: ReasoningPreset[] = capable
-                ? ['off', 'low', 'medium', 'high', 'max']
-                : base;
+            let presets: ReasoningPreset[] = base;
+            if (capable) {
+                const isClaudeModel = model.toLowerCase().includes('claude');
+                if (isClaudeModel && isAnthropicAdaptiveThinkingModel(model)) {
+                    presets = ['off', 'low', 'medium', 'high'];
+                    if (isAnthropicOpus46Model(model)) {
+                        presets.push('max');
+                    }
+                } else {
+                    presets = ['off', 'low', 'medium', 'high', 'max'];
+                }
+            }
 
             const supportsBudgetTokens =
                 capable &&

@@ -12,7 +12,7 @@ import { createVertexAnthropic } from '@ai-sdk/google-vertex/anthropic';
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { VercelLLMService } from './vercel.js';
-import { LanguageModel } from 'ai';
+import type { LanguageModel } from 'ai';
 import { SessionEventBus } from '../../events/index.js';
 import { createCohere } from '@ai-sdk/cohere';
 import { createLocalLanguageModel } from '../providers/local/ai-sdk-adapter.js';
@@ -26,6 +26,16 @@ import {
     ANTHROPIC_INTERLEAVED_THINKING_BETA,
 } from '../reasoning/anthropic-betas.js';
 import { supportsAnthropicInterleavedThinking } from '../reasoning/anthropic-thinking.js';
+
+function isLanguageModel(value: unknown): value is LanguageModel {
+    if (!value || typeof value !== 'object') return false;
+    const candidate = value as Record<string, unknown>;
+    return (
+        typeof candidate['modelId'] === 'string' &&
+        (typeof candidate['doGenerate'] === 'function' ||
+            typeof candidate['doStream'] === 'function')
+    );
+}
 
 // Dexto Gateway headers for usage tracking
 const DEXTO_GATEWAY_HEADERS = {
@@ -97,10 +107,15 @@ export function createVercelModel(
                 baseURL: orBaseURL,
                 compatibility: 'strict',
             });
-            // NOTE: The OpenRouter provider's providerMetadata typing can be stricter than
-            // the Vercel AI SDK's `LanguageModel` JSONValue constraints under
-            // `exactOptionalPropertyTypes`. The runtime interface is compatible.
-            return provider.chat(model) as unknown as LanguageModel;
+            const chatModel = provider.chat(model);
+            if (!isLanguageModel(chatModel)) {
+                throw LLMError.generationFailed(
+                    'OpenRouter provider returned an invalid language model instance',
+                    'openrouter',
+                    model
+                );
+            }
+            return chatModel;
         }
         case 'minimax': {
             // MiniMax - OpenAI-compatible endpoint
@@ -156,7 +171,15 @@ export function createVercelModel(
                 // This is an OpenRouter-compatible gateway; keep strict mode to enable OR features.
                 compatibility: 'strict',
             });
-            return provider.chat(model) as unknown as LanguageModel;
+            const chatModel = provider.chat(model);
+            if (!isLanguageModel(chatModel)) {
+                throw LLMError.generationFailed(
+                    'Dexto gateway provider returned an invalid language model instance',
+                    'dexto-nova',
+                    model
+                );
+            }
+            return chatModel;
         }
         case 'vertex': {
             // Google Vertex AI - supports both Gemini and Claude models
