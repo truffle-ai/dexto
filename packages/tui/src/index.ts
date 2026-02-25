@@ -1,3 +1,3 @@
 export { startInkCliRefactored, type InkCLIOptions, InkCLIRefactored } from './InkCLIRefactored.js';
 
-export { setTuiHostAdapter, type TuiHostAdapter } from './host/index.js';
+export { setTuiRuntimeServices, type TuiRuntimeServices } from './host/index.js';

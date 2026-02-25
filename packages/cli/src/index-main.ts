@@ -1819,7 +1819,7 @@ program
                         let inkError: unknown = undefined;
                         try {
                             const [
-                                { startInkCliRefactored, setTuiHostAdapter },
+                                { startInkCliRefactored, setTuiRuntimeServices },
                                 { registerGracefulShutdown },
                                 { applyLayeredEnvironmentLoading },
                                 {
@@ -1848,7 +1848,7 @@ program
                                 import('./cli/utils/dexto-setup.js'),
                             ]);
 
-                            setTuiHostAdapter({
+                            setTuiRuntimeServices({
                                 registerGracefulShutdown,
                                 capture: (event, properties) => {
                                     capture(event as never, properties as never);

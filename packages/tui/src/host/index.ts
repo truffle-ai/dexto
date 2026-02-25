@@ -44,7 +44,7 @@ export interface TuiDextoApiKeyProvisionStatus {
     message: string;
 }
 
-export interface TuiHostAdapter {
+export interface TuiRuntimeServices {
     registerGracefulShutdown?: (getAgent: () => DextoAgent, options: { inkMode: boolean }) => void;
     capture?: (event: string, properties?: Record<string, unknown>) => void;
     applyLayeredEnvironmentLoading?: () => Promise<void>;
@@ -74,43 +74,43 @@ export interface TuiHostAdapter {
     canUseDextoProvider?: () => Promise<boolean>;
 }
 
-let hostAdapter: TuiHostAdapter = {};
+let runtimeServices: TuiRuntimeServices = {};
 
-export function setTuiHostAdapter(adapter: TuiHostAdapter): void {
-    hostAdapter = { ...adapter };
+export function setTuiRuntimeServices(adapter: TuiRuntimeServices): void {
+    runtimeServices = { ...adapter };
 }
 
-export function getTuiHostAdapter(): TuiHostAdapter {
-    return hostAdapter;
+export function getTuiRuntimeServices(): TuiRuntimeServices {
+    return runtimeServices;
 }
 
 function missingHostMethod(methodName: string): Error {
-    return new Error(`TUI host adapter missing required method: ${methodName}`);
+    return new Error(`TUI runtime services missing required method: ${methodName}`);
 }
 
 export function registerGracefulShutdown(
     getAgent: () => DextoAgent,
     options: { inkMode: boolean }
 ): void {
-    hostAdapter.registerGracefulShutdown?.(getAgent, options);
+    runtimeServices.registerGracefulShutdown?.(getAgent, options);
 }
 
 export function captureAnalytics(event: string, properties?: Record<string, unknown>): void {
-    hostAdapter.capture?.(event, properties);
+    runtimeServices.capture?.(event, properties);
 }
 
 export async function applyLayeredEnvironmentLoading(): Promise<void> {
-    if (hostAdapter.applyLayeredEnvironmentLoading) {
-        await hostAdapter.applyLayeredEnvironmentLoading();
+    if (runtimeServices.applyLayeredEnvironmentLoading) {
+        await runtimeServices.applyLayeredEnvironmentLoading();
     }
 }
 
 export function getProviderDisplayName(provider: LLMProvider | string): string {
-    return hostAdapter.getProviderDisplayName?.(provider) ?? String(provider);
+    return runtimeServices.getProviderDisplayName?.(provider) ?? String(provider);
 }
 
 export function isValidApiKeyFormat(apiKey: string, provider: LLMProvider): boolean {
-    return hostAdapter.isValidApiKeyFormat?.(apiKey, provider) ?? apiKey.trim().length > 0;
+    return runtimeServices.isValidApiKeyFormat?.(apiKey, provider) ?? apiKey.trim().length > 0;
 }
 
 export function getProviderInstructions(provider: LLMProvider): {
@@ -118,11 +118,11 @@ export function getProviderInstructions(provider: LLMProvider): {
     content: string;
     url?: string | undefined;
 } | null {
-    return hostAdapter.getProviderInstructions?.(provider) ?? null;
+    return runtimeServices.getProviderInstructions?.(provider) ?? null;
 }
 
 export function getDefaultOAuthConfig(): TuiOAuthConfig {
-    const config = hostAdapter.defaultOAuthConfig;
+    const config = runtimeServices.defaultOAuthConfig;
     if (!config) {
         throw missingHostMethod('defaultOAuthConfig');
     }
@@ -133,62 +133,62 @@ export async function beginOAuthLogin(
     config: TuiOAuthConfig,
     options?: { signal?: AbortSignal | undefined }
 ): Promise<TuiOAuthLoginSession> {
-    if (!hostAdapter.beginOAuthLogin) {
+    if (!runtimeServices.beginOAuthLogin) {
         throw missingHostMethod('beginOAuthLogin');
     }
-    return hostAdapter.beginOAuthLogin(config, options);
+    return runtimeServices.beginOAuthLogin(config, options);
 }
 
 export async function ensureDextoApiKeyForAuthToken(
     authToken: string,
     options?: { onStatus?: ((status: TuiDextoApiKeyProvisionStatus) => void) | undefined }
 ): Promise<{ dextoApiKey: string; keyId: string | null } | null> {
-    if (!hostAdapter.ensureDextoApiKeyForAuthToken) {
+    if (!runtimeServices.ensureDextoApiKeyForAuthToken) {
         throw missingHostMethod('ensureDextoApiKeyForAuthToken');
     }
-    return hostAdapter.ensureDextoApiKeyForAuthToken(authToken, options);
+    return runtimeServices.ensureDextoApiKeyForAuthToken(authToken, options);
 }
 
 export async function loadAuth(): Promise<TuiAuthConfig | null> {
-    if (!hostAdapter.loadAuth) {
+    if (!runtimeServices.loadAuth) {
         throw missingHostMethod('loadAuth');
     }
-    return hostAdapter.loadAuth();
+    return runtimeServices.loadAuth();
 }
 
 export async function storeAuth(config: TuiAuthConfig): Promise<void> {
-    if (!hostAdapter.storeAuth) {
+    if (!runtimeServices.storeAuth) {
         throw missingHostMethod('storeAuth');
     }
-    await hostAdapter.storeAuth(config);
+    await runtimeServices.storeAuth(config);
 }
 
 export async function removeAuth(): Promise<void> {
-    if (!hostAdapter.removeAuth) {
+    if (!runtimeServices.removeAuth) {
         throw missingHostMethod('removeAuth');
     }
-    await hostAdapter.removeAuth();
+    await runtimeServices.removeAuth();
 }
 
 export async function removeDextoApiKeyFromEnv(options?: {
     expectedValue?: string;
 }): Promise<{ removed: boolean; targetEnvPath: string }> {
-    if (!hostAdapter.removeDextoApiKeyFromEnv) {
+    if (!runtimeServices.removeDextoApiKeyFromEnv) {
         throw missingHostMethod('removeDextoApiKeyFromEnv');
     }
-    return hostAdapter.removeDextoApiKeyFromEnv(options);
+    return runtimeServices.removeDextoApiKeyFromEnv(options);
 }
 
 export async function isUsingDextoCredits(): Promise<boolean> {
-    if (!hostAdapter.isUsingDextoCredits) {
+    if (!runtimeServices.isUsingDextoCredits) {
         throw missingHostMethod('isUsingDextoCredits');
     }
-    return hostAdapter.isUsingDextoCredits();
+    return runtimeServices.isUsingDextoCredits();
 }
 
 export async function canUseDextoProvider(): Promise<boolean> {
-    if (!hostAdapter.canUseDextoProvider) {
+    if (!runtimeServices.canUseDextoProvider) {
         throw missingHostMethod('canUseDextoProvider');
     }
-    return hostAdapter.canUseDextoProvider();
+    return runtimeServices.canUseDextoProvider();
 }
