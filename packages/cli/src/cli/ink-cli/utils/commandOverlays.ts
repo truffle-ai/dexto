@@ -65,20 +65,6 @@ export function getCommandOverlay(command: string, args: string[]): OverlayType 
 }
 
 /**
- * Get the overlay for a command selected from autocomplete.
- * Used by OverlayContainer.handleSystemCommandSelect
- *
- * When selecting from autocomplete, there are never args -
- * we just need to know if this command has an overlay.
- *
- * @param command - The command name selected from autocomplete
- * @returns Overlay type to show, or null to execute command
- */
-export function getCommandOverlayForSelect(command: string): OverlayType | null {
-    return getCommandOverlay(command, []);
-}
-
-/**
  * Check if a command has any overlay behavior.
  * Useful for determining if a command should be handled specially.
  */

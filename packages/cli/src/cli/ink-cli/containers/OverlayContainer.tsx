@@ -1186,8 +1186,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const handleSystemCommandSelect = useCallback(
             async (command: string) => {
                 // Check if this command has an interactive overlay
-                const { getCommandOverlayForSelect } = await import('../utils/commandOverlays.js');
-                const overlay = getCommandOverlayForSelect(command);
+                const { getCommandOverlay } = await import('../utils/commandOverlays.js');
+                const overlay = getCommandOverlay(command, []);
                 if (overlay) {
                     buffer.setText('');
                     setInput((prev) => ({ ...prev, historyIndex: -1 }));
