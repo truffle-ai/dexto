@@ -155,7 +155,7 @@ describe('Hono API Integration Tests', () => {
             expect(reasoning.capable).toBe(true);
             expect(reasoning.supportedVariants).toContain('high');
             expect(reasoning.supportedVariants).not.toContain('max');
-            expect(reasoning.supportedVariants).not.toContain('xhigh');
+            expect(reasoning.supportedVariants).toContain('xhigh');
         });
     });
 

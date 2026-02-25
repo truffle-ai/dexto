@@ -368,8 +368,16 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                                         .array(
                                             z
                                                 .object({
-                                                    id: z.string(),
-                                                    label: z.string(),
+                                                    id: z
+                                                        .string()
+                                                        .describe(
+                                                            'Native reasoning variant identifier'
+                                                        ),
+                                                    label: z
+                                                        .string()
+                                                        .describe(
+                                                            'Display label for the native reasoning variant'
+                                                        ),
                                                 })
                                                 .strict()
                                         )

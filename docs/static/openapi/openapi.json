@@ -3207,18 +3207,9 @@
                         "reasoning": {
                           "type": "object",
                           "properties": {
-                            "preset": {
+                            "variant": {
                               "type": "string",
-                              "enum": [
-                                "off",
-                                "low",
-                                "medium",
-                                "high",
-                                "max",
-                                "xhigh"
-                              ],
-                              "default": "medium",
-                              "description": "Reasoning tuning preset. Note: supported presets depend on provider+model. Options: off, low, medium, high, max, xhigh"
+                              "description": "Model/provider-native reasoning variant (resolved by reasoning profile for the selected model)."
                             },
                             "budgetTokens": {
                               "type": "integer",
@@ -3227,8 +3218,11 @@
                               "description": "Advanced escape hatch for budget-based providers (e.g., Anthropic/Gemini/Bedrock/OpenRouter)."
                             }
                           },
+                          "required": [
+                            "variant"
+                          ],
                           "additionalProperties": false,
-                          "description": "Reasoning configuration (tuning only; display is controlled separately)."
+                          "description": "Reasoning configuration using model/provider-native variants (tuning only; display is controlled separately)."
                         },
                         "hasApiKey": {
                           "type": "boolean",
@@ -5863,18 +5857,9 @@
                         "type": "object",
                         "nullable": true,
                         "properties": {
-                          "preset": {
+                          "variant": {
                             "type": "string",
-                            "enum": [
-                              "off",
-                              "low",
-                              "medium",
-                              "high",
-                              "max",
-                              "xhigh"
-                            ],
-                            "default": "medium",
-                            "description": "Reasoning tuning preset. Note: supported presets depend on provider+model. Options: off, low, medium, high, max, xhigh"
+                            "description": "Model/provider-native reasoning variant (resolved by reasoning profile for the selected model)."
                           },
                           "budgetTokens": {
                             "type": "integer",
@@ -5883,8 +5868,11 @@
                             "description": "Advanced escape hatch for budget-based providers (e.g., Anthropic/Gemini/Bedrock/OpenRouter)."
                           }
                         },
+                        "required": [
+                          "variant"
+                        ],
                         "additionalProperties": false,
-                        "description": "Reasoning configuration (tuning only; display is controlled separately)."
+                        "description": "Reasoning configuration using model/provider-native variants (tuning only; display is controlled separately)."
                       }
                     }
                   },
@@ -5980,18 +5968,9 @@
                         "reasoning": {
                           "type": "object",
                           "properties": {
-                            "preset": {
+                            "variant": {
                               "type": "string",
-                              "enum": [
-                                "off",
-                                "low",
-                                "medium",
-                                "high",
-                                "max",
-                                "xhigh"
-                              ],
-                              "default": "medium",
-                              "description": "Reasoning tuning preset. Note: supported presets depend on provider+model. Options: off, low, medium, high, max, xhigh"
+                              "description": "Model/provider-native reasoning variant (resolved by reasoning profile for the selected model)."
                             },
                             "budgetTokens": {
                               "type": "integer",
@@ -6000,8 +5979,11 @@
                               "description": "Advanced escape hatch for budget-based providers (e.g., Anthropic/Gemini/Bedrock/OpenRouter)."
                             }
                           },
+                          "required": [
+                            "variant"
+                          ],
                           "additionalProperties": false,
-                          "description": "Reasoning configuration (tuning only; display is controlled separately)."
+                          "description": "Reasoning configuration using model/provider-native variants (tuning only; display is controlled separately)."
                         },
                         "hasApiKey": {
                           "type": "boolean",
@@ -6096,17 +6078,9 @@
                           "reasoning": {
                             "type": "object",
                             "properties": {
-                              "preset": {
+                              "variant": {
                                 "type": "string",
-                                "enum": [
-                                  "off",
-                                  "low",
-                                  "medium",
-                                  "high",
-                                  "max",
-                                  "xhigh"
-                                ],
-                                "default": "medium"
+                                "minLength": 1
                               },
                               "budgetTokens": {
                                 "type": "integer",
@@ -6114,6 +6088,9 @@
                                 "exclusiveMinimum": true
                               }
                             },
+                            "required": [
+                              "variant"
+                            ],
                             "additionalProperties": false
                           }
                         },
@@ -6190,17 +6167,9 @@
                   "reasoning": {
                     "type": "object",
                     "properties": {
-                      "preset": {
+                      "variant": {
                         "type": "string",
-                        "enum": [
-                          "off",
-                          "low",
-                          "medium",
-                          "high",
-                          "max",
-                          "xhigh"
-                        ],
-                        "default": "medium"
+                        "minLength": 1
                       },
                       "budgetTokens": {
                         "type": "integer",
@@ -6208,6 +6177,9 @@
                         "exclusiveMinimum": true
                       }
                     },
+                    "required": [
+                      "variant"
+                    ],
                     "additionalProperties": false
                   }
                 },
@@ -6281,17 +6253,9 @@
                         "reasoning": {
                           "type": "object",
                           "properties": {
-                            "preset": {
+                            "variant": {
                               "type": "string",
-                              "enum": [
-                                "off",
-                                "low",
-                                "medium",
-                                "high",
-                                "max",
-                                "xhigh"
-                              ],
-                              "default": "medium"
+                              "minLength": 1
                             },
                             "budgetTokens": {
                               "type": "integer",
@@ -6299,6 +6263,9 @@
                               "exclusiveMinimum": true
                             }
                           },
+                          "required": [
+                            "variant"
+                          ],
                           "additionalProperties": false
                         }
                       },
@@ -6497,22 +6464,51 @@
                       "properties": {
                         "capable": {
                           "type": "boolean",
-                          "description": "Whether Dexto considers this provider/model reasoning-capable (best-effort: registry + known heuristics)"
+                          "description": "Whether Dexto considers this provider/model reasoning-capable (derived from registry metadata plus explicit provider/model rules)"
                         },
-                        "supportedPresets": {
+                        "paradigm": {
+                          "type": "string",
+                          "enum": [
+                            "effort",
+                            "adaptive-effort",
+                            "thinking-level",
+                            "budget",
+                            "none"
+                          ],
+                          "description": "Reasoning control paradigm for this model"
+                        },
+                        "variants": {
                           "type": "array",
                           "items": {
-                            "type": "string",
-                            "enum": [
-                              "off",
-                              "low",
-                              "medium",
-                              "high",
-                              "max",
-                              "xhigh"
-                            ]
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "description": "Native reasoning variant identifier"
+                              },
+                              "label": {
+                                "type": "string",
+                                "description": "Display label for the native reasoning variant"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "label"
+                            ],
+                            "additionalProperties": false
                           },
-                          "description": "Reasoning presets that Dexto can translate into provider options (best-effort)"
+                          "description": "Native reasoning variants exposed to users"
+                        },
+                        "supportedVariants": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Native reasoning variant IDs supported for this model/provider"
+                        },
+                        "defaultVariant": {
+                          "type": "string",
+                          "description": "Default reasoning variant used when no explicit override is set"
                         },
                         "supportsBudgetTokens": {
                           "type": "boolean",
@@ -6521,11 +6517,13 @@
                       },
                       "required": [
                         "capable",
-                        "supportedPresets",
+                        "paradigm",
+                        "variants",
+                        "supportedVariants",
                         "supportsBudgetTokens"
                       ],
                       "additionalProperties": false,
-                      "description": "Reasoning tuning capabilities (best-effort)"
+                      "description": "Reasoning tuning capabilities derived from registry metadata and explicit provider/model rules"
                     }
                   },
                   "required": [
