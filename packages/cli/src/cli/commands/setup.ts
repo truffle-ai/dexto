@@ -46,7 +46,7 @@ import {
 } from '../utils/local-model-setup.js';
 import { requiresSetup } from '../utils/setup-utils.js';
 import { canUseDextoProvider } from '../utils/dexto-setup.js';
-import { handleBrowserLogin } from './auth/login.js';
+import { handleAutoLogin } from './auth/login.js';
 import { loadAuth, getDextoApiClient } from '../auth/index.js';
 import { DEXTO_CREDITS_URL } from '../auth/constants.js';
 import * as p from '@clack/prompts';
@@ -546,12 +546,12 @@ async function handleDextoProviderSetup(
     if (!hasKey) {
         p.note(
             `Dexto gives you instant access to ${chalk.cyan('all AI models')} with a single account.\n\n` +
-                `We'll open your browser to sign in or create an account.`,
+                `We'll guide you through login. Browser callback is used when available, otherwise device code flow.`,
             'Login Required'
         );
 
         const shouldLogin = await p.confirm({
-            message: 'Continue with browser login?',
+            message: 'Continue with Dexto login?',
             initialValue: true,
         });
 
@@ -560,7 +560,7 @@ async function handleDextoProviderSetup(
         }
 
         try {
-            await handleBrowserLogin();
+            await handleAutoLogin();
             // Verify key was actually provisioned (provisionKeys silently catches errors)
             if (!(await canUseDextoProvider())) {
                 p.log.error(

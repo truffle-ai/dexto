@@ -20,6 +20,16 @@ export {
     DEFAULT_OAUTH_CONFIG,
 } from './oauth.js';
 
+export { type DeviceLoginPrompt, performDeviceCodeLogin } from './device.js';
+
+export {
+    type PersistOAuthLoginOptions,
+    type PersistedLoginResult,
+    persistOAuthLoginResult,
+} from './login-persistence.js';
+
+export { shouldAttemptBrowserLaunch } from './browser-launch.js';
+
 export { type UsageSummaryResponse, DextoApiClient, getDextoApiClient } from './api-client.js';
 
 export { SUPABASE_URL, SUPABASE_ANON_KEY, DEXTO_API_URL } from './constants.js';
