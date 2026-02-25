@@ -1024,17 +1024,29 @@ async function wizardStepMode(state: SetupWizardState): Promise<SetupWizardState
     const mode = await selectDefaultModeWithBack();
 
     if (mode === '_back') {
-        // Go back to previous step based on provider type and model capabilities
+        // Go back to the previous *interactive* step. Some steps (like apiKey) may be
+        // auto-skipped when not required or already configured, so "back" from mode
+        // should avoid bouncing the user back to the same screen.
         if (isLocalProvider) {
-            // Local: reasoning preset -> model
             return {
                 ...state,
                 step: hasReasoningStep ? 'reasoning' : 'model',
                 defaultMode: undefined,
             };
         }
-        // Cloud: always go back to apiKey (reasoning preset comes before apiKey)
-        return { ...state, step: 'apiKey', defaultMode: undefined };
+
+        const canShowApiKeyStep = requiresApiKey(provider) && !hasApiKeyConfigured(provider);
+        let prevStep: SetupWizardState['step'] = 'model';
+        if (canShowApiKeyStep) {
+            prevStep = 'apiKey';
+        } else if (hasReasoningStep) {
+            prevStep = 'reasoning';
+        }
+        return {
+            ...state,
+            step: prevStep,
+            defaultMode: undefined,
+        };
     }
 
     return { ...state, step: 'complete', defaultMode: mode };
@@ -1097,7 +1109,7 @@ async function selectModelWithBack(
                 ],
             });
 
-            if (p.isCancel(result)) {
+            if (p.isCancel(result) || result === '_back') {
                 return '_back';
             }
 
@@ -1159,7 +1171,7 @@ async function selectModelWithBack(
             ],
         });
 
-        if (p.isCancel(result)) {
+        if (p.isCancel(result) || result === '_back') {
             return '_back';
         }
 

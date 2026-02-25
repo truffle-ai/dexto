@@ -350,6 +350,60 @@ describe('Setup Command', () => {
             expect(mockPrompts.log.success).toHaveBeenCalled();
         });
 
+        it("treats 'Back' in model selection as navigation (does not persist _back as model)", async () => {
+            mockPrompts.select
+                .mockResolvedValueOnce('custom') // Setup type
+                .mockResolvedValueOnce('_back') // Model -> back to provider selection
+                .mockResolvedValueOnce('gpt-4o-mini') // Model (non-reasoning)
+                .mockResolvedValueOnce('cli'); // Default mode
+
+            mockSelectProvider.mockResolvedValueOnce('openai').mockResolvedValueOnce('openai');
+            mockHasApiKeyConfigured.mockReturnValue(true); // API key exists (apiKey step auto-skips)
+
+            await handleSetupCommand({ interactive: true });
+
+            expect(mockSelectProvider).toHaveBeenCalledTimes(2);
+            expect(mockCreateInitialPreferences).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    provider: 'openai',
+                    model: 'gpt-4o-mini',
+                    defaultMode: 'cli',
+                })
+            );
+        });
+
+        it('navigates back from mode to reasoning when apiKey step is auto-skipped (prevents back-bounce)', async () => {
+            mockPrompts.select
+                .mockResolvedValueOnce('custom') // Setup type
+                .mockResolvedValueOnce('claude-haiku-4-5-20251001') // Model
+                .mockResolvedValueOnce('medium') // Reasoning preset
+                .mockResolvedValueOnce('_back') // Mode -> back
+                .mockResolvedValueOnce('medium') // Reasoning preset (again)
+                .mockResolvedValueOnce('cli'); // Mode
+
+            mockSelectProvider.mockResolvedValueOnce('anthropic');
+            mockHasApiKeyConfigured.mockReturnValue(true); // API key exists (apiKey step auto-skips)
+
+            await handleSetupCommand({ interactive: true });
+
+            const selectMessages: Array<string | undefined> = mockPrompts.select.mock.calls.map(
+                (call: unknown[]) => {
+                    const firstArg = call[0];
+                    if (typeof firstArg !== 'object' || firstArg === null) {
+                        return undefined;
+                    }
+
+                    const message = (firstArg as { message?: unknown }).message;
+                    return typeof message === 'string' ? message : undefined;
+                }
+            );
+            const firstModeIndex = selectMessages.findIndex(
+                (message) => message === 'How do you want to use Dexto by default?'
+            );
+            expect(firstModeIndex).toBeGreaterThan(-1);
+            expect(selectMessages[firstModeIndex + 1]).toBe('Select reasoning preset');
+        });
+
         it('cancels setup when user cancels setup type selection', async () => {
             mockPrompts.select.mockResolvedValueOnce(Symbol.for('cancel')); // Cancel
             mockPrompts.isCancel.mockReturnValue(true);
