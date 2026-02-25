@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import type { DextoAgent } from '@dexto/core';
-import type { StyledOutput, SendMessageMarker } from '../ink-cli/services/CommandService.js';
+import type { StyledOutput, SendMessageMarker } from '../services/CommandService.js';
 
 export interface CommandResult {
     type: 'command' | 'prompt';

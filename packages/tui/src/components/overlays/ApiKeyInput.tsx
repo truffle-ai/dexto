@@ -8,12 +8,12 @@ import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import type { LLMProvider } from '@dexto/core';
 import { getPrimaryApiKeyEnvVar, saveProviderApiKey } from '@dexto/agent-management';
-import { applyLayeredEnvironmentLoading } from '../../../host/index.js';
+import { applyLayeredEnvironmentLoading } from '../../host/index.js';
 import {
     getProviderDisplayName,
     isValidApiKeyFormat,
     getProviderInstructions,
-} from '../../../host/index.js';
+} from '../../host/index.js';
 
 export interface ApiKeyInputProps {
     isVisible: boolean;

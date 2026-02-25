@@ -30,7 +30,7 @@ import { generateMessageId } from '../utils/idGenerator.js';
 import { checkForSplit } from '../utils/streamSplitter.js';
 import { formatToolHeader, shouldHideTool } from '../utils/messageFormatting.js';
 import { isAutoApprovableInEditMode } from '../utils/toolUtils.js';
-import { captureAnalytics } from '../../host/index.js';
+import { captureAnalytics } from '../host/index.js';
 import chalk from 'chalk';
 
 /**

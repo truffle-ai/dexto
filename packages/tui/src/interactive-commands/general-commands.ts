@@ -16,8 +16,8 @@ import type { DextoAgent } from '@dexto/core';
 import type { CommandDefinition, CommandHandlerResult, CommandContext } from './command-parser.js';
 import { formatForInkCli } from './utils/format-output.js';
 import { CommandOutputHelper } from './utils/command-output.js';
-import type { HelpStyledData, ShortcutsStyledData } from '../ink-cli/state/types.js';
-import { writeToClipboard } from '../ink-cli/utils/clipboardUtils.js';
+import type { HelpStyledData, ShortcutsStyledData } from '../state/types.js';
+import { writeToClipboard } from '../utils/clipboardUtils.js';
 import { setExitStats } from './exit-stats.js';
 import { triggerExit } from './exit-handler.js';
 

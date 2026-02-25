@@ -49,7 +49,7 @@ These rules are intended to prevent stack fragmentation and review churn.
 ### TUI (`packages/tui`)
 
 - Interactive CLI commands (e.g., `/help`, `/compact`): `packages/tui/src/interactive-commands/`
-- Ink-based UI components: `packages/tui/src/ink-cli/`
+- Ink-based UI components: `packages/tui/src/`
 
 ### Other Important Packages
 

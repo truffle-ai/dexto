@@ -10,7 +10,7 @@ import {
     parseInput,
 } from '../utils/inputParsing.js';
 import type { AutocompleteType } from '../utils/inputParsing.js';
-import type { CommandResult } from '../../interactive-commands/command-parser.js';
+import type { CommandResult } from '../interactive-commands/command-parser.js';
 
 /**
  * Service for managing input

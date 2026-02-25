@@ -11,7 +11,7 @@
 import React, { useCallback, useState } from 'react';
 import { render } from 'ink';
 import type { DextoAgent } from '@dexto/core';
-import { registerGracefulShutdown } from '../host/index.js';
+import { registerGracefulShutdown } from './host/index.js';
 import { enableBracketedPaste, disableBracketedPaste } from './utils/bracketedPaste.js';
 
 // Types
@@ -279,7 +279,7 @@ export async function startInkCliRefactored(
     }
 
     // Import exit handler before render to avoid race condition
-    const { registerExitHandler } = await import('../interactive-commands/exit-handler.js');
+    const { registerExitHandler } = await import('./interactive-commands/exit-handler.js');
 
     const inkApp = render(
         <InkCLIRefactored
@@ -310,7 +310,7 @@ export async function startInkCliRefactored(
 
     // Display session stats if available (after Ink has unmounted)
     const chalk = (await import('chalk')).default;
-    const { getExitStats, clearExitStats } = await import('../interactive-commands/exit-stats.js');
+    const { getExitStats, clearExitStats } = await import('./interactive-commands/exit-stats.js');
     const exitStats = getExitStats();
     if (exitStats) {
         // Add visual separation - clear space like Gemini CLI does

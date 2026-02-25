@@ -15,7 +15,7 @@ import {
     ensureDextoApiKeyForAuthToken,
     loadAuth,
     storeAuth,
-} from '../../../host/index.js';
+} from '../../host/index.js';
 
 export type LoginOverlayOutcome =
     | {

@@ -25,7 +25,7 @@ import { createUserMessage } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
-import { captureAnalytics } from '../../host/index.js';
+import { captureAnalytics } from '../host/index.js';
 import { getOverlayPresentation } from '../utils/overlayPresentation.js';
 
 /** Type for pending session creation promise */

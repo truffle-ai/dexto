@@ -21,11 +21,7 @@ import {
 } from '../command-parser.js';
 import { formatForInkCli } from '../utils/format-output.js';
 import { CommandOutputHelper } from '../utils/command-output.js';
-import type {
-    ConfigStyledData,
-    LogConfigStyledData,
-    StatsStyledData,
-} from '../../ink-cli/state/types.js';
+import type { ConfigStyledData, LogConfigStyledData, StatsStyledData } from '../../state/types.js';
 
 const validLevels = [
     'error',

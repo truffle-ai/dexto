@@ -5,8 +5,8 @@
 
 import type { DextoAgent } from '@dexto/core';
 import { parseInput } from '../utils/inputParsing.js';
-import { executeCommand } from '../../interactive-commands/commands.js';
-import type { CommandResult } from '../../interactive-commands/command-parser.js';
+import { executeCommand } from '../interactive-commands/commands.js';
+import type { CommandResult } from '../interactive-commands/command-parser.js';
 import type { StyledMessageType, StyledData } from '../state/types.js';
 
 /**

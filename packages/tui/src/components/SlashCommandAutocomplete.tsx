@@ -11,8 +11,8 @@ import { Box, Text } from 'ink';
 import type { Key } from '../hooks/useInputOrchestrator.js';
 import type { PromptInfo } from '@dexto/core';
 import type { DextoAgent } from '@dexto/core';
-import { getAllCommands } from '../../interactive-commands/commands.js';
-import type { CommandDefinition } from '../../interactive-commands/command-parser.js';
+import { getAllCommands } from '../interactive-commands/commands.js';
+import type { CommandDefinition } from '../interactive-commands/command-parser.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { getMaxVisibleItemsForTerminalRows } from '../utils/overlaySizing.js';
 

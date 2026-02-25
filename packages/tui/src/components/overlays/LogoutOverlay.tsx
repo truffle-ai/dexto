@@ -13,7 +13,7 @@ import {
     removeAuth,
     removeDextoApiKeyFromEnv,
     isUsingDextoCredits,
-} from '../../../host/index.js';
+} from '../../host/index.js';
 
 export type LogoutOverlayOutcome =
     | { outcome: 'success'; wasUsingDextoCredits: boolean }
