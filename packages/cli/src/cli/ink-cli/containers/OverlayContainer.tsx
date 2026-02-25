@@ -76,6 +76,7 @@ import CustomModelWizard, {
 import {
     getProviderKeyStatus,
     loadGlobalPreferences,
+    recordRecentModel,
     updateGlobalPreferences,
     type CustomModel,
     type ListedPlugin,
@@ -460,6 +461,21 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             return null;
         };
 
+        const persistRecentModel = useCallback(
+            async (provider: LLMProvider, model: string) => {
+                try {
+                    await recordRecentModel({ provider, model });
+                } catch (error) {
+                    agent.logger.debug(
+                        `Failed to persist recent model (${provider}/${model}): ${
+                            error instanceof Error ? error.message : String(error)
+                        }`
+                    );
+                }
+            },
+            [agent]
+        );
+
         // Handle model selection (session-only)
         const handleModelSelect = useCallback(
             async (
@@ -525,6 +541,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         { provider: provider as LLMProvider, model, baseURL, reasoningEffort },
                         session.id || undefined
                     );
+                    await persistRecentModel(provider as LLMProvider, model);
 
                     // Update session state with display name (fallback to model ID)
                     setSession((prev) => ({ ...prev, modelName: displayName || model }));
@@ -578,7 +595,16 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     ]);
                 }
             },
-            [setUi, setInput, setMessages, setSession, agent, session.id, buffer]
+            [
+                setUi,
+                setInput,
+                setMessages,
+                setSession,
+                agent,
+                session.id,
+                buffer,
+                persistRecentModel,
+            ]
         );
 
         const handleSetDefaultModel = useCallback(
@@ -639,6 +665,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             { provider: provider as LLMProvider, model, baseURL, reasoningEffort },
                             session.id || undefined
                         );
+                        await persistRecentModel(provider, model);
                         setSession((prev) => ({ ...prev, modelName: displayName || model }));
 
                         setMessages((prev) => [
@@ -691,7 +718,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     ]);
                 }
             },
-            [agent, setMessages, setSession, setUi, session.id]
+            [agent, setMessages, setSession, setUi, session.id, persistRecentModel]
         );
 
         // State for editing custom model
@@ -810,6 +837,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         },
                         session.id || undefined
                     );
+                    await persistRecentModel(pending.provider as LLMProvider, pending.model);
 
                     // Update session state with display name (fallback to model ID)
                     setSession((prev) => ({ ...prev, modelName: pendingDisplayName }));
@@ -835,7 +863,15 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     ]);
                 }
             },
-            [ui.pendingModelSwitch, setUi, setMessages, setSession, agent, session.id]
+            [
+                ui.pendingModelSwitch,
+                setUi,
+                setMessages,
+                setSession,
+                agent,
+                session.id,
+                persistRecentModel,
+            ]
         );
 
         // Handle API key input close (without saving)

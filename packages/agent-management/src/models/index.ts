@@ -13,6 +13,7 @@ export {
     getModelFilePath,
     getModelDirectory,
     getModelStatePath,
+    getModelPickerStatePath,
     getModelTempDirectory,
     ensureModelsDirectory,
     ensureModelDirectory,
@@ -48,3 +49,21 @@ export {
     getInstalledModelCount,
     registerManualModel,
 } from './state-manager.js';
+
+// Model picker state manager
+export {
+    MODEL_PICKER_STATE_VERSION,
+    MODEL_PICKER_RECENTS_LIMIT,
+    MODEL_PICKER_FAVORITES_LIMIT,
+    toModelPickerKey,
+    pruneModelPickerState,
+    loadModelPickerState,
+    saveModelPickerState,
+    recordRecentModel,
+    toggleFavoriteModel,
+    setFavoriteModels,
+    type ModelPickerModel,
+    type ModelPickerEntry,
+    type ModelPickerState,
+    type SetFavoriteModelsInput,
+} from './model-picker-state.js';

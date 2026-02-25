@@ -9,6 +9,7 @@ import {
     getAllModelsForProvider,
     getCuratedModelsForProvider,
     getSupportedFileTypesForModel,
+    getLocalModelById,
     type ProviderInfo,
     type LLMProvider,
     type SupportedFileType,
@@ -19,6 +20,14 @@ import {
     loadCustomModels,
     saveCustomModel,
     deleteCustomModel,
+    loadModelPickerState,
+    saveModelPickerState,
+    recordRecentModel,
+    toggleFavoriteModel,
+    setFavoriteModels,
+    pruneModelPickerState,
+    toModelPickerKey,
+    getAllInstalledModels,
     CustomModelSchema,
     isDextoAuthEnabled,
 } from '@dexto/agent-management';
@@ -111,6 +120,29 @@ const SwitchLLMBodySchema = LLMUpdatesSchema.and(
             .describe('Session identifier for session-specific LLM configuration'),
     })
 ).describe('LLM switch request body with optional session ID and LLM fields');
+
+const ModelPickerModelRefSchema = z
+    .object({
+        provider: z.enum(LLM_PROVIDERS).describe('LLM provider'),
+        model: z.string().trim().min(1).describe('Model ID'),
+    })
+    .strict()
+    .describe('Provider/model pair for model picker state operations');
+
+const ModelPickerEntrySchema = z
+    .object({
+        provider: z.enum(LLM_PROVIDERS).describe('LLM provider'),
+        model: z.string().describe('Model ID'),
+        displayName: z.string().optional().describe('Human-readable model name'),
+        supportedFileTypes: z
+            .array(z.enum(SUPPORTED_FILE_TYPES))
+            .describe('File types supported by this model'),
+        source: z
+            .enum(['catalog', 'custom', 'local-installed'])
+            .describe('Where this model comes from'),
+    })
+    .strict()
+    .describe('Hydrated model picker entry');
 
 export function createLlmRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
@@ -354,6 +386,278 @@ export function createLlmRouter(getAgent: GetAgentFn) {
         },
     });
 
+    const modelPickerStateRoute = createRoute({
+        method: 'get',
+        path: '/llm/model-picker-state',
+        summary: 'Model Picker State',
+        description:
+            'Returns hydrated Featured, Recents, Favorites, and Custom sections for the model picker.',
+        tags: ['llm'],
+        responses: {
+            200: {
+                description: 'Hydrated model picker sections',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                featured: z
+                                    .array(ModelPickerEntrySchema)
+                                    .describe('Curated featured models'),
+                                recents: z
+                                    .array(ModelPickerEntrySchema)
+                                    .describe('Most recently used models'),
+                                favorites: z
+                                    .array(ModelPickerEntrySchema)
+                                    .describe('User favorited models'),
+                                custom: z
+                                    .array(ModelPickerEntrySchema)
+                                    .describe('User-defined custom models'),
+                            })
+                            .strict(),
+                    },
+                },
+            },
+        },
+    });
+
+    const recordRecentModelRoute = createRoute({
+        method: 'post',
+        path: '/llm/model-picker-state/recents',
+        summary: 'Record Recent Model',
+        description: 'Records a model selection in recents.',
+        tags: ['llm'],
+        request: {
+            body: {
+                content: {
+                    'application/json': {
+                        schema: ModelPickerModelRefSchema,
+                    },
+                },
+            },
+        },
+        responses: {
+            200: {
+                description: 'Recent model recorded',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                ok: z.literal(true).describe('Success indicator'),
+                            })
+                            .strict(),
+                    },
+                },
+            },
+        },
+    });
+
+    const toggleFavoriteModelRoute = createRoute({
+        method: 'post',
+        path: '/llm/model-picker-state/favorites/toggle',
+        summary: 'Toggle Favorite Model',
+        description: 'Adds or removes a model from favorites.',
+        tags: ['llm'],
+        request: {
+            body: {
+                content: {
+                    'application/json': {
+                        schema: ModelPickerModelRefSchema,
+                    },
+                },
+            },
+        },
+        responses: {
+            200: {
+                description: 'Favorite toggled',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                ok: z.literal(true).describe('Success indicator'),
+                                isFavorite: z
+                                    .boolean()
+                                    .describe('Whether the model is now favorited'),
+                            })
+                            .strict(),
+                    },
+                },
+            },
+        },
+    });
+
+    const setFavoritesRoute = createRoute({
+        method: 'put',
+        path: '/llm/model-picker-state/favorites',
+        summary: 'Set Favorite Models',
+        description: 'Replaces favorite models list. Used by migration or bulk updates.',
+        tags: ['llm'],
+        request: {
+            body: {
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                favorites: z
+                                    .array(ModelPickerModelRefSchema)
+                                    .describe('Complete list of favorite model references'),
+                            })
+                            .strict(),
+                    },
+                },
+            },
+        },
+        responses: {
+            200: {
+                description: 'Favorites updated',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                ok: z.literal(true).describe('Success indicator'),
+                                count: z
+                                    .number()
+                                    .int()
+                                    .nonnegative()
+                                    .describe('Number of favorites persisted'),
+                            })
+                            .strict(),
+                    },
+                },
+            },
+        },
+    });
+
+    const isProviderEnabled = (provider: LLMProvider): boolean =>
+        provider !== 'dexto-nova' || isDextoAuthEnabled();
+
+    const dedupeEntries = (entries: Array<z.output<typeof ModelPickerEntrySchema>>) => {
+        const seen = new Set<string>();
+        const deduped: Array<z.output<typeof ModelPickerEntrySchema>> = [];
+
+        for (const entry of entries) {
+            const key = toModelPickerKey(entry);
+            if (seen.has(key)) {
+                continue;
+            }
+            seen.add(key);
+            deduped.push(entry);
+        }
+
+        return deduped;
+    };
+
+    const buildModelPickerSections = async () => {
+        const byKey = new Map<string, z.output<typeof ModelPickerEntrySchema>>();
+        const customSection: Array<z.output<typeof ModelPickerEntrySchema>> = [];
+
+        for (const provider of LLM_PROVIDERS) {
+            if (!isProviderEnabled(provider)) {
+                continue;
+            }
+
+            const providerInfo = LLM_REGISTRY[provider];
+            for (const model of getAllModelsForProvider(provider)) {
+                const supportedFileTypes =
+                    Array.isArray(model.supportedFileTypes) && model.supportedFileTypes.length > 0
+                        ? model.supportedFileTypes
+                        : providerInfo.supportedFileTypes;
+
+                const entry: z.output<typeof ModelPickerEntrySchema> = {
+                    provider,
+                    model: model.name,
+                    displayName: model.displayName || model.name,
+                    supportedFileTypes,
+                    source: 'catalog',
+                };
+
+                const key = toModelPickerKey(entry);
+                if (!byKey.has(key)) {
+                    byKey.set(key, entry);
+                }
+            }
+        }
+
+        const customModels = await loadCustomModels();
+        for (const customModel of customModels) {
+            const provider = (customModel.provider ?? 'openai-compatible') as LLMProvider;
+            if (!isProviderEnabled(provider)) {
+                continue;
+            }
+
+            const providerInfo = LLM_REGISTRY[provider];
+            const entry: z.output<typeof ModelPickerEntrySchema> = {
+                provider,
+                model: customModel.name,
+                displayName: customModel.displayName || customModel.name,
+                supportedFileTypes: providerInfo?.supportedFileTypes ?? [],
+                source: 'custom',
+            };
+
+            byKey.set(toModelPickerKey(entry), entry);
+            customSection.push(entry);
+        }
+
+        const installedLocalModels = await getAllInstalledModels();
+        for (const installedModel of installedLocalModels) {
+            const modelInfo = getLocalModelById(installedModel.id);
+            const entry: z.output<typeof ModelPickerEntrySchema> = {
+                provider: 'local',
+                model: installedModel.id,
+                displayName: modelInfo?.name || installedModel.id,
+                supportedFileTypes: [],
+                source: 'local-installed',
+            };
+            byKey.set(toModelPickerKey(entry), entry);
+        }
+
+        const featured: Array<z.output<typeof ModelPickerEntrySchema>> = [];
+        for (const provider of LLM_PROVIDERS) {
+            if (!isProviderEnabled(provider)) {
+                continue;
+            }
+
+            for (const curatedModel of getCuratedModelsForProvider(provider)) {
+                const key = toModelPickerKey({
+                    provider,
+                    model: curatedModel.name,
+                });
+                const entry = byKey.get(key);
+                if (entry) {
+                    featured.push(entry);
+                }
+            }
+        }
+
+        const state = await loadModelPickerState();
+        const pruned = pruneModelPickerState({
+            state,
+            allowedKeys: new Set(byKey.keys()),
+        });
+
+        const shouldPersistPrunedState =
+            state.recents.length !== pruned.recents.length ||
+            state.favorites.length !== pruned.favorites.length;
+
+        if (shouldPersistPrunedState) {
+            await saveModelPickerState(pruned);
+        }
+
+        const recents = pruned.recents
+            .map((entry) => byKey.get(toModelPickerKey(entry)))
+            .filter((entry): entry is z.output<typeof ModelPickerEntrySchema> => Boolean(entry));
+
+        const favorites = pruned.favorites
+            .map((entry) => byKey.get(toModelPickerKey(entry)))
+            .filter((entry): entry is z.output<typeof ModelPickerEntrySchema> => Boolean(entry));
+
+        return {
+            featured: dedupeEntries(featured),
+            recents,
+            favorites,
+            custom: dedupeEntries(customSection),
+        };
+    };
+
     return app
         .openapi(currentRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -526,6 +830,15 @@ export function createLlmRouter(getAgent: GetAgentFn) {
 
             const config = await agent.switchLLM(llmUpdates, sessionId);
 
+            try {
+                await recordRecentModel({
+                    provider: config.provider,
+                    model: config.model,
+                });
+            } catch {
+                // Non-blocking: model switch should still succeed even if recent tracking fails
+            }
+
             // Omit apiKey from response for security
             const { apiKey, ...configWithoutKey } = config;
             return ctx.json({
@@ -560,6 +873,33 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                 );
             }
             return ctx.json({ ok: true as const, deleted: name } as const, 200);
+        })
+        .openapi(modelPickerStateRoute, async (ctx) => {
+            const sections = await buildModelPickerSections();
+            return ctx.json(sections);
+        })
+        .openapi(recordRecentModelRoute, async (ctx) => {
+            const modelRef = ctx.req.valid('json');
+            await recordRecentModel(modelRef);
+            return ctx.json({ ok: true as const });
+        })
+        .openapi(toggleFavoriteModelRoute, async (ctx) => {
+            const modelRef = ctx.req.valid('json');
+            const result = await toggleFavoriteModel(modelRef);
+            return ctx.json({
+                ok: true as const,
+                isFavorite: result.isFavorite,
+            });
+        })
+        .openapi(setFavoritesRoute, async (ctx) => {
+            const payload = ctx.req.valid('json');
+            const state = await setFavoriteModels({
+                favorites: payload.favorites,
+            });
+            return ctx.json({
+                ok: true as const,
+                count: state.favorites.length,
+            });
         })
         .openapi(capabilitiesRoute, (ctx) => {
             const { provider, model } = ctx.req.valid('query');

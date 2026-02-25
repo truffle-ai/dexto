@@ -23,6 +23,7 @@ import {
     DEFAULT_OLLAMA_URL,
     getLocalModelById,
     isReasoningCapableModel,
+    getCuratedModelsForProvider,
 } from '@dexto/core';
 import {
     loadCustomModels,
@@ -30,13 +31,19 @@ import {
     getAllInstalledModels,
     loadGlobalPreferences,
     isDextoAuthEnabled,
+    loadModelPickerState,
+    toggleFavoriteModel,
+    toModelPickerKey,
     type CustomModel,
+    type ModelPickerState,
 } from '@dexto/agent-management';
 import { getLLMProviderDisplayName } from '../../utils/llm-provider-display.js';
 import { getMaxVisibleItemsForTerminalRows } from '../../utils/overlaySizing.js';
 import { HintBar } from '../shared/HintBar.js';
 
 type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+type ModelSelectorTab = 'for-you' | 'all-models';
+type ForYouSection = 'featured' | 'recents' | 'favorites' | 'custom';
 
 interface ModelSelectorProps {
     isVisible: boolean;
@@ -76,6 +83,8 @@ interface ModelOption {
     reasoningEffort?: ReasoningEffort;
     /** For gateway providers like dexto-nova, the original provider this model comes from */
     originalProvider?: LLMProvider;
+    /** Optional grouping used by "For You" mode. */
+    forYouSection?: ForYouSection;
 }
 
 // Special option for adding custom model
@@ -98,14 +107,16 @@ function getRowPrefix({
     isDefault,
     isCurrent,
     isCustom,
+    isFavorite,
 }: {
     isSelected: boolean;
     isDefault: boolean;
     isCurrent: boolean;
     isCustom: boolean;
+    isFavorite: boolean;
 }): string {
     return `${isSelected ? '›' : ' '} ${isDefault ? '✓' : ' '} ${isCurrent ? '●' : ' '} ${
-        isCustom ? '★' : ' '
+        isFavorite ? '★' : isCustom ? '◇' : ' '
     }`;
 }
 
@@ -156,6 +167,13 @@ const REASONING_EFFORT_OPTIONS: {
     { value: 'xhigh', label: 'Extra High', description: 'Maximum quality, slower/costlier' },
 ];
 
+const FOR_YOU_SECTION_LABELS: Record<ForYouSection, string> = {
+    featured: 'Featured',
+    recents: 'Recents',
+    favorites: 'Favorites',
+    custom: 'Custom',
+};
+
 /**
  * Model selector with search and custom model support
  */
@@ -181,6 +199,8 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
     }, [terminalRows]);
     const [models, setModels] = useState<ModelOption[]>([]);
     const [customModels, setCustomModels] = useState<CustomModel[]>([]);
+    const [modelPickerState, setModelPickerState] = useState<ModelPickerState | null>(null);
+    const [activeTab, setActiveTab] = useState<ModelSelectorTab>('for-you');
     const [isLoading, setIsLoading] = useState(false);
     const [selection, setSelection] = useState({ index: 0, offset: 0 });
     const [searchQuery, setSearchQuery] = useState('');
@@ -227,6 +247,8 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         setPendingReasoningModel(null);
         setIsSettingDefault(false);
         setReasoningEffortIndex(0); // Default to 'Auto'
+        setActiveTab('for-you');
+        setModelPickerState(null);
         if (deleteTimeoutRef.current) {
             clearTimeout(deleteTimeoutRef.current);
             deleteTimeoutRef.current = null;
@@ -234,14 +256,21 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
         const fetchModels = async () => {
             try {
-                const [allModels, providers, currentConfig, loadedCustomModels, preferences] =
-                    await Promise.all([
-                        Promise.resolve(agent.getSupportedModels()),
-                        Promise.resolve(agent.getSupportedProviders()),
-                        Promise.resolve(agent.getCurrentLLMConfig()),
-                        loadCustomModels(),
-                        loadGlobalPreferences().catch(() => null),
-                    ]);
+                const [
+                    allModels,
+                    providers,
+                    currentConfig,
+                    loadedCustomModels,
+                    preferences,
+                    pickerState,
+                ] = await Promise.all([
+                    Promise.resolve(agent.getSupportedModels()),
+                    Promise.resolve(agent.getSupportedProviders()),
+                    Promise.resolve(agent.getCurrentLLMConfig()),
+                    loadCustomModels(),
+                    loadGlobalPreferences().catch(() => null),
+                    loadModelPickerState().catch(() => null),
+                ]);
 
                 const modelList: ModelOption[] = [];
                 const defaultProvider = preferences?.llm.provider;
@@ -410,6 +439,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 if (!cancelled) {
                     setModels(modelList);
                     setCustomModels(loadedCustomModels);
+                    setModelPickerState(pickerState);
                     setIsLoading(false);
 
                     // Set initial selection to current model (offset by 1 for "Add custom" option)
@@ -434,6 +464,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         `Failed to fetch models: ${error instanceof Error ? error.message : 'Unknown error'}`
                     );
                     setModels([]);
+                    setModelPickerState(null);
                     setIsLoading(false);
                 }
             }
@@ -446,25 +477,104 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         };
     }, [isVisible, agent, refreshVersion]);
 
-    // Filter models based on search query
-    const filteredItems = useMemo((): SelectorItem[] => {
-        const addCustomOption: AddCustomOption = { type: 'add-custom' };
+    const favoriteKeySet = useMemo(
+        () =>
+            new Set(
+                (modelPickerState?.favorites ?? []).map((entry) =>
+                    toModelPickerKey({
+                        provider: entry.provider,
+                        model: entry.model,
+                    })
+                )
+            ),
+        [modelPickerState]
+    );
 
-        if (!searchQuery.trim()) {
-            return [addCustomOption, ...models];
-        }
+    const matchesSearch = useCallback(
+        (model: ModelOption): boolean => {
+            if (!searchQuery.trim()) {
+                return true;
+            }
 
-        const query = searchQuery.toLowerCase().replace(/[\s-]+/g, '');
-        const filtered = models.filter((model) => {
+            const query = searchQuery.toLowerCase().replace(/[\s-]+/g, '');
             const name = model.name.toLowerCase().replace(/[\s-]+/g, '');
             const displayName = (model.displayName || '').toLowerCase().replace(/[\s-]+/g, '');
             const provider = model.provider.toLowerCase().replace(/[\s-]+/g, '');
             return name.includes(query) || displayName.includes(query) || provider.includes(query);
-        });
+        },
+        [searchQuery]
+    );
 
-        // Always show "Add custom" when searching (user might want to add what they're searching for)
-        return [addCustomOption, ...filtered];
-    }, [models, searchQuery]);
+    // Filter models based on active view and search query.
+    const filteredItems = useMemo((): SelectorItem[] => {
+        const addCustomOption: AddCustomOption = { type: 'add-custom' };
+        const allModels = models.filter(matchesSearch);
+
+        if (activeTab === 'all-models' || !modelPickerState) {
+            return [addCustomOption, ...allModels];
+        }
+
+        const modelsByKey = new Map<string, ModelOption>(
+            models.map((model) => [
+                toModelPickerKey({ provider: model.provider, model: model.name }),
+                model,
+            ])
+        );
+
+        const seen = new Set<string>();
+        const forYouModels: ModelOption[] = [];
+
+        const pushSection = (candidates: ModelOption[], section: ForYouSection) => {
+            for (const candidate of candidates) {
+                const key = toModelPickerKey({
+                    provider: candidate.provider,
+                    model: candidate.name,
+                });
+                if (seen.has(key) || !matchesSearch(candidate)) {
+                    continue;
+                }
+                seen.add(key);
+                forYouModels.push({ ...candidate, forYouSection: section });
+            }
+        };
+
+        const providersInModels = Array.from(
+            new Set(models.map((model) => model.provider))
+        ) as LLMProvider[];
+        const featuredCandidates: ModelOption[] = [];
+        for (const provider of providersInModels) {
+            for (const curatedModel of getCuratedModelsForProvider(provider)) {
+                const key = toModelPickerKey({
+                    provider,
+                    model: curatedModel.name,
+                });
+                const matched = modelsByKey.get(key);
+                if (matched) {
+                    featuredCandidates.push(matched);
+                }
+            }
+        }
+        pushSection(featuredCandidates, 'featured');
+
+        const recentCandidates = modelPickerState.recents
+            .map((entry) =>
+                modelsByKey.get(toModelPickerKey({ provider: entry.provider, model: entry.model }))
+            )
+            .filter((model): model is ModelOption => Boolean(model));
+        pushSection(recentCandidates, 'recents');
+
+        const favoriteCandidates = modelPickerState.favorites
+            .map((entry) =>
+                modelsByKey.get(toModelPickerKey({ provider: entry.provider, model: entry.model }))
+            )
+            .filter((model): model is ModelOption => Boolean(model));
+        pushSection(favoriteCandidates, 'favorites');
+
+        const customCandidates = models.filter((model) => model.isCustom);
+        pushSection(customCandidates, 'custom');
+
+        return [addCustomOption, ...forYouModels];
+    }, [activeTab, matchesSearch, modelPickerState, models]);
 
     // Keep selection valid and visible when filtering or terminal height changes.
     useEffect(() => {
@@ -616,6 +726,38 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     currentItem && !isAddCustomOption(currentItem) && currentItem.isCustom;
                 const isSelectableItem = currentItem && !isAddCustomOption(currentItem);
                 const isOnActionItem = isCustomActionItem || isSelectableItem;
+
+                if (key.tab) {
+                    clearActionState();
+                    const nextTab: ModelSelectorTab =
+                        activeTab === 'for-you' ? 'all-models' : 'for-you';
+                    setActiveTab(nextTab);
+                    selectedIndexRef.current = 0;
+                    setSelection({ index: 0, offset: 0 });
+                    return true;
+                }
+
+                if (key.ctrl && (input === 'f' || input === 'F') && isSelectableItem) {
+                    const item = asModelOption(currentItem);
+                    clearActionState();
+                    void (async () => {
+                        try {
+                            await toggleFavoriteModel({
+                                provider: item.provider,
+                                model: item.name,
+                            });
+                            const nextState = await loadModelPickerState();
+                            setModelPickerState(nextState);
+                        } catch (error) {
+                            agent.logger.error(
+                                `Failed to toggle favorite model: ${
+                                    error instanceof Error ? error.message : 'Unknown error'
+                                }`
+                            );
+                        }
+                    })();
+                    return true;
+                }
 
                 // Right arrow - enter/advance action mode for custom or selectable models
                 if (key.rightArrow) {
@@ -859,6 +1001,8 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             pendingReasoningModel,
             reasoningEffortIndex,
             isSettingDefault,
+            activeTab,
+            agent,
         ]
     );
 
@@ -960,6 +1104,19 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         const flags: string[] = [];
         if (selectedItem.isDefault) flags.push('default');
         if (selectedItem.isCurrent) flags.push('current');
+        if (
+            favoriteKeySet.has(
+                toModelPickerKey({
+                    provider: selectedItem.provider,
+                    model: selectedItem.name,
+                })
+            )
+        ) {
+            flags.push('favorite');
+        }
+        if (selectedItem.forYouSection) {
+            flags.push(FOR_YOU_SECTION_LABELS[selectedItem.forYouSection].toLowerCase());
+        }
         detailLine =
             flags.length > 0
                 ? `${name} (${provider}) • ${flags.join(', ')}`
@@ -973,6 +1130,11 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 <Text color="cyan" bold>
                     Models
                 </Text>
+            </Box>
+            <Box paddingX={0} paddingY={0}>
+                <Text color="gray">View: </Text>
+                <Text color="white">{activeTab === 'for-you' ? 'For You' : 'All Models'}</Text>
+                <Text color="gray"> (Tab to switch)</Text>
             </Box>
 
             {/* Search input */}
@@ -996,6 +1158,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                             isDefault: false,
                             isCurrent: false,
                             isCustom: false,
+                            isFavorite: false,
                         })}{' '}
                         Add custom model…
                     </Text>
@@ -1026,11 +1189,22 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
                               const providerDisplay = getLLMProviderDisplayName(item.provider);
                               const name = item.displayName || item.name;
+                              const isFavorite = favoriteKeySet.has(
+                                  toModelPickerKey({
+                                      provider: item.provider,
+                                      model: item.name,
+                                  })
+                              );
+                              const sectionLabel =
+                                  activeTab === 'for-you' && item.forYouSection
+                                      ? ` [${FOR_YOU_SECTION_LABELS[item.forYouSection]}]`
+                                      : '';
                               const prefix = getRowPrefix({
                                   isSelected,
                                   isDefault: item.isDefault,
                                   isCurrent: item.isCurrent,
                                   isCustom: item.isCustom,
+                                  isFavorite,
                               });
 
                               return (
@@ -1046,7 +1220,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                                               bold={isSelected}
                                               wrap="truncate-end"
                                           >
-                                              {prefix} {name} ({providerDisplay})
+                                              {prefix} {name} ({providerDisplay}){sectionLabel}
                                           </Text>
                                       </Box>
                                       {isSelected && (
@@ -1117,6 +1291,8 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         '↑↓ navigate',
                         'Enter select',
                         'Esc close',
+                        'Tab switch view',
+                        hasActionableItems ? 'Ctrl+F favorite' : '',
                         hasActionableItems ? '←→ actions' : '',
                     ]}
                 />

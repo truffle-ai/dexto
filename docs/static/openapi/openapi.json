@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Dexto API",
-    "version": "1.6.0",
+    "version": "1.6.1",
     "description": "OpenAPI spec for the Dexto REST API server"
   },
   "servers": [
@@ -6310,6 +6310,573 @@
                     "ok",
                     "error"
                   ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/model-picker-state": {
+      "get": {
+        "summary": "Model Picker State",
+        "description": "Returns hydrated Featured, Recents, Favorites, and Custom sections for the model picker.",
+        "tags": [
+          "llm"
+        ],
+        "responses": {
+          "200": {
+            "description": "Hydrated model picker sections",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "featured": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "provider": {
+                            "type": "string",
+                            "enum": [
+                              "openai",
+                              "openai-compatible",
+                              "anthropic",
+                              "google",
+                              "groq",
+                              "xai",
+                              "cohere",
+                              "minimax",
+                              "glm",
+                              "openrouter",
+                              "litellm",
+                              "glama",
+                              "vertex",
+                              "bedrock",
+                              "local",
+                              "ollama",
+                              "dexto-nova"
+                            ],
+                            "description": "LLM provider"
+                          },
+                          "model": {
+                            "type": "string",
+                            "description": "Model ID"
+                          },
+                          "displayName": {
+                            "type": "string",
+                            "description": "Human-readable model name"
+                          },
+                          "supportedFileTypes": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "pdf",
+                                "image",
+                                "audio"
+                              ]
+                            },
+                            "description": "File types supported by this model"
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "catalog",
+                              "custom",
+                              "local-installed"
+                            ],
+                            "description": "Where this model comes from"
+                          }
+                        },
+                        "required": [
+                          "provider",
+                          "model",
+                          "supportedFileTypes",
+                          "source"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Hydrated model picker entry"
+                      },
+                      "description": "Curated featured models"
+                    },
+                    "recents": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "provider": {
+                            "type": "string",
+                            "enum": [
+                              "openai",
+                              "openai-compatible",
+                              "anthropic",
+                              "google",
+                              "groq",
+                              "xai",
+                              "cohere",
+                              "minimax",
+                              "glm",
+                              "openrouter",
+                              "litellm",
+                              "glama",
+                              "vertex",
+                              "bedrock",
+                              "local",
+                              "ollama",
+                              "dexto-nova"
+                            ],
+                            "description": "LLM provider"
+                          },
+                          "model": {
+                            "type": "string",
+                            "description": "Model ID"
+                          },
+                          "displayName": {
+                            "type": "string",
+                            "description": "Human-readable model name"
+                          },
+                          "supportedFileTypes": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "pdf",
+                                "image",
+                                "audio"
+                              ]
+                            },
+                            "description": "File types supported by this model"
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "catalog",
+                              "custom",
+                              "local-installed"
+                            ],
+                            "description": "Where this model comes from"
+                          }
+                        },
+                        "required": [
+                          "provider",
+                          "model",
+                          "supportedFileTypes",
+                          "source"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Hydrated model picker entry"
+                      },
+                      "description": "Most recently used models"
+                    },
+                    "favorites": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "provider": {
+                            "type": "string",
+                            "enum": [
+                              "openai",
+                              "openai-compatible",
+                              "anthropic",
+                              "google",
+                              "groq",
+                              "xai",
+                              "cohere",
+                              "minimax",
+                              "glm",
+                              "openrouter",
+                              "litellm",
+                              "glama",
+                              "vertex",
+                              "bedrock",
+                              "local",
+                              "ollama",
+                              "dexto-nova"
+                            ],
+                            "description": "LLM provider"
+                          },
+                          "model": {
+                            "type": "string",
+                            "description": "Model ID"
+                          },
+                          "displayName": {
+                            "type": "string",
+                            "description": "Human-readable model name"
+                          },
+                          "supportedFileTypes": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "pdf",
+                                "image",
+                                "audio"
+                              ]
+                            },
+                            "description": "File types supported by this model"
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "catalog",
+                              "custom",
+                              "local-installed"
+                            ],
+                            "description": "Where this model comes from"
+                          }
+                        },
+                        "required": [
+                          "provider",
+                          "model",
+                          "supportedFileTypes",
+                          "source"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Hydrated model picker entry"
+                      },
+                      "description": "User favorited models"
+                    },
+                    "custom": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "provider": {
+                            "type": "string",
+                            "enum": [
+                              "openai",
+                              "openai-compatible",
+                              "anthropic",
+                              "google",
+                              "groq",
+                              "xai",
+                              "cohere",
+                              "minimax",
+                              "glm",
+                              "openrouter",
+                              "litellm",
+                              "glama",
+                              "vertex",
+                              "bedrock",
+                              "local",
+                              "ollama",
+                              "dexto-nova"
+                            ],
+                            "description": "LLM provider"
+                          },
+                          "model": {
+                            "type": "string",
+                            "description": "Model ID"
+                          },
+                          "displayName": {
+                            "type": "string",
+                            "description": "Human-readable model name"
+                          },
+                          "supportedFileTypes": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "pdf",
+                                "image",
+                                "audio"
+                              ]
+                            },
+                            "description": "File types supported by this model"
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "catalog",
+                              "custom",
+                              "local-installed"
+                            ],
+                            "description": "Where this model comes from"
+                          }
+                        },
+                        "required": [
+                          "provider",
+                          "model",
+                          "supportedFileTypes",
+                          "source"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Hydrated model picker entry"
+                      },
+                      "description": "User-defined custom models"
+                    }
+                  },
+                  "required": [
+                    "featured",
+                    "recents",
+                    "favorites",
+                    "custom"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/model-picker-state/recents": {
+      "post": {
+        "summary": "Record Recent Model",
+        "description": "Records a model selection in recents.",
+        "tags": [
+          "llm"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "enum": [
+                      "openai",
+                      "openai-compatible",
+                      "anthropic",
+                      "google",
+                      "groq",
+                      "xai",
+                      "cohere",
+                      "minimax",
+                      "glm",
+                      "openrouter",
+                      "litellm",
+                      "glama",
+                      "vertex",
+                      "bedrock",
+                      "local",
+                      "ollama",
+                      "dexto-nova"
+                    ],
+                    "description": "LLM provider"
+                  },
+                  "model": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Model ID"
+                  }
+                },
+                "required": [
+                  "provider",
+                  "model"
+                ],
+                "additionalProperties": false,
+                "description": "Provider/model pair for model picker state operations"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recent model recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Success indicator"
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/model-picker-state/favorites/toggle": {
+      "post": {
+        "summary": "Toggle Favorite Model",
+        "description": "Adds or removes a model from favorites.",
+        "tags": [
+          "llm"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "enum": [
+                      "openai",
+                      "openai-compatible",
+                      "anthropic",
+                      "google",
+                      "groq",
+                      "xai",
+                      "cohere",
+                      "minimax",
+                      "glm",
+                      "openrouter",
+                      "litellm",
+                      "glama",
+                      "vertex",
+                      "bedrock",
+                      "local",
+                      "ollama",
+                      "dexto-nova"
+                    ],
+                    "description": "LLM provider"
+                  },
+                  "model": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Model ID"
+                  }
+                },
+                "required": [
+                  "provider",
+                  "model"
+                ],
+                "additionalProperties": false,
+                "description": "Provider/model pair for model picker state operations"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Favorite toggled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Success indicator"
+                    },
+                    "isFavorite": {
+                      "type": "boolean",
+                      "description": "Whether the model is now favorited"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "isFavorite"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/model-picker-state/favorites": {
+      "put": {
+        "summary": "Set Favorite Models",
+        "description": "Replaces favorite models list. Used by migration or bulk updates.",
+        "tags": [
+          "llm"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "favorites": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "provider": {
+                          "type": "string",
+                          "enum": [
+                            "openai",
+                            "openai-compatible",
+                            "anthropic",
+                            "google",
+                            "groq",
+                            "xai",
+                            "cohere",
+                            "minimax",
+                            "glm",
+                            "openrouter",
+                            "litellm",
+                            "glama",
+                            "vertex",
+                            "bedrock",
+                            "local",
+                            "ollama",
+                            "dexto-nova"
+                          ],
+                          "description": "LLM provider"
+                        },
+                        "model": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "Model ID"
+                        }
+                      },
+                      "required": [
+                        "provider",
+                        "model"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Provider/model pair for model picker state operations"
+                    },
+                    "description": "Complete list of favorite model references"
+                  }
+                },
+                "required": [
+                  "favorites"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Favorites updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Success indicator"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of favorites persisted"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "count"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }

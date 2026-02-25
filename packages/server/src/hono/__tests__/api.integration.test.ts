@@ -104,6 +104,36 @@ describe('Hono API Integration Tests', () => {
             });
             expect(res.status).toBe(200);
         });
+
+        it('GET /api/llm/model-picker-state returns picker sections', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const res = await httpRequest(testServer.baseUrl, 'GET', '/api/llm/model-picker-state');
+            expect(res.status).toBe(200);
+            expectResponseStructure(res.body, {
+                featured: validators.array,
+                recents: validators.array,
+                favorites: validators.array,
+                custom: validators.array,
+            });
+        });
+
+        it('POST /api/llm/model-picker-state/favorites/toggle toggles favorite', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const toggleRes = await httpRequest(
+                testServer.baseUrl,
+                'POST',
+                '/api/llm/model-picker-state/favorites/toggle',
+                {
+                    provider: 'openai',
+                    model: 'gpt-5',
+                }
+            );
+            expect(toggleRes.status).toBe(200);
+            expectResponseStructure(toggleRes.body, {
+                ok: validators.boolean,
+                isFavorite: validators.boolean,
+            });
+        });
     });
 
     describe('Sessions Routes', () => {
