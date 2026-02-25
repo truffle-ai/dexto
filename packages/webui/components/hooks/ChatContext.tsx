@@ -544,7 +544,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                         param: { sessionId: currentSessionId },
                         json: { clearQueue: true },
                     })
-                    .catch((e) => console.warn('Failed to cancel busy session:', e));
+                    .catch((e: unknown) => console.warn('Failed to cancel busy session:', e));
             }
         }
     }, [sessionHistoryData, currentSessionId]);

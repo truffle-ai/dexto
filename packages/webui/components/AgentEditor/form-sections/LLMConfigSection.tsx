@@ -5,6 +5,7 @@ import { Collapsible } from '../../ui/collapsible';
 import { Eye, EyeOff } from 'lucide-react';
 import { useModelCapabilities } from '../../hooks/useLLM';
 import { LLM_PROVIDERS } from '@dexto/core';
+import type { ReasoningPreset } from '@dexto/core';
 import type { AgentConfig } from '@dexto/agent-config';
 import { useDebounce } from 'use-debounce';
 
@@ -37,7 +38,7 @@ export function LLMConfigSection({
         debouncedModel ? debouncedModel : null
     );
     const reasoningSupport = capabilities?.reasoning;
-    const reasoningPresets = reasoningSupport?.supportedPresets ?? [];
+    const reasoningPresets: ReasoningPreset[] = reasoningSupport?.supportedPresets ?? [];
     const reasoningCapable = reasoningSupport?.capable ?? false;
     const reasoningPresetValue =
         typeof value.reasoning?.preset === 'string' ? value.reasoning.preset : undefined;

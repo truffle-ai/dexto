@@ -196,7 +196,7 @@ export default function ModelPickerModal() {
                 }
 
                 // Check which models don't exist in API yet
-                const existingNames = new Set(customModels.map((m) => m.name));
+                const existingNames = new Set(customModels.map((m: CustomModel) => m.name));
                 const toMigrate = localModels.filter((m) => !existingNames.has(m.name));
 
                 if (toMigrate.length === 0) {
@@ -619,7 +619,7 @@ export default function ModelPickerModal() {
 
                 // Check if it's a custom model (check by model name match and provider type)
                 const customModel = customModels.find(
-                    (cm) =>
+                    (cm: CustomModel) =>
                         cm.name === modelName && (cm.provider ?? 'openai-compatible') === providerId
                 );
                 if (customModel) {
@@ -638,7 +638,7 @@ export default function ModelPickerModal() {
                 }
 
                 const provider = providers[providerId];
-                const model = provider?.models.find((m) => m.name === modelName);
+                const model = provider?.models.find((m: ModelInfo) => m.name === modelName);
                 if (!provider || !model) return null;
                 return { providerId, provider, model, isCustom: false };
             })
@@ -694,13 +694,13 @@ export default function ModelPickerModal() {
 
         // If openrouter filter is active (without custom), only show openrouter custom models
         if (hasOpenRouterFilter && !hasCustomFilter && !noFilter) {
-            filtered = customModels.filter((cm) => cm.provider === 'openrouter');
+            filtered = customModels.filter((cm: CustomModel) => cm.provider === 'openrouter');
         }
 
         const q = search.trim().toLowerCase();
         if (!q) return filtered;
         return filtered.filter(
-            (cm) =>
+            (cm: CustomModel) =>
                 cm.name.toLowerCase().includes(q) ||
                 (cm.displayName?.toLowerCase().includes(q) ?? false) ||
                 (cm.provider?.toLowerCase().includes(q) ?? false) ||
@@ -720,7 +720,7 @@ export default function ModelPickerModal() {
         const q = search.trim().toLowerCase();
         if (!q) return installedLocalModels;
         return installedLocalModels.filter(
-            (model) =>
+            (model: LocalModel) =>
                 model.id.toLowerCase().includes(q) ||
                 model.displayName.toLowerCase().includes(q) ||
                 'local'.includes(q)
@@ -1168,34 +1168,41 @@ export default function ModelPickerModal() {
                                                     )
                                                 )}
                                                 {/* Installed local models (downloaded via CLI) - shown before custom models */}
-                                                {filteredInstalledModels.map((model) => (
-                                                    <ModelCard
-                                                        key={`local|${model.id}`}
-                                                        provider="local"
-                                                        model={{
-                                                            name: model.id,
-                                                            displayName: model.displayName,
-                                                            maxInputTokens:
-                                                                model.contextLength || 8192,
-                                                            supportedFileTypes: [],
-                                                        }}
-                                                        isFavorite={favorites.includes(
-                                                            favKey('local', model.id)
-                                                        )}
-                                                        isActive={isCurrentModel('local', model.id)}
-                                                        onClick={() => onPickInstalledModel(model)}
-                                                        onToggleFavorite={() =>
-                                                            toggleFavorite('local', model.id)
-                                                        }
-                                                        onDelete={() =>
-                                                            deleteInstalledModel(model.id)
-                                                        }
-                                                        size="sm"
-                                                        isInstalled
-                                                    />
-                                                ))}
+                                                {filteredInstalledModels.map(
+                                                    (model: LocalModel) => (
+                                                        <ModelCard
+                                                            key={`local|${model.id}`}
+                                                            provider="local"
+                                                            model={{
+                                                                name: model.id,
+                                                                displayName: model.displayName,
+                                                                maxInputTokens:
+                                                                    model.contextLength || 8192,
+                                                                supportedFileTypes: [],
+                                                            }}
+                                                            isFavorite={favorites.includes(
+                                                                favKey('local', model.id)
+                                                            )}
+                                                            isActive={isCurrentModel(
+                                                                'local',
+                                                                model.id
+                                                            )}
+                                                            onClick={() =>
+                                                                onPickInstalledModel(model)
+                                                            }
+                                                            onToggleFavorite={() =>
+                                                                toggleFavorite('local', model.id)
+                                                            }
+                                                            onDelete={() =>
+                                                                deleteInstalledModel(model.id)
+                                                            }
+                                                            size="sm"
+                                                            isInstalled
+                                                        />
+                                                    )
+                                                )}
                                                 {/* Custom models (user-configured) */}
-                                                {filteredCustomModels.map((cm) => {
+                                                {filteredCustomModels.map((cm: CustomModel) => {
                                                     const cmProvider = (cm.provider ??
                                                         'openai-compatible') as LLMProvider;
                                                     return (

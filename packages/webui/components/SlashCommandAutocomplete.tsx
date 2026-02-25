@@ -171,7 +171,7 @@ export default function SlashCommandAutocomplete({
         const commandName = withoutSlash.split(/\s+/)[0] || '';
 
         return prompts.filter(
-            (prompt) =>
+            (prompt: Prompt) =>
                 prompt.name.toLowerCase().includes(commandName.toLowerCase()) ||
                 (prompt.description &&
                     prompt.description.toLowerCase().includes(commandName.toLowerCase())) ||
@@ -192,7 +192,7 @@ export default function SlashCommandAutocomplete({
         if (showCreateOption) {
             items.push({ kind: 'create' });
         }
-        filteredPrompts.forEach((prompt) => items.push({ kind: 'prompt', prompt }));
+        filteredPrompts.forEach((prompt: Prompt) => items.push({ kind: 'prompt', prompt }));
         return items;
     }, [showCreateOption, filteredPrompts]);
 
@@ -410,7 +410,7 @@ export default function SlashCommandAutocomplete({
                                       No prompts available.
                                   </div>
                               )
-                            : filteredPrompts.map((prompt, index) => {
+                            : filteredPrompts.map((prompt: Prompt, index: number) => {
                                   const itemIndex = showCreateOption ? index + 1 : index;
                                   return (
                                       <PromptItem

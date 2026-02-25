@@ -234,87 +234,99 @@ export default function SearchPanel({
                                 {/* Message Results */}
                                 {searchMode === 'messages' && messageResults.length > 0 && (
                                     <div className="space-y-2">
-                                        {messageResults.map((result, index) => (
-                                            <div
-                                                key={index}
-                                                className="p-3 rounded-lg border border-border/50 bg-card hover:bg-muted/50 transition-all cursor-pointer"
-                                                onClick={() => handleResultClick(result)}
-                                            >
-                                                <div className="flex items-start justify-between mb-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <Badge
-                                                            className={cn(
-                                                                'text-xs',
-                                                                getRoleColor(result.message.role)
-                                                            )}
-                                                        >
-                                                            {getRoleIcon(result.message.role)}
-                                                            <span className="ml-1 capitalize">
-                                                                {result.message.role}
+                                        {messageResults.map(
+                                            (result: SearchResult, index: number) => (
+                                                <div
+                                                    key={index}
+                                                    className="p-3 rounded-lg border border-border/50 bg-card hover:bg-muted/50 transition-all cursor-pointer"
+                                                    onClick={() => handleResultClick(result)}
+                                                >
+                                                    <div className="flex items-start justify-between mb-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <Badge
+                                                                className={cn(
+                                                                    'text-xs',
+                                                                    getRoleColor(
+                                                                        result.message.role
+                                                                    )
+                                                                )}
+                                                            >
+                                                                {getRoleIcon(result.message.role)}
+                                                                <span className="ml-1 capitalize">
+                                                                    {result.message.role}
+                                                                </span>
+                                                            </Badge>
+                                                            <span className="text-sm text-muted-foreground">
+                                                                Session:{' '}
+                                                                {result.sessionId.slice(0, 8)}
+                                                                ...
                                                             </span>
-                                                        </Badge>
-                                                        <span className="text-sm text-muted-foreground">
-                                                            Session: {result.sessionId.slice(0, 8)}
-                                                            ...
-                                                        </span>
+                                                        </div>
+                                                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
                                                     </div>
-                                                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                                                </div>
 
-                                                <div className="text-sm">
-                                                    {highlightText(result.context, searchQuery)}
+                                                    <div className="text-sm">
+                                                        {highlightText(result.context, searchQuery)}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))}
+                                            )
+                                        )}
                                     </div>
                                 )}
 
                                 {/* Session Results */}
                                 {searchMode === 'sessions' && sessionResults.length > 0 && (
                                     <div className="space-y-2">
-                                        {sessionResults.map((sessionResult, index) => (
-                                            <div
-                                                key={index}
-                                                className="p-3 rounded-lg border border-border/50 bg-card hover:bg-muted/50 transition-all cursor-pointer"
-                                                onClick={() =>
-                                                    handleSessionResultClick(sessionResult)
-                                                }
-                                            >
-                                                <div className="flex items-start justify-between mb-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <MessageSquare className="w-4 h-4 text-muted-foreground" />
-                                                        <span className="font-medium">
-                                                            {sessionResult.sessionId.slice(0, 12)}
-                                                            ...
-                                                        </span>
-                                                        <Badge
-                                                            variant="secondary"
-                                                            className="text-xs"
-                                                        >
-                                                            {sessionResult.matchCount} matches
-                                                        </Badge>
+                                        {sessionResults.map(
+                                            (sessionResult: SessionSearchResult, index: number) => (
+                                                <div
+                                                    key={index}
+                                                    className="p-3 rounded-lg border border-border/50 bg-card hover:bg-muted/50 transition-all cursor-pointer"
+                                                    onClick={() =>
+                                                        handleSessionResultClick(sessionResult)
+                                                    }
+                                                >
+                                                    <div className="flex items-start justify-between mb-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <MessageSquare className="w-4 h-4 text-muted-foreground" />
+                                                            <span className="font-medium">
+                                                                {sessionResult.sessionId.slice(
+                                                                    0,
+                                                                    12
+                                                                )}
+                                                                ...
+                                                            </span>
+                                                            <Badge
+                                                                variant="secondary"
+                                                                className="text-xs"
+                                                            >
+                                                                {sessionResult.matchCount} matches
+                                                            </Badge>
+                                                        </div>
+                                                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
                                                     </div>
-                                                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                                                </div>
 
-                                                <div className="text-sm text-muted-foreground mb-2">
-                                                    {sessionResult.metadata.messageCount} messages •
-                                                    Created{' '}
-                                                    {formatDate(sessionResult.metadata.createdAt)} •
-                                                    Last active{' '}
-                                                    {formatTime(
-                                                        sessionResult.metadata.lastActivity
-                                                    )}
-                                                </div>
+                                                    <div className="text-sm text-muted-foreground mb-2">
+                                                        {sessionResult.metadata.messageCount}{' '}
+                                                        messages • Created{' '}
+                                                        {formatDate(
+                                                            sessionResult.metadata.createdAt
+                                                        )}{' '}
+                                                        • Last active{' '}
+                                                        {formatTime(
+                                                            sessionResult.metadata.lastActivity
+                                                        )}
+                                                    </div>
 
-                                                <div className="text-sm">
-                                                    {highlightText(
-                                                        sessionResult.firstMatch.context,
-                                                        searchQuery
-                                                    )}
+                                                    <div className="text-sm">
+                                                        {highlightText(
+                                                            sessionResult.firstMatch.context,
+                                                            searchQuery
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))}
+                                            )
+                                        )}
                                     </div>
                                 )}
 
