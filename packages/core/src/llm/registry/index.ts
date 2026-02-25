@@ -775,13 +775,11 @@ export function getAllModelsForProvider(
 
     // Gateway providers inherit the OpenRouter gateway catalog (OpenRouter-format IDs).
     // This keeps the "all models" list useful without requiring per-model OpenRouter ID mapping.
-    if (provider !== 'openrouter') {
-        for (const model of getOpenRouterGatewayCatalogModels()) {
-            const key = model.name.toLowerCase();
-            if (seen.has(key)) continue;
-            seen.add(key);
-            allModels.push({ ...model, originalProvider: 'openrouter' });
-        }
+    for (const model of getOpenRouterGatewayCatalogModels()) {
+        const key = model.name.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        allModels.push({ ...model, originalProvider: 'openrouter' });
     }
 
     return allModels;
