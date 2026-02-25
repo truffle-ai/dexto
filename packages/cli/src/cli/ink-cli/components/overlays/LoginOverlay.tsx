@@ -168,17 +168,24 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
         setError(null);
 
         void (async () => {
-            const auth = await loadAuth();
-            if (!isActiveRef.current) return;
+            try {
+                const auth = await loadAuth();
+                if (!isActiveRef.current) return;
 
-            if (auth) {
-                setExistingUser(auth.email || auth.userId || 'user');
-                setStep('already-authenticated');
-                setStatus('You are already logged in');
-                return;
+                if (auth) {
+                    setExistingUser(auth.email || auth.userId || 'user');
+                    setStep('already-authenticated');
+                    setStatus('You are already logged in');
+                    return;
+                }
+
+                await startLogin();
+            } catch (err) {
+                if (!isActiveRef.current) return;
+                setStep('error');
+                setStatus('Error checking authentication state');
+                setError(err instanceof Error ? err.message : String(err));
             }
-
-            await startLogin();
         })();
 
         return () => {
