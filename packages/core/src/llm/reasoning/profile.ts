@@ -32,7 +32,7 @@ const GOOGLE_PROFILE_CONFIG = {
 } as const;
 
 function isAnthropicStyleReasoningCapable(
-    provider: 'anthropic' | 'vertex',
+    provider: 'anthropic' | 'google-vertex-anthropic',
     model: string
 ): boolean {
     return (
@@ -56,8 +56,8 @@ function getNativeReasoningProfile(provider: LLMProvider, model: string): Reason
             }
             return buildAnthropicReasoningProfile({ model, ...ANTHROPIC_PROFILE_CONFIG });
 
-        case 'bedrock':
-            if (!isReasoningCapableModel(model, 'bedrock')) {
+        case 'amazon-bedrock':
+            if (!isReasoningCapableModel(model, 'amazon-bedrock')) {
                 return nonCapableProfile();
             }
             return buildBedrockReasoningProfile(model);
@@ -68,8 +68,14 @@ function getNativeReasoningProfile(provider: LLMProvider, model: string): Reason
             }
             return buildGoogleReasoningProfile({ model, ...GOOGLE_PROFILE_CONFIG });
 
-        case 'vertex':
-            if (!isAnthropicStyleReasoningCapable('vertex', model)) {
+        case 'google-vertex':
+            if (!isReasoningCapableModel(model, 'google-vertex')) {
+                return nonCapableProfile();
+            }
+            return buildVertexReasoningProfile(model);
+
+        case 'google-vertex-anthropic':
+            if (!isAnthropicStyleReasoningCapable('google-vertex-anthropic', model)) {
                 return nonCapableProfile();
             }
             return buildVertexReasoningProfile(model);

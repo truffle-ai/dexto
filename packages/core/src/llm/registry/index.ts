@@ -245,14 +245,17 @@ export const DEFAULT_MAX_INPUT_TOKENS = 128000;
  */
 export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = (() => {
     const registry = {} as Record<LLMProvider, ProviderInfo>;
+    const modelsDevMetadataByProvider = MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER as Partial<
+        Record<LLMProvider, ModelsDevProviderMetadata>
+    >;
 
     for (const provider of LLM_PROVIDERS) {
         registry[provider] = {
             models: mergeModels(MODELS_BY_PROVIDER[provider], MANUAL_MODELS_BY_PROVIDER[provider]),
             baseURLSupport: 'none',
             supportedFileTypes: [], // No defaults - models must explicitly specify support
-            ...(MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER[provider]
-                ? { modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER[provider] }
+            ...(modelsDevMetadataByProvider[provider]
+                ? { modelsDev: modelsDevMetadataByProvider[provider] }
                 : {}),
         };
     }
@@ -892,13 +895,11 @@ export function getAllModelsForProvider(
 
     // Gateway providers inherit the OpenRouter gateway catalog (OpenRouter-format IDs).
     // This keeps the "all models" list useful without requiring per-model OpenRouter ID mapping.
-    if (provider !== 'openrouter') {
-        for (const model of getOpenRouterGatewayCatalogModels()) {
-            const key = model.name.toLowerCase();
-            if (seen.has(key)) continue;
-            seen.add(key);
-            allModels.push({ ...model, originalProvider: 'openrouter' });
-        }
+    for (const model of getOpenRouterGatewayCatalogModels()) {
+        const key = model.name.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        allModels.push({ ...model, originalProvider: 'openrouter' });
     }
 
     return allModels;
@@ -1283,29 +1284,40 @@ export function getModelDisplayName(model: string, provider?: LLMProvider): stri
     }
 }
 
-// TODO: Add reasoningCapable as a property in the model registry instead of hardcoding here
 /**
- * Checks if a model supports configurable reasoning effort.
- * Currently only OpenAI reasoning models (o1, o3, codex, gpt-5.x) support this.
- *
- * @param model The model name to check.
- * @param provider Optional provider for context (defaults to detecting from model name).
- * @returns True if the model supports reasoning effort configuration.
+ * Checks if a model is flagged as reasoning-capable by the registry (models.dev).
+ * Falls back to a few heuristics for unknown/custom models.
  */
-export function isReasoningCapableModel(model: string, _provider?: LLMProvider): boolean {
-    const modelLower = model.toLowerCase();
+export function isReasoningCapableModel(model: string, provider?: LLMProvider): boolean {
+    const registryProvider = (() => {
+        if (model.includes('/')) return 'openrouter' as const;
+        if (provider) return provider;
+        try {
+            return getProviderFromModel(model);
+        } catch {
+            return undefined;
+        }
+    })();
 
-    // Codex models are optimized for complex coding with reasoning
-    if (modelLower.includes('codex')) {
-        return true;
+    if (registryProvider === 'openrouter' && model.includes('/')) {
+        const dynamicModel = getOpenRouterGatewayModelById(model);
+        if (dynamicModel?.reasoning === true) return true;
+        if (dynamicModel?.reasoning === false) return false;
     }
 
-    // o1 and o3 are dedicated reasoning models
+    if (registryProvider) {
+        const modelInfo = findModelInfo(registryProvider, model);
+        if (modelInfo?.reasoning === true) return true;
+        if (modelInfo?.reasoning === false) return false;
+    }
+
+    const modelIdForHeuristics = model.includes('/') ? (model.split('/').pop() ?? model) : model;
+    const modelLower = modelIdForHeuristics.toLowerCase();
+
+    if (modelLower.includes('codex')) return true;
     if (modelLower.startsWith('o1') || modelLower.startsWith('o3') || modelLower.startsWith('o4')) {
         return true;
     }
-
-    // GPT-5 series support reasoning effort
     if (
         modelLower.includes('gpt-5') ||
         modelLower.includes('gpt-5.1') ||

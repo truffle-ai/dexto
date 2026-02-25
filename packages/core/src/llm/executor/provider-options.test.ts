@@ -129,11 +129,11 @@ describe('buildProviderOptions', () => {
         });
     });
 
-    describe('vertex', () => {
+    describe('google-vertex', () => {
         it('maps Vertex Claude models to Anthropic options', () => {
             expect(
                 buildProviderOptions({
-                    provider: 'vertex',
+                    provider: 'google-vertex-anthropic',
                     model: 'claude-3-7-sonnet@20250219',
                     reasoning: { variant: 'enabled' },
                 })
@@ -149,7 +149,7 @@ describe('buildProviderOptions', () => {
         it('maps Vertex Gemini models to Google options', () => {
             expect(
                 buildProviderOptions({
-                    provider: 'vertex',
+                    provider: 'google-vertex',
                     model: 'gemini-3-flash-preview',
                     reasoning: { variant: 'minimal' },
                 })
@@ -159,7 +159,7 @@ describe('buildProviderOptions', () => {
 
             expect(
                 buildProviderOptions({
-                    provider: 'vertex',
+                    provider: 'google-vertex',
                     model: 'gemini-2.5-pro',
                     reasoning: undefined,
                 })
@@ -205,11 +205,11 @@ describe('buildProviderOptions', () => {
         });
     });
 
-    describe('bedrock', () => {
+    describe('amazon-bedrock', () => {
         it('uses Anthropic budget defaults for Bedrock Anthropic models', () => {
             expect(
                 buildProviderOptions({
-                    provider: 'bedrock',
+                    provider: 'amazon-bedrock',
                     model: 'anthropic.claude-haiku-4-5-20251001-v1:0',
                 })
             ).toEqual({
@@ -223,7 +223,7 @@ describe('buildProviderOptions', () => {
         it('maps Bedrock Anthropic disabled/enabled variants', () => {
             expect(
                 buildProviderOptions({
-                    provider: 'bedrock',
+                    provider: 'amazon-bedrock',
                     model: 'anthropic.claude-haiku-4-5-20251001-v1:0',
                     reasoning: { variant: 'disabled' },
                 })
@@ -231,7 +231,7 @@ describe('buildProviderOptions', () => {
 
             expect(
                 buildProviderOptions({
-                    provider: 'bedrock',
+                    provider: 'amazon-bedrock',
                     model: 'anthropic.claude-haiku-4-5-20251001-v1:0',
                     reasoning: { variant: 'enabled', budgetTokens: 987 },
                 })
@@ -246,7 +246,7 @@ describe('buildProviderOptions', () => {
         it('maps Bedrock Nova effort variants', () => {
             expect(
                 buildProviderOptions({
-                    provider: 'bedrock',
+                    provider: 'amazon-bedrock',
                     model: 'amazon.nova-premier-v1:0',
                 })
             ).toEqual({
@@ -255,7 +255,7 @@ describe('buildProviderOptions', () => {
 
             expect(
                 buildProviderOptions({
-                    provider: 'bedrock',
+                    provider: 'amazon-bedrock',
                     model: 'amazon.nova-premier-v1:0',
                     reasoning: { variant: 'high' },
                 })

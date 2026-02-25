@@ -173,7 +173,7 @@ describe('getReasoningProfile', () => {
 
 describe('supportsReasoningVariant', () => {
     it('checks membership against profile variants', () => {
-        const profile = getReasoningProfile('vertex', 'gemini-3-flash-preview');
+        const profile = getReasoningProfile('google-vertex', 'gemini-3-flash-preview');
         expect(supportsReasoningVariant(profile, 'medium')).toBe(true);
         expect(supportsReasoningVariant(profile, 'xhigh')).toBe(false);
     });
