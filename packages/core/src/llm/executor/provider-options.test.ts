@@ -339,6 +339,20 @@ describe('buildProviderOptions', () => {
             });
         });
 
+        it('supports disabling Anthropic models on gateway providers', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'openrouter',
+                    model: 'anthropic/claude-sonnet-4.6',
+                    reasoning: { variant: 'disabled' },
+                })
+            ).toEqual({
+                openrouter: {
+                    include_reasoning: false,
+                },
+            });
+        });
+
         it('supports Gemini-3 thinking-level variants', () => {
             expect(
                 buildProviderOptions({

@@ -3,9 +3,13 @@ import { isReasoningCapableModel } from '../registry/index.js';
 import {
     isAnthropicAdaptiveThinkingModel,
     isAnthropicOpusAdaptiveThinkingModel,
+    parseClaudeVersion,
 } from './anthropic-thinking.js';
 import { getSupportedOpenAIReasoningEfforts } from './openai-reasoning-effort.js';
-import { getOpenRouterReasoningTarget } from './profiles/openrouter.js';
+import {
+    getOpenRouterReasoningTarget,
+    type OpenRouterReasoningTarget,
+} from './profiles/openrouter.js';
 
 export type ReasoningParadigm = 'effort' | 'adaptive-effort' | 'thinking-level' | 'budget' | 'none';
 
@@ -22,6 +26,8 @@ export type ReasoningProfile = {
     defaultVariant?: string;
     supportsBudgetTokens: boolean;
 };
+
+type NativeReasoningProvider = Exclude<LLMProvider, 'openrouter' | 'dexto-nova'>;
 
 function option(id: string, label?: string): ReasoningVariantOption {
     return { id, label: label ?? id };
@@ -126,24 +132,26 @@ function nonCapableProfile(): ReasoningProfile {
     };
 }
 
-/**
- * Returns exact, model/provider-native reasoning controls available for this model.
- *
- * This is intentionally strict:
- * - No generic preset abstraction at this layer
- * - No guessed variants for unknown paradigms
- */
-export function getReasoningProfile(provider: LLMProvider, model: string): ReasoningProfile {
+function isNativeReasoningCapable(provider: NativeReasoningProvider, model: string): boolean {
     const registryCapable = isReasoningCapableModel(model, provider);
-    const capable =
-        registryCapable ||
-        ((provider === 'anthropic' ||
-            provider === 'vertex' ||
-            provider === 'openrouter' ||
-            provider === 'dexto-nova') &&
-            isAnthropicAdaptiveThinkingModel(model));
+    if (registryCapable) return true;
 
-    if (!capable) {
+    if (provider === 'anthropic' || provider === 'vertex') {
+        if (parseClaudeVersion(model) !== null) {
+            return true;
+        }
+
+        return isAnthropicAdaptiveThinkingModel(model);
+    }
+
+    return false;
+}
+
+function getNativeReasoningProfile(
+    provider: NativeReasoningProvider,
+    model: string
+): ReasoningProfile {
+    if (!isNativeReasoningCapable(provider, model)) {
         return nonCapableProfile();
     }
 
@@ -245,50 +253,6 @@ export function getReasoningProfile(provider: LLMProvider, model: string): Reaso
                 supportsBudgetTokens: true,
             });
         }
-        case 'openrouter':
-        case 'dexto-nova': {
-            const target = getOpenRouterReasoningTarget(model);
-            if (!target) {
-                return nonCapableProfile();
-            }
-
-            if (target.kind === 'openai') {
-                const efforts = getSupportedOpenAIReasoningEfforts(target.modelId);
-                return withDefault(
-                    {
-                        capable: true,
-                        paradigm: 'effort',
-                        variants: efforts.map((effort) => option(effort)),
-                        supportsBudgetTokens: true,
-                    },
-                    'medium'
-                );
-            }
-
-            if (target.kind === 'anthropic') {
-                if (isAnthropicAdaptiveThinkingModel(target.modelId)) {
-                    return buildAnthropicAdaptiveProfile({
-                        model: target.modelId,
-                        includeDisabled: false,
-                        supportsBudgetTokens: true,
-                    });
-                }
-
-                return buildBudgetProfile({
-                    includeDisabled: false,
-                    supportsBudgetTokens: true,
-                });
-            }
-
-            if (target.kind === 'google-gemini-3') {
-                return buildThinkingLevelProfile({
-                    includeDisabled: false,
-                    supportsBudgetTokens: true,
-                });
-            }
-
-            return nonCapableProfile();
-        }
         case 'openai-compatible': {
             return withDefault(
                 {
@@ -304,6 +268,47 @@ export function getReasoningProfile(provider: LLMProvider, model: string): Reaso
             return nonCapableProfile();
         }
     }
+}
+
+function getGatewayTargetProvider(target: OpenRouterReasoningTarget): NativeReasoningProvider {
+    if (target.kind === 'openai') return 'openai';
+    if (target.kind === 'anthropic') return 'anthropic';
+    return 'google';
+}
+
+function toGatewayReasoningProfile(nativeProfile: ReasoningProfile): ReasoningProfile {
+    if (!nativeProfile.capable) {
+        return nonCapableProfile();
+    }
+
+    return {
+        ...nativeProfile,
+        variants: nativeProfile.variants.map((variant) => ({ ...variant })),
+        supportedVariants: [...nativeProfile.supportedVariants],
+        supportsBudgetTokens: true,
+    };
+}
+
+/**
+ * Returns exact, model/provider-native reasoning controls available for this model.
+ *
+ * This is intentionally strict:
+ * - No generic preset abstraction at this layer
+ * - No guessed variants for unknown paradigms
+ */
+export function getReasoningProfile(provider: LLMProvider, model: string): ReasoningProfile {
+    if (provider === 'openrouter' || provider === 'dexto-nova') {
+        const target = getOpenRouterReasoningTarget(model);
+        if (!target) {
+            return nonCapableProfile();
+        }
+
+        const nativeProvider = getGatewayTargetProvider(target);
+        const nativeProfile = getNativeReasoningProfile(nativeProvider, target.modelId);
+        return toGatewayReasoningProfile(nativeProfile);
+    }
+
+    return getNativeReasoningProfile(provider, model);
 }
 
 export function supportsReasoningVariant(profile: ReasoningProfile, variant: string): boolean {
