@@ -344,6 +344,8 @@ export type OverlayType =
     | 'sounds-selector'
     | 'session-subcommand-selector'
     | 'api-key-input'
+    | 'login'
+    | 'logout'
     | 'search'
     | 'approval'
     | 'tool-browser'

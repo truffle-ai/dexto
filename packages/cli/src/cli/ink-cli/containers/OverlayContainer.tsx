@@ -125,6 +125,14 @@ import MarketplaceBrowser, {
 import MarketplaceAddPrompt, {
     type MarketplaceAddPromptHandle,
 } from '../components/overlays/MarketplaceAddPrompt.js';
+import LoginOverlay, {
+    type LoginOverlayHandle,
+    type LoginOverlayOutcome,
+} from '../components/overlays/LoginOverlay.js';
+import LogoutOverlay, {
+    type LogoutOverlayHandle,
+    type LogoutOverlayOutcome,
+} from '../components/overlays/LogoutOverlay.js';
 import type { PromptAddScope } from '../state/types.js';
 import type {
     PromptInfo,
@@ -234,6 +242,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const customModelWizardRef = useRef<CustomModelWizardHandle>(null);
         const sessionSubcommandSelectorRef = useRef<SessionSubcommandSelectorHandle>(null);
         const apiKeyInputRef = useRef<ApiKeyInputHandle>(null);
+        const loginOverlayRef = useRef<LoginOverlayHandle>(null);
+        const logoutOverlayRef = useRef<LogoutOverlayHandle>(null);
         const searchOverlayRef = useRef<SearchOverlayHandle>(null);
         const promptListRef = useRef<PromptListHandle>(null);
         const promptAddChoiceRef = useRef<PromptAddChoiceHandle>(null);
@@ -333,6 +343,10 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             );
                         case 'api-key-input':
                             return apiKeyInputRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'login':
+                            return loginOverlayRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'logout':
+                            return logoutOverlayRef.current?.handleInput(inputStr, key) ?? false;
                         case 'search':
                             return searchOverlayRef.current?.handleInput(inputStr, key) ?? false;
                         case 'prompt-list':
@@ -1293,6 +1307,83 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 commandOutput: null,
             }));
         }, [setUi]);
+
+        const handleLoginDone = useCallback(
+            (outcome: LoginOverlayOutcome) => {
+                handleClose();
+
+                if (outcome.outcome === 'closed') {
+                    return;
+                }
+
+                if (outcome.outcome === 'cancelled') {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: 'Login cancelled.',
+                            timestamp: new Date(),
+                        },
+                    ]);
+                    return;
+                }
+
+                const userLabel = outcome.email ? ` as ${outcome.email}` : '';
+                const keyLine = outcome.hasDextoApiKey
+                    ? `🔑 DEXTO_API_KEY ready${outcome.keyId ? ` (Key ID: ${outcome.keyId})` : ''}`
+                    : '⚠️ Failed to provision DEXTO_API_KEY (you can still use your own API keys)';
+
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: `✅ Logged in${userLabel}\n${keyLine}`,
+                        timestamp: new Date(),
+                    },
+                ]);
+            },
+            [handleClose, setMessages]
+        );
+
+        const handleLogoutDone = useCallback(
+            (outcome: LogoutOverlayOutcome) => {
+                handleClose();
+
+                if (outcome.outcome === 'closed') {
+                    return;
+                }
+
+                if (outcome.outcome === 'cancelled') {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: generateMessageId('system'),
+                            role: 'system',
+                            content: 'Logout cancelled.',
+                            timestamp: new Date(),
+                        },
+                    ]);
+                    return;
+                }
+
+                const warning = outcome.wasUsingDextoCredits
+                    ? '\n\nNext steps:\n• Run `/login` to log back in\n• Or run `dexto setup` to configure a different provider'
+                    : '';
+
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: `✅ Successfully logged out${warning}`,
+                        timestamp: new Date(),
+                    },
+                ]);
+            },
+            [handleClose, setMessages]
+        );
 
         // Handle log level selection
         const handleLogLevelSelect = useCallback(
@@ -2738,6 +2829,28 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             isVisible={true}
                             onSelect={handleSessionSubcommandSelect}
                             onClose={handleClose}
+                        />
+                    </Box>
+                )}
+
+                {/* Login */}
+                {ui.activeOverlay === 'login' && (
+                    <Box marginTop={1}>
+                        <LoginOverlay
+                            ref={loginOverlayRef}
+                            isVisible={true}
+                            onDone={handleLoginDone}
+                        />
+                    </Box>
+                )}
+
+                {/* Logout */}
+                {ui.activeOverlay === 'logout' && (
+                    <Box marginTop={1}>
+                        <LogoutOverlay
+                            ref={logoutOverlayRef}
+                            isVisible={true}
+                            onDone={handleLogoutDone}
                         />
                     </Box>
                 )}
