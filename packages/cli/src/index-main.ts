@@ -1818,9 +1818,56 @@ program
 
                         let inkError: unknown = undefined;
                         try {
-                            const { startInkCliRefactored } = await import(
-                                './cli/ink-cli/InkCLIRefactored.js'
-                            );
+                            const [
+                                { startInkCliRefactored, setTuiHostAdapter },
+                                { registerGracefulShutdown },
+                                { applyLayeredEnvironmentLoading },
+                                {
+                                    getProviderDisplayName,
+                                    isValidApiKeyFormat,
+                                    getProviderInstructions,
+                                },
+                                {
+                                    beginOAuthLogin,
+                                    DEFAULT_OAUTH_CONFIG,
+                                    ensureDextoApiKeyForAuthToken,
+                                    loadAuth,
+                                    storeAuth,
+                                    removeAuth,
+                                    removeDextoApiKeyFromEnv,
+                                },
+                                { isUsingDextoCredits },
+                                { canUseDextoProvider },
+                            ] = await Promise.all([
+                                import('@dexto/tui'),
+                                import('./utils/graceful-shutdown.js'),
+                                import('./utils/env.js'),
+                                import('./cli/utils/provider-setup.js'),
+                                import('./cli/auth/index.js'),
+                                import('./config/effective-llm.js'),
+                                import('./cli/utils/dexto-setup.js'),
+                            ]);
+
+                            setTuiHostAdapter({
+                                registerGracefulShutdown,
+                                capture: (event, properties) => {
+                                    capture(event as never, properties as never);
+                                },
+                                applyLayeredEnvironmentLoading,
+                                getProviderDisplayName,
+                                isValidApiKeyFormat,
+                                getProviderInstructions,
+                                beginOAuthLogin,
+                                defaultOAuthConfig: DEFAULT_OAUTH_CONFIG,
+                                ensureDextoApiKeyForAuthToken,
+                                loadAuth,
+                                storeAuth,
+                                removeAuth,
+                                removeDextoApiKeyFromEnv,
+                                isUsingDextoCredits,
+                                canUseDextoProvider,
+                            });
+
                             await startInkCliRefactored(agent, cliSessionId, {
                                 updateInfo: cliUpdateInfo ?? undefined,
                                 configFilePath: resolvedPath,
