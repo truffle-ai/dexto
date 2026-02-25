@@ -903,7 +903,13 @@ export class ToolManager {
                 }
 
                 // Check if it's the same tool
-                return request.metadata.toolName === toolName;
+                if (request.metadata.toolName !== toolName) {
+                    return false;
+                }
+
+                // Never auto-approve directory access prompts due to remembered tool approvals.
+                // Directory access approvals are higher priority and should be explicitly granted.
+                return request.metadata.directoryAccess === undefined;
             },
             { rememberChoice: false } // Don't propagate remember choice to auto-approved requests
         );
@@ -945,6 +951,12 @@ export class ToolManager {
                     return false;
                 }
 
+                // Never auto-approve directory access prompts due to remembered patterns.
+                // Directory access approvals are higher priority and should be explicitly granted.
+                if (request.metadata.directoryAccess !== undefined) {
+                    return false;
+                }
+
                 const args = request.metadata.args;
                 if (typeof args !== 'object' || args === null) {
                     return false;
@@ -973,6 +985,43 @@ export class ToolManager {
         if (count > 0) {
             this.logger.info(
                 `Auto-approved ${count} parallel request(s) for tool '${toolName}' after user selected "remember pattern"`
+            );
+        }
+    }
+
+    /**
+     * Auto-approve pending tool approval requests that are now covered by a remembered directory.
+     * Called after a user selects "remember directory" for a directory-access prompt.
+     */
+    private autoApprovePendingDirectoryRequests(toolName: string, sessionId?: string): void {
+        const count = this.approvalManager.autoApprovePendingRequests(
+            (request: ApprovalRequest) => {
+                if (request.type !== ApprovalType.TOOL_APPROVAL) {
+                    return false;
+                }
+
+                if (request.sessionId !== sessionId) {
+                    return false;
+                }
+
+                if (request.metadata.toolName !== toolName) {
+                    return false;
+                }
+
+                const directoryAccess = request.metadata.directoryAccess;
+                if (!directoryAccess) {
+                    return false;
+                }
+
+                return this.approvalManager.isDirectorySessionApproved(directoryAccess.parentDir);
+            },
+            { rememberDirectory: false }
+        );
+
+        if (count > 0) {
+            this.logger.info(
+                'Auto-approved parallel request(s) after user selected "remember directory"',
+                { count, toolName }
             );
         }
     }
@@ -1937,7 +1986,7 @@ export class ToolManager {
     }
 
     /**
-     * Handle "remember choice" or "remember pattern" when user approves a tool.
+     * Handle "remember" actions when user approves a tool.
      */
     private async handleRememberChoice(
         toolName: string,
@@ -1949,6 +1998,7 @@ export class ToolManager {
 
         const rememberChoice = data.rememberChoice as boolean | undefined;
         const rememberPattern = data.rememberPattern as string | undefined;
+        const rememberDirectory = data.rememberDirectory as boolean | undefined;
 
         if (rememberChoice) {
             const allowSessionId = sessionId ?? response.sessionId;
@@ -1961,6 +2011,9 @@ export class ToolManager {
             this.approvalManager.addPattern(toolName, rememberPattern);
             this.logger.info(`Pattern '${rememberPattern}' added for tool '${toolName}' approval`);
             this.autoApprovePendingPatternRequests(toolName, sessionId);
+        } else if (rememberDirectory) {
+            const allowSessionId = sessionId ?? response.sessionId;
+            this.autoApprovePendingDirectoryRequests(toolName, allowSessionId);
         }
     }
 

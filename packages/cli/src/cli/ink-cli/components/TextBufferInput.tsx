@@ -65,6 +65,8 @@ interface TextBufferInputProps {
     onPasteBlockRemove?: ((blockId: string) => void) | undefined;
     /** Query to highlight in input text (for history search) */
     highlightQuery?: string | undefined;
+    /** Cycle the current reasoning variant. */
+    onCycleReasoningVariant?: (() => void) | undefined;
 }
 
 function isBackspaceKey(key: Key): boolean {
@@ -123,6 +125,7 @@ export function TextBufferInput({
     onPasteBlockUpdate,
     onPasteBlockRemove,
     highlightQuery,
+    onCycleReasoningVariant,
 }: TextBufferInputProps) {
     const { stdout } = useStdout();
     const terminalWidth = stdout?.columns || 80;
@@ -256,6 +259,18 @@ export function TextBufferInput({
     const handleKeypress = useCallback(
         (key: Key) => {
             if (isDisabled) return;
+
+            // Tab: cycle reasoning variant (when main input is active; overlays handle their own Tab usage)
+            if (
+                key.name === 'tab' &&
+                !key.shift &&
+                !key.ctrl &&
+                !key.meta &&
+                onCycleReasoningVariant
+            ) {
+                onCycleReasoningVariant();
+                return;
+            }
 
             // Read buffer state directly - always fresh, no stale closures
             const currentText = buffer.text;

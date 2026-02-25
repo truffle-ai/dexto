@@ -6,10 +6,10 @@ import { truncateToolResult } from './tool-output-truncator.js';
 import { StreamProcessorResult } from './types.js';
 import { sanitizeToolResult } from '../../context/utils.js';
 import type { SanitizedToolResult } from '../../context/types.js';
-import { Logger } from '../../logger/v2/types.js';
+import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
-import { LLMProvider, TokenUsage } from '../types.js';
 import type { ToolPresentationSnapshotV1 } from '../../tools/types.js';
+import type { LLMProvider, ReasoningVariant, TokenUsage } from '../types.js';
 
 type UsageLike = {
     inputTokens?: number | undefined;
@@ -58,6 +58,10 @@ export interface StreamProcessorConfig {
     model: string;
     /** Estimated input tokens before LLM call (for analytics/calibration) */
     estimatedInputTokens?: number;
+    /** Reasoning variant used for this call, when the provider exposes it. */
+    reasoningVariant?: ReasoningVariant;
+    /** Reasoning budget tokens used for this call, when the provider exposes it. */
+    reasoningBudgetTokens?: number;
 }
 
 export class StreamProcessor {
@@ -197,7 +201,7 @@ export class StreamProcessor {
                         // Capture provider metadata for round-tripping (e.g., OpenAI itemId, Gemini thought signatures)
                         // This must be passed back to the provider on subsequent requests
                         if (event.providerMetadata) {
-                            this.reasoningMetadata = event.providerMetadata;
+                            this.mergeReasoningMetadata(event.providerMetadata);
                         }
 
                         // Only emit chunks in streaming mode
@@ -244,8 +248,7 @@ export class StreamProcessor {
                         // (e.g., Gemini thought signatures). OpenAI Responses metadata can cause invalid
                         // follow-up requests (function_call item references missing required reasoning items).
                         const shouldPersistProviderMetadata =
-                            this.config.provider === 'google' ||
-                            (this.config.provider as string) === 'vertex';
+                            this.config.provider === 'google' || this.config.provider === 'vertex';
 
                         if (shouldPersistProviderMetadata && event.providerMetadata) {
                             toolCall.providerOptions = {
@@ -423,14 +426,12 @@ export class StreamProcessor {
 
                         this.actualTokens = usage;
 
-                        // Log complete LLM response for debugging
+                        // Log LLM response metadata. Avoid logging full content at info level.
                         this.logger.info('LLM response complete', {
                             finishReason: event.finishReason,
                             contentLength: this.accumulatedText.length,
-                            content: this.accumulatedText,
                             ...(this.reasoningText && {
                                 reasoningLength: this.reasoningText.length,
-                                reasoning: this.reasoningText,
                             }),
                             usage,
                             provider: this.config.provider,
@@ -456,15 +457,8 @@ export class StreamProcessor {
                         // The meaningful response will come after tool execution completes
                         const hasContent = this.accumulatedText || this.reasoningText;
                         if (this.finishReason !== 'tool-calls' || hasContent) {
-                            this.eventBus.emit('llm:response', {
-                                content: this.accumulatedText,
-                                ...(this.reasoningText && { reasoning: this.reasoningText }),
-                                provider: this.config.provider,
-                                model: this.config.model,
+                            this.emitLLMResponse({
                                 tokenUsage: usage,
-                                ...(this.config.estimatedInputTokens !== undefined && {
-                                    estimatedInputTokens: this.config.estimatedInputTokens,
-                                }),
                                 finishReason: this.finishReason,
                             });
                         }
@@ -530,7 +524,7 @@ export class StreamProcessor {
                             event.error instanceof Error
                                 ? event.error
                                 : new Error(String(event.error));
-                        this.logger.error(`LLM error: ${err.toString()}}`);
+                        this.logger.error('LLM error', { error: err });
                         this.eventBus.emit('llm:error', {
                             error: err,
                         });
@@ -545,15 +539,8 @@ export class StreamProcessor {
                         // Persist cancelled results for any pending tool calls
                         await this.persistCancelledToolResults();
 
-                        this.eventBus.emit('llm:response', {
-                            content: this.accumulatedText,
-                            ...(this.reasoningText && { reasoning: this.reasoningText }),
-                            provider: this.config.provider,
-                            model: this.config.model,
+                        this.emitLLMResponse({
                             tokenUsage: this.actualTokens,
-                            ...(this.config.estimatedInputTokens !== undefined && {
-                                estimatedInputTokens: this.config.estimatedInputTokens,
-                            }),
                             finishReason: 'cancelled',
                         });
 
@@ -579,15 +566,8 @@ export class StreamProcessor {
                 // Persist cancelled results for any pending tool calls
                 await this.persistCancelledToolResults();
 
-                this.eventBus.emit('llm:response', {
-                    content: this.accumulatedText,
-                    ...(this.reasoningText && { reasoning: this.reasoningText }),
-                    provider: this.config.provider,
-                    model: this.config.model,
+                this.emitLLMResponse({
                     tokenUsage: this.actualTokens,
-                    ...(this.config.estimatedInputTokens !== undefined && {
-                        estimatedInputTokens: this.config.estimatedInputTokens,
-                    }),
                     finishReason: 'cancelled',
                 });
 
@@ -692,6 +672,78 @@ export class StreamProcessor {
             return undefined;
         }
         return metadata;
+    }
+
+    private getReasoningResponseFields(): {
+        reasoningVariant?: ReasoningVariant;
+        reasoningBudgetTokens?: number;
+    } {
+        return {
+            ...(this.config.reasoningVariant !== undefined && {
+                reasoningVariant: this.config.reasoningVariant,
+            }),
+            ...(this.config.reasoningBudgetTokens !== undefined && {
+                reasoningBudgetTokens: this.config.reasoningBudgetTokens,
+            }),
+        };
+    }
+
+    private emitLLMResponse(config: {
+        tokenUsage: TokenUsage;
+        finishReason: LLMFinishReason;
+    }): void {
+        this.eventBus.emit('llm:response', {
+            content: this.accumulatedText,
+            ...(this.reasoningText && { reasoning: this.reasoningText }),
+            provider: this.config.provider,
+            model: this.config.model,
+            ...this.getReasoningResponseFields(),
+            tokenUsage: config.tokenUsage,
+            ...(this.config.estimatedInputTokens !== undefined && {
+                estimatedInputTokens: this.config.estimatedInputTokens,
+            }),
+            finishReason: config.finishReason,
+        });
+    }
+
+    private mergeReasoningMetadata(providerMetadata: Record<string, unknown>): void {
+        if (!this.reasoningMetadata) {
+            this.reasoningMetadata = providerMetadata;
+            return;
+        }
+
+        const isRecord = (value: unknown): value is Record<string, unknown> =>
+            !!value && typeof value === 'object' && !Array.isArray(value);
+
+        const previous = this.reasoningMetadata;
+        const merged: Record<string, unknown> = { ...previous, ...providerMetadata };
+
+        const previousOpenRouter = previous['openrouter'];
+        const nextOpenRouter = providerMetadata['openrouter'];
+        if (isRecord(previousOpenRouter) && isRecord(nextOpenRouter)) {
+            // OpenRouter streams `reasoning_details` incrementally across multiple reasoning-delta events.
+            // Plain overwrite/shallow merge drops earlier entries, so we append that array explicitly.
+            // We intentionally avoid a generic deep-merge for all providers because providerMetadata
+            // shapes are provider-specific/opaque and broad deep-merging can introduce invalid payloads.
+            const previousDetails = previousOpenRouter['reasoning_details'];
+            const nextDetails = nextOpenRouter['reasoning_details'];
+            const combinedDetails =
+                Array.isArray(previousDetails) && Array.isArray(nextDetails)
+                    ? [...previousDetails, ...nextDetails]
+                    : Array.isArray(nextDetails)
+                      ? nextDetails
+                      : Array.isArray(previousDetails)
+                        ? previousDetails
+                        : undefined;
+
+            merged['openrouter'] = {
+                ...previousOpenRouter,
+                ...nextOpenRouter,
+                ...(combinedDetails ? { reasoning_details: combinedDetails } : {}),
+            };
+        }
+
+        this.reasoningMetadata = merged;
     }
 
     private async createAssistantMessage(): Promise<string> {

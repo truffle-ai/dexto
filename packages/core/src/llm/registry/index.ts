@@ -24,8 +24,16 @@ import {
     type TokenUsage,
 } from '../types.js';
 import type { Logger } from '../../logger/v2/types.js';
-import { getOpenRouterModelContextLength } from '../providers/openrouter-model-registry.js';
-import { MODELS_BY_PROVIDER } from './models.generated.js';
+import {
+    getCachedOpenRouterModelsWithInfo,
+    getOpenRouterModelCacheInfo,
+    getOpenRouterModelContextLength,
+    scheduleOpenRouterModelRefresh,
+} from '../providers/openrouter-model-registry.js';
+import {
+    MODELS_BY_PROVIDER,
+    MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER,
+} from './models.generated.js';
 import { MANUAL_MODELS_BY_PROVIDER } from './models.manual.js';
 
 const LEGACY_MODEL_ID_ALIASES: Partial<Record<LLMProvider, Record<string, string>>> = {
@@ -76,8 +84,32 @@ export interface ModelPricing {
     outputPerM: number;
     cacheReadPerM?: number;
     cacheWritePerM?: number;
+    reasoningPerM?: number;
+    inputAudioPerM?: number;
+    outputAudioPerM?: number;
+    contextOver200kPerM?: {
+        inputPerM: number;
+        outputPerM: number;
+    };
     currency?: 'USD';
     unit?: 'per_million_tokens';
+}
+
+export type ModelModality = 'text' | 'audio' | 'image' | 'video' | 'pdf';
+
+export interface ModelModalities {
+    input: ModelModality[];
+    output: ModelModality[];
+}
+
+export interface ModelProviderMetadata {
+    npm?: string;
+    api?: string;
+}
+
+export interface ModelInterleavedMetadata {
+    field?: string;
+    [key: string]: unknown;
 }
 
 export interface ModelInfo {
@@ -86,8 +118,30 @@ export interface ModelInfo {
     default?: boolean;
     supportedFileTypes: SupportedFileType[]; // Required - every model must explicitly specify file support
     displayName?: string;
+    /**
+     * models.dev capability hints (optional).
+     * - reasoning: model is marketed/flagged as a "reasoning" model / supports explicit reasoning mode.
+     * - supportsTemperature: model supports a temperature parameter (some reasoning models don't).
+     * - supportsInterleaved: model supports interleaved reasoning/content streaming paradigms.
+     */
+    reasoning?: boolean;
+    supportsTemperature?: boolean;
+    supportsInterleaved?: boolean;
+    releaseDate?: string;
+    supportsToolCall?: boolean;
+    status?: string;
+    modalities?: ModelModalities;
+    providerMetadata?: ModelProviderMetadata;
+    interleaved?: true | ModelInterleavedMetadata;
     // Pricing metadata (USD per 1M tokens). Optional; when omitted, pricing is unknown.
     pricing?: ModelPricing;
+}
+
+export interface ModelsDevProviderMetadata {
+    env: string[];
+    npm?: string;
+    api?: string;
+    doc?: string;
 }
 
 // Central list of supported file type identifiers used across server/UI
@@ -124,6 +178,7 @@ export interface ProviderInfo {
     baseURLSupport: 'none' | 'optional' | 'required'; // Cleaner single field
     supportedFileTypes: SupportedFileType[]; // Provider-level default, used when model doesn't specify
     supportsCustomModels?: boolean; // Allow arbitrary model IDs beyond fixed list
+    modelsDev?: ModelsDevProviderMetadata;
     /**
      * When true, this provider can access all models from all other providers in the registry.
      * Used for gateway providers like 'dexto-nova' that route to multiple upstream providers.
@@ -151,6 +206,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         models: mergeModels(MODELS_BY_PROVIDER.openai, MANUAL_MODELS_BY_PROVIDER.openai),
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
+        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.openai,
     },
     'openai-compatible': {
         models: [], // Empty - accepts any model name for custom endpoints
@@ -162,17 +218,20 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         models: MODELS_BY_PROVIDER.anthropic,
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
+        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.anthropic,
     },
     google: {
         models: MODELS_BY_PROVIDER.google,
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
+        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.google,
     },
     // https://console.groq.com/docs/models
     groq: {
         models: MODELS_BY_PROVIDER.groq,
         baseURLSupport: 'none',
         supportedFileTypes: [], // Groq currently doesn't support file uploads
+        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.groq,
     },
     // https://docs.x.ai/docs/models
     // Note: XAI API only supports image uploads (JPG/PNG up to 20MB), not PDFs
@@ -180,12 +239,14 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         models: MODELS_BY_PROVIDER.xai,
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
+        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.xai,
     },
     // https://docs.cohere.com/reference/models
     cohere: {
         models: MODELS_BY_PROVIDER.cohere,
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
+        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.cohere,
     },
     // https://platform.minimax.io/docs/api-reference/text-openai-api
     // MiniMax provides an OpenAI-compatible endpoint at https://api.minimax.chat/v1
@@ -193,6 +254,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         models: MODELS_BY_PROVIDER.minimax,
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
+        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.minimax,
     },
     // https://open.bigmodel.cn/dev/api/normal-model/glm-4
     // GLM (Zhipu AI) provides an OpenAI-compatible endpoint
@@ -200,6 +262,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         models: MODELS_BY_PROVIDER.glm,
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
+        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.glm,
     },
     // https://openrouter.ai/docs
     // OpenRouter is a unified API gateway providing access to 100+ models from various providers.
@@ -210,6 +273,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types - user assumes responsibility
         supportsCustomModels: true,
         supportsAllRegistryModels: true, // Can serve models from all other providers
+        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.openrouter,
     },
     // https://docs.litellm.ai/
     // LiteLLM is an OpenAI-compatible proxy that unifies 100+ LLM providers.
@@ -234,6 +298,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         models: MODELS_BY_PROVIDER.vertex,
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
+        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.vertex,
     },
     // https://docs.aws.amazon.com/bedrock/latest/userguide/models.html
     bedrock: {
@@ -241,6 +306,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
         supportsCustomModels: true,
+        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.bedrock,
     },
     // Native local model execution via node-llama-cpp
     local: {
@@ -266,7 +332,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             // Claude models (Anthropic via OpenRouter)
             {
                 name: 'anthropic/claude-haiku-4.5',
-                displayName: 'Claude 4.5 Haiku',
+                displayName: 'Claude Haiku 4.5',
                 maxInputTokens: 200000,
                 default: true,
                 supportedFileTypes: ['pdf', 'image'],
@@ -281,7 +347,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             },
             {
                 name: 'anthropic/claude-sonnet-4.5',
-                displayName: 'Claude 4.5 Sonnet',
+                displayName: 'Claude Sonnet 4.5',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -295,7 +361,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             },
             {
                 name: 'anthropic/claude-opus-4.5',
-                displayName: 'Claude 4.5 Opus',
+                displayName: 'Claude Opus 4.5',
                 maxInputTokens: 200000,
                 supportedFileTypes: ['pdf', 'image'],
                 pricing: {
@@ -647,6 +713,11 @@ function pickExistingOpenRouterModelId(candidates: string[]): string | null {
 }
 
 function findModelInfo(provider: LLMProvider, model: string): ModelInfo | null {
+    if (provider === 'openrouter' && model.includes('/')) {
+        const dynamicOpenRouterModel = getOpenRouterGatewayModelById(model);
+        if (dynamicOpenRouterModel) return dynamicOpenRouterModel;
+    }
+
     const providerInfo = LLM_REGISTRY[provider];
     const normalizedModel = getNormalizedModelIdForLookup(provider, model);
     const direct = providerInfo.models.find((m) => m.name.toLowerCase() === normalizedModel);
@@ -654,13 +725,114 @@ function findModelInfo(provider: LLMProvider, model: string): ModelInfo | null {
 
     // Gateway providers can also surface OpenRouter models (OpenRouter-format IDs with "/").
     if (provider !== 'openrouter' && hasAllRegistryModelsSupport(provider) && model.includes('/')) {
-        const openrouterModel = LLM_REGISTRY.openrouter.models.find(
-            (m) => m.name.toLowerCase() === model.toLowerCase()
-        );
+        const openrouterModel = getOpenRouterGatewayModelById(model);
         if (openrouterModel) return openrouterModel;
     }
 
     return null;
+}
+
+function ensureOpenRouterCatalogRefreshScheduled(): void {
+    const cacheInfo = getOpenRouterModelCacheInfo();
+    if (cacheInfo.modelCount === 0) {
+        scheduleOpenRouterModelRefresh({ force: true });
+    } else if (!cacheInfo.isFresh) {
+        scheduleOpenRouterModelRefresh();
+    }
+}
+
+function findOpenRouterSnapshotModelById(modelId: string): ModelInfo | null {
+    const normalized = modelId.toLowerCase();
+    return LLM_REGISTRY.openrouter.models.find((m) => m.name.toLowerCase() === normalized) ?? null;
+}
+
+function buildOpenRouterGatewayModelInfo(
+    cachedModel: {
+        id: string;
+        contextLength: number;
+        displayName?: string;
+        supportedParameters?: string[];
+    },
+    snapshot: ModelInfo | null
+): ModelInfo {
+    const providerDefaults = LLM_REGISTRY.openrouter.supportedFileTypes;
+    const displayName = snapshot?.displayName ?? cachedModel.displayName;
+    const supportedFileTypes = snapshot?.supportedFileTypes ?? providerDefaults;
+    const maxInputTokens =
+        typeof cachedModel.contextLength === 'number' && cachedModel.contextLength > 0
+            ? cachedModel.contextLength
+            : (snapshot?.maxInputTokens ?? DEFAULT_MAX_INPUT_TOKENS);
+
+    const inferredReasoning =
+        cachedModel.supportedParameters?.includes('reasoning') === true ? true : undefined;
+    const inferredSupportsTemperature =
+        cachedModel.supportedParameters?.includes('temperature') === true ? true : undefined;
+
+    return {
+        name: snapshot?.name ?? cachedModel.id,
+        maxInputTokens,
+        supportedFileTypes,
+        ...(snapshot?.default ? { default: true } : {}),
+        ...(displayName ? { displayName } : {}),
+        ...(typeof snapshot?.reasoning === 'boolean'
+            ? { reasoning: snapshot.reasoning }
+            : typeof inferredReasoning === 'boolean'
+              ? { reasoning: inferredReasoning }
+              : {}),
+        ...(typeof snapshot?.supportsTemperature === 'boolean'
+            ? { supportsTemperature: snapshot.supportsTemperature }
+            : typeof inferredSupportsTemperature === 'boolean'
+              ? { supportsTemperature: inferredSupportsTemperature }
+              : {}),
+        ...(typeof snapshot?.supportsInterleaved === 'boolean'
+            ? { supportsInterleaved: snapshot.supportsInterleaved }
+            : {}),
+        ...(snapshot?.releaseDate ? { releaseDate: snapshot.releaseDate } : {}),
+        ...(typeof snapshot?.supportsToolCall === 'boolean'
+            ? { supportsToolCall: snapshot.supportsToolCall }
+            : {}),
+        ...(snapshot?.status ? { status: snapshot.status } : {}),
+        ...(snapshot?.modalities ? { modalities: snapshot.modalities } : {}),
+        ...(snapshot?.providerMetadata ? { providerMetadata: snapshot.providerMetadata } : {}),
+        ...(snapshot?.interleaved ? { interleaved: snapshot.interleaved } : {}),
+        ...(snapshot?.pricing ? { pricing: snapshot.pricing } : {}),
+    };
+}
+
+function getOpenRouterGatewayModelById(modelId: string): ModelInfo | null {
+    ensureOpenRouterCatalogRefreshScheduled();
+
+    const snapshot = findOpenRouterSnapshotModelById(modelId);
+    const cached = getCachedOpenRouterModelsWithInfo();
+    if (!cached || cached.length === 0) {
+        return snapshot ? { ...snapshot } : null;
+    }
+
+    const normalized = modelId.toLowerCase();
+    const cachedModel = cached.find((m) => m.id.toLowerCase() === normalized);
+    if (!cachedModel) return snapshot ? { ...snapshot } : null;
+
+    return buildOpenRouterGatewayModelInfo(cachedModel, snapshot);
+}
+
+function getOpenRouterGatewayCatalogModels(): ModelInfo[] {
+    ensureOpenRouterCatalogRefreshScheduled();
+
+    const cached = getCachedOpenRouterModelsWithInfo();
+    if (!cached || cached.length === 0) {
+        return LLM_REGISTRY.openrouter.models.map((m) => ({ ...m }));
+    }
+
+    const models: ModelInfo[] = cached
+        .map((cachedModel) =>
+            buildOpenRouterGatewayModelInfo(
+                cachedModel,
+                findOpenRouterSnapshotModelById(cachedModel.id)
+            )
+        )
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+    return models;
 }
 
 /**
@@ -673,6 +845,13 @@ export function getAllModelsForProvider(
     provider: LLMProvider
 ): Array<ModelInfo & { originalProvider?: LLMProvider }> {
     const providerInfo = LLM_REGISTRY[provider];
+
+    if (provider === 'openrouter') {
+        return getOpenRouterGatewayCatalogModels().map((m) => ({
+            ...m,
+            originalProvider: 'openrouter',
+        }));
+    }
 
     // If provider doesn't support all registry models, return its own models
     if (!providerInfo.supportsAllRegistryModels) {
@@ -691,13 +870,11 @@ export function getAllModelsForProvider(
 
     // Gateway providers inherit the OpenRouter gateway catalog (OpenRouter-format IDs).
     // This keeps the "all models" list useful without requiring per-model OpenRouter ID mapping.
-    if (provider !== 'openrouter') {
-        for (const model of LLM_REGISTRY.openrouter.models) {
-            const key = model.name.toLowerCase();
-            if (seen.has(key)) continue;
-            seen.add(key);
-            allModels.push({ ...model, originalProvider: 'openrouter' });
-        }
+    for (const model of getOpenRouterGatewayCatalogModels()) {
+        const key = model.name.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        allModels.push({ ...model, originalProvider: 'openrouter' });
     }
 
     return allModels;
@@ -1081,17 +1258,45 @@ export function getModelDisplayName(model: string, provider?: LLMProvider): stri
     }
 }
 
-// TODO: Add reasoningCapable as a property in the model registry instead of hardcoding here
 /**
- * Checks if a model supports configurable reasoning effort.
- * Currently only OpenAI reasoning models (o1, o3, codex, gpt-5.x) support this.
+ * Checks if a model is flagged as "reasoning-capable" by the registry (models.dev).
+ *
+ * Note: This is distinct from "supports tunable reasoning knobs". Some providers/models may
+ * have reasoning but limited/implicit tuning controls.
  *
  * @param model The model name to check.
  * @param provider Optional provider for context (defaults to detecting from model name).
- * @returns True if the model supports reasoning effort configuration.
+ * @returns True if the registry marks this model as reasoning-capable.
  */
-export function isReasoningCapableModel(model: string, _provider?: LLMProvider): boolean {
-    const modelLower = model.toLowerCase();
+export function isReasoningCapableModel(model: string, provider?: LLMProvider): boolean {
+    const registryProvider = (() => {
+        if (model.includes('/')) return 'openrouter' as const;
+        if (provider) return provider;
+        try {
+            return getProviderFromModel(model);
+        } catch {
+            return undefined;
+        }
+    })();
+
+    if (registryProvider === 'openrouter' && model.includes('/')) {
+        const dynamicModel = getOpenRouterGatewayModelById(model);
+        if (dynamicModel?.reasoning === true) return true;
+        if (dynamicModel?.reasoning === false) return false;
+    }
+
+    if (registryProvider) {
+        const modelInfo = findModelInfo(registryProvider, model);
+        if (modelInfo?.reasoning === true) return true;
+        if (modelInfo?.reasoning === false) return false;
+    }
+
+    // Fallback heuristics (for unknown/custom models).
+    //
+    // Strip OpenRouter-format provider prefix (e.g. "openai/o4-mini" → "o4-mini")
+    // so name-based checks work regardless of how the model ID was passed.
+    const modelIdForHeuristics = model.includes('/') ? (model.split('/').pop() ?? model) : model;
+    const modelLower = modelIdForHeuristics.toLowerCase();
 
     // Codex models are optimized for complex coding with reasoning
     if (modelLower.includes('codex')) {

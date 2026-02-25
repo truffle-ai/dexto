@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { agentSpawnerToolsFactory } from './factory.js';
 import type { Logger, ToolExecutionContext } from '@dexto/core';
+import { AgentSpawnerConfigSchema } from './schemas.js';
 
 const createMockLogger = (): Logger => {
     const logger: Logger = {
@@ -21,12 +22,12 @@ const createMockLogger = (): Logger => {
 };
 
 describe('agentSpawnerToolsFactory', () => {
-    const config = {
-        type: 'agent-spawner' as const,
+    const config = AgentSpawnerConfigSchema.parse({
+        type: 'agent-spawner',
         maxConcurrentAgents: 1,
         defaultTimeout: 1000,
         allowSpawning: true,
-    };
+    });
 
     it('throws when ToolExecutionContext.agent is missing', () => {
         const tools = agentSpawnerToolsFactory.create(config);

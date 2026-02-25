@@ -104,6 +104,59 @@ describe('Hono API Integration Tests', () => {
             });
             expect(res.status).toBe(200);
         });
+
+        it('GET /api/llm/capabilities returns reasoning support', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+
+            const res = await httpRequest(
+                testServer.baseUrl,
+                'GET',
+                '/api/llm/capabilities?provider=anthropic&model=claude-3-7-sonnet-20250219'
+            );
+            expect(res.status).toBe(200);
+            expectResponseStructure(res.body, {
+                provider: validators.string,
+                model: validators.string,
+                supportedFileTypes: validators.array,
+                reasoning: validators.object,
+            });
+
+            const reasoning = (res.body as { reasoning: unknown }).reasoning as {
+                capable: boolean;
+                paradigm: string;
+                supportedVariants: string[];
+                defaultVariant?: string;
+                supportsBudgetTokens: boolean;
+            };
+
+            expect(reasoning.capable).toBe(true);
+            expect(reasoning.paradigm).toBe('budget');
+            expect(reasoning.supportedVariants).toContain('enabled');
+            expect(reasoning.supportedVariants).toContain('disabled');
+            expect(reasoning.defaultVariant).toBe('enabled');
+            expect(reasoning.supportsBudgetTokens).toBe(true);
+        });
+
+        it('GET /api/llm/capabilities resolves gateway providers for OpenRouter-format IDs', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+
+            const res = await httpRequest(
+                testServer.baseUrl,
+                'GET',
+                '/api/llm/capabilities?provider=dexto-nova&model=openai/gpt-5.2-codex'
+            );
+            expect(res.status).toBe(200);
+
+            const reasoning = (res.body as { reasoning: unknown }).reasoning as {
+                capable: boolean;
+                supportedVariants: string[];
+            };
+
+            expect(reasoning.capable).toBe(true);
+            expect(reasoning.supportedVariants).toContain('high');
+            expect(reasoning.supportedVariants).not.toContain('max');
+            expect(reasoning.supportedVariants).toContain('xhigh');
+        });
     });
 
     describe('Sessions Routes', () => {

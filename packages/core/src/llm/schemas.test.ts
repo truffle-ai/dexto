@@ -28,6 +28,13 @@ import {
 } from './registry/index.js';
 import type { LLMProvider } from './types.js';
 
+function getIssueParamCode(issue: z.ZodIssue | undefined): unknown {
+    if (!issue) return undefined;
+    const params = Reflect.get(issue, 'params');
+    if (typeof params !== 'object' || params === null) return undefined;
+    return Reflect.get(params, 'code');
+}
+
 // Test helpers
 class LLMTestHelpers {
     static getValidConfigForProvider(provider: LLMProvider): LLMConfig {
@@ -204,7 +211,7 @@ describe('LLMConfigSchema', () => {
             const result = LLMConfigSchema.safeParse(config);
             expect(result.success).toBe(false);
             expect(result.error?.issues[0]?.path).toEqual(['model']);
-            expect((result.error?.issues[0] as any).params?.code).toBe(
+            expect(getIssueParamCode(result.error?.issues[0])).toBe(
                 LLMErrorCode.MODEL_INCOMPATIBLE
             );
         });
@@ -286,9 +293,7 @@ describe('LLMConfigSchema', () => {
             const result = LLMConfigSchema.safeParse(config);
             expect(result.success).toBe(false);
             expect(result.error?.issues[0]?.path).toEqual(['provider']);
-            expect((result.error?.issues[0] as any).params?.code).toBe(
-                LLMErrorCode.BASE_URL_INVALID
-            );
+            expect(getIssueParamCode(result.error?.issues[0])).toBe(LLMErrorCode.BASE_URL_INVALID);
         });
     });
 
@@ -333,9 +338,7 @@ describe('LLMConfigSchema', () => {
             const result = LLMConfigSchema.safeParse(config);
             expect(result.success).toBe(false);
             expect(result.error?.issues[0]?.path).toEqual(['maxInputTokens']);
-            expect((result.error?.issues[0] as any).params?.code).toBe(
-                LLMErrorCode.TOKENS_EXCEEDED
-            );
+            expect(getIssueParamCode(result.error?.issues[0])).toBe(LLMErrorCode.TOKENS_EXCEEDED);
         });
 
         it('should allow maxInputTokens for providers that accept any model', () => {
@@ -381,7 +384,7 @@ describe('LLMConfigSchema', () => {
         });
 
         it('should handle type coercion for numeric fields', () => {
-            const config: any = {
+            const config: unknown = {
                 ...LLMTestHelpers.getValidConfigForProvider('openai'),
                 maxIterations: '25', // String that should coerce to number
                 temperature: '0.7', // String that should coerce to number
@@ -396,7 +399,7 @@ describe('LLMConfigSchema', () => {
         });
 
         it('should reject invalid numeric coercion', () => {
-            const config: any = {
+            const config: unknown = {
                 ...LLMTestHelpers.getValidConfigForProvider('openai'),
                 maxIterations: 'not-a-number',
             };
@@ -411,7 +414,7 @@ describe('LLMConfigSchema', () => {
 
     describe('Strict Validation', () => {
         it('should reject unknown fields', () => {
-            const config: any = {
+            const config: unknown = {
                 ...LLMTestHelpers.getValidConfigForProvider('openai'),
                 unknownField: 'should-fail',
             };
@@ -448,6 +451,74 @@ describe('LLMConfigSchema', () => {
         });
     });
 
+    describe('Reasoning Validation', () => {
+        it('rejects unsupported reasoning variant for non-gateway providers', () => {
+            const config: LLMConfig = {
+                provider: 'openai',
+                model: 'gpt-5-pro',
+                apiKey: 'test-key',
+                reasoning: { variant: 'none' },
+            };
+
+            const result = LLMConfigSchema.safeParse(config);
+            expect(result.success).toBe(false);
+            if (!result.success) {
+                const variantIssue = result.error.issues.find(
+                    (issue) => issue.path.join('.') === 'reasoning.variant'
+                );
+                expect(variantIssue).toBeDefined();
+            }
+        });
+
+        it('rejects reasoning budgetTokens when provider/model does not support them', () => {
+            const config: LLMConfig = {
+                provider: 'openai',
+                model: 'gpt-5',
+                apiKey: 'test-key',
+                reasoning: { variant: 'medium', budgetTokens: 1024 },
+            };
+
+            const result = LLMConfigSchema.safeParse(config);
+            expect(result.success).toBe(false);
+            if (!result.success) {
+                const budgetIssue = result.error.issues.find(
+                    (issue) => issue.path.join('.') === 'reasoning.budgetTokens'
+                );
+                expect(budgetIssue).toBeDefined();
+            }
+        });
+
+        it('rejects unsupported reasoning variant for gateway providers', () => {
+            const config: LLMConfig = {
+                provider: 'openrouter',
+                model: 'anthropic/claude-sonnet-4.5',
+                apiKey: 'test-key',
+                reasoning: { variant: 'high' },
+            };
+
+            const result = LLMConfigSchema.safeParse(config);
+            expect(result.success).toBe(false);
+            if (!result.success) {
+                const variantIssue = result.error.issues.find(
+                    (issue) => issue.path.join('.') === 'reasoning.variant'
+                );
+                expect(variantIssue).toBeDefined();
+            }
+        });
+
+        it('accepts budgetTokens for gateway models that expose budget support', () => {
+            const config: LLMConfig = {
+                provider: 'openrouter',
+                model: 'openai/gpt-5.2-codex',
+                apiKey: 'test-key',
+                reasoning: { variant: 'medium', budgetTokens: 1024 },
+            };
+
+            const result = LLMConfigSchema.safeParse(config);
+            expect(result.success).toBe(true);
+        });
+    });
+
     describe('LLMUpdatesSchema', () => {
         describe('Update Requirements', () => {
             it('should pass validation when model is provided', () => {
@@ -465,6 +536,19 @@ describe('LLMConfigSchema', () => {
                 expect(() => LLMUpdatesSchema.parse(updates)).not.toThrow();
             });
 
+            it('should allow clearing reasoning config with null', () => {
+                const updates = { model: 'gpt-5', reasoning: null } as const;
+                expect(() => LLMUpdatesSchema.parse(updates)).not.toThrow();
+            });
+
+            it('should still reject null reasoning in full config schema', () => {
+                const config = {
+                    ...LLMTestHelpers.getValidConfigForProvider('openai'),
+                    reasoning: null,
+                } as const;
+                expect(() => LLMConfigSchema.parse(config)).toThrow();
+            });
+
             it('should reject empty updates object', () => {
                 const updates = {};
                 expect(() => LLMUpdatesSchema.parse(updates)).toThrow();
@@ -478,6 +562,16 @@ describe('LLMConfigSchema', () => {
             it('should pass validation when model/provider with other fields', () => {
                 const updates = { model: 'gpt-5', maxIterations: 10 };
                 expect(() => LLMUpdatesSchema.parse(updates)).not.toThrow();
+            });
+
+            it('rejects unsupported reasoning variant in updates when provider/model are present', () => {
+                const updates = {
+                    provider: 'openai',
+                    model: 'gpt-5-pro',
+                    reasoning: { variant: 'none' },
+                } as const;
+
+                expect(() => LLMUpdatesSchema.parse(updates)).toThrow();
             });
         });
     });

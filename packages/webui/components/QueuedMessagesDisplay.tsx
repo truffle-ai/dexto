@@ -3,6 +3,7 @@ import { X, ArrowUp } from 'lucide-react';
 import { Button } from './ui/button';
 import type { QueuedMessage } from './hooks/useQueue';
 import { isTextPart } from '../types';
+import type { TextPart } from '../types';
 
 interface QueuedMessagesDisplayProps {
     messages: QueuedMessage[];
@@ -22,7 +23,7 @@ export function QueuedMessagesDisplay({
 
     // Extract text content from message
     const getMessageText = (message: QueuedMessage): string => {
-        const textParts = message.content.filter(isTextPart).map((part) => part.text);
+        const textParts = message.content.filter(isTextPart).map((part: TextPart) => part.text);
         return textParts.join(' ') || '[attachment]';
     };
 

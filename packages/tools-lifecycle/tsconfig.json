@@ -14,4 +14,3 @@
   "exclude": ["dist", "node_modules"],
   "references": [{ "path": "../agent-config" }, { "path": "../core" }]
 }
-

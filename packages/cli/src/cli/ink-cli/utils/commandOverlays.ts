@@ -17,6 +17,7 @@ const ALWAYS_OVERLAY: Record<string, OverlayType> = {
     login: 'login',
     logout: 'logout',
     model: 'model-selector',
+    reasoning: 'reasoning',
     resume: 'session-selector',
     switch: 'session-selector',
     stream: 'stream-selector',
@@ -59,28 +60,6 @@ export function getCommandOverlay(command: string, args: string[]): OverlayType 
         const noArgsOverlay = NO_ARGS_OVERLAY[command];
         if (noArgsOverlay) return noArgsOverlay;
     }
-
-    return null;
-}
-
-/**
- * Get the overlay for a command selected from autocomplete.
- * Used by OverlayContainer.handleSystemCommandSelect
- *
- * When selecting from autocomplete, there are never args -
- * we just need to know if this command has an overlay.
- *
- * @param command - The command name selected from autocomplete
- * @returns Overlay type to show, or null to execute command
- */
-export function getCommandOverlayForSelect(command: string): OverlayType | null {
-    // Check "always overlay" commands first
-    const alwaysOverlay = ALWAYS_OVERLAY[command];
-    if (alwaysOverlay) return alwaysOverlay;
-
-    // Check "no args overlay" commands (selecting = no args)
-    const noArgsOverlay = NO_ARGS_OVERLAY[command];
-    if (noArgsOverlay) return noArgsOverlay;
 
     return null;
 }

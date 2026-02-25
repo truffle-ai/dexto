@@ -115,6 +115,15 @@ describe('llm registry auto-update', () => {
                 supportedFileTypes: [],
                 default: true,
                 pricing: { inputPerM: 1, outputPerM: 2 },
+                reasoning: true,
+                supportsTemperature: false,
+                supportsInterleaved: true,
+                supportsToolCall: true,
+                releaseDate: '2026-01-01',
+                status: 'deprecated',
+                modalities: { input: ['text', 'image'], output: ['text'] },
+                providerMetadata: { npm: '@ai-sdk/openai' },
+                interleaved: { field: 'reasoning_content' },
             },
             {
                 name: 'gpt-5-mini',
@@ -160,6 +169,15 @@ describe('llm registry auto-update', () => {
         expect(gpt5.displayName).toBe('GPT-5');
         expect(gpt5.pricing).toEqual({ inputPerM: 1, outputPerM: 2 });
         expect(gpt5.supportedFileTypes).toEqual(['image']);
+        expect(gpt5.reasoning).toBe(true);
+        expect(gpt5.supportsTemperature).toBe(false);
+        expect(gpt5.supportsInterleaved).toBe(true);
+        expect(gpt5.supportsToolCall).toBe(true);
+        expect(gpt5.releaseDate).toBe('2026-01-01');
+        expect(gpt5.status).toBe('deprecated');
+        expect(gpt5.modalities).toEqual({ input: ['text', 'image'], output: ['text'] });
+        expect(gpt5.providerMetadata).toEqual({ npm: '@ai-sdk/openai' });
+        expect(gpt5.interleaved).toEqual({ field: 'reasoning_content' });
 
         const gpt5Mini = models[1]!;
         expect(gpt5Mini.maxInputTokens).toBe(800); // preserved (remote provided 0)
@@ -169,6 +187,62 @@ describe('llm registry auto-update', () => {
         const status = autoUpdate.getLlmRegistryAutoUpdateStatus();
         expect(status.source).toBe('cache');
         expect(status.lastFetchedAt).toBeInstanceOf(Date);
+    });
+
+    it('loadLlmRegistryCache preserves and updates reasoning capability fields', async () => {
+        const registry = await import('./index.js');
+        const autoUpdate = await import('./auto-update.js');
+        const { cachePath } = autoUpdate.getLlmRegistryAutoUpdateStatus();
+
+        registry.LLM_REGISTRY.anthropic.models = [
+            {
+                name: 'claude-3-7-sonnet-20250219',
+                displayName: 'Claude Sonnet 3.7',
+                maxInputTokens: 200000,
+                supportedFileTypes: ['pdf', 'image'],
+                reasoning: true,
+                supportsTemperature: true,
+                supportsInterleaved: false,
+                supportsToolCall: true,
+                releaseDate: '2025-02-19',
+                modalities: { input: ['text', 'image'], output: ['text'] },
+                default: true,
+            },
+        ] satisfies ModelInfo[];
+
+        await writeCacheFile(cachePath, {
+            schemaVersion: 1,
+            fetchedAt: new Date().toISOString(),
+            modelsByProvider: {
+                anthropic: [
+                    // Explicitly flip capability flags to ensure we apply incoming booleans.
+                    {
+                        name: 'claude-3-7-sonnet-20250219',
+                        maxInputTokens: 200000,
+                        supportedFileTypes: ['pdf', 'image'],
+                        reasoning: false,
+                        supportsTemperature: false,
+                        supportsInterleaved: true,
+                        supportsToolCall: false,
+                        releaseDate: '2025-03-01',
+                        modalities: { input: ['text'], output: ['text'] },
+                        interleaved: { field: 'reasoning_content' },
+                    },
+                ],
+            },
+        });
+
+        expect(autoUpdate.loadLlmRegistryCache({ logger: mockLogger })).toBe(true);
+
+        const model = registry.LLM_REGISTRY.anthropic.models[0]!;
+        expect(model.name).toBe('claude-3-7-sonnet-20250219');
+        expect(model.reasoning).toBe(false);
+        expect(model.supportsTemperature).toBe(false);
+        expect(model.supportsInterleaved).toBe(true);
+        expect(model.supportsToolCall).toBe(false);
+        expect(model.releaseDate).toBe('2025-03-01');
+        expect(model.modalities).toEqual({ input: ['text'], output: ['text'] });
+        expect(model.interleaved).toEqual({ field: 'reasoning_content' });
     });
 
     it('refreshLlmRegistryCache updates the registry from remote (mocked) and writes cache', async () => {

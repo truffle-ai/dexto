@@ -12,4 +12,3 @@ Config → instance resolution is handled in product layers (CLI/server/apps) vi
 
 - `@dexto/agent-management` (load/enrich YAML)
 - `@dexto/agent-config` (load image + apply defaults + resolve factories)
-

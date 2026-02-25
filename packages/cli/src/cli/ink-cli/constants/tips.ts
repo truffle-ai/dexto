@@ -36,6 +36,7 @@ export const tips: string[] = [
     'Press Enter to submit your message…',
     'Press Ctrl+T to show/hide the todo list…',
     'Press Ctrl+R to search previous prompts…',
+    'Press Tab to cycle the reasoning variant…',
     'Press Shift+Enter to insert a new line…',
 
     // Feature tips

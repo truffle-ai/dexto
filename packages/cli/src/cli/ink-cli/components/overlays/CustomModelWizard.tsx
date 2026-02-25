@@ -116,7 +116,7 @@ const CustomModelWizard = forwardRef<CustomModelWizardHandle, CustomModelWizardP
                         baseURL: initialModel.baseURL ?? '',
                         displayName: initialModel.displayName ?? '',
                         maxInputTokens: initialModel.maxInputTokens?.toString() ?? '',
-                        reasoningEffort: initialModel.reasoningEffort ?? '',
+                        reasoningPreset: initialModel.reasoning?.variant ?? '',
                         apiKey: initialModel.apiKey ?? '',
                         filePath: initialModel.filePath ?? '',
                     });

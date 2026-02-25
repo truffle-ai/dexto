@@ -17,6 +17,28 @@ import type { McpTool } from '@/components/hooks/useServers';
 // Infer the property schema type from the tool's input schema
 type JsonSchemaProperty = NonNullable<NonNullable<McpTool['inputSchema']>['properties']>[string];
 
+function isJsonSchemaProperty(value: unknown): value is JsonSchemaProperty {
+    if (typeof value !== 'object' || value === null) return false;
+    const record: { type?: unknown; enum?: unknown } = value;
+    const propType = record['type'];
+    if (
+        propType !== undefined &&
+        propType !== 'string' &&
+        propType !== 'number' &&
+        propType !== 'integer' &&
+        propType !== 'boolean' &&
+        propType !== 'object' &&
+        propType !== 'array'
+    ) {
+        return false;
+    }
+    const enumValues = record['enum'];
+    if (enumValues !== undefined && !Array.isArray(enumValues)) {
+        return false;
+    }
+    return true;
+}
+
 interface ToolInputFormProps {
     tool: McpTool;
     inputs: Record<string, any>;
@@ -95,6 +117,12 @@ export function ToolInputForm({
 }: ToolInputFormProps) {
     const hasInputs =
         tool.inputSchema?.properties && Object.keys(tool.inputSchema.properties).length > 0;
+    const inputEntries: Array<[string, JsonSchemaProperty]> = [];
+    for (const [key, prop] of Object.entries(tool.inputSchema?.properties ?? {})) {
+        if (isJsonSchemaProperty(prop)) {
+            inputEntries.push([key, prop]);
+        }
+    }
 
     const renderInput = (key: string, prop: JsonSchemaProperty) => {
         const isRequired = tool.inputSchema?.required?.includes(key);
@@ -251,7 +279,7 @@ export function ToolInputForm({
             )}
 
             {hasInputs &&
-                Object.entries(tool.inputSchema!.properties!).map(([key, prop]) => {
+                inputEntries.map(([key, prop]) => {
                     const isRequired = tool.inputSchema?.required?.includes(key);
                     const errorMsg = errors[key];
 

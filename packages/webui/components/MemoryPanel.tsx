@@ -47,12 +47,12 @@ export default function MemoryPanel({ isOpen, onClose, variant = 'modal' }: Memo
     };
 
     // Filter memories based on search query
-    const filteredMemories = memories.filter((memory) => {
+    const filteredMemories = memories.filter((memory: Memory) => {
         if (!searchQuery.trim()) return true;
         const query = searchQuery.toLowerCase();
         return (
             memory.content.toLowerCase().includes(query) ||
-            memory.tags?.some((tag) => tag.toLowerCase().includes(query))
+            memory.tags?.some((tag: string) => tag.toLowerCase().includes(query))
         );
     });
 
@@ -135,7 +135,7 @@ export default function MemoryPanel({ isOpen, onClose, variant = 'modal' }: Memo
                             )}
                         </div>
                     ) : (
-                        filteredMemories.map((memory) => (
+                        filteredMemories.map((memory: Memory) => (
                             <div
                                 key={memory.id}
                                 className={cn(
@@ -154,7 +154,7 @@ export default function MemoryPanel({ isOpen, onClose, variant = 'modal' }: Memo
                                         {memory.tags && memory.tags.length > 0 && (
                                             <div className="flex items-center gap-1 flex-wrap">
                                                 <Tag className="h-3 w-3 text-muted-foreground" />
-                                                {memory.tags.map((tag, idx) => (
+                                                {memory.tags.map((tag: string, idx: number) => (
                                                     <Badge
                                                         key={idx}
                                                         variant="outline"

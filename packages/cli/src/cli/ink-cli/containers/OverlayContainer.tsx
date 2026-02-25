@@ -26,6 +26,10 @@ import ResourceAutocomplete, {
 import ModelSelectorRefactored, {
     type ModelSelectorHandle,
 } from '../components/overlays/ModelSelectorRefactored.js';
+import {
+    ReasoningOverlay,
+    type ReasoningOverlayHandle,
+} from '../components/overlays/ReasoningOverlay.js';
 import SessionSelectorRefactored, {
     type SessionSelectorHandle,
 } from '../components/overlays/SessionSelectorRefactored.js';
@@ -130,15 +134,58 @@ import LogoutOverlay, {
     type LogoutOverlayOutcome,
 } from '../components/overlays/LogoutOverlay.js';
 import type { PromptAddScope } from '../state/types.js';
-import type { PromptInfo, ResourceMetadata, LLMProvider, SearchResult } from '@dexto/core';
+import type {
+    PromptInfo,
+    ResourceMetadata,
+    LLMProvider,
+    ReasoningVariant,
+    SearchResult,
+} from '@dexto/core';
 import type { LogLevel } from '@dexto/core';
-import { DextoValidationError, LLMErrorCode, getModelDisplayName } from '@dexto/core';
+import {
+    DextoValidationError,
+    LLMErrorCode,
+    LLM_PROVIDERS,
+    getModelDisplayName,
+    getReasoningProfile,
+} from '@dexto/core';
 import { InputService } from '../services/InputService.js';
 import { createUserMessage, convertHistoryToUIMessages } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import { capture } from '../../../analytics/index.js';
 import { FocusOverlayFrame } from '../components/shared/FocusOverlayFrame.js';
 import { shouldHideCliChrome } from '../utils/overlayPresentation.js';
+
+function isLLMProvider(value: unknown): value is LLMProvider {
+    if (typeof value !== 'string') return false;
+    for (const provider of LLM_PROVIDERS) {
+        if (provider === value) return true;
+    }
+    return false;
+}
+
+function getProviderFromIssueContext(context: unknown): LLMProvider | null {
+    if (typeof context !== 'object' || context === null) return null;
+    const provider = Reflect.get(context, 'provider');
+    return isLLMProvider(provider) ? provider : null;
+}
+
+function buildReasoningSwitchUpdate(
+    provider: LLMProvider,
+    model: string,
+    reasoningVariant: ReasoningVariant | undefined
+): { reasoning?: { variant: ReasoningVariant } | null } {
+    if (reasoningVariant === undefined) {
+        return {};
+    }
+
+    const defaultVariant = getReasoningProfile(provider, model).defaultVariant;
+    if (defaultVariant !== undefined && reasoningVariant === defaultVariant) {
+        return { reasoning: null };
+    }
+
+    return { reasoning: { variant: reasoningVariant } };
+}
 
 export interface OverlayContainerHandle {
     handleInput: (input: string, key: Key) => boolean;
@@ -197,6 +244,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const slashAutocompleteRef = useRef<SlashCommandAutocompleteHandle>(null);
         const resourceAutocompleteRef = useRef<ResourceAutocompleteHandle>(null);
         const modelSelectorRef = useRef<ModelSelectorHandle>(null);
+        const reasoningOverlayRef = useRef<ReasoningOverlayHandle>(null);
         const sessionSelectorRef = useRef<SessionSelectorHandle>(null);
         const logLevelSelectorRef = useRef<LogLevelSelectorHandle>(null);
         const streamSelectorRef = useRef<StreamSelectorHandle>(null);
@@ -273,6 +321,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             );
                         case 'model-selector':
                             return modelSelectorRef.current?.handleInput(inputStr, key) ?? false;
+                        case 'reasoning':
+                            return reasoningOverlayRef.current?.handleInput(inputStr, key) ?? false;
                         case 'session-selector':
                             return sessionSelectorRef.current?.handleInput(inputStr, key) ?? false;
                         case 'log-level-selector':
@@ -464,11 +514,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     (issue) => issue.code === LLMErrorCode.API_KEY_MISSING
                 );
                 if (apiKeyIssue && apiKeyIssue.context) {
-                    // Extract provider from context
-                    const context = apiKeyIssue.context as { provider?: string };
-                    if (context.provider) {
-                        return context.provider as LLMProvider;
-                    }
+                    return getProviderFromIssueContext(apiKeyIssue.context);
                 }
             }
             return null;
@@ -477,11 +523,11 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         // Handle model selection (session-only)
         const handleModelSelect = useCallback(
             async (
-                provider: string,
+                provider: LLMProvider,
                 model: string,
                 displayName?: string,
                 baseURL?: string,
-                reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+                reasoningVariant?: ReasoningVariant
             ) => {
                 // Session-only switch (default is set via explicit action)
 
@@ -536,7 +582,12 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     ]);
 
                     await agent.switchLLM(
-                        { provider: provider as LLMProvider, model, baseURL, reasoningEffort },
+                        {
+                            provider,
+                            model,
+                            baseURL,
+                            ...buildReasoningSwitchUpdate(provider, model, reasoningVariant),
+                        },
                         session.id || undefined
                     );
 
@@ -566,7 +617,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                 model,
                                 ...(displayName && { displayName }),
                                 ...(baseURL && { baseURL }),
-                                ...(reasoningEffort && { reasoningEffort }),
+                                ...(reasoningVariant !== undefined && { reasoningVariant }),
                             },
                         }));
                         setMessages((prev) => [
@@ -601,22 +652,9 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 model: string,
                 displayName?: string,
                 baseURL?: string,
-                reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+                reasoningVariant?: ReasoningVariant
             ) => {
                 try {
-                    const preferencesUpdate: {
-                        provider: LLMProvider;
-                        model: string;
-                        baseURL?: string;
-                        reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
-                        apiKey?: string;
-                    } = {
-                        provider,
-                        model,
-                        ...(baseURL ? { baseURL } : {}),
-                        ...(reasoningEffort ? { reasoningEffort } : {}),
-                    };
-
                     let providerEnvVar: string | undefined;
                     try {
                         const providerKeyStatus = await getProviderKeyStatus(provider);
@@ -636,6 +674,36 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         existing = null;
                     }
 
+                    const existingReasoning = existing?.llm.reasoning;
+                    const defaultReasoningVariant = getReasoningProfile(
+                        provider,
+                        model
+                    ).defaultVariant;
+                    const nextReasoning =
+                        reasoningVariant === undefined
+                            ? existingReasoning
+                            : defaultReasoningVariant !== undefined &&
+                                reasoningVariant === defaultReasoningVariant
+                              ? undefined
+                              : { variant: reasoningVariant };
+
+                    type GlobalLLMPreferences = Awaited<
+                        ReturnType<typeof loadGlobalPreferences>
+                    >['llm'];
+
+                    const preferencesUpdate: GlobalLLMPreferences = {
+                        provider,
+                        model,
+                        ...(baseURL ? { baseURL } : {}),
+                        ...(nextReasoning ? { reasoning: nextReasoning } : {}),
+                    };
+
+                    const switchReasoningUpdate = buildReasoningSwitchUpdate(
+                        provider,
+                        model,
+                        reasoningVariant
+                    );
+
                     // Only preserve the API key if the provider hasn't changed
                     // If provider changed, use the new provider's env var
                     if (existing?.llm.provider === provider && existing?.llm.apiKey) {
@@ -650,7 +718,12 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                     try {
                         await agent.switchLLM(
-                            { provider: provider as LLMProvider, model, baseURL, reasoningEffort },
+                            {
+                                provider,
+                                model,
+                                ...(baseURL ? { baseURL } : {}),
+                                ...switchReasoningUpdate,
+                            },
                             session.id || undefined
                         );
                         setSession((prev) => ({ ...prev, modelName: displayName || model }));
@@ -675,7 +748,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                     model,
                                     ...(displayName && { displayName }),
                                     ...(baseURL && { baseURL }),
-                                    ...(reasoningEffort && { reasoningEffort }),
+                                    ...(reasoningVariant !== undefined && { reasoningVariant }),
                                 },
                             }));
                             setMessages((prev) => [
@@ -815,12 +888,14 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                     await agent.switchLLM(
                         {
-                            provider: pending.provider as LLMProvider,
+                            provider: pending.provider,
                             model: pending.model,
                             ...(pending.baseURL && { baseURL: pending.baseURL }),
-                            ...(pending.reasoningEffort && {
-                                reasoningEffort: pending.reasoningEffort,
-                            }),
+                            ...buildReasoningSwitchUpdate(
+                                pending.provider,
+                                pending.model,
+                                pending.reasoningVariant
+                            ),
                         },
                         session.id || undefined
                     );
@@ -1111,8 +1186,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const handleSystemCommandSelect = useCallback(
             async (command: string) => {
                 // Check if this command has an interactive overlay
-                const { getCommandOverlayForSelect } = await import('../utils/commandOverlays.js');
-                const overlay = getCommandOverlayForSelect(command);
+                const { getCommandOverlay } = await import('../utils/commandOverlays.js');
+                const overlay = getCommandOverlay(command, []);
                 if (overlay) {
                     buffer.setText('');
                     setInput((prev) => ({ ...prev, historyIndex: -1 }));
@@ -1373,6 +1448,61 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 ]);
             },
             [setUi, setInput, setMessages, buffer]
+        );
+
+        const handleToggleShowReasoning = useCallback(() => {
+            setUi((prev) => ({ ...prev, showReasoning: !prev.showReasoning }));
+        }, [setUi]);
+
+        const handleReasoningNotify = useCallback(
+            (message: string) => {
+                setMessages((prev) => [
+                    ...prev,
+                    {
+                        id: generateMessageId('system'),
+                        role: 'system',
+                        content: `🧠 ${message}`,
+                        timestamp: new Date(),
+                    },
+                ]);
+            },
+            [setMessages]
+        );
+
+        const handleSetReasoningBudgetTokens = useCallback(
+            async (budgetTokens: number | undefined) => {
+                const sessionId = session.id || undefined;
+                const current = agent.getCurrentLLMConfig(sessionId);
+                const profile = getReasoningProfile(current.provider, current.model);
+                const defaultVariant = profile.defaultVariant;
+                const variant =
+                    current.reasoning?.variant ?? defaultVariant ?? profile.supportedVariants[0];
+                if (variant === undefined) {
+                    return;
+                }
+
+                const reasoningUpdate =
+                    budgetTokens === undefined &&
+                    defaultVariant !== undefined &&
+                    variant === defaultVariant
+                        ? ({ reasoning: null } as const)
+                        : {
+                              reasoning: {
+                                  variant,
+                                  ...(typeof budgetTokens === 'number' ? { budgetTokens } : {}),
+                              },
+                          };
+
+                await agent.switchLLM(
+                    {
+                        provider: current.provider,
+                        model: current.model,
+                        ...reasoningUpdate,
+                    },
+                    sessionId
+                );
+            },
+            [agent, session.id]
         );
 
         // Handle MCP server list actions (select server or add new)
@@ -2467,6 +2597,23 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     </Box>
                 )}
 
+                {/* Reasoning configuration */}
+                {ui.activeOverlay === 'reasoning' && (
+                    <Box marginTop={1}>
+                        <ReasoningOverlay
+                            ref={reasoningOverlayRef}
+                            isVisible={true}
+                            agent={agent}
+                            sessionId={session.id}
+                            showReasoning={ui.showReasoning}
+                            onToggleShowReasoning={handleToggleShowReasoning}
+                            onSetBudgetTokens={handleSetReasoningBudgetTokens}
+                            onNotify={handleReasoningNotify}
+                            onClose={handleClose}
+                        />
+                    </Box>
+                )}
+
                 {/* Session selector */}
                 {ui.activeOverlay === 'session-selector' && (
                     <Box marginTop={1}>
@@ -2739,7 +2886,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     <ApiKeyInput
                         ref={apiKeyInputRef}
                         isVisible={true}
-                        provider={ui.pendingModelSwitch.provider as LLMProvider}
+                        provider={ui.pendingModelSwitch.provider}
                         onSaved={handleApiKeySaved}
                         onClose={handleApiKeyClose}
                     />

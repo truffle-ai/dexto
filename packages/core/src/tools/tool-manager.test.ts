@@ -49,6 +49,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 data: { rememberChoice: false },
             }),
             addApprovedDirectory: vi.fn(),
+            isDirectorySessionApproved: vi.fn().mockReturnValue(false),
             autoApprovePendingRequests: vi.fn().mockReturnValue(0),
             matchesPattern: vi.fn().mockReturnValue(false),
             getPendingApprovals: vi.fn().mockReturnValue([]),
@@ -524,6 +525,146 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 'approval.onGranted',
                 'execute',
             ]);
+        });
+
+        it('should auto-approve pending directory access prompts when rememberDirectory is selected', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+
+            const tool = defineTool({
+                id: 'fs_like_tool',
+                description: 'Filesystem-like tool',
+                inputSchema: z
+                    .object({
+                        file_path: z.string(),
+                    })
+                    .strict(),
+                approval: {
+                    override: vi.fn().mockResolvedValue({
+                        type: ApprovalType.DIRECTORY_ACCESS,
+                        metadata: {
+                            path: '/tmp/example.txt',
+                            parentDir: '/tmp',
+                            operation: 'read',
+                            toolName: 'fs_like_tool',
+                        },
+                    }),
+                    onGranted: vi.fn(),
+                },
+                execute: vi.fn().mockResolvedValue('ok'),
+            });
+
+            (mockApprovalManager.requestToolApproval as any).mockResolvedValue({
+                approvalId: 'test-approval-id',
+                status: ApprovalStatus.APPROVED,
+                data: { rememberDirectory: true },
+            });
+
+            (mockApprovalManager.isDirectorySessionApproved as any).mockImplementation(
+                (dir: string) => dir === '/tmp'
+            );
+
+            (mockApprovalManager.autoApprovePendingRequests as any).mockImplementation(
+                (predicate: (request: any) => boolean, responseData?: Record<string, unknown>) => {
+                    expect(responseData).toEqual({ rememberDirectory: false });
+
+                    const requests: any[] = [
+                        {
+                            type: ApprovalType.TOOL_APPROVAL,
+                            sessionId: 'session-1',
+                            metadata: {
+                                toolName: 'fs_like_tool',
+                                toolCallId: 'call-2',
+                                args: { file_path: '/tmp/example2.txt' },
+                                directoryAccess: {
+                                    path: '/tmp/example2.txt',
+                                    parentDir: '/tmp',
+                                    operation: 'read',
+                                    toolName: 'fs_like_tool',
+                                },
+                            },
+                        },
+                        {
+                            type: ApprovalType.TOOL_APPROVAL,
+                            sessionId: 'session-1',
+                            metadata: {
+                                toolName: 'other_tool',
+                                toolCallId: 'call-2',
+                                args: {},
+                                directoryAccess: {
+                                    path: '/tmp/example2.txt',
+                                    parentDir: '/tmp',
+                                    operation: 'read',
+                                    toolName: 'other_tool',
+                                },
+                            },
+                        },
+                        {
+                            type: ApprovalType.TOOL_APPROVAL,
+                            sessionId: 'session-2',
+                            metadata: {
+                                toolName: 'fs_like_tool',
+                                toolCallId: 'call-2',
+                                args: {},
+                                directoryAccess: {
+                                    path: '/tmp/example2.txt',
+                                    parentDir: '/tmp',
+                                    operation: 'read',
+                                    toolName: 'fs_like_tool',
+                                },
+                            },
+                        },
+                        {
+                            type: ApprovalType.TOOL_APPROVAL,
+                            sessionId: 'session-1',
+                            metadata: {
+                                toolName: 'fs_like_tool',
+                                toolCallId: 'call-3',
+                                args: {},
+                            },
+                        },
+                        {
+                            type: ApprovalType.TOOL_APPROVAL,
+                            sessionId: 'session-1',
+                            metadata: {
+                                toolName: 'fs_like_tool',
+                                toolCallId: 'call-4',
+                                args: {},
+                                directoryAccess: {
+                                    path: '/var/example2.txt',
+                                    parentDir: '/var',
+                                    operation: 'read',
+                                    toolName: 'fs_like_tool',
+                                },
+                            },
+                        },
+                    ];
+
+                    const matched = requests.filter(predicate);
+                    expect(matched).toHaveLength(1);
+                    return matched.length;
+                }
+            );
+
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: ['fs_like_tool'], alwaysDeny: [] },
+                [tool],
+                mockLogger
+            );
+            toolManager.setToolExecutionContextFactory((baseContext) => baseContext);
+
+            await toolManager.executeTool(
+                'fs_like_tool',
+                { file_path: '/tmp/example.txt' },
+                'call-1',
+                'session-1'
+            );
+
+            expect(mockApprovalManager.autoApprovePendingRequests).toHaveBeenCalledTimes(1);
         });
 
         it('should request approval via ApprovalManager with correct parameters', async () => {
