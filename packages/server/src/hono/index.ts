@@ -39,15 +39,49 @@ import { prettyJsonMiddleware, redactionMiddleware } from './middleware/redactio
 import { createCorsMiddleware } from './middleware/cors.js';
 import { createAuthMiddleware } from './middleware/auth.js';
 import { ApprovalCoordinator } from '../approval/approval-coordinator.js';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const packageJson = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf-8')) as {
-    version: string;
-};
+
+function readPackageVersion(packageJsonPath: string): string | undefined {
+    if (!existsSync(packageJsonPath)) {
+        return undefined;
+    }
+
+    try {
+        const content = readFileSync(packageJsonPath, 'utf-8');
+        const packageJson = JSON.parse(content) as { version?: unknown };
+        if (typeof packageJson.version === 'string' && packageJson.version.length > 0) {
+            return packageJson.version;
+        }
+    } catch {
+        // Ignore parse/read errors and use fallback.
+    }
+
+    return undefined;
+}
+
+function resolveServerVersion(): string {
+    const localVersion = readPackageVersion(join(__dirname, '../../package.json'));
+    if (localVersion) {
+        return localVersion;
+    }
+
+    const packageRoot = process.env.DEXTO_PACKAGE_ROOT;
+    if (packageRoot) {
+        const standaloneVersion = readPackageVersion(join(packageRoot, 'package.json'));
+        if (standaloneVersion) {
+            return standaloneVersion;
+        }
+    }
+
+    return process.env.DEXTO_CLI_VERSION ?? '0.0.0';
+}
+
+const serverVersion = resolveServerVersion();
 
 // Dummy context for type inference and runtime fallback
 // Used when running in single-agent mode (CLI, Docker, etc.) where multi-agent
@@ -202,7 +236,7 @@ export function createDextoApp(options: CreateDextoAppOptions) {
         openapi: '3.0.0',
         info: {
             title: 'Dexto API',
-            version: packageJson.version,
+            version: serverVersion,
             description: 'OpenAPI spec for the Dexto REST API server',
         },
         servers: [

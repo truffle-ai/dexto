@@ -1,17 +1,55 @@
 import fs from 'fs-extra';
 import path from 'path';
+import { existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
-import { createRequire } from 'module';
 import { executeWithTimeout } from './execute.js';
 import { textOrExit } from './prompt-helpers.js';
 import { getPackageManager, getPackageManagerInstallCommand } from './package-mgmt.js';
 
-const require = createRequire(import.meta.url);
-const cliPackageJson = require('../../../package.json') as { version?: string };
+function readVersionFromPackageJson(packageJsonPath: string): string | undefined {
+    if (!existsSync(packageJsonPath)) {
+        return undefined;
+    }
+
+    try {
+        const content = readFileSync(packageJsonPath, 'utf-8');
+        const pkg = JSON.parse(content) as { version?: unknown };
+        if (typeof pkg.version === 'string' && pkg.version.length > 0) {
+            return pkg.version;
+        }
+    } catch {
+        // Ignore parse/read errors and fall back.
+    }
+
+    return undefined;
+}
+
+function resolveCliPackageVersion(): string | undefined {
+    const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+    const localPackageJsonPath = path.resolve(scriptDir, '../../../package.json');
+    const localVersion = readVersionFromPackageJson(localPackageJsonPath);
+    if (localVersion) {
+        return localVersion;
+    }
+
+    const packageRoot = process.env.DEXTO_PACKAGE_ROOT;
+    if (packageRoot) {
+        const packageJsonPath = path.join(packageRoot, 'package.json');
+        const packageVersion = readVersionFromPackageJson(packageJsonPath);
+        if (packageVersion) {
+            return packageVersion;
+        }
+    }
+
+    return process.env.DEXTO_CLI_VERSION;
+}
+
+const cliPackageVersion = resolveCliPackageVersion();
 
 export function getDextoCliVersion(): string {
-    const version = process.env.DEXTO_CLI_VERSION ?? cliPackageJson.version;
+    const version = process.env.DEXTO_CLI_VERSION ?? cliPackageVersion;
     if (!version) {
         throw new Error('Could not determine dexto CLI version');
     }
