@@ -19,61 +19,70 @@ export type {
     ReasoningVariantOption,
 } from './profiles/shared.js';
 
-type NativeReasoningProfileResolver = (model: string) => ReasoningProfile;
-type NativeReasoningCapabilityChecker = (model: string) => boolean;
+const ANTHROPIC_PROFILE_CONFIG = {
+    includeDisabled: true,
+    supportsBudgetTokensForBudgetParadigm: true,
+    supportsBudgetTokensForAdaptiveParadigm: false,
+} as const;
 
-const NATIVE_REASONING_CAPABILITY_CHECKERS: Partial<
-    Record<LLMProvider, NativeReasoningCapabilityChecker>
-> = {
-    openai: (model) => isReasoningCapableModel(model, 'openai'),
-    google: (model) => isReasoningCapableModel(model, 'google'),
-    bedrock: (model) => isReasoningCapableModel(model, 'bedrock'),
-    'openai-compatible': (model) => isReasoningCapableModel(model, 'openai-compatible'),
-    anthropic: (model) =>
-        isReasoningCapableModel(model, 'anthropic') ||
-        parseClaudeVersion(model) !== null ||
-        isAnthropicAdaptiveThinkingModel(model),
-    vertex: (model) =>
-        isReasoningCapableModel(model, 'vertex') ||
-        parseClaudeVersion(model) !== null ||
-        isAnthropicAdaptiveThinkingModel(model),
-};
+const GOOGLE_PROFILE_CONFIG = {
+    includeDisabled: true,
+    supportsBudgetTokensForBudgetParadigm: true,
+    supportsBudgetTokensForThinkingLevelParadigm: false,
+} as const;
 
-const NATIVE_REASONING_PROFILE_RESOLVERS: Partial<
-    Record<LLMProvider, NativeReasoningProfileResolver>
-> = {
-    openai: (model) => buildOpenAIReasoningProfile(model),
-    anthropic: (model) =>
-        buildAnthropicReasoningProfile({
-            model,
-            includeDisabled: true,
-            supportsBudgetTokensForBudgetParadigm: true,
-            supportsBudgetTokensForAdaptiveParadigm: false,
-        }),
-    bedrock: (model) => buildBedrockReasoningProfile(model),
-    google: (model) =>
-        buildGoogleReasoningProfile({
-            model,
-            includeDisabled: true,
-            supportsBudgetTokensForBudgetParadigm: true,
-            supportsBudgetTokensForThinkingLevelParadigm: false,
-        }),
-    vertex: (model) => buildVertexReasoningProfile(model),
-    'openai-compatible': () => buildOpenAICompatibleReasoningProfile(),
-};
+function isAnthropicStyleReasoningCapable(
+    provider: 'anthropic' | 'vertex',
+    model: string
+): boolean {
+    return (
+        isReasoningCapableModel(model, provider) ||
+        parseClaudeVersion(model) !== null ||
+        isAnthropicAdaptiveThinkingModel(model)
+    );
+}
 
 function getNativeReasoningProfile(provider: LLMProvider, model: string): ReasoningProfile {
-    const isCapable = NATIVE_REASONING_CAPABILITY_CHECKERS[provider]?.(model) ?? false;
-    if (!isCapable) {
-        return nonCapableProfile();
-    }
+    switch (provider) {
+        case 'openai':
+            if (!isReasoningCapableModel(model, 'openai')) {
+                return nonCapableProfile();
+            }
+            return buildOpenAIReasoningProfile(model);
 
-    const resolver = NATIVE_REASONING_PROFILE_RESOLVERS[provider];
-    if (!resolver) {
-        return nonCapableProfile();
-    }
+        case 'anthropic':
+            if (!isAnthropicStyleReasoningCapable('anthropic', model)) {
+                return nonCapableProfile();
+            }
+            return buildAnthropicReasoningProfile({ model, ...ANTHROPIC_PROFILE_CONFIG });
 
-    return resolver(model);
+        case 'bedrock':
+            if (!isReasoningCapableModel(model, 'bedrock')) {
+                return nonCapableProfile();
+            }
+            return buildBedrockReasoningProfile(model);
+
+        case 'google':
+            if (!isReasoningCapableModel(model, 'google')) {
+                return nonCapableProfile();
+            }
+            return buildGoogleReasoningProfile({ model, ...GOOGLE_PROFILE_CONFIG });
+
+        case 'vertex':
+            if (!isAnthropicStyleReasoningCapable('vertex', model)) {
+                return nonCapableProfile();
+            }
+            return buildVertexReasoningProfile(model);
+
+        case 'openai-compatible':
+            if (!isReasoningCapableModel(model, 'openai-compatible')) {
+                return nonCapableProfile();
+            }
+            return buildOpenAICompatibleReasoningProfile();
+
+        default:
+            return nonCapableProfile();
+    }
 }
 
 function toGatewayReasoningProfile(nativeProfile: ReasoningProfile): ReasoningProfile {
