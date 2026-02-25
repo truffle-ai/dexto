@@ -40,6 +40,8 @@ interface DevicePollTokenResponse {
     expiresAt?: number | null;
 }
 
+const REQUEST_TIMEOUT_MS = 10_000;
+
 function resolveDeviceLoginOptions(options: DeviceLoginOptionsInput): DeviceLoginOptions {
     return {
         apiUrl: options.apiUrl ?? DEXTO_API_URL,
@@ -123,6 +125,14 @@ function parseErrorCode(payload: unknown): string | null {
 
     const data = payload as Record<string, unknown>;
     return parseString(data.error);
+}
+
+function createRequestSignal(signal: AbortSignal | null): AbortSignal {
+    const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+    if (!signal) {
+        return timeoutSignal;
+    }
+    return AbortSignal.any([signal, timeoutSignal]);
 }
 
 async function sleepWithAbort(ms: number, signal: AbortSignal | null): Promise<void> {
@@ -210,7 +220,7 @@ export async function performDeviceCodeLogin(
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({ client: 'dexto-cli' }),
-        signal: options.signal ?? AbortSignal.timeout(10_000),
+        signal: createRequestSignal(options.signal),
     });
 
     if (!startResponse.ok) {
@@ -244,7 +254,7 @@ export async function performDeviceCodeLogin(
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({ device_code: start.deviceCode }),
-            signal: options.signal ?? AbortSignal.timeout(10_000),
+            signal: createRequestSignal(options.signal),
         });
 
         const payload: unknown = await pollResponse.json().catch(() => null);

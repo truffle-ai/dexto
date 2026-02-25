@@ -64,9 +64,34 @@ export async function handleLogoutCommand(
             provisionedApiKey = auth.dextoApiKey;
         }
 
-        await removeAuth();
+        let removeAuthError: unknown;
+        try {
+            await removeAuth();
+        } catch (error) {
+            removeAuthError = error;
+        }
+
         if (provisionedApiKey) {
-            await removeDextoApiKeyFromEnv({ expectedValue: provisionedApiKey });
+            try {
+                await removeDextoApiKeyFromEnv({ expectedValue: provisionedApiKey });
+            } catch (cleanupError) {
+                if (!removeAuthError) {
+                    throw cleanupError;
+                }
+
+                logger.warn('Failed to clean up provisioned DEXTO_API_KEY after removeAuth error', {
+                    removeAuthError:
+                        removeAuthError instanceof Error
+                            ? removeAuthError.message
+                            : String(removeAuthError),
+                    cleanupError:
+                        cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+                });
+            }
+        }
+
+        if (removeAuthError) {
+            throw removeAuthError;
         }
 
         console.log(chalk.green('✅ Successfully logged out'));
