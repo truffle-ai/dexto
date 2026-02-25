@@ -32,7 +32,7 @@ import { todoToolsFactory } from '@dexto/tools-todo';
 import { planToolsFactory } from '@dexto/tools-plan';
 import { schedulerToolsFactory } from '@dexto/tools-scheduler';
 import { lifecycleToolsFactory } from '@dexto/tools-lifecycle';
-import { agentSpawnerToolsFactory } from '@dexto/agent-management';
+import { agentSpawnerToolsFactory, creatorToolsFactory } from '@dexto/agent-management';
 
 const require = createRequire(import.meta.url);
 const packageJson = require('../package.json') as { name?: string; version?: string };
@@ -112,6 +112,7 @@ const imageLocal: DextoImage = {
             { type: 'plan-tools' },
             { type: 'scheduler-tools' },
             { type: 'lifecycle-tools' },
+            { type: 'creator-tools' },
             { type: 'agent-spawner' },
         ],
         prompts: [
@@ -152,6 +153,7 @@ const imageLocal: DextoImage = {
         'plan-tools': planToolsFactory,
         'scheduler-tools': schedulerToolsFactory,
         'lifecycle-tools': lifecycleToolsFactory,
+        'creator-tools': creatorToolsFactory,
         'agent-spawner': agentSpawnerToolsFactory,
     },
     storage: {

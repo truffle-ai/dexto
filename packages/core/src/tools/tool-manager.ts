@@ -182,6 +182,21 @@ export class ToolManager {
         this.invalidateCache();
     }
 
+    addTools(tools: Tool[]): string[] {
+        const added: string[] = [];
+        for (const tool of tools) {
+            if (this.agentTools.has(tool.id)) {
+                continue;
+            }
+            this.agentTools.set(tool.id, tool);
+            added.push(tool.id);
+        }
+        if (added.length > 0) {
+            this.invalidateCache();
+        }
+        return added;
+    }
+
     setToolExecutionContextFactory(factory: ToolExecutionContextFactory): void {
         this.toolExecutionContextFactory = factory;
     }
@@ -284,6 +299,41 @@ export class ToolManager {
             `Session auto-approve tools set for '${sessionId}': ${autoApproveTools.length} tools`
         );
         this.logger.debug(`Auto-approve tools: ${normalized.join(', ')}`);
+    }
+
+    /**
+     * Add session-level auto-approve tools.
+     * Merges into the existing list instead of replacing it.
+     *
+     * @param sessionId The session ID
+     * @param autoApproveTools Array of tool names to auto-approve (e.g., ['bash_exec', 'mcp--read_file'])
+     */
+    addSessionAutoApproveTools(sessionId: string, autoApproveTools: string[]): void {
+        if (autoApproveTools.length === 0) {
+            return;
+        }
+
+        const normalized = autoApproveTools.map((pattern) =>
+            this.normalizeToolPolicyPattern(pattern)
+        );
+        const existing = this.sessionAutoApproveTools.get(sessionId) ?? [];
+        const merged = [...existing];
+        const seen = new Set(existing);
+
+        for (const toolName of normalized) {
+            if (seen.has(toolName)) {
+                continue;
+            }
+            merged.push(toolName);
+            seen.add(toolName);
+        }
+
+        const actuallyAdded = Math.max(0, merged.length - existing.length);
+        this.sessionAutoApproveTools.set(sessionId, merged);
+        this.logger.info(
+            `Session auto-approve tools updated for '${sessionId}': +${actuallyAdded} tools`
+        );
+        this.logger.debug(`Auto-approve tools: ${merged.join(', ')}`);
     }
 
     /**
