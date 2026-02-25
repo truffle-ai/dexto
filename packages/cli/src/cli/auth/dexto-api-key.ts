@@ -4,8 +4,15 @@ import { ensureDextoGlobalDirectory, getDextoEnvPath, logger } from '@dexto/core
 import { getDextoApiClient } from './api-client.js';
 import { loadAuth, storeAuth } from './service.js';
 
+export type DextoApiKeyProvisionStatusLevel = 'info' | 'success' | 'warning' | 'error';
+
+export interface DextoApiKeyProvisionStatus {
+    level: DextoApiKeyProvisionStatusLevel;
+    message: string;
+}
+
 export interface EnsureDextoApiKeyOptions {
-    onStatus?: ((message: string) => void) | undefined;
+    onStatus?: ((status: DextoApiKeyProvisionStatus) => void) | undefined;
 }
 
 async function ensureOwnerOnlyPermissions(filePath: string): Promise<void> {
@@ -126,7 +133,8 @@ export async function ensureDextoApiKeyForAuthToken(
     authToken: string,
     options: EnsureDextoApiKeyOptions = {}
 ): Promise<{ dextoApiKey: string; keyId: string | null } | null> {
-    const status = (message: string) => options.onStatus?.(message);
+    const status = (level: DextoApiKeyProvisionStatusLevel, message: string) =>
+        options.onStatus?.({ level, message });
 
     try {
         const apiClient = getDextoApiClient();
@@ -137,11 +145,11 @@ export async function ensureDextoApiKeyForAuthToken(
         }
 
         if (auth.dextoApiKey) {
-            status('🔍 Validating existing API key...');
+            status('info', 'Validating existing API key...');
 
             const isValid = await apiClient.validateDextoApiKey(auth.dextoApiKey);
             if (isValid) {
-                status('✅ Existing key is valid');
+                status('success', 'Existing key is valid');
                 if (!auth.dextoApiKeySource && auth.dextoKeyId) {
                     await storeAuth({
                         ...auth,
@@ -152,7 +160,7 @@ export async function ensureDextoApiKeyForAuthToken(
                 return { dextoApiKey: auth.dextoApiKey, keyId: auth.dextoKeyId ?? null };
             }
 
-            status('⚠️  Existing key is invalid, rotating...');
+            status('warning', 'Existing key is invalid, rotating...');
             const rotated = await apiClient.provisionDextoApiKey(authToken, 'Dexto CLI Key', true);
 
             await storeAuth({
@@ -162,15 +170,15 @@ export async function ensureDextoApiKeyForAuthToken(
                 dextoApiKeySource: 'provisioned',
             });
             await saveDextoApiKeyToEnv(rotated.dextoApiKey);
-            status('✅ New key provisioned');
+            status('success', 'New key provisioned');
             return { dextoApiKey: rotated.dextoApiKey, keyId: rotated.keyId };
         }
 
-        status('🔑 Provisioning Dexto API key...');
+        status('info', 'Provisioning Dexto API key...');
         let provisioned = await apiClient.provisionDextoApiKey(authToken);
 
         if (!provisioned.isNewKey) {
-            status('⚠️  Key exists on server, regenerating...');
+            status('warning', 'Key exists on server, regenerating...');
             provisioned = await apiClient.provisionDextoApiKey(authToken, 'Dexto CLI Key', true);
         }
 
@@ -181,13 +189,13 @@ export async function ensureDextoApiKeyForAuthToken(
             dextoApiKeySource: 'provisioned',
         });
         await saveDextoApiKeyToEnv(provisioned.dextoApiKey);
-        status('✅ Dexto API key provisioned');
+        status('success', 'Dexto API key provisioned');
 
         return { dextoApiKey: provisioned.dextoApiKey, keyId: provisioned.keyId };
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.warn('Failed to ensure DEXTO_API_KEY', { error: errorMessage });
-        status(`❌ Failed to provision Dexto API key: ${errorMessage}`);
+        status('error', `Failed to provision Dexto API key: ${errorMessage}`);
         return null;
     }
 }

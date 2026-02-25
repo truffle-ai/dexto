@@ -25,6 +25,8 @@ export { type UsageSummaryResponse, DextoApiClient, getDextoApiClient } from './
 export { SUPABASE_URL, SUPABASE_ANON_KEY, DEXTO_API_URL } from './constants.js';
 
 export {
+    type DextoApiKeyProvisionStatus,
+    type DextoApiKeyProvisionStatusLevel,
     type EnsureDextoApiKeyOptions,
     ensureDextoApiKeyForAuthToken,
     saveDextoApiKeyToEnv,

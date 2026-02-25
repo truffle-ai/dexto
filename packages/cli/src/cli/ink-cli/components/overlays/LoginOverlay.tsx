@@ -9,6 +9,7 @@ import React, {
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import {
+    type DextoApiKeyProvisionStatus,
     beginOAuthLogin,
     DEFAULT_OAUTH_CONFIG,
     ensureDextoApiKeyForAuthToken,
@@ -61,6 +62,13 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
         if (!isActiveRef.current) return;
         setStatus(message);
     }, []);
+
+    const handleProvisionStatus = useCallback(
+        (provisionStatus: DextoApiKeyProvisionStatus) => {
+            safeSetStatus(provisionStatus.message);
+        },
+        [safeSetStatus]
+    );
 
     const cancelInFlight = useCallback(() => {
         abortControllerRef.current?.abort(new Error('Authentication cancelled'));
@@ -124,7 +132,7 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
 
             safeSetStatus('Provisioning Dexto API key (DEXTO_API_KEY)...');
             const ensured = await ensureDextoApiKeyForAuthToken(result.accessToken, {
-                onStatus: safeSetStatus,
+                onStatus: handleProvisionStatus,
             });
 
             if (!isActiveRef.current || abortController.signal.aborted) return;
@@ -146,7 +154,7 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
         } finally {
             abortControllerRef.current = null;
         }
-    }, [cancelInFlight, onDone, safeSetStatus]);
+    }, [cancelInFlight, handleProvisionStatus, onDone, safeSetStatus]);
 
     // Initialize when shown
     useEffect(() => {

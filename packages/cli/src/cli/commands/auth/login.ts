@@ -3,6 +3,7 @@
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
 import {
+    type DextoApiKeyProvisionStatus,
     isAuthenticated,
     loadAuth,
     storeAuth,
@@ -13,25 +14,21 @@ import {
 } from '../../auth/index.js';
 import { logger } from '@dexto/core';
 
-function printProvisionStatus(message: string): void {
-    const trimmed = message.trim();
-    if (trimmed.startsWith('✅')) {
-        console.log(chalk.green(trimmed));
-        return;
+function printProvisionStatus(status: DextoApiKeyProvisionStatus): void {
+    switch (status.level) {
+        case 'success':
+            console.log(chalk.green(`✅ ${status.message}`));
+            return;
+        case 'error':
+            console.log(chalk.red(`❌ ${status.message}`));
+            return;
+        case 'warning':
+            console.log(chalk.yellow(`⚠️ ${status.message}`));
+            return;
+        case 'info':
+            console.log(chalk.cyan(`ℹ️ ${status.message}`));
+            return;
     }
-    if (trimmed.startsWith('❌')) {
-        console.log(chalk.red(trimmed));
-        return;
-    }
-    if (trimmed.startsWith('⚠️')) {
-        console.log(chalk.yellow(trimmed));
-        return;
-    }
-    if (trimmed.startsWith('🔍') || trimmed.startsWith('🔑')) {
-        console.log(chalk.cyan(trimmed));
-        return;
-    }
-    console.log(trimmed);
 }
 
 /**
