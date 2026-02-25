@@ -2,7 +2,7 @@
 // Do not edit manually - run 'pnpm run sync-llm-registry' to update
 
 import type { LLMProvider } from '../types.js';
-import type { ModelInfo } from './index.js';
+import type { ModelInfo, ModelsDevProviderMetadata } from './index.js';
 
 export const MODELS_BY_PROVIDER = {
     openai: [
@@ -13,6 +13,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2023-03-01',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.5,
                 outputPerM: 1.5,
@@ -28,6 +34,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2023-11-06',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 30,
                 outputPerM: 60,
@@ -42,6 +54,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2023-11-06',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 10,
                 outputPerM: 30,
@@ -56,6 +74,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-14',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2,
                 outputPerM: 8,
@@ -71,6 +95,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-14',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.4,
                 outputPerM: 1.6,
@@ -86,6 +116,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-14',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.4,
@@ -101,6 +137,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-05-13',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2.5,
                 outputPerM: 10,
@@ -116,6 +158,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-05-13',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 5,
                 outputPerM: 15,
@@ -130,6 +178,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-08-06',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2.5,
                 outputPerM: 10,
@@ -145,6 +199,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-11-20',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2.5,
                 outputPerM: 10,
@@ -160,6 +220,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-07-18',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -175,6 +241,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2025-08-07',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -190,6 +262,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-08-07',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -204,6 +282,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2025-09-15',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -219,6 +303,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2025-08-07',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.25,
                 outputPerM: 2,
@@ -235,6 +325,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2025-08-07',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.05,
                 outputPerM: 0.4,
@@ -250,6 +346,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2025-10-06',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 15,
                 outputPerM: 120,
@@ -264,6 +366,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2025-11-13',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -279,6 +387,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2025-11-13',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -294,6 +408,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2025-11-13',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -309,6 +429,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2025-11-13',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -324,6 +450,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2025-11-13',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.25,
                 outputPerM: 2,
@@ -339,6 +471,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2025-12-11',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.75,
                 outputPerM: 14,
@@ -354,6 +492,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2025-12-11',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.75,
                 outputPerM: 14,
@@ -369,6 +513,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2025-12-11',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.75,
                 outputPerM: 14,
@@ -384,6 +534,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2025-12-11',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 21,
                 outputPerM: 168,
@@ -398,6 +554,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2026-02-05',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.75,
                 outputPerM: 14,
@@ -413,6 +575,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2026-02-05',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.75,
                 outputPerM: 14,
@@ -428,6 +596,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2024-12-05',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 15,
                 outputPerM: 60,
@@ -443,6 +617,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: false,
+            releaseDate: '2024-09-12',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.1,
                 outputPerM: 4.4,
@@ -458,6 +638,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2024-09-12',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 15,
                 outputPerM: 60,
@@ -473,6 +659,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2025-03-19',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 150,
                 outputPerM: 600,
@@ -487,6 +679,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2025-04-16',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2,
                 outputPerM: 8,
@@ -502,6 +700,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2024-06-26',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 10,
                 outputPerM: 40,
@@ -517,6 +721,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2024-12-20',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.1,
                 outputPerM: 4.4,
@@ -532,6 +742,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2025-06-10',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 20,
                 outputPerM: 80,
@@ -546,6 +762,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2025-04-16',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.1,
                 outputPerM: 4.4,
@@ -561,6 +783,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2024-06-26',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2,
                 outputPerM: 8,
@@ -579,6 +807,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-10-22',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.8,
                 outputPerM: 4,
@@ -595,6 +829,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-10-22',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.8,
                 outputPerM: 4,
@@ -611,6 +851,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-06-20',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -627,6 +873,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-10-22',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -643,6 +895,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-02-19',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -659,6 +917,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-02-19',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -675,6 +939,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-03-13',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.25,
                 outputPerM: 1.25,
@@ -691,6 +961,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-02-29',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -707,6 +983,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-03-04',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -723,6 +1005,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-10-15',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1,
                 outputPerM: 5,
@@ -739,6 +1027,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-10-15',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1,
                 outputPerM: 5,
@@ -756,6 +1050,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-05-22',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -772,6 +1072,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-05',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -788,6 +1094,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-05',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -804,6 +1116,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-05-22',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -820,6 +1138,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-11-24',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 5,
                 outputPerM: 25,
@@ -836,6 +1160,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-11-01',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 5,
                 outputPerM: 25,
@@ -852,11 +1182,21 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-05',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 5,
                 outputPerM: 25,
                 cacheReadPerM: 0.5,
                 cacheWritePerM: 6.25,
+                contextOver200kPerM: {
+                    inputPerM: 10,
+                    outputPerM: 37.5,
+                },
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -868,6 +1208,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-05-22',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -884,6 +1230,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-05-22',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -900,6 +1252,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-29',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -916,6 +1274,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-29',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -932,11 +1296,21 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-17',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
                 cacheReadPerM: 0.3,
                 cacheWritePerM: 3.75,
+                contextOver200kPerM: {
+                    inputPerM: 6,
+                    outputPerM: 22.5,
+                },
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -950,6 +1324,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image', 'audio'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-05-14',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.075,
                 outputPerM: 0.3,
@@ -965,6 +1345,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image', 'audio'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-10-03',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.0375,
                 outputPerM: 0.15,
@@ -980,6 +1366,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image', 'audio'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-02-15',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 5,
@@ -995,6 +1387,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-11',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.4,
@@ -1010,6 +1408,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-11',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.075,
                 outputPerM: 0.3,
@@ -1024,10 +1428,17 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-03-20',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 2.5,
                 cacheReadPerM: 0.075,
+                inputAudioPerM: 1,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -1039,6 +1450,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-08-26',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text', 'image'],
+            },
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 30,
@@ -1054,6 +1471,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-08-26',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text', 'image'],
+            },
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 30,
@@ -1069,6 +1492,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-06-17',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.4,
@@ -1084,10 +1513,17 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-06-17',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.4,
                 cacheReadPerM: 0.025,
+                inputAudioPerM: 0.3,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -1099,6 +1535,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-25',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.4,
@@ -1114,6 +1556,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-17',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -1129,6 +1577,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-05-20',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -1144,10 +1598,17 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-25',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 2.5,
                 cacheReadPerM: 0.075,
+                inputAudioPerM: 1,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -1159,6 +1620,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: false,
+            supportsToolCall: false,
+            releaseDate: '2025-05-01',
+            modalities: {
+                input: ['text'],
+                output: ['audio'],
+            },
             pricing: {
                 inputPerM: 0.5,
                 outputPerM: 10,
@@ -1173,6 +1640,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-03-20',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -1188,6 +1661,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-05-06',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -1203,6 +1682,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-06-05',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -1218,6 +1703,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: false,
+            supportsToolCall: false,
+            releaseDate: '2025-05-01',
+            modalities: {
+                input: ['text'],
+                output: ['audio'],
+            },
             pricing: {
                 inputPerM: 1,
                 outputPerM: 20,
@@ -1232,10 +1723,20 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-12-17',
+            modalities: {
+                input: ['text', 'image', 'video', 'audio', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.5,
                 outputPerM: 3,
                 cacheReadPerM: 0.05,
+                contextOver200kPerM: {
+                    inputPerM: 0.5,
+                    outputPerM: 3,
+                },
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -1248,10 +1749,20 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-11-18',
+            modalities: {
+                input: ['text', 'image', 'video', 'audio', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2,
                 outputPerM: 12,
                 cacheReadPerM: 0.2,
+                contextOver200kPerM: {
+                    inputPerM: 4,
+                    outputPerM: 18,
+                },
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -1263,10 +1774,20 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-19',
+            modalities: {
+                input: ['text', 'image', 'video', 'audio', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2,
                 outputPerM: 12,
                 cacheReadPerM: 0.2,
+                contextOver200kPerM: {
+                    inputPerM: 4,
+                    outputPerM: 18,
+                },
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -1278,10 +1799,20 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-19',
+            modalities: {
+                input: ['text', 'image', 'video', 'audio', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2,
                 outputPerM: 12,
                 cacheReadPerM: 0.2,
+                contextOver200kPerM: {
+                    inputPerM: 4,
+                    outputPerM: 18,
+                },
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -1293,6 +1824,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: false,
+            supportsToolCall: false,
+            releaseDate: '2025-05-20',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0,
@@ -1307,10 +1844,17 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-25',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 2.5,
                 cacheReadPerM: 0.075,
+                inputAudioPerM: 1,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -1322,6 +1866,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-25',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.4,
@@ -1337,9 +1887,17 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-01',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video'],
+                output: ['text', 'audio'],
+            },
             pricing: {
                 inputPerM: 0.5,
                 outputPerM: 2,
+                inputAudioPerM: 3,
+                outputAudioPerM: 12,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -1351,9 +1909,17 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['audio'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2025-06-17',
+            modalities: {
+                input: ['text', 'audio', 'video'],
+                output: ['text', 'audio'],
+            },
             pricing: {
                 inputPerM: 0.5,
                 outputPerM: 2,
+                inputAudioPerM: 3,
+                outputAudioPerM: 12,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -1367,6 +1933,13 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-01-20',
+            status: 'deprecated',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.75,
                 outputPerM: 0.99,
@@ -1381,6 +1954,13 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-06-27',
+            status: 'deprecated',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.2,
@@ -1395,6 +1975,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-07-23',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.05,
                 outputPerM: 0.08,
@@ -1409,6 +1995,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-06',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.59,
                 outputPerM: 0.79,
@@ -1424,6 +2016,13 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2024-07-23',
+            status: 'deprecated',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.2,
@@ -1438,6 +2037,13 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-04-18',
+            status: 'deprecated',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.59,
                 outputPerM: 0.79,
@@ -1452,6 +2058,13 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-04-18',
+            status: 'deprecated',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.05,
                 outputPerM: 0.08,
@@ -1466,6 +2079,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-05',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.6,
@@ -1480,6 +2099,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-05',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.11,
                 outputPerM: 0.34,
@@ -1494,6 +2119,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-04-05',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.2,
@@ -1508,6 +2139,13 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-02-06',
+            status: 'deprecated',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.79,
                 outputPerM: 0.79,
@@ -1522,6 +2160,13 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-07-14',
+            status: 'deprecated',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1,
                 outputPerM: 3,
@@ -1536,6 +2181,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-05',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1,
                 outputPerM: 3,
@@ -1550,6 +2201,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-05',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -1564,6 +2221,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-05',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.075,
                 outputPerM: 0.3,
@@ -1578,6 +2241,13 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-11-27',
+            status: 'deprecated',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.29,
                 outputPerM: 0.39,
@@ -1592,6 +2262,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-23',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.29,
                 outputPerM: 0.59,
@@ -1608,6 +2284,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-08-20',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2,
                 outputPerM: 10,
@@ -1623,6 +2305,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-12',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2,
                 outputPerM: 10,
@@ -1638,6 +2326,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-08-20',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2,
                 outputPerM: 10,
@@ -1653,6 +2347,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-08-20',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2,
                 outputPerM: 10,
@@ -1668,6 +2368,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-08-20',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2,
                 outputPerM: 10,
@@ -1683,6 +2389,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-08-20',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2,
                 outputPerM: 10,
@@ -1698,6 +2410,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-02-17',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -1713,6 +2431,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-02-17',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 5,
                 outputPerM: 25,
@@ -1728,6 +2452,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-02-17',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 5,
                 outputPerM: 25,
@@ -1743,6 +2473,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-02-17',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -1758,10 +2494,17 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-02-17',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 0.5,
                 cacheReadPerM: 0.075,
+                reasoningPerM: 0.5,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -1773,10 +2516,17 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-02-17',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 4,
                 cacheReadPerM: 0.15,
+                reasoningPerM: 4,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -1788,10 +2538,17 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-02-17',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 4,
                 cacheReadPerM: 0.15,
+                reasoningPerM: 4,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -1803,10 +2560,17 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-02-17',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 0.5,
                 cacheReadPerM: 0.075,
+                reasoningPerM: 0.5,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -1818,10 +2582,17 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-07-09',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
                 cacheReadPerM: 0.75,
+                reasoningPerM: 15,
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -1834,6 +2605,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-11-19',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.5,
@@ -1849,6 +2626,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-11-19',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.5,
@@ -1864,6 +2647,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-19',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.5,
@@ -1879,6 +2668,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-19',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.5,
@@ -1894,6 +2689,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-11-01',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 5,
                 outputPerM: 15,
@@ -1909,6 +2710,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-28',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 1.5,
@@ -1924,6 +2731,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-11-01',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 5,
                 outputPerM: 15,
@@ -1941,6 +2754,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-03-13',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2.5,
                 outputPerM: 10,
@@ -1956,6 +2775,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-21',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2.5,
                 outputPerM: 10,
@@ -1970,6 +2795,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-28',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2.5,
                 outputPerM: 10,
@@ -1984,6 +2815,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-07-31',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2.5,
                 outputPerM: 10,
@@ -1998,6 +2835,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-08-30',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -2012,6 +2855,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-08-30',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2.5,
                 outputPerM: 10,
@@ -2026,6 +2875,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-02-27',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.0375,
                 outputPerM: 0.15,
@@ -2040,6 +2895,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-02-27',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.0375,
                 outputPerM: 0.15,
@@ -2056,6 +2917,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-10-27',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 1.2,
@@ -2070,6 +2937,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-12-23',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 1.2,
@@ -2085,6 +2958,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-12',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 1.2,
@@ -2101,6 +2980,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-13',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 2.4,
@@ -2119,6 +3004,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-07-28',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 2.2,
@@ -2135,6 +3026,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-07-28',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 1.1,
@@ -2151,6 +3048,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-07-28',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2167,6 +3070,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-11',
+            modalities: {
+                input: ['text', 'image', 'video'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 1.8,
@@ -2181,6 +3090,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-30',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 2.2,
@@ -2197,6 +3112,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-12-08',
+            modalities: {
+                input: ['text', 'image', 'video'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 0.9,
@@ -2211,6 +3132,15 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-12-22',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
+            interleaved: {
+                field: 'reasoning_content',
+            },
             supportsInterleaved: true,
             pricing: {
                 inputPerM: 0.6,
@@ -2229,6 +3159,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-01-19',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2245,6 +3181,15 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-11',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
+            interleaved: {
+                field: 'reasoning_content',
+            },
             supportsInterleaved: true,
             pricing: {
                 inputPerM: 1,
@@ -2264,6 +3209,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2026-01-09',
+            modalities: {
+                input: ['text', 'image', 'video'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2278,6 +3229,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-10-22',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.8,
                 outputPerM: 4,
@@ -2294,6 +3251,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-02-19',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -2310,6 +3273,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-10-15',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1,
                 outputPerM: 5,
@@ -2326,6 +3295,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-05-22',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -2342,6 +3317,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-05',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -2358,6 +3339,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-11-24',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 5,
                 outputPerM: 25,
@@ -2374,11 +3361,21 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-05',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 5,
                 outputPerM: 25,
                 cacheReadPerM: 0.5,
                 cacheWritePerM: 6.25,
+                contextOver200kPerM: {
+                    inputPerM: 10,
+                    outputPerM: 37.5,
+                },
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -2390,11 +3387,21 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-05-22',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
                 cacheReadPerM: 0.3,
                 cacheWritePerM: 3.75,
+                contextOver200kPerM: {
+                    inputPerM: 6,
+                    outputPerM: 22.5,
+                },
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -2406,11 +3413,21 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-29',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
                 cacheReadPerM: 0.3,
                 cacheWritePerM: 3.75,
+                contextOver200kPerM: {
+                    inputPerM: 6,
+                    outputPerM: 22.5,
+                },
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -2422,11 +3439,21 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-17',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
                 cacheReadPerM: 0.3,
                 cacheWritePerM: 3.75,
+                contextOver200kPerM: {
+                    inputPerM: 6,
+                    outputPerM: 22.5,
+                },
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -2438,6 +3465,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-01-28',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2452,6 +3485,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-01-28',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2466,6 +3505,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-11-25',
+            modalities: {
+                input: ['image', 'text'],
+                output: ['image'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2480,6 +3525,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2026-01-14',
+            modalities: {
+                input: ['image', 'text'],
+                output: ['image'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2494,6 +3545,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-12-16',
+            modalities: {
+                input: ['image', 'text'],
+                output: ['image'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2508,6 +3565,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-11-25',
+            modalities: {
+                input: ['image', 'text'],
+                output: ['image'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2522,6 +3585,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-12-23',
+            modalities: {
+                input: ['image', 'text'],
+                output: ['image'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2536,6 +3605,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-07-09',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2550,6 +3625,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-02-13',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2564,6 +3645,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-02-13',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2578,6 +3665,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-03-24',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2592,6 +3685,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-21',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.8,
@@ -2606,6 +3705,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-05-29',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2620,6 +3725,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-05-28',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2634,6 +3745,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-01-23',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2648,6 +3765,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-01-29',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2662,6 +3785,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-01-20',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2676,6 +3805,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-03-29',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2690,6 +3825,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-22',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.27,
                 outputPerM: 1,
@@ -2704,6 +3845,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-22',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.27,
                 outputPerM: 1,
@@ -2718,6 +3865,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-12-01',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.28,
                 outputPerM: 0.4,
@@ -2732,6 +3885,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-12-01',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.27,
                 outputPerM: 0.41,
@@ -2746,6 +3905,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-03-20',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2760,6 +3925,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-11',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.4,
@@ -2775,6 +3946,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-11',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2789,6 +3966,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-07-17',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 2.5,
@@ -2804,6 +3987,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-06-17',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.4,
@@ -2819,6 +4008,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-25',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.4,
@@ -2834,6 +4029,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-25',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 2.5,
@@ -2849,6 +4050,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-03-20',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -2864,6 +4071,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-05-06',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -2879,6 +4092,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-06-05',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -2894,6 +4113,15 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-12-17',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
+            interleaved: {
+                field: 'reasoning_details',
+            },
             supportsInterleaved: true,
             pricing: {
                 inputPerM: 0.5,
@@ -2910,6 +4138,15 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-11-18',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
+            interleaved: {
+                field: 'reasoning_details',
+            },
             supportsInterleaved: true,
             pricing: {
                 inputPerM: 2,
@@ -2925,10 +4162,24 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-19',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
+            interleaved: {
+                field: 'reasoning_details',
+            },
             supportsInterleaved: true,
             pricing: {
                 inputPerM: 2,
                 outputPerM: 12,
+                reasoningPerM: 12,
+                contextOver200kPerM: {
+                    inputPerM: 4,
+                    outputPerM: 18,
+                },
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -2940,6 +4191,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2024-06-28',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.03,
                 outputPerM: 0.09,
@@ -2954,6 +4211,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-03-13',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.03,
                 outputPerM: 0.1,
@@ -2968,6 +4231,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-03-13',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -2982,6 +4251,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-03-12',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.04,
                 outputPerM: 0.15,
@@ -2996,6 +4271,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-03-12',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3010,6 +4291,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-03-13',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.01703,
                 outputPerM: 0.06815,
@@ -3024,6 +4311,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-03-13',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3038,6 +4331,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-07-09',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3052,6 +4351,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-05-20',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.02,
                 outputPerM: 0.04,
@@ -3066,6 +4371,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-05-20',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3080,6 +4391,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-11-10',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3094,6 +4411,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2026-01-20',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3108,6 +4431,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2026-01-20',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3122,6 +4451,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2024-07-23',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3136,6 +4471,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2024-09-25',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3150,6 +4491,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2024-09-25',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3164,6 +4511,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-06',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3178,6 +4531,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-05',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3192,6 +4551,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-21',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3206,6 +4571,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-01-15',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 1.1,
@@ -3220,6 +4591,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-06-17',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.4,
                 outputPerM: 2.2,
@@ -3234,6 +4611,15 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-10-23',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
+            interleaved: {
+                field: 'reasoning_details',
+            },
             supportsInterleaved: true,
             pricing: {
                 inputPerM: 0.28,
@@ -3251,6 +4637,15 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-12-23',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
+            interleaved: {
+                field: 'reasoning_details',
+            },
             supportsInterleaved: true,
             pricing: {
                 inputPerM: 0.3,
@@ -3266,6 +4661,15 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-12',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
+            interleaved: {
+                field: 'reasoning_details',
+            },
             supportsInterleaved: true,
             pricing: {
                 inputPerM: 0.3,
@@ -3282,6 +4686,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-01',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 0.9,
@@ -3296,6 +4706,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-12',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -3310,6 +4726,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-12',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3324,6 +4746,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-07-10',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.4,
                 outputPerM: 2,
@@ -3338,6 +4766,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-05-07',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.06,
                 outputPerM: 0.12,
@@ -3352,6 +4786,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-05-21',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3366,6 +4806,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-07-10',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.3,
@@ -3380,6 +4826,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-05-27',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3394,6 +4846,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-05-07',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.4,
                 outputPerM: 2,
@@ -3408,6 +4866,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-12',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.4,
                 outputPerM: 2,
@@ -3422,6 +4886,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-07-19',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3436,6 +4906,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-03-17',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3450,6 +4926,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-06-20',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3464,6 +4946,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-06-20',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3478,6 +4966,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-06-16',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3492,6 +4986,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-07-11',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.55,
                 outputPerM: 2.2,
@@ -3506,6 +5006,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-05',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 2.5,
@@ -3520,6 +5026,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-05',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 2.5,
@@ -3534,6 +5046,15 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-11-06',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
+            interleaved: {
+                field: 'reasoning_details',
+            },
             supportsInterleaved: true,
             pricing: {
                 inputPerM: 0.6,
@@ -3550,6 +5071,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-07-11',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3564,6 +5091,15 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-01-27',
+            modalities: {
+                input: ['text', 'image', 'video'],
+                output: ['text'],
+            },
+            interleaved: {
+                field: 'reasoning_details',
+            },
             supportsInterleaved: true,
             pricing: {
                 inputPerM: 0.6,
@@ -3580,6 +5116,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-02-28',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3594,6 +5136,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2024-08-16',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3608,6 +5156,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-25',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1,
                 outputPerM: 3,
@@ -3622,6 +5176,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-25',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.13,
                 outputPerM: 0.4,
@@ -3636,6 +5196,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-12-14',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3650,6 +5216,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-10-28',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3664,6 +5236,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-18',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.04,
                 outputPerM: 0.16,
@@ -3678,6 +5256,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-05',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -3692,6 +5276,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-14',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2,
                 outputPerM: 8,
@@ -3707,6 +5297,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-14',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.4,
                 outputPerM: 1.6,
@@ -3722,6 +5318,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-07-18',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -3737,6 +5339,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-07',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -3751,6 +5359,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-08-07',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -3765,6 +5379,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-15',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -3780,6 +5400,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-10-14',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text', 'image'],
+            },
             pricing: {
                 inputPerM: 5,
                 outputPerM: 10,
@@ -3795,6 +5421,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-07',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.25,
                 outputPerM: 2,
@@ -3809,6 +5441,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-07',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.05,
                 outputPerM: 0.4,
@@ -3823,6 +5461,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2025-10-06',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 15,
                 outputPerM: 120,
@@ -3837,6 +5481,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-11-13',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -3852,6 +5502,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-11-13',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -3867,6 +5523,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-11-13',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -3882,6 +5544,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-11-13',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.1,
                 outputPerM: 9,
@@ -3897,6 +5565,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-11-13',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.25,
                 outputPerM: 2,
@@ -3912,6 +5586,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2025-12-11',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.75,
                 outputPerM: 14,
@@ -3927,6 +5607,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2025-12-11',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.75,
                 outputPerM: 14,
@@ -3942,6 +5628,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-01-14',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.75,
                 outputPerM: 14,
@@ -3957,6 +5649,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: false,
+            supportsToolCall: true,
+            releaseDate: '2025-12-11',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 21,
                 outputPerM: 168,
@@ -3971,6 +5669,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-05',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.072,
                 outputPerM: 0.28,
@@ -3985,6 +5689,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-05',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.05,
                 outputPerM: 0.24,
@@ -3999,6 +5709,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-05',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4013,6 +5729,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-05',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.05,
                 outputPerM: 0.2,
@@ -4027,6 +5749,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-05',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4041,6 +5769,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-10-29',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.075,
                 outputPerM: 0.3,
@@ -4055,6 +5789,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-16',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.1,
                 outputPerM: 4.4,
@@ -4070,6 +5810,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-09',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4084,6 +5830,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-11-15',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4098,6 +5850,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-11-15',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4112,6 +5870,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-01-15',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 1.1,
@@ -4126,6 +5890,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2024-11-11',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4140,6 +5910,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-08-28',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4154,6 +5930,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-03-24',
+            modalities: {
+                input: ['text', 'image', 'video'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4168,6 +5950,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-02-01',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4182,6 +5970,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-02-01',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4196,6 +5990,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-28',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4210,6 +6010,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-28',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.85,
@@ -4224,6 +6030,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-28',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4238,6 +6050,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-07-25',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.078,
                 outputPerM: 0.312,
@@ -4252,6 +6070,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-28',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4266,6 +6090,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-07-29',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.8,
@@ -4280,6 +6110,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-07-29',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.8,
@@ -4294,6 +6130,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-28',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4308,6 +6150,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-28',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4322,6 +6170,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-30',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4336,6 +6190,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-28',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4350,6 +6210,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-07-23',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 1.2,
@@ -4364,6 +6230,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-07-31',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.07,
                 outputPerM: 0.27,
@@ -4378,6 +6250,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-07-23',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 1.5,
@@ -4392,6 +6270,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-07-23',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.38,
                 outputPerM: 1.53,
@@ -4406,6 +6290,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-07-23',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4420,6 +6310,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-05',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.2,
                 outputPerM: 6,
@@ -4434,6 +6330,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-11',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.14,
                 outputPerM: 1.4,
@@ -4448,6 +6350,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-11',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4462,6 +6370,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-11',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.14,
                 outputPerM: 1.4,
@@ -4476,6 +6390,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-16',
+            modalities: {
+                input: ['text', 'image', 'video'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 3.6,
@@ -4490,6 +6410,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-16',
+            modalities: {
+                input: ['text', 'image', 'video'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.4,
                 outputPerM: 2.4,
@@ -4504,6 +6430,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-03-05',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4518,6 +6450,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-03-12',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4532,6 +6470,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-05-25',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4546,6 +6490,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-12-08',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['image'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4560,6 +6510,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-12-08',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['image'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4574,6 +6530,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-12-08',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['image'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4588,6 +6550,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-01-29',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.3,
@@ -4603,6 +6571,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-01-29',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4617,6 +6591,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-17',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4631,6 +6611,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-07-08',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4645,6 +6631,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-11-26',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4659,6 +6651,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-02-17',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -4675,6 +6673,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-02-17',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -4691,6 +6695,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-02-17',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 0.5,
@@ -4707,6 +6717,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-02-17',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 0.5,
@@ -4723,6 +6739,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-07-09',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -4739,6 +6761,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-19',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.5,
@@ -4755,6 +6783,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-11-19',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.5,
@@ -4771,6 +6805,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-26',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 1.5,
@@ -4786,6 +6826,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-12-14',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.3,
@@ -4801,6 +6847,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-07-28',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 2.2,
@@ -4815,6 +6867,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-07-28',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 1.1,
@@ -4829,6 +6887,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-07-28',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0,
                 outputPerM: 0,
@@ -4843,6 +6907,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-11',
+            modalities: {
+                input: ['text', 'image', 'video'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 1.8,
@@ -4857,6 +6927,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-30',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 2.2,
@@ -4872,6 +6948,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-30',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 1.9,
@@ -4887,6 +6969,15 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-12-22',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
+            interleaved: {
+                field: 'reasoning_details',
+            },
             supportsInterleaved: true,
             pricing: {
                 inputPerM: 0.6,
@@ -4903,6 +6994,15 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-01-19',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
+            interleaved: {
+                field: 'reasoning_details',
+            },
             supportsInterleaved: true,
             pricing: {
                 inputPerM: 0.07,
@@ -4918,6 +7018,15 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-12',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
+            interleaved: {
+                field: 'reasoning_content',
+            },
             supportsInterleaved: true,
             pricing: {
                 inputPerM: 1,
@@ -4938,6 +7047,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-10-22',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.8,
                 outputPerM: 4,
@@ -4954,6 +7069,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-10-22',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -4970,6 +7091,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-02-19',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -4986,6 +7113,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-10-15',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1,
                 outputPerM: 5,
@@ -5002,6 +7135,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-05',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -5018,6 +7157,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-11-24',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 5,
                 outputPerM: 25,
@@ -5034,11 +7179,21 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-05',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 5,
                 outputPerM: 25,
                 cacheReadPerM: 0.5,
                 cacheWritePerM: 6.25,
+                contextOver200kPerM: {
+                    inputPerM: 10,
+                    outputPerM: 37.5,
+                },
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -5050,6 +7205,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-05-22',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -5066,6 +7227,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-29',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -5082,11 +7249,21 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-17',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
                 cacheReadPerM: 0.3,
                 cacheWritePerM: 3.75,
+                contextOver200kPerM: {
+                    inputPerM: 6,
+                    outputPerM: 22.5,
+                },
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -5098,6 +7275,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-05-22',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -5114,6 +7297,16 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-28',
+            modalities: {
+                input: ['text', 'pdf'],
+                output: ['text'],
+            },
+            providerMetadata: {
+                npm: '@ai-sdk/openai-compatible',
+                api: 'https://${GOOGLE_VERTEX_ENDPOINT}/v1/projects/${GOOGLE_VERTEX_PROJECT}/locations/${GOOGLE_VERTEX_LOCATION}/endpoints/openapi',
+            },
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 1.7,
@@ -5128,6 +7321,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-11',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -5143,6 +7342,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-11',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.075,
                 outputPerM: 0.3,
@@ -5157,6 +7362,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-06-17',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 2.5,
@@ -5173,6 +7384,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-06-17',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.4,
@@ -5188,6 +7405,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-06-17',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.4,
@@ -5203,6 +7426,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-25',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.4,
@@ -5218,6 +7447,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-17',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -5233,6 +7468,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-05-20',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -5248,6 +7489,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-25',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 2.5,
@@ -5264,6 +7511,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-03-20',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -5279,6 +7532,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-05-06',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -5294,6 +7553,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-06-05',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.25,
                 outputPerM: 10,
@@ -5309,10 +7574,20 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-12-17',
+            modalities: {
+                input: ['text', 'image', 'video', 'audio', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.5,
                 outputPerM: 3,
                 cacheReadPerM: 0.05,
+                contextOver200kPerM: {
+                    inputPerM: 0.5,
+                    outputPerM: 3,
+                },
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -5325,10 +7600,20 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-11-18',
+            modalities: {
+                input: ['text', 'image', 'video', 'audio', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2,
                 outputPerM: 12,
                 cacheReadPerM: 0.2,
+                contextOver200kPerM: {
+                    inputPerM: 4,
+                    outputPerM: 18,
+                },
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -5340,10 +7625,20 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-19',
+            modalities: {
+                input: ['text', 'image', 'video', 'audio', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2,
                 outputPerM: 12,
                 cacheReadPerM: 0.2,
+                contextOver200kPerM: {
+                    inputPerM: 4,
+                    outputPerM: 18,
+                },
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -5355,10 +7650,20 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-19',
+            modalities: {
+                input: ['text', 'image', 'video', 'audio', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2,
                 outputPerM: 12,
                 cacheReadPerM: 0.2,
+                contextOver200kPerM: {
+                    inputPerM: 4,
+                    outputPerM: 18,
+                },
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -5370,6 +7675,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: false,
+            supportsToolCall: false,
+            releaseDate: '2025-05-20',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0,
@@ -5384,6 +7695,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-25',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 2.5,
@@ -5400,6 +7717,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image', 'audio'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-25',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.4,
@@ -5415,6 +7738,16 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-29',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
+            providerMetadata: {
+                npm: '@ai-sdk/openai-compatible',
+                api: 'https://${GOOGLE_VERTEX_ENDPOINT}/v1/projects/${GOOGLE_VERTEX_PROJECT}/locations/${GOOGLE_VERTEX_LOCATION}/endpoints/openapi',
+            },
             pricing: {
                 inputPerM: 0.72,
                 outputPerM: 0.72,
@@ -5429,6 +7762,16 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-29',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
+            providerMetadata: {
+                npm: '@ai-sdk/openai-compatible',
+                api: 'https://${GOOGLE_VERTEX_ENDPOINT}/v1/projects/${GOOGLE_VERTEX_PROJECT}/locations/${GOOGLE_VERTEX_LOCATION}/endpoints/openapi',
+            },
             pricing: {
                 inputPerM: 0.35,
                 outputPerM: 1.15,
@@ -5443,6 +7786,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-05',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.09,
                 outputPerM: 0.36,
@@ -5457,6 +7806,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-05',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.07,
                 outputPerM: 0.25,
@@ -5471,6 +7826,16 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-13',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
+            providerMetadata: {
+                npm: '@ai-sdk/openai-compatible',
+                api: 'https://${GOOGLE_VERTEX_ENDPOINT}/v1/projects/${GOOGLE_VERTEX_PROJECT}/locations/${GOOGLE_VERTEX_LOCATION}/endpoints/openapi',
+            },
             pricing: {
                 inputPerM: 0.22,
                 outputPerM: 0.88,
@@ -5485,6 +7850,19 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-01-06',
+            modalities: {
+                input: ['text', 'pdf'],
+                output: ['text'],
+            },
+            providerMetadata: {
+                npm: '@ai-sdk/openai-compatible',
+                api: 'https://${GOOGLE_VERTEX_ENDPOINT}/v1/projects/${GOOGLE_VERTEX_PROJECT}/locations/${GOOGLE_VERTEX_LOCATION}/endpoints/openapi',
+            },
+            interleaved: {
+                field: 'reasoning_content',
+            },
             supportsInterleaved: true,
             pricing: {
                 inputPerM: 0.6,
@@ -5500,6 +7878,19 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-11',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
+            providerMetadata: {
+                npm: '@ai-sdk/openai-compatible',
+                api: 'https://${GOOGLE_VERTEX_ENDPOINT}/v1/projects/${GOOGLE_VERTEX_PROJECT}/locations/${GOOGLE_VERTEX_LOCATION}/endpoints/openapi',
+            },
+            interleaved: {
+                field: 'reasoning_content',
+            },
             supportsInterleaved: true,
             pricing: {
                 inputPerM: 1,
@@ -5518,6 +7909,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-08-15',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2,
                 outputPerM: 8,
@@ -5532,6 +7929,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-08-15',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.4,
@@ -5546,6 +7949,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-01',
+            modalities: {
+                input: ['text', 'image', 'video'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.33,
                 outputPerM: 2.75,
@@ -5560,6 +7969,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-03',
+            modalities: {
+                input: ['text', 'image', 'video'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.06,
                 outputPerM: 0.24,
@@ -5575,6 +7990,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-03',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.035,
                 outputPerM: 0.14,
@@ -5590,6 +8011,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-03',
+            modalities: {
+                input: ['text', 'image', 'video'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2.5,
                 outputPerM: 12.5,
@@ -5604,6 +8031,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-03',
+            modalities: {
+                input: ['text', 'image', 'video'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.8,
                 outputPerM: 3.2,
@@ -5619,6 +8052,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-01',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.6,
@@ -5633,6 +8072,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-01',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.6,
@@ -5647,6 +8092,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-10-22',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.8,
                 outputPerM: 4,
@@ -5663,6 +8114,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-06-20',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -5679,6 +8136,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-10-22',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -5695,6 +8158,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-02-19',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -5711,6 +8180,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-03-13',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.25,
                 outputPerM: 1.25,
@@ -5725,6 +8200,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-02-29',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -5739,6 +8220,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-03-04',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -5753,6 +8240,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-10-15',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1,
                 outputPerM: 5,
@@ -5769,6 +8262,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2023-03-01',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.8,
                 outputPerM: 2.4,
@@ -5783,6 +8282,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-05',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -5799,6 +8304,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-05-22',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -5815,6 +8326,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-11-24',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 5,
                 outputPerM: 25,
@@ -5831,11 +8348,21 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-05',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 5,
                 outputPerM: 25,
                 cacheReadPerM: 0.5,
                 cacheWritePerM: 6.25,
+                contextOver200kPerM: {
+                    inputPerM: 10,
+                    outputPerM: 37.5,
+                },
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -5847,6 +8374,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-05-22',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -5863,6 +8396,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-29',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -5880,11 +8419,21 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-17',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
                 cacheReadPerM: 0.3,
                 cacheWritePerM: 3.75,
+                contextOver200kPerM: {
+                    inputPerM: 6,
+                    outputPerM: 22.5,
+                },
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -5896,6 +8445,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2023-07-11',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 8,
                 outputPerM: 24,
@@ -5910,6 +8465,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2023-11-21',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 8,
                 outputPerM: 24,
@@ -5924,6 +8485,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2023-11-01',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 0.6,
@@ -5938,6 +8505,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-04-04',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -5952,6 +8525,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-03-11',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.5,
                 outputPerM: 1.5,
@@ -5966,6 +8545,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2023-11-01',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.5,
                 outputPerM: 2,
@@ -5980,6 +8565,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-01-20',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1.35,
                 outputPerM: 5.4,
@@ -5994,6 +8585,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-18',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.58,
                 outputPerM: 1.68,
@@ -6008,6 +8605,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-15',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.62,
                 outputPerM: 1.85,
@@ -6022,6 +8625,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-10-15',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1,
                 outputPerM: 5,
@@ -6038,6 +8647,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-11-24',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 5,
                 outputPerM: 25,
@@ -6054,11 +8669,21 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-05',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 5,
                 outputPerM: 25,
                 cacheReadPerM: 0.5,
                 cacheWritePerM: 6.25,
+                contextOver200kPerM: {
+                    inputPerM: 10,
+                    outputPerM: 37.5,
+                },
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -6070,6 +8695,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-05-22',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -6086,6 +8717,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-29',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -6102,11 +8739,21 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-17',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
                 cacheReadPerM: 0.3,
                 cacheWritePerM: 3.75,
+                contextOver200kPerM: {
+                    inputPerM: 6,
+                    outputPerM: 22.5,
+                },
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -6118,6 +8765,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-10-15',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1,
                 outputPerM: 5,
@@ -6134,6 +8787,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-11-24',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 5,
                 outputPerM: 25,
@@ -6150,11 +8809,21 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-05',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 5,
                 outputPerM: 25,
                 cacheReadPerM: 0.5,
                 cacheWritePerM: 6.25,
+                contextOver200kPerM: {
+                    inputPerM: 10,
+                    outputPerM: 37.5,
+                },
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -6166,6 +8835,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-05-22',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -6182,6 +8857,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-29',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -6198,11 +8879,21 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-17',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
                 cacheReadPerM: 0.3,
                 cacheWritePerM: 3.75,
+                contextOver200kPerM: {
+                    inputPerM: 6,
+                    outputPerM: 22.5,
+                },
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -6214,6 +8905,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2024-12-01',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.049999999999999996,
                 outputPerM: 0.09999999999999999,
@@ -6228,6 +8925,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-07-27',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.12,
                 outputPerM: 0.2,
@@ -6242,6 +8945,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-01',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.04,
                 outputPerM: 0.08,
@@ -6256,6 +8965,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-07-23',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.72,
                 outputPerM: 0.72,
@@ -6270,6 +8985,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-07-23',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.22,
                 outputPerM: 0.22,
@@ -6284,6 +9005,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-09-25',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.16,
                 outputPerM: 0.16,
@@ -6298,6 +9025,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-09-25',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.1,
                 outputPerM: 0.1,
@@ -6312,6 +9045,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-09-25',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.15,
@@ -6326,6 +9065,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-09-25',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.72,
                 outputPerM: 0.72,
@@ -6340,6 +9085,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-06',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.72,
                 outputPerM: 0.72,
@@ -6354,6 +9105,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2024-07-23',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2.65,
                 outputPerM: 3.5,
@@ -6368,6 +9125,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2024-07-23',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 0.6,
@@ -6382,6 +9145,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-05',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.24,
                 outputPerM: 0.97,
@@ -6396,6 +9165,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-05',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.17,
                 outputPerM: 0.66,
@@ -6410,6 +9185,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-10-27',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 1.2,
@@ -6424,6 +9205,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-12-23',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 1.2,
@@ -6438,6 +9225,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-01',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.2,
@@ -6452,6 +9245,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-01',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.15,
@@ -6466,6 +9265,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-01',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.11,
                 outputPerM: 0.11,
@@ -6480,6 +9285,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-01',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.5,
                 outputPerM: 1.5,
@@ -6494,6 +9305,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: false,
+            releaseDate: '2025-04-01',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.7,
                 outputPerM: 0.7,
@@ -6508,6 +9325,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['audio'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-01',
+            modalities: {
+                input: ['audio', 'text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.04,
                 outputPerM: 0.04,
@@ -6522,6 +9345,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['audio'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-07-01',
+            modalities: {
+                input: ['text', 'audio'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.35,
@@ -6536,6 +9365,13 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-12-02',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
+            interleaved: true,
             supportsInterleaved: true,
             pricing: {
                 inputPerM: 0.6,
@@ -6551,6 +9387,13 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-06',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
+            interleaved: true,
             supportsInterleaved: true,
             pricing: {
                 inputPerM: 0.6,
@@ -6566,6 +9409,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-01',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.2,
                 outputPerM: 0.6,
@@ -6580,6 +9429,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-01',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.06,
                 outputPerM: 0.23,
@@ -6594,6 +9449,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-01',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -6608,6 +9469,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-01',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.07,
                 outputPerM: 0.3,
@@ -6622,6 +9489,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-01',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -6636,6 +9509,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2024-12-01',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.07,
                 outputPerM: 0.2,
@@ -6650,6 +9529,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-18',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.22,
                 outputPerM: 0.88,
@@ -6664,6 +9549,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-18',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -6678,6 +9569,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-18',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.15,
                 outputPerM: 0.6,
@@ -6692,6 +9589,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-18',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.22,
                 outputPerM: 1.8,
@@ -6706,6 +9609,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-18',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.14,
                 outputPerM: 1.4,
@@ -6720,6 +9629,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['image'],
             reasoning: false,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-10-04',
+            modalities: {
+                input: ['text', 'image'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.3,
                 outputPerM: 1.5,
@@ -6734,6 +9649,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-10-15',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 1,
                 outputPerM: 5,
@@ -6750,6 +9671,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-08-05',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -6766,6 +9693,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-05-22',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 15,
                 outputPerM: 75,
@@ -6782,6 +9715,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-11-24',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 5,
                 outputPerM: 25,
@@ -6798,11 +9737,21 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-05',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 5,
                 outputPerM: 25,
                 cacheReadPerM: 0.5,
                 cacheWritePerM: 6.25,
+                contextOver200kPerM: {
+                    inputPerM: 10,
+                    outputPerM: 37.5,
+                },
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -6814,6 +9763,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-05-22',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -6830,6 +9785,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-09-29',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
@@ -6846,11 +9807,21 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: ['pdf', 'image'],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-17',
+            modalities: {
+                input: ['text', 'image', 'pdf'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 3,
                 outputPerM: 15,
                 cacheReadPerM: 0.3,
                 cacheWritePerM: 3.75,
+                contextOver200kPerM: {
+                    inputPerM: 6,
+                    outputPerM: 22.5,
+                },
                 currency: 'USD',
                 unit: 'per_million_tokens',
             },
@@ -6862,6 +9833,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-28',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 2.5,
                 outputPerM: 10,
@@ -6876,6 +9853,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-04-28',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.6,
                 outputPerM: 6,
@@ -6890,6 +9873,15 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2025-12-22',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
+            interleaved: {
+                field: 'reasoning_content',
+            },
             supportsInterleaved: true,
             pricing: {
                 inputPerM: 0.6,
@@ -6905,6 +9897,12 @@ export const MODELS_BY_PROVIDER = {
             supportedFileTypes: [],
             reasoning: true,
             supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-01-19',
+            modalities: {
+                input: ['text'],
+                output: ['text'],
+            },
             pricing: {
                 inputPerM: 0.07,
                 outputPerM: 0.4,
@@ -6917,3 +9915,64 @@ export const MODELS_BY_PROVIDER = {
     ollama: [],
     'dexto-nova': [],
 } satisfies Record<LLMProvider, ModelInfo[]>;
+
+export const MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER = {
+    openai: {
+        env: ['OPENAI_API_KEY'],
+        npm: '@ai-sdk/openai',
+        doc: 'https://platform.openai.com/docs/models',
+    },
+    anthropic: {
+        env: ['ANTHROPIC_API_KEY'],
+        npm: '@ai-sdk/anthropic',
+        doc: 'https://docs.anthropic.com/en/docs/about-claude/models',
+    },
+    google: {
+        env: ['GOOGLE_GENERATIVE_AI_API_KEY', 'GEMINI_API_KEY'],
+        npm: '@ai-sdk/google',
+        doc: 'https://ai.google.dev/gemini-api/docs/pricing',
+    },
+    groq: {
+        env: ['GROQ_API_KEY'],
+        npm: '@ai-sdk/groq',
+        doc: 'https://console.groq.com/docs/models',
+    },
+    xai: {
+        env: ['XAI_API_KEY'],
+        npm: '@ai-sdk/xai',
+        doc: 'https://docs.x.ai/docs/models',
+    },
+    cohere: {
+        env: ['COHERE_API_KEY'],
+        npm: '@ai-sdk/cohere',
+        doc: 'https://docs.cohere.com/docs/models',
+    },
+    minimax: {
+        env: ['MINIMAX_API_KEY'],
+        npm: '@ai-sdk/anthropic',
+        api: 'https://api.minimax.io/anthropic/v1',
+        doc: 'https://platform.minimax.io/docs/guides/quickstart',
+    },
+    glm: {
+        env: ['ZHIPU_API_KEY'],
+        npm: '@ai-sdk/openai-compatible',
+        api: 'https://open.bigmodel.cn/api/paas/v4',
+        doc: 'https://docs.z.ai/guides/overview/pricing',
+    },
+    openrouter: {
+        env: ['OPENROUTER_API_KEY'],
+        npm: '@openrouter/ai-sdk-provider',
+        api: 'https://openrouter.ai/api/v1',
+        doc: 'https://openrouter.ai/models',
+    },
+    vertex: {
+        env: ['GOOGLE_VERTEX_PROJECT', 'GOOGLE_VERTEX_LOCATION', 'GOOGLE_APPLICATION_CREDENTIALS'],
+        npm: '@ai-sdk/google-vertex',
+        doc: 'https://cloud.google.com/vertex-ai/generative-ai/docs/models',
+    },
+    bedrock: {
+        env: ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION'],
+        npm: '@ai-sdk/amazon-bedrock',
+        doc: 'https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html',
+    },
+} satisfies Partial<Record<LLMProvider, ModelsDevProviderMetadata>>;

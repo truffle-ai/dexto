@@ -8,7 +8,7 @@
 
 import React, { useCallback, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 import type { DextoAgent, ContentPart, ImagePart, TextPart, QueuedMessage } from '@dexto/core';
-import { getReasoningSupport } from '@dexto/core';
+import { getReasoningProfile } from '@dexto/core';
 import { InputArea, type OverlayTrigger } from '../components/input/InputArea.js';
 import { InputService, processStream } from '../services/index.js';
 import { useSoundService } from '../contexts/index.js';
@@ -263,39 +263,46 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             [setUi, approval]
         );
 
-        const handleCycleReasoningPreset = useCallback(() => {
+        const handleCycleReasoningVariant = useCallback(() => {
             if (ui.isProcessing) return;
 
             const sessionId = session.id || undefined;
             const current = agent.getCurrentLLMConfig(sessionId);
-            const support = getReasoningSupport(current.provider, current.model);
-            if (!support.capable || support.supportedPresets.length === 0) {
+            const support = getReasoningProfile(current.provider, current.model);
+            if (!support.capable || support.supportedVariants.length === 0) {
                 setMessages((prev) => [
                     ...prev,
                     {
                         id: generateMessageId('system'),
                         role: 'system',
-                        content: 'ℹ️ Reasoning presets are not supported for the current model.',
+                        content: 'ℹ️ Reasoning variants are not supported for the current model.',
                         timestamp: new Date(),
                     },
                 ]);
                 return;
             }
 
-            const presets = support.supportedPresets;
-            const currentPreset = current.reasoning?.preset ?? 'medium';
-            const idx = presets.indexOf(currentPreset);
-            const nextPreset = presets[(idx >= 0 ? idx + 1 : 0) % presets.length];
+            const variants = support.supportedVariants;
+            const defaultVariant = support.defaultVariant;
+            const currentVariant =
+                current.reasoning?.variant ?? defaultVariant ?? variants[0] ?? undefined;
+            const idx = currentVariant ? variants.indexOf(currentVariant) : -1;
+            const nextVariant = variants[(idx >= 0 ? idx + 1 : 0) % variants.length];
+            if (nextVariant === undefined) {
+                return;
+            }
 
             const budgetTokens = current.reasoning?.budgetTokens;
             void (async () => {
                 try {
                     const reasoningUpdate =
-                        nextPreset === 'medium' && budgetTokens === undefined
+                        defaultVariant !== undefined &&
+                        nextVariant === defaultVariant &&
+                        budgetTokens === undefined
                             ? ({ reasoning: null } as const)
                             : {
                                   reasoning: {
-                                      preset: nextPreset,
+                                      variant: nextVariant,
                                       ...(typeof budgetTokens === 'number' ? { budgetTokens } : {}),
                                   },
                               };
@@ -314,7 +321,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                         {
                             id: generateMessageId('error'),
                             role: 'system',
-                            content: `❌ Failed to change reasoning preset: ${error instanceof Error ? error.message : String(error)}`,
+                            content: `❌ Failed to change reasoning variant: ${error instanceof Error ? error.message : String(error)}`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -904,8 +911,8 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 onPasteBlockUpdate={handlePasteBlockUpdate}
                 onPasteBlockRemove={handlePasteBlockRemove}
                 highlightQuery={ui.historySearch.isActive ? ui.historySearch.query : undefined}
-                onCycleReasoningPreset={
-                    ui.activeOverlay === 'none' ? handleCycleReasoningPreset : undefined
+                onCycleReasoningVariant={
+                    ui.activeOverlay === 'none' ? handleCycleReasoningVariant : undefined
                 }
             />
         );

@@ -9,7 +9,6 @@ import { z } from 'zod';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { getDextoGlobalPath } from '../utils/path.js';
-import { REASONING_PRESETS } from '@dexto/core';
 
 /** Providers that support custom models */
 export const CUSTOM_MODEL_PROVIDERS = [
@@ -58,15 +57,7 @@ export const CustomModelSchema = z
         filePath: z.string().optional(),
         reasoning: z
             .object({
-                preset: z
-                    .preprocess(
-                        (value) =>
-                            typeof value === 'string' && value.toLowerCase() === 'auto'
-                                ? 'medium'
-                                : value,
-                        z.enum(REASONING_PRESETS)
-                    )
-                    .default('medium'),
+                variant: z.string().trim().min(1),
                 budgetTokens: z.number().int().positive().optional(),
             })
             .strict()

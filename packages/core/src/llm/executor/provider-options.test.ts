@@ -10,88 +10,51 @@ describe('buildProviderOptions', () => {
     });
 
     describe('openai', () => {
-        it('maps reasoning presets to openai.reasoningEffort for reasoning-capable models', () => {
+        it('uses model-native default reasoning variant when none is provided', () => {
             expect(
                 buildProviderOptions({
                     provider: 'openai',
                     model: 'gpt-5',
-                    reasoning: { preset: 'low' },
+                    reasoning: undefined,
                 })
-            ).toEqual({ openai: { reasoningEffort: 'low', reasoningSummary: 'auto' } });
+            ).toEqual({ openai: { reasoningEffort: 'medium', reasoningSummary: 'auto' } });
+        });
 
+        it('maps explicit native efforts for supported models', () => {
             expect(
                 buildProviderOptions({
                     provider: 'openai',
                     model: 'gpt-5.2',
-                    reasoning: { preset: 'max' },
+                    reasoning: { variant: 'xhigh' },
                 })
             ).toEqual({ openai: { reasoningEffort: 'xhigh', reasoningSummary: 'auto' } });
-        });
-
-        it('supports xhigh for models that support it', () => {
-            expect(
-                buildProviderOptions({
-                    provider: 'openai',
-                    model: 'gpt-5.2',
-                    reasoning: { preset: 'max' },
-                })
-            ).toEqual({ openai: { reasoningEffort: 'xhigh', reasoningSummary: 'auto' } });
-
-            expect(
-                buildProviderOptions({
-                    provider: 'openai',
-                    model: 'gpt-5.2-codex',
-                    reasoning: { preset: 'max' },
-                })
-            ).toEqual({ openai: { reasoningEffort: 'xhigh', reasoningSummary: 'auto' } });
-        });
-
-        it('sends off only when the model supports it natively', () => {
-            expect(
-                buildProviderOptions({
-                    provider: 'openai',
-                    model: 'gpt-5',
-                    reasoning: { preset: 'off' },
-                })
-            ).toBeUndefined();
 
             expect(
                 buildProviderOptions({
                     provider: 'openai',
                     model: 'gpt-5.1',
-                    reasoning: { preset: 'off' },
+                    reasoning: { variant: 'none' },
                 })
             ).toEqual({ openai: { reasoningEffort: 'none' } });
         });
 
-        it('does not send unsupported levels for a constrained model', () => {
+        it('does not send options for unsupported explicit variants', () => {
             expect(
                 buildProviderOptions({
                     provider: 'openai',
                     model: 'gpt-5-pro',
-                    reasoning: { preset: 'low' },
-                })
-            ).toBeUndefined();
-        });
-
-        it('does not send reasoningEffort for non-reasoning models', () => {
-            expect(
-                buildProviderOptions({
-                    provider: 'openai',
-                    model: 'gpt-4o-mini',
-                    reasoning: { preset: 'high' },
+                    reasoning: { variant: 'medium' },
                 })
             ).toBeUndefined();
         });
     });
 
     describe('anthropic', () => {
-        it('enables thinking by default for reasoning-capable models and sets cacheControl', () => {
+        it('uses budget reasoning defaults for pre-adaptive Claude models', () => {
             expect(
                 buildProviderOptions({
                     provider: 'anthropic',
                     model: 'claude-3-7-sonnet-20250219',
-                    reasoning: undefined,
                 })
             ).toEqual({
                 anthropic: {
@@ -102,61 +65,28 @@ describe('buildProviderOptions', () => {
             });
         });
 
-        it('uses adaptive thinking (effort) for Claude 4.6 models', () => {
+        it('supports disabling budget reasoning explicitly', () => {
             expect(
                 buildProviderOptions({
                     provider: 'anthropic',
-                    model: 'claude-sonnet-4-6',
-                    reasoning: undefined,
-                })
-            ).toEqual({
-                anthropic: {
-                    cacheControl: { type: 'ephemeral' },
-                    sendReasoning: true,
-                    thinking: { type: 'adaptive' },
-                    effort: 'medium',
-                },
-            });
-        });
-
-        it('ignores budgetTokens for Claude 4.6 models (adaptive thinking)', () => {
-            expect(
-                buildProviderOptions({
-                    provider: 'anthropic',
-                    model: 'claude-opus-4-6',
-                    reasoning: { preset: 'medium', budgetTokens: 1234 },
-                })
-            ).toEqual({
-                anthropic: {
-                    cacheControl: { type: 'ephemeral' },
-                    sendReasoning: true,
-                    thinking: { type: 'adaptive' },
-                    effort: 'medium',
-                },
-            });
-        });
-
-        it('does not send thinking budgets for non-reasoning models (even if budgetTokens is set)', () => {
-            expect(
-                buildProviderOptions({
-                    provider: 'anthropic',
-                    model: 'claude-3-5-sonnet-20240620',
-                    reasoning: { preset: 'medium', budgetTokens: 1234 },
+                    model: 'claude-3-7-sonnet-20250219',
+                    reasoning: { variant: 'disabled' },
                 })
             ).toEqual({
                 anthropic: {
                     cacheControl: { type: 'ephemeral' },
                     sendReasoning: false,
+                    thinking: { type: 'disabled' },
                 },
             });
         });
 
-        it('maps explicit budgetTokens to anthropic.thinking', () => {
+        it('maps explicit budget tokens for budget-style Claude models', () => {
             expect(
                 buildProviderOptions({
                     provider: 'anthropic',
                     model: 'claude-3-7-sonnet-20250219',
-                    reasoning: { preset: 'medium', budgetTokens: 1234 },
+                    reasoning: { variant: 'enabled', budgetTokens: 1234 },
                 })
             ).toEqual({
                 anthropic: {
@@ -167,86 +97,26 @@ describe('buildProviderOptions', () => {
             });
         });
 
-        it('maps presets to default thinking budgets', () => {
+        it('uses adaptive thinking for Claude >= 4.6', () => {
             expect(
                 buildProviderOptions({
                     provider: 'anthropic',
-                    model: 'claude-3-7-sonnet-20250219',
-                    reasoning: { preset: 'max' },
+                    model: 'claude-sonnet-4-6',
                 })
             ).toEqual({
                 anthropic: {
                     cacheControl: { type: 'ephemeral' },
                     sendReasoning: true,
-                    thinking: { type: 'enabled', budgetTokens: 8192 },
+                    thinking: { type: 'adaptive' },
+                    effort: 'medium',
                 },
             });
-        });
 
-        it('maps off to sendReasoning=false and thinking disabled', () => {
             expect(
                 buildProviderOptions({
                     provider: 'anthropic',
-                    model: 'claude-3-7-sonnet-20250219',
-                    reasoning: { preset: 'off' },
-                })
-            ).toEqual({
-                anthropic: {
-                    cacheControl: { type: 'ephemeral' },
-                    sendReasoning: false,
-                    thinking: { type: 'disabled' },
-                },
-            });
-        });
-    });
-
-    describe('vertex', () => {
-        it('maps vertex Claude models under anthropic providerOptions', () => {
-            expect(
-                buildProviderOptions({
-                    provider: 'vertex',
-                    model: 'claude-3-7-sonnet@20250219',
-                    reasoning: { preset: 'high' },
-                })
-            ).toEqual({
-                anthropic: {
-                    cacheControl: { type: 'ephemeral' },
-                    sendReasoning: true,
-                    thinking: { type: 'enabled', budgetTokens: 4096 },
-                },
-            });
-        });
-
-        it('maps vertex Gemini models under google providerOptions', () => {
-            expect(
-                buildProviderOptions({
-                    provider: 'vertex',
-                    model: 'gemini-2.5-pro',
-                    reasoning: { preset: 'medium' },
-                })
-            ).toEqual({
-                google: { thinkingConfig: { includeThoughts: true, thinkingBudget: 2048 } },
-            });
-        });
-
-        it('maps presets into google.thinkingConfig for Vertex Gemini 3 models', () => {
-            expect(
-                buildProviderOptions({
-                    provider: 'vertex',
-                    model: 'gemini-3-flash-preview',
-                    reasoning: { preset: 'medium' },
-                })
-            ).toEqual({
-                google: { thinkingConfig: { includeThoughts: true, thinkingLevel: 'medium' } },
-            });
-        });
-
-        it('uses adaptive thinking (effort) for Claude 4.6 models', () => {
-            expect(
-                buildProviderOptions({
-                    provider: 'vertex',
                     model: 'claude-opus-4-6',
-                    reasoning: { preset: 'max' },
+                    reasoning: { variant: 'max' },
                 })
             ).toEqual({
                 anthropic: {
@@ -259,49 +129,75 @@ describe('buildProviderOptions', () => {
         });
     });
 
-    describe('google', () => {
-        it('maps presets into google.thinkingConfig for Gemini 3 models', () => {
+    describe('vertex', () => {
+        it('maps Vertex Claude models to Anthropic options', () => {
             expect(
                 buildProviderOptions({
-                    provider: 'google',
-                    model: 'gemini-3-flash-preview',
-                    reasoning: { preset: 'medium' },
+                    provider: 'vertex',
+                    model: 'claude-3-7-sonnet@20250219',
+                    reasoning: { variant: 'enabled' },
                 })
             ).toEqual({
-                google: { thinkingConfig: { includeThoughts: true, thinkingLevel: 'medium' } },
+                anthropic: {
+                    cacheControl: { type: 'ephemeral' },
+                    sendReasoning: true,
+                    thinking: { type: 'enabled', budgetTokens: 2048 },
+                },
             });
         });
 
-        it('maps presets into google.thinkingConfig.thinkingBudget for Gemini 2.5 models', () => {
+        it('maps Vertex Gemini models to Google options', () => {
             expect(
                 buildProviderOptions({
-                    provider: 'google',
+                    provider: 'vertex',
+                    model: 'gemini-3-flash-preview',
+                    reasoning: { variant: 'minimal' },
+                })
+            ).toEqual({
+                google: { thinkingConfig: { includeThoughts: true, thinkingLevel: 'minimal' } },
+            });
+
+            expect(
+                buildProviderOptions({
+                    provider: 'vertex',
                     model: 'gemini-2.5-pro',
-                    reasoning: { preset: 'medium' },
+                    reasoning: undefined,
                 })
             ).toEqual({
                 google: { thinkingConfig: { includeThoughts: true, thinkingBudget: 2048 } },
             });
         });
+    });
 
-        it('maps budgetTokens into google.thinkingConfig.thinkingBudget', () => {
+    describe('google', () => {
+        it('maps Gemini 3 native thinking levels', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'google',
+                    model: 'gemini-3-flash-preview',
+                    reasoning: { variant: 'high' },
+                })
+            ).toEqual({
+                google: { thinkingConfig: { includeThoughts: true, thinkingLevel: 'high' } },
+            });
+        });
+
+        it('maps Gemini 2.5 budget controls', () => {
             expect(
                 buildProviderOptions({
                     provider: 'google',
                     model: 'gemini-2.5-pro',
-                    reasoning: { preset: 'medium', budgetTokens: 987 },
+                    reasoning: { variant: 'enabled', budgetTokens: 987 },
                 })
             ).toEqual({
                 google: { thinkingConfig: { includeThoughts: true, thinkingBudget: 987 } },
             });
-        });
 
-        it('maps off into includeThoughts=false', () => {
             expect(
                 buildProviderOptions({
                     provider: 'google',
                     model: 'gemini-2.5-pro',
-                    reasoning: { preset: 'off' },
+                    reasoning: { variant: 'disabled' },
                 })
             ).toEqual({
                 google: { thinkingConfig: { includeThoughts: false } },
@@ -310,7 +206,7 @@ describe('buildProviderOptions', () => {
     });
 
     describe('bedrock', () => {
-        it('defaults to Bedrock Anthropic budget tokens (medium)', () => {
+        it('uses Anthropic budget defaults for Bedrock Anthropic models', () => {
             expect(
                 buildProviderOptions({
                     provider: 'bedrock',
@@ -324,37 +220,20 @@ describe('buildProviderOptions', () => {
             });
         });
 
-        it('maps off to bedrock.reasoningConfig disabled', () => {
+        it('maps Bedrock Anthropic disabled/enabled variants', () => {
             expect(
                 buildProviderOptions({
                     provider: 'bedrock',
                     model: 'anthropic.claude-haiku-4-5-20251001-v1:0',
-                    reasoning: { preset: 'off' },
+                    reasoning: { variant: 'disabled' },
                 })
             ).toEqual({ bedrock: { reasoningConfig: { type: 'disabled' } } });
-        });
 
-        it('maps active presets to Bedrock Anthropic budget tokens', () => {
             expect(
                 buildProviderOptions({
                     provider: 'bedrock',
                     model: 'anthropic.claude-haiku-4-5-20251001-v1:0',
-                    reasoning: { preset: 'high' },
-                })
-            ).toEqual({
-                bedrock: {
-                    reasoningConfig: { type: 'enabled', budgetTokens: 4096 },
-                    anthropicBeta: [ANTHROPIC_INTERLEAVED_THINKING_BETA],
-                },
-            });
-        });
-
-        it('maps explicit budgetTokens for Bedrock Anthropic models', () => {
-            expect(
-                buildProviderOptions({
-                    provider: 'bedrock',
-                    model: 'anthropic.claude-haiku-4-5-20251001-v1:0',
-                    reasoning: { preset: 'medium', budgetTokens: 987 },
+                    reasoning: { variant: 'enabled', budgetTokens: 987 },
                 })
             ).toEqual({
                 bedrock: {
@@ -364,31 +243,30 @@ describe('buildProviderOptions', () => {
             });
         });
 
-        it('maps active presets to Bedrock Nova maxReasoningEffort', () => {
+        it('maps Bedrock Nova effort variants', () => {
             expect(
                 buildProviderOptions({
                     provider: 'bedrock',
                     model: 'amazon.nova-premier-v1:0',
-                    reasoning: { preset: 'high' },
+                })
+            ).toEqual({
+                bedrock: { reasoningConfig: { type: 'enabled', maxReasoningEffort: 'medium' } },
+            });
+
+            expect(
+                buildProviderOptions({
+                    provider: 'bedrock',
+                    model: 'amazon.nova-premier-v1:0',
+                    reasoning: { variant: 'high' },
                 })
             ).toEqual({
                 bedrock: { reasoningConfig: { type: 'enabled', maxReasoningEffort: 'high' } },
             });
         });
-
-        it('does not send reasoningConfig for non-reasoning Bedrock models', () => {
-            expect(
-                buildProviderOptions({
-                    provider: 'bedrock',
-                    model: 'anthropic.claude-3-7-sonnet-20250219-v1:0',
-                    reasoning: { preset: 'high' },
-                })
-            ).toEqual({ bedrock: {} });
-        });
     });
 
     describe('openrouter/dexto-nova', () => {
-        it('requests reasoning by default (medium)', () => {
+        it('uses medium effort by default for supported models', () => {
             expect(
                 buildProviderOptions({
                     provider: 'openrouter',
@@ -402,12 +280,42 @@ describe('buildProviderOptions', () => {
             });
         });
 
-        it('applies budgetTokens even when preset is the default (medium)', () => {
+        it('supports explicit effort variants for OpenAI-family models', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'dexto-nova',
+                    model: 'openai/gpt-5.2-codex',
+                    reasoning: { variant: 'high' },
+                })
+            ).toEqual({
+                openrouter: {
+                    include_reasoning: true,
+                    reasoning: { enabled: true, effort: 'high' },
+                },
+            });
+        });
+
+        it('maps Anthropic adaptive max to OpenRouter xhigh effort', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'openrouter',
+                    model: 'anthropic/claude-opus-4.6',
+                    reasoning: { variant: 'max' },
+                })
+            ).toEqual({
+                openrouter: {
+                    include_reasoning: true,
+                    reasoning: { enabled: true, effort: 'xhigh' },
+                },
+            });
+        });
+
+        it('uses max_tokens when budgetTokens is provided', () => {
             expect(
                 buildProviderOptions({
                     provider: 'openrouter',
                     model: 'openai/gpt-5.2-codex',
-                    reasoning: { preset: 'medium', budgetTokens: 111 },
+                    reasoning: { variant: 'medium', budgetTokens: 111 },
                 })
             ).toEqual({
                 openrouter: {
@@ -417,116 +325,97 @@ describe('buildProviderOptions', () => {
             });
         });
 
-        it('maps off to include_reasoning=false', () => {
-            expect(
-                buildProviderOptions({
-                    provider: 'dexto-nova',
-                    model: 'openai/gpt-5.2-codex',
-                    reasoning: { preset: 'off' },
-                })
-            ).toEqual({ openrouter: { include_reasoning: false } });
-        });
-
-        it('maps presets to openrouter.reasoning.effort', () => {
+        it('supports Anthropic budget-style models with enabled variant', () => {
             expect(
                 buildProviderOptions({
                     provider: 'openrouter',
-                    model: 'openai/gpt-5.2-codex',
-                    reasoning: { preset: 'high' },
+                    model: 'anthropic/claude-sonnet-4.5',
+                    reasoning: { variant: 'enabled' },
                 })
             ).toEqual({
                 openrouter: {
                     include_reasoning: true,
-                    reasoning: { enabled: true, effort: 'high' },
                 },
             });
         });
 
-        it('maps max to high', () => {
+        it('supports Gemini-3 thinking-level variants', () => {
             expect(
                 buildProviderOptions({
                     provider: 'openrouter',
-                    model: 'openai/gpt-5',
-                    reasoning: { preset: 'max' },
+                    model: 'google/gemini-3-pro-preview',
+                    reasoning: { variant: 'minimal' },
                 })
             ).toEqual({
                 openrouter: {
                     include_reasoning: true,
-                    reasoning: { enabled: true, effort: 'high' },
+                    reasoning: { enabled: true, effort: 'minimal' },
                 },
             });
         });
 
-        it('does not send OpenRouter reasoning params for excluded families', () => {
+        it('does not send options for unsupported variants or excluded families', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'openrouter',
+                    model: 'openai/gpt-5.2-codex',
+                    reasoning: { variant: 'disabled' },
+                })
+            ).toBeUndefined();
+
+            expect(
+                buildProviderOptions({
+                    provider: 'openrouter',
+                    model: 'anthropic/claude-sonnet-4.5',
+                    reasoning: { variant: 'high' },
+                })
+            ).toBeUndefined();
+
             expect(
                 buildProviderOptions({
                     provider: 'openrouter',
                     model: 'deepseek/deepseek-r1:free',
-                    reasoning: { preset: 'medium' },
+                    reasoning: { variant: 'medium' },
                 })
             ).toBeUndefined();
-        });
-
-        it('maps xhigh to high', () => {
-            expect(
-                buildProviderOptions({
-                    provider: 'dexto-nova',
-                    model: 'openai/gpt-5',
-                    reasoning: { preset: 'xhigh' },
-                })
-            ).toEqual({
-                openrouter: {
-                    include_reasoning: true,
-                    reasoning: { enabled: true, effort: 'high' },
-                },
-            });
-        });
-
-        it('budgetTokens overrides preset effort (max_tokens only)', () => {
-            expect(
-                buildProviderOptions({
-                    provider: 'openrouter',
-                    model: 'openai/gpt-5.2-codex',
-                    reasoning: { preset: 'high', budgetTokens: 111 },
-                })
-            ).toEqual({
-                openrouter: {
-                    include_reasoning: true,
-                    reasoning: { enabled: true, max_tokens: 111 },
-                },
-            });
         });
     });
 
     describe('openai-compatible', () => {
-        it('does nothing for non-capable models', () => {
+        it('maps native none/high values for capable models', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'openai-compatible',
+                    model: 'gpt-5',
+                    reasoning: { variant: 'none' },
+                })
+            ).toEqual({ openaiCompatible: { reasoningEffort: 'none' } });
+
+            expect(
+                buildProviderOptions({
+                    provider: 'openai-compatible',
+                    model: 'gpt-5',
+                    reasoning: { variant: 'high' },
+                })
+            ).toEqual({ openaiCompatible: { reasoningEffort: 'high' } });
+        });
+
+        it('returns undefined for unsupported variants or non-capable models', () => {
+            expect(
+                buildProviderOptions({
+                    provider: 'openai-compatible',
+                    model: 'gpt-5',
+                    reasoning: { variant: 'minimal' },
+                })
+            ).toBeUndefined();
+
             expect(
                 buildProviderOptions({
                     provider: 'openai-compatible',
                     model: 'gpt-4o-mini',
-                    reasoning: { preset: 'high' },
+                    reasoning: { variant: 'high' },
                 })
             ).toBeUndefined();
-        });
-
-        it('maps off to reasoningEffort=none', () => {
-            expect(
-                buildProviderOptions({
-                    provider: 'openai-compatible',
-                    model: 'gpt-5',
-                    reasoning: { preset: 'off' },
-                })
-            ).toEqual({ openaiCompatible: { reasoningEffort: 'none' } });
-        });
-
-        it('maps high to reasoningEffort=high', () => {
-            expect(
-                buildProviderOptions({
-                    provider: 'openai-compatible',
-                    model: 'gpt-5',
-                    reasoning: { preset: 'high' },
-                })
-            ).toEqual({ openaiCompatible: { reasoningEffort: 'high' } });
         });
     });
 });
@@ -536,7 +425,7 @@ describe('getEffectiveReasoningBudgetTokens', () => {
         const providerOptions = buildProviderOptions({
             provider: 'anthropic',
             model: 'claude-3-7-sonnet-20250219',
-            reasoning: { preset: 'medium' },
+            reasoning: { variant: 'enabled' },
         });
         expect(getEffectiveReasoningBudgetTokens(providerOptions)).toBe(2048);
     });
@@ -545,7 +434,7 @@ describe('getEffectiveReasoningBudgetTokens', () => {
         const providerOptions = buildProviderOptions({
             provider: 'openai',
             model: 'gpt-5',
-            reasoning: { preset: 'high' },
+            reasoning: { variant: 'high' },
         });
         expect(getEffectiveReasoningBudgetTokens(providerOptions)).toBeUndefined();
     });

@@ -138,7 +138,7 @@ import type {
     PromptInfo,
     ResourceMetadata,
     LLMProvider,
-    ReasoningPreset,
+    ReasoningVariant,
     SearchResult,
 } from '@dexto/core';
 import type { LogLevel } from '@dexto/core';
@@ -147,6 +147,7 @@ import {
     LLMErrorCode,
     LLM_PROVIDERS,
     getModelDisplayName,
+    getReasoningProfile,
 } from '@dexto/core';
 import { InputService } from '../services/InputService.js';
 import { createUserMessage, convertHistoryToUIMessages } from '../utils/messageFormatting.js';
@@ -167,6 +168,23 @@ function getProviderFromIssueContext(context: unknown): LLMProvider | null {
     if (typeof context !== 'object' || context === null) return null;
     const provider = Reflect.get(context, 'provider');
     return isLLMProvider(provider) ? provider : null;
+}
+
+function buildReasoningSwitchUpdate(
+    provider: LLMProvider,
+    model: string,
+    reasoningVariant: ReasoningVariant | undefined
+): { reasoning?: { variant: ReasoningVariant } | null } {
+    if (reasoningVariant === undefined) {
+        return {};
+    }
+
+    const defaultVariant = getReasoningProfile(provider, model).defaultVariant;
+    if (defaultVariant !== undefined && reasoningVariant === defaultVariant) {
+        return { reasoning: null };
+    }
+
+    return { reasoning: { variant: reasoningVariant } };
 }
 
 export interface OverlayContainerHandle {
@@ -509,7 +527,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 model: string,
                 displayName?: string,
                 baseURL?: string,
-                reasoningPreset?: ReasoningPreset
+                reasoningVariant?: ReasoningVariant
             ) => {
                 // Session-only switch (default is set via explicit action)
 
@@ -568,11 +586,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             provider,
                             model,
                             baseURL,
-                            ...(reasoningPreset === undefined
-                                ? {}
-                                : reasoningPreset === 'medium'
-                                  ? ({ reasoning: null } as const)
-                                  : { reasoning: { preset: reasoningPreset } }),
+                            ...buildReasoningSwitchUpdate(provider, model, reasoningVariant),
                         },
                         session.id || undefined
                     );
@@ -603,7 +617,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                 model,
                                 ...(displayName && { displayName }),
                                 ...(baseURL && { baseURL }),
-                                ...(reasoningPreset !== undefined && { reasoningPreset }),
+                                ...(reasoningVariant !== undefined && { reasoningVariant }),
                             },
                         }));
                         setMessages((prev) => [
@@ -638,7 +652,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 model: string,
                 displayName?: string,
                 baseURL?: string,
-                reasoningPreset?: ReasoningPreset
+                reasoningVariant?: ReasoningVariant
             ) => {
                 try {
                     let providerEnvVar: string | undefined;
@@ -661,12 +675,17 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     }
 
                     const existingReasoning = existing?.llm.reasoning;
+                    const defaultReasoningVariant = getReasoningProfile(
+                        provider,
+                        model
+                    ).defaultVariant;
                     const nextReasoning =
-                        reasoningPreset === undefined
+                        reasoningVariant === undefined
                             ? existingReasoning
-                            : reasoningPreset === 'medium'
+                            : defaultReasoningVariant !== undefined &&
+                                reasoningVariant === defaultReasoningVariant
                               ? undefined
-                              : { preset: reasoningPreset };
+                              : { variant: reasoningVariant };
 
                     type GlobalLLMPreferences = Awaited<
                         ReturnType<typeof loadGlobalPreferences>
@@ -679,12 +698,11 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         ...(nextReasoning ? { reasoning: nextReasoning } : {}),
                     };
 
-                    const switchReasoningUpdate =
-                        reasoningPreset === undefined
-                            ? {}
-                            : reasoningPreset === 'medium'
-                              ? ({ reasoning: null } as const)
-                              : { reasoning: { preset: reasoningPreset } };
+                    const switchReasoningUpdate = buildReasoningSwitchUpdate(
+                        provider,
+                        model,
+                        reasoningVariant
+                    );
 
                     // Only preserve the API key if the provider hasn't changed
                     // If provider changed, use the new provider's env var
@@ -730,7 +748,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                     model,
                                     ...(displayName && { displayName }),
                                     ...(baseURL && { baseURL }),
-                                    ...(reasoningPreset !== undefined && { reasoningPreset }),
+                                    ...(reasoningVariant !== undefined && { reasoningVariant }),
                                 },
                             }));
                             setMessages((prev) => [
@@ -873,11 +891,11 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             provider: pending.provider,
                             model: pending.model,
                             ...(pending.baseURL && { baseURL: pending.baseURL }),
-                            ...(pending.reasoningPreset === undefined
-                                ? {}
-                                : pending.reasoningPreset === 'medium'
-                                  ? ({ reasoning: null } as const)
-                                  : { reasoning: { preset: pending.reasoningPreset } }),
+                            ...buildReasoningSwitchUpdate(
+                                pending.provider,
+                                pending.model,
+                                pending.reasoningVariant
+                            ),
                         },
                         session.id || undefined
                     );
@@ -1455,14 +1473,22 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             async (budgetTokens: number | undefined) => {
                 const sessionId = session.id || undefined;
                 const current = agent.getCurrentLLMConfig(sessionId);
-                const preset = current.reasoning?.preset ?? 'medium';
+                const profile = getReasoningProfile(current.provider, current.model);
+                const defaultVariant = profile.defaultVariant;
+                const variant =
+                    current.reasoning?.variant ?? defaultVariant ?? profile.supportedVariants[0];
+                if (variant === undefined) {
+                    return;
+                }
 
                 const reasoningUpdate =
-                    budgetTokens === undefined && preset === 'medium'
+                    budgetTokens === undefined &&
+                    defaultVariant !== undefined &&
+                    variant === defaultVariant
                         ? ({ reasoning: null } as const)
                         : {
                               reasoning: {
-                                  preset,
+                                  variant,
                                   ...(typeof budgetTokens === 'number' ? { budgetTokens } : {}),
                               },
                           };

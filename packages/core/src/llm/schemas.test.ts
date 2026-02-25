@@ -452,21 +452,21 @@ describe('LLMConfigSchema', () => {
     });
 
     describe('Reasoning Validation', () => {
-        it('rejects unsupported reasoning preset for non-gateway providers', () => {
+        it('rejects unsupported reasoning variant for non-gateway providers', () => {
             const config: LLMConfig = {
                 provider: 'openai',
                 model: 'gpt-5-pro',
                 apiKey: 'test-key',
-                reasoning: { preset: 'off' },
+                reasoning: { variant: 'none' },
             };
 
             const result = LLMConfigSchema.safeParse(config);
             expect(result.success).toBe(false);
             if (!result.success) {
-                const presetIssue = result.error.issues.find(
-                    (issue) => issue.path.join('.') === 'reasoning.preset'
+                const variantIssue = result.error.issues.find(
+                    (issue) => issue.path.join('.') === 'reasoning.variant'
                 );
-                expect(presetIssue).toBeDefined();
+                expect(variantIssue).toBeDefined();
             }
         });
 
@@ -475,7 +475,7 @@ describe('LLMConfigSchema', () => {
                 provider: 'openai',
                 model: 'gpt-5',
                 apiKey: 'test-key',
-                reasoning: { preset: 'medium', budgetTokens: 1024 },
+                reasoning: { variant: 'medium', budgetTokens: 1024 },
             };
 
             const result = LLMConfigSchema.safeParse(config);
@@ -534,11 +534,11 @@ describe('LLMConfigSchema', () => {
                 expect(() => LLMUpdatesSchema.parse(updates)).not.toThrow();
             });
 
-            it('rejects unsupported reasoning preset in updates when provider/model are present', () => {
+            it('rejects unsupported reasoning variant in updates when provider/model are present', () => {
                 const updates = {
                     provider: 'openai',
                     model: 'gpt-5-pro',
-                    reasoning: { preset: 'off' },
+                    reasoning: { variant: 'none' },
                 } as const;
 
                 expect(() => LLMUpdatesSchema.parse(updates)).toThrow();

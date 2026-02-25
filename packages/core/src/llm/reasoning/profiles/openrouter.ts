@@ -9,27 +9,62 @@ const OPENROUTER_REASONING_EXCLUDED_FAMILIES = [
     'k2p5',
 ] as const;
 
-/**
- * Conservative gate for OpenRouter reasoning tuning support.
- *
- * Rationale:
- * - OpenRouter's model catalog is broad and many models either don't support reasoning params
- *   or error when they are present.
- * - We intentionally avoid "best-effort" sending of reasoning knobs to reduce runtime failures.
- *
- * This mirrors opencode's current approach: allowlist a few known-good families and explicitly
- * exclude several known-problematic families.
- */
-export function supportsOpenRouterReasoningTuning(model: string): boolean {
-    const modelLower = model.toLowerCase();
+export type OpenRouterReasoningTarget =
+    | {
+          kind: 'openai';
+          modelId: string;
+      }
+    | {
+          kind: 'anthropic';
+          modelId: string;
+      }
+    | {
+          kind: 'google-gemini-3';
+          modelId: string;
+      };
 
-    for (const family of OPENROUTER_REASONING_EXCLUDED_FAMILIES) {
-        if (modelLower.includes(family)) return false;
-    }
-
+function isOpenRouterReasoningAllowlistedFamily(modelLower: string): boolean {
     return (
         modelLower.includes('gpt') ||
         modelLower.includes('claude') ||
         modelLower.includes('gemini-3')
     );
+}
+
+function splitGatewayModelId(
+    modelLower: string
+): { providerPrefix: string; modelId: string } | null {
+    const slashIndex = modelLower.indexOf('/');
+    if (slashIndex <= 0 || slashIndex >= modelLower.length - 1) return null;
+    const providerPrefix = modelLower.slice(0, slashIndex);
+    const modelId = modelLower.slice(slashIndex + 1);
+    return { providerPrefix, modelId };
+}
+
+export function getOpenRouterReasoningTarget(model: string): OpenRouterReasoningTarget | null {
+    const modelLower = model.toLowerCase();
+
+    for (const family of OPENROUTER_REASONING_EXCLUDED_FAMILIES) {
+        if (modelLower.includes(family)) return null;
+    }
+
+    if (!isOpenRouterReasoningAllowlistedFamily(modelLower)) {
+        return null;
+    }
+
+    const split = splitGatewayModelId(modelLower);
+    if (!split) return null;
+
+    const { providerPrefix, modelId } = split;
+    if (providerPrefix === 'openai') {
+        return { kind: 'openai', modelId };
+    }
+    if (providerPrefix === 'anthropic') {
+        return { kind: 'anthropic', modelId };
+    }
+    if (providerPrefix === 'google' && modelId.includes('gemini-3')) {
+        return { kind: 'google-gemini-3', modelId };
+    }
+
+    return null;
 }

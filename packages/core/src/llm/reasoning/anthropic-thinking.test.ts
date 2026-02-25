@@ -2,10 +2,38 @@ import { describe, expect, it } from 'vitest';
 import {
     isAnthropicAdaptiveThinkingModel,
     isAnthropicOpusAdaptiveThinkingModel,
+    isClaudeVersionAtLeast,
+    parseClaudeVersion,
     supportsAnthropicInterleavedThinking,
 } from './anthropic-thinking.js';
 
 describe('anthropic-thinking', () => {
+    it('parses Claude versions across supported ID formats', () => {
+        expect(parseClaudeVersion('claude-opus-4-6')).toEqual({
+            major: 4,
+            minor: 6,
+            variant: 'opus',
+        });
+        expect(parseClaudeVersion('claude-4.6-sonnet@20250219')).toEqual({
+            major: 4,
+            minor: 6,
+            variant: 'sonnet',
+        });
+        expect(parseClaudeVersion('anthropic.claude-haiku-5-0-20260101-v1:0')).toEqual({
+            major: 5,
+            minor: 0,
+            variant: 'haiku',
+        });
+        expect(parseClaudeVersion('gpt-5.2')).toBeNull();
+    });
+
+    it('compares Claude versions with major/minor bounds', () => {
+        expect(isClaudeVersionAtLeast({ major: 4, minor: 6 }, { major: 4, minor: 6 })).toBe(true);
+        expect(isClaudeVersionAtLeast({ major: 4, minor: 7 }, { major: 4, minor: 6 })).toBe(true);
+        expect(isClaudeVersionAtLeast({ major: 5, minor: 0 }, { major: 4, minor: 6 })).toBe(true);
+        expect(isClaudeVersionAtLeast({ major: 4, minor: 5 }, { major: 4, minor: 6 })).toBe(false);
+    });
+
     it('detects adaptive thinking for Claude >= 4.6 across ID formats', () => {
         const adaptiveCases = [
             'claude-opus-4-6',

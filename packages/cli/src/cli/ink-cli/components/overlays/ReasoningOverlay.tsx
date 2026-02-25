@@ -5,7 +5,7 @@
  * - Toggle reasoning visibility (UI-only; does not affect provider behavior)
  * - Set/clear reasoning budget tokens when supported by the current provider+model
  *
- * Note: Reasoning preset is intentionally not edited here (Tab cycles preset).
+ * Note: Reasoning variant is intentionally not edited here (Tab cycles variant).
  */
 
 import React, {
@@ -19,7 +19,7 @@ import React, {
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import type { DextoAgent } from '@dexto/core';
-import { getModelDisplayName, getReasoningSupport } from '@dexto/core';
+import { getModelDisplayName, getReasoningProfile } from '@dexto/core';
 import { getLLMProviderDisplayName } from '../../utils/llm-provider-display.js';
 
 export interface ReasoningOverlayHandle {
@@ -65,9 +65,9 @@ export const ReasoningOverlay = React.forwardRef<ReasoningOverlayHandle, Reasoni
         const llmConfig = agent.getCurrentLLMConfig(sessionId || undefined);
         const provider = llmConfig.provider;
         const model = llmConfig.model;
-        const currentPreset = llmConfig.reasoning?.preset ?? 'medium';
+        const support = getReasoningProfile(provider, model);
+        const currentVariant = llmConfig.reasoning?.variant ?? support.defaultVariant ?? 'default';
         const currentBudgetTokens = llmConfig.reasoning?.budgetTokens;
-        const support = getReasoningSupport(provider, model);
 
         const menuItems = useMemo((): MenuItem[] => {
             const items: MenuItem[] = [
@@ -276,7 +276,7 @@ export const ReasoningOverlay = React.forwardRef<ReasoningOverlayHandle, Reasoni
                         <Text color="gray">({providerLabel})</Text>
                     </Text>
                     <Text color="gray">
-                        Preset: <Text color="white">{currentPreset}</Text>{' '}
+                        Variant: <Text color="white">{currentVariant}</Text>{' '}
                         <Text color="gray">(Tab cycles)</Text>
                     </Text>
                     <Text color="gray">
@@ -293,8 +293,8 @@ export const ReasoningOverlay = React.forwardRef<ReasoningOverlayHandle, Reasoni
                         </Text>
                     </Text>
                     <Text color="gray">
-                        Supported presets:{' '}
-                        <Text color="white">{support.supportedPresets.join(', ')}</Text>
+                        Supported variants:{' '}
+                        <Text color="white">{support.supportedVariants.join(', ')}</Text>
                     </Text>
                 </Box>
 

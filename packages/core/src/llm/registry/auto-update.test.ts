@@ -118,6 +118,12 @@ describe('llm registry auto-update', () => {
                 reasoning: true,
                 supportsTemperature: false,
                 supportsInterleaved: true,
+                supportsToolCall: true,
+                releaseDate: '2026-01-01',
+                status: 'deprecated',
+                modalities: { input: ['text', 'image'], output: ['text'] },
+                providerMetadata: { npm: '@ai-sdk/openai' },
+                interleaved: { field: 'reasoning_content' },
             },
             {
                 name: 'gpt-5-mini',
@@ -166,6 +172,12 @@ describe('llm registry auto-update', () => {
         expect(gpt5.reasoning).toBe(true);
         expect(gpt5.supportsTemperature).toBe(false);
         expect(gpt5.supportsInterleaved).toBe(true);
+        expect(gpt5.supportsToolCall).toBe(true);
+        expect(gpt5.releaseDate).toBe('2026-01-01');
+        expect(gpt5.status).toBe('deprecated');
+        expect(gpt5.modalities).toEqual({ input: ['text', 'image'], output: ['text'] });
+        expect(gpt5.providerMetadata).toEqual({ npm: '@ai-sdk/openai' });
+        expect(gpt5.interleaved).toEqual({ field: 'reasoning_content' });
 
         const gpt5Mini = models[1]!;
         expect(gpt5Mini.maxInputTokens).toBe(800); // preserved (remote provided 0)
@@ -191,6 +203,9 @@ describe('llm registry auto-update', () => {
                 reasoning: true,
                 supportsTemperature: true,
                 supportsInterleaved: false,
+                supportsToolCall: true,
+                releaseDate: '2025-02-19',
+                modalities: { input: ['text', 'image'], output: ['text'] },
                 default: true,
             },
         ] satisfies ModelInfo[];
@@ -208,6 +223,10 @@ describe('llm registry auto-update', () => {
                         reasoning: false,
                         supportsTemperature: false,
                         supportsInterleaved: true,
+                        supportsToolCall: false,
+                        releaseDate: '2025-03-01',
+                        modalities: { input: ['text'], output: ['text'] },
+                        interleaved: { field: 'reasoning_content' },
                     },
                 ],
             },
@@ -220,6 +239,10 @@ describe('llm registry auto-update', () => {
         expect(model.reasoning).toBe(false);
         expect(model.supportsTemperature).toBe(false);
         expect(model.supportsInterleaved).toBe(true);
+        expect(model.supportsToolCall).toBe(false);
+        expect(model.releaseDate).toBe('2025-03-01');
+        expect(model.modalities).toEqual({ input: ['text'], output: ['text'] });
+        expect(model.interleaved).toEqual({ field: 'reasoning_content' });
     });
 
     it('refreshLlmRegistryCache updates the registry from remote (mocked) and writes cache', async () => {

@@ -10,7 +10,7 @@ import type {
     McpConnectionStatus,
     McpServerType,
     LLMProvider,
-    ReasoningPreset,
+    ReasoningVariant,
 } from '@dexto/core';
 
 /**
@@ -394,7 +394,7 @@ export interface PendingModelSwitch {
     model: string;
     displayName?: string;
     baseURL?: string;
-    reasoningPreset?: ReasoningPreset;
+    reasoningVariant?: ReasoningVariant;
 }
 
 /**

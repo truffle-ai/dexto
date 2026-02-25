@@ -30,7 +30,10 @@ import {
     getOpenRouterModelContextLength,
     scheduleOpenRouterModelRefresh,
 } from '../providers/openrouter-model-registry.js';
-import { MODELS_BY_PROVIDER } from './models.generated.js';
+import {
+    MODELS_BY_PROVIDER,
+    MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER,
+} from './models.generated.js';
 import { MANUAL_MODELS_BY_PROVIDER } from './models.manual.js';
 
 const LEGACY_MODEL_ID_ALIASES: Partial<Record<LLMProvider, Record<string, string>>> = {
@@ -81,8 +84,32 @@ export interface ModelPricing {
     outputPerM: number;
     cacheReadPerM?: number;
     cacheWritePerM?: number;
+    reasoningPerM?: number;
+    inputAudioPerM?: number;
+    outputAudioPerM?: number;
+    contextOver200kPerM?: {
+        inputPerM: number;
+        outputPerM: number;
+    };
     currency?: 'USD';
     unit?: 'per_million_tokens';
+}
+
+export type ModelModality = 'text' | 'audio' | 'image' | 'video' | 'pdf';
+
+export interface ModelModalities {
+    input: ModelModality[];
+    output: ModelModality[];
+}
+
+export interface ModelProviderMetadata {
+    npm?: string;
+    api?: string;
+}
+
+export interface ModelInterleavedMetadata {
+    field?: string;
+    [key: string]: unknown;
 }
 
 export interface ModelInfo {
@@ -100,8 +127,21 @@ export interface ModelInfo {
     reasoning?: boolean;
     supportsTemperature?: boolean;
     supportsInterleaved?: boolean;
+    releaseDate?: string;
+    supportsToolCall?: boolean;
+    status?: string;
+    modalities?: ModelModalities;
+    providerMetadata?: ModelProviderMetadata;
+    interleaved?: true | ModelInterleavedMetadata;
     // Pricing metadata (USD per 1M tokens). Optional; when omitted, pricing is unknown.
     pricing?: ModelPricing;
+}
+
+export interface ModelsDevProviderMetadata {
+    env: string[];
+    npm?: string;
+    api?: string;
+    doc?: string;
 }
 
 // Central list of supported file type identifiers used across server/UI
@@ -138,6 +178,7 @@ export interface ProviderInfo {
     baseURLSupport: 'none' | 'optional' | 'required'; // Cleaner single field
     supportedFileTypes: SupportedFileType[]; // Provider-level default, used when model doesn't specify
     supportsCustomModels?: boolean; // Allow arbitrary model IDs beyond fixed list
+    modelsDev?: ModelsDevProviderMetadata;
     /**
      * When true, this provider can access all models from all other providers in the registry.
      * Used for gateway providers like 'dexto-nova' that route to multiple upstream providers.
@@ -165,6 +206,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         models: mergeModels(MODELS_BY_PROVIDER.openai, MANUAL_MODELS_BY_PROVIDER.openai),
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
+        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.openai,
     },
     'openai-compatible': {
         models: [], // Empty - accepts any model name for custom endpoints
@@ -176,17 +218,20 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         models: MODELS_BY_PROVIDER.anthropic,
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
+        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.anthropic,
     },
     google: {
         models: MODELS_BY_PROVIDER.google,
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
+        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.google,
     },
     // https://console.groq.com/docs/models
     groq: {
         models: MODELS_BY_PROVIDER.groq,
         baseURLSupport: 'none',
         supportedFileTypes: [], // Groq currently doesn't support file uploads
+        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.groq,
     },
     // https://docs.x.ai/docs/models
     // Note: XAI API only supports image uploads (JPG/PNG up to 20MB), not PDFs
@@ -194,12 +239,14 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         models: MODELS_BY_PROVIDER.xai,
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
+        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.xai,
     },
     // https://docs.cohere.com/reference/models
     cohere: {
         models: MODELS_BY_PROVIDER.cohere,
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
+        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.cohere,
     },
     // https://platform.minimax.io/docs/api-reference/text-openai-api
     // MiniMax provides an OpenAI-compatible endpoint at https://api.minimax.chat/v1
@@ -207,6 +254,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         models: MODELS_BY_PROVIDER.minimax,
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
+        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.minimax,
     },
     // https://open.bigmodel.cn/dev/api/normal-model/glm-4
     // GLM (Zhipu AI) provides an OpenAI-compatible endpoint
@@ -214,6 +262,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         models: MODELS_BY_PROVIDER.glm,
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
+        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.glm,
     },
     // https://openrouter.ai/docs
     // OpenRouter is a unified API gateway providing access to 100+ models from various providers.
@@ -224,6 +273,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types - user assumes responsibility
         supportsCustomModels: true,
         supportsAllRegistryModels: true, // Can serve models from all other providers
+        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.openrouter,
     },
     // https://docs.litellm.ai/
     // LiteLLM is an OpenAI-compatible proxy that unifies 100+ LLM providers.
@@ -248,6 +298,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         models: MODELS_BY_PROVIDER.vertex,
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
+        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.vertex,
     },
     // https://docs.aws.amazon.com/bedrock/latest/userguide/models.html
     bedrock: {
@@ -255,6 +306,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
         baseURLSupport: 'none',
         supportedFileTypes: [], // No defaults - models must explicitly specify support
         supportsCustomModels: true,
+        modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.bedrock,
     },
     // Native local model execution via node-llama-cpp
     local: {
@@ -735,6 +787,14 @@ function buildOpenRouterGatewayModelInfo(
         ...(typeof snapshot?.supportsInterleaved === 'boolean'
             ? { supportsInterleaved: snapshot.supportsInterleaved }
             : {}),
+        ...(snapshot?.releaseDate ? { releaseDate: snapshot.releaseDate } : {}),
+        ...(typeof snapshot?.supportsToolCall === 'boolean'
+            ? { supportsToolCall: snapshot.supportsToolCall }
+            : {}),
+        ...(snapshot?.status ? { status: snapshot.status } : {}),
+        ...(snapshot?.modalities ? { modalities: snapshot.modalities } : {}),
+        ...(snapshot?.providerMetadata ? { providerMetadata: snapshot.providerMetadata } : {}),
+        ...(snapshot?.interleaved ? { interleaved: snapshot.interleaved } : {}),
         ...(snapshot?.pricing ? { pricing: snapshot.pricing } : {}),
     };
 }

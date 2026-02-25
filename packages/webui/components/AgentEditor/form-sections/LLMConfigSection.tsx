@@ -5,7 +5,6 @@ import { Collapsible } from '../../ui/collapsible';
 import { Eye, EyeOff } from 'lucide-react';
 import { useModelCapabilities } from '../../hooks/useLLM';
 import { LLM_PROVIDERS } from '@dexto/core';
-import type { ReasoningPreset } from '@dexto/core';
 import type { AgentConfig } from '@dexto/agent-config';
 import { useDebounce } from 'use-debounce';
 
@@ -38,10 +37,11 @@ export function LLMConfigSection({
         debouncedModel ? debouncedModel : null
     );
     const reasoningSupport = capabilities?.reasoning;
-    const reasoningPresets: ReasoningPreset[] = reasoningSupport?.supportedPresets ?? [];
+    const reasoningVariants = reasoningSupport?.supportedVariants ?? [];
     const reasoningCapable = reasoningSupport?.capable ?? false;
-    const reasoningPresetValue =
-        typeof value.reasoning?.preset === 'string' ? value.reasoning.preset : undefined;
+    const defaultReasoningVariant = reasoningSupport?.defaultVariant;
+    const reasoningVariantValue =
+        typeof value.reasoning?.variant === 'string' ? value.reasoning.variant : undefined;
 
     const handleChange = <K extends keyof LLMConfig>(field: K, newValue: LLMConfig[K]) => {
         onChange({ ...value, [field]: newValue });
@@ -311,20 +311,21 @@ export function LLMConfigSection({
                 {value.provider &&
                     value.model &&
                     reasoningCapable &&
-                    reasoningPresets.length > 0 && (
+                    reasoningVariants.length > 0 && (
                         <div>
                             <LabelWithTooltip
-                                htmlFor="reasoningPreset"
-                                tooltip="Controls reasoning tuning. Availability depends on provider+model (resolved by the server)."
+                                htmlFor="reasoningVariant"
+                                tooltip="Controls reasoning tuning variant. Availability depends on provider+model (resolved by the server)."
                             >
-                                Reasoning
+                                Reasoning Variant
                             </LabelWithTooltip>
                             <select
-                                id="reasoningPreset"
+                                id="reasoningVariant"
                                 value={
-                                    !reasoningPresetValue || reasoningPresetValue === 'medium'
+                                    !reasoningVariantValue ||
+                                    reasoningVariantValue === defaultReasoningVariant
                                         ? ''
-                                        : reasoningPresetValue
+                                        : reasoningVariantValue
                                 }
                                 onChange={(e) => {
                                     if (!e.target.value) {
@@ -332,10 +333,13 @@ export function LLMConfigSection({
                                         return;
                                     }
 
-                                    const selectedPreset = reasoningPresets.find(
-                                        (preset) => preset === e.target.value
+                                    const selectedVariant = reasoningVariants.find(
+                                        (variant) => variant === e.target.value
                                     );
-                                    if (!selectedPreset || selectedPreset === 'medium') {
+                                    if (
+                                        !selectedVariant ||
+                                        selectedVariant === defaultReasoningVariant
+                                    ) {
                                         handleChange('reasoning', undefined);
                                         return;
                                     }
@@ -343,23 +347,27 @@ export function LLMConfigSection({
                                     handleChange(
                                         'reasoning',
                                         value.reasoning
-                                            ? { ...value.reasoning, preset: selectedPreset }
-                                            : { preset: selectedPreset }
+                                            ? { ...value.reasoning, variant: selectedVariant }
+                                            : { variant: selectedVariant }
                                     );
                                 }}
                                 className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                             >
-                                <option value="">Medium (Recommended)</option>
-                                {reasoningPresets
-                                    .filter((p) => p !== 'medium')
-                                    .map((preset) => (
-                                        <option key={preset} value={preset}>
-                                            {preset}
+                                <option value="">
+                                    {defaultReasoningVariant
+                                        ? `${defaultReasoningVariant} (Recommended)`
+                                        : 'Provider default (Recommended)'}
+                                </option>
+                                {reasoningVariants
+                                    .filter((variant) => variant !== defaultReasoningVariant)
+                                    .map((variant) => (
+                                        <option key={variant} value={variant}>
+                                            {variant}
                                         </option>
                                     ))}
                             </select>
                             <p className="text-xs text-muted-foreground mt-1">
-                                Supported presets: {reasoningPresets.join(', ')}
+                                Supported variants: {reasoningVariants.join(', ')}
                             </p>
                         </div>
                     )}

@@ -266,7 +266,7 @@ describe('Setup Command', () => {
             mockPrompts.select.mockResolvedValueOnce('custom'); // Setup type
             mockSelectProvider.mockResolvedValueOnce('anthropic'); // Provider (via selectProvider)
             mockPrompts.select.mockResolvedValueOnce('claude-haiku-4-5-20251001'); // Model
-            mockPrompts.select.mockResolvedValueOnce('medium'); // Reasoning preset (default)
+            mockPrompts.select.mockResolvedValueOnce('enabled'); // Reasoning variant (default)
             mockPrompts.select.mockResolvedValueOnce('web'); // Default mode
 
             const options = {
@@ -376,9 +376,9 @@ describe('Setup Command', () => {
             mockPrompts.select
                 .mockResolvedValueOnce('custom') // Setup type
                 .mockResolvedValueOnce('claude-haiku-4-5-20251001') // Model
-                .mockResolvedValueOnce('medium') // Reasoning preset
+                .mockResolvedValueOnce('enabled') // Reasoning variant
                 .mockResolvedValueOnce('_back') // Mode -> back
-                .mockResolvedValueOnce('medium') // Reasoning preset (again)
+                .mockResolvedValueOnce('enabled') // Reasoning variant (again)
                 .mockResolvedValueOnce('cli'); // Mode
 
             mockSelectProvider.mockResolvedValueOnce('anthropic');
@@ -401,7 +401,7 @@ describe('Setup Command', () => {
                 (message) => message === 'How do you want to use Dexto by default?'
             );
             expect(firstModeIndex).toBeGreaterThan(-1);
-            expect(selectMessages[firstModeIndex + 1]).toBe('Select reasoning preset');
+            expect(selectMessages[firstModeIndex + 1]).toBe('Select reasoning variant');
         });
 
         it('cancels setup when user cancels setup type selection', async () => {

@@ -10,9 +10,11 @@ import {
     refreshOpenRouterModelCache,
     getLocalModelById,
     isReasoningCapableModel,
-    REASONING_PRESETS,
+    getReasoningProfile,
+    supportsReasoningVariant,
+    type LLMProvider,
 } from '@dexto/core';
-import type { ReasoningPreset } from '@dexto/core';
+import type { ReasoningVariant } from '@dexto/core';
 import type { ProviderConfig, WizardStep } from './types.js';
 import { validators } from './types.js';
 import * as fs from 'fs';
@@ -51,34 +53,39 @@ const DISPLAY_NAME_STEP: WizardStep = {
 };
 
 /**
- * Common reasoning preset step.
- * Currently only shown when the model name indicates OpenAI-style reasoning capability.
+ * Common reasoning variant step.
+ * Only shown for models where reasoning is detected as capable.
  */
 const REASONING_PRESET_STEP: WizardStep = {
     field: 'reasoningPreset',
-    label: 'Reasoning Preset (optional)',
-    placeholder: `${REASONING_PRESETS.join(' | ')} (blank for default: medium)`,
+    label: 'Reasoning Variant (optional)',
+    placeholder: 'e.g., low / medium / high / enabled / disabled (blank for provider default)',
     required: false,
-    validate: (value: string) => {
-        if (!value?.trim()) return null;
-        if (!parseReasoningPreset(value)) {
-            return `Invalid reasoning preset. Use: ${REASONING_PRESETS.join(', ')}`;
-        }
-        return null;
-    },
     condition: (values) => {
         const modelName = values.name || '';
         return isReasoningCapableModel(modelName);
     },
 };
 
-function parseReasoningPreset(value: string | undefined): ReasoningPreset | undefined {
+function parseReasoningVariant(value: string | undefined): ReasoningVariant | undefined {
     const normalized = value?.trim().toLowerCase();
-    if (!normalized) return undefined;
-    for (const preset of REASONING_PRESETS) {
-        if (preset === normalized) return preset;
-    }
-    return undefined;
+    return normalized ? (normalized as ReasoningVariant) : undefined;
+}
+
+function resolveReasoningOverride(
+    provider: CustomModelProvider,
+    modelName: string,
+    rawVariant: string | undefined
+): { variant: ReasoningVariant } | undefined {
+    const variant = parseReasoningVariant(rawVariant);
+    if (!variant) return undefined;
+
+    const profile = getReasoningProfile(provider as LLMProvider, modelName);
+    if (!profile.capable) return undefined;
+    if (!supportsReasoningVariant(profile, variant)) return undefined;
+    if (variant === profile.defaultVariant) return undefined;
+
+    return { variant };
 }
 
 /**
@@ -123,10 +130,12 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
             if (values.maxInputTokens?.trim()) {
                 model.maxInputTokens = parseInt(values.maxInputTokens, 10);
             }
-            const reasoningPreset = parseReasoningPreset(values.reasoningPreset);
-            if (reasoningPreset && reasoningPreset !== 'medium') {
-                model.reasoning = { preset: reasoningPreset };
-            }
+            const reasoning = resolveReasoningOverride(
+                provider,
+                model.name,
+                values.reasoningPreset
+            );
+            if (reasoning) model.reasoning = reasoning;
             return model;
         },
     },
@@ -161,10 +170,12 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
             if (values.maxInputTokens?.trim()) {
                 model.maxInputTokens = parseInt(values.maxInputTokens, 10);
             }
-            const reasoningPreset = parseReasoningPreset(values.reasoningPreset);
-            if (reasoningPreset && reasoningPreset !== 'medium') {
-                model.reasoning = { preset: reasoningPreset };
-            }
+            const reasoning = resolveReasoningOverride(
+                provider,
+                model.name,
+                values.reasoningPreset
+            );
+            if (reasoning) model.reasoning = reasoning;
             return model;
         },
         asyncValidation: {
@@ -218,10 +229,12 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
             if (values.displayName?.trim()) {
                 model.displayName = values.displayName.trim();
             }
-            const reasoningPreset = parseReasoningPreset(values.reasoningPreset);
-            if (reasoningPreset && reasoningPreset !== 'medium') {
-                model.reasoning = { preset: reasoningPreset };
-            }
+            const reasoning = resolveReasoningOverride(
+                provider,
+                model.name,
+                values.reasoningPreset
+            );
+            if (reasoning) model.reasoning = reasoning;
             return model;
         },
     },
@@ -266,10 +279,12 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
             if (values.maxInputTokens?.trim()) {
                 model.maxInputTokens = parseInt(values.maxInputTokens, 10);
             }
-            const reasoningPreset = parseReasoningPreset(values.reasoningPreset);
-            if (reasoningPreset && reasoningPreset !== 'medium') {
-                model.reasoning = { preset: reasoningPreset };
-            }
+            const reasoning = resolveReasoningOverride(
+                provider,
+                model.name,
+                values.reasoningPreset
+            );
+            if (reasoning) model.reasoning = reasoning;
             return model;
         },
     },
@@ -497,10 +512,12 @@ export const PROVIDER_CONFIGS: Record<CustomModelProvider, ProviderConfig> = {
             if (values.maxInputTokens?.trim()) {
                 model.maxInputTokens = parseInt(values.maxInputTokens, 10);
             }
-            const reasoningPreset = parseReasoningPreset(values.reasoningPreset);
-            if (reasoningPreset && reasoningPreset !== 'medium') {
-                model.reasoning = { preset: reasoningPreset };
-            }
+            const reasoning = resolveReasoningOverride(
+                provider,
+                model.name,
+                values.reasoningPreset
+            );
+            if (reasoning) model.reasoning = reasoning;
             return model;
         },
         asyncValidation: {

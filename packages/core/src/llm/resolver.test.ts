@@ -67,7 +67,7 @@ describe('resolveAndValidateLLMConfig', () => {
             provider: 'anthropic',
             model: 'claude-3-7-sonnet-20250219',
             apiKey: TEST_ANTHROPIC_API_KEY,
-            reasoning: { preset: 'high', budgetTokens: 123 },
+            reasoning: { variant: 'enabled', budgetTokens: 123 },
         });
 
         const result = await resolveAndValidateLLMConfig(
@@ -78,7 +78,7 @@ describe('resolveAndValidateLLMConfig', () => {
 
         expect(result.ok).toBe(true);
         if (result.ok) {
-            expect(result.data.reasoning).toEqual({ preset: 'high', budgetTokens: 123 });
+            expect(result.data.reasoning).toEqual({ variant: 'enabled', budgetTokens: 123 });
         }
     });
 
@@ -87,18 +87,18 @@ describe('resolveAndValidateLLMConfig', () => {
             provider: 'anthropic',
             model: 'claude-3-7-sonnet-20250219',
             apiKey: TEST_ANTHROPIC_API_KEY,
-            reasoning: { preset: 'high', budgetTokens: 123 },
+            reasoning: { variant: 'enabled', budgetTokens: 123 },
         });
 
         const result = await resolveAndValidateLLMConfig(
             configWithReasoning,
-            { reasoning: { preset: 'low' } },
+            { reasoning: { variant: 'disabled' } },
             mockLogger
         );
 
         expect(result.ok).toBe(true);
         if (result.ok) {
-            expect(result.data.reasoning).toEqual({ preset: 'low' });
+            expect(result.data.reasoning).toEqual({ variant: 'disabled' });
         }
     });
 
@@ -107,7 +107,7 @@ describe('resolveAndValidateLLMConfig', () => {
             provider: 'anthropic',
             model: 'claude-3-7-sonnet-20250219',
             apiKey: TEST_ANTHROPIC_API_KEY,
-            reasoning: { preset: 'high', budgetTokens: 123 },
+            reasoning: { variant: 'enabled', budgetTokens: 123 },
         });
 
         const result = await resolveAndValidateLLMConfig(

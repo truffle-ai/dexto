@@ -5,12 +5,11 @@ import {
     LLM_REGISTRY,
     LLM_PROVIDERS,
     SUPPORTED_FILE_TYPES,
-    REASONING_PRESETS,
     supportsBaseURL,
     getAllModelsForProvider,
     getCuratedModelsForProvider,
     getSupportedFileTypesForModel,
-    getReasoningSupport,
+    getReasoningProfile,
     type ProviderInfo,
     type LLMProvider,
     type SupportedFileType,
@@ -354,12 +353,37 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                                     capable: z
                                         .boolean()
                                         .describe(
-                                            'Whether Dexto considers this provider/model reasoning-capable (best-effort: registry + known heuristics)'
+                                            'Whether Dexto considers this provider/model reasoning-capable (derived from registry metadata plus explicit provider/model rules)'
                                         ),
-                                    supportedPresets: z
-                                        .array(z.enum(REASONING_PRESETS))
+                                    paradigm: z
+                                        .enum([
+                                            'effort',
+                                            'adaptive-effort',
+                                            'thinking-level',
+                                            'budget',
+                                            'none',
+                                        ])
+                                        .describe('Reasoning control paradigm for this model'),
+                                    variants: z
+                                        .array(
+                                            z
+                                                .object({
+                                                    id: z.string(),
+                                                    label: z.string(),
+                                                })
+                                                .strict()
+                                        )
+                                        .describe('Native reasoning variants exposed to users'),
+                                    supportedVariants: z
+                                        .array(z.string())
                                         .describe(
-                                            'Reasoning presets that Dexto can translate into provider options (best-effort)'
+                                            'Native reasoning variant IDs supported for this model/provider'
+                                        ),
+                                    defaultVariant: z
+                                        .string()
+                                        .optional()
+                                        .describe(
+                                            'Default reasoning variant used when no explicit override is set'
                                         ),
                                     supportsBudgetTokens: z
                                         .boolean()
@@ -368,7 +392,9 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                                         ),
                                 })
                                 .strict()
-                                .describe('Reasoning tuning capabilities (best-effort)'),
+                                .describe(
+                                    'Reasoning tuning capabilities derived from registry metadata and explicit provider/model rules'
+                                ),
                         }),
                     },
                 },
@@ -600,7 +626,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                 supportedFileTypes = providerInfo?.supportedFileTypes ?? [];
             }
 
-            const reasoning = getReasoningSupport(provider, model);
+            const reasoning = getReasoningProfile(provider, model);
 
             return ctx.json({
                 provider,

@@ -152,7 +152,7 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
         model,
         provider,
         estimatedInputTokens,
-        reasoningPreset,
+        reasoningVariant,
         reasoningBudgetTokens,
     } = event;
     const chatStore = useChatStore.getState();
@@ -183,7 +183,7 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
                 sessionId,
                 provider,
                 model,
-                reasoningPreset,
+                reasoningVariant,
                 reasoningBudgetTokens,
                 inputTokens: tokenUsage.inputTokens,
                 outputTokens: tokenUsage.outputTokens,
@@ -254,7 +254,7 @@ function handleLLMResponse(event: EventByName<'llm:response'>): void {
             sessionId,
             provider,
             model,
-            reasoningPreset,
+            reasoningVariant,
             reasoningBudgetTokens,
             inputTokens: tokenUsage.inputTokens,
             outputTokens: tokenUsage.outputTokens,

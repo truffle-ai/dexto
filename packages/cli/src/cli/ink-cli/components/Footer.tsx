@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import path from 'node:path';
 import { Box, Text } from 'ink';
-import { getModelDisplayName, getReasoningSupport, type DextoAgent } from '@dexto/core';
+import { getModelDisplayName, getReasoningProfile, type DextoAgent } from '@dexto/core';
 import { getLLMProviderDisplayName } from '../utils/llm-provider-display.js';
 
 interface FooterProps {
@@ -52,10 +52,12 @@ export function Footer({
     const llmConfig = sessionId ? agent.getCurrentLLMConfig(sessionId) : null;
     const provider = llmConfig?.provider ?? null;
     const providerLabel = provider ? getLLMProviderDisplayName(provider) : null;
-    const reasoningPreset = llmConfig?.reasoning?.preset ?? 'medium';
-    const reasoningSupport =
-        provider && llmConfig ? getReasoningSupport(provider, llmConfig.model) : null;
-    const showReasoningPreset = reasoningSupport ? reasoningSupport.capable : false;
+    const reasoningProfile =
+        provider && llmConfig ? getReasoningProfile(provider, llmConfig.model) : null;
+    const reasoningVariant =
+        llmConfig?.reasoning?.variant ?? reasoningProfile?.defaultVariant ?? undefined;
+    const showReasoningVariant =
+        reasoningProfile?.capable === true && typeof reasoningVariant === 'string';
 
     useEffect(() => {
         if (!sessionId) {
@@ -106,8 +108,8 @@ export function Footer({
             // llm:switched includes sessionIds[].
             if (payload.sessionIds && !payload.sessionIds.includes(sessionId)) return;
             refreshContext();
-            // Force a re-render so the footer always reflects the current LLM config
-            // (e.g. reasoning preset toggled via Tab).
+            // Force a re-render so the footer always reflects current LLM config
+            // (e.g. reasoning variant toggled via Tab).
             setLlmTick((prev) => prev + 1);
         };
 
@@ -139,10 +141,10 @@ export function Footer({
                 <Box>
                     <Text color="cyan">{displayModelName}</Text>
                     {providerLabel && <Text color="gray"> ({providerLabel})</Text>}
-                    {showReasoningPreset && (
+                    {showReasoningVariant && (
                         <>
                             <Text color="gray"> · r:</Text>
-                            <Text color="magentaBright">{reasoningPreset}</Text>
+                            <Text color="magentaBright">{reasoningVariant}</Text>
                         </>
                     )}
                 </Box>

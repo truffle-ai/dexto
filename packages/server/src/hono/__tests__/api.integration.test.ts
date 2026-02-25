@@ -123,15 +123,17 @@ describe('Hono API Integration Tests', () => {
 
             const reasoning = (res.body as { reasoning: unknown }).reasoning as {
                 capable: boolean;
-                supportedPresets: string[];
+                paradigm: string;
+                supportedVariants: string[];
+                defaultVariant?: string;
                 supportsBudgetTokens: boolean;
             };
 
             expect(reasoning.capable).toBe(true);
-            expect(reasoning.supportedPresets).toContain('medium');
-            expect(reasoning.supportedPresets).not.toContain('auto');
-            expect(reasoning.supportedPresets).toContain('off');
-            expect(reasoning.supportedPresets).toContain('high');
+            expect(reasoning.paradigm).toBe('budget');
+            expect(reasoning.supportedVariants).toContain('enabled');
+            expect(reasoning.supportedVariants).toContain('disabled');
+            expect(reasoning.defaultVariant).toBe('enabled');
             expect(reasoning.supportsBudgetTokens).toBe(true);
         });
 
@@ -147,13 +149,13 @@ describe('Hono API Integration Tests', () => {
 
             const reasoning = (res.body as { reasoning: unknown }).reasoning as {
                 capable: boolean;
-                supportedPresets: string[];
+                supportedVariants: string[];
             };
 
             expect(reasoning.capable).toBe(true);
-            expect(reasoning.supportedPresets).toContain('high');
-            expect(reasoning.supportedPresets).not.toContain('max');
-            expect(reasoning.supportedPresets).not.toContain('xhigh');
+            expect(reasoning.supportedVariants).toContain('high');
+            expect(reasoning.supportedVariants).not.toContain('max');
+            expect(reasoning.supportedVariants).not.toContain('xhigh');
         });
     });
 

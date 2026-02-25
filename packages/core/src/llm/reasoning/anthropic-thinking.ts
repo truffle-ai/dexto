@@ -1,12 +1,12 @@
-type ClaudeVariant = 'opus' | 'sonnet' | 'haiku';
+export type ClaudeVariant = 'opus' | 'sonnet' | 'haiku';
 
-type ParsedClaudeVersion = {
+export type ParsedClaudeVersion = {
     major: number;
     minor: number;
     variant?: ClaudeVariant;
 };
 
-function parseClaudeVersion(model: string): ParsedClaudeVersion | null {
+export function parseClaudeVersion(model: string): ParsedClaudeVersion | null {
     const modelLower = model.toLowerCase();
 
     // Anthropic-style IDs (models.dev / Bedrock / OpenRouter often use these):
@@ -43,7 +43,7 @@ function parseClaudeVersion(model: string): ParsedClaudeVersion | null {
     return null;
 }
 
-function isAtLeast(
+export function isClaudeVersionAtLeast(
     version: Pick<ParsedClaudeVersion, 'major' | 'minor'>,
     min: { major: number; minor: number }
 ): boolean {
@@ -55,13 +55,13 @@ export function isAnthropicAdaptiveThinkingModel(model: string): boolean {
     if (!version) return false;
 
     // Claude 4.6 introduced adaptive thinking; assume it continues for subsequent versions.
-    return isAtLeast(version, { major: 4, minor: 6 });
+    return isClaudeVersionAtLeast(version, { major: 4, minor: 6 });
 }
 
 export function isAnthropicOpusAdaptiveThinkingModel(model: string): boolean {
     const version = parseClaudeVersion(model);
     if (!version || version.variant !== 'opus') return false;
-    return isAtLeast(version, { major: 4, minor: 6 });
+    return isClaudeVersionAtLeast(version, { major: 4, minor: 6 });
 }
 
 export function supportsAnthropicInterleavedThinking(model: string): boolean {

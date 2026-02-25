@@ -4,7 +4,7 @@
  * Zod schemas for the agent spawner tools factory configuration and inputs.
  */
 
-import { REASONING_PRESETS, type ReasoningPreset } from '@dexto/core';
+import type { ReasoningVariant } from '@dexto/core';
 import { z } from 'zod';
 
 // ============================================================================
@@ -12,7 +12,7 @@ import { z } from 'zod';
 // ============================================================================
 
 export const DEFAULT_SUB_AGENT_MAX_ITERATIONS = 100;
-export const DEFAULT_SUB_AGENT_REASONING_PRESET: ReasoningPreset = 'off';
+export const DEFAULT_SUB_AGENT_REASONING_VARIANT: ReasoningVariant = 'disabled';
 
 /**
  * Configuration schema for the agent spawner tools factory.
@@ -48,12 +48,14 @@ export const AgentSpawnerConfigSchema = z
                     'Acts as a safety cap to prevent runaway exploration.'
             ),
 
-        subAgentReasoningPreset: z
-            .enum(REASONING_PRESETS)
-            .default(DEFAULT_SUB_AGENT_REASONING_PRESET)
+        subAgentReasoningVariant: z
+            .string()
+            .trim()
+            .min(1)
+            .default(DEFAULT_SUB_AGENT_REASONING_VARIANT)
             .describe(
-                'Reasoning tuning preset applied to spawned sub-agents. ' +
-                    "Default is 'off' to keep sub-agents fast and lightweight."
+                'Preferred reasoning variant for spawned sub-agents. ' +
+                    "Default is 'disabled'. If unsupported by the resolved model, Dexto falls back to the lowest available variant."
             ),
 
         /** Whether spawning is enabled (default: true) */

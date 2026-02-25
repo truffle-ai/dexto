@@ -575,7 +575,7 @@ export const generalCommands: CommandDefinition[] = [
                             { keys: 'Ctrl+R', description: 'Search history (enter search mode)' },
                             {
                                 keys: 'Tab',
-                                description: 'Cycle reasoning preset (when no overlay is open)',
+                                description: 'Cycle reasoning variant (when no overlay is open)',
                             },
                             { keys: 'Ctrl+U', description: 'Clear input line' },
                             { keys: 'Ctrl+W', description: 'Delete word before cursor' },

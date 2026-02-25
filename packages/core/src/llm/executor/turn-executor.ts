@@ -22,7 +22,7 @@ import type {
     LLMReasoningConfig,
     LLMContext,
     LLMProvider,
-    ReasoningPreset,
+    ReasoningVariant,
 } from '../types.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
@@ -126,14 +126,14 @@ export class TurnExecutor {
      */
     private getStreamProcessorConfig(
         estimatedInputTokens?: number,
-        reasoning?: { reasoningPreset?: ReasoningPreset; reasoningBudgetTokens?: number }
+        reasoning?: { reasoningVariant?: ReasoningVariant; reasoningBudgetTokens?: number }
     ): StreamProcessorConfig {
         return {
             provider: this.llmContext.provider,
             model: this.llmContext.model,
             ...(estimatedInputTokens !== undefined && { estimatedInputTokens }),
-            ...(reasoning?.reasoningPreset !== undefined && {
-                reasoningPreset: reasoning.reasoningPreset,
+            ...(reasoning?.reasoningVariant !== undefined && {
+                reasoningVariant: reasoning.reasoningVariant,
             }),
             ...(reasoning?.reasoningBudgetTokens !== undefined && {
                 reasoningBudgetTokens: reasoning.reasoningBudgetTokens,
@@ -288,18 +288,18 @@ export class TurnExecutor {
                     provider: this.llmContext.provider,
                     model: this.llmContext.model,
                     requestedReasoning: {
-                        preset: this.config.reasoning?.preset ?? 'medium',
+                        variant: this.config.reasoning?.variant,
                         budgetTokens: this.config.reasoning?.budgetTokens,
                     },
                     providerOptions,
                 });
 
-                const reasoningPreset = this.config.reasoning?.preset ?? 'medium';
+                const reasoningVariant = this.config.reasoning?.variant;
                 const reasoningBudgetTokens = getEffectiveReasoningBudgetTokens(providerOptions);
 
                 const reasoningForStream = (() => {
                     const r = {
-                        ...(reasoningPreset !== undefined && { reasoningPreset }),
+                        ...(reasoningVariant !== undefined && { reasoningVariant }),
                         ...(reasoningBudgetTokens !== undefined && { reasoningBudgetTokens }),
                     };
                     return Object.keys(r).length > 0 ? r : undefined;

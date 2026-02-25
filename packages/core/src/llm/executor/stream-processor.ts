@@ -9,7 +9,7 @@ import type { SanitizedToolResult } from '../../context/types.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import type { ToolPresentationSnapshotV1 } from '../../tools/types.js';
-import type { LLMProvider, ReasoningPreset, TokenUsage } from '../types.js';
+import type { LLMProvider, ReasoningVariant, TokenUsage } from '../types.js';
 
 type UsageLike = {
     inputTokens?: number | undefined;
@@ -58,9 +58,9 @@ export interface StreamProcessorConfig {
     model: string;
     /** Estimated input tokens before LLM call (for analytics/calibration) */
     estimatedInputTokens?: number;
-    /** Reasoning preset used for this call (best-effort). */
-    reasoningPreset?: ReasoningPreset;
-    /** Reasoning budget tokens used for this call (best-effort; provider-specific). */
+    /** Reasoning variant used for this call, when the provider exposes it. */
+    reasoningVariant?: ReasoningVariant;
+    /** Reasoning budget tokens used for this call, when the provider exposes it. */
     reasoningBudgetTokens?: number;
 }
 
@@ -462,8 +462,8 @@ export class StreamProcessor {
                                 ...(this.reasoningText && { reasoning: this.reasoningText }),
                                 provider: this.config.provider,
                                 model: this.config.model,
-                                ...(this.config.reasoningPreset !== undefined && {
-                                    reasoningPreset: this.config.reasoningPreset,
+                                ...(this.config.reasoningVariant !== undefined && {
+                                    reasoningVariant: this.config.reasoningVariant,
                                 }),
                                 ...(this.config.reasoningBudgetTokens !== undefined && {
                                     reasoningBudgetTokens: this.config.reasoningBudgetTokens,
@@ -557,8 +557,8 @@ export class StreamProcessor {
                             ...(this.reasoningText && { reasoning: this.reasoningText }),
                             provider: this.config.provider,
                             model: this.config.model,
-                            ...(this.config.reasoningPreset !== undefined && {
-                                reasoningPreset: this.config.reasoningPreset,
+                            ...(this.config.reasoningVariant !== undefined && {
+                                reasoningVariant: this.config.reasoningVariant,
                             }),
                             ...(this.config.reasoningBudgetTokens !== undefined && {
                                 reasoningBudgetTokens: this.config.reasoningBudgetTokens,
@@ -597,8 +597,8 @@ export class StreamProcessor {
                     ...(this.reasoningText && { reasoning: this.reasoningText }),
                     provider: this.config.provider,
                     model: this.config.model,
-                    ...(this.config.reasoningPreset !== undefined && {
-                        reasoningPreset: this.config.reasoningPreset,
+                    ...(this.config.reasoningVariant !== undefined && {
+                        reasoningVariant: this.config.reasoningVariant,
                     }),
                     ...(this.config.reasoningBudgetTokens !== undefined && {
                         reasoningBudgetTokens: this.config.reasoningBudgetTokens,

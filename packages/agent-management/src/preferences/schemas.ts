@@ -7,9 +7,9 @@ import {
     acceptsAnyModel,
     supportsCustomModels,
     supportsBaseURL,
-    getReasoningSupport,
+    getReasoningProfile,
+    supportsReasoningVariant,
     LLM_PROVIDERS,
-    REASONING_PRESETS,
     NonEmptyTrimmed,
     ErrorType,
 } from '@dexto/core';
@@ -40,16 +40,13 @@ export const PreferenceLLMSchema = z
 
         reasoning: z
             .object({
-                preset: z
-                    .preprocess(
-                        (value) =>
-                            typeof value === 'string' && value.toLowerCase() === 'auto'
-                                ? 'medium'
-                                : value,
-                        z.enum(REASONING_PRESETS)
-                    )
-                    .default('medium')
-                    .describe(`Reasoning tuning preset. Options: ${REASONING_PRESETS.join(', ')}`),
+                variant: z
+                    .string()
+                    .trim()
+                    .min(1)
+                    .describe(
+                        'Reasoning variant. Use a model/provider-native variant from the active reasoning profile.'
+                    ),
                 budgetTokens: z
                     .number()
                     .int()
@@ -103,17 +100,17 @@ export const PreferenceLLMSchema = z
         }
 
         if (data.reasoning) {
-            const support = getReasoningSupport(data.provider, data.model);
-            const preset = data.reasoning.preset;
+            const profile = getReasoningProfile(data.provider, data.model);
+            const variant = data.reasoning.variant;
             const budgetTokens = data.reasoning.budgetTokens;
 
-            if (!support.supportedPresets.includes(preset)) {
+            if (!supportsReasoningVariant(profile, variant)) {
                 ctx.addIssue({
                     code: z.ZodIssueCode.custom,
-                    path: ['reasoning', 'preset'],
+                    path: ['reasoning', 'variant'],
                     message:
-                        `Reasoning preset '${preset}' is not supported for provider '${data.provider}' ` +
-                        `model '${data.model}'. Supported: ${support.supportedPresets.join(', ')}`,
+                        `Reasoning variant '${variant}' is not supported for provider '${data.provider}' ` +
+                        `model '${data.model}'. Supported: ${profile.variants.map((entry) => entry.id).join(', ')}`,
                     params: {
                         code: PreferenceErrorCode.INVALID_PREFERENCE_VALUE,
                         scope: 'preference',
@@ -122,7 +119,7 @@ export const PreferenceLLMSchema = z
                 });
             }
 
-            if (typeof budgetTokens === 'number' && !support.supportsBudgetTokens) {
+            if (typeof budgetTokens === 'number' && !profile.supportsBudgetTokens) {
                 ctx.addIssue({
                     code: z.ZodIssueCode.custom,
                     path: ['reasoning', 'budgetTokens'],

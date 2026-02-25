@@ -14,7 +14,12 @@
 import { randomUUID } from 'crypto';
 import type { AgentConfig } from '@dexto/agent-config';
 import type { DextoAgent, Logger, TaskForker } from '@dexto/core';
-import { DextoRuntimeError, ErrorType } from '@dexto/core';
+import {
+    DextoRuntimeError,
+    ErrorType,
+    getReasoningProfile,
+    supportsReasoningVariant,
+} from '@dexto/core';
 import { AgentRuntime } from '../../runtime/AgentRuntime.js';
 import { createDelegatingApprovalHandler } from '../../runtime/approval-delegation.js';
 import { loadAgentConfig } from '../../config/loader.js';
@@ -25,7 +30,7 @@ import { getDextoPath, resolveBundledScript } from '../../utils/path.js';
 import * as path from 'path';
 import {
     DEFAULT_SUB_AGENT_MAX_ITERATIONS,
-    DEFAULT_SUB_AGENT_REASONING_PRESET,
+    DEFAULT_SUB_AGENT_REASONING_VARIANT,
     type AgentSpawnerConfig,
 } from './schemas.js';
 import type { SpawnAgentOutput } from './types.js';
@@ -38,11 +43,51 @@ export class AgentSpawnerRuntime implements TaskForker {
     private config: AgentSpawnerConfig;
     private logger: Logger;
 
+    private selectLowestReasoningVariant(
+        provider: AgentConfig['llm']['provider'],
+        model: AgentConfig['llm']['model'],
+        preferredVariant: string
+    ): string | undefined {
+        const profile = getReasoningProfile(provider, model);
+        if (!profile.capable || profile.supportedVariants.length === 0) {
+            return undefined;
+        }
+
+        if (supportsReasoningVariant(profile, preferredVariant)) {
+            return preferredVariant;
+        }
+
+        const fallbackOrder = [
+            'disabled',
+            'none',
+            'minimal',
+            'low',
+            'enabled',
+            'medium',
+            'high',
+            'max',
+            'xhigh',
+        ];
+
+        for (const variant of fallbackOrder) {
+            if (supportsReasoningVariant(profile, variant)) {
+                return variant;
+            }
+        }
+
+        return profile.defaultVariant ?? profile.supportedVariants[0];
+    }
+
     private applySubAgentLlmPolicy(llm: AgentConfig['llm']): AgentConfig['llm'] {
         const maxIterationsCap =
             this.config.subAgentMaxIterations ?? DEFAULT_SUB_AGENT_MAX_ITERATIONS;
-        const reasoningPreset =
-            this.config.subAgentReasoningPreset ?? DEFAULT_SUB_AGENT_REASONING_PRESET;
+        const preferredReasoningVariant =
+            this.config.subAgentReasoningVariant ?? DEFAULT_SUB_AGENT_REASONING_VARIANT;
+        const reasoningVariant = this.selectLowestReasoningVariant(
+            llm.provider,
+            llm.model,
+            preferredReasoningVariant
+        );
 
         const existingMaxIterations = llm.maxIterations;
         const cappedMaxIterations =
@@ -53,11 +98,13 @@ export class AgentSpawnerRuntime implements TaskForker {
         const adjusted = {
             ...llm,
             maxIterations: cappedMaxIterations,
-            reasoning: { preset: reasoningPreset },
+            ...(reasoningVariant !== undefined
+                ? { reasoning: { variant: reasoningVariant } }
+                : { reasoning: undefined }),
         };
 
         this.logger.debug(
-            `[AgentSpawnerRuntime] Applied sub-agent LLM policy: maxIterations=${adjusted.maxIterations}, reasoning=${reasoningPreset}`
+            `[AgentSpawnerRuntime] Applied sub-agent LLM policy: maxIterations=${adjusted.maxIterations}, preferredReasoning=${preferredReasoningVariant}, selectedReasoning=${reasoningVariant ?? 'none'}`
         );
 
         return adjusted;

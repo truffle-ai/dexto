@@ -12,8 +12,8 @@ import {
     isValidProviderModel,
     getMaxInputTokensForModel,
 } from './registry/index.js';
-import { LLM_PROVIDERS, REASONING_PRESETS } from './types.js';
-import { getReasoningSupport } from './reasoning/presets.js';
+import { LLM_PROVIDERS } from './types.js';
+import { getReasoningProfile, supportsReasoningVariant } from './reasoning/profile.js';
 
 /**
  * Default-free field definitions for LLM configuration.
@@ -71,13 +71,9 @@ const LLMConfigFields = {
 
     reasoning: z
         .object({
-            preset: z
-                .enum(REASONING_PRESETS)
-                .default('medium')
-                .describe(
-                    `Reasoning tuning preset. Note: supported presets depend on provider+model. ` +
-                        `Options: ${REASONING_PRESETS.join(', ')}`
-                ),
+            variant: NonEmptyTrimmed.describe(
+                'Model/provider-native reasoning variant (resolved by reasoning profile for the selected model).'
+            ),
             budgetTokens: z.coerce
                 .number()
                 .int()
@@ -89,7 +85,9 @@ const LLMConfigFields = {
         })
         .strict()
         .optional()
-        .describe('Reasoning configuration (tuning only; display is controlled separately).'),
+        .describe(
+            'Reasoning configuration using model/provider-native variants (tuning only; display is controlled separately).'
+        ),
 } as const;
 /** Business rules + compatibility checks */
 
@@ -237,18 +235,17 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
     }
 
     if (data.reasoning) {
-        const support = getReasoningSupport(data.provider, data.model);
-        const preset = data.reasoning.preset;
+        const profile = getReasoningProfile(data.provider, data.model);
+        const variant = data.reasoning.variant;
         const budgetTokens = data.reasoning.budgetTokens;
 
-        // Validate presets strictly to avoid silent provider-side coercion.
-        if (!support.supportedPresets.includes(preset)) {
+        if (!supportsReasoningVariant(profile, variant)) {
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,
-                path: ['reasoning', 'preset'],
+                path: ['reasoning', 'variant'],
                 message:
-                    `Reasoning preset '${preset}' is not supported for provider '${data.provider}' ` +
-                    `model '${data.model}'. Supported: ${support.supportedPresets.join(', ')}`,
+                    `Reasoning variant '${variant}' is not supported for provider '${data.provider}' ` +
+                    `model '${data.model}'. Supported: ${profile.variants.map((entry) => entry.id).join(', ')}`,
                 params: {
                     code: LLMErrorCode.MODEL_INCOMPATIBLE,
                     scope: ErrorScope.LLM,
@@ -257,7 +254,7 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
             });
         }
 
-        if (typeof budgetTokens === 'number' && !support.supportsBudgetTokens) {
+        if (typeof budgetTokens === 'number' && !profile.supportsBudgetTokens) {
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,
                 path: ['reasoning', 'budgetTokens'],
@@ -308,17 +305,17 @@ export const LLMUpdatesSchema = z
             typeof data.provider === 'string' &&
             typeof data.model === 'string'
         ) {
-            const support = getReasoningSupport(data.provider, data.model);
-            const preset = data.reasoning.preset;
+            const profile = getReasoningProfile(data.provider, data.model);
+            const variant = data.reasoning.variant;
             const budgetTokens = data.reasoning.budgetTokens;
 
-            if (!support.supportedPresets.includes(preset)) {
+            if (!supportsReasoningVariant(profile, variant)) {
                 ctx.addIssue({
                     code: z.ZodIssueCode.custom,
-                    path: ['reasoning', 'preset'],
+                    path: ['reasoning', 'variant'],
                     message:
-                        `Reasoning preset '${preset}' is not supported for provider '${data.provider}' ` +
-                        `model '${data.model}'. Supported: ${support.supportedPresets.join(', ')}`,
+                        `Reasoning variant '${variant}' is not supported for provider '${data.provider}' ` +
+                        `model '${data.model}'. Supported: ${profile.variants.map((entry) => entry.id).join(', ')}`,
                     params: {
                         code: LLMErrorCode.MODEL_INCOMPATIBLE,
                         scope: ErrorScope.LLM,
@@ -327,7 +324,7 @@ export const LLMUpdatesSchema = z
                 });
             }
 
-            if (typeof budgetTokens === 'number' && !support.supportsBudgetTokens) {
+            if (typeof budgetTokens === 'number' && !profile.supportsBudgetTokens) {
                 ctx.addIssue({
                     code: z.ZodIssueCode.custom,
                     path: ['reasoning', 'budgetTokens'],

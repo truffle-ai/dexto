@@ -554,7 +554,7 @@ export async function processStream(
                             sessionId: event.sessionId,
                             provider: event.provider,
                             model: event.model,
-                            reasoningPreset: event.reasoningPreset ?? undefined,
+                            reasoningVariant: event.reasoningVariant ?? undefined,
                             reasoningBudgetTokens: event.reasoningBudgetTokens ?? undefined,
                             inputTokens: event.tokenUsage.inputTokens,
                             outputTokens: event.tokenUsage.outputTokens,

@@ -101,7 +101,40 @@ describe('AgentSpawnerRuntime sub-agent policies and approvals', () => {
 
         // Safety defaults: keep spawned sub-agents lightweight even if parent is configured for heavy reasoning.
         expect(spawnConfig.agentConfig.llm.maxIterations).toBe(100);
-        expect(spawnConfig.agentConfig.llm.reasoning).toEqual({ preset: 'off' });
+        expect(spawnConfig.agentConfig.llm.reasoning).toBeUndefined();
+    });
+
+    it('falls back to the lowest supported reasoning variant when preferred variant is unsupported', async () => {
+        const childAgent = {} as unknown as DextoAgent;
+        runtimeMocks.spawnAgent.mockResolvedValue({ agentId: 'agent-child', agent: childAgent });
+        runtimeMocks.executeTask.mockResolvedValue({ success: true, response: 'ok' });
+        runtimeMocks.stopAgent.mockResolvedValue(undefined);
+
+        const parentAgent = {
+            config: {
+                agentId: 'coding-agent',
+                mcpServers: {},
+            },
+            getCurrentLLMConfig: () => ({ provider: 'openai', model: 'gpt-5' }),
+            getWorkspace: vi.fn(async () => ({
+                path: '/tmp/workspace',
+                id: 'w',
+                createdAt: 0,
+                lastActiveAt: 0,
+            })),
+            services: { approvalManager: {} },
+            emit: vi.fn(),
+        } as unknown as DextoAgent;
+
+        const runtime = new AgentSpawnerRuntime(parentAgent, config, createMockLogger());
+        await runtime.spawnAndExecute({
+            task: 'do thing',
+            instructions: 'do thing now',
+            autoApprove: true,
+        });
+
+        const spawnConfig = runtimeMocks.spawnAgent.mock.calls[0]![0];
+        expect(spawnConfig.agentConfig.llm.reasoning).toEqual({ variant: 'minimal' });
     });
 
     it('wires delegated approvals with parent sessionId when manual', async () => {

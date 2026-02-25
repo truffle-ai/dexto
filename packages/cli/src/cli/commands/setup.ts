@@ -7,7 +7,7 @@ import {
     acceptsAnyModel,
     getDefaultModelForProvider,
     getCuratedModelsForProvider,
-    getReasoningSupport,
+    getReasoningProfile,
     getSupportedModels,
     LLM_PROVIDERS,
     LLM_REGISTRY,
@@ -52,7 +52,7 @@ import { loadAuth, getDextoApiClient } from '../auth/index.js';
 import { DEXTO_CREDITS_URL } from '../auth/constants.js';
 import * as p from '@clack/prompts';
 import { capture } from '../../analytics/index.js';
-import type { LLMProvider, ReasoningPreset } from '@dexto/core';
+import type { LLMProvider, ReasoningVariant } from '@dexto/core';
 
 // Zod schema for setup command validation
 const SetupCommandSchema = z
@@ -102,24 +102,46 @@ const SetupCommandSchema = z
 export type CLISetupOptions = z.output<typeof SetupCommandSchema>;
 export type CLISetupOptionsInput = z.input<typeof SetupCommandSchema>;
 
-const REASONING_PRESET_SELECT_META: Record<ReasoningPreset, { label: string; hint: string }> = {
-    off: { label: 'Off', hint: 'Disable reasoning (fastest)' },
-    low: { label: 'Low', hint: 'Light reasoning, faster responses' },
-    medium: { label: 'Medium (Recommended)', hint: 'Balanced reasoning (default)' },
-    high: { label: 'High', hint: 'Thorough reasoning' },
-    max: { label: 'Max', hint: 'Maximize reasoning within provider limits' },
-    xhigh: { label: 'XHigh', hint: 'Extra high (only on some models, e.g. codex)' },
+const REASONING_VARIANT_HINTS: Readonly<Record<string, string>> = {
+    disabled: 'Disable reasoning (fastest)',
+    none: 'Disable reasoning (fastest)',
+    enabled: 'Enable provider default reasoning',
+    minimal: 'Minimal reasoning',
+    low: 'Light reasoning, faster responses',
+    medium: 'Balanced reasoning',
+    high: 'Thorough reasoning',
+    max: 'Maximum reasoning within provider limits',
+    xhigh: 'Extra high reasoning',
 };
 
-function getReasoningPresetSelectOptions(presets: readonly ReasoningPreset[]): {
-    value: ReasoningPreset;
+function toReasoningVariantLabel(variant: string, defaultVariant: string | undefined): string {
+    const normalized = variant.toLowerCase();
+    const withKnownCasing =
+        normalized === 'xhigh'
+            ? 'XHigh'
+            : normalized === 'none'
+              ? 'None'
+              : normalized === 'disabled'
+                ? 'Disabled'
+                : normalized === 'enabled'
+                  ? 'Enabled'
+                  : normalized.charAt(0).toUpperCase() + normalized.slice(1);
+
+    return variant === defaultVariant ? `${withKnownCasing} (Recommended)` : withKnownCasing;
+}
+
+function getReasoningVariantSelectOptions(
+    variants: readonly ReasoningVariant[],
+    defaultVariant: string | undefined
+): {
+    value: ReasoningVariant;
     label: string;
     hint: string;
 }[] {
-    return presets.map((preset) => ({
-        value: preset,
-        label: REASONING_PRESET_SELECT_META[preset].label,
-        hint: REASONING_PRESET_SELECT_META[preset].hint,
+    return variants.map((variant) => ({
+        value: variant,
+        label: toReasoningVariantLabel(variant, defaultVariant),
+        hint: REASONING_VARIANT_HINTS[variant] ?? 'Model/provider-native reasoning variant',
     }));
 }
 
@@ -142,7 +164,7 @@ interface SetupWizardState {
     provider?: LLMProvider | undefined;
     model?: string | undefined;
     baseURL?: string | undefined;
-    reasoningPreset?: ReasoningPreset | undefined;
+    reasoningPreset?: ReasoningVariant | undefined;
     apiKeySkipped?: boolean | undefined;
     defaultMode?: 'cli' | 'web' | 'server' | 'discord' | 'telegram' | 'mcp' | undefined;
     /** Quick start handles its own preferences saving */
@@ -162,7 +184,7 @@ function getWizardSteps(
     const showReasoningStep =
         provider !== undefined &&
         model !== undefined &&
-        getReasoningSupport(provider, model).capable;
+        getReasoningProfile(provider, model).capable;
 
     if (isLocalProvider) {
         const steps: Array<{ key: SetupStep; label: string }> = [
@@ -900,7 +922,7 @@ async function wizardStepModel(state: SetupWizardState): Promise<SetupWizardStat
             return { ...state, step: 'provider', model: undefined };
         }
         const model = getModelFromResult(localResult);
-        const nextStep = getReasoningSupport(provider, model).capable ? 'reasoning' : 'mode';
+        const nextStep = getReasoningProfile(provider, model).capable ? 'reasoning' : 'mode';
         return { ...state, step: nextStep, model };
     }
 
@@ -911,7 +933,7 @@ async function wizardStepModel(state: SetupWizardState): Promise<SetupWizardStat
             return { ...state, step: 'provider', model: undefined };
         }
         const model = getModelFromResult(ollamaResult);
-        const nextStep = getReasoningSupport(provider, model).capable ? 'reasoning' : 'mode';
+        const nextStep = getReasoningProfile(provider, model).capable ? 'reasoning' : 'mode';
         return { ...state, step: nextStep, model };
     }
 
@@ -934,12 +956,12 @@ async function wizardStepModel(state: SetupWizardState): Promise<SetupWizardStat
     }
 
     const model = selection.model;
-    const nextStep = getReasoningSupport(provider, model).capable ? 'reasoning' : 'apiKey';
+    const nextStep = getReasoningProfile(provider, model).capable ? 'reasoning' : 'apiKey';
     return { ...state, step: nextStep, model, baseURL };
 }
 
 /**
- * Wizard Step: Reasoning Preset Selection (best-effort; depends on provider+model)
+ * Wizard Step: Reasoning Variant Selection (native provider/model values)
  */
 async function wizardStepReasoning(state: SetupWizardState): Promise<SetupWizardState> {
     const provider = state.provider!;
@@ -947,15 +969,13 @@ async function wizardStepReasoning(state: SetupWizardState): Promise<SetupWizard
     const isLocalProvider = provider === 'local' || provider === 'ollama';
     showStepProgress('reasoning', provider, model);
 
-    const support = getReasoningSupport(provider, model);
-    const initialValue = support.supportedPresets.includes('medium')
-        ? 'medium'
-        : support.supportedPresets[0];
+    const support = getReasoningProfile(provider, model);
+    const initialValue = support.defaultVariant ?? support.supportedVariants[0];
 
     const result = await p.select({
-        message: 'Select reasoning preset',
+        message: 'Select reasoning variant',
         options: [
-            ...getReasoningPresetSelectOptions(support.supportedPresets),
+            ...getReasoningVariantSelectOptions(support.supportedVariants, support.defaultVariant),
             { value: '_back' as const, label: chalk.gray('← Back'), hint: 'Change model' },
         ],
         ...(initialValue ? { initialValue } : {}),
@@ -972,11 +992,12 @@ async function wizardStepReasoning(state: SetupWizardState): Promise<SetupWizard
 
     // Determine next step based on provider type
     const nextStep = isLocalProvider ? 'mode' : 'apiKey';
+    const shouldPersistOverride = result !== support.defaultVariant;
     return {
         ...state,
         step: nextStep,
-        // Keep preferences minimal: selecting the default preset ('medium') results in no override.
-        reasoningPreset: result === 'medium' ? undefined : result,
+        // Keep preferences minimal: selecting the profile default variant results in no override.
+        reasoningPreset: shouldPersistOverride ? result : undefined,
     };
 }
 
@@ -998,8 +1019,8 @@ async function wizardStepApiKey(state: SetupWizardState): Promise<SetupWizardSta
         });
 
         if (result.cancelled) {
-            // Go back to reasoning preset if model supports it, otherwise model selection
-            const prevStep = getReasoningSupport(provider, model).capable ? 'reasoning' : 'model';
+            // Go back to reasoning variant if model supports it, otherwise model selection
+            const prevStep = getReasoningProfile(provider, model).capable ? 'reasoning' : 'model';
             return { ...state, step: prevStep, apiKeySkipped: undefined };
         }
 
@@ -1021,7 +1042,7 @@ async function wizardStepMode(state: SetupWizardState): Promise<SetupWizardState
     const provider = state.provider!;
     const model = state.model!;
     const isLocalProvider = provider === 'local' || provider === 'ollama';
-    const hasReasoningStep = getReasoningSupport(provider, model).capable;
+    const hasReasoningStep = getReasoningProfile(provider, model).capable;
     showStepProgress('mode', provider, model);
 
     const mode = await selectDefaultModeWithBack();
@@ -1295,7 +1316,7 @@ async function runCustomModelWizard(
         ...(values.maxInputTokens ? { maxInputTokens: values.maxInputTokens } : {}),
         ...(values.apiKey ? { apiKey: values.apiKey } : {}),
         ...(values.filePath ? { filePath: values.filePath } : {}),
-        ...(values.reasoningPreset ? { reasoning: { preset: values.reasoningPreset } } : {}),
+        ...(values.reasoningPreset ? { reasoning: { variant: values.reasoningPreset } } : {}),
     };
 
     await saveCustomModel(model);
@@ -1317,7 +1338,7 @@ async function promptCustomModelValues(
     maxInputTokens?: number;
     apiKey?: string;
     filePath?: string;
-    reasoningPreset?: ReasoningPreset;
+    reasoningPreset?: ReasoningVariant;
 } | null> {
     const providers = [
         'openai-compatible',
@@ -1455,15 +1476,15 @@ async function promptCustomModelValues(
         filePath = filePathValue || undefined;
     }
 
-    let reasoningPreset: ReasoningPreset | undefined;
-    const reasoningSupport = getReasoningSupport(provider, trimmedName);
+    let reasoningPreset: ReasoningVariant | undefined;
+    const reasoningSupport = getReasoningProfile(provider, trimmedName);
     if (reasoningSupport.capable) {
-        const preset = await selectReasoningPreset(provider, trimmedName);
+        const preset = await selectReasoningVariant(provider, trimmedName);
         if (preset === null) {
             return null;
         }
         // Keep the custom model config minimal: only store an override when not default.
-        if (preset !== 'medium') {
+        if (preset !== reasoningSupport.defaultVariant) {
             reasoningPreset = preset;
         }
     }
@@ -1550,7 +1571,7 @@ async function saveWizardPreferences(state: SetupWizardState): Promise<void> {
         preferencesOptions.baseURL = state.baseURL;
     }
     if (state.reasoningPreset) {
-        preferencesOptions.reasoning = { preset: state.reasoningPreset };
+        preferencesOptions.reasoning = { variant: state.reasoningPreset };
     }
 
     const preferences = createInitialPreferences(preferencesOptions);
@@ -1639,7 +1660,7 @@ async function showSettingsMenu(): Promise<void> {
                     : []),
                 ...(currentPrefs.llm.reasoning
                     ? [
-                          `Reasoning Preset: ${chalk.cyan(currentPrefs.llm.reasoning.preset)}` +
+                          `Reasoning Variant: ${chalk.cyan(currentPrefs.llm.reasoning.variant)}` +
                               (currentPrefs.llm.reasoning.budgetTokens != null
                                   ? ` (budgetTokens=${chalk.cyan(String(currentPrefs.llm.reasoning.budgetTokens))})`
                                   : ''),
@@ -1803,21 +1824,22 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
         const llmUpdate: {
             provider: LLMProvider;
             model: string;
-            reasoning?: { preset: ReasoningPreset };
+            reasoning?: { variant: ReasoningVariant };
         } = {
             provider,
             model,
         };
 
-        // Ask for reasoning preset if applicable
-        if (getReasoningSupport(provider, model).capable) {
-            const reasoningPreset = await selectReasoningPreset(provider, model);
+        // Ask for reasoning variant if applicable
+        if (getReasoningProfile(provider, model).capable) {
+            const reasoningPreset = await selectReasoningVariant(provider, model);
             if (reasoningPreset === null) {
                 p.log.warn('Model change cancelled');
                 return;
             }
-            if (reasoningPreset !== 'medium') {
-                llmUpdate.reasoning = { preset: reasoningPreset };
+            const defaultReasoningVariant = getReasoningProfile(provider, model).defaultVariant;
+            if (reasoningPreset !== defaultReasoningVariant) {
+                llmUpdate.reasoning = { variant: reasoningPreset };
             }
         }
 
@@ -1837,21 +1859,22 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
         const llmUpdate: {
             provider: LLMProvider;
             model: string;
-            reasoning?: { preset: ReasoningPreset };
+            reasoning?: { variant: ReasoningVariant };
         } = {
             provider,
             model,
         };
 
-        // Ask for reasoning preset if applicable
-        if (getReasoningSupport(provider, model).capable) {
-            const reasoningPreset = await selectReasoningPreset(provider, model);
+        // Ask for reasoning variant if applicable
+        if (getReasoningProfile(provider, model).capable) {
+            const reasoningPreset = await selectReasoningVariant(provider, model);
             if (reasoningPreset === null) {
                 p.log.warn('Model change cancelled');
                 return;
             }
-            if (reasoningPreset !== 'medium') {
-                llmUpdate.reasoning = { preset: reasoningPreset };
+            const defaultReasoningVariant = getReasoningProfile(provider, model).defaultVariant;
+            if (reasoningPreset !== defaultReasoningVariant) {
+                llmUpdate.reasoning = { variant: reasoningPreset };
             }
         }
 
@@ -1897,7 +1920,7 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
         provider: LLMProvider;
         model: string;
         apiKey?: string;
-        reasoning?: { preset: ReasoningPreset };
+        reasoning?: { variant: ReasoningVariant };
     } = {
         provider,
         model,
@@ -1907,15 +1930,16 @@ async function changeModel(currentProvider?: LLMProvider): Promise<void> {
         llmUpdate.apiKey = `$${apiKeyVar}`;
     }
 
-    // Ask for reasoning preset if applicable
-    if (getReasoningSupport(provider, model).capable) {
-        const reasoningPreset = await selectReasoningPreset(provider, model);
+    // Ask for reasoning variant if applicable
+    if (getReasoningProfile(provider, model).capable) {
+        const reasoningPreset = await selectReasoningVariant(provider, model);
         if (reasoningPreset === null) {
             p.log.warn('Model change cancelled');
             return;
         }
-        if (reasoningPreset !== 'medium') {
-            llmUpdate.reasoning = { preset: reasoningPreset };
+        const defaultReasoningVariant = getReasoningProfile(provider, model).defaultVariant;
+        if (reasoningPreset !== defaultReasoningVariant) {
+            llmUpdate.reasoning = { variant: reasoningPreset };
         }
     }
 
@@ -2092,27 +2116,28 @@ async function selectDefaultMode(): Promise<
 }
 
 /**
- * Select reasoning preset for models where we expose reasoning tuning.
+ * Select reasoning variant for models where we expose reasoning tuning.
  */
-async function selectReasoningPreset(
+async function selectReasoningVariant(
     provider: LLMProvider,
     model: string
-): Promise<ReasoningPreset | null> {
-    const support = getReasoningSupport(provider, model);
-    const initialValue = support.supportedPresets.includes('medium')
-        ? 'medium'
-        : support.supportedPresets[0];
-    const preset = await p.select({
-        message: 'Select reasoning preset',
-        options: getReasoningPresetSelectOptions(support.supportedPresets),
+): Promise<ReasoningVariant | null> {
+    const support = getReasoningProfile(provider, model);
+    const initialValue = support.defaultVariant ?? support.supportedVariants[0];
+    const variant = await p.select({
+        message: 'Select reasoning variant',
+        options: getReasoningVariantSelectOptions(
+            support.supportedVariants,
+            support.defaultVariant
+        ),
         ...(initialValue ? { initialValue } : {}),
     });
 
-    if (p.isCancel(preset)) {
+    if (p.isCancel(variant)) {
         return null;
     }
 
-    return preset;
+    return variant;
 }
 
 /**

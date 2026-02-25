@@ -65,8 +65,8 @@ interface TextBufferInputProps {
     onPasteBlockRemove?: ((blockId: string) => void) | undefined;
     /** Query to highlight in input text (for history search) */
     highlightQuery?: string | undefined;
-    /** Cycle the current reasoning preset. */
-    onCycleReasoningPreset?: (() => void) | undefined;
+    /** Cycle the current reasoning variant. */
+    onCycleReasoningVariant?: (() => void) | undefined;
 }
 
 function isBackspaceKey(key: Key): boolean {
@@ -125,7 +125,7 @@ export function TextBufferInput({
     onPasteBlockUpdate,
     onPasteBlockRemove,
     highlightQuery,
-    onCycleReasoningPreset,
+    onCycleReasoningVariant,
 }: TextBufferInputProps) {
     const { stdout } = useStdout();
     const terminalWidth = stdout?.columns || 80;
@@ -260,15 +260,15 @@ export function TextBufferInput({
         (key: Key) => {
             if (isDisabled) return;
 
-            // Tab: cycle reasoning preset (when main input is active; overlays handle their own Tab usage)
+            // Tab: cycle reasoning variant (when main input is active; overlays handle their own Tab usage)
             if (
                 key.name === 'tab' &&
                 !key.shift &&
                 !key.ctrl &&
                 !key.meta &&
-                onCycleReasoningPreset
+                onCycleReasoningVariant
             ) {
-                onCycleReasoningPreset();
+                onCycleReasoningVariant();
                 return;
             }
 
