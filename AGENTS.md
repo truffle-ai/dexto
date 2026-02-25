@@ -45,8 +45,11 @@ These rules are intended to prevent stack fragmentation and review churn.
 
 - Entry point: `packages/cli/src/cli/index.ts`
 - Static commands (e.g., `dexto init`, `dexto setup`): `packages/cli/src/cli/commands/`
-- Interactive CLI commands (e.g., `/help`, `/compact`): `packages/cli/src/cli/commands/interactive-commands/`
-- Ink-based UI components: `packages/cli/src/cli/ink-cli/`
+
+### TUI (`packages/tui`)
+
+- Interactive CLI commands (e.g., `/help`, `/compact`): `packages/tui/src/interactive-commands/`
+- Ink-based UI components: `packages/tui/src/`
 
 ### Other Important Packages
 

@@ -9,13 +9,13 @@ import React, {
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import {
-    type DextoApiKeyProvisionStatus,
+    type TuiDextoApiKeyProvisionStatus as DextoApiKeyProvisionStatus,
     beginOAuthLogin,
-    DEFAULT_OAUTH_CONFIG,
+    getDefaultOAuthConfig,
     ensureDextoApiKeyForAuthToken,
     loadAuth,
     storeAuth,
-} from '../../../auth/index.js';
+} from '../../host/index.js';
 
 export type LoginOverlayOutcome =
     | {
@@ -87,7 +87,7 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
             setStep('starting');
             safeSetStatus('Starting local callback server...');
 
-            const session = await beginOAuthLogin(DEFAULT_OAUTH_CONFIG, {
+            const session = await beginOAuthLogin(getDefaultOAuthConfig(), {
                 signal: abortController.signal,
             });
             if (!isActiveRef.current || abortController.signal.aborted) return;

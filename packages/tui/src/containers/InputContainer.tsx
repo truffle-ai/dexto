@@ -25,7 +25,7 @@ import { createUserMessage } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
-import { capture } from '../../../analytics/index.js';
+import { captureAnalytics } from '../host/index.js';
 import { getOverlayPresentation } from '../utils/overlayPresentation.js';
 
 /** Type for pending session creation promise */
@@ -334,7 +334,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             (image: PendingImage) => {
                 // Track image attachment analytics (only if session exists)
                 if (session.id) {
-                    capture('dexto_image_attached', {
+                    captureAnalytics('dexto_image_attached', {
                         source: 'cli',
                         sessionId: session.id,
                         imageType: image.mimeType,
@@ -750,7 +750,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                         const llmConfig = agent.getCurrentLLMConfig();
 
                         // Track message sent analytics
-                        capture('dexto_message_sent', {
+                        captureAnalytics('dexto_message_sent', {
                             source: 'cli',
                             sessionId: currentSessionId,
                             provider: llmConfig.provider,

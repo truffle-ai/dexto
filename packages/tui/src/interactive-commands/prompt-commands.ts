@@ -13,7 +13,7 @@
 import type { DextoAgent, PromptInfo } from '@dexto/core';
 import type { CommandDefinition, CommandContext, CommandHandlerResult } from './command-parser.js';
 import { formatForInkCli } from './utils/format-output.js';
-import { createSendMessageMarker, type StyledOutput } from '../../ink-cli/services/index.js';
+import { createSendMessageMarker, type StyledOutput } from '../services/index.js';
 // Avoid depending on core types to keep CLI typecheck independent of build
 
 /**

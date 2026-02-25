@@ -4,8 +4,8 @@
  */
 
 import { formatForInkCli } from './format-output.js';
-import type { StyledOutput } from '../../../ink-cli/services/CommandService.js';
-import type { StyledMessageType, StyledData } from '../../../ink-cli/state/types.js';
+import type { StyledOutput } from '../../services/CommandService.js';
+import type { StyledMessageType, StyledData } from '../../state/types.js';
 
 /**
  * Command output helper for consistent display and error handling
