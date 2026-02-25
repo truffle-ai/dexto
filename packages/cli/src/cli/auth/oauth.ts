@@ -390,6 +390,10 @@ export interface OAuthLoginSession {
     cancel: () => void;
 }
 
+export interface PerformOAuthLoginOptions {
+    failOnBrowserOpenError?: boolean | undefined;
+}
+
 export async function beginOAuthLogin(
     config: OAuthConfig,
     options: CallbackServerOptionsInput = {}
@@ -439,7 +443,10 @@ export async function beginOAuthLogin(
 /**
  * Perform OAuth login flow with Supabase
  */
-export async function performOAuthLogin(config: OAuthConfig): Promise<OAuthResult> {
+export async function performOAuthLogin(
+    config: OAuthConfig,
+    options: PerformOAuthLoginOptions = {}
+): Promise<OAuthResult> {
     try {
         const session = await beginOAuthLogin(config);
 
@@ -449,7 +456,13 @@ export async function performOAuthLogin(config: OAuthConfig): Promise<OAuthResul
             const { default: open } = await import('open');
             await open(session.authUrl);
             console.log(chalk.green('✅ Browser opened'));
-        } catch (_error) {
+        } catch (error) {
+            if (options.failOnBrowserOpenError) {
+                session.cancel();
+                throw new Error(
+                    `Browser launch failed: ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
             console.log(chalk.yellow(`💡 Please open manually: ${session.authUrl}`));
         }
 

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { createRequire } from 'module';
 import path from 'path';
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
 import { initAnalytics, capture, getWebUIAnalyticsConfig } from './analytics/index.js';
@@ -950,19 +950,33 @@ const authCommand = program.command('auth').description('Manage authentication')
 authCommand
     .command('login')
     .description('Login to Dexto')
-    .option('--api-key <key>', 'Use Dexto API key instead of browser login')
+    .option('--api-key <key>', 'Use Dexto API key instead of OAuth/device login')
+    .addOption(
+        new Option('--auth-mode <mode>', 'Login method: auto | browser | device').conflicts(
+            'device'
+        )
+    )
+    .addOption(new Option('--device', 'Shortcut for --auth-mode device').conflicts('authMode'))
     .option('--no-interactive', 'Disable interactive prompts')
     .action(
-        withAnalytics('auth login', async (options: { apiKey?: string; interactive?: boolean }) => {
-            try {
-                await handleLoginCommand(options);
-                safeExit('auth login', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto auth login command failed: ${err}`);
-                safeExit('auth login', 1, 'error');
+        withAnalytics(
+            'auth login',
+            async (options: {
+                apiKey?: string;
+                interactive?: boolean;
+                authMode?: string;
+                device?: boolean;
+            }) => {
+                try {
+                    await handleLoginCommand(options);
+                    safeExit('auth login', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto auth login command failed: ${err}`);
+                    safeExit('auth login', 1, 'error');
+                }
             }
-        })
+        )
     );
 
 authCommand
@@ -1006,19 +1020,33 @@ authCommand
 program
     .command('login')
     .description('Login to Dexto (alias for `dexto auth login`)')
-    .option('--api-key <key>', 'Use Dexto API key instead of browser login')
+    .option('--api-key <key>', 'Use Dexto API key instead of OAuth/device login')
+    .addOption(
+        new Option('--auth-mode <mode>', 'Login method: auto | browser | device').conflicts(
+            'device'
+        )
+    )
+    .addOption(new Option('--device', 'Shortcut for --auth-mode device').conflicts('authMode'))
     .option('--no-interactive', 'Disable interactive prompts')
     .action(
-        withAnalytics('login', async (options: { apiKey?: string; interactive?: boolean }) => {
-            try {
-                await handleLoginCommand(options);
-                safeExit('login', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto login command failed: ${err}`);
-                safeExit('login', 1, 'error');
+        withAnalytics(
+            'login',
+            async (options: {
+                apiKey?: string;
+                interactive?: boolean;
+                authMode?: string;
+                device?: boolean;
+            }) => {
+                try {
+                    await handleLoginCommand(options);
+                    safeExit('login', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto login command failed: ${err}`);
+                    safeExit('login', 1, 'error');
+                }
             }
-        })
+        )
     );
 
 program
