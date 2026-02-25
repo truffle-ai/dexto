@@ -45,6 +45,7 @@ import { HintBar } from '../shared/HintBar.js';
 
 type ModelSelectorTab = 'for-you' | 'all-models';
 type ForYouSection = 'featured' | 'recents' | 'favorites' | 'custom';
+const FEATURED_SECTION_LIMIT = 8;
 interface ModelSelectorProps {
     isVisible: boolean;
     onSelectModel: (
@@ -83,8 +84,6 @@ interface ModelOption {
     reasoningVariant?: ReasoningVariant;
     /** For gateway providers like dexto-nova, the original provider this model comes from */
     originalProvider?: LLMProvider;
-    /** Optional grouping used by "For You" mode. */
-    forYouSection?: ForYouSection;
 }
 
 // Special option for adding custom model
@@ -92,10 +91,24 @@ interface AddCustomOption {
     type: 'add-custom';
 }
 
-type SelectorItem = ModelOption | AddCustomOption;
+interface SectionHeaderOption {
+    type: 'section-header';
+    section: ForYouSection;
+    label: string;
+}
+
+type SelectorItem = ModelOption | AddCustomOption | SectionHeaderOption;
 
 function isAddCustomOption(item: SelectorItem): item is AddCustomOption {
     return 'type' in item && item.type === 'add-custom';
+}
+
+function isSectionHeaderOption(item: SelectorItem): item is SectionHeaderOption {
+    return 'type' in item && item.type === 'section-header';
+}
+
+function isModelOption(item: SelectorItem): item is ModelOption {
+    return !('type' in item);
 }
 
 function getRowPrefix({
@@ -549,21 +562,34 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             ])
         );
 
-        const seen = new Set<string>();
-        const forYouModels: ModelOption[] = [];
+        const forYouItems: SelectorItem[] = [addCustomOption];
 
         const pushSection = (candidates: ModelOption[], section: ForYouSection) => {
+            const dedupedSectionModels: ModelOption[] = [];
+            const seenInSection = new Set<string>();
+
             for (const candidate of candidates) {
                 const key = toModelPickerKey({
                     provider: candidate.provider,
                     model: candidate.name,
                 });
-                if (seen.has(key) || !matchesSearch(candidate)) {
+                if (seenInSection.has(key) || !matchesSearch(candidate)) {
                     continue;
                 }
-                seen.add(key);
-                forYouModels.push({ ...candidate, forYouSection: section });
+                seenInSection.add(key);
+                dedupedSectionModels.push(candidate);
             }
+
+            if (dedupedSectionModels.length === 0) {
+                return;
+            }
+
+            forYouItems.push({
+                type: 'section-header',
+                section,
+                label: FOR_YOU_SECTION_LABELS[section],
+            });
+            forYouItems.push(...dedupedSectionModels);
         };
 
         const providersInModels = Array.from(
@@ -582,7 +608,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 }
             }
         }
-        pushSection(featuredCandidates, 'featured');
+        pushSection(featuredCandidates.slice(0, FEATURED_SECTION_LIMIT), 'featured');
 
         const recentCandidates = modelPickerState.recents
             .map((entry) =>
@@ -601,7 +627,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         const customCandidates = models.filter((model) => model.isCustom);
         pushSection(customCandidates, 'custom');
 
-        return [addCustomOption, ...forYouModels];
+        return forYouItems;
     }, [activeTab, matchesSearch, modelPickerState, models]);
 
     // Keep selection valid and visible when filtering or terminal height changes.
@@ -776,9 +802,10 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
                 const itemsLength = filteredItems.length;
                 const currentItem = filteredItems[selectedIndexRef.current];
-                const isCustomActionItem =
-                    currentItem && !isAddCustomOption(currentItem) && currentItem.isCustom;
-                const isSelectableItem = currentItem && !isAddCustomOption(currentItem);
+                const selectedModel =
+                    currentItem && isModelOption(currentItem) ? currentItem : null;
+                const isCustomActionItem = selectedModel?.isCustom ?? false;
+                const isSelectableItem = selectedModel !== null;
 
                 if (key.tab) {
                     clearActionState();
@@ -791,7 +818,8 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 }
 
                 if (key.ctrl && (input === 'f' || input === 'F') && isSelectableItem) {
-                    const item = asModelOption(currentItem);
+                    const item = selectedModel;
+                    if (!item) return true;
                     clearActionState();
                     void (async () => {
                         try {
@@ -963,6 +991,9 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                             onAddCustomModel();
                             return true;
                         }
+                        if (isSectionHeaderOption(item)) {
+                            return true;
+                        }
 
                         // Handle action mode confirmations
                         if (customModelAction === 'edit' && item.isCustom) {
@@ -1123,12 +1154,12 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
     const selectedIndex = selection.index;
     const scrollOffset = selection.offset;
-    const modelsOnly = filteredItems.filter(
-        (item): item is ModelOption => !isAddCustomOption(item)
+    const listItems = filteredItems.filter(
+        (item): item is ModelOption | SectionHeaderOption => !isAddCustomOption(item)
     );
-    const visibleModels = modelsOnly.slice(scrollOffset, scrollOffset + modelsViewportItems);
+    const visibleItems = listItems.slice(scrollOffset, scrollOffset + modelsViewportItems);
     const selectedItem = filteredItems[selectedIndex];
-    const hasActionableItems = selectedItem && !isAddCustomOption(selectedItem);
+    const hasActionableItems = Boolean(selectedItem && isModelOption(selectedItem));
 
     let detailLine = '';
     if (isLoading) {
@@ -1149,6 +1180,8 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         detailLine = '';
     } else if (isAddCustomOption(selectedItem)) {
         detailLine = 'Enter to add a custom model';
+    } else if (isSectionHeaderOption(selectedItem)) {
+        detailLine = `${selectedItem.label} section`;
     } else {
         const provider = getLLMProviderDisplayName(selectedItem.provider);
         const name = selectedItem.displayName || selectedItem.name;
@@ -1164,9 +1197,6 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             )
         ) {
             flags.push('favorite');
-        }
-        if (selectedItem.forYouSection) {
-            flags.push(FOR_YOU_SECTION_LABELS[selectedItem.forYouSection].toLowerCase());
         }
         detailLine =
             flags.length > 0
@@ -1215,14 +1245,14 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     </Text>
                 </Box>
                 <Box flexDirection="column" height={modelsViewportItems}>
-                    {isLoading || modelsOnly.length === 0
+                    {isLoading || listItems.length === 0
                         ? Array.from({ length: modelsViewportItems }, (_, index) => (
                               <Box key={`model-empty-${index}`} paddingX={0} paddingY={0}>
                                   <Text> </Text>
                               </Box>
                           ))
                         : Array.from({ length: modelsViewportItems }, (_, rowIndex) => {
-                              const item = visibleModels[rowIndex];
+                              const item = visibleItems[rowIndex];
                               if (!item) {
                                   return (
                                       <Box
@@ -1238,6 +1268,25 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                               const actualIndex = 1 + scrollOffset + rowIndex;
                               const isSelected = actualIndex === selectedIndex;
 
+                              if (isSectionHeaderOption(item)) {
+                                  return (
+                                      <Box
+                                          key={`section-${item.section}-${actualIndex}`}
+                                          flexDirection="row"
+                                          paddingX={0}
+                                          paddingY={0}
+                                      >
+                                          <Text
+                                              color={isSelected ? 'cyan' : 'yellow'}
+                                              bold
+                                              wrap="truncate-end"
+                                          >
+                                              {isSelected ? '›' : ' '} {item.label}
+                                          </Text>
+                                      </Box>
+                                  );
+                              }
+
                               const providerDisplay = getLLMProviderDisplayName(item.provider);
                               const name = item.displayName || item.name;
                               const isFavorite = favoriteKeySet.has(
@@ -1246,10 +1295,6 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                                       model: item.name,
                                   })
                               );
-                              const sectionLabel =
-                                  activeTab === 'for-you' && item.forYouSection
-                                      ? ` [${FOR_YOU_SECTION_LABELS[item.forYouSection]}]`
-                                      : '';
                               const prefix = getRowPrefix({
                                   isSelected,
                                   isDefault: item.isDefault,
@@ -1271,11 +1316,17 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                                               bold={isSelected}
                                               wrap="truncate-end"
                                           >
-                                              {prefix} {name} ({providerDisplay}){sectionLabel}
+                                              {prefix} {name} ({providerDisplay})
                                           </Text>
                                       </Box>
                                       {isSelected && (
                                           <Box flexDirection="row" marginLeft={1}>
+                                              <Text color={isFavorite ? 'yellow' : 'gray'}>
+                                                  {' '}
+                                                  {isFavorite ? 'Unfavorite' : 'Favorite'}{' '}
+                                              </Text>
+                                              <Text color="gray">(Ctrl+F)</Text>
+                                              <Text> </Text>
                                               {item.isCustom && (
                                                   <>
                                                       <Text

@@ -40,6 +40,7 @@ import {
 } from '../schemas/responses.js';
 
 type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
+const MODEL_PICKER_FEATURED_LIMIT = 8;
 
 const CurrentQuerySchema = z
     .object({
@@ -707,7 +708,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
             .filter((entry): entry is z.output<typeof ModelPickerEntrySchema> => Boolean(entry));
 
         return {
-            featured: dedupeEntries(featured),
+            featured: dedupeEntries(featured).slice(0, MODEL_PICKER_FEATURED_LIMIT),
             recents,
             favorites,
             custom: dedupeEntries(customSection),
