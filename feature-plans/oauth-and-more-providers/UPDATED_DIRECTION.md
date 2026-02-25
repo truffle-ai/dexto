@@ -1,6 +1,6 @@
 # Updated Direction — OAuth + Provider Catalog Revamp
 
-Date: **2026-02-18**
+Date: **2026-02-25**
 
 This is an addendum to [`PLAN.md`](./PLAN.md). It captures key insights discovered after Phase 1 scaffolding landed, and updates the direction for achieving “pi parity” (broad provider/model coverage) without re-architecting the system.
 
@@ -141,20 +141,25 @@ Shipped building blocks:
 
 ### 4.2 Known follow-up gaps
 
-- `/connect` currently overwrites credentials because `profileId` is fixed to `${providerId}:${methodId}`:
+- `/connect` overwrite behavior is already fixed (deterministic slots + explicit replace/use-existing/delete actions).
   - Source: `packages/cli/src/cli/commands/connect/index.ts`
-  - We need “auth slot” UX: keep deterministic IDs, but **don’t silently overwrite**.
-    - Allow switching defaults without re-auth by selecting an existing slot.
-    - If the slot already exists, prompt the user to replace credentials (explicit confirm) vs keep existing.
+- Provider IDs are generated from models.dev in core, but runtime/model-execution logic is still mostly provider-ID keyed:
+  - `packages/core/src/llm/services/factory.ts`
+  - `packages/core/src/llm/executor/provider-options.ts`
+  - `packages/core/src/llm/reasoning/profile.ts`
+- We need a transport/API-kind resolver (`provider.npm`-driven, with explicit exception tables) so new providers inherit reasoning/runtime behavior without per-provider branching.
 
 ## 5) Changes this implies for the tasklist
 
 We should update the plan’s next phases to include:
-- Multi-profile UX completion (create multiple profiles; switch active; delete).
 - Sync pipeline changes:
   - ingest gateway catalogs (OpenRouter first) in `sync-llm-*`
   - generate a provider snapshot (name/env/doc/npm/api) for `/connect` and onboarding
   - keep model snapshot generation separate from gateway live validation
-- LLM factory refactor:
-  - table-driven “boring providers” based on `npm` + `api` baseURL
-  - keep explicit code only for real exceptions (dexto-nova, openrouter, bedrock, vertex, oauth URL rewrites, local/ollama)
+- LLM factory + reasoning refactor:
+  - table-driven routing by transport/API kind (derived from `provider.npm` + model metadata)
+  - keep explicit code only for real exceptions (dexto-nova, openrouter family gates, bedrock/vertex auth/runtime quirks, oauth URL rewrites, local/ollama)
+- Regression coverage for reasoning/runtime:
+  - transport mapping coverage over all generated providers,
+  - provider-options output checks per transport + representative model families,
+  - reasoning profile variant checks that preserve current behavior while removing provider-ID sprawl.

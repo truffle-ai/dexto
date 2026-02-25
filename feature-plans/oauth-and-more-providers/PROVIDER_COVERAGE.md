@@ -1,51 +1,129 @@
 # Provider Coverage Snapshot (Dexto vs OpenClaw vs OpenCode)
 
-Date: **2026-02-18**
+Date: **2026-02-25**
 
 This file is a concrete snapshot of **provider IDs** across the three relevant codebases, so we can reason about “what can be supported” without hand-waving.
 
 Notes:
 - This is intentionally “flat”: it lists IDs, not UX, auth methods, or transports.
-- OpenCode’s list is primarily **models.dev provider IDs** (which is why it’s huge).
-- models.dev’s **gateway provider** catalogs (notably OpenRouter) can be intentionally curated; consumers like OpenCode will not necessarily show OpenRouter’s full live `/models` surface.
+- Dexto’s list is now generated from models.dev plus a small Dexto overlay.
+- OpenCode’s base list is models.dev provider IDs, with one additional derived provider (`github-copilot-enterprise`).
 - OpenClaw and OpenCode can support additional “custom providers” via config; those are not enumerable and are not included here.
 
 ---
 
 ## Dexto (in this repo)
 
-Source of truth: `packages/core/src/llm/types.ts` (`LLM_PROVIDERS`)
+Source of truth: `packages/core/src/llm/providers.generated.ts` (`LLM_PROVIDERS`)
 
-Count: **27**
+Count: **103**  
+- models.dev providers: **97**  
+- Dexto overlays: **6** (`dexto-nova`, `openai-compatible`, `litellm`, `glama`, `local`, `ollama`)
 
 ```text
-openai
-openai-compatible
+302ai
+abacus
+aihubmix
+alibaba
+alibaba-cn
+amazon-bedrock
 anthropic
-google
-groq
-xai
+azure
+azure-cognitive-services
+bailing
+baseten
+berget
+cerebras
+chutes
+cloudferro-sherlock
+cloudflare-ai-gateway
+cloudflare-workers-ai
 cohere
+cortecs
+deepinfra
+deepseek
 dexto-nova
+evroc
+fastrouter
+fireworks-ai
+firmware
+friendli
+github-copilot
+github-models
+gitlab
 glama
-glm
+google
+google-vertex
+google-vertex-anthropic
+groq
+helicone
+huggingface
+iflowcn
+inception
+inference
+io-net
+jiekou
+kilo
+kimi-for-coding
+kuae-cloud-coding-plan
 litellm
+llama
+lmstudio
 local
+lucidquery
+meganova
 minimax
 minimax-cn
-minimax-coding-plan
 minimax-cn-coding-plan
+minimax-coding-plan
+mistral
+moark
+modelscope
 moonshotai
 moonshotai-cn
+morph
+nano-gpt
+nebius
+nova
+novita-ai
+nvidia
 ollama
+ollama-cloud
+openai
+openai-compatible
+opencode
+opencode-go
 openrouter
-vertex
-bedrock
-kimi-for-coding
-zhipuai
-zhipuai-coding-plan
+ovhcloud
+perplexity
+poe
+privatemode-ai
+qihang-ai
+qiniu-ai
+requesty
+sap-ai-core
+scaleway
+siliconflow
+siliconflow-cn
+stackit
+stepfun
+submodel
+synthetic
+togetherai
+upstage
+v0
+venice
+vercel
+vivgrid
+vultr
+wandb
+xai
+xiaomi
 zai
 zai-coding-plan
+zenmux
+zhipuai
+zhipuai-coding-plan
 ```
 
 ---
@@ -109,14 +187,14 @@ codex-cli
 
 ## OpenCode (reference)
 
-Source of truth (base list): models.dev provider IDs (as of 2026-02-18): `https://models.dev/api.json`
+Source of truth (base list): models.dev provider IDs (current public `https://models.dev/api.json` snapshot).
 
 Additional OpenCode-specific provider IDs:
 - OpenCode adds `github-copilot-enterprise` by cloning the models.dev `github-copilot` provider:
   - `~/Projects/external/opencode/packages/opencode/src/provider/provider.ts` (search for “Copilot Enterprise”)
 
-Count (models.dev providers): **94**  
-Count (OpenCode effective providers incl. enterprise): **95**
+Count (models.dev providers): **97**  
+Count (OpenCode effective providers incl. enterprise): **98**
 
 ```text
 302ai
@@ -140,6 +218,7 @@ cohere
 cortecs
 deepinfra
 deepseek
+evroc
 fastrouter
 fireworks-ai
 firmware
@@ -165,6 +244,7 @@ kuae-cloud-coding-plan
 llama
 lmstudio
 lucidquery
+meganova
 minimax
 minimax-cn
 minimax-cn-coding-plan
@@ -183,6 +263,7 @@ nvidia
 ollama-cloud
 openai
 opencode
+opencode-go
 openrouter
 ovhcloud
 perplexity

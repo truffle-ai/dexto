@@ -23,7 +23,7 @@
 | UV-3 | OAuth app credentials (MiniMax Portal) | Requires external app registration or explicit provider confirmation | 4.1 | Open | OpenClaw hardcodes a client ID; confirm whether we must register our own, or whether a public client ID is intended for third-party use. |
 | UV-5 | Env var mapping for Z.AI / GLM | User expectation + migration risk | 0.2 | Open | models.dev uses `ZHIPU_API_KEY` for `zai`; OpenClaw uses `ZAI_API_KEY` / `Z_AI_API_KEY`. Decide which to accept and which to display as the “primary” hint. |
 | UV-6 | MiniMax transport defaults (OpenAI-compatible vs Anthropic-compatible) | Impacts runtime correctness + preset design | 2.2 | Open | Runtime now defaults to models.dev’s Anthropic-compatible baseURL; decide whether we also ship OpenAI-compatible variants as explicit (optional) presets. |
-| UV-7 | Provider + gateway catalog ingestion strategy | Impacts offline behavior + maintenance + UX | 1.5 | Open | Decide build-time snapshot vs runtime fetch+cache for: (a) models.dev provider metadata (name/env/doc/npm/api), and (b) gateway model catalogs (OpenRouter live `/models` vs models.dev curated list). |
+| UV-7 | Provider + gateway catalog ingestion strategy | Impacts offline behavior + maintenance + UX | 1.5 | Open | Provider metadata snapshot is now committed (`providers.generated.ts`); remaining decision is gateway ingestion policy (OpenRouter/Vercel: build-time only vs runtime cache fallback). |
 | UV-8 | Resolution precedence surface | UX + “magic” risk | 0.4 | Open | Decide hardcoded precedence vs store-driven order; decide whether precedence lives in `llm-profiles` vs agent config; decide `llm.authProfileId` in v1. |
 | UV-9 | Anthropic setup-token viability + ship criteria | External dependency + potential policy constraints | 5.2 | Open | Implement until infeasible; decide whether this is “experimental” and how we disable quickly if it breaks/gets blocked. |
 | UV-10 | Manual smoke: `/connect` UX | Requires local interactive runs | Phase 1+ | Open | Verify connect flow UX: create/switch default profiles, no secret leakage, file permissions are correct. |
@@ -31,6 +31,8 @@
 | UV-12 | Manual smoke: WebUI parity | Requires running WebUI | Phase 7 | Open | Verify WebUI reflects method-based auth and doesn’t regress existing API key settings. |
 | UV-13 | “Ancient model” visibility policy | Product UX / defaults | 1.5.4 | Open | Decide whether we should ship an explicit time-window filter (eg “hide models older than X months”), and if so, which metadata to trust (`release_date`, `last_updated`, `status`). |
 | UV-14 | Codex OAuth model scope + default semantics | Product UX + avoids breaking non-Codex OpenAI usage | 3.1 | Open | Decide whether Codex OAuth is (a) model-gated within `openai`, or (b) represented as a separate provider/preset (e.g. `openai-codex`). Ensure setting it as a default cannot affect unrelated OpenAI models. |
+| UV-15 | Transport/API-kind strategy for reasoning/runtime | Affects architecture and long-term maintainability | 2.3.1 | Open | Confirm we standardize on `provider.npm`-driven transport routing (plus explicit exception tables) instead of continuing provider-ID branching. |
+| UV-16 | Regression gate for reasoning across transport families | Defines release confidence criteria | 2.3.1 | Open | Approve required regression suite scope (transport mapping coverage + provider-options/reasoning profile behavior checks per transport). |
 
 ---
 

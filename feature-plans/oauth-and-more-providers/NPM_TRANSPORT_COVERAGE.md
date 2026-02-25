@@ -1,15 +1,12 @@
 # NPM / Transport Coverage Snapshot (models.dev → runtime mapping)
 
-Date: **2026-02-18**
+Date: **2026-02-25**
 
-Source: `https://models.dev/api.json`
+Source:
+- `https://models.dev/api.json`
+- generated local snapshot: `packages/core/src/llm/providers.generated.ts`
 
-Purpose: models.dev encodes the intended Vercel AI SDK provider module via `provider.npm`. Grouping provider IDs by `npm` gives us a *small, stable set of “transport kinds”* to implement, while still enabling a path to supporting “all providers”.
-
-This file is a concrete snapshot of:
-- models.dev provider IDs grouped by `npm` (23 unique values as of this date)
-- what Dexto can support *immediately* (based on existing core dependencies + transports)
-- what requires additional work (new deps and/or bespoke drivers)
+Purpose: models.dev encodes intended provider SDKs via `provider.npm`. Grouping provider IDs by `npm` gives us a small transport/API-kind surface while provider IDs stay dynamic.
 
 Related:
 - Provider IDs snapshot: [`PROVIDER_COVERAGE.md`](./PROVIDER_COVERAGE.md)
@@ -19,75 +16,100 @@ Related:
 
 ## 1) Summary
 
-- Total models.dev providers: **94**
-- Unique `provider.npm` values: **23**
-- Providers covered by Dexto’s **existing** transport surface (no new deps): **81 / 94**
-  - This is because **64 / 94** providers are `@ai-sdk/openai-compatible` (OpenAI Chat + baseURL).
+- models.dev providers: **97**
+- unique `provider.npm` values: **23**
+- Dexto overlays (non-models.dev): **6**
+- total `LLM_PROVIDERS` in core: **103**
 
-Unique npm counts (from models.dev):
-- 64 `@ai-sdk/openai-compatible`
-- 7 `@ai-sdk/anthropic`
-- 2 `@ai-sdk/openai`
-- 2 `@ai-sdk/azure`
-- 1 each for the remaining 18 values
+Two different coverage views matter:
 
----
+1. **Current runtime wiring (today)**  
+   `factory.ts` is still mostly provider-ID switch based, so only a subset of models.dev provider IDs are directly runnable today.
 
-## 2) Dexto “transport kinds” (stable) vs provider IDs (dynamic)
-
-The intended architecture (post Phase 1.5/2.3):
-- **Transport kinds** in core remain a small, stable set (OpenAI, OpenAI-compatible, Anthropic, Vertex, Bedrock, etc.).
-- **Provider IDs** can expand dynamically (models.dev’s 94 providers) by mapping:
-  - `provider.npm` → transport kind
-  - `provider.api` (when present) → baseURL
-  - `provider.env` / `provider.doc` → connect UX hints
-
-This keeps a clear path to “all providers” while keeping runtime code small; it’s fine if `LLM_PROVIDERS` becomes a 94-item union **as long as it’s generated** (not hand-maintained).
+2. **Potential coverage with existing core dependencies (after transport mapping refactor)**  
+   If we route by transport/API kind from `provider.npm`, we can cover **84 / 97** models.dev providers without adding new SDK packages.
 
 ---
 
-## 3) Coverage status (as of this repo today)
+## 2) Current vs potential coverage
 
-### 3.1 Covered by existing core dependencies (81 providers)
+### 2.1 Current provider-ID runtime coverage (today)
 
-These `npm` values already correspond to SDKs we have (or can route via `createOpenAI`), so Phase 2.3 can expose these providers without adding new packages:
+Directly wired models.dev providers in `packages/core/src/llm/services/factory.ts`:
 
-- `@ai-sdk/openai-compatible` (64) → `createOpenAI({ baseURL }).chat(model)`
-- `@ai-sdk/openai` (2) → `createOpenAI({ baseURL? }).responses(model)` (or `.chat` where needed)
-- `@ai-sdk/anthropic` (7) → `createAnthropic({ baseURL? })(model)`
-- `@ai-sdk/google` (1) → `createGoogleGenerativeAI({ apiKey })(model)`
-- `@ai-sdk/google-vertex` (1) → `createVertex({ project, location })(model)` (ADC)
-- `@ai-sdk/google-vertex/anthropic` (1) → `createVertexAnthropic({ project, location })(model)` (ADC)
-- `@ai-sdk/groq` (1) → `createGroq({ apiKey })(model)`
-- `@ai-sdk/xai` (1) → `createXai({ apiKey })(model)`
-- `@ai-sdk/cohere` (1) → `createCohere({ apiKey })(model)`
-- `@ai-sdk/amazon-bedrock` (1) → `createAmazonBedrock({ region })(model)` (AWS creds)
-- `@openrouter/ai-sdk-provider` (1) → Dexto can route via `createOpenAI({ baseURL: openrouter }).responses(model)` (no need to import the OpenRouter SDK initially)
+```text
+amazon-bedrock
+anthropic
+cohere
+google
+google-vertex
+google-vertex-anthropic
+groq
+kimi-for-coding
+minimax
+minimax-cn
+minimax-cn-coding-plan
+minimax-coding-plan
+moonshotai
+moonshotai-cn
+openai
+openrouter
+xai
+zai
+zai-coding-plan
+zhipuai
+zhipuai-coding-plan
+```
 
-### 3.2 Not covered yet (13 providers; 12 npm values)
+This is why adding more providers currently risks more provider-ID branches (spaghetti) unless we pivot to transport/API-kind routing.
 
-These providers require either:
-- adding the provider SDK package + wiring, or
-- a deliberate compatibility strategy (eg treat as OpenAI-compatible by adding a curated baseURL if the upstream supports it), or
-- deferring support.
+### 2.2 Potential coverage after transport/API-kind routing
 
-Not covered `npm` values:
-- `@ai-sdk/azure` (2 providers)
+With current `@dexto/core` dependencies and existing SDK surfaces, we can cover **84 / 97** models.dev providers by mapping:
+- `provider.npm` → transport/API kind
+- `provider.api` → baseURL (for compatible providers)
+- SDK providerOptions namespace key (`openai`, `anthropic`, `google`, `bedrock`, `openrouter`, etc.)
+
+Covered npm groups (no new dependencies):
+- `@ai-sdk/openai-compatible` (67)
+- `@ai-sdk/openai` (2)
+- `@ai-sdk/anthropic` (7)
+- `@ai-sdk/google` (1)
+- `@ai-sdk/google-vertex` (1)
+- `@ai-sdk/google-vertex/anthropic` (1)
+- `@ai-sdk/groq` (1)
+- `@ai-sdk/xai` (1)
+- `@ai-sdk/cohere` (1)
+- `@ai-sdk/amazon-bedrock` (1)
+- `@openrouter/ai-sdk-provider` (1)
+
+Not covered yet with current deps (13 providers / 12 npm values):
+- `@ai-sdk/azure` (2)
 - `@ai-sdk/cerebras` (1)
 - `@ai-sdk/deepinfra` (1)
 - `@ai-sdk/mistral` (1)
 - `@ai-sdk/perplexity` (1)
 - `@ai-sdk/togetherai` (1)
-- `@ai-sdk/gateway` (1) — Vercel AI Gateway provider module in models.dev
-- `@ai-sdk/vercel` (1) — v0 provider module
-- `ai-gateway-provider` (1) — Cloudflare AI Gateway provider module
+- `@ai-sdk/gateway` (1)
+- `@ai-sdk/vercel` (1)
+- `ai-gateway-provider` (1)
 - `venice-ai-sdk-provider` (1)
 - `@gitlab/gitlab-ai-provider` (1)
 - `@jerome-benoit/sap-ai-provider-v2` (1)
 
 ---
 
-## 4) Provider IDs grouped by `provider.npm` (snapshot)
+## 3) Regression expectations for transport migration
+
+When we migrate reasoning/runtime to transport/API-kind routing, minimum regression coverage should include:
+- full mapping test over all generated providers (`providers.generated.ts`) with explicit unsupported buckets,
+- reasoning profile/provider-options tests per transport family,
+- gateway family exception tests (OpenRouter/`dexto-nova` exclusions and allowlists),
+- factory creation tests that ensure `provider.npm` mapping picks the correct SDK path/options namespace.
+
+---
+
+## 4) Provider IDs grouped by `provider.npm` (current snapshot)
 
 ## @ai-sdk/amazon-bedrock (1)
 
@@ -175,7 +197,7 @@ openai
 vivgrid
 ```
 
-## @ai-sdk/openai-compatible (64)
+## @ai-sdk/openai-compatible (67)
 
 ```text
 302ai
@@ -191,6 +213,7 @@ cloudferro-sherlock
 cloudflare-workers-ai
 cortecs
 deepseek
+evroc
 fastrouter
 fireworks-ai
 firmware
@@ -209,6 +232,7 @@ kuae-cloud-coding-plan
 llama
 lmstudio
 lucidquery
+meganova
 moark
 modelscope
 moonshotai
@@ -221,6 +245,7 @@ novita-ai
 nvidia
 ollama-cloud
 opencode
+opencode-go
 ovhcloud
 poe
 privatemode-ai
