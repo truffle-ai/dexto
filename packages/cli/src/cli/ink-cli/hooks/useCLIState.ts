@@ -112,6 +112,7 @@ export function useCLIState({
         isThinking: false,
         isCompacting: false,
         activeOverlay: 'none',
+        showReasoning: true,
         exitWarningShown: false,
         exitWarningTimestamp: null,
         mcpWizardServerType: null,

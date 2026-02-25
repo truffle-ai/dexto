@@ -401,13 +401,26 @@ export function useAgentEvents({
                             ? '🔌 API Request'
                             : '📥 External Request';
 
+                const triggerTimestamp = new Date();
+                const scheduleName =
+                    typeof payload.metadata?.scheduleName === 'string'
+                        ? payload.metadata.scheduleName
+                        : null;
+                const triggerLabel = scheduleName ? `${sourceLabel}: ${scheduleName}` : sourceLabel;
+
                 setMessages((prev) => [
                     ...prev,
                     {
                         id: generateMessageId('system'),
                         role: 'system' as const,
-                        content: `${sourceLabel}`,
-                        timestamp: new Date(),
+                        content: triggerLabel,
+                        timestamp: triggerTimestamp,
+                        styledType: 'external-trigger' as const,
+                        styledData: {
+                            label: triggerLabel,
+                            source: payload.source ?? 'external',
+                            timestamp: triggerTimestamp,
+                        },
                     },
                     {
                         id: generateMessageId('user'),

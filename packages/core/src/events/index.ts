@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import type { LLMProvider } from '../llm/types.js';
+import type { LLMProvider, ReasoningVariant } from '../llm/types.js';
 import type { AgentRuntimeSettings } from '../agent/runtime-config.js';
 import type { ApprovalRequest, ApprovalResponse } from '../approval/types.js';
 import type { SanitizedToolResult } from '../context/types.js';
@@ -358,6 +358,10 @@ export interface AgentEventMap {
         reasoning?: string;
         provider?: LLMProvider;
         model?: string;
+        /** Reasoning tuning variant used for this call, when the provider exposes it. */
+        reasoningVariant?: ReasoningVariant;
+        /** Reasoning budget tokens used for this call, when the provider exposes it. */
+        reasoningBudgetTokens?: number;
         tokenUsage?: {
             inputTokens?: number;
             outputTokens?: number;
@@ -623,6 +627,10 @@ export interface SessionEventMap {
         reasoning?: string;
         provider?: LLMProvider;
         model?: string;
+        /** Reasoning tuning variant used for this call, when the provider exposes it. */
+        reasoningVariant?: ReasoningVariant;
+        /** Reasoning budget tokens used for this call, when the provider exposes it. */
+        reasoningBudgetTokens?: number;
         tokenUsage?: {
             inputTokens?: number;
             outputTokens?: number;

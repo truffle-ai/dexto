@@ -18,6 +18,7 @@ import type {
     RunSummaryStyledData,
     ShortcutsStyledData,
     SysPromptStyledData,
+    ExternalTriggerStyledData,
 } from '../../state/types.js';
 import {
     ConfigBox,
@@ -32,7 +33,10 @@ import {
 import { ToolResultRenderer } from '../renderers/index.js';
 import { MarkdownText } from '../shared/MarkdownText.js';
 import { ToolIcon } from './ToolIcon.js';
-import { formatToolResultPreview } from '../../utils/messageFormatting.js';
+import {
+    formatToolResultPreview,
+    stripAutomationTriggerTags,
+} from '../../utils/messageFormatting.js';
 
 /**
  * Strip <plan-mode>...</plan-mode> tags from content.
@@ -70,10 +74,85 @@ function formatDuration(ms: number): string {
     return `${hours}h ${remainingMinutes}m`;
 }
 
+function formatTime(timestamp: Date | string): string {
+    const value = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
+    if (Number.isNaN(value.getTime())) {
+        return '';
+    }
+    return value.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+}
+
+function getExternalTriggerColors(source: ExternalTriggerStyledData['source']): {
+    background: string;
+    foreground: string;
+} {
+    switch (source) {
+        case 'scheduler':
+            return { background: '#3A235A', foreground: 'white' };
+        case 'a2a':
+            return { background: '#0E3B2E', foreground: 'white' };
+        case 'api':
+            return { background: '#1E3B5A', foreground: 'white' };
+        default:
+            return { background: 'gray', foreground: 'white' };
+    }
+}
+
+function getExternalTriggerSource(label: string): ExternalTriggerStyledData['source'] | null {
+    if (label.startsWith('⏰ Scheduled Task')) {
+        return 'scheduler';
+    }
+    if (label.startsWith('🤖 A2A Request')) {
+        return 'a2a';
+    }
+    if (label.startsWith('🔌 API Request')) {
+        return 'api';
+    }
+    if (label.startsWith('📥 External Request')) {
+        return 'external';
+    }
+    return null;
+}
+
+function renderExternalTriggerPill(
+    label: string,
+    timeLabel: string | null,
+    source: ExternalTriggerStyledData['source'],
+    terminalWidth: number
+) {
+    const colors = getExternalTriggerColors(source);
+
+    return (
+        <Box marginBottom={0} width={terminalWidth}>
+            <Box
+                backgroundColor={colors.background}
+                paddingX={1}
+                borderStyle="round"
+                borderColor={colors.background}
+                flexDirection="row"
+            >
+                <Text color={colors.foreground} bold>
+                    {label}
+                </Text>
+                {timeLabel && (
+                    <Box marginLeft={1}>
+                        <Text color={colors.foreground}>{timeLabel}</Text>
+                    </Box>
+                )}
+            </Box>
+        </Box>
+    );
+}
+
 interface MessageItemProps {
     message: Message;
     /** Terminal width for proper text wrapping calculations */
     terminalWidth?: number;
+    /** Whether assistant reasoning should be shown. */
+    showReasoning?: boolean;
 }
 
 /**
@@ -84,7 +163,7 @@ interface MessageItemProps {
  * but individual message content hasn't changed.
  */
 export const MessageItem = memo(
-    ({ message, terminalWidth = 80 }: MessageItemProps) => {
+    ({ message, terminalWidth = 80, showReasoning = true }: MessageItemProps) => {
         // Check for styled message first
         if (message.styledType && message.styledData) {
             switch (message.styledType) {
@@ -123,6 +202,15 @@ export const MessageItem = memo(
                     return <ShortcutsBox data={message.styledData as ShortcutsStyledData} />;
                 case 'sysprompt':
                     return <SyspromptBox data={message.styledData as SysPromptStyledData} />;
+                case 'external-trigger': {
+                    const data = message.styledData as ExternalTriggerStyledData;
+                    return renderExternalTriggerPill(
+                        data.label,
+                        formatTime(data.timestamp),
+                        data.source,
+                        terminalWidth
+                    );
+                }
             }
         }
 
@@ -133,7 +221,7 @@ export const MessageItem = memo(
             const prefix = '> ';
             const paddingChars = 2; // paddingX={1} = 1 char on each side
             const availableWidth = Math.max(20, terminalWidth - prefix.length - paddingChars);
-            const displayContent = stripPlanModeTags(message.content);
+            const displayContent = stripAutomationTriggerTags(stripPlanModeTags(message.content));
             const wrappedContent = wrapAnsi(displayContent, availableWidth, {
                 hard: true,
                 wordWrap: true,
@@ -142,7 +230,7 @@ export const MessageItem = memo(
             const lines = wrappedContent.split('\n');
 
             return (
-                <Box flexDirection="column" marginTop={2} marginBottom={1} width={terminalWidth}>
+                <Box flexDirection="column" marginTop={1} marginBottom={0} width={terminalWidth}>
                     <Box flexDirection="column" paddingX={1} backgroundColor="gray">
                         {lines.map((line, i) => (
                             <Box key={i} flexDirection="row">
@@ -160,11 +248,22 @@ export const MessageItem = memo(
         // Without width constraints, streaming content causes terminal blackout at ~50+ lines.
         // marginTop={1} for consistent spacing with tool messages
         if (message.role === 'assistant') {
+            const hasContent = message.content.trim().length > 0;
+            const reasoningBlock =
+                showReasoning && message.reasoning ? (
+                    <Box flexDirection="column" marginBottom={1}>
+                        <MarkdownText color="gray" bulletPrefix="⏺ ">
+                            {message.reasoning}
+                        </MarkdownText>
+                    </Box>
+                ) : null;
+
             // Continuation messages: no indicator, just content
             if (message.isContinuation) {
                 return (
                     <Box flexDirection="column" width={terminalWidth}>
-                        <MarkdownText>{message.content || ''}</MarkdownText>
+                        {reasoningBlock}
+                        {hasContent ? <MarkdownText>{message.content}</MarkdownText> : null}
                     </Box>
                 );
             }
@@ -174,7 +273,10 @@ export const MessageItem = memo(
             // This is simpler and avoids mid-word splitting issues with Ink's wrap
             return (
                 <Box flexDirection="column" marginTop={1} width={terminalWidth}>
-                    <MarkdownText bulletPrefix="⏺ ">{message.content || ''}</MarkdownText>
+                    {reasoningBlock}
+                    {hasContent ? (
+                        <MarkdownText bulletPrefix="⏺ ">{message.content}</MarkdownText>
+                    ) : null}
                 </Box>
             );
         }
@@ -289,7 +391,19 @@ export const MessageItem = memo(
             );
         }
 
-        // System message: Compact gray text
+        // System message: Compact gray text (or derived external trigger pill)
+        if (message.role === 'system') {
+            const detectedSource = getExternalTriggerSource(message.content);
+            if (detectedSource) {
+                return renderExternalTriggerPill(
+                    message.content,
+                    null,
+                    detectedSource,
+                    terminalWidth
+                );
+            }
+        }
+
         return (
             <Box flexDirection="column" marginBottom={1} width={terminalWidth}>
                 <Text color="gray">{message.content}</Text>
@@ -301,6 +415,7 @@ export const MessageItem = memo(
         return (
             prev.message.id === next.message.id &&
             prev.message.content === next.message.content &&
+            prev.message.reasoning === next.message.reasoning &&
             prev.message.role === next.message.role &&
             prev.message.toolStatus === next.message.toolStatus &&
             prev.message.toolResult === next.message.toolResult &&
@@ -312,6 +427,7 @@ export const MessageItem = memo(
             prev.message.toolDisplayData === next.message.toolDisplayData &&
             prev.message.toolContent === next.message.toolContent &&
             prev.terminalWidth === next.terminalWidth &&
+            prev.showReasoning === next.showReasoning &&
             prev.message.subAgentProgress?.toolsCalled ===
                 next.message.subAgentProgress?.toolsCalled &&
             prev.message.subAgentProgress?.currentTool ===

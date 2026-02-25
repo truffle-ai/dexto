@@ -227,7 +227,7 @@ systemPrompt:
 - **llm:thinking** - AI is processing
 - **llm:chunk** - Streaming response chunk
 - **llm:tool-call** - Tool execution starting
-- **llm:tool-result** - Tool execution completed  
+- **llm:tool-result** - Tool execution completed
 - **llm:response** - Final response ready
 
 ### Usage Example

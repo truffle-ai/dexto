@@ -10,6 +10,7 @@ import {
     getCuratedModelsForProvider,
     getSupportedFileTypesForModel,
     getLocalModelById,
+    getReasoningProfile,
     type ProviderInfo,
     type LLMProvider,
     type SupportedFileType,
@@ -379,6 +380,61 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                             supportedFileTypes: z
                                 .array(z.enum(SUPPORTED_FILE_TYPES))
                                 .describe('File types supported by this model'),
+                            reasoning: z
+                                .object({
+                                    capable: z
+                                        .boolean()
+                                        .describe(
+                                            'Whether Dexto considers this provider/model reasoning-capable (derived from registry metadata plus explicit provider/model rules)'
+                                        ),
+                                    paradigm: z
+                                        .enum([
+                                            'effort',
+                                            'adaptive-effort',
+                                            'thinking-level',
+                                            'budget',
+                                            'none',
+                                        ])
+                                        .describe('Reasoning control paradigm for this model'),
+                                    variants: z
+                                        .array(
+                                            z
+                                                .object({
+                                                    id: z
+                                                        .string()
+                                                        .describe(
+                                                            'Native reasoning variant identifier'
+                                                        ),
+                                                    label: z
+                                                        .string()
+                                                        .describe(
+                                                            'Display label for the native reasoning variant'
+                                                        ),
+                                                })
+                                                .strict()
+                                        )
+                                        .describe('Native reasoning variants exposed to users'),
+                                    supportedVariants: z
+                                        .array(z.string())
+                                        .describe(
+                                            'Native reasoning variant IDs supported for this model/provider'
+                                        ),
+                                    defaultVariant: z
+                                        .string()
+                                        .optional()
+                                        .describe(
+                                            'Default reasoning variant used when no explicit override is set'
+                                        ),
+                                    supportsBudgetTokens: z
+                                        .boolean()
+                                        .describe(
+                                            'Whether this provider/model supports a budgetTokens-style escape hatch'
+                                        ),
+                                })
+                                .strict()
+                                .describe(
+                                    'Reasoning tuning capabilities derived from registry metadata and explicit provider/model rules'
+                                ),
                         }),
                     },
                 },
@@ -918,10 +974,13 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                 supportedFileTypes = providerInfo?.supportedFileTypes ?? [];
             }
 
+            const reasoning = getReasoningProfile(provider, model);
+
             return ctx.json({
                 provider,
                 model,
                 supportedFileTypes,
+                reasoning,
             });
         });
 }

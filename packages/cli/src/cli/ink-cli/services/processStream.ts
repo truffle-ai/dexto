@@ -94,6 +94,9 @@ export interface ProcessStreamOptions {
 interface StreamState {
     messageId: string | null;
     content: string;
+    reasoning: string;
+    /** True once reasoning has been emitted into finalized output (to avoid duplication). */
+    reasoningFinalized: boolean;
     /** Input tokens from most recent LLM response (replaced, not summed) */
     lastInputTokens: number;
     /** Cumulative output tokens across all LLM responses in this turn */
@@ -110,6 +113,7 @@ interface StreamState {
      * the text so we can add it BEFORE tool calls for correct message ordering.
      */
     nonStreamingAccumulatedText: string;
+    nonStreamingAccumulatedReasoning: string;
 }
 
 /**
@@ -148,12 +152,15 @@ export async function processStream(
     const state: StreamState = {
         messageId: null,
         content: '',
+        reasoning: '',
+        reasoningFinalized: false,
         lastInputTokens: 0,
         cumulativeOutputTokens: 0,
         finalizedContent: '',
         splitCounter: 0,
         textFinalizedBeforeTool: false,
         nonStreamingAccumulatedText: '',
+        nonStreamingAccumulatedReasoning: '',
     };
 
     // LOCAL PENDING TRACKING - mirrors React state synchronously
@@ -314,18 +321,33 @@ export async function processStream(
             }
 
             // STEP 2: Add split message to finalized
+            const splitReasoning =
+                !state.reasoningFinalized && state.reasoning ? state.reasoning : undefined;
             setMessages((prev) => [
                 ...prev,
                 {
                     id: splitId,
                     role: 'assistant' as const,
                     content: beforeContent,
+                    ...(splitReasoning ? { reasoning: splitReasoning } : {}),
                     timestamp: new Date(),
                     isStreaming: false,
                     // First split shows the indicator, subsequent splits are continuations
                     isContinuation: !isFirstSplit,
                 },
             ]);
+
+            // If we've emitted reasoning into a finalized message, don't show it again on the tail.
+            if (splitReasoning) {
+                state.reasoningFinalized = true;
+                state.reasoning = '';
+                if (state.messageId) {
+                    localPending = localPending.map((m) =>
+                        m.id === state.messageId ? { ...m, reasoning: undefined } : m
+                    );
+                    setPendingMessages(localPending);
+                }
+            }
 
             // STEP 3: Restore pending with afterContent
             if (state.messageId) {
@@ -343,6 +365,18 @@ export async function processStream(
         }
 
         return content;
+    };
+
+    const resolveFinalReasoning = (eventReasoning: string | undefined): string | undefined => {
+        if (state.reasoningFinalized) {
+            return undefined;
+        }
+
+        if (!useStreaming && state.nonStreamingAccumulatedReasoning) {
+            return state.nonStreamingAccumulatedReasoning;
+        }
+
+        return eventReasoning;
     };
 
     // Debug logging: enable via DEXTO_DEBUG_STREAM=true
@@ -378,12 +412,15 @@ export async function processStream(
                     setUi((prev) => ({ ...prev, isThinking: true }));
                     state.messageId = null;
                     state.content = '';
+                    state.reasoning = '';
+                    state.reasoningFinalized = false;
                     state.lastInputTokens = 0;
                     state.cumulativeOutputTokens = 0;
                     state.finalizedContent = '';
                     state.splitCounter = 0;
                     state.textFinalizedBeforeTool = false;
                     state.nonStreamingAccumulatedText = '';
+                    state.nonStreamingAccumulatedReasoning = '';
                     break;
                 }
 
@@ -398,12 +435,41 @@ export async function processStream(
                                 totalLen: state.nonStreamingAccumulatedText.length,
                                 preview: state.nonStreamingAccumulatedText.slice(0, 50),
                             });
+                        } else if (event.chunkType === 'reasoning') {
+                            state.nonStreamingAccumulatedReasoning += event.content;
                         }
                         break;
                     }
 
                     // End thinking state when first chunk arrives
                     setUi((prev) => ({ ...prev, isThinking: false }));
+
+                    if (event.chunkType === 'reasoning') {
+                        if (state.reasoningFinalized) break;
+
+                        // Create streaming message on first reasoning chunk
+                        if (!state.messageId) {
+                            const newId = generateMessageId('assistant');
+                            state.messageId = newId;
+                            state.reasoning = event.content;
+                            state.content = '';
+                            state.finalizedContent = '';
+                            state.splitCounter = 0;
+
+                            addToPending({
+                                id: newId,
+                                role: 'assistant',
+                                content: '',
+                                reasoning: event.content,
+                                timestamp: new Date(),
+                                isStreaming: true,
+                            });
+                        } else {
+                            state.reasoning += event.content;
+                            updatePending(state.messageId, { reasoning: state.reasoning });
+                        }
+                        break;
+                    }
 
                     if (event.chunkType === 'text') {
                         debug.log('CHUNK (stream): text', {
@@ -417,6 +483,8 @@ export async function processStream(
                             const newId = generateMessageId('assistant');
                             state.messageId = newId;
                             state.content = event.content;
+                            state.reasoning = '';
+                            state.reasoningFinalized = false;
                             state.finalizedContent = '';
                             state.splitCounter = 0;
 
@@ -498,6 +566,8 @@ export async function processStream(
                             sessionId: event.sessionId,
                             provider: event.provider,
                             model: event.model,
+                            reasoningVariant: event.reasoningVariant ?? undefined,
+                            reasoningBudgetTokens: event.reasoningBudgetTokens ?? undefined,
                             inputTokens: event.tokenUsage.inputTokens,
                             outputTokens: event.tokenUsage.outputTokens,
                             reasoningTokens: event.tokenUsage.reasoningTokens,
@@ -510,32 +580,52 @@ export async function processStream(
                     }
 
                     const finalContent = event.content || '';
+                    if (!state.reasoningFinalized && !state.reasoning && event.reasoning) {
+                        state.reasoning = event.reasoning;
+                    }
 
                     if (state.messageId) {
                         // Finalize existing streaming message (streaming mode)
                         const messageId = state.messageId;
                         const content = state.content || finalContent;
+                        const reasoning =
+                            !state.reasoningFinalized && state.reasoning
+                                ? state.reasoning
+                                : undefined;
 
                         // Move from pending to finalized
-                        finalizeMessage(messageId, { content, isStreaming: false });
+                        finalizeMessage(messageId, {
+                            content,
+                            ...(reasoning ? { reasoning } : {}),
+                            isStreaming: false,
+                        });
 
                         // Reset for potential next response (multi-step)
                         state.messageId = null;
                         state.content = '';
+                        state.reasoning = '';
+                        state.reasoningFinalized = false;
                     } else if (finalContent && !state.textFinalizedBeforeTool) {
                         // No streaming message exists - add directly to finalized
                         // This handles: non-streaming mode, or multi-step turns after tool calls
                         // Skip if text was already finalized before tools (avoid duplication)
+                        const reasoning = resolveFinalReasoning(event.reasoning);
                         setMessages((prev) => [
                             ...prev,
                             {
                                 id: generateMessageId('assistant'),
                                 role: 'assistant',
                                 content: finalContent,
+                                ...(reasoning ? { reasoning } : {}),
                                 timestamp: new Date(),
                                 isStreaming: false,
                             },
                         ]);
+                    }
+
+                    if (!useStreaming) {
+                        state.nonStreamingAccumulatedText = '';
+                        state.nonStreamingAccumulatedReasoning = '';
                     }
                     // Reset the flag for this response (new text after tools will create new message)
                     state.textFinalizedBeforeTool = false;
@@ -576,13 +666,29 @@ export async function processStream(
                             });
                             // Mark that we finalized text early - prevents duplicate in llm:response
                             state.textFinalizedBeforeTool = true;
+                            // Explicitly reset reasoning tracking (was preserved via msg spread in finalizeMessage)
+                            const hadReasoning = state.reasoningFinalized || !!state.reasoning;
+                            state.reasoning = '';
+                            state.reasoningFinalized = hadReasoning;
                         } else {
-                            // Empty pending message (first chunk had no content) - remove it
-                            // This prevents empty bullets when LLM/SDK sends empty initial chunk
-                            debug.log('TOOL-CALL: removing empty pending message', {
-                                messageId: state.messageId,
-                            });
-                            removeFromPending(state.messageId);
+                            const hasReasoning = !state.reasoningFinalized && !!state.reasoning;
+                            if (hasReasoning) {
+                                // Model reasoned then called a tool directly (no text) — preserve reasoning
+                                finalizeMessage(state.messageId, {
+                                    content: '',
+                                    reasoning: state.reasoning,
+                                    isStreaming: false,
+                                });
+                                state.reasoning = '';
+                                state.reasoningFinalized = true;
+                            } else {
+                                // Empty pending message (first chunk had no content) - remove it
+                                // This prevents empty bullets when LLM/SDK sends empty initial chunk
+                                debug.log('TOOL-CALL: removing empty pending message', {
+                                    messageId: state.messageId,
+                                });
+                                removeFromPending(state.messageId);
+                            }
                         }
                         state.messageId = null;
                         state.content = '';
@@ -590,24 +696,44 @@ export async function processStream(
                         debug.log('TOOL-CALL: no pending message to finalize');
                     }
 
-                    // Non-streaming mode: add accumulated text as finalized message
-                    if (!useStreaming && state.nonStreamingAccumulatedText) {
-                        debug.log('TOOL-CALL: adding non-stream accumulated text', {
-                            len: state.nonStreamingAccumulatedText.length,
+                    // Non-streaming mode: add accumulated text/reasoning as finalized message
+                    // (Ordering fix: emit assistant content before the tool call)
+                    if (
+                        !useStreaming &&
+                        (state.nonStreamingAccumulatedText ||
+                            state.nonStreamingAccumulatedReasoning)
+                    ) {
+                        const content = state.nonStreamingAccumulatedText;
+                        const reasoning = state.nonStreamingAccumulatedReasoning || undefined;
+                        debug.log('TOOL-CALL: adding non-stream accumulated content', {
+                            contentLen: content.length,
+                            reasoningLen: reasoning?.length ?? 0,
                         });
+
                         setMessages((prev) => [
                             ...prev,
                             {
                                 id: generateMessageId('assistant'),
                                 role: 'assistant',
-                                content: state.nonStreamingAccumulatedText,
+                                content,
+                                ...(reasoning ? { reasoning } : {}),
                                 timestamp: new Date(),
                                 isStreaming: false,
                             },
                         ]);
+
+                        const hadText = !!content;
+                        const hadReasoning = !!reasoning;
                         state.nonStreamingAccumulatedText = '';
+                        state.nonStreamingAccumulatedReasoning = '';
+
                         // Mark that we finalized text early - prevents duplicate in llm:response
-                        state.textFinalizedBeforeTool = true;
+                        if (hadText) {
+                            state.textFinalizedBeforeTool = true;
+                        }
+                        if (hadReasoning) {
+                            state.reasoningFinalized = true;
+                        }
                     }
 
                     const toolMessageId = event.callId
@@ -1050,13 +1176,15 @@ export async function processStream(
                         setApprovalQueue((queue) => {
                             if (queue.length > 0) {
                                 const [next, ...rest] = queue;
-                                setApproval(next!);
-                                setUi((prev) => ({ ...prev, activeOverlay: 'approval' }));
-                                return rest;
-                            } else {
-                                setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
-                                return [];
+                                if (next) {
+                                    setApproval(next);
+                                    setUi((prev) => ({ ...prev, activeOverlay: 'approval' }));
+                                    return rest;
+                                }
                             }
+
+                            setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
+                            return [];
                         });
 
                         return null; // Clear current while setApprovalQueue handles next

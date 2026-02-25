@@ -207,6 +207,8 @@ export * from './runtime/index.js';
 
 // Agent Spawner Tools Factory
 export * from './tool-factories/agent-spawner/index.js';
+// Creator Tools Factory
+export * from './tool-factories/creator-tools/index.js';
 
 // Claude Code Plugin Loader
 export {

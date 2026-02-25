@@ -2,6 +2,7 @@ import { ToolManager } from '../../tools/tool-manager.js';
 import { ValidatedLLMConfig } from '../schemas.js';
 import { LLMError } from '../errors.js';
 import { createOpenAI } from '@ai-sdk/openai';
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGroq } from '@ai-sdk/groq';
@@ -9,8 +10,9 @@ import { createXai } from '@ai-sdk/xai';
 import { createVertex } from '@ai-sdk/google-vertex';
 import { createVertexAnthropic } from '@ai-sdk/google-vertex/anthropic';
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
+import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { VercelLLMService } from './vercel.js';
-import { LanguageModel } from 'ai';
+import type { LanguageModel } from 'ai';
 import { SessionEventBus } from '../../events/index.js';
 import { createCohere } from '@ai-sdk/cohere';
 import { createLocalLanguageModel } from '../providers/local/ai-sdk-adapter.js';
@@ -19,6 +21,21 @@ import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { requiresApiKey } from '../registry/index.js';
 import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
+import {
+    ANTHROPIC_BETA_HEADER,
+    ANTHROPIC_INTERLEAVED_THINKING_BETA,
+} from '../reasoning/anthropic-betas.js';
+import { supportsAnthropicInterleavedThinking } from '../reasoning/anthropic-thinking.js';
+
+function isLanguageModel(value: unknown): value is LanguageModel {
+    if (!value || typeof value !== 'object') return false;
+    const candidate = value as Record<string, unknown>;
+    return (
+        typeof candidate['modelId'] === 'string' &&
+        (typeof candidate['doGenerate'] === 'function' ||
+            typeof candidate['doStream'] === 'function')
+    );
+}
 
 // Dexto Gateway headers for usage tracking
 const DEXTO_GATEWAY_HEADERS = {
@@ -67,21 +84,38 @@ export function createVercelModel(
             return createOpenAI({ apiKey: apiKey ?? '' }).responses(model);
         }
         case 'openai-compatible': {
-            // OpenAI-compatible - requires baseURL, uses chat completions endpoint
-            // Must use .chat() as most compatible endpoints (like Ollama) don't support Responses API
             const compatibleBaseURL =
                 baseURL?.replace(/\/$/, '') || process.env.OPENAI_BASE_URL?.replace(/\/$/, '');
             if (!compatibleBaseURL) {
                 throw LLMError.baseUrlMissing('openai-compatible');
             }
-            return createOpenAI({ apiKey: apiKey ?? '', baseURL: compatibleBaseURL }).chat(model);
+            // Use the OpenAI-compatible provider so providerOptions can be keyed per-endpoint.
+            // This also avoids mixing OpenAI Responses defaults into compatibility endpoints.
+            const provider = createOpenAICompatible({
+                name: 'openaiCompatible',
+                baseURL: compatibleBaseURL,
+                ...(apiKey?.trim() ? { apiKey } : {}),
+            });
+            return provider.chatModel(model);
         }
         case 'openrouter': {
             // OpenRouter - unified API gateway for 100+ models (BYOK)
             // Model IDs are in OpenRouter format (e.g., 'anthropic/claude-sonnet-4-5-20250929')
             const orBaseURL = baseURL || 'https://openrouter.ai/api/v1';
-            // Use Responses API (OpenAI-compatible) via /api/v1/responses
-            return createOpenAI({ apiKey: apiKey ?? '', baseURL: orBaseURL }).responses(model);
+            const provider = createOpenRouter({
+                apiKey: apiKey ?? '',
+                baseURL: orBaseURL,
+                compatibility: 'strict',
+            });
+            const chatModel = provider.chat(model);
+            if (!isLanguageModel(chatModel)) {
+                throw LLMError.generationFailed(
+                    'OpenRouter provider returned an invalid language model instance',
+                    'openrouter',
+                    model
+                );
+            }
+            return chatModel;
         }
         case 'minimax': {
             // MiniMax - OpenAI-compatible endpoint
@@ -130,9 +164,22 @@ export function createVercelModel(
             }
 
             // Model is already in OpenRouter format - pass through directly
-            return createOpenAI({ apiKey: apiKey ?? '', baseURL: dextoBaseURL, headers }).chat(
-                model
-            );
+            const provider = createOpenRouter({
+                apiKey: apiKey ?? '',
+                baseURL: dextoBaseURL,
+                headers,
+                // This is an OpenRouter-compatible gateway; keep strict mode to enable OR features.
+                compatibility: 'strict',
+            });
+            const chatModel = provider.chat(model);
+            if (!isLanguageModel(chatModel)) {
+                throw LLMError.generationFailed(
+                    'Dexto gateway provider returned an invalid language model instance',
+                    'dexto-nova',
+                    model
+                );
+            }
+            return chatModel;
         }
         case 'vertex': {
             // Google Vertex AI - supports both Gemini and Claude models
@@ -153,9 +200,13 @@ export function createVercelModel(
             if (model.includes('claude')) {
                 // Claude models on Vertex use the /anthropic subpath export
                 // Default to us-east5 for Claude (limited region availability)
+                const headers = supportsAnthropicInterleavedThinking(model)
+                    ? { [ANTHROPIC_BETA_HEADER]: ANTHROPIC_INTERLEAVED_THINKING_BETA }
+                    : undefined;
                 return createVertexAnthropic({
                     project: projectId,
                     location: location || 'us-east5',
+                    ...(headers ? { headers } : {}),
                 })(model);
             }
 
@@ -202,8 +253,15 @@ export function createVercelModel(
             // SDK automatically reads AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN
             return createAmazonBedrock({ region })(modelId);
         }
-        case 'anthropic':
-            return createAnthropic({ apiKey: apiKey ?? '' })(model);
+        case 'anthropic': {
+            const headers = supportsAnthropicInterleavedThinking(model)
+                ? { [ANTHROPIC_BETA_HEADER]: ANTHROPIC_INTERLEAVED_THINKING_BETA }
+                : undefined;
+            return createAnthropic({
+                apiKey: apiKey ?? '',
+                ...(headers ? { headers } : {}),
+            })(model);
+        }
         case 'google':
             return createGoogleGenerativeAI({ apiKey: apiKey ?? '' })(model);
         case 'groq':

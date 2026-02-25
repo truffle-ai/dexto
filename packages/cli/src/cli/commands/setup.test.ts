@@ -54,6 +54,7 @@ vi.mock('@dexto/agent-management', async () => {
         loadGlobalPreferences: vi.fn().mockResolvedValue(null),
         getGlobalPreferencesPath: vi.fn(() => '/tmp/preferences.yml'),
         updateGlobalPreferences: vi.fn().mockResolvedValue(undefined),
+        globalPreferencesExist: vi.fn(),
     };
 });
 
@@ -98,6 +99,7 @@ describe('Setup Command', () => {
     let mockSelectProvider: any;
     let mockRequiresSetup: any;
     let mockResolveApiKeyForProvider: any;
+    let mockGlobalPreferencesExist: any;
     let mockPrompts: any;
     let consoleSpy: any;
     let consoleErrorSpy: any;
@@ -121,6 +123,7 @@ describe('Setup Command', () => {
 
         mockCreateInitialPreferences = vi.mocked(prefLoader.createInitialPreferences);
         mockSaveGlobalPreferences = vi.mocked(prefLoader.saveGlobalPreferences);
+        mockGlobalPreferencesExist = vi.mocked(prefLoader.globalPreferencesExist);
         mockInteractiveApiKeySetup = vi.mocked(apiKeySetup.interactiveApiKeySetup);
         mockHasApiKeyConfigured = vi.mocked(apiKeySetup.hasApiKeyConfigured);
         mockResolveApiKeyForProvider = vi.mocked(apiKeyResolver.resolveApiKeyForProvider);
@@ -164,6 +167,7 @@ describe('Setup Command', () => {
             };
         });
         mockSaveGlobalPreferences.mockResolvedValue(undefined);
+        mockGlobalPreferencesExist.mockReturnValue(true);
         mockInteractiveApiKeySetup.mockResolvedValue({ success: true });
         mockHasApiKeyConfigured.mockReturnValue(true); // Default: API key exists
         mockResolveApiKeyForProvider.mockReturnValue(undefined); // Default: no API key exists (for analytics)
@@ -266,6 +270,7 @@ describe('Setup Command', () => {
             mockPrompts.select.mockResolvedValueOnce('custom'); // Setup type
             mockSelectProvider.mockResolvedValueOnce('anthropic'); // Provider (via selectProvider)
             mockPrompts.select.mockResolvedValueOnce('claude-haiku-4-5-20251001'); // Model
+            mockPrompts.select.mockResolvedValueOnce('enabled'); // Reasoning variant (default)
             mockPrompts.select.mockResolvedValueOnce('web'); // Default mode
 
             const options = {
@@ -281,6 +286,9 @@ describe('Setup Command', () => {
                     setupCompleted: true,
                 })
             );
+
+            const [createOptions] = mockCreateInitialPreferences.mock.calls[0] ?? [];
+            expect(createOptions?.reasoning).toBeUndefined();
         });
 
         it('handles quick start selection in interactive mode', async () => {
@@ -344,6 +352,60 @@ describe('Setup Command', () => {
 
             expect(mockInteractiveApiKeySetup).not.toHaveBeenCalled();
             expect(mockPrompts.log.success).toHaveBeenCalled();
+        });
+
+        it("treats 'Back' in model selection as navigation (does not persist _back as model)", async () => {
+            mockPrompts.select
+                .mockResolvedValueOnce('custom') // Setup type
+                .mockResolvedValueOnce('_back') // Model -> back to provider selection
+                .mockResolvedValueOnce('gpt-4o-mini') // Model (non-reasoning)
+                .mockResolvedValueOnce('cli'); // Default mode
+
+            mockSelectProvider.mockResolvedValueOnce('openai').mockResolvedValueOnce('openai');
+            mockHasApiKeyConfigured.mockReturnValue(true); // API key exists (apiKey step auto-skips)
+
+            await handleSetupCommand({ interactive: true });
+
+            expect(mockSelectProvider).toHaveBeenCalledTimes(2);
+            expect(mockCreateInitialPreferences).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    provider: 'openai',
+                    model: 'gpt-4o-mini',
+                    defaultMode: 'cli',
+                })
+            );
+        });
+
+        it('navigates back from mode to reasoning when apiKey step is auto-skipped (prevents back-bounce)', async () => {
+            mockPrompts.select
+                .mockResolvedValueOnce('custom') // Setup type
+                .mockResolvedValueOnce('claude-haiku-4-5-20251001') // Model
+                .mockResolvedValueOnce('enabled') // Reasoning variant
+                .mockResolvedValueOnce('_back') // Mode -> back
+                .mockResolvedValueOnce('enabled') // Reasoning variant (again)
+                .mockResolvedValueOnce('cli'); // Mode
+
+            mockSelectProvider.mockResolvedValueOnce('anthropic');
+            mockHasApiKeyConfigured.mockReturnValue(true); // API key exists (apiKey step auto-skips)
+
+            await handleSetupCommand({ interactive: true });
+
+            const selectMessages: Array<string | undefined> = mockPrompts.select.mock.calls.map(
+                (call: unknown[]) => {
+                    const firstArg = call[0];
+                    if (typeof firstArg !== 'object' || firstArg === null) {
+                        return undefined;
+                    }
+
+                    const message = Reflect.get(firstArg, 'message');
+                    return typeof message === 'string' ? message : undefined;
+                }
+            );
+            const firstModeIndex = selectMessages.findIndex(
+                (message) => message === 'How do you want to use Dexto by default?'
+            );
+            expect(firstModeIndex).toBeGreaterThan(-1);
+            expect(selectMessages[firstModeIndex + 1]).toBe('Select reasoning variant');
         });
 
         it('cancels setup when user cancels setup type selection', async () => {
@@ -643,6 +705,24 @@ describe('Setup Command', () => {
 
                 // Should not throw, just exit gracefully
                 expect(mockCreateInitialPreferences).not.toHaveBeenCalled();
+            });
+
+            it('re-enters setup when preferences are missing', async () => {
+                mockGlobalPreferencesExist.mockReturnValue(false);
+                mockPrompts.select.mockResolvedValueOnce(Symbol.for('cancel'));
+                mockPrompts.isCancel.mockReturnValue(true);
+
+                const options = {
+                    interactive: true,
+                };
+
+                await expect(handleSetupCommand(options)).rejects.toThrow(
+                    'Process exit called with code 0'
+                );
+
+                expect(mockPrompts.log.warn).toHaveBeenCalledWith(
+                    expect.stringContaining('No preferences found')
+                );
             });
         });
 

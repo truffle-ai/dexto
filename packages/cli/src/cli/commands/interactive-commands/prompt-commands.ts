@@ -212,7 +212,7 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                     // These tools will skip confirmation prompts during skill execution
                     if (result.allowedTools && result.allowedTools.length > 0) {
                         try {
-                            agent.toolManager.setSessionAutoApproveTools(
+                            agent.toolManager.addSessionAutoApproveTools(
                                 ctx.sessionId,
                                 result.allowedTools
                             );
@@ -225,6 +225,24 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
                                         : String(toolError),
                             });
                         }
+                    }
+                }
+
+                if (result.context !== 'fork' && result.toolkits && result.toolkits.length > 0) {
+                    if (!agent.loadToolkits) {
+                        return formatForInkCli(
+                            `❌ Skill '${commandName}' requires toolkits (${result.toolkits.join(', ')}), but this agent does not support dynamic tool loading.`
+                        );
+                    }
+
+                    try {
+                        await agent.loadToolkits(result.toolkits);
+                    } catch (error) {
+                        return formatForInkCli(
+                            `❌ Failed to load toolkits for skill '${commandName}': ${
+                                error instanceof Error ? error.message : String(error)
+                            }`
+                        );
                     }
                 }
 

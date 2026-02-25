@@ -250,7 +250,7 @@ export default function ModelPickerModal() {
                 }
 
                 // Check which models don't exist in API yet
-                const existingNames = new Set(customModels.map((m) => m.name));
+                const existingNames = new Set(customModels.map((m: CustomModel) => m.name));
                 const toMigrate = localModels.filter((m) => !existingNames.has(m.name));
 
                 if (toMigrate.length === 0) {
@@ -880,13 +880,13 @@ export default function ModelPickerModal() {
 
         // If openrouter filter is active (without custom), only show openrouter custom models
         if (hasOpenRouterFilter && !hasCustomFilter && !noFilter) {
-            filtered = customModels.filter((cm) => cm.provider === 'openrouter');
+            filtered = customModels.filter((cm: CustomModel) => cm.provider === 'openrouter');
         }
 
         const q = search.trim().toLowerCase();
         if (!q) return filtered;
         return filtered.filter(
-            (cm) =>
+            (cm: CustomModel) =>
                 cm.name.toLowerCase().includes(q) ||
                 (cm.displayName?.toLowerCase().includes(q) ?? false) ||
                 (cm.provider?.toLowerCase().includes(q) ?? false) ||
@@ -906,7 +906,7 @@ export default function ModelPickerModal() {
         const q = search.trim().toLowerCase();
         if (!q) return installedLocalModels;
         return installedLocalModels.filter(
-            (model) =>
+            (model: LocalModel) =>
                 model.id.toLowerCase().includes(q) ||
                 model.displayName.toLowerCase().includes(q) ||
                 'local'.includes(q)
@@ -1307,7 +1307,7 @@ export default function ModelPickerModal() {
                                                     />
                                                 ))}
                                                 {/* Custom models (user-configured) */}
-                                                {filteredCustomModels.map((cm) => {
+                                                {filteredCustomModels.map((cm: CustomModel) => {
                                                     const cmProvider = (cm.provider ??
                                                         'openai-compatible') as LLMProvider;
                                                     return (

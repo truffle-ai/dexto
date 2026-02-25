@@ -29,10 +29,21 @@ import { MODELS_BY_PROVIDER } from './models.generated.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { ErrorScope, ErrorType } from '../../errors/types.js';
 import type { Logger } from '../../logger/v2/types.js';
+import {
+    getCachedOpenRouterModelsWithInfo,
+    getOpenRouterModelCacheInfo,
+} from '../providers/openrouter-model-registry.js';
 
 // Mock the OpenRouter model registry
 vi.mock('../providers/openrouter-model-registry.js', () => ({
+    getCachedOpenRouterModelsWithInfo: vi.fn(() => null),
+    getOpenRouterModelCacheInfo: vi.fn(() => ({
+        lastFetchedAt: null,
+        modelCount: 0,
+        isFresh: false,
+    })),
     getOpenRouterModelContextLength: vi.fn(),
+    scheduleOpenRouterModelRefresh: vi.fn(),
 }));
 
 const mockLogger: Logger = {
@@ -827,6 +838,83 @@ describe('getAllModelsForProvider', () => {
         expect(dextoNativeModelNames).toContain('z-ai/glm-4.7');
         expect(dextoNativeModelNames).toContain('minimax/minimax-m2.1');
     });
+
+    it('uses cached OpenRouter catalog for openrouter provider when available', () => {
+        const mockCacheInfo = vi.mocked(getOpenRouterModelCacheInfo);
+        const mockCachedModels = vi.mocked(getCachedOpenRouterModelsWithInfo);
+
+        mockCacheInfo.mockReturnValueOnce({
+            lastFetchedAt: new Date(),
+            modelCount: 2,
+            isFresh: true,
+        });
+        mockCachedModels.mockReturnValueOnce([
+            {
+                id: 'openai/gpt-5.2',
+                contextLength: 400000,
+                displayName: 'OpenRouter GPT-5.2 (override)',
+                supportedParameters: ['reasoning', 'max_tokens'],
+            },
+            {
+                id: 'some/new-openrouter-model',
+                contextLength: 12345,
+                displayName: 'Some New Model',
+            },
+        ]);
+
+        const models = getAllModelsForProvider('openrouter');
+        expect(models.map((m) => m.name)).toEqual(['openai/gpt-5.2', 'some/new-openrouter-model']);
+
+        const snapshot = LLM_REGISTRY.openrouter.models.find((m) => m.name === 'openai/gpt-5.2');
+        expect(snapshot).toBeDefined();
+        const snapshotDisplayName = snapshot?.displayName;
+        expect(snapshotDisplayName).toBeDefined();
+        if (snapshotDisplayName === undefined) {
+            throw new Error('Expected openrouter snapshot displayName to be defined');
+        }
+        expect(models.find((m) => m.name === 'openai/gpt-5.2')?.displayName).toBe(
+            snapshotDisplayName
+        );
+        expect(models.find((m) => m.name === 'openai/gpt-5.2')?.displayName).not.toBe(
+            'OpenRouter GPT-5.2 (override)'
+        );
+
+        const dynamic = models.find((m) => m.name === 'some/new-openrouter-model');
+        expect(dynamic?.supportedFileTypes).toEqual(LLM_REGISTRY.openrouter.supportedFileTypes);
+        expect(dynamic?.maxInputTokens).toBe(12345);
+    });
+
+    it('inherits cached OpenRouter catalog on dexto-nova provider', () => {
+        const mockCacheInfo = vi.mocked(getOpenRouterModelCacheInfo);
+        const mockCachedModels = vi.mocked(getCachedOpenRouterModelsWithInfo);
+
+        mockCacheInfo.mockReturnValueOnce({
+            lastFetchedAt: new Date(),
+            modelCount: 2,
+            isFresh: true,
+        });
+        mockCachedModels.mockReturnValueOnce([
+            {
+                id: 'openai/gpt-5.2',
+                contextLength: 400000,
+                displayName: 'OpenRouter GPT-5.2 (override)',
+            },
+            {
+                id: 'some/new-openrouter-model',
+                contextLength: 12345,
+                displayName: 'Some New Model',
+            },
+        ]);
+
+        const models = getAllModelsForProvider('dexto-nova');
+        expect(models.map((m) => m.name)).toContain('some/new-openrouter-model');
+
+        const inherited = models.find((m) => m.name === 'some/new-openrouter-model');
+        expect(inherited?.originalProvider).toBe('openrouter');
+
+        const curated = models.find((m) => m.name === 'openai/gpt-5.2');
+        expect(curated?.originalProvider).toBe('dexto-nova');
+    });
 });
 
 describe('isModelValidForProvider', () => {
@@ -972,7 +1060,7 @@ describe('Gateway provider integration with lookup functions', () => {
     describe('getModelDisplayName', () => {
         it('handles OpenRouter format models', () => {
             const result = getModelDisplayName('anthropic/claude-haiku-4.5', 'dexto-nova');
-            expect(result).toBe('Claude 4.5 Haiku');
+            expect(result).toBe('Claude Haiku 4.5');
         });
     });
 });

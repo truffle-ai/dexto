@@ -34,12 +34,26 @@ type ModelsDevApi = Record<string, ModelsDevProvider>;
 type ModelsDevProvider = {
     id: string;
     name: string;
+    env?: string[];
+    npm?: string;
+    api?: string;
+    doc?: string;
     models: Record<string, ModelsDevModel>;
 };
 type ModelsDevModel = {
     id: string;
     name: string;
     attachment: boolean;
+    reasoning?: boolean;
+    temperature?: boolean;
+    release_date?: string;
+    status?: string;
+    tool_call?: boolean;
+    provider?: {
+        npm?: string;
+        api?: string;
+    };
+    interleaved?: boolean | Record<string, unknown>;
     limit: {
         context: number;
         input?: number;
@@ -59,7 +73,13 @@ type ModelsDevModel = {
               output: number;
               cache_read?: number;
               cache_write?: number;
-              context_over_200k?: unknown;
+              context_over_200k?: {
+                  input: number;
+                  output: number;
+              };
+              input_audio?: number;
+              output_audio?: number;
+              reasoning?: number;
               [k: string]: unknown;
           }
         | undefined;
@@ -91,9 +111,21 @@ function requireNumber(value: unknown, label: string): number {
     return value;
 }
 
+function requireBoolean(value: unknown, label: string): boolean {
+    if (typeof value !== 'boolean') {
+        throw new Error(`Expected ${label} to be a boolean`);
+    }
+    return value;
+}
+
 function parseModelsDevApi(json: unknown): ModelsDevApi {
     const root = requireRecord(json, 'models.dev api.json root');
     const api: ModelsDevApi = {};
+
+    function parseStringArray(value: unknown): string[] {
+        if (!Array.isArray(value)) return [];
+        return value.filter((item): item is string => typeof item === 'string');
+    }
 
     function parseModalitiesArray(
         value: unknown
@@ -126,6 +158,10 @@ function parseModelsDevApi(json: unknown): ModelsDevApi {
                 provider.name ?? providerId,
                 `models.dev provider '${providerId}'.name`
             ),
+            ...(Array.isArray(provider.env) ? { env: parseStringArray(provider.env) } : {}),
+            ...(typeof provider.npm === 'string' ? { npm: provider.npm } : {}),
+            ...(typeof provider.api === 'string' ? { api: provider.api } : {}),
+            ...(typeof provider.doc === 'string' ? { doc: provider.doc } : {}),
             models: {},
         };
 
@@ -148,6 +184,24 @@ function parseModelsDevApi(json: unknown): ModelsDevApi {
                     `models.dev model '${providerId}/${modelId}'.name`
                 ),
                 attachment: Boolean(m.attachment),
+                ...(typeof m.release_date === 'string' ? { release_date: m.release_date } : {}),
+                ...(typeof m.status === 'string' ? { status: m.status } : {}),
+                ...(typeof m.tool_call === 'boolean' ? { tool_call: m.tool_call } : {}),
+                ...(isRecord(m.provider)
+                    ? {
+                          provider: {
+                              ...(typeof m.provider.npm === 'string'
+                                  ? { npm: m.provider.npm }
+                                  : {}),
+                              ...(typeof m.provider.api === 'string'
+                                  ? { api: m.provider.api }
+                                  : {}),
+                          },
+                      }
+                    : {}),
+                ...(m.interleaved === true || isRecord(m.interleaved)
+                    ? { interleaved: m.interleaved }
+                    : {}),
                 limit: {
                     ...limit,
                     context: requireNumber(
@@ -180,7 +234,27 @@ function parseModelsDevApi(json: unknown): ModelsDevApi {
                                   typeof m.cost.cache_write === 'number'
                                       ? m.cost.cache_write
                                       : undefined,
-                              context_over_200k: m.cost.context_over_200k,
+                              context_over_200k:
+                                  isRecord(m.cost.context_over_200k) &&
+                                  typeof m.cost.context_over_200k.input === 'number' &&
+                                  typeof m.cost.context_over_200k.output === 'number'
+                                      ? {
+                                            input: m.cost.context_over_200k.input,
+                                            output: m.cost.context_over_200k.output,
+                                        }
+                                      : undefined,
+                              input_audio:
+                                  typeof m.cost.input_audio === 'number'
+                                      ? m.cost.input_audio
+                                      : undefined,
+                              output_audio:
+                                  typeof m.cost.output_audio === 'number'
+                                      ? m.cost.output_audio
+                                      : undefined,
+                              reasoning:
+                                  typeof m.cost.reasoning === 'number'
+                                      ? m.cost.reasoning
+                                      : undefined,
                           }
                         : undefined,
             };
@@ -220,8 +294,30 @@ type GeneratedModelPricing = {
     outputPerM: number;
     cacheReadPerM?: number;
     cacheWritePerM?: number;
+    reasoningPerM?: number;
+    inputAudioPerM?: number;
+    outputAudioPerM?: number;
+    contextOver200kPerM?: {
+        inputPerM: number;
+        outputPerM: number;
+    };
     currency?: 'USD';
     unit?: 'per_million_tokens';
+};
+
+type GeneratedModelModalities = {
+    input: Array<'text' | 'audio' | 'image' | 'video' | 'pdf'>;
+    output: Array<'text' | 'audio' | 'image' | 'video' | 'pdf'>;
+};
+
+type GeneratedModelProviderMetadata = {
+    npm?: string;
+    api?: string;
+};
+
+type GeneratedModelInterleavedMetadata = {
+    field?: string;
+    [k: string]: unknown;
 };
 
 type GeneratedModelInfo = {
@@ -229,8 +325,24 @@ type GeneratedModelInfo = {
     maxInputTokens: number;
     supportedFileTypes: DextoSupportedFileType[];
     displayName?: string;
+    reasoning: boolean;
+    supportsTemperature: boolean;
+    supportsToolCall: boolean;
+    releaseDate: string;
+    status?: string;
+    modalities: GeneratedModelModalities;
+    providerMetadata?: GeneratedModelProviderMetadata;
+    interleaved?: true | GeneratedModelInterleavedMetadata;
+    supportsInterleaved?: boolean;
     pricing?: GeneratedModelPricing;
     default?: boolean;
+};
+
+type GeneratedProviderMetadata = {
+    env: string[];
+    npm?: string;
+    api?: string;
+    doc?: string;
 };
 
 function getSupportedFileTypesFromModel(
@@ -263,6 +375,17 @@ function getPricing(model: ModelsDevModel): GeneratedModelPricing | undefined {
         outputPerM: model.cost.output,
         cacheReadPerM: model.cost.cache_read,
         cacheWritePerM: model.cost.cache_write,
+        reasoningPerM: model.cost.reasoning,
+        inputAudioPerM: model.cost.input_audio,
+        outputAudioPerM: model.cost.output_audio,
+        ...(model.cost.context_over_200k
+            ? {
+                  contextOver200kPerM: {
+                      inputPerM: model.cost.context_over_200k.input,
+                      outputPerM: model.cost.context_over_200k.output,
+                  },
+              }
+            : {}),
         currency: 'USD',
         unit: 'per_million_tokens',
     };
@@ -275,13 +398,64 @@ function modelToGeneratedModel(
         defaultModelId?: string;
     }
 ): GeneratedModelInfo {
+    const supportsInterleaved = model.interleaved === true || isRecord(model.interleaved);
+    const interleaved =
+        model.interleaved === true
+            ? true
+            : isRecord(model.interleaved)
+              ? {
+                    ...model.interleaved,
+                    ...(typeof model.interleaved.field === 'string'
+                        ? { field: model.interleaved.field }
+                        : {}),
+                }
+              : undefined;
     return {
         name: model.id,
         displayName: model.name,
         maxInputTokens: model.limit.input ?? model.limit.context,
         supportedFileTypes: getSupportedFileTypesFromModel(options.provider, model),
+        reasoning: requireBoolean(
+            model.reasoning,
+            `models.dev model '${options.provider}/${model.id}'.reasoning`
+        ),
+        supportsTemperature: requireBoolean(
+            model.temperature,
+            `models.dev model '${options.provider}/${model.id}'.temperature`
+        ),
+        supportsToolCall: requireBoolean(
+            model.tool_call,
+            `models.dev model '${options.provider}/${model.id}'.tool_call`
+        ),
+        releaseDate: requireString(
+            model.release_date,
+            `models.dev model '${options.provider}/${model.id}'.release_date`
+        ),
+        ...(model.status ? { status: model.status } : {}),
+        modalities: model.modalities ?? { input: [], output: [] },
+        ...(model.provider ? { providerMetadata: model.provider } : {}),
+        ...(interleaved ? { interleaved } : {}),
+        ...(supportsInterleaved ? { supportsInterleaved } : {}),
         pricing: getPricing(model),
         ...(options.defaultModelId === model.id ? { default: true } : {}),
+    };
+}
+
+function getProviderMetadata(
+    provider: ModelsDevProvider | undefined,
+    label: string
+): GeneratedProviderMetadata | undefined {
+    if (!provider) return undefined;
+    const env = provider.env;
+    if (!Array.isArray(env) || env.some((item) => typeof item !== 'string')) {
+        throw new Error(`Expected models.dev provider '${label}'.env to be a string[]`);
+    }
+
+    return {
+        env,
+        ...(provider.npm ? { npm: provider.npm } : {}),
+        ...(provider.api ? { api: provider.api } : {}),
+        ...(provider.doc ? { doc: provider.doc } : {}),
     };
 }
 
@@ -463,15 +637,35 @@ async function syncLlmRegistry() {
         'dexto-nova': [],
     };
 
+    const modelsDevMetadataByProvider: Partial<Record<DextoProvider, GeneratedProviderMetadata>> = {
+        openai: getProviderMetadata(modelsDevJson.openai, 'openai'),
+        anthropic: getProviderMetadata(modelsDevJson.anthropic, 'anthropic'),
+        google: getProviderMetadata(modelsDevJson.google, 'google'),
+        groq: getProviderMetadata(modelsDevJson.groq, 'groq'),
+        xai: getProviderMetadata(modelsDevJson.xai, 'xai'),
+        cohere: getProviderMetadata(modelsDevJson.cohere, 'cohere'),
+        minimax: getProviderMetadata(modelsDevJson.minimax, 'minimax'),
+        glm: getProviderMetadata(modelsDevJson.zhipuai, 'zhipuai'),
+        openrouter: getProviderMetadata(modelsDevJson.openrouter, 'openrouter'),
+        vertex: getProviderMetadata(modelsDevJson['google-vertex'], 'google-vertex'),
+        bedrock: getProviderMetadata(modelsDevJson['amazon-bedrock'], 'amazon-bedrock'),
+    };
+
     const header = `// This file is auto-generated by scripts/sync-llm-registry.ts\n// Do not edit manually - run 'pnpm run sync-llm-registry' to update\n`;
     const body = `
 import type { LLMProvider } from '../types.js';
-import type { ModelInfo } from './index.js';
+import type { ModelInfo, ModelsDevProviderMetadata } from './index.js';
 
 export const MODELS_BY_PROVIDER = ${JSON.stringify(modelsByProvider, null, 4)} satisfies Record<
     LLMProvider,
     ModelInfo[]
 >;
+
+export const MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER = ${JSON.stringify(
+        modelsDevMetadataByProvider,
+        null,
+        4
+    )} satisfies Partial<Record<LLMProvider, ModelsDevProviderMetadata>>;
 `;
 
     const prettierConfig = (await prettier.resolveConfig(OUTPUT_PATH)) ?? undefined;

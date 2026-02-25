@@ -61,6 +61,8 @@ export type ToolManagerFactoryOptions = {
 
 export type ToolManagerFactory = (options: ToolManagerFactoryOptions) => ToolManager;
 
+export type ToolkitLoader = (toolkits: string[]) => Promise<Tool[]>;
+
 export type InitializeServicesOptions = {
     sessionLoggerFactory?: import('../session/session-manager.js').SessionLoggerFactory;
     mcpAuthProviderFactory?: import('../mcp/types.js').McpAuthProviderFactory | null;

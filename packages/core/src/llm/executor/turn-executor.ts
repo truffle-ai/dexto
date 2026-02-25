@@ -16,14 +16,20 @@ import { ToolSet } from '../../tools/types.js';
 import type { ToolPresentationSnapshotV1 } from '../../tools/types.js';
 import { StreamProcessor } from './stream-processor.js';
 import { ExecutorResult } from './types.js';
-import { buildProviderOptions } from './provider-options.js';
-import { TokenUsage } from '../types.js';
+import { buildProviderOptions, getEffectiveReasoningBudgetTokens } from './provider-options.js';
+import type {
+    TokenUsage,
+    LLMReasoningConfig,
+    LLMContext,
+    LLMProvider,
+    ReasoningVariant,
+} from '../types.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import type { SessionEventBus, LLMFinishReason } from '../../events/index.js';
 import type { ResourceManager } from '../../resources/index.js';
 import { DynamicContributorContext } from '../../systemPrompt/types.js';
-import { LLMContext, type LLMProvider } from '../types.js';
+
 import type { MessageQueueService } from '../../session/message-queue.js';
 import type { StreamProcessorConfig } from './stream-processor.js';
 import type { CoalescedMessage } from '../../session/types.js';
@@ -93,7 +99,7 @@ export class TurnExecutor {
             temperature?: number | undefined;
             baseURL?: string | undefined;
             // Provider-specific options
-            reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | undefined;
+            reasoning?: LLMReasoningConfig | undefined;
         },
         private llmContext: LLMContext,
         logger: Logger,
@@ -118,11 +124,20 @@ export class TurnExecutor {
      * Get StreamProcessor config from TurnExecutor state.
      * @param estimatedInputTokens Optional estimated input tokens for analytics
      */
-    private getStreamProcessorConfig(estimatedInputTokens?: number): StreamProcessorConfig {
+    private getStreamProcessorConfig(
+        estimatedInputTokens?: number,
+        reasoning?: { reasoningVariant?: ReasoningVariant; reasoningBudgetTokens?: number }
+    ): StreamProcessorConfig {
         return {
             provider: this.llmContext.provider,
             model: this.llmContext.model,
             ...(estimatedInputTokens !== undefined && { estimatedInputTokens }),
+            ...(reasoning?.reasoningVariant !== undefined && {
+                reasoningVariant: reasoning.reasoningVariant,
+            }),
+            ...(reasoning?.reasoningBudgetTokens !== undefined && {
+                reasoningBudgetTokens: reasoning.reasoningBudgetTokens,
+            }),
         };
     }
 
@@ -260,48 +275,71 @@ export class TurnExecutor {
                 const tools = supportsTools ? await this.createTools() : {};
 
                 // 6. Execute single step with stream processing
+                // Build provider-specific options (caching, reasoning, etc.)
+                const providerOptions = buildProviderOptions({
+                    provider: this.llmContext.provider,
+                    model: this.llmContext.model,
+                    reasoning: this.config.reasoning,
+                });
+
+                // Debug log for verifying reasoning + provider options are actually being sent.
+                // (Avoids logging headers/body; providerOptions captures the effective request knobs.)
+                this.logger.debug('LLM request options', {
+                    provider: this.llmContext.provider,
+                    model: this.llmContext.model,
+                    requestedReasoning: {
+                        variant: this.config.reasoning?.variant,
+                        budgetTokens: this.config.reasoning?.budgetTokens,
+                    },
+                    providerOptions,
+                });
+
+                const reasoningVariant = this.config.reasoning?.variant;
+                const reasoningBudgetTokens = getEffectiveReasoningBudgetTokens(providerOptions);
+
+                const reasoningForStream =
+                    reasoningVariant !== undefined || reasoningBudgetTokens !== undefined
+                        ? {
+                              ...(reasoningVariant !== undefined && { reasoningVariant }),
+                              ...(reasoningBudgetTokens !== undefined && { reasoningBudgetTokens }),
+                          }
+                        : undefined;
+
                 const streamProcessor = new StreamProcessor(
                     this.contextManager,
                     this.eventBus,
                     this.resourceManager,
                     this.stepAbortController.signal,
-                    this.getStreamProcessorConfig(estimatedTokens),
+                    this.getStreamProcessorConfig(estimatedTokens, reasoningForStream),
                     this.logger,
                     streaming,
                     this.toolCallMetadata
                 );
 
-                // Build provider-specific options (caching, reasoning, etc.)
-                const providerOptions = buildProviderOptions({
-                    provider: this.llmContext.provider,
-                    model: this.llmContext.model,
-                    reasoningEffort: this.config.reasoningEffort,
-                });
-
-                const streamOptions: Parameters<typeof streamText>[0] = {
-                    model: this.model,
-                    stopWhen: stepCountIs(1),
-                    tools,
-                    abortSignal: this.stepAbortController.signal,
-                    messages: prepared.formattedMessages,
-                    ...(this.config.maxOutputTokens !== undefined && {
-                        maxOutputTokens: this.config.maxOutputTokens,
-                    }),
-                    ...(this.config.temperature !== undefined && {
-                        temperature: this.config.temperature,
-                    }),
-                    // Provider-specific options (caching, reasoning, etc.)
-                    ...(providerOptions !== undefined && {
-                        providerOptions:
-                            providerOptions as import('@ai-sdk/provider').SharedV2ProviderOptions,
-                    }),
-                    // Log stream-level errors (tool errors, API errors during streaming)
-                    onError: (error) => {
-                        this.logger.error('Stream error', { error });
-                    },
-                };
-
-                const result = await streamProcessor.process(() => streamText(streamOptions));
+                const result = await streamProcessor.process(() =>
+                    streamText({
+                        model: this.model,
+                        stopWhen: stepCountIs(1),
+                        tools,
+                        abortSignal: this.stepAbortController.signal,
+                        messages: prepared.formattedMessages,
+                        ...(this.config.maxOutputTokens !== undefined && {
+                            maxOutputTokens: this.config.maxOutputTokens,
+                        }),
+                        ...(this.config.temperature !== undefined && {
+                            temperature: this.config.temperature,
+                        }),
+                        // Provider-specific options (caching, reasoning, etc.)
+                        ...(providerOptions !== undefined && {
+                            providerOptions:
+                                providerOptions as import('@ai-sdk/provider').SharedV2ProviderOptions,
+                        }),
+                        // Log stream-level errors (tool errors, API errors during streaming)
+                        onError: (error) => {
+                            this.logger.error('Stream error', { error });
+                        },
+                    })
+                );
 
                 // 7. Capture results for tracking and overflow check
                 lastStepTokens = result.usage;

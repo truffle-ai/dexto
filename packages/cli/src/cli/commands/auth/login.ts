@@ -3,14 +3,33 @@
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
 import {
+    type DextoApiKeyProvisionStatus,
     isAuthenticated,
     loadAuth,
     storeAuth,
     getDextoApiClient,
+    ensureDextoApiKeyForAuthToken,
     SUPABASE_URL,
     SUPABASE_ANON_KEY,
 } from '../../auth/index.js';
 import { logger } from '@dexto/core';
+
+function printProvisionStatus(status: DextoApiKeyProvisionStatus): void {
+    switch (status.level) {
+        case 'success':
+            console.log(chalk.green(`✅ ${status.message}`));
+            return;
+        case 'error':
+            console.log(chalk.red(`❌ ${status.message}`));
+            return;
+        case 'warning':
+            console.log(chalk.yellow(`⚠️ ${status.message}`));
+            return;
+        case 'info':
+            console.log(chalk.cyan(`ℹ️ ${status.message}`));
+            return;
+    }
+}
 
 /**
  * Handle login command - multiple methods supported
@@ -49,7 +68,11 @@ export async function handleLoginCommand(
             if (!isValid) {
                 throw new Error('Invalid API key provided - validation failed');
             }
-            await storeAuth({ dextoApiKey: options.apiKey, createdAt: Date.now() });
+            await storeAuth({
+                dextoApiKey: options.apiKey,
+                dextoApiKeySource: 'user-supplied',
+                createdAt: Date.now(),
+            });
             console.log(chalk.green('✅ Dexto API key saved'));
             return;
         }
@@ -107,7 +130,15 @@ export async function handleBrowserLogin(): Promise<void> {
             console.log(chalk.dim(`\nWelcome back, ${result.user.email}`));
         }
 
-        await provisionKeys(result.accessToken, result.user?.email);
+        const ensured = await ensureDextoApiKeyForAuthToken(result.accessToken, {
+            onStatus: printProvisionStatus,
+        });
+        if (ensured?.keyId) {
+            console.log(chalk.dim(`   Key ID: ${ensured.keyId}`));
+        }
+        if (!ensured) {
+            console.log(chalk.dim('   You can still use Dexto with your own API keys'));
+        }
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
 
@@ -155,7 +186,15 @@ async function handleTokenLogin(): Promise<void> {
         });
 
         // Provision Dexto API key for gateway access
-        await provisionKeys(token as string);
+        const ensured = await ensureDextoApiKeyForAuthToken(token as string, {
+            onStatus: printProvisionStatus,
+        });
+        if (ensured?.keyId) {
+            console.log(chalk.dim(`   Key ID: ${ensured.keyId}`));
+        }
+        if (!ensured) {
+            console.log(chalk.dim('   You can still use Dexto with your own API keys'));
+        }
     } catch (error) {
         spinner.stop('Verification failed');
         throw error;
@@ -184,131 +223,5 @@ async function verifyToken(token: string): Promise<boolean> {
             `Token verification failed: ${error instanceof Error ? error.message : String(error)}`
         );
         return false;
-    }
-}
-
-/**
- * Helper to save Dexto API key to ~/.dexto/.env
- * This ensures the key is available for the layered env loading at startup.
- */
-async function saveDextoApiKey(apiKey: string): Promise<void> {
-    const { getDextoEnvPath, ensureDextoGlobalDirectory } = await import('@dexto/core');
-    const path = await import('path');
-    const fs = await import('fs/promises');
-
-    const envVar = 'DEXTO_API_KEY';
-    const targetEnvPath = getDextoEnvPath();
-
-    // Ensure directory exists
-    await ensureDextoGlobalDirectory();
-    await fs.mkdir(path.dirname(targetEnvPath), { recursive: true });
-
-    // Read existing .env or create empty
-    let envContent = '';
-    try {
-        envContent = await fs.readFile(targetEnvPath, 'utf-8');
-    } catch {
-        // File doesn't exist, start fresh
-    }
-
-    // Update or add the key
-    const lines = envContent.split('\n');
-    const keyPattern = new RegExp(`^${envVar}=`);
-    const keyIndex = lines.findIndex((line) => keyPattern.test(line));
-
-    if (keyIndex >= 0) {
-        lines[keyIndex] = `${envVar}=${apiKey}`;
-    } else {
-        lines.push(`${envVar}=${apiKey}`);
-    }
-
-    // Write back
-    await fs.writeFile(targetEnvPath, lines.filter(Boolean).join('\n') + '\n', 'utf-8');
-
-    // Make available in current process immediately
-    process.env[envVar] = apiKey;
-}
-
-async function provisionKeys(authToken: string, _userEmail?: string): Promise<void> {
-    try {
-        const apiClient = await getDextoApiClient();
-        const auth = await loadAuth();
-
-        // 1. Check if we already have a local key
-        if (auth?.dextoApiKey) {
-            console.log(chalk.cyan('🔍 Validating existing API key...'));
-
-            try {
-                const isValid = await apiClient.validateDextoApiKey(auth.dextoApiKey);
-
-                if (isValid) {
-                    console.log(chalk.green('✅ Existing key is valid'));
-                    // Ensure .env is in sync
-                    await saveDextoApiKey(auth.dextoApiKey);
-                    return; // All good, we're done
-                }
-
-                // Key is invalid - need new one
-                console.log(chalk.yellow('⚠️  Existing key is invalid, provisioning new one...'));
-                const provisionResult = await apiClient.provisionDextoApiKey(authToken);
-
-                if (!provisionResult.dextoApiKey) {
-                    throw new Error('Failed to get new API key');
-                }
-
-                await storeAuth({
-                    ...auth,
-                    dextoApiKey: provisionResult.dextoApiKey,
-                    dextoKeyId: provisionResult.keyId,
-                });
-                await saveDextoApiKey(provisionResult.dextoApiKey);
-
-                console.log(chalk.green('✅ New key provisioned'));
-                console.log(chalk.dim(`   Key ID: ${provisionResult.keyId}`));
-                return;
-            } catch (error) {
-                // Validation or rotation failed - this is a critical error
-                logger.warn(`Key validation/rotation failed: ${error}`);
-                throw new Error(
-                    `Failed to validate or rotate key: ${error instanceof Error ? error.message : String(error)}`
-                );
-            }
-        }
-
-        // 2. No local key - provision one
-        console.log(chalk.cyan('🔑 Provisioning Dexto API key...'));
-        let provisionResult = await apiClient.provisionDextoApiKey(authToken);
-
-        if (!auth) {
-            throw new Error('Authentication state not found');
-        }
-
-        // If key already exists server-side but we don't have it locally, regenerate it
-        if (!provisionResult.isNewKey) {
-            console.log(
-                chalk.yellow('⚠️  CLI key exists on server but not locally, regenerating...')
-            );
-            provisionResult = await apiClient.provisionDextoApiKey(
-                authToken,
-                'Dexto CLI Key',
-                true
-            );
-        }
-
-        await storeAuth({
-            ...auth,
-            dextoApiKey: provisionResult.dextoApiKey,
-            dextoKeyId: provisionResult.keyId,
-        });
-        await saveDextoApiKey(provisionResult.dextoApiKey);
-
-        console.log(chalk.green('✅ Dexto API key provisioned!'));
-        console.log(chalk.dim(`   Key ID: ${provisionResult.keyId}`));
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        console.log(chalk.red(`❌ Failed to provision Dexto API key: ${errorMessage}`));
-        console.log(chalk.dim('   You can still use Dexto with your own API keys'));
-        logger.warn(`Provisioning failed: ${errorMessage}`);
-        // Don't throw - login should still succeed even if key provisioning fails
     }
 }

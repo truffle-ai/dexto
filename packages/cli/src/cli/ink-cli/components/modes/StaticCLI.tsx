@@ -106,6 +106,7 @@ export function StaticCLI({
     const { columns: terminalWidth } = useTerminalSize();
     const [staticRemountKey, setStaticRemountKey] = useState(0);
     const isInitialMount = useRef(true);
+    const isInitialShowReasoningMount = useRef(true);
 
     // Ref to InputContainer for programmatic submit
     const inputContainerRef = useRef<InputContainerHandle>(null);
@@ -155,6 +156,15 @@ export function StaticCLI({
         };
     }, [terminalWidth, refreshStatic]);
 
+    useEffect(() => {
+        // Skip initial mount to avoid unnecessary clear on startup
+        if (isInitialShowReasoningMount.current) {
+            isInitialShowReasoningMount.current = false;
+            return;
+        }
+        refreshStatic();
+    }, [ui.showReasoning, refreshStatic]);
+
     // Pre-render static items as JSX elements (Gemini pattern)
     // Header + finalized messages go in <Static> (rendered once, permanent)
     const staticItems = useMemo(() => {
@@ -167,7 +177,12 @@ export function StaticCLI({
                 startupInfo={startupInfo}
             />,
             ...visibleMessages.map((msg) => (
-                <MessageItem key={msg.id} message={msg} terminalWidth={terminalWidth} />
+                <MessageItem
+                    key={msg.id}
+                    message={msg}
+                    terminalWidth={terminalWidth}
+                    showReasoning={ui.showReasoning}
+                />
             )),
         ];
         return items;
@@ -178,6 +193,7 @@ export function StaticCLI({
         session.hasActiveSession,
         startupInfo,
         terminalWidth,
+        ui.showReasoning,
     ]);
 
     return (
@@ -190,13 +206,23 @@ export function StaticCLI({
 
             {/* Dynamic: pending/streaming messages - re-rendered on updates */}
             {pendingMessages.map((message) => (
-                <MessageItem key={message.id} message={message} terminalWidth={terminalWidth} />
+                <MessageItem
+                    key={message.id}
+                    message={message}
+                    terminalWidth={terminalWidth}
+                    showReasoning={ui.showReasoning}
+                />
             ))}
 
             {/* Dequeued buffer: user messages waiting to be flushed to finalized */}
             {/* Rendered AFTER pending to guarantee correct visual order */}
             {dequeuedBuffer.map((message) => (
-                <MessageItem key={message.id} message={message} terminalWidth={terminalWidth} />
+                <MessageItem
+                    key={message.id}
+                    message={message}
+                    terminalWidth={terminalWidth}
+                    showReasoning={ui.showReasoning}
+                />
             ))}
 
             {/* Controls area */}

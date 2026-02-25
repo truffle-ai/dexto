@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import path from 'node:path';
 import { Box, Text } from 'ink';
-import { getModelDisplayName, type DextoAgent } from '@dexto/core';
+import { getModelDisplayName, getReasoningProfile, type DextoAgent } from '@dexto/core';
 import { getLLMProviderDisplayName } from '../utils/llm-provider-display.js';
 
 interface FooterProps {
@@ -20,11 +20,6 @@ interface FooterProps {
     planModeActive?: boolean;
     /** Whether user is in shell command mode (input starts with !) */
     isShellMode?: boolean;
-}
-
-function getDirectoryName(cwd: string): string {
-    const base = path.basename(cwd);
-    return base || cwd;
 }
 
 /**
@@ -41,15 +36,23 @@ export function Footer({
     planModeActive,
     isShellMode,
 }: FooterProps) {
-    const displayPath = cwd ? getDirectoryName(cwd) : '';
+    const displayPath = cwd ? path.basename(cwd) || cwd : '';
     const displayModelName = getModelDisplayName(modelName);
     const [contextLeft, setContextLeft] = useState<{
         percentLeft: number;
     } | null>(null);
+    const [, setLlmTick] = useState(0);
 
     // Provider is session-scoped because /model can switch LLM per session.
-    const provider = sessionId ? agent.getCurrentLLMConfig(sessionId).provider : null;
+    const llmConfig = sessionId ? agent.getCurrentLLMConfig(sessionId) : null;
+    const provider = llmConfig?.provider ?? null;
     const providerLabel = provider ? getLLMProviderDisplayName(provider) : null;
+    const reasoningProfile =
+        provider && llmConfig ? getReasoningProfile(provider, llmConfig.model) : null;
+    const reasoningVariant =
+        llmConfig?.reasoning?.variant ?? reasoningProfile?.defaultVariant ?? undefined;
+    const showReasoningVariant =
+        reasoningProfile?.capable === true && typeof reasoningVariant === 'string';
 
     useEffect(() => {
         if (!sessionId) {
@@ -82,6 +85,7 @@ export function Footer({
         const { signal } = controller;
         const sessionEvents = [
             'llm:response',
+            'llm:switched',
             'context:compacted',
             'context:pruned',
             'context:cleared',
@@ -90,12 +94,26 @@ export function Footer({
         ] as const;
 
         const handleEvent = (payload: { sessionId?: string }) => {
+            // Most session events include sessionId.
             if (payload.sessionId && payload.sessionId !== sessionId) return;
             refreshContext();
         };
 
+        const handleLlmSwitched = (payload: { sessionIds?: string[] }) => {
+            // llm:switched includes sessionIds[].
+            if (payload.sessionIds && !payload.sessionIds.includes(sessionId)) return;
+            refreshContext();
+            // Force a re-render so the footer always reflects current LLM config
+            // (e.g. reasoning variant toggled via Tab).
+            setLlmTick((prev) => prev + 1);
+        };
+
         for (const eventName of sessionEvents) {
-            agent.on(eventName, handleEvent, { signal });
+            if (eventName === 'llm:switched') {
+                agent.on(eventName, handleLlmSwitched, { signal });
+            } else {
+                agent.on(eventName, handleEvent, { signal });
+            }
         }
 
         return () => {
@@ -118,6 +136,12 @@ export function Footer({
                 <Box>
                     <Text color="cyan">{displayModelName}</Text>
                     {providerLabel && <Text color="gray"> ({providerLabel})</Text>}
+                    {showReasoningVariant && (
+                        <>
+                            <Text color="gray"> · r:</Text>
+                            <Text color="magentaBright">{reasoningVariant}</Text>
+                        </>
+                    )}
                 </Box>
             </Box>
 

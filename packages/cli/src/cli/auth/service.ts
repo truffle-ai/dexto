@@ -20,6 +20,7 @@ export interface AuthConfig {
     /** Dexto API key for gateway access (from --api-key or provisioned after OAuth) */
     dextoApiKey?: string | undefined;
     dextoKeyId?: string | undefined;
+    dextoApiKeySource?: 'provisioned' | 'user-supplied' | undefined;
 }
 
 const AuthConfigSchema = z
@@ -32,6 +33,7 @@ const AuthConfigSchema = z
         createdAt: z.number(),
         dextoApiKey: z.string().optional(),
         dextoKeyId: z.string().optional(),
+        dextoApiKeySource: z.enum(['provisioned', 'user-supplied']).optional(),
     })
     .refine((data) => data.token || data.dextoApiKey, {
         message: 'Either token (from OAuth) or dextoApiKey (from --api-key) is required',

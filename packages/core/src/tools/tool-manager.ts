@@ -182,6 +182,21 @@ export class ToolManager {
         this.invalidateCache();
     }
 
+    addTools(tools: Tool[]): string[] {
+        const added: string[] = [];
+        for (const tool of tools) {
+            if (this.agentTools.has(tool.id)) {
+                continue;
+            }
+            this.agentTools.set(tool.id, tool);
+            added.push(tool.id);
+        }
+        if (added.length > 0) {
+            this.invalidateCache();
+        }
+        return added;
+    }
+
     setToolExecutionContextFactory(factory: ToolExecutionContextFactory): void {
         this.toolExecutionContextFactory = factory;
     }
@@ -284,6 +299,41 @@ export class ToolManager {
             `Session auto-approve tools set for '${sessionId}': ${autoApproveTools.length} tools`
         );
         this.logger.debug(`Auto-approve tools: ${normalized.join(', ')}`);
+    }
+
+    /**
+     * Add session-level auto-approve tools.
+     * Merges into the existing list instead of replacing it.
+     *
+     * @param sessionId The session ID
+     * @param autoApproveTools Array of tool names to auto-approve (e.g., ['bash_exec', 'mcp--read_file'])
+     */
+    addSessionAutoApproveTools(sessionId: string, autoApproveTools: string[]): void {
+        if (autoApproveTools.length === 0) {
+            return;
+        }
+
+        const normalized = autoApproveTools.map((pattern) =>
+            this.normalizeToolPolicyPattern(pattern)
+        );
+        const existing = this.sessionAutoApproveTools.get(sessionId) ?? [];
+        const merged = [...existing];
+        const seen = new Set(existing);
+
+        for (const toolName of normalized) {
+            if (seen.has(toolName)) {
+                continue;
+            }
+            merged.push(toolName);
+            seen.add(toolName);
+        }
+
+        const actuallyAdded = Math.max(0, merged.length - existing.length);
+        this.sessionAutoApproveTools.set(sessionId, merged);
+        this.logger.info(
+            `Session auto-approve tools updated for '${sessionId}': +${actuallyAdded} tools`
+        );
+        this.logger.debug(`Auto-approve tools: ${merged.join(', ')}`);
     }
 
     /**
@@ -853,7 +903,13 @@ export class ToolManager {
                 }
 
                 // Check if it's the same tool
-                return request.metadata.toolName === toolName;
+                if (request.metadata.toolName !== toolName) {
+                    return false;
+                }
+
+                // Never auto-approve directory access prompts due to remembered tool approvals.
+                // Directory access approvals are higher priority and should be explicitly granted.
+                return request.metadata.directoryAccess === undefined;
             },
             { rememberChoice: false } // Don't propagate remember choice to auto-approved requests
         );
@@ -895,6 +951,12 @@ export class ToolManager {
                     return false;
                 }
 
+                // Never auto-approve directory access prompts due to remembered patterns.
+                // Directory access approvals are higher priority and should be explicitly granted.
+                if (request.metadata.directoryAccess !== undefined) {
+                    return false;
+                }
+
                 const args = request.metadata.args;
                 if (typeof args !== 'object' || args === null) {
                     return false;
@@ -923,6 +985,43 @@ export class ToolManager {
         if (count > 0) {
             this.logger.info(
                 `Auto-approved ${count} parallel request(s) for tool '${toolName}' after user selected "remember pattern"`
+            );
+        }
+    }
+
+    /**
+     * Auto-approve pending tool approval requests that are now covered by a remembered directory.
+     * Called after a user selects "remember directory" for a directory-access prompt.
+     */
+    private autoApprovePendingDirectoryRequests(toolName: string, sessionId?: string): void {
+        const count = this.approvalManager.autoApprovePendingRequests(
+            (request: ApprovalRequest) => {
+                if (request.type !== ApprovalType.TOOL_APPROVAL) {
+                    return false;
+                }
+
+                if (request.sessionId !== sessionId) {
+                    return false;
+                }
+
+                if (request.metadata.toolName !== toolName) {
+                    return false;
+                }
+
+                const directoryAccess = request.metadata.directoryAccess;
+                if (!directoryAccess) {
+                    return false;
+                }
+
+                return this.approvalManager.isDirectorySessionApproved(directoryAccess.parentDir);
+            },
+            { rememberDirectory: false }
+        );
+
+        if (count > 0) {
+            this.logger.info(
+                'Auto-approved parallel request(s) after user selected "remember directory"',
+                { count, toolName }
             );
         }
     }
@@ -1887,7 +1986,7 @@ export class ToolManager {
     }
 
     /**
-     * Handle "remember choice" or "remember pattern" when user approves a tool.
+     * Handle "remember" actions when user approves a tool.
      */
     private async handleRememberChoice(
         toolName: string,
@@ -1899,6 +1998,7 @@ export class ToolManager {
 
         const rememberChoice = data.rememberChoice as boolean | undefined;
         const rememberPattern = data.rememberPattern as string | undefined;
+        const rememberDirectory = data.rememberDirectory as boolean | undefined;
 
         if (rememberChoice) {
             const allowSessionId = sessionId ?? response.sessionId;
@@ -1911,6 +2011,9 @@ export class ToolManager {
             this.approvalManager.addPattern(toolName, rememberPattern);
             this.logger.info(`Pattern '${rememberPattern}' added for tool '${toolName}' approval`);
             this.autoApprovePendingPatternRequests(toolName, sessionId);
+        } else if (rememberDirectory) {
+            const allowSessionId = sessionId ?? response.sessionId;
+            this.autoApprovePendingDirectoryRequests(toolName, allowSessionId);
         }
     }
 

@@ -4,7 +4,14 @@
  */
 
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
-import type { ToolDisplayData, ContentPart, McpConnectionStatus, McpServerType } from '@dexto/core';
+import type {
+    ToolDisplayData,
+    ContentPart,
+    McpConnectionStatus,
+    McpServerType,
+    LLMProvider,
+    ReasoningVariant,
+} from '@dexto/core';
 
 /**
  * Update information for version check
@@ -51,7 +58,8 @@ export type StyledMessageType =
     | 'run-summary'
     | 'prompts'
     | 'sysprompt'
-    | 'shortcuts';
+    | 'shortcuts'
+    | 'external-trigger';
 
 /**
  * Structured data for styled messages
@@ -133,6 +141,12 @@ export interface RunSummaryStyledData {
     totalTokens: number;
 }
 
+export interface ExternalTriggerStyledData {
+    label: string;
+    source: 'scheduler' | 'a2a' | 'api' | 'external';
+    timestamp: Date | string;
+}
+
 export interface PromptsStyledData {
     mcpPrompts: Array<{
         name: string;
@@ -175,6 +189,7 @@ export type StyledData =
     | SessionHistoryStyledData
     | LogConfigStyledData
     | RunSummaryStyledData
+    | ExternalTriggerStyledData
     | PromptsStyledData
     | SysPromptStyledData
     | ShortcutsStyledData;
@@ -236,6 +251,8 @@ export interface Message {
     id: string;
     role: 'user' | 'assistant' | 'system' | 'tool';
     content: string;
+    /** Optional model reasoning trace (when provider supports returning it). */
+    reasoning?: string | undefined;
     timestamp: Date;
     isStreaming?: boolean;
     toolResult?: string; // Tool result preview (first 4-5 lines)
@@ -321,6 +338,7 @@ export type OverlayType =
     | 'slash-autocomplete'
     | 'resource-autocomplete'
     | 'model-selector'
+    | 'reasoning'
     | 'custom-model-wizard'
     | 'session-selector'
     | 'mcp-server-list'
@@ -334,6 +352,8 @@ export type OverlayType =
     | 'sounds-selector'
     | 'session-subcommand-selector'
     | 'api-key-input'
+    | 'login'
+    | 'logout'
     | 'search'
     | 'approval'
     | 'tool-browser'
@@ -378,11 +398,11 @@ export interface SelectedMcpServer {
  * Pending model switch info (when waiting for API key input)
  */
 export interface PendingModelSwitch {
-    provider: string;
+    provider: LLMProvider;
     model: string;
     displayName?: string;
     baseURL?: string;
-    reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+    reasoningVariant?: ReasoningVariant;
 }
 
 /**
@@ -419,6 +439,8 @@ export interface UIState {
     isThinking: boolean; // True when LLM is thinking (before streaming starts)
     isCompacting: boolean; // True when context is being compacted
     activeOverlay: OverlayType;
+    /** Whether assistant reasoning is shown in the chat transcript. */
+    showReasoning: boolean;
     exitWarningShown: boolean; // True when first Ctrl+C was pressed (pending second to exit)
     exitWarningTimestamp: number | null; // Timestamp of first Ctrl+C for timeout
     mcpWizardServerType: McpWizardServerType; // Server type for MCP custom wizard

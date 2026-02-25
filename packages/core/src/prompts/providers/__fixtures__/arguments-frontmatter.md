@@ -11,4 +11,3 @@ arguments:
 
 This fixture verifies that an `arguments: - name: ...` entry in frontmatter does not
 override the prompt id.
-
