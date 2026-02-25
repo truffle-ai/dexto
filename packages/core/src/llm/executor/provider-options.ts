@@ -34,55 +34,60 @@ function coerceBudgetTokens(tokens: number | undefined, minimum: number): number
     return Math.max(minimum, Math.floor(tokens));
 }
 
-function toOpenAIReasoningEffort(variant: string | undefined): OpenAIReasoningEffort | undefined {
-    return variant === 'none' ||
-        variant === 'minimal' ||
-        variant === 'low' ||
-        variant === 'medium' ||
-        variant === 'high' ||
-        variant === 'xhigh'
-        ? variant
+function toOpenAIReasoningEffort(
+    reasoningVariant: string | undefined
+): OpenAIReasoningEffort | undefined {
+    return reasoningVariant === 'none' ||
+        reasoningVariant === 'minimal' ||
+        reasoningVariant === 'low' ||
+        reasoningVariant === 'medium' ||
+        reasoningVariant === 'high' ||
+        reasoningVariant === 'xhigh'
+        ? reasoningVariant
         : undefined;
 }
 
 function toOpenAICompatibleReasoningEffort(
-    variant: string | undefined
+    reasoningVariant: string | undefined
 ): 'none' | 'low' | 'medium' | 'high' | undefined {
-    return variant === 'none' || variant === 'low' || variant === 'medium' || variant === 'high'
-        ? variant
+    return reasoningVariant === 'none' ||
+        reasoningVariant === 'low' ||
+        reasoningVariant === 'medium' ||
+        reasoningVariant === 'high'
+        ? reasoningVariant
         : undefined;
 }
 
-function getSelectedVariant(config: ProviderOptionsConfig): {
-    variant: string | undefined;
-    hasInvalidRequestedVariant: boolean;
+function getSelectedReasoningVariant(config: ProviderOptionsConfig): {
+    reasoningVariant: string | undefined;
+    hasInvalidRequestedReasoningVariant: boolean;
 } {
     const profile = getReasoningProfile(config.provider, config.model);
     const requested = config.reasoning?.variant;
     if (requested !== undefined) {
         const supported = profile.variants.some((entry) => entry.id === requested);
         return {
-            variant: supported ? requested : undefined,
-            hasInvalidRequestedVariant: !supported,
+            reasoningVariant: supported ? requested : undefined,
+            hasInvalidRequestedReasoningVariant: !supported,
         };
     }
     return {
-        variant: profile.defaultVariant,
-        hasInvalidRequestedVariant: false,
+        reasoningVariant: profile.defaultVariant,
+        hasInvalidRequestedReasoningVariant: false,
     };
 }
 
 function buildAnthropicProviderOptions(config: {
     model: string;
-    variant: string | undefined;
+    reasoningVariant: string | undefined;
     budgetTokens: number | undefined;
     capable: boolean;
 }): Record<string, Record<string, unknown>> {
-    const { model, variant, budgetTokens, capable } = config;
+    const { model, reasoningVariant, budgetTokens, capable } = config;
     const adaptiveThinking = isAnthropicAdaptiveThinkingModel(model);
 
     if (adaptiveThinking) {
-        if (variant === 'disabled') {
+        if (reasoningVariant === 'disabled') {
             return {
                 anthropic: {
                     cacheControl: ANTHROPIC_CACHE_CONTROL,
@@ -93,8 +98,11 @@ function buildAnthropicProviderOptions(config: {
         }
 
         const effort =
-            variant === 'low' || variant === 'medium' || variant === 'high' || variant === 'max'
-                ? variant
+            reasoningVariant === 'low' ||
+            reasoningVariant === 'medium' ||
+            reasoningVariant === 'high' ||
+            reasoningVariant === 'max'
+                ? reasoningVariant
                 : undefined;
 
         return {
@@ -112,12 +120,12 @@ function buildAnthropicProviderOptions(config: {
             anthropic: {
                 cacheControl: ANTHROPIC_CACHE_CONTROL,
                 sendReasoning: false,
-                ...(variant === 'disabled' ? { thinking: { type: 'disabled' } } : {}),
+                ...(reasoningVariant === 'disabled' ? { thinking: { type: 'disabled' } } : {}),
             },
         };
     }
 
-    if (variant === 'disabled') {
+    if (reasoningVariant === 'disabled') {
         return {
             anthropic: {
                 cacheControl: ANTHROPIC_CACHE_CONTROL,
@@ -146,17 +154,17 @@ function buildAnthropicProviderOptions(config: {
 function buildOpenRouterProviderOptions(config: {
     provider: 'openrouter' | 'dexto-nova';
     model: string;
-    variant: string | undefined;
+    reasoningVariant: string | undefined;
     budgetTokens: number | undefined;
 }): Record<string, Record<string, unknown>> | undefined {
-    const { provider, model, variant, budgetTokens } = config;
+    const { provider, model, reasoningVariant, budgetTokens } = config;
     const profile = getReasoningProfile(provider, model);
 
     if (!profile.capable) {
         return undefined;
     }
 
-    if (variant === 'disabled') {
+    if (reasoningVariant === 'disabled') {
         return { openrouter: { include_reasoning: false } };
     }
 
@@ -170,7 +178,7 @@ function buildOpenRouterProviderOptions(config: {
     }
 
     if (profile.paradigm === 'budget') {
-        if (variant === undefined || variant === 'enabled') {
+        if (reasoningVariant === undefined || reasoningVariant === 'enabled') {
             return {
                 openrouter: {
                     include_reasoning: true,
@@ -180,10 +188,12 @@ function buildOpenRouterProviderOptions(config: {
         return undefined;
     }
 
-    const explicitEffort = toOpenAIReasoningEffort(variant);
+    const explicitEffort = toOpenAIReasoningEffort(reasoningVariant);
     const effort =
         explicitEffort ??
-        (profile.paradigm === 'adaptive-effort' && variant === 'max' ? 'xhigh' : undefined);
+        (profile.paradigm === 'adaptive-effort' && reasoningVariant === 'max'
+            ? 'xhigh'
+            : undefined);
 
     return {
         openrouter: {
@@ -238,18 +248,19 @@ export function buildProviderOptions(
 ): Record<string, Record<string, unknown>> | undefined {
     const { provider, model, reasoning } = config;
     const modelLower = model.toLowerCase();
-    const { variant, hasInvalidRequestedVariant } = getSelectedVariant(config);
+    const { reasoningVariant, hasInvalidRequestedReasoningVariant } =
+        getSelectedReasoningVariant(config);
     const budgetTokens = reasoning?.budgetTokens;
 
     // Avoid fallback coercion when an explicit (but unsupported) variant was provided.
     // Validation should catch this first, but this keeps runtime behavior strict as well.
-    if (hasInvalidRequestedVariant) {
+    if (hasInvalidRequestedReasoningVariant) {
         return undefined;
     }
 
     if (provider === 'anthropic') {
         const capable = isReasoningCapableModel(model, 'anthropic');
-        return buildAnthropicProviderOptions({ model, variant, budgetTokens, capable });
+        return buildAnthropicProviderOptions({ model, reasoningVariant, budgetTokens, capable });
     }
 
     if (provider === 'bedrock') {
@@ -266,7 +277,7 @@ export function buildProviderOptions(
 
         const bedrock: Record<string, unknown> = {};
 
-        if (variant === 'disabled') {
+        if (reasoningVariant === 'disabled') {
             bedrock['reasoningConfig'] = { type: 'disabled' };
             return { bedrock };
         }
@@ -289,7 +300,11 @@ export function buildProviderOptions(
         }
 
         const maxReasoningEffort =
-            variant === 'low' || variant === 'medium' || variant === 'high' ? variant : undefined;
+            reasoningVariant === 'low' ||
+            reasoningVariant === 'medium' ||
+            reasoningVariant === 'high'
+                ? reasoningVariant
+                : undefined;
         if (maxReasoningEffort !== undefined) {
             bedrock['reasoningConfig'] = { type: 'enabled', maxReasoningEffort };
         }
@@ -299,21 +314,21 @@ export function buildProviderOptions(
 
     if (provider === 'vertex' && modelLower.includes('claude')) {
         const capable = isReasoningCapableModel(model, 'vertex');
-        return buildAnthropicProviderOptions({ model, variant, budgetTokens, capable });
+        return buildAnthropicProviderOptions({ model, reasoningVariant, budgetTokens, capable });
     }
 
     if (provider === 'google' || (provider === 'vertex' && !modelLower.includes('claude'))) {
         const profile = getReasoningProfile(provider, model);
-        const includeThoughts = profile.capable && variant !== 'disabled';
+        const includeThoughts = profile.capable && reasoningVariant !== 'disabled';
         const isThinkingLevel = profile.paradigm === 'thinking-level';
         const thinkingLevel =
             includeThoughts &&
             isThinkingLevel &&
-            (variant === 'minimal' ||
-                variant === 'low' ||
-                variant === 'medium' ||
-                variant === 'high')
-                ? variant
+            (reasoningVariant === 'minimal' ||
+                reasoningVariant === 'low' ||
+                reasoningVariant === 'medium' ||
+                reasoningVariant === 'high')
+                ? reasoningVariant
                 : undefined;
         const thinkingBudgetTokens = coerceBudgetTokens(
             budgetTokens ?? GOOGLE_DEFAULT_BUDGET_TOKENS,
@@ -340,7 +355,7 @@ export function buildProviderOptions(
     }
 
     if (provider === 'openai') {
-        const effortCandidate = toOpenAIReasoningEffort(variant);
+        const effortCandidate = toOpenAIReasoningEffort(reasoningVariant);
 
         if (effortCandidate && supportsOpenAIReasoningEffort(model, effortCandidate)) {
             return {
@@ -353,14 +368,14 @@ export function buildProviderOptions(
     }
 
     if (isOpenRouterGatewayProvider(provider)) {
-        return buildOpenRouterProviderOptions({ provider, model, variant, budgetTokens });
+        return buildOpenRouterProviderOptions({ provider, model, reasoningVariant, budgetTokens });
     }
 
     if (provider === 'openai-compatible') {
         const profile = getReasoningProfile(provider, model);
         if (!profile.capable) return undefined;
 
-        const reasoningEffort = toOpenAICompatibleReasoningEffort(variant);
+        const reasoningEffort = toOpenAICompatibleReasoningEffort(reasoningVariant);
         if (reasoningEffort === undefined) return undefined;
 
         return {
