@@ -3,7 +3,7 @@
  * Helpers for detecting autocomplete triggers and parsing input
  */
 
-import { parseInput } from '../../commands/interactive-commands/command-parser.js';
+import { parseInput } from '../interactive-commands/command-parser.js';
 
 /**
  * Autocomplete type

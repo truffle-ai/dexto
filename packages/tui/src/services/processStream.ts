@@ -30,7 +30,7 @@ import { generateMessageId } from '../utils/idGenerator.js';
 import { checkForSplit } from '../utils/streamSplitter.js';
 import { formatToolHeader, shouldHideTool } from '../utils/messageFormatting.js';
 import { isAutoApprovableInEditMode } from '../utils/toolUtils.js';
-import { capture } from '../../../analytics/index.js';
+import { captureAnalytics } from '../host/index.js';
 import chalk from 'chalk';
 
 /**
@@ -561,7 +561,7 @@ export async function processStream(
                             );
                         }
 
-                        capture('dexto_llm_tokens_consumed', {
+                        captureAnalytics('dexto_llm_tokens_consumed', {
                             source: 'cli',
                             sessionId: event.sessionId,
                             provider: event.provider,
@@ -770,7 +770,7 @@ export async function processStream(
                     });
 
                     // Track tool called analytics
-                    capture('dexto_tool_called', {
+                    captureAnalytics('dexto_tool_called', {
                         source: 'cli',
                         sessionId: event.sessionId,
                         toolName: event.toolName,
@@ -861,7 +861,7 @@ export async function processStream(
                     }
 
                     // Track tool result analytics
-                    capture('dexto_tool_result', {
+                    captureAnalytics('dexto_tool_result', {
                         source: 'cli',
                         sessionId: event.sessionId,
                         toolName: event.toolName || 'unknown',

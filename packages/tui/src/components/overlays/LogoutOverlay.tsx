@@ -8,8 +8,12 @@ import React, {
 } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import { loadAuth, removeAuth, removeDextoApiKeyFromEnv } from '../../../auth/index.js';
-import { isUsingDextoCredits } from '../../../../config/effective-llm.js';
+import {
+    loadAuth,
+    removeAuth,
+    removeDextoApiKeyFromEnv,
+    isUsingDextoCredits,
+} from '../../host/index.js';
 
 export type LogoutOverlayOutcome =
     | { outcome: 'success'; wasUsingDextoCredits: boolean }

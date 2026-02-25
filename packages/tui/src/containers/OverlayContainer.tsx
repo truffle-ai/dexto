@@ -152,7 +152,7 @@ import {
 import { InputService } from '../services/InputService.js';
 import { createUserMessage, convertHistoryToUIMessages } from '../utils/messageFormatting.js';
 import { generateMessageId } from '../utils/idGenerator.js';
-import { capture } from '../../../analytics/index.js';
+import { canUseDextoProvider, captureAnalytics } from '../host/index.js';
 import { FocusOverlayFrame } from '../components/shared/FocusOverlayFrame.js';
 import { shouldHideCliChrome } from '../utils/overlayPresentation.js';
 
@@ -535,7 +535,6 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 // Check BEFORE closing the overlay so user can pick a different model
                 if (provider === 'dexto-nova') {
                     try {
-                        const { canUseDextoProvider } = await import('../../utils/dexto-setup.js');
                         const canUse = await canUseDextoProvider();
                         if (!canUse) {
                             setMessages((prev) => [
@@ -987,7 +986,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     }
 
                     // Track session switch analytics
-                    capture('dexto_session_switched', {
+                    captureAnalytics('dexto_session_switched', {
                         source: 'cli',
                         fromSessionId: session.id || null,
                         toSessionId: newSessionId,
@@ -1779,7 +1778,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     await agent.addMcpServer(result.entry.id, mcpConfig);
 
                     // Track MCP server connected analytics
-                    capture('dexto_mcp_server_connected', {
+                    captureAnalytics('dexto_mcp_server_connected', {
                         source: 'cli',
                         serverName: result.entry.name,
                         transportType: mcpConfig.type,
@@ -1870,7 +1869,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     await agent.addMcpServer(config.name, serverConfig);
 
                     // Track MCP server connected analytics
-                    capture('dexto_mcp_server_connected', {
+                    captureAnalytics('dexto_mcp_server_connected', {
                         source: 'cli',
                         serverName: config.name,
                         transportType: serverConfig.type,

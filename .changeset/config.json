@@ -23,7 +23,8 @@
     "@dexto/tools-plan",
     "@dexto/tools-scheduler",
     "@dexto/tools-lifecycle",
-    "@dexto/orchestration"
+    "@dexto/orchestration",
+    "@dexto/tui"
   ]],
   "linked": [],
   "access": "public",
