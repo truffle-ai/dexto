@@ -88,9 +88,21 @@ function ensurePortAvailable(port: number): Promise<number> {
     });
 }
 
-interface CallbackServerOptions {
+interface CallbackServerOptionsInput {
     timeoutMs?: number | undefined;
     signal?: AbortSignal | undefined;
+}
+
+interface CallbackServerOptions {
+    timeoutMs: number;
+    signal: AbortSignal | null;
+}
+
+function resolveCallbackServerOptions(options: CallbackServerOptionsInput): CallbackServerOptions {
+    return {
+        timeoutMs: options.timeoutMs ?? 5 * 60 * 1000,
+        signal: options.signal ?? null,
+    };
 }
 
 /**
@@ -99,11 +111,11 @@ interface CallbackServerOptions {
 function startCallbackServer(
     port: number,
     config: OAuthConfig,
-    options: CallbackServerOptions = {}
+    options: CallbackServerOptions
 ): Promise<OAuthResult> {
     return new Promise((resolve, reject) => {
         let settled = false;
-        const timeoutMs = options.timeoutMs ?? 5 * 60 * 1000;
+        const timeoutMs = options.timeoutMs;
         let timeoutHandle: NodeJS.Timeout | null = null;
         let abortHandler: () => void = () => {};
 
@@ -122,9 +134,7 @@ function startCallbackServer(
                 clearTimeout(timeoutHandle);
             }
             oauthStateStore.delete(port);
-            if (options.signal) {
-                options.signal.removeEventListener('abort', abortHandler);
-            }
+            options.signal?.removeEventListener('abort', abortHandler);
         };
 
         const safeResolve = (result: OAuthResult) => {
@@ -382,8 +392,9 @@ export interface OAuthLoginSession {
 
 export async function beginOAuthLogin(
     config: OAuthConfig,
-    options: { timeoutMs?: number | undefined; signal?: AbortSignal | undefined } = {}
+    options: CallbackServerOptionsInput = {}
 ): Promise<OAuthLoginSession> {
+    const resolvedOptions = resolveCallbackServerOptions(options);
     const port = await ensurePortAvailable(OAUTH_CALLBACK_PORT);
     const redirectUri = `http://localhost:${port}`;
 
@@ -398,21 +409,24 @@ export async function beginOAuthLogin(
     const authUrl = `${config.authUrl}/auth/v1/authorize?provider=${provider}&${authParams}`;
 
     const abortController = new AbortController();
-    if (options.signal) {
-        if (options.signal.aborted) {
-            abortController.abort(options.signal.reason);
+    let upstreamAbortHandler: (() => void) | null = null;
+    if (resolvedOptions.signal) {
+        const handler = () => abortController.abort(resolvedOptions.signal?.reason);
+        upstreamAbortHandler = handler;
+        if (resolvedOptions.signal.aborted) {
+            handler();
         } else {
-            options.signal.addEventListener(
-                'abort',
-                () => abortController.abort(options.signal?.reason),
-                { once: true }
-            );
+            resolvedOptions.signal.addEventListener('abort', handler, { once: true });
         }
     }
 
     const result = startCallbackServer(port, config, {
-        timeoutMs: options.timeoutMs,
+        timeoutMs: resolvedOptions.timeoutMs,
         signal: abortController.signal,
+    }).finally(() => {
+        if (resolvedOptions.signal && upstreamAbortHandler) {
+            resolvedOptions.signal.removeEventListener('abort', upstreamAbortHandler);
+        }
     });
 
     return {

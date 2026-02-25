@@ -41,7 +41,12 @@ const LogoutOverlay = forwardRef<LogoutOverlayHandle, LogoutOverlayProps>(functi
 
             // If this process key came from auth.json provisioning, clear it immediately.
             // (We avoid clearing keys that don't match auth.json to respect explicit user env vars.)
-            if (auth?.dextoApiKey && envKey && envKey === auth.dextoApiKey) {
+            if (
+                auth?.dextoApiKey &&
+                auth.dextoApiKeySource === 'provisioned' &&
+                envKey &&
+                envKey === auth.dextoApiKey
+            ) {
                 delete process.env.DEXTO_API_KEY;
             }
 
@@ -54,6 +59,7 @@ const LogoutOverlay = forwardRef<LogoutOverlayHandle, LogoutOverlayProps>(functi
 
     useEffect(() => {
         if (!isVisible) return;
+        let cancelled = false;
 
         setStep('checking');
         setUserLabel(null);
@@ -61,23 +67,36 @@ const LogoutOverlay = forwardRef<LogoutOverlayHandle, LogoutOverlayProps>(functi
         setError(null);
 
         void (async () => {
-            const auth = await loadAuth();
-            if (!auth) {
-                setStep('not-authenticated');
+            try {
+                const auth = await loadAuth();
+                if (cancelled) return;
+                if (!auth) {
+                    setStep('not-authenticated');
+                    return;
+                }
+
+                setUserLabel(auth.email || auth.userId || 'user');
+            } catch {
+                if (!cancelled) {
+                    setStep('error');
+                    setError('Failed to load authentication state');
+                }
                 return;
             }
 
-            setUserLabel(auth.email || auth.userId || 'user');
-
             try {
                 const isUsing = await isUsingDextoCredits();
-                setUsingDextoCredits(isUsing);
+                if (!cancelled) setUsingDextoCredits(isUsing);
             } catch {
                 // Non-fatal: default to no warning
             }
 
-            setStep('confirm');
+            if (!cancelled) setStep('confirm');
         })();
+
+        return () => {
+            cancelled = true;
+        };
     }, [isVisible]);
 
     useImperativeHandle(

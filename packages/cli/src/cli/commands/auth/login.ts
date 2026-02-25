@@ -71,7 +71,11 @@ export async function handleLoginCommand(
             if (!isValid) {
                 throw new Error('Invalid API key provided - validation failed');
             }
-            await storeAuth({ dextoApiKey: options.apiKey, createdAt: Date.now() });
+            await storeAuth({
+                dextoApiKey: options.apiKey,
+                dextoApiKeySource: 'user-supplied',
+                createdAt: Date.now(),
+            });
             console.log(chalk.green('✅ Dexto API key saved'));
             return;
         }

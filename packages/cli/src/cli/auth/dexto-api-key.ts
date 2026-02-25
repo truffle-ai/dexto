@@ -70,6 +70,12 @@ export async function ensureDextoApiKeyForAuthToken(
             const isValid = await apiClient.validateDextoApiKey(auth.dextoApiKey);
             if (isValid) {
                 status('✅ Existing key is valid');
+                if (!auth.dextoApiKeySource && auth.dextoKeyId) {
+                    await storeAuth({
+                        ...auth,
+                        dextoApiKeySource: 'provisioned',
+                    });
+                }
                 await saveDextoApiKeyToEnv(auth.dextoApiKey);
                 return { dextoApiKey: auth.dextoApiKey, keyId: auth.dextoKeyId ?? '' };
             }
@@ -81,6 +87,7 @@ export async function ensureDextoApiKeyForAuthToken(
                 ...auth,
                 dextoApiKey: rotated.dextoApiKey,
                 dextoKeyId: rotated.keyId,
+                dextoApiKeySource: 'provisioned',
             });
             await saveDextoApiKeyToEnv(rotated.dextoApiKey);
             status('✅ New key provisioned');
@@ -99,6 +106,7 @@ export async function ensureDextoApiKeyForAuthToken(
             ...auth,
             dextoApiKey: provisioned.dextoApiKey,
             dextoKeyId: provisioned.keyId,
+            dextoApiKeySource: 'provisioned',
         });
         await saveDextoApiKeyToEnv(provisioned.dextoApiKey);
         status('✅ Dexto API key provisioned');
