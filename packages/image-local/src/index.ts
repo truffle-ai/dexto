@@ -57,8 +57,9 @@ function resolveModuleDir(): string | undefined {
         return path.dirname(fileURLToPath(importMetaUrl));
     }
 
-    if (typeof __filename === 'string' && __filename.length > 0) {
-        return path.dirname(__filename);
+    const filenameFromGlobal = (globalThis as { __filename?: unknown }).__filename;
+    if (typeof filenameFromGlobal === 'string' && filenameFromGlobal.length > 0) {
+        return path.dirname(filenameFromGlobal);
     }
 
     return undefined;
