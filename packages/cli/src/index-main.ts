@@ -1658,7 +1658,10 @@ program
                         toDextoAgentOptions({
                             config: validatedConfig,
                             services,
-                            overrides: { sessionLoggerFactory, mcpAuthProviderFactory },
+                            overrides: {
+                                sessionLoggerFactory,
+                                mcpAuthProviderFactory,
+                            },
                         })
                     );
 

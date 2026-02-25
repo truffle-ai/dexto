@@ -14,7 +14,11 @@ import type { PromptsConfig } from '../prompts/schemas.js';
 import { AgentStateManager } from './state-manager.js';
 import { SessionManager, ChatSession, SessionError } from '../session/index.js';
 import type { SessionMetadata } from '../session/index.js';
-import { AgentServices, type InitializeServicesOptions } from '../utils/service-initializer.js';
+import {
+    AgentServices,
+    type InitializeServicesOptions,
+    type ToolkitLoader,
+} from '../utils/service-initializer.js';
 import type { Logger, LogLevel } from '../logger/v2/types.js';
 import { Telemetry } from '../telemetry/telemetry.js';
 import { InstrumentClass } from '../telemetry/decorators.js';
@@ -206,9 +210,12 @@ export class DextoAgent {
 
     // Host overrides for service initialization (e.g. session logger factory)
     private readonly overrides: InitializeServicesOptions;
+    private readonly toolkitLoader: ToolkitLoader | undefined;
+    private readonly loadedToolkits: Set<string> = new Set();
+    private readonly loadingToolkits: Set<string> = new Set();
 
     // DI-provided local tools.
-    private readonly tools: Tool[];
+    private tools: Tool[];
     private readonly compactionStrategy: CompactionStrategy | null;
 
     // Logger instance for this agent (dependency injection)
@@ -293,6 +300,7 @@ export class DextoAgent {
         }
 
         this.overrides = overrides;
+        this.toolkitLoader = options.toolkitLoader;
 
         if (overrides.mcpAuthProviderFactory !== undefined) {
             this.mcpAuthProviderFactory = overrides.mcpAuthProviderFactory;
@@ -2676,6 +2684,70 @@ export class DextoAgent {
     public async getAllTools(): Promise<ToolSet> {
         this.ensureStarted();
         return await this.toolManager.getAllTools();
+    }
+
+    /**
+     * Dynamically load toolkits (tool factory types) at runtime.
+     * Toolkits are resolved by the host-provided toolkitLoader and appended to the tool manager.
+     */
+    public async loadToolkits(
+        toolkits: string[]
+    ): Promise<{ loaded: string[]; skipped: string[] }> {
+        this.ensureStarted();
+        if (
+            !Array.isArray(toolkits) ||
+            toolkits.some((toolkit) => typeof toolkit !== 'string' || toolkit.trim() === '')
+        ) {
+            throw AgentError.apiValidationError('toolkits must be an array of non-empty strings');
+        }
+
+        const normalized = Array.from(new Set(toolkits.map((toolkit) => toolkit.trim())));
+
+        if (normalized.length === 0) {
+            return { loaded: [], skipped: [] };
+        }
+
+        if (!this.toolkitLoader) {
+            throw AgentError.initializationFailed('Toolkit loader not configured');
+        }
+
+        const toLoad = normalized.filter(
+            (toolkit) => !this.loadedToolkits.has(toolkit) && !this.loadingToolkits.has(toolkit)
+        );
+        const skipped = normalized.filter(
+            (toolkit) => this.loadedToolkits.has(toolkit) || this.loadingToolkits.has(toolkit)
+        );
+        if (toLoad.length === 0) {
+            return { loaded: [], skipped };
+        }
+
+        toLoad.forEach((toolkit) => {
+            this.loadingToolkits.add(toolkit);
+        });
+        let tools: Tool[];
+        try {
+            tools = await this.toolkitLoader(toLoad);
+        } finally {
+            toLoad.forEach((toolkit) => {
+                this.loadingToolkits.delete(toolkit);
+            });
+        }
+        const existingIds = new Set(this.tools.map((tool) => tool.id));
+        const newTools = tools.filter((tool) => !existingIds.has(tool.id));
+
+        if (newTools.length > 0) {
+            this.toolManager.addTools(newTools);
+            this.tools = [...this.tools, ...newTools];
+        }
+
+        for (const toolkit of toLoad) {
+            this.loadedToolkits.add(toolkit);
+        }
+
+        return {
+            loaded: toLoad,
+            skipped,
+        };
     }
 
     /**

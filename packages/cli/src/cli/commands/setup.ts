@@ -28,6 +28,7 @@ import {
     loadCustomModels,
     saveCustomModel,
     deleteCustomModel,
+    globalPreferencesExist,
     type CustomModel,
     type CreatePreferencesOptions,
 } from '@dexto/agent-management';
@@ -1647,6 +1648,17 @@ async function showSettingsMenu(): Promise<void> {
             currentPrefs = await loadGlobalPreferences();
         } catch {
             currentPrefs = null;
+        }
+
+        if (!currentPrefs && !globalPreferencesExist()) {
+            p.log.warn('No preferences found yet. Run setup to create them.');
+            await handleInteractiveSetup({
+                interactive: true,
+                force: false,
+                quickStart: false,
+                defaultAgent: 'coding-agent',
+            });
+            return;
         }
 
         // Show current configuration

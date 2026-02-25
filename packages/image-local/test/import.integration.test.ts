@@ -37,6 +37,7 @@ describe('Image Local - Import Integration', () => {
         expect(image.tools['process-tools']).toBeDefined();
         expect(image.tools['todo-tools']).toBeDefined();
         expect(image.tools['plan-tools']).toBeDefined();
+        expect(image.tools['creator-tools']).toBeDefined();
         expect(image.tools['agent-spawner']).toBeDefined();
 
         expect(image.storage.blob['local']).toBeDefined();

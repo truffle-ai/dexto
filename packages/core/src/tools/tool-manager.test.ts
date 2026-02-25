@@ -2104,6 +2104,55 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 expect(toolManager.hasSessionAutoApproveTools(sessionId)).toBe(false);
                 expect(toolManager.getSessionAutoApproveTools(sessionId)).toBeUndefined();
             });
+
+            it('should merge tools when adding to session auto-approve list', () => {
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'manual',
+                    mockAgentEventBus,
+                    { alwaysAllow: [], alwaysDeny: [] },
+                    [],
+                    mockLogger
+                );
+
+                const sessionId = 'test-session';
+                toolManager.setSessionAutoApproveTools(sessionId, ['tool1']);
+                toolManager.addSessionAutoApproveTools(sessionId, ['tool2', 'tool1']);
+
+                expect(toolManager.getSessionAutoApproveTools(sessionId)).toEqual([
+                    'tool1',
+                    'tool2',
+                ]);
+            });
+
+            it('should normalize aliases and ignore duplicates when adding auto-approve tools', () => {
+                const toolManager = new ToolManager(
+                    mockMcpManager,
+                    mockApprovalManager,
+                    mockAllowedToolsProvider,
+                    'manual',
+                    mockAgentEventBus,
+                    { alwaysAllow: [], alwaysDeny: [] },
+                    [
+                        {
+                            id: 'bash_exec',
+                            aliases: ['bash'],
+                            description: 'Test bash tool',
+                            inputSchema: z.object({}).strict(),
+                            execute: () => null,
+                        },
+                    ],
+                    mockLogger
+                );
+
+                const sessionId = 'test-session';
+                toolManager.setSessionAutoApproveTools(sessionId, ['bash_exec']);
+                toolManager.addSessionAutoApproveTools(sessionId, ['BASH', 'bash_exec']);
+
+                expect(toolManager.getSessionAutoApproveTools(sessionId)).toEqual(['bash_exec']);
+            });
         });
 
         describe('Auto-Approve Precedence', () => {

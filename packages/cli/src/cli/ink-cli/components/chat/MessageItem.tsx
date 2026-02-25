@@ -18,6 +18,7 @@ import type {
     RunSummaryStyledData,
     ShortcutsStyledData,
     SysPromptStyledData,
+    ExternalTriggerStyledData,
 } from '../../state/types.js';
 import {
     ConfigBox,
@@ -32,7 +33,10 @@ import {
 import { ToolResultRenderer } from '../renderers/index.js';
 import { MarkdownText } from '../shared/MarkdownText.js';
 import { ToolIcon } from './ToolIcon.js';
-import { formatToolResultPreview } from '../../utils/messageFormatting.js';
+import {
+    formatToolResultPreview,
+    stripAutomationTriggerTags,
+} from '../../utils/messageFormatting.js';
 
 /**
  * Strip <plan-mode>...</plan-mode> tags from content.
@@ -68,6 +72,79 @@ function formatDuration(ms: number): string {
     const hours = Math.floor(minutes / 60);
     const remainingMinutes = minutes % 60;
     return `${hours}h ${remainingMinutes}m`;
+}
+
+function formatTime(timestamp: Date | string): string {
+    const value = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
+    if (Number.isNaN(value.getTime())) {
+        return '';
+    }
+    return value.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+}
+
+function getExternalTriggerColors(source: ExternalTriggerStyledData['source']): {
+    background: string;
+    foreground: string;
+} {
+    switch (source) {
+        case 'scheduler':
+            return { background: '#3A235A', foreground: 'white' };
+        case 'a2a':
+            return { background: '#0E3B2E', foreground: 'white' };
+        case 'api':
+            return { background: '#1E3B5A', foreground: 'white' };
+        default:
+            return { background: 'gray', foreground: 'white' };
+    }
+}
+
+function getExternalTriggerSource(label: string): ExternalTriggerStyledData['source'] | null {
+    if (label.startsWith('⏰ Scheduled Task')) {
+        return 'scheduler';
+    }
+    if (label.startsWith('🤖 A2A Request')) {
+        return 'a2a';
+    }
+    if (label.startsWith('🔌 API Request')) {
+        return 'api';
+    }
+    if (label.startsWith('📥 External Request')) {
+        return 'external';
+    }
+    return null;
+}
+
+function renderExternalTriggerPill(
+    label: string,
+    timeLabel: string | null,
+    source: ExternalTriggerStyledData['source'],
+    terminalWidth: number
+) {
+    const colors = getExternalTriggerColors(source);
+
+    return (
+        <Box marginBottom={0} width={terminalWidth}>
+            <Box
+                backgroundColor={colors.background}
+                paddingX={1}
+                borderStyle="round"
+                borderColor={colors.background}
+                flexDirection="row"
+            >
+                <Text color={colors.foreground} bold>
+                    {label}
+                </Text>
+                {timeLabel && (
+                    <Box marginLeft={1}>
+                        <Text color={colors.foreground}>{timeLabel}</Text>
+                    </Box>
+                )}
+            </Box>
+        </Box>
+    );
 }
 
 interface MessageItemProps {
@@ -125,6 +202,15 @@ export const MessageItem = memo(
                     return <ShortcutsBox data={message.styledData as ShortcutsStyledData} />;
                 case 'sysprompt':
                     return <SyspromptBox data={message.styledData as SysPromptStyledData} />;
+                case 'external-trigger': {
+                    const data = message.styledData as ExternalTriggerStyledData;
+                    return renderExternalTriggerPill(
+                        data.label,
+                        formatTime(data.timestamp),
+                        data.source,
+                        terminalWidth
+                    );
+                }
             }
         }
 
@@ -135,7 +221,7 @@ export const MessageItem = memo(
             const prefix = '> ';
             const paddingChars = 2; // paddingX={1} = 1 char on each side
             const availableWidth = Math.max(20, terminalWidth - prefix.length - paddingChars);
-            const displayContent = stripPlanModeTags(message.content);
+            const displayContent = stripAutomationTriggerTags(stripPlanModeTags(message.content));
             const wrappedContent = wrapAnsi(displayContent, availableWidth, {
                 hard: true,
                 wordWrap: true,
@@ -144,7 +230,7 @@ export const MessageItem = memo(
             const lines = wrappedContent.split('\n');
 
             return (
-                <Box flexDirection="column" marginTop={2} marginBottom={1} width={terminalWidth}>
+                <Box flexDirection="column" marginTop={1} marginBottom={0} width={terminalWidth}>
                     <Box flexDirection="column" paddingX={1} backgroundColor="gray">
                         {lines.map((line, i) => (
                             <Box key={i} flexDirection="row">
@@ -305,7 +391,19 @@ export const MessageItem = memo(
             );
         }
 
-        // System message: Compact gray text
+        // System message: Compact gray text (or derived external trigger pill)
+        if (message.role === 'system') {
+            const detectedSource = getExternalTriggerSource(message.content);
+            if (detectedSource) {
+                return renderExternalTriggerPill(
+                    message.content,
+                    null,
+                    detectedSource,
+                    terminalWidth
+                );
+            }
+        }
+
         return (
             <Box flexDirection="column" marginBottom={1} width={terminalWidth}>
                 <Text color="gray">{message.content}</Text>
