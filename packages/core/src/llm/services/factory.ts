@@ -25,6 +25,7 @@ import {
     ANTHROPIC_BETA_HEADER,
     ANTHROPIC_INTERLEAVED_THINKING_BETA,
 } from '../reasoning/anthropic-betas.js';
+import { supportsAnthropicInterleavedThinking } from '../reasoning/anthropic-thinking.js';
 
 // Dexto Gateway headers for usage tracking
 const DEXTO_GATEWAY_HEADERS = {
@@ -176,10 +177,13 @@ export function createVercelModel(
             if (model.includes('claude')) {
                 // Claude models on Vertex use the /anthropic subpath export
                 // Default to us-east5 for Claude (limited region availability)
+                const headers = supportsAnthropicInterleavedThinking(model)
+                    ? { [ANTHROPIC_BETA_HEADER]: ANTHROPIC_INTERLEAVED_THINKING_BETA }
+                    : undefined;
                 return createVertexAnthropic({
                     project: projectId,
                     location: location || 'us-east5',
-                    headers: { [ANTHROPIC_BETA_HEADER]: ANTHROPIC_INTERLEAVED_THINKING_BETA },
+                    ...(headers ? { headers } : {}),
                 })(model);
             }
 
@@ -226,11 +230,15 @@ export function createVercelModel(
             // SDK automatically reads AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN
             return createAmazonBedrock({ region })(modelId);
         }
-        case 'anthropic':
+        case 'anthropic': {
+            const headers = supportsAnthropicInterleavedThinking(model)
+                ? { [ANTHROPIC_BETA_HEADER]: ANTHROPIC_INTERLEAVED_THINKING_BETA }
+                : undefined;
             return createAnthropic({
                 apiKey: apiKey ?? '',
-                headers: { [ANTHROPIC_BETA_HEADER]: ANTHROPIC_INTERLEAVED_THINKING_BETA },
+                ...(headers ? { headers } : {}),
             })(model);
+        }
         case 'google':
             return createGoogleGenerativeAI({ apiKey: apiKey ?? '' })(model);
         case 'groq':

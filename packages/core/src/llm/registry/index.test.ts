@@ -867,8 +867,16 @@ describe('getAllModelsForProvider', () => {
 
         const snapshot = LLM_REGISTRY.openrouter.models.find((m) => m.name === 'openai/gpt-5.2');
         expect(snapshot).toBeDefined();
+        const snapshotDisplayName = snapshot?.displayName;
+        expect(snapshotDisplayName).toBeDefined();
+        if (snapshotDisplayName === undefined) {
+            throw new Error('Expected openrouter snapshot displayName to be defined');
+        }
         expect(models.find((m) => m.name === 'openai/gpt-5.2')?.displayName).toBe(
-            snapshot?.displayName
+            snapshotDisplayName
+        );
+        expect(models.find((m) => m.name === 'openai/gpt-5.2')?.displayName).not.toBe(
+            'OpenRouter GPT-5.2 (override)'
         );
 
         const dynamic = models.find((m) => m.name === 'some/new-openrouter-model');

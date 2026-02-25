@@ -294,7 +294,7 @@ export class TurnExecutor {
                     providerOptions,
                 });
 
-                const reasoningPreset = this.config.reasoning?.preset;
+                const reasoningPreset = this.config.reasoning?.preset ?? 'medium';
                 const reasoningBudgetTokens = getEffectiveReasoningBudgetTokens(providerOptions);
 
                 const reasoningForStream = (() => {

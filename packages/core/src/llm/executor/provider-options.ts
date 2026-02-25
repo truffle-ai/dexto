@@ -21,6 +21,7 @@ import { isReasoningCapableModel } from '../registry/index.js';
 import {
     isAnthropicAdaptiveThinkingModel,
     isAnthropicOpus46Model,
+    supportsAnthropicInterleavedThinking,
 } from '../reasoning/anthropic-thinking.js';
 import { ANTHROPIC_INTERLEAVED_THINKING_BETA } from '../reasoning/anthropic-betas.js';
 import { supportsOpenRouterReasoningTuning } from '../reasoning/profiles/openrouter.js';
@@ -67,6 +68,7 @@ function getAnthropicDefaultThinkingBudgetTokens(preset: ReasoningPreset): numbe
 
 function coerceAnthropicThinkingBudgetTokens(tokens: number | undefined): number | undefined {
     if (tokens === undefined) return undefined;
+    if (!Number.isFinite(tokens)) return undefined;
     return Math.max(ANTHROPIC_MIN_THINKING_BUDGET_TOKENS, Math.floor(tokens));
 }
 
@@ -417,7 +419,10 @@ export function buildProviderOptions(
             bedrock['reasoningConfig'] = { type: 'enabled', budgetTokens: effectiveBudgetTokens };
 
             // Enable Claude interleaved thinking (no extra token cost; unlocks capability).
-            bedrock['anthropicBeta'] = [ANTHROPIC_INTERLEAVED_THINKING_BETA];
+            // Gate this to Claude 4+ models; some gateways reject unknown beta flags.
+            if (supportsAnthropicInterleavedThinking(model)) {
+                bedrock['anthropicBeta'] = [ANTHROPIC_INTERLEAVED_THINKING_BETA];
+            }
 
             return { bedrock };
         }

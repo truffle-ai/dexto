@@ -970,7 +970,8 @@ export class ToolManager {
 
         if (count > 0) {
             this.logger.info(
-                `Auto-approved ${count} parallel request(s) for tool '${toolName}' after user selected "remember directory"`
+                'Auto-approved parallel request(s) after user selected "remember directory"',
+                { count, toolName }
             );
         }
     }

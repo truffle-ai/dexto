@@ -1191,7 +1191,11 @@ export function isReasoningCapableModel(model: string, provider?: LLMProvider): 
     }
 
     // Fallback heuristics (for unknown/custom models).
-    const modelLower = model.toLowerCase();
+    //
+    // Strip OpenRouter-format provider prefix (e.g. "openai/o4-mini" → "o4-mini")
+    // so name-based checks work regardless of how the model ID was passed.
+    const modelIdForHeuristics = model.includes('/') ? (model.split('/').pop() ?? model) : model;
+    const modelLower = modelIdForHeuristics.toLowerCase();
 
     // Codex models are optimized for complex coding with reasoning
     if (modelLower.includes('codex')) {

@@ -279,9 +279,12 @@ class OpenRouterModelRegistry {
      * Get cache metadata for debugging/monitoring.
      */
     getCacheMetadata(): { lastFetchedAt: Date | null; modelCount: number; isFresh: boolean } {
+        const modelCount = this.models
+            ? Array.from(this.models.values()).filter((info) => !this.isExpired(info)).length
+            : 0;
         return {
             lastFetchedAt: this.lastFetchedAt ? new Date(this.lastFetchedAt) : null,
-            modelCount: this.models ? this.models.size : 0,
+            modelCount,
             isFresh: this.isCacheFresh(),
         };
     }
