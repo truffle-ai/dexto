@@ -50,6 +50,7 @@ describe('tool_catalog tool', () => {
                         parameters: {},
                     },
                 }),
+                getAvailableToolkitTypes: () => ['builtin-tools', 'scheduler-tools'],
             },
         } as unknown as ToolExecutionContext;
 
@@ -57,6 +58,7 @@ describe('tool_catalog tool', () => {
         const input = tool.inputSchema.parse({});
         const result = (await tool.execute(input, context)) as {
             tools: Array<{ id: string; source: string }>;
+            toolkitsAvailable: string[];
         };
         expect(result.tools).toEqual(
             expect.arrayContaining([
@@ -64,6 +66,7 @@ describe('tool_catalog tool', () => {
                 expect.objectContaining({ id: 'mcp--fs--read_file', source: 'mcp' }),
             ])
         );
+        expect(result.toolkitsAvailable).toEqual(['builtin-tools', 'scheduler-tools']);
     });
 
     it('filters by query and limit', async () => {
@@ -83,6 +86,7 @@ describe('tool_catalog tool', () => {
                         parameters: {},
                     },
                 }),
+                getAvailableToolkitTypes: () => ['filesystem-tools', 'scheduler-tools'],
             },
         } as unknown as ToolExecutionContext;
 
@@ -97,5 +101,9 @@ describe('tool_catalog tool', () => {
         expect(result.total).toBe(1);
         expect(result.count).toBe(1);
         expect(result.tools[0]?.id).toBe('read_file');
+        expect((result as { toolkitsAvailable?: string[] }).toolkitsAvailable).toEqual([
+            'filesystem-tools',
+            'scheduler-tools',
+        ]);
     });
 });

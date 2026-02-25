@@ -6,6 +6,7 @@ export const CREATOR_TOOL_NAMES = [
     'skill_search',
     'skill_list',
     'tool_catalog',
+    'mcp_registry_catalog',
 ] as const;
 
 export type CreatorToolName = (typeof CREATOR_TOOL_NAMES)[number];

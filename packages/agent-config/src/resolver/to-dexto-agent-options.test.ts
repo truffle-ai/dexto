@@ -37,6 +37,7 @@ describe('toDextoAgentOptions', () => {
             },
             tools: [createMockTool('foo')],
             toolkitLoader: async () => [],
+            availableToolkitTypes: ['builtin-tools', 'scheduler-tools'],
             hooks: [],
             compaction: null,
         };
@@ -64,5 +65,6 @@ describe('toDextoAgentOptions', () => {
         expect(options.hooks).toEqual([]);
         expect(options.compaction).toBeNull();
         expect(options.toolkitLoader).toBe(services.toolkitLoader);
+        expect(options.availableToolkitTypes).toEqual(['builtin-tools', 'scheduler-tools']);
     });
 });

@@ -211,6 +211,7 @@ export class DextoAgent {
     // Host overrides for service initialization (e.g. session logger factory)
     private readonly overrides: InitializeServicesOptions;
     private readonly toolkitLoader: ToolkitLoader | undefined;
+    private readonly availableToolkitTypes: ReadonlyArray<string>;
     private readonly loadedToolkits: Set<string> = new Set();
     private readonly loadingToolkits: Set<string> = new Set();
 
@@ -301,6 +302,10 @@ export class DextoAgent {
 
         this.overrides = overrides;
         this.toolkitLoader = options.toolkitLoader;
+        this.availableToolkitTypes = Object.freeze([
+            ...(options.availableToolkitTypes?.map((toolkit) => toolkit.trim()).filter(Boolean) ??
+                []),
+        ]);
 
         if (overrides.mcpAuthProviderFactory !== undefined) {
             this.mcpAuthProviderFactory = overrides.mcpAuthProviderFactory;
@@ -2684,6 +2689,13 @@ export class DextoAgent {
     public async getAllTools(): Promise<ToolSet> {
         this.ensureStarted();
         return await this.toolManager.getAllTools();
+    }
+
+    /**
+     * Gets available toolkit factory types from the resolved image.
+     */
+    public getAvailableToolkitTypes(): ReadonlyArray<string> {
+        return this.availableToolkitTypes;
     }
 
     /**
