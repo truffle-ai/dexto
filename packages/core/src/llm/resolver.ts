@@ -222,13 +222,17 @@ export async function resolveLLMConfig(
         // 'unknown' after failed refresh = allow (network issue, graceful degradation)
     }
 
+    const didProviderOrModelChange = provider !== previous.provider || model !== previous.model;
+
     // Reasoning update semantics:
-    // - No key provided => preserve previous
+    // - No key provided:
+    //   - preserve previous when provider/model are unchanged
+    //   - reset to target-model defaults when provider/model change
     // - `null` => clear reasoning config
     // - object => replace reasoning config
     const nextReasoning = (() => {
         if (!Object.prototype.hasOwnProperty.call(updates, 'reasoning')) {
-            return previous.reasoning;
+            return didProviderOrModelChange ? undefined : previous.reasoning;
         }
 
         const updateReasoning = updates.reasoning;

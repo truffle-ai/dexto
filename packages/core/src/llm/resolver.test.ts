@@ -121,4 +121,26 @@ describe('resolveAndValidateLLMConfig', () => {
             expect(result.data.reasoning).toBeUndefined();
         }
     });
+
+    it('resets reasoning config when switching model without explicit reasoning update', async () => {
+        const configWithReasoning = LLMConfigSchema.parse({
+            provider: 'openai',
+            model: 'gpt-5',
+            apiKey: TEST_OPENAI_API_KEY,
+            reasoning: { variant: 'high' },
+        });
+
+        const result = await resolveAndValidateLLMConfig(
+            configWithReasoning,
+            { model: 'gpt-4' },
+            mockLogger
+        );
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+            expect(result.data.provider).toBe('openai');
+            expect(result.data.model).toBe('gpt-4');
+            expect(result.data.reasoning).toBeUndefined();
+        }
+    });
 });

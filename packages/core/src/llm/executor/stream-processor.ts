@@ -728,6 +728,10 @@ export class StreamProcessor {
         const previousOpenRouter = previous['openrouter'];
         const nextOpenRouter = providerMetadata['openrouter'];
         if (isRecord(previousOpenRouter) && isRecord(nextOpenRouter)) {
+            // OpenRouter streams `reasoning_details` incrementally across multiple reasoning-delta events.
+            // Plain overwrite/shallow merge drops earlier entries, so we append that array explicitly.
+            // We intentionally avoid a generic deep-merge for all providers because providerMetadata
+            // shapes are provider-specific/opaque and broad deep-merging can introduce invalid payloads.
             const previousDetails = previousOpenRouter['reasoning_details'];
             const nextDetails = nextOpenRouter['reasoning_details'];
             const combinedDetails =
