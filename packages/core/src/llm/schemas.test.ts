@@ -487,6 +487,36 @@ describe('LLMConfigSchema', () => {
                 expect(budgetIssue).toBeDefined();
             }
         });
+
+        it('rejects unsupported reasoning variant for gateway providers', () => {
+            const config: LLMConfig = {
+                provider: 'openrouter',
+                model: 'anthropic/claude-sonnet-4.5',
+                apiKey: 'test-key',
+                reasoning: { variant: 'high' },
+            };
+
+            const result = LLMConfigSchema.safeParse(config);
+            expect(result.success).toBe(false);
+            if (!result.success) {
+                const variantIssue = result.error.issues.find(
+                    (issue) => issue.path.join('.') === 'reasoning.variant'
+                );
+                expect(variantIssue).toBeDefined();
+            }
+        });
+
+        it('accepts budgetTokens for gateway models that expose budget support', () => {
+            const config: LLMConfig = {
+                provider: 'openrouter',
+                model: 'openai/gpt-5.2-codex',
+                apiKey: 'test-key',
+                reasoning: { variant: 'medium', budgetTokens: 1024 },
+            };
+
+            const result = LLMConfigSchema.safeParse(config);
+            expect(result.success).toBe(true);
+        });
     });
 
     describe('LLMUpdatesSchema', () => {

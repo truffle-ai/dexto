@@ -1,3 +1,5 @@
+import type { LLMProvider } from '../../types.js';
+
 const OPENROUTER_REASONING_EXCLUDED_FAMILIES = [
     'deepseek',
     'minimax',
@@ -9,19 +11,37 @@ const OPENROUTER_REASONING_EXCLUDED_FAMILIES = [
     'k2p5',
 ] as const;
 
-export type OpenRouterReasoningTarget =
-    | {
-          kind: 'openai';
-          modelId: string;
-      }
-    | {
-          kind: 'anthropic';
-          modelId: string;
-      }
-    | {
-          kind: 'google-gemini-3';
-          modelId: string;
-      };
+type OpenRouterGatewayProvider = 'openrouter' | 'dexto-nova';
+type OpenRouterTargetRule = {
+    upstreamProvider: LLMProvider;
+    acceptsModelId: (modelId: string, fullModelLower: string) => boolean;
+};
+
+export type OpenRouterReasoningTarget = {
+    upstreamProvider: LLMProvider;
+    modelId: string;
+};
+
+const OPENROUTER_REASONING_TARGET_RULES: Record<string, OpenRouterTargetRule> = {
+    openai: {
+        upstreamProvider: 'openai',
+        acceptsModelId: () => true,
+    },
+    anthropic: {
+        upstreamProvider: 'anthropic',
+        acceptsModelId: () => true,
+    },
+    google: {
+        upstreamProvider: 'google',
+        acceptsModelId: (modelId) => modelId.includes('gemini-3'),
+    },
+};
+
+export function isOpenRouterGatewayProvider(
+    provider: LLMProvider
+): provider is OpenRouterGatewayProvider {
+    return provider === 'openrouter' || provider === 'dexto-nova';
+}
 
 function isOpenRouterReasoningAllowlistedFamily(modelLower: string): boolean {
     return (
@@ -56,15 +76,10 @@ export function getOpenRouterReasoningTarget(model: string): OpenRouterReasoning
     if (!split) return null;
 
     const { providerPrefix, modelId } = split;
-    if (providerPrefix === 'openai') {
-        return { kind: 'openai', modelId };
-    }
-    if (providerPrefix === 'anthropic') {
-        return { kind: 'anthropic', modelId };
-    }
-    if (providerPrefix === 'google' && modelId.includes('gemini-3')) {
-        return { kind: 'google-gemini-3', modelId };
+    const rule = OPENROUTER_REASONING_TARGET_RULES[providerPrefix];
+    if (!rule || !rule.acceptsModelId(modelId, modelLower)) {
+        return null;
     }
 
-    return null;
+    return { upstreamProvider: rule.upstreamProvider, modelId };
 }

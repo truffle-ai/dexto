@@ -393,6 +393,41 @@ describe('buildProviderOptions', () => {
                 })
             ).toBeUndefined();
         });
+
+        it('keeps openrouter and dexto-nova option mapping aligned', () => {
+            const cases = [
+                {
+                    model: 'openai/gpt-5.2-codex',
+                    reasoning: { variant: 'high' as const },
+                },
+                {
+                    model: 'anthropic/claude-opus-4.6',
+                    reasoning: { variant: 'max' as const },
+                },
+                {
+                    model: 'anthropic/claude-sonnet-4.5',
+                    reasoning: { variant: 'enabled' as const, budgetTokens: 4321 },
+                },
+                {
+                    model: 'google/gemini-3-pro-preview',
+                    reasoning: { variant: 'minimal' as const },
+                },
+            ];
+
+            for (const testCase of cases) {
+                const fromOpenRouter = buildProviderOptions({
+                    provider: 'openrouter',
+                    model: testCase.model,
+                    reasoning: testCase.reasoning,
+                });
+                const fromDextoNova = buildProviderOptions({
+                    provider: 'dexto-nova',
+                    model: testCase.model,
+                    reasoning: testCase.reasoning,
+                });
+                expect(fromDextoNova).toEqual(fromOpenRouter);
+            }
+        });
     });
 
     describe('openai-compatible', () => {

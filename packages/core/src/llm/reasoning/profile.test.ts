@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { getSupportedModels, getSupportedProviders } from '../registry/index.js';
 import { getReasoningProfile, supportsReasoningVariant } from './profile.js';
 
 describe('getReasoningProfile', () => {
@@ -148,6 +149,25 @@ describe('getReasoningProfile', () => {
             supportedVariants: [],
             supportsBudgetTokens: false,
         });
+    });
+
+    it('produces structurally valid profiles for all registry models', () => {
+        for (const provider of getSupportedProviders()) {
+            const models = getSupportedModels(provider);
+            for (const model of models) {
+                const profile = getReasoningProfile(provider, model);
+                expect(profile.supportedVariants).toEqual(
+                    profile.variants.map((entry) => entry.id)
+                );
+                if (profile.defaultVariant !== undefined) {
+                    expect(profile.supportedVariants).toContain(profile.defaultVariant);
+                }
+                if (!profile.capable) {
+                    expect(profile.paradigm).toBe('none');
+                    expect(profile.supportedVariants).toEqual([]);
+                }
+            }
+        }
     });
 });
 
