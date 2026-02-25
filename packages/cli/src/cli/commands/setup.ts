@@ -995,7 +995,7 @@ async function wizardStepApiKey(state: SetupWizardState): Promise<SetupWizardSta
         });
 
         if (result.cancelled) {
-            // Go back to reasoning effort if model supports it, otherwise model selection
+            // Go back to reasoning preset if model supports it, otherwise model selection
             const prevStep = getReasoningSupport(provider, model).capable ? 'reasoning' : 'model';
             return { ...state, step: prevStep, apiKeySkipped: undefined };
         }
@@ -1026,14 +1026,14 @@ async function wizardStepMode(state: SetupWizardState): Promise<SetupWizardState
     if (mode === '_back') {
         // Go back to previous step based on provider type and model capabilities
         if (isLocalProvider) {
-            // Local: reasoning effort -> model
+            // Local: reasoning preset -> model
             return {
                 ...state,
                 step: hasReasoningStep ? 'reasoning' : 'model',
                 defaultMode: undefined,
             };
         }
-        // Cloud: always go back to apiKey (reasoning effort comes before apiKey)
+        // Cloud: always go back to apiKey (reasoning preset comes before apiKey)
         return { ...state, step: 'apiKey', defaultMode: undefined };
     }
 
@@ -1441,9 +1441,9 @@ async function promptCustomModelValues(
     }
 
     let reasoningPreset: ReasoningPreset | undefined;
-    const reasoningSupport = getReasoningSupport(provider as LLMProvider, trimmedName);
+    const reasoningSupport = getReasoningSupport(provider, trimmedName);
     if (reasoningSupport.capable) {
-        const preset = await selectReasoningPreset(provider as LLMProvider, trimmedName);
+        const preset = await selectReasoningPreset(provider, trimmedName);
         if (preset === null) {
             return null;
         }

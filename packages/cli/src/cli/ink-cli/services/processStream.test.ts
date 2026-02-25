@@ -57,6 +57,7 @@ function createSetters() {
         planModeActive: false,
         planModeInitialized: false,
         commandOutput: null,
+        bypassPermissions: false,
     });
     const session = createState<SessionState>({
         id: 'test-session',
@@ -142,6 +143,7 @@ describe('processStream (reasoning)', () => {
         await processStream(iterator, setters, {
             useStreaming: true,
             autoApproveEditsRef: { current: false },
+            bypassPermissionsRef: { current: false },
             eventBus: { emit: vi.fn() } as unknown as AgentEventBus,
         });
 
@@ -191,6 +193,7 @@ describe('processStream (reasoning)', () => {
         await processStream(iterator, setters, {
             useStreaming: true,
             autoApproveEditsRef: { current: false },
+            bypassPermissionsRef: { current: false },
             eventBus: { emit: vi.fn() } as unknown as AgentEventBus,
         });
 
@@ -240,6 +243,7 @@ describe('processStream (reasoning)', () => {
         await processStream(iterator, setters, {
             useStreaming: false,
             autoApproveEditsRef: { current: false },
+            bypassPermissionsRef: { current: false },
             eventBus: { emit: vi.fn() } as unknown as AgentEventBus,
         });
 
@@ -247,5 +251,56 @@ describe('processStream (reasoning)', () => {
         expect(assistantMessages).toHaveLength(1);
         expect(assistantMessages[0]?.content).toBe('Hello');
         expect(assistantMessages[0]?.reasoning).toBe('R');
+    });
+
+    it('does not duplicate reasoning in non-streaming mode when reasoning is emitted before a tool call', async () => {
+        const { getMessages, setters } = createSetters();
+
+        const events: StreamingEvent[] = [
+            { name: 'llm:thinking', sessionId: 'test-session' },
+            {
+                name: 'llm:chunk',
+                sessionId: 'test-session',
+                chunkType: 'reasoning',
+                content: 'R',
+            },
+            {
+                name: 'llm:tool-call',
+                sessionId: 'test-session',
+                toolName: 'test-tool',
+                args: {},
+            },
+            {
+                name: 'llm:response',
+                sessionId: 'test-session',
+                content: 'Final',
+                reasoning: 'R',
+            },
+            {
+                name: 'run:complete',
+                sessionId: 'test-session',
+                finishReason: 'stop',
+                stepCount: 1,
+                durationMs: 1,
+            },
+        ];
+
+        const iterator = eventStream(events);
+
+        await processStream(iterator, setters, {
+            useStreaming: false,
+            autoApproveEditsRef: { current: false },
+            bypassPermissionsRef: { current: false },
+            eventBus: { emit: vi.fn() } as unknown as AgentEventBus,
+        });
+
+        const assistantMessages = getMessages().filter((m) => m.role === 'assistant');
+        expect(assistantMessages).toHaveLength(2);
+
+        expect(assistantMessages[0]?.content).toBe('');
+        expect(assistantMessages[0]?.reasoning).toBe('R');
+
+        expect(assistantMessages[1]?.content).toBe('Final');
+        expect(assistantMessages[1]?.reasoning).toBeUndefined();
     });
 });

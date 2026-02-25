@@ -1351,39 +1351,26 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 const current = agent.getCurrentLLMConfig(sessionId);
                 const preset = (current.reasoning?.preset ?? 'medium') as ReasoningPreset;
 
-                try {
-                    const reasoningUpdate =
-                        budgetTokens === undefined && preset === 'medium'
-                            ? ({ reasoning: null } as const)
-                            : {
-                                  reasoning: {
-                                      preset,
-                                      ...(typeof budgetTokens === 'number' ? { budgetTokens } : {}),
-                                  },
-                              };
+                const reasoningUpdate =
+                    budgetTokens === undefined && preset === 'medium'
+                        ? ({ reasoning: null } as const)
+                        : {
+                              reasoning: {
+                                  preset,
+                                  ...(typeof budgetTokens === 'number' ? { budgetTokens } : {}),
+                              },
+                          };
 
-                    await agent.switchLLM(
-                        {
-                            provider: current.provider,
-                            model: current.model,
-                            ...reasoningUpdate,
-                        },
-                        sessionId
-                    );
-                } catch (error) {
-                    setMessages((prev) => [
-                        ...prev,
-                        {
-                            id: generateMessageId('error'),
-                            role: 'system',
-                            content: `❌ Failed to update reasoning budget tokens: ${error instanceof Error ? error.message : String(error)}`,
-                            timestamp: new Date(),
-                        },
-                    ]);
-                    throw error;
-                }
+                await agent.switchLLM(
+                    {
+                        provider: current.provider,
+                        model: current.model,
+                        ...reasoningUpdate,
+                    },
+                    sessionId
+                );
             },
-            [agent, session.id, setMessages]
+            [agent, session.id]
         );
 
         // Handle MCP server list actions (select server or add new)

@@ -598,8 +598,10 @@ export async function processStream(
                         // This handles: non-streaming mode, or multi-step turns after tool calls
                         // Skip if text was already finalized before tools (avoid duplication)
                         const reasoning =
-                            (!useStreaming ? state.nonStreamingAccumulatedReasoning : '') ||
-                            event.reasoning ||
+                            (!useStreaming && !state.reasoningFinalized
+                                ? state.nonStreamingAccumulatedReasoning
+                                : '') ||
+                            (!state.reasoningFinalized ? event.reasoning : undefined) ||
                             undefined;
                         setMessages((prev) => [
                             ...prev,
@@ -714,12 +716,16 @@ export async function processStream(
                         ]);
 
                         const hadText = !!content;
+                        const hadReasoning = !!reasoning;
                         state.nonStreamingAccumulatedText = '';
                         state.nonStreamingAccumulatedReasoning = '';
 
                         // Mark that we finalized text early - prevents duplicate in llm:response
                         if (hadText) {
                             state.textFinalizedBeforeTool = true;
+                        }
+                        if (hadReasoning) {
+                            state.reasoningFinalized = true;
                         }
                     }
 

@@ -195,7 +195,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
     const deleteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const maxVisibleItemsRef = useRef(maxVisibleItems);
 
-    // Reasoning effort sub-step state
+    // Reasoning preset sub-step state
     const [pendingReasoningModel, setPendingReasoningModel] = useState<ModelOption | null>(null);
     const [reasoningPresetIndex, setReasoningPresetIndex] = useState(0);
     const [isSettingDefault, setIsSettingDefault] = useState(false); // Track if setting as default vs normal selection
