@@ -827,13 +827,13 @@ importers:
         version: 8.0.3
       ink:
         specifier: npm:@jrichman/ink@6.4.6
-        version: '@jrichman/ink@6.4.6(@types/react@19.1.12)(react@19.1.1)'
+        version: '@jrichman/ink@6.4.6(@types/react@19.1.12)(react-devtools-core@6.1.5)(react@19.1.1)'
       ink-spinner:
         specifier: ^5.0.0
-        version: 5.0.0(@jrichman/ink@6.4.6(@types/react@19.1.12)(react@19.1.1))(react@19.1.1)
+        version: 5.0.0(@jrichman/ink@6.4.6(@types/react@19.1.12)(react-devtools-core@6.1.5)(react@19.1.1))(react@19.1.1)
       ink-text-input:
         specifier: ^6.0.0
-        version: 6.0.0(@jrichman/ink@6.4.6(@types/react@19.1.12)(react@19.1.1))(react@19.1.1)
+        version: 6.0.0(@jrichman/ink@6.4.6(@types/react@19.1.12)(react-devtools-core@6.1.5)(react@19.1.1))(react@19.1.1)
       open:
         specifier: ^10.2.0
         version: 10.2.0
@@ -12588,6 +12588,7 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
+    optional: true
 
   react-dom@19.1.1(react@19.1.1):
     dependencies:
@@ -12957,7 +12958,8 @@ snapshots:
 
   shebang-regex@3.0.0: {}
 
-  shell-quote@1.8.3: {}
+  shell-quote@1.8.3:
+    optional: true
 
   shimmer@1.2.1: {}
 
@@ -14090,7 +14092,8 @@ snapshots:
 
   wrappy@1.0.2: {}
 
-  ws@7.5.10: {}
+  ws@7.5.10:
+    optional: true
 
   ws@8.18.3: {}
 
