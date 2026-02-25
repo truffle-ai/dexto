@@ -36,6 +36,7 @@ describe('toDextoAgentOptions', () => {
                 cache: createMockCache('in-memory'),
             },
             tools: [createMockTool('foo')],
+            toolkitLoader: async () => [],
             hooks: [],
             compaction: null,
         };
@@ -62,5 +63,6 @@ describe('toDextoAgentOptions', () => {
         expect((options.tools ?? []).map((t) => t.id)).toEqual(['foo']);
         expect(options.hooks).toEqual([]);
         expect(options.compaction).toBeNull();
+        expect(options.toolkitLoader).toBe(services.toolkitLoader);
     });
 });

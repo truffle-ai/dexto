@@ -144,7 +144,15 @@ export class VercelMessageFormatter {
                     break;
 
                 case 'assistant':
-                    formatted.push({ role: 'assistant', ...this.formatAssistantMessage(msg) });
+                    formatted.push({
+                        role: 'assistant',
+                        ...this.formatAssistantMessage(msg, {
+                            // OpenAI/OpenRouter reasoning items can require strict output-item replay.
+                            // Keep those providers on "no reasoning replay" to avoid invalid_request errors.
+                            // For other providers we continue to round-trip reasoning where available.
+                            includeReasoning: this.shouldRoundTripReasoning(context),
+                        }),
+                    });
                     // Track tool call IDs and names as pending
                     if (msg.toolCalls && msg.toolCalls.length > 0) {
                         for (const toolCall of msg.toolCalls) {
@@ -210,15 +218,33 @@ export class VercelMessageFormatter {
         return null;
     }
 
+    private shouldRoundTripReasoning(context: LLMContext): boolean {
+        return (
+            context.provider !== 'openai' &&
+            context.provider !== 'openai-compatible' &&
+            context.provider !== 'openrouter' &&
+            context.provider !== 'dexto-nova'
+        );
+    }
+
     // Helper to format Assistant messages (with optional tool calls and reasoning)
-    private formatAssistantMessage(msg: AssistantMessage): {
+    private formatAssistantMessage(
+        msg: AssistantMessage,
+        config?: { includeReasoning?: boolean }
+    ): {
         content: AssistantContent;
         function_call?: { name: string; arguments: string };
     } {
         const contentParts: AssistantContent = [];
+        const includeReasoning = config?.includeReasoning ?? false;
 
         // Add reasoning part if present (for round-tripping extended thinking)
-        if (msg.reasoning) {
+        //
+        // Note: OpenAI Responses reasoning items are not safe to replay unless we also
+        // round-trip the *following* output item IDs (the API enforces item ordering).
+        // Dexto does not persist those output item IDs today, so we omit reasoning
+        // content from OpenAI prompts to avoid invalid_request errors on follow-up turns.
+        if (includeReasoning && msg.reasoning) {
             // Cast to AssistantContent element type - providerOptions is Record<string, JSONObject>
             // which is compatible with our Record<string, unknown> storage
             const reasoningPart = {

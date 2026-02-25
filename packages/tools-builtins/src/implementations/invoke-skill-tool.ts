@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { ToolError, createLocalToolCallHeader, defineTool, flattenPromptResult } from '@dexto/core';
-import type { TaskForkOptions, Tool, ToolExecutionContext } from '@dexto/core';
+import type { PromptInfo, TaskForkOptions, Tool, ToolExecutionContext } from '@dexto/core';
 
 const InvokeSkillInputSchema = z
     .object({
@@ -58,6 +58,7 @@ export function createInvokeSkillTool(): Tool<typeof InvokeSkillInputSchema> {
             const autoInvocable = await promptManager.listAutoInvocablePrompts();
 
             let skillKey: string | undefined;
+            let matchedInfo: PromptInfo | undefined;
             for (const key of Object.keys(autoInvocable)) {
                 const info = autoInvocable[key];
                 if (!info) continue;
@@ -68,6 +69,7 @@ export function createInvokeSkillTool(): Tool<typeof InvokeSkillInputSchema> {
                     info.name === skill
                 ) {
                     skillKey = key;
+                    matchedInfo = info;
                     break;
                 }
             }
@@ -79,7 +81,57 @@ export function createInvokeSkillTool(): Tool<typeof InvokeSkillInputSchema> {
                 };
             }
 
+            const toolkits = Array.isArray(matchedInfo?.metadata?.toolkits)
+                ? (matchedInfo?.metadata?.toolkits as string[])
+                      .filter((toolkit) => typeof toolkit === 'string')
+                      .map((toolkit) => toolkit.trim())
+                      .filter((toolkit) => toolkit.length > 0)
+                : [];
+
+            if (toolkits.length > 0) {
+                if (!context.agent?.loadToolkits) {
+                    return {
+                        error: `Skill '${skill}' requires toolkits (${toolkits.join(
+                            ', '
+                        )}), but this agent does not support dynamic tool loading.`,
+                        toolkits,
+                    };
+                }
+
+                try {
+                    await context.agent.loadToolkits(toolkits);
+                } catch (error) {
+                    return {
+                        error:
+                            error instanceof Error
+                                ? error.message
+                                : 'Failed to load required toolkits',
+                        toolkits,
+                    };
+                }
+            }
+
             const promptDef = await promptManager.getPromptDefinition(skillKey);
+
+            if (
+                promptDef?.context !== 'fork' &&
+                promptDef?.allowedTools &&
+                promptDef.allowedTools.length > 0 &&
+                context.sessionId &&
+                context.agent?.toolManager
+            ) {
+                try {
+                    context.agent.toolManager.addSessionAutoApproveTools(
+                        context.sessionId,
+                        promptDef.allowedTools
+                    );
+                } catch (error) {
+                    context.logger?.warn('Failed to add auto-approve tools for skill', {
+                        tools: promptDef.allowedTools,
+                        error: error instanceof Error ? error.message : String(error),
+                    });
+                }
+            }
 
             const promptResult = await promptManager.getPrompt(skillKey, args);
             const flattened = flattenPromptResult(promptResult);

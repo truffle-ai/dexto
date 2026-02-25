@@ -559,6 +559,11 @@ export const generalCommands: CommandDefinition[] = [
                             { keys: 'Ctrl+C', description: 'Clear input, then exit (press twice)' },
                             { keys: 'Ctrl+T', description: 'Toggle todo list (show/hide todos)' },
                             { keys: 'Escape', description: 'Cancel processing / close overlay' },
+                            {
+                                keys: 'Shift+Tab',
+                                description:
+                                    'Cycle modes (normal → plan mode → accept edits → bypass permissions)',
+                            },
                         ],
                     },
                     {
@@ -568,7 +573,10 @@ export const generalCommands: CommandDefinition[] = [
                             { keys: 'Shift+Enter', description: 'New line (multi-line input)' },
                             { keys: 'Up/Down', description: 'Navigate input history' },
                             { keys: 'Ctrl+R', description: 'Search history (enter search mode)' },
-                            { keys: 'Tab', description: 'Autocomplete command' },
+                            {
+                                keys: 'Tab',
+                                description: 'Cycle reasoning variant (when no overlay is open)',
+                            },
                             { keys: 'Ctrl+U', description: 'Clear input line' },
                             { keys: 'Ctrl+W', description: 'Delete word before cursor' },
                             { keys: 'Ctrl+A', description: 'Move cursor to start' },

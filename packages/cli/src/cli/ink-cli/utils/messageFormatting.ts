@@ -13,7 +13,7 @@ import type {
     ToolPresentationSnapshotV1,
 } from '@dexto/core';
 import { isTextPart, isAssistantMessage, isToolMessage } from '@dexto/core';
-import type { Message } from '../state/types.js';
+import type { Message, ExternalTriggerStyledData } from '../state/types.js';
 
 const HIDDEN_TOOL_NAMES = new Set(['wait_for']);
 
@@ -49,6 +49,9 @@ import { generateMessageId } from './idGenerator.js';
 const SKILL_INVOCATION_REGEX =
     /<skill-invocation>[\s\S]*?skill:\s*"(?:config:)?([^"]+)"[\s\S]*?<\/skill-invocation>/;
 
+const AUTOMATION_TRIGGER_REGEX =
+    /<scheduled_automation_trigger>[\s\S]*?<\/scheduled_automation_trigger>/;
+
 /**
  * Formats a skill invocation message for clean display.
  * Converts verbose <skill-invocation> blocks to clean /skill-name format.
@@ -76,6 +79,37 @@ export function formatSkillInvocationMessage(content: string): string {
  */
 export function isSkillInvocationMessage(content: string): boolean {
     return SKILL_INVOCATION_REGEX.test(content);
+}
+
+export function extractAutomationTriggerInfo(content: string): {
+    label: string;
+    timestamp: string | null;
+    source: ExternalTriggerStyledData['source'];
+} | null {
+    const match = content.match(AUTOMATION_TRIGGER_REGEX);
+    if (!match) {
+        return null;
+    }
+
+    const block = match[0];
+    const taskMatch = block.match(/Task:\s*(.+)/i);
+    const triggeredMatch = block.match(/Triggered at:\s*(.+)/i);
+    const taskName = taskMatch?.[1]?.trim();
+    const triggeredAt = triggeredMatch?.[1]?.trim() ?? null;
+
+    return {
+        label: taskName ? `⏰ Scheduled Task: ${taskName}` : '⏰ Scheduled Task',
+        timestamp: triggeredAt,
+        source: 'scheduler',
+    };
+}
+
+export function stripAutomationTriggerTags(content: string): string {
+    const stripped = content.replace(
+        /<scheduled_automation_trigger>[\s\S]*?<\/scheduled_automation_trigger>\s*/g,
+        ''
+    );
+    return stripped === content ? content : stripped.trim();
 }
 
 /**
@@ -565,6 +599,26 @@ export function convertHistoryToUIMessages(
 
         // Skip empty messages
         if (!textContent) return;
+
+        const automationTrigger =
+            msg.role === 'user' ? extractAutomationTriggerInfo(textContent) : null;
+
+        if (automationTrigger) {
+            uiMessages.push({
+                id: `session-${sessionId}-${index}-trigger`,
+                role: 'system',
+                content: automationTrigger.label,
+                timestamp,
+                styledType: 'external-trigger',
+                styledData: {
+                    label: automationTrigger.label,
+                    source: automationTrigger.source,
+                    timestamp: automationTrigger.timestamp ?? timestamp,
+                },
+            });
+
+            textContent = stripAutomationTriggerTags(textContent);
+        }
 
         // Format skill invocation messages for cleaner display
         if (msg.role === 'user') {

@@ -60,7 +60,7 @@ export const InlinePromptSchema = z
         'allowed-tools': z
             .array(z.string())
             .optional()
-            .describe('Tools allowed when this prompt is active (overrides global policies)'),
+            .describe('Tools to auto-approve when this prompt is active (additive)'),
         model: z.string().optional().describe('Model to use when this prompt is invoked'),
         // Execution context (Phase 2)
         context: z
@@ -108,7 +108,7 @@ export const FilePromptSchema = z
         'allowed-tools': z
             .array(z.string())
             .optional()
-            .describe('Tools allowed when this prompt is active (overrides global policies)'),
+            .describe('Tools to auto-approve when this prompt is active (additive)'),
         model: z.string().optional().describe('Model to use when this prompt is invoked'),
         // Execution context (Phase 2) - can override frontmatter
         context: z

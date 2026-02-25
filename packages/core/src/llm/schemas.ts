@@ -13,6 +13,7 @@ import {
     getMaxInputTokensForModel,
 } from './registry/index.js';
 import { LLM_PROVIDERS } from './types.js';
+import { getReasoningProfile, supportsReasoningVariant } from './reasoning/profile.js';
 
 /**
  * Default-free field definitions for LLM configuration.
@@ -68,22 +69,24 @@ const LLMConfigFields = {
 
     // Provider-specific options
 
-    /**
-     * OpenAI reasoning effort level for reasoning-capable models (o1, o3, codex, gpt-5.x).
-     * Controls how many reasoning tokens the model generates before producing a response.
-     * - 'none': No reasoning, fastest responses
-     * - 'minimal': Barely any reasoning, very fast responses
-     * - 'low': Light reasoning, fast responses
-     * - 'medium': Balanced reasoning (OpenAI's recommended daily driver)
-     * - 'high': Thorough reasoning for complex tasks
-     * - 'xhigh': Extra high reasoning for quality-critical, non-latency-sensitive tasks
-     */
-    reasoningEffort: z
-        .enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh'])
+    reasoning: z
+        .object({
+            variant: NonEmptyTrimmed.describe(
+                'Model/provider-native reasoning variant (resolved by reasoning profile for the selected model).'
+            ),
+            budgetTokens: z.coerce
+                .number()
+                .int()
+                .positive()
+                .optional()
+                .describe(
+                    'Advanced escape hatch for budget-based providers (e.g., Anthropic/Gemini/Bedrock/OpenRouter).'
+                ),
+        })
+        .strict()
         .optional()
         .describe(
-            'OpenAI reasoning effort level for reasoning models (o1, o3, codex). ' +
-                "Options: 'none', 'minimal', 'low', 'medium' (recommended), 'high', 'xhigh'"
+            'Reasoning configuration using model/provider-native variants (tuning only; display is controlled separately).'
         ),
 } as const;
 /** Business rules + compatibility checks */
@@ -104,7 +107,7 @@ export const LLMConfigBaseSchema = z
         temperature: LLMConfigFields.temperature,
         allowedMediaTypes: LLMConfigFields.allowedMediaTypes,
         // Provider-specific options
-        reasoningEffort: LLMConfigFields.reasoningEffort,
+        reasoning: LLMConfigFields.reasoning,
     })
     .strict();
 
@@ -230,6 +233,42 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
             }
         }
     }
+
+    if (data.reasoning) {
+        const profile = getReasoningProfile(data.provider, data.model);
+        const variant = data.reasoning.variant;
+        const budgetTokens = data.reasoning.budgetTokens;
+
+        if (!supportsReasoningVariant(profile, variant)) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['reasoning', 'variant'],
+                message:
+                    `Reasoning variant '${variant}' is not supported for provider '${data.provider}' ` +
+                    `model '${data.model}'. Supported: ${profile.variants.map((entry) => entry.id).join(', ')}`,
+                params: {
+                    code: LLMErrorCode.MODEL_INCOMPATIBLE,
+                    scope: ErrorScope.LLM,
+                    type: ErrorType.USER,
+                },
+            });
+        }
+
+        if (typeof budgetTokens === 'number' && !profile.supportsBudgetTokens) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['reasoning', 'budgetTokens'],
+                message:
+                    `Reasoning budgetTokens are not supported for provider '${data.provider}' ` +
+                    `model '${data.model}'. Remove reasoning.budgetTokens to use provider defaults.`,
+                params: {
+                    code: LLMErrorCode.MODEL_INCOMPATIBLE,
+                    scope: ErrorScope.LLM,
+                    type: ErrorType.USER,
+                },
+            });
+        }
+    }
     // Note: OpenRouter model validation happens in resolver.ts during switchLLM only
     // to avoid network calls during startup/serverless cold starts
 });
@@ -241,7 +280,12 @@ export type ValidatedLLMConfig = z.output<typeof LLMConfigSchema>;
 
 // TODO: when moving to zod v4 we might be able to set this as strict
 export const LLMUpdatesSchema = z
-    .object({ ...LLMConfigFields })
+    .object({
+        ...LLMConfigFields,
+        // Special-case: allow `null` as an explicit "clear reasoning config" sentinel for switch flows.
+        // Full configs (LLMConfigSchema) still require `reasoning` to be an object when present.
+        reasoning: LLMConfigFields.reasoning.nullable(),
+    })
     .partial()
     .superRefine((data, ctx) => {
         // Require at least one meaningful change field: model or provider
@@ -251,6 +295,49 @@ export const LLMUpdatesSchema = z
                 message: 'At least model or provider must be specified for LLM switch',
                 path: [],
             });
+        }
+
+        // If we have enough context (provider+model), validate reasoning updates to avoid
+        // sending unsupported reasoning params at runtime.
+        if (
+            data.reasoning &&
+            data.reasoning !== null &&
+            typeof data.provider === 'string' &&
+            typeof data.model === 'string'
+        ) {
+            const profile = getReasoningProfile(data.provider, data.model);
+            const variant = data.reasoning.variant;
+            const budgetTokens = data.reasoning.budgetTokens;
+
+            if (!supportsReasoningVariant(profile, variant)) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['reasoning', 'variant'],
+                    message:
+                        `Reasoning variant '${variant}' is not supported for provider '${data.provider}' ` +
+                        `model '${data.model}'. Supported: ${profile.variants.map((entry) => entry.id).join(', ')}`,
+                    params: {
+                        code: LLMErrorCode.MODEL_INCOMPATIBLE,
+                        scope: ErrorScope.LLM,
+                        type: ErrorType.USER,
+                    },
+                });
+            }
+
+            if (typeof budgetTokens === 'number' && !profile.supportsBudgetTokens) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['reasoning', 'budgetTokens'],
+                    message:
+                        `Reasoning budgetTokens are not supported for provider '${data.provider}' ` +
+                        `model '${data.model}'. Remove reasoning.budgetTokens to use provider defaults.`,
+                    params: {
+                        code: LLMErrorCode.MODEL_INCOMPATIBLE,
+                        scope: ErrorScope.LLM,
+                        type: ErrorType.USER,
+                    },
+                });
+            }
         }
     });
 export type LLMUpdates = z.input<typeof LLMUpdatesSchema>;

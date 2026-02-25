@@ -41,6 +41,13 @@ export function validateCliOptions(opts: any): void {
                 .optional()
                 .default(false)
                 .describe('Automatically approve all tool executions when true'),
+            bypassPermissions: z
+                .boolean()
+                .optional()
+                .default(false)
+                .describe(
+                    'Start the interactive CLI in bypass permissions mode (auto-approve approval prompts)'
+                ),
             elicitation: z
                 .boolean()
                 .optional()
@@ -106,6 +113,7 @@ export function validateCliOptions(opts: any): void {
         model: opts.model,
         interactive: opts.interactive,
         autoApprove: opts.autoApprove,
+        bypassPermissions: opts.bypassPermissions,
         elicitation: opts.elicitation,
     });
 }

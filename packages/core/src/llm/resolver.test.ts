@@ -6,6 +6,7 @@ import { LLMConfigSchema } from './schemas.js';
 
 const mockLogger = createMockLogger();
 const TEST_OPENAI_API_KEY = 'test-openai-key';
+const TEST_ANTHROPIC_API_KEY = 'test-anthropic-key';
 const TEST_DEXTO_API_KEY = 'test-dexto-key';
 
 const baseConfig = LLMConfigSchema.parse({
@@ -58,6 +59,88 @@ describe('resolveAndValidateLLMConfig', () => {
                     }),
                 ])
             );
+        }
+    });
+
+    it('preserves reasoning config when applying unrelated updates', async () => {
+        const configWithReasoning = LLMConfigSchema.parse({
+            provider: 'anthropic',
+            model: 'claude-3-7-sonnet-20250219',
+            apiKey: TEST_ANTHROPIC_API_KEY,
+            reasoning: { variant: 'enabled', budgetTokens: 123 },
+        });
+
+        const result = await resolveAndValidateLLMConfig(
+            configWithReasoning,
+            { maxOutputTokens: 2048 },
+            mockLogger
+        );
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+            expect(result.data.reasoning).toEqual({ variant: 'enabled', budgetTokens: 123 });
+        }
+    });
+
+    it('replaces reasoning config when updates.reasoning is provided (clears previous budgetTokens)', async () => {
+        const configWithReasoning = LLMConfigSchema.parse({
+            provider: 'anthropic',
+            model: 'claude-3-7-sonnet-20250219',
+            apiKey: TEST_ANTHROPIC_API_KEY,
+            reasoning: { variant: 'enabled', budgetTokens: 123 },
+        });
+
+        const result = await resolveAndValidateLLMConfig(
+            configWithReasoning,
+            { reasoning: { variant: 'disabled' } },
+            mockLogger
+        );
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+            expect(result.data.reasoning).toEqual({ variant: 'disabled' });
+        }
+    });
+
+    it('clears reasoning config when updates.reasoning is null', async () => {
+        const configWithReasoning = LLMConfigSchema.parse({
+            provider: 'anthropic',
+            model: 'claude-3-7-sonnet-20250219',
+            apiKey: TEST_ANTHROPIC_API_KEY,
+            reasoning: { variant: 'enabled', budgetTokens: 123 },
+        });
+
+        const result = await resolveAndValidateLLMConfig(
+            configWithReasoning,
+            { reasoning: null },
+            mockLogger
+        );
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+            expect(result.data.reasoning).toBeUndefined();
+        }
+    });
+
+    it('resets reasoning config when switching model without explicit reasoning update', async () => {
+        const configWithReasoning = LLMConfigSchema.parse({
+            provider: 'openai',
+            model: 'gpt-5',
+            apiKey: TEST_OPENAI_API_KEY,
+            reasoning: { variant: 'high' },
+        });
+
+        const result = await resolveAndValidateLLMConfig(
+            configWithReasoning,
+            { model: 'gpt-4' },
+            mockLogger
+        );
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+            expect(result.data.provider).toBe('openai');
+            expect(result.data.model).toBe('gpt-4');
+            expect(result.data.reasoning).toBeUndefined();
         }
     });
 });

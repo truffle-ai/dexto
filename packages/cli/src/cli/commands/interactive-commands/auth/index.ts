@@ -5,7 +5,7 @@
  */
 
 import type { CommandDefinition } from '../command-parser.js';
-import { handleLoginCommand } from '../../auth/login.js';
+import { overlayOnlyHandler } from '../command-parser.js';
 
 /**
  * Login command - triggers OAuth flow for Dexto authentication
@@ -16,8 +16,13 @@ export const loginCommand: CommandDefinition = {
     description: 'Login to Dexto',
     usage: '/login',
     category: 'General',
-    handler: async () => {
-        await handleLoginCommand({ interactive: true });
-        return true;
-    },
+    handler: overlayOnlyHandler,
+};
+
+export const logoutCommand: CommandDefinition = {
+    name: 'logout',
+    description: 'Logout from Dexto',
+    usage: '/logout',
+    category: 'General',
+    handler: overlayOnlyHandler,
 };

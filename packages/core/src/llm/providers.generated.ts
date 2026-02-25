@@ -516,6 +516,14 @@ export const PROVIDERS_BY_ID = {
         api: 'https://opencode.ai/zen/v1',
         doc: 'https://opencode.ai/docs/zen',
     },
+    'opencode-go': {
+        id: 'opencode-go',
+        name: 'OpenCode Go',
+        env: ['OPENCODE_API_KEY'],
+        npm: '@ai-sdk/openai-compatible',
+        api: 'https://opencode.ai/zen/go/v1',
+        doc: 'https://opencode.ai/docs/zen',
+    },
     openrouter: {
         id: 'openrouter',
         name: 'OpenRouter',
@@ -874,6 +882,7 @@ export const LLM_PROVIDERS = [
     'openai',
     'openai-compatible',
     'opencode',
+    'opencode-go',
     'openrouter',
     'ovhcloud',
     'perplexity',

@@ -11,6 +11,7 @@ import {
     useUninstallAgent,
 } from '../hooks/useAgents';
 import { useRecentAgentsStore } from '@/lib/stores/recentAgentsStore';
+import type { RecentAgent } from '@/lib/stores/recentAgentsStore';
 import { useSessionStore } from '@/lib/stores/sessionStore';
 import { Button } from '../ui/button';
 import {
@@ -133,7 +134,7 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
             try {
                 setSwitching(true);
                 // Check if the agent exists in the installed list
-                const agent = installed.find((agent) => agent.id === agentId);
+                const agent = installed.find((agent: AgentItem) => agent.id === agentId);
                 if (!agent) {
                     console.error(`Agent not found in installed list: ${agentId}`);
                     throw new Error(
@@ -320,8 +321,8 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
     const currentLabel = useMemo(() => {
         if (!currentId) return 'Choose Agent';
         const match =
-            installed.find((agent) => agent.id === currentId) ||
-            available.find((agent) => agent.id === currentId);
+            installed.find((agent: AgentItem) => agent.id === currentId) ||
+            available.find((agent: AgentItem) => agent.id === currentId);
         return match?.name ?? currentId;
     }, [available, currentId, installed]);
 
@@ -409,7 +410,9 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
 
                             {/* Current Agent (if loaded from file and not in installed list) */}
                             {currentAgentPath &&
-                                !installed.some((a) => a.id === currentAgentPath.name) && (
+                                !installed.some(
+                                    (a: AgentItem) => a.id === currentAgentPath.name
+                                ) && (
                                     <>
                                         <div className="px-3 py-2 mt-1 text-xs font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider border-b border-border/20">
                                             Currently Active
@@ -455,8 +458,8 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                                     </div>
                                     {recentAgents
                                         .filter(
-                                            (ra) =>
-                                                !installed.some((a) => a.id === ra.id) &&
+                                            (ra: RecentAgent) =>
+                                                !installed.some((a: AgentItem) => a.id === ra.id) &&
                                                 ra.id !== currentAgentPath?.name &&
                                                 !isGlobalAgent(ra.path) // Filter out global dexto directory agents
                                         )
@@ -493,15 +496,15 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                             )}
 
                             {/* Installed Custom Agents */}
-                            {installed.filter((a) => a.type === 'custom').length > 0 && (
+                            {installed.filter((a: AgentItem) => a.type === 'custom').length > 0 && (
                                 <>
                                     <div className="px-3 py-2 mt-1 text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-1 border-b border-border/20">
                                         <BadgeCheck className="w-3 h-3" />
                                         Custom Agents
                                     </div>
                                     {installed
-                                        .filter((a) => a.type === 'custom')
-                                        .map((agent) => (
+                                        .filter((a: AgentItem) => a.type === 'custom')
+                                        .map((agent: AgentItem) => (
                                             <DropdownMenuItem
                                                 key={agent.id}
                                                 onClick={() => handleSwitch(agent.id)}
@@ -541,17 +544,17 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                                 </>
                             )}
                             {/* Installed Builtin Agents */}
-                            {installed.filter((a) => a.type === 'builtin').length > 0 && (
+                            {installed.filter((a: AgentItem) => a.type === 'builtin').length >
+                                0 && (
                                 <>
-                                    {installed.filter((a) => a.type === 'custom').length > 0 && (
-                                        <DropdownMenuSeparator />
-                                    )}
+                                    {installed.filter((a: AgentItem) => a.type === 'custom')
+                                        .length > 0 && <DropdownMenuSeparator />}
                                     <div className="px-3 py-2 mt-1 text-xs font-bold text-foreground/70 uppercase tracking-wider border-b border-border/20">
                                         Installed
                                     </div>
                                     {installed
-                                        .filter((a) => a.type === 'builtin')
-                                        .map((agent) => (
+                                        .filter((a: AgentItem) => a.type === 'builtin')
+                                        .map((agent: AgentItem) => (
                                             <DropdownMenuItem
                                                 key={agent.id}
                                                 onClick={() => handleSwitch(agent.id)}
@@ -583,15 +586,16 @@ export default function AgentSelector({ mode = 'default' }: AgentSelectorProps) 
                                 </>
                             )}
                             {/* Available Builtin Agents */}
-                            {available.filter((a) => a.type === 'builtin').length > 0 && (
+                            {available.filter((a: AgentItem) => a.type === 'builtin').length >
+                                0 && (
                                 <>
                                     {installed.length > 0 && <DropdownMenuSeparator />}
                                     <div className="px-3 py-2 mt-1 text-xs font-bold text-foreground/70 uppercase tracking-wider border-b border-border/20">
                                         Available
                                     </div>
                                     {available
-                                        .filter((a) => a.type === 'builtin')
-                                        .map((agent) => (
+                                        .filter((a: AgentItem) => a.type === 'builtin')
+                                        .map((agent: AgentItem) => (
                                             <DropdownMenuItem
                                                 key={agent.id}
                                                 onClick={() => handleInstall(agent.id)}

@@ -14,7 +14,12 @@
 import { randomUUID } from 'crypto';
 import type { AgentConfig } from '@dexto/agent-config';
 import type { DextoAgent, Logger, TaskForker } from '@dexto/core';
-import { DextoRuntimeError, ErrorType } from '@dexto/core';
+import {
+    DextoRuntimeError,
+    ErrorType,
+    getReasoningProfile,
+    supportsReasoningVariant,
+} from '@dexto/core';
 import { AgentRuntime } from '../../runtime/AgentRuntime.js';
 import { createDelegatingApprovalHandler } from '../../runtime/approval-delegation.js';
 import { loadAgentConfig } from '../../config/loader.js';
@@ -23,9 +28,21 @@ import type { AgentRegistryEntry } from '../../registry/types.js';
 import { deriveDisplayName } from '../../registry/types.js';
 import { getDextoPath, resolveBundledScript } from '../../utils/path.js';
 import * as path from 'path';
-import type { AgentSpawnerConfig } from './schemas.js';
+import { type AgentSpawnerConfig } from './schemas.js';
 import type { SpawnAgentOutput } from './types.js';
 import { resolveSubAgentLLM } from './llm-resolution.js';
+
+const REASONING_VARIANT_FALLBACK_ORDER = [
+    'disabled',
+    'none',
+    'minimal',
+    'low',
+    'enabled',
+    'medium',
+    'high',
+    'max',
+    'xhigh',
+] as const;
 
 export class AgentSpawnerRuntime implements TaskForker {
     private runtime: AgentRuntime;
@@ -33,6 +50,59 @@ export class AgentSpawnerRuntime implements TaskForker {
     private parentAgent: DextoAgent;
     private config: AgentSpawnerConfig;
     private logger: Logger;
+
+    private selectLowestReasoningVariant(
+        provider: AgentConfig['llm']['provider'],
+        model: AgentConfig['llm']['model'],
+        preferredVariant: string
+    ): string | undefined {
+        const profile = getReasoningProfile(provider, model);
+        if (!profile.capable || profile.supportedVariants.length === 0) {
+            return undefined;
+        }
+
+        if (supportsReasoningVariant(profile, preferredVariant)) {
+            return preferredVariant;
+        }
+
+        for (const variant of REASONING_VARIANT_FALLBACK_ORDER) {
+            if (supportsReasoningVariant(profile, variant)) {
+                return variant;
+            }
+        }
+
+        return profile.defaultVariant ?? profile.supportedVariants[0];
+    }
+
+    private applySubAgentLlmPolicy(llm: AgentConfig['llm']): AgentConfig['llm'] {
+        const maxIterationsCap = this.config.subAgentMaxIterations;
+        const preferredReasoningVariant = this.config.subAgentReasoningVariant;
+        const reasoningVariant = this.selectLowestReasoningVariant(
+            llm.provider,
+            llm.model,
+            preferredReasoningVariant
+        );
+
+        const existingMaxIterations = llm.maxIterations;
+        const cappedMaxIterations =
+            typeof existingMaxIterations === 'number'
+                ? Math.min(existingMaxIterations, maxIterationsCap)
+                : maxIterationsCap;
+
+        const adjusted = {
+            ...llm,
+            maxIterations: cappedMaxIterations,
+            ...(reasoningVariant !== undefined
+                ? { reasoning: { variant: reasoningVariant } }
+                : { reasoning: undefined }),
+        };
+
+        this.logger.debug(
+            `[AgentSpawnerRuntime] Applied sub-agent LLM policy: maxIterations=${adjusted.maxIterations}, preferredReasoning=${preferredReasoningVariant}, selectedReasoning=${reasoningVariant ?? 'none'}`
+        );
+
+        return adjusted;
+    }
 
     private resolveBundledAgentConfig(agentId: string): string | null {
         const baseDir = 'agents';
@@ -810,6 +880,8 @@ export class AgentSpawnerRuntime implements TaskForker {
                     llmConfig = resolution.llm;
                 }
 
+                llmConfig = this.applySubAgentLlmPolicy(llmConfig);
+
                 // Override certain settings for sub-agent behavior
                 return {
                     ...loadedConfig,
@@ -830,7 +902,7 @@ export class AgentSpawnerRuntime implements TaskForker {
 
         // Fallback: minimal config inheriting parent's LLM + MCP servers
         const config: AgentConfig = {
-            llm: { ...currentParentLLM },
+            llm: this.applySubAgentLlmPolicy({ ...currentParentLLM }),
 
             // Default system prompt for sub-agents
             systemPrompt:

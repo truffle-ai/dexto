@@ -87,11 +87,11 @@ export async function validateAgentConfig(
 }
 
 /**
- * Perform a best-effort credential preflight for startup UX.
+ * Perform a lightweight credential preflight for startup UX.
  *
  * Notes:
- * - This does not guarantee runtime success (e.g. Vertex/Bedrock auth is not fully validated here).
- * - It only checks whether required fields are present via config or env fallback.
+ * - This is a presence check only; it does not validate live provider auth.
+ * - Runtime auth can still fail (e.g. Vertex/Bedrock credentials that are present but invalid).
  */
 function preflightCredentials(config: ValidatedAgentConfig): string[] {
     const issues: string[] = [];

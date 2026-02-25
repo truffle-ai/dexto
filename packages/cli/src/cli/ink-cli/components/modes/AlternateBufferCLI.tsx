@@ -52,6 +52,7 @@ interface AlternateBufferCLIProps {
     initialPrompt?: string | undefined;
     startupInfo: StartupInfo;
     configFilePath: string | null;
+    initialBypassPermissions?: boolean;
     /** Callback when user attempts to select text (drag without Option key) */
     onSelectionAttempt?: () => void;
     /** Whether to stream chunks or wait for complete response */
@@ -64,6 +65,7 @@ export function AlternateBufferCLI({
     initialPrompt,
     startupInfo,
     configFilePath,
+    initialBypassPermissions = false,
     onSelectionAttempt,
     useStreaming = true,
 }: AlternateBufferCLIProps) {
@@ -114,6 +116,7 @@ export function AlternateBufferCLI({
         initialSessionId,
         startupInfo,
         onKeyboardScroll: handleKeyboardScroll,
+        initialBypassPermissions,
     });
 
     // Get current git branch name
@@ -223,9 +226,22 @@ export function AlternateBufferCLI({
                     />
                 );
             }
-            return <MessageItem message={item.message} terminalWidth={terminalWidth} />;
+            return (
+                <MessageItem
+                    message={item.message}
+                    terminalWidth={terminalWidth}
+                    showReasoning={ui.showReasoning}
+                />
+            );
         },
-        [session.modelName, session.id, session.hasActiveSession, startupInfo, terminalWidth]
+        [
+            session.modelName,
+            session.id,
+            session.hasActiveSession,
+            startupInfo,
+            terminalWidth,
+            ui.showReasoning,
+        ]
     );
 
     // Smart height estimation based on item type and content
@@ -260,7 +276,9 @@ export function AlternateBufferCLI({
             if (msg.role === 'assistant') {
                 if (msg.isStreaming) return 5;
                 const contentLines = Math.ceil(msg.content.length / 80);
-                return Math.max(2, contentLines + 1);
+                const reasoningLines =
+                    ui.showReasoning && msg.reasoning ? Math.ceil(msg.reasoning.length / 80) : 0;
+                return Math.max(2, contentLines + reasoningLines + 1);
             }
 
             // System/styled messages
@@ -270,7 +288,7 @@ export function AlternateBufferCLI({
 
             return 3;
         },
-        [listData]
+        [listData, ui.showReasoning]
     );
 
     const getItemKey = useCallback((item: ListItem) => {
@@ -403,6 +421,7 @@ export function AlternateBufferCLI({
                         cwd={process.cwd()}
                         {...(branchName ? { branchName } : {})}
                         autoApproveEdits={ui.autoApproveEdits}
+                        bypassPermissions={ui.bypassPermissions}
                         planModeActive={ui.planModeActive}
                         isShellMode={buffer.text.startsWith('!')}
                     />

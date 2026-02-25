@@ -44,6 +44,7 @@ export { applyImageDefaults } from './resolver/apply-image-defaults.js';
 export { loadImage, setImageImporter } from './resolver/load-image.js';
 export type { ImageImporter } from './resolver/load-image.js';
 export { resolveServicesFromConfig } from './resolver/resolve-services-from-config.js';
+export { resolveToolsFromEntries } from './resolver/resolve-services-from-config.js';
 export { toDextoAgentOptions } from './resolver/to-dexto-agent-options.js';
 
 export type { ResolvedServices } from './resolver/types.js';

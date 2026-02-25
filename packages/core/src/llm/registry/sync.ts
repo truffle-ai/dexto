@@ -10,12 +10,26 @@ type ModelsDevApi = Record<string, ModelsDevProvider>;
 type ModelsDevProvider = {
     id: string;
     name: string;
+    env?: string[];
+    npm?: string;
+    api?: string;
+    doc?: string;
     models: Record<string, ModelsDevModel>;
 };
 type ModelsDevModel = {
     id: string;
     name: string;
     attachment: boolean;
+    reasoning?: boolean;
+    temperature?: boolean;
+    release_date?: string;
+    status?: string;
+    tool_call?: boolean;
+    provider?: {
+        npm?: string;
+        api?: string;
+    };
+    interleaved?: boolean | Record<string, unknown>;
     limit: {
         context: number;
         input?: number;
@@ -33,7 +47,13 @@ type ModelsDevModel = {
               output: number;
               cache_read?: number;
               cache_write?: number;
-              context_over_200k?: unknown;
+              context_over_200k?: {
+                  input: number;
+                  output: number;
+              };
+              input_audio?: number;
+              output_audio?: number;
+              reasoning?: number;
           }
         | undefined;
 };
@@ -72,9 +92,21 @@ function requireNumber(value: unknown, label: string): number {
     return value;
 }
 
+function requireBoolean(value: unknown, label: string): boolean {
+    if (typeof value !== 'boolean') {
+        throw new DextoValidationError([makeIssue(`Expected ${label} to be a boolean`)]);
+    }
+    return value;
+}
+
 export function parseModelsDevApi(json: unknown): ModelsDevApi {
     const root = requireRecord(json, 'models.dev api.json root');
     const api: ModelsDevApi = {};
+
+    function parseStringArray(value: unknown): string[] {
+        if (!Array.isArray(value)) return [];
+        return value.filter((item): item is string => typeof item === 'string');
+    }
 
     function parseModalitiesArray(
         value: unknown
@@ -106,6 +138,10 @@ export function parseModelsDevApi(json: unknown): ModelsDevApi {
                 provider.name ?? providerId,
                 `models.dev provider '${providerId}'.name`
             ),
+            ...(Array.isArray(provider.env) ? { env: parseStringArray(provider.env) } : {}),
+            ...(typeof provider.npm === 'string' ? { npm: provider.npm } : {}),
+            ...(typeof provider.api === 'string' ? { api: provider.api } : {}),
+            ...(typeof provider.doc === 'string' ? { doc: provider.doc } : {}),
             models: {},
         };
 
@@ -127,6 +163,42 @@ export function parseModelsDevApi(json: unknown): ModelsDevApi {
                     `models.dev model '${providerId}/${modelId}'.name`
                 ),
                 attachment: Boolean(m.attachment),
+                ...(typeof (m as { reasoning?: unknown }).reasoning === 'boolean'
+                    ? { reasoning: (m as { reasoning: boolean }).reasoning }
+                    : {}),
+                ...(typeof (m as { temperature?: unknown }).temperature === 'boolean'
+                    ? { temperature: (m as { temperature: boolean }).temperature }
+                    : {}),
+                ...(typeof (m as { release_date?: unknown }).release_date === 'string'
+                    ? { release_date: (m as { release_date: string }).release_date }
+                    : {}),
+                ...(typeof (m as { status?: unknown }).status === 'string'
+                    ? { status: (m as { status: string }).status }
+                    : {}),
+                ...(typeof (m as { tool_call?: unknown }).tool_call === 'boolean'
+                    ? { tool_call: (m as { tool_call: boolean }).tool_call }
+                    : {}),
+                ...(isRecord((m as { provider?: unknown }).provider)
+                    ? {
+                          provider: {
+                              ...(typeof (m as { provider: { npm?: unknown } }).provider.npm ===
+                              'string'
+                                  ? { npm: (m as { provider: { npm: string } }).provider.npm }
+                                  : {}),
+                              ...(typeof (m as { provider: { api?: unknown } }).provider.api ===
+                              'string'
+                                  ? { api: (m as { provider: { api: string } }).provider.api }
+                                  : {}),
+                          },
+                      }
+                    : {}),
+                ...((m as { interleaved?: unknown }).interleaved === true ||
+                isRecord((m as { interleaved?: unknown }).interleaved)
+                    ? {
+                          interleaved: (m as { interleaved: boolean | Record<string, unknown> })
+                              .interleaved,
+                      }
+                    : {}),
                 limit: {
                     context: requireNumber(
                         limit.context,
@@ -154,8 +226,24 @@ export function parseModelsDevApi(json: unknown): ModelsDevApi {
                               ...(typeof m.cost.cache_write === 'number'
                                   ? { cache_write: m.cost.cache_write }
                                   : {}),
-                              ...(m.cost.context_over_200k != null
-                                  ? { context_over_200k: m.cost.context_over_200k }
+                              ...(isRecord(m.cost.context_over_200k) &&
+                              typeof m.cost.context_over_200k.input === 'number' &&
+                              typeof m.cost.context_over_200k.output === 'number'
+                                  ? {
+                                        context_over_200k: {
+                                            input: m.cost.context_over_200k.input,
+                                            output: m.cost.context_over_200k.output,
+                                        },
+                                    }
+                                  : {}),
+                              ...(typeof m.cost.input_audio === 'number'
+                                  ? { input_audio: m.cost.input_audio }
+                                  : {}),
+                              ...(typeof m.cost.output_audio === 'number'
+                                  ? { output_audio: m.cost.output_audio }
+                                  : {}),
+                              ...(typeof m.cost.reasoning === 'number'
+                                  ? { reasoning: m.cost.reasoning }
                                   : {}),
                           }
                         : undefined,
@@ -201,6 +289,23 @@ function getPricing(model: ModelsDevModel): ModelInfo['pricing'] | undefined {
         ...(typeof model.cost.cache_write === 'number'
             ? { cacheWritePerM: model.cost.cache_write }
             : {}),
+        ...(typeof model.cost.reasoning === 'number'
+            ? { reasoningPerM: model.cost.reasoning }
+            : {}),
+        ...(typeof model.cost.input_audio === 'number'
+            ? { inputAudioPerM: model.cost.input_audio }
+            : {}),
+        ...(typeof model.cost.output_audio === 'number'
+            ? { outputAudioPerM: model.cost.output_audio }
+            : {}),
+        ...(model.cost.context_over_200k
+            ? {
+                  contextOver200kPerM: {
+                      inputPerM: model.cost.context_over_200k.input,
+                      outputPerM: model.cost.context_over_200k.output,
+                  },
+              }
+            : {}),
         currency: 'USD',
         unit: 'per_million_tokens',
     };
@@ -212,11 +317,44 @@ function modelToModelInfo(
     options: { defaultModelId?: string }
 ): ModelInfo {
     const pricing = getPricing(model);
+    const supportsInterleaved = model.interleaved === true || isRecord(model.interleaved);
+    const interleaved =
+        model.interleaved === true
+            ? true
+            : isRecord(model.interleaved)
+              ? {
+                    ...model.interleaved,
+                    ...(typeof model.interleaved.field === 'string'
+                        ? { field: model.interleaved.field }
+                        : {}),
+                }
+              : undefined;
     return {
         name: model.id,
         displayName: model.name,
         maxInputTokens: model.limit.input ?? model.limit.context,
         supportedFileTypes: getSupportedFileTypesFromModel(provider, model),
+        reasoning: requireBoolean(
+            model.reasoning,
+            `models.dev model '${provider}/${model.id}'.reasoning`
+        ),
+        supportsTemperature: requireBoolean(
+            model.temperature,
+            `models.dev model '${provider}/${model.id}'.temperature`
+        ),
+        supportsToolCall: requireBoolean(
+            model.tool_call,
+            `models.dev model '${provider}/${model.id}'.tool_call`
+        ),
+        releaseDate: requireString(
+            model.release_date,
+            `models.dev model '${provider}/${model.id}'.release_date`
+        ),
+        modalities: model.modalities ?? { input: [], output: [] },
+        ...(model.status ? { status: model.status } : {}),
+        ...(model.provider ? { providerMetadata: model.provider } : {}),
+        ...(supportsInterleaved ? { supportsInterleaved } : {}),
+        ...(interleaved ? { interleaved } : {}),
         ...(pricing ? { pricing } : {}),
         ...(options.defaultModelId === model.id ? { default: true } : {}),
     };

@@ -3,7 +3,7 @@ import { useHotkeys } from 'react-hotkeys-hook';
 import { useNavigate } from '@tanstack/react-router';
 import { useChatContext } from './hooks/ChatContext';
 import { useTheme } from './hooks/useTheme';
-import { usePrompts } from './hooks/usePrompts';
+import { usePrompts, type Prompt } from './hooks/usePrompts';
 import { useDeleteSession } from './hooks/useSessions';
 import { client } from '@/lib/client';
 import { useAddServer } from './hooks/useServers';
@@ -151,7 +151,9 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
     });
 
     // Filter prompts with showInStarters metadata flag
-    const starterPrompts = promptsData.filter((prompt) => prompt.metadata?.showInStarters === true);
+    const starterPrompts = promptsData.filter(
+        (prompt: Prompt) => prompt.metadata?.showInStarters === true
+    );
     const starterPromptsLoaded = !promptsLoading;
 
     // Note: Agent switch invalidation is now handled centrally in AgentSelector
@@ -613,7 +615,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                       tooltip: a.description,
                       action: a.action,
                   }));
-        starterPrompts.forEach((prompt) => {
+        starterPrompts.forEach((prompt: Prompt) => {
             const description = prompt.title || prompt.description || 'Starter prompt';
             const tooltip = prompt.description;
 

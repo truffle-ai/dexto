@@ -12,11 +12,7 @@ export {
 } from './inputParsing.js';
 
 // Command overlays (central registry)
-export {
-    getCommandOverlay,
-    getCommandOverlayForSelect,
-    isInteractiveCommand,
-} from './commandOverlays.js';
+export { getCommandOverlay, isInteractiveCommand } from './commandOverlays.js';
 
 // Message formatting
 export {

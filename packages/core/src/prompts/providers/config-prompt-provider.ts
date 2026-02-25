@@ -124,6 +124,7 @@ export class ConfigPromptProvider implements PromptProvider {
             ...(promptInfo.allowedTools !== undefined && {
                 allowedTools: promptInfo.allowedTools,
             }),
+            ...(promptInfo.toolkits !== undefined && { toolkits: promptInfo.toolkits }),
             ...(promptInfo.model !== undefined && { model: promptInfo.model }),
             ...(promptInfo.context !== undefined && { context: promptInfo.context }),
             ...(promptInfo.agent !== undefined && { agent: promptInfo.agent }),
@@ -271,6 +272,7 @@ export class ConfigPromptProvider implements PromptProvider {
                 ...(disableModelInvocation !== undefined && { disableModelInvocation }),
                 ...(userInvocable !== undefined && { userInvocable }),
                 ...(allowedTools !== undefined && { allowedTools }),
+                ...(parsed.toolkits !== undefined && { toolkits: parsed.toolkits }),
                 ...(model !== undefined && { model }),
                 ...(context !== undefined && { context }),
                 ...(agent !== undefined && { agent }),
@@ -282,6 +284,7 @@ export class ConfigPromptProvider implements PromptProvider {
                     showInStarters: prompt.showInStarters,
                     originalId: parsed.id,
                     ...(prompt.namespace && { namespace: prompt.namespace }),
+                    ...(parsed.toolkits !== undefined && { toolkits: parsed.toolkits }),
                 },
             };
 
@@ -309,6 +312,7 @@ export class ConfigPromptProvider implements PromptProvider {
         disableModelInvocation?: boolean;
         userInvocable?: boolean;
         allowedTools?: string[];
+        toolkits?: string[];
         model?: string;
         context?: 'inline' | 'fork';
         agent?: string;
@@ -332,6 +336,7 @@ export class ConfigPromptProvider implements PromptProvider {
         let disableModelInvocation: boolean | undefined;
         let userInvocable: boolean | undefined;
         let allowedTools: string[] | undefined;
+        let toolkits: string[] | undefined;
         let model: string | undefined;
         let context: 'inline' | 'fork' | undefined;
         let agent: string | undefined;
@@ -425,6 +430,18 @@ export class ConfigPromptProvider implements PromptProvider {
                                   .map((s) => s.trim().replace(/^['"]|['"]$/g, ''))
                                   .filter((s) => s.length > 0);
                 }
+
+                const toolkitsMatch = frontmatterText.match(/toolkits:\s*\[([^\]]*)\]/);
+                if (toolkitsMatch) {
+                    const rawContent = toolkitsMatch[1]?.trim() ?? '';
+                    toolkits =
+                        rawContent.length === 0
+                            ? []
+                            : rawContent
+                                  .split(',')
+                                  .map((s) => s.trim().replace(/^['"]|['"]$/g, ''))
+                                  .filter((s) => s.length > 0);
+                }
             } else {
                 contentBody = rawContent;
             }
@@ -456,6 +473,7 @@ export class ConfigPromptProvider implements PromptProvider {
             ...(disableModelInvocation !== undefined && { disableModelInvocation }),
             ...(userInvocable !== undefined && { userInvocable }),
             ...(allowedTools !== undefined && { allowedTools }),
+            ...(toolkits !== undefined && { toolkits }),
             ...(model !== undefined && { model }),
             ...(context !== undefined && { context }),
             ...(agent !== undefined && { agent }),

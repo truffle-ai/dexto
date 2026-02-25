@@ -25,6 +25,7 @@ import type { ResourceMetadata as UIResourceMetadata } from '@dexto/core';
 import { useResources } from './hooks/useResources';
 import SlashCommandAutocomplete from './SlashCommandAutocomplete';
 import { isTextPart, isImagePart, isFilePart } from '../types';
+import type { TextPart } from '../types';
 import CreatePromptModal from './CreatePromptModal';
 import CreateMemoryModal from './CreateMemoryModal';
 import { parseSlashInput, splitKeyValueAndPositional } from '../lib/parseSlash';
@@ -320,7 +321,7 @@ export default function InputArea({
             // Extract text content from message
             const textContent = message.content
                 .filter(isTextPart)
-                .map((part) => part.text)
+                .map((part: TextPart) => part.text)
                 .join('\n');
 
             // Extract image attachment if present
