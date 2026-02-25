@@ -541,17 +541,22 @@ export function useInputOrchestrator({
             }
 
             // Shift+Tab: Cycle through modes (when not in approval modal)
-            // Modes: Normal → Plan Mode → Accept All Edits → Normal
+            // Modes: Normal → Plan Mode → Accept All Edits → Bypass Permissions → Normal
             // Note: When in approval modal for edit/write tools, ApprovalPrompt handles Shift+Tab differently
             if (key.shift && key.tab && !key.ctrl && !key.meta && currentApproval === null) {
                 setUi((prev) => {
+                    const isNormal =
+                        !prev.planModeActive && !prev.autoApproveEdits && !prev.bypassPermissions;
+
                     // Determine current mode and cycle to next
-                    if (!prev.planModeActive && !prev.autoApproveEdits) {
+                    if (isNormal) {
                         // Normal → Plan Mode
                         return {
                             ...prev,
                             planModeActive: true,
                             planModeInitialized: false,
+                            autoApproveEdits: false,
+                            bypassPermissions: false,
                         };
                     } else if (prev.planModeActive) {
                         // Plan Mode → Accept All Edits
@@ -560,12 +565,20 @@ export function useInputOrchestrator({
                             planModeActive: false,
                             planModeInitialized: false,
                             autoApproveEdits: true,
+                            bypassPermissions: false,
                         };
-                    } else {
-                        // Accept All Edits → Normal
+                    } else if (prev.autoApproveEdits) {
+                        // Accept All Edits → Bypass Permissions
                         return {
                             ...prev,
                             autoApproveEdits: false,
+                            bypassPermissions: true,
+                        };
+                    } else {
+                        // Bypass Permissions → Normal
+                        return {
+                            ...prev,
+                            bypassPermissions: false,
                         };
                     }
                 });

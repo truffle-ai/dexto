@@ -56,6 +56,7 @@ interface InkCLIProps {
     startupInfo: StartupInfo;
     soundService: SoundNotificationService | null;
     configFilePath: string | null;
+    initialBypassPermissions?: boolean;
 }
 
 /**
@@ -68,6 +69,7 @@ function InkCLIInner({
     startupInfo,
     soundService,
     configFilePath,
+    initialBypassPermissions = false,
 }: InkCLIProps) {
     // Selection hint callback for alternate buffer mode
     const [, setSelectionHintShown] = useState(false);
@@ -91,6 +93,7 @@ function InkCLIInner({
                         onSelectionAttempt={handleSelectionAttempt}
                         useStreaming={streaming}
                         configFilePath={configFilePath}
+                        initialBypassPermissions={initialBypassPermissions}
                     />
                 </ScrollProvider>
             </SoundProvider>
@@ -107,6 +110,7 @@ function InkCLIInner({
                 startupInfo={startupInfo}
                 useStreaming={streaming}
                 configFilePath={configFilePath}
+                initialBypassPermissions={initialBypassPermissions}
             />
         </SoundProvider>
     );
@@ -127,6 +131,7 @@ export function InkCLIRefactored({
     startupInfo,
     soundService,
     configFilePath,
+    initialBypassPermissions = false,
 }: InkCLIProps) {
     return (
         <ErrorBoundary>
@@ -140,6 +145,7 @@ export function InkCLIRefactored({
                         startupInfo={startupInfo}
                         soundService={soundService}
                         configFilePath={configFilePath}
+                        initialBypassPermissions={initialBypassPermissions}
                     />
                 </MouseProvider>
             </KeypressProvider>
@@ -159,6 +165,8 @@ export interface InkCLIOptions {
     configFilePath?: string | null | undefined;
     /** If provided, auto-submits this prompt once the UI is ready */
     initialPrompt?: string | undefined;
+    /** Start the UI with bypass permissions mode enabled */
+    bypassPermissions?: boolean | undefined;
 }
 
 /**
@@ -283,6 +291,7 @@ export async function startInkCliRefactored(
             startupInfo={startupInfo}
             soundService={soundService}
             configFilePath={options.configFilePath ?? null}
+            initialBypassPermissions={options.bypassPermissions ?? false}
         />,
         {
             exitOnCtrlC: false,

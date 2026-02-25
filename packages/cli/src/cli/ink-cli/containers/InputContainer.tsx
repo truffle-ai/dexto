@@ -128,6 +128,12 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
             autoApproveEditsRef.current = ui.autoApproveEdits;
         }, [ui.autoApproveEdits]);
 
+        // Ref to track bypassPermissions so processStream can read latest value mid-stream
+        const bypassPermissionsRef = useRef(ui.bypassPermissions);
+        useEffect(() => {
+            bypassPermissionsRef.current = ui.bypassPermissions;
+        }, [ui.bypassPermissions]);
+
         // Clear the session creation ref when session is cleared
         useEffect(() => {
             if (session.id === null) {
@@ -622,6 +628,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                                 {
                                     useStreaming,
                                     autoApproveEditsRef,
+                                    bypassPermissionsRef,
                                     eventBus: agent,
                                     setTodos,
                                     ...(soundService && { soundService }),
@@ -770,6 +777,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                             {
                                 useStreaming,
                                 autoApproveEditsRef,
+                                bypassPermissionsRef,
                                 eventBus: agent,
                                 setTodos,
                                 ...(soundService && { soundService }),

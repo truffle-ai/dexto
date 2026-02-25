@@ -16,6 +16,7 @@ interface FooterProps {
     cwd?: string;
     branchName?: string;
     autoApproveEdits?: boolean;
+    bypassPermissions?: boolean;
     planModeActive?: boolean;
     /** Whether user is in shell command mode (input starts with !) */
     isShellMode?: boolean;
@@ -36,6 +37,7 @@ export function Footer({
     cwd,
     branchName,
     autoApproveEdits,
+    bypassPermissions,
     planModeActive,
     isShellMode,
 }: FooterProps) {
@@ -154,7 +156,7 @@ export function Footer({
             )}
 
             {/* Line 3: Mode indicators (left) */}
-            {/* Shift+Tab cycles: Normal → Plan Mode → Accept All Edits → Normal */}
+            {/* Shift+Tab cycles: Normal → Plan Mode → Accept All Edits → Bypass Permissions → Normal */}
             {isShellMode && (
                 <Box>
                     <Text color="yellow" bold>
@@ -172,6 +174,14 @@ export function Footer({
             {autoApproveEdits && !planModeActive && !isShellMode && (
                 <Box>
                     <Text color="yellowBright">accept edits</Text>
+                    <Text color="gray"> (shift + tab to cycle)</Text>
+                </Box>
+            )}
+            {bypassPermissions && !planModeActive && !autoApproveEdits && !isShellMode && (
+                <Box>
+                    <Text color="redBright" bold>
+                        bypass permissions
+                    </Text>
                     <Text color="gray"> (shift + tab to cycle)</Text>
                 </Box>
             )}

@@ -78,6 +78,8 @@ export interface ProcessStreamOptions {
     useStreaming?: boolean;
     /** Ref to check if "accept all edits" mode is enabled (reads .current for latest value) */
     autoApproveEditsRef: { current: boolean };
+    /** Ref to check if "bypass permissions" mode is enabled (auto-approve all approvals) */
+    bypassPermissionsRef: { current: boolean };
     /** Event emitter for emitting auto-approval responses */
     eventBus: Pick<import('@dexto/core').AgentEventBus, 'emit'>;
     /** Sound notification service for playing sounds on events */
@@ -1021,10 +1023,37 @@ export async function processStream(
                     // This fixes a race condition where direct event bus subscription in
                     // useAgentEvents fired before the iterator processed llm:tool-call.
 
-                    // Check for auto-approval of edit/write tools FIRST
+                    // Check for bypass permissions mode FIRST
                     // Read from ref to get latest value (may have changed mid-stream)
+                    const bypassPermissions = options.bypassPermissionsRef.current;
                     const autoApproveEdits = options.autoApproveEditsRef.current;
                     const { eventBus } = options;
+
+                    if (
+                        bypassPermissions &&
+                        (event.type === ApprovalTypeEnum.TOOL_APPROVAL ||
+                            event.type === ApprovalTypeEnum.COMMAND_CONFIRMATION ||
+                            event.type === ApprovalTypeEnum.DIRECTORY_ACCESS)
+                    ) {
+                        if (event.type === ApprovalTypeEnum.TOOL_APPROVAL) {
+                            const { toolName } = event.metadata;
+                            if (toolName === 'plan_create' || toolName === 'plan_review') {
+                                setUi((prev) => ({
+                                    ...prev,
+                                    planModeActive: false,
+                                    planModeInitialized: false,
+                                }));
+                            }
+                        }
+
+                        eventBus.emit('approval:response', {
+                            approvalId: event.approvalId,
+                            status: ApprovalStatus.APPROVED,
+                            sessionId: event.sessionId,
+                            data: {},
+                        });
+                        break;
+                    }
 
                     if (autoApproveEdits && event.type === ApprovalTypeEnum.TOOL_APPROVAL) {
                         // Type is narrowed - metadata is now ToolApprovalMetadata
