@@ -367,6 +367,18 @@ export async function processStream(
         return content;
     };
 
+    const resolveFinalReasoning = (eventReasoning: string | undefined): string | undefined => {
+        if (state.reasoningFinalized) {
+            return undefined;
+        }
+
+        if (!useStreaming && state.nonStreamingAccumulatedReasoning) {
+            return state.nonStreamingAccumulatedReasoning;
+        }
+
+        return eventReasoning;
+    };
+
     // Debug logging: enable via DEXTO_DEBUG_STREAM=true
     const debug = createDebugLogger('stream');
     debug.reset();
@@ -597,12 +609,7 @@ export async function processStream(
                         // No streaming message exists - add directly to finalized
                         // This handles: non-streaming mode, or multi-step turns after tool calls
                         // Skip if text was already finalized before tools (avoid duplication)
-                        const reasoning =
-                            (!useStreaming && !state.reasoningFinalized
-                                ? state.nonStreamingAccumulatedReasoning
-                                : '') ||
-                            (!state.reasoningFinalized ? event.reasoning : undefined) ||
-                            undefined;
+                        const reasoning = resolveFinalReasoning(event.reasoning);
                         setMessages((prev) => [
                             ...prev,
                             {
@@ -1169,13 +1176,15 @@ export async function processStream(
                         setApprovalQueue((queue) => {
                             if (queue.length > 0) {
                                 const [next, ...rest] = queue;
-                                setApproval(next!);
-                                setUi((prev) => ({ ...prev, activeOverlay: 'approval' }));
-                                return rest;
-                            } else {
-                                setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
-                                return [];
+                                if (next) {
+                                    setApproval(next);
+                                    setUi((prev) => ({ ...prev, activeOverlay: 'approval' }));
+                                    return rest;
+                                }
                             }
+
+                            setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
+                            return [];
                         });
 
                         return null; // Clear current while setApprovalQueue handles next

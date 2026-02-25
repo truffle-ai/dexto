@@ -277,9 +277,7 @@ export function AlternateBufferCLI({
                 if (msg.isStreaming) return 5;
                 const contentLines = Math.ceil(msg.content.length / 80);
                 const reasoningLines =
-                    ui.showReasoning && msg.reasoning
-                        ? Math.ceil(msg.reasoning.length / 80) + 1
-                        : 0;
+                    ui.showReasoning && msg.reasoning ? Math.ceil(msg.reasoning.length / 80) : 0;
                 return Math.max(2, contentLines + reasoningLines + 1);
             }
 
