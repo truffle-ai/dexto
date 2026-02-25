@@ -100,7 +100,17 @@ export function LLMConfigSection({
                     <Input
                         id="model"
                         value={value.model || ''}
-                        onChange={(e) => onChange({ ...value, model: e.target.value })}
+                        onChange={(e) => {
+                            const nextModel = e.target.value;
+                            const shouldClearReasoning =
+                                value.reasoning !== undefined &&
+                                nextModel !== modelValueAtFocusRef.current;
+                            onChange({
+                                ...value,
+                                model: nextModel,
+                                ...(shouldClearReasoning ? { reasoning: undefined } : {}),
+                            });
+                        }}
                         onFocus={() => {
                             modelValueAtFocusRef.current = value.model ?? '';
                         }}
