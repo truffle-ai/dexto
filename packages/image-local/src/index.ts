@@ -66,7 +66,7 @@ function resolveImageMetadata(defaultName: string): { name: string; version: str
         const bundledPackageJson = readPackageJson(path.join(packageRoot, 'package.json'));
         if (bundledPackageJson) {
             return {
-                name: bundledPackageJson.name ?? defaultName,
+                name: defaultName,
                 version: bundledPackageJson.version ?? '0.0.0',
             };
         }
