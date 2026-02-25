@@ -50,7 +50,14 @@ type LoginStep =
 
 function isCancellationError(errorMessage: string): boolean {
     const lower = errorMessage.toLowerCase();
-    return lower.includes('cancel') || lower.includes('denied');
+    return (
+        lower.includes('canceled') ||
+        lower.includes('cancelled') ||
+        lower.includes('user denied') ||
+        lower.includes('user_denied') ||
+        lower.includes('access_denied') ||
+        lower.includes('access denied by user')
+    );
 }
 
 const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function LoginOverlay(

@@ -61,7 +61,14 @@ function printProvisionResult(result: {
 
 function isCancellationError(errorMessage: string): boolean {
     const lower = errorMessage.toLowerCase();
-    return lower.includes('cancel') || lower.includes('denied');
+    return (
+        lower.includes('canceled') ||
+        lower.includes('cancelled') ||
+        lower.includes('user denied') ||
+        lower.includes('user_denied') ||
+        lower.includes('access_denied') ||
+        lower.includes('access denied by user')
+    );
 }
 
 function parseAuthMode(rawMode: string): LoginAuthMode {
@@ -72,7 +79,11 @@ function parseAuthMode(rawMode: string): LoginAuthMode {
     throw new Error(`Invalid --auth-mode: ${rawMode}. Use one of: auto, browser, device`);
 }
 
-function resolveRequestedAuthMode(options: LoginCommandOptions): LoginAuthMode | null {
+export function resolveRequestedAuthMode(options: LoginCommandOptions): LoginAuthMode | null {
+    if (options.device && options.authMode) {
+        throw new Error('Cannot use both --device and --auth-mode. Choose one login mode option.');
+    }
+
     if (options.device) {
         return 'device';
     }
@@ -212,7 +223,7 @@ export async function handleAutoLogin(): Promise<void> {
 
     if (browserLikelyUsable) {
         try {
-            await handleBrowserLogin();
+            await handleBrowserLogin({ failOnBrowserOpenError: true });
             return;
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
@@ -232,9 +243,13 @@ export async function handleAutoLogin(): Promise<void> {
     await handleDeviceLogin();
 }
 
-export async function handleBrowserLogin(): Promise<void> {
+export async function handleBrowserLogin(
+    options: { failOnBrowserOpenError?: boolean } = {}
+): Promise<void> {
     try {
-        const result = await performOAuthLogin(DEFAULT_OAUTH_CONFIG);
+        const result = await performOAuthLogin(DEFAULT_OAUTH_CONFIG, {
+            failOnBrowserOpenError: options.failOnBrowserOpenError ?? false,
+        });
         const persisted = await persistOAuthLoginResult(result, {
             onProvisionStatus: printProvisionStatus,
         });

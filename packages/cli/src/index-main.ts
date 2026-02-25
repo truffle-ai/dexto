@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { createRequire } from 'module';
 import path from 'path';
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
 import { initAnalytics, capture, getWebUIAnalyticsConfig } from './analytics/index.js';
@@ -951,8 +951,12 @@ authCommand
     .command('login')
     .description('Login to Dexto')
     .option('--api-key <key>', 'Use Dexto API key instead of OAuth/device login')
-    .option('--auth-mode <mode>', 'Login method: auto | browser | device')
-    .option('--device', 'Shortcut for --auth-mode device')
+    .addOption(
+        new Option('--auth-mode <mode>', 'Login method: auto | browser | device').conflicts(
+            'device'
+        )
+    )
+    .addOption(new Option('--device', 'Shortcut for --auth-mode device').conflicts('authMode'))
     .option('--no-interactive', 'Disable interactive prompts')
     .action(
         withAnalytics(
@@ -1017,8 +1021,12 @@ program
     .command('login')
     .description('Login to Dexto (alias for `dexto auth login`)')
     .option('--api-key <key>', 'Use Dexto API key instead of OAuth/device login')
-    .option('--auth-mode <mode>', 'Login method: auto | browser | device')
-    .option('--device', 'Shortcut for --auth-mode device')
+    .addOption(
+        new Option('--auth-mode <mode>', 'Login method: auto | browser | device').conflicts(
+            'device'
+        )
+    )
+    .addOption(new Option('--device', 'Shortcut for --auth-mode device').conflicts('authMode'))
     .option('--no-interactive', 'Disable interactive prompts')
     .action(
         withAnalytics(
