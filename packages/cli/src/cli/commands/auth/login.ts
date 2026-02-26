@@ -23,6 +23,7 @@ type LoginMethod = LoginAuthMode | 'token';
 
 export interface LoginCommandOptions {
     apiKey?: string;
+    token?: string;
     interactive?: boolean;
     authMode?: string;
     device?: boolean;
@@ -130,21 +131,16 @@ async function chooseInteractiveLoginMethod(): Promise<LoginMethod | null> {
  */
 export async function handleLoginCommand(options: LoginCommandOptions = {}): Promise<void> {
     try {
+        if (options.apiKey && options.token) {
+            throw new Error('Cannot use both --api-key and --token. Choose one.');
+        }
+
         if (await isAuthenticated()) {
             const auth = await loadAuth();
             const userInfo = auth?.email || auth?.userId || 'user';
             console.log(chalk.green(`✅ Already logged in as: ${userInfo}`));
 
-            if (options.interactive === false) {
-                return;
-            }
-
-            const shouldContinue = await p.confirm({
-                message: 'Do you want to login with a different account?',
-                initialValue: false,
-            });
-
-            if (p.isCancel(shouldContinue) || !shouldContinue) {
+            if (!options.apiKey && !options.token) {
                 return;
             }
         }
@@ -161,6 +157,15 @@ export async function handleLoginCommand(options: LoginCommandOptions = {}): Pro
                 createdAt: Date.now(),
             });
             console.log(chalk.green('✅ Dexto API key saved'));
+            return;
+        }
+
+        if (options.token) {
+            const didLogin = await handleTokenLogin(options.token);
+            if (!didLogin) {
+                throw new Error('Login was cancelled.');
+            }
+            console.log(chalk.green('🎉 Login successful!'));
             return;
         }
 
@@ -303,25 +308,33 @@ export async function handleDeviceLogin(): Promise<void> {
     }
 }
 
-async function handleTokenLogin(): Promise<boolean> {
-    const token = await p.password({
-        message: 'Enter your API token:',
-        validate: (value) => {
-            if (!value) return 'Token is required';
-            if (value.length < 10) return 'Token seems too short';
-            return undefined;
-        },
-    });
+async function handleTokenLogin(tokenInput?: string): Promise<boolean> {
+    let token = tokenInput?.trim();
+    if (!token) {
+        const promptedToken = await p.password({
+            message: 'Enter your API token:',
+            validate: (value) => {
+                if (!value) return 'Token is required';
+                if (value.length < 10) return 'Token seems too short';
+                return undefined;
+            },
+        });
 
-    if (p.isCancel(token)) {
-        return false;
+        if (p.isCancel(promptedToken)) {
+            return false;
+        }
+
+        token = promptedToken as string;
+    }
+    if (token.length < 10) {
+        throw new Error('Token seems too short');
     }
 
     const spinner = p.spinner();
     spinner.start('Verifying token...');
 
     try {
-        const isValid = await verifyToken(token as string);
+        const isValid = await verifyToken(token);
         if (!isValid) {
             spinner.stop('Invalid token');
             throw new Error('Token verification failed');
@@ -330,11 +343,11 @@ async function handleTokenLogin(): Promise<boolean> {
         spinner.stop('Token verified!');
 
         await storeAuth({
-            token: token as string,
+            token,
             createdAt: Date.now(),
         });
 
-        const ensured = await ensureDextoApiKeyForAuthToken(token as string, {
+        const ensured = await ensureDextoApiKeyForAuthToken(token, {
             onStatus: printProvisionStatus,
         });
         printProvisionResult({

@@ -990,6 +990,7 @@ authCommand
     .command('login')
     .description('Login to Dexto')
     .option('--api-key <key>', 'Use Dexto API key instead of OAuth/device login')
+    .option('--token <token>', 'Use an existing Supabase access token')
     .addOption(
         new Option('--auth-mode <mode>', 'Login method: auto | browser | device').conflicts(
             'device'
@@ -1002,6 +1003,7 @@ authCommand
             'auth login',
             async (options: {
                 apiKey?: string;
+                token?: string;
                 interactive?: boolean;
                 authMode?: string;
                 device?: boolean;
@@ -1060,6 +1062,7 @@ program
     .command('login')
     .description('Login to Dexto (alias for `dexto auth login`)')
     .option('--api-key <key>', 'Use Dexto API key instead of OAuth/device login')
+    .option('--token <token>', 'Use an existing Supabase access token')
     .addOption(
         new Option('--auth-mode <mode>', 'Login method: auto | browser | device').conflicts(
             'device'
@@ -1072,6 +1075,7 @@ program
             'login',
             async (options: {
                 apiKey?: string;
+                token?: string;
                 interactive?: boolean;
                 authMode?: string;
                 device?: boolean;
@@ -1478,7 +1482,7 @@ program
                                 const { handleLoginCommand } = await import(
                                     './cli/commands/auth/login.js'
                                 );
-                                await handleLoginCommand({ interactive: true });
+                                await handleLoginCommand();
 
                                 // Verify key was actually provisioned (provisionKeys silently catches errors)
                                 const { canUseDextoProvider } = await import(
