@@ -951,9 +951,9 @@ authCommand
     .command('login')
     .description('Login to Dexto')
     .option('--api-key <key>', 'Use Dexto API key instead of device-code login')
-    .option('--no-interactive', 'Disable interactive prompts')
+    .option('--token <token>', 'Use an existing Supabase access token instead of device-code login')
     .action(
-        withAnalytics('auth login', async (options: { apiKey?: string; interactive?: boolean }) => {
+        withAnalytics('auth login', async (options: { apiKey?: string; token?: string }) => {
             try {
                 await handleLoginCommand(options);
                 safeExit('auth login', 0);
@@ -1007,9 +1007,9 @@ program
     .command('login')
     .description('Login to Dexto (alias for `dexto auth login`)')
     .option('--api-key <key>', 'Use Dexto API key instead of device-code login')
-    .option('--no-interactive', 'Disable interactive prompts')
+    .option('--token <token>', 'Use an existing Supabase access token instead of device-code login')
     .action(
-        withAnalytics('login', async (options: { apiKey?: string; interactive?: boolean }) => {
+        withAnalytics('login', async (options: { apiKey?: string; token?: string }) => {
             try {
                 await handleLoginCommand(options);
                 safeExit('login', 0);
@@ -1411,7 +1411,7 @@ program
                                 const { handleLoginCommand } = await import(
                                     './cli/commands/auth/login.js'
                                 );
-                                await handleLoginCommand({ interactive: true });
+                                await handleLoginCommand();
 
                                 // Verify key was actually provisioned (provisionKeys silently catches errors)
                                 const { canUseDextoProvider } = await import(

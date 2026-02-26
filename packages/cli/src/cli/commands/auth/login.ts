@@ -15,11 +15,9 @@ import {
 } from '../../auth/index.js';
 import { logger } from '@dexto/core';
 
-type LoginMethod = 'device' | 'token';
-
 export interface LoginCommandOptions {
     apiKey?: string;
-    interactive?: boolean;
+    token?: string;
 }
 
 function printProvisionStatus(status: DextoApiKeyProvisionStatus): void {
@@ -63,54 +61,23 @@ function isCancellationError(errorMessage: string): boolean {
     );
 }
 
-async function chooseInteractiveLoginMethod(): Promise<LoginMethod | null> {
-    const selected = await p.select({
-        message: 'Choose a login method:',
-        options: [
-            {
-                value: 'device',
-                label: 'Device code login (Recommended)',
-                hint: 'Secure and reliable in local, remote, and headless environments',
-            },
-            {
-                value: 'token',
-                label: 'Enter token manually',
-                hint: 'Paste an existing auth token',
-            },
-        ],
-    });
-
-    if (p.isCancel(selected)) {
-        return null;
-    }
-
-    if (selected === 'device' || selected === 'token') {
-        return selected;
-    }
-
-    throw new Error('Unexpected login method selection');
-}
-
 /**
- * Handle login command - supports device-code and manual token login.
+ * Handle login command:
+ * - `--token` validates/stores an existing Supabase access token.
+ * - default path runs device-code login.
  */
 export async function handleLoginCommand(options: LoginCommandOptions = {}): Promise<void> {
     try {
+        if (options.apiKey && options.token) {
+            throw new Error('Cannot use both --api-key and --token. Choose one.');
+        }
+
         if (await isAuthenticated()) {
             const auth = await loadAuth();
             const userInfo = auth?.email || auth?.userId || 'user';
             console.log(chalk.green(`✅ Already logged in as: ${userInfo}`));
 
-            if (options.interactive === false) {
-                return;
-            }
-
-            const shouldContinue = await p.confirm({
-                message: 'Do you want to login with a different account?',
-                initialValue: false,
-            });
-
-            if (p.isCancel(shouldContinue) || !shouldContinue) {
+            if (!options.apiKey && !options.token) {
                 return;
             }
         }
@@ -130,34 +97,16 @@ export async function handleLoginCommand(options: LoginCommandOptions = {}): Pro
             return;
         }
 
-        if (options.interactive === false) {
-            await handleDeviceLogin();
-            console.log(chalk.green('🎉 Login successful!'));
-            return;
-        }
-
-        p.intro(chalk.inverse(' Login to Dexto '));
-
-        const selectedMethod = await chooseInteractiveLoginMethod();
-        if (!selectedMethod) {
-            p.cancel('Login cancelled');
-            return;
-        }
-
-        if (selectedMethod === 'token') {
-            const didLogin = await handleTokenLogin();
-            if (!didLogin) {
-                p.cancel('Login cancelled');
-                return;
-            }
+        if (options.token) {
+            await handleTokenLogin(options.token);
         } else {
             await handleDeviceLogin();
         }
 
-        p.outro(chalk.green('🎉 Login successful!'));
+        console.log(chalk.green('🎉 Login successful!'));
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        p.outro(chalk.red(`❌ Login failed: ${errorMessage}`));
+        console.log(chalk.red(`❌ Login failed: ${errorMessage}`));
         throw error;
     }
 }
@@ -210,25 +159,17 @@ export async function handleDeviceLogin(): Promise<void> {
     }
 }
 
-async function handleTokenLogin(): Promise<boolean> {
-    const token = await p.password({
-        message: 'Enter your API token:',
-        validate: (value) => {
-            if (!value) return 'Token is required';
-            if (value.length < 10) return 'Token seems too short';
-            return undefined;
-        },
-    });
-
-    if (p.isCancel(token) || typeof token !== 'string') {
-        return false;
+async function handleTokenLogin(token: string): Promise<void> {
+    const trimmedToken = token.trim();
+    if (trimmedToken.length < 10) {
+        throw new Error('Token seems too short');
     }
 
     const spinner = p.spinner();
     spinner.start('Verifying token...');
 
     try {
-        const isValid = await verifyToken(token);
+        const isValid = await verifyToken(trimmedToken);
         if (!isValid) {
             spinner.stop('Invalid token');
             throw new Error('Token verification failed');
@@ -237,18 +178,17 @@ async function handleTokenLogin(): Promise<boolean> {
         spinner.stop('Token verified!');
 
         await storeAuth({
-            token,
+            token: trimmedToken,
             createdAt: Date.now(),
         });
 
-        const ensured = await ensureDextoApiKeyForAuthToken(token, {
+        const ensured = await ensureDextoApiKeyForAuthToken(trimmedToken, {
             onStatus: printProvisionStatus,
         });
         printProvisionResult({
             keyId: ensured?.keyId ?? undefined,
             hasDextoApiKey: Boolean(ensured?.dextoApiKey),
         });
-        return true;
     } catch (error) {
         spinner.stop('Verification failed');
         throw error;

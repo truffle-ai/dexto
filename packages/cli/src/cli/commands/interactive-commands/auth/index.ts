@@ -8,7 +8,7 @@ import type { CommandDefinition } from '../command-parser.js';
 import { overlayOnlyHandler } from '../command-parser.js';
 
 /**
- * Login command - triggers OAuth flow for Dexto authentication
+ * Login command - triggers device-code login overlay for Dexto authentication
  * Only available when DEXTO_FEATURE_AUTH=true
  */
 export const loginCommand: CommandDefinition = {
