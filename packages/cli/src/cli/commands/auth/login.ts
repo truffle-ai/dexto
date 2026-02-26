@@ -12,8 +12,6 @@ import {
     persistOAuthLoginResult,
     storeAuth,
     ensureDextoApiKeyForAuthToken,
-    SUPABASE_ANON_KEY,
-    SUPABASE_URL,
 } from '../../auth/index.js';
 import { logger } from '@dexto/core';
 
@@ -259,21 +257,8 @@ async function handleTokenLogin(): Promise<boolean> {
 
 async function verifyToken(token: string): Promise<boolean> {
     try {
-        const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-            headers: {
-                Authorization: `Bearer ${token}`,
-                apikey: SUPABASE_ANON_KEY,
-                'User-Agent': 'dexto-cli/1.0.0',
-            },
-            signal: AbortSignal.timeout(10_000),
-        });
-
-        if (response.ok) {
-            const userData = await response.json();
-            return Boolean(userData.id);
-        }
-
-        return false;
+        const apiClient = getDextoApiClient();
+        return apiClient.validateSupabaseAccessToken(token);
     } catch (error) {
         logger.debug(
             `Token verification failed: ${error instanceof Error ? error.message : String(error)}`
