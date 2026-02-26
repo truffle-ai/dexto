@@ -3,7 +3,7 @@
 
 import { logger } from '@dexto/core';
 import { DEXTO_API_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from './constants.js';
-import type { OAuthResult } from './oauth.js';
+import type { AuthLoginResult } from './types.js';
 
 interface DeviceStartResponse {
     deviceCode: string;
@@ -24,13 +24,13 @@ export interface DeviceLoginPrompt {
 export interface DeviceLoginOptionsInput {
     apiUrl?: string;
     signal?: AbortSignal;
-    onPrompt?: ((prompt: DeviceLoginPrompt) => void) | undefined;
+    onPrompt?: ((prompt: DeviceLoginPrompt) => void | Promise<void>) | undefined;
 }
 
 interface DeviceLoginOptions {
     apiUrl: string;
     signal: AbortSignal | null;
-    onPrompt: (prompt: DeviceLoginPrompt) => void;
+    onPrompt: (prompt: DeviceLoginPrompt) => void | Promise<void>;
 }
 
 interface DevicePollTokenResponse {
@@ -212,7 +212,7 @@ async function fetchUserFromToken(
 
 export async function performDeviceCodeLogin(
     optionsInput: DeviceLoginOptionsInput = {}
-): Promise<OAuthResult> {
+): Promise<AuthLoginResult> {
     const options = resolveDeviceLoginOptions(optionsInput);
     const startResponse = await fetch(`${options.apiUrl}/auth/device/start`, {
         method: 'POST',
@@ -235,7 +235,7 @@ export async function performDeviceCodeLogin(
 
     const startPayload = await startResponse.json();
     const start = parseDeviceStartResponse(startPayload);
-    options.onPrompt({
+    await options.onPrompt({
         userCode: start.userCode,
         verificationUrl: start.verificationUrl,
         verificationUrlComplete: start.verificationUrlComplete,

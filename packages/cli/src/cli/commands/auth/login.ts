@@ -2,16 +2,14 @@
 
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
+import open from 'open';
 import {
-    DEFAULT_OAUTH_CONFIG,
     type DextoApiKeyProvisionStatus,
     getDextoApiClient,
     isAuthenticated,
     loadAuth,
     performDeviceCodeLogin,
-    performOAuthLogin,
     persistOAuthLoginResult,
-    shouldAttemptBrowserLaunch,
     storeAuth,
     ensureDextoApiKeyForAuthToken,
     SUPABASE_ANON_KEY,
@@ -19,15 +17,11 @@ import {
 } from '../../auth/index.js';
 import { logger } from '@dexto/core';
 
-type LoginAuthMode = 'auto' | 'browser' | 'device';
-
-type LoginMethod = LoginAuthMode | 'token';
+type LoginMethod = 'device' | 'token';
 
 export interface LoginCommandOptions {
     apiKey?: string;
     interactive?: boolean;
-    authMode?: string;
-    device?: boolean;
 }
 
 function printProvisionStatus(status: DextoApiKeyProvisionStatus): void {
@@ -71,46 +65,14 @@ function isCancellationError(errorMessage: string): boolean {
     );
 }
 
-function parseAuthMode(rawMode: string): LoginAuthMode {
-    const normalized = rawMode.trim().toLowerCase();
-    if (normalized === 'auto' || normalized === 'browser' || normalized === 'device') {
-        return normalized;
-    }
-    throw new Error(`Invalid --auth-mode: ${rawMode}. Use one of: auto, browser, device`);
-}
-
-export function resolveRequestedAuthMode(options: LoginCommandOptions): LoginAuthMode | null {
-    if (options.device && options.authMode) {
-        throw new Error('Cannot use both --device and --auth-mode. Choose one login mode option.');
-    }
-
-    if (options.device) {
-        return 'device';
-    }
-    if (!options.authMode) {
-        return null;
-    }
-    return parseAuthMode(options.authMode);
-}
-
 async function chooseInteractiveLoginMethod(): Promise<LoginMethod | null> {
-    const browserLikelyUsable = shouldAttemptBrowserLaunch();
     const selected = await p.select({
         message: 'Choose a login method:',
         options: [
             {
-                value: 'browser',
-                label: browserLikelyUsable ? 'Browser callback (Recommended)' : 'Browser callback',
-                hint: browserLikelyUsable
-                    ? 'Fastest when this machine has a usable browser'
-                    : 'May fail in headless/remote environments',
-            },
-            {
                 value: 'device',
-                label: browserLikelyUsable ? 'Device code' : 'Device code (Recommended)',
-                hint: browserLikelyUsable
-                    ? 'Use another device/browser to approve login'
-                    : 'Works reliably in VM/headless/SSH sessions',
+                label: 'Device code login (Recommended)',
+                hint: 'Secure and reliable in local, remote, and headless environments',
             },
             {
                 value: 'token',
@@ -124,11 +86,15 @@ async function chooseInteractiveLoginMethod(): Promise<LoginMethod | null> {
         return null;
     }
 
-    return selected as LoginMethod;
+    if (selected === 'device' || selected === 'token') {
+        return selected;
+    }
+
+    throw new Error('Unexpected login method selection');
 }
 
 /**
- * Handle login command - multiple methods supported
+ * Handle login command - supports device-code and manual token login.
  */
 export async function handleLoginCommand(options: LoginCommandOptions = {}): Promise<void> {
     try {
@@ -166,21 +132,13 @@ export async function handleLoginCommand(options: LoginCommandOptions = {}): Pro
             return;
         }
 
-        const requestedAuthMode = resolveRequestedAuthMode(options);
-
         if (options.interactive === false) {
-            await runLoginMethod(requestedAuthMode ?? 'auto');
+            await handleDeviceLogin();
             console.log(chalk.green('🎉 Login successful!'));
             return;
         }
 
         p.intro(chalk.inverse(' Login to Dexto '));
-
-        if (requestedAuthMode) {
-            await runLoginMethod(requestedAuthMode);
-            p.outro(chalk.green('🎉 Login successful!'));
-            return;
-        }
 
         const selectedMethod = await chooseInteractiveLoginMethod();
         if (!selectedMethod) {
@@ -195,7 +153,7 @@ export async function handleLoginCommand(options: LoginCommandOptions = {}): Pro
                 return;
             }
         } else {
-            await runLoginMethod(selectedMethod);
+            await handleDeviceLogin();
         }
 
         p.outro(chalk.green('🎉 Login successful!'));
@@ -206,83 +164,31 @@ export async function handleLoginCommand(options: LoginCommandOptions = {}): Pro
     }
 }
 
-async function runLoginMethod(mode: LoginAuthMode): Promise<void> {
-    if (mode === 'browser') {
-        await handleBrowserLogin();
-        return;
-    }
-    if (mode === 'device') {
-        await handleDeviceLogin();
-        return;
-    }
-    await handleAutoLogin();
-}
-
-export async function handleAutoLogin(): Promise<void> {
-    const browserLikelyUsable = shouldAttemptBrowserLaunch();
-
-    if (browserLikelyUsable) {
-        try {
-            await handleBrowserLogin({ failOnBrowserOpenError: true });
-            return;
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            if (isCancellationError(errorMessage)) {
-                throw error;
-            }
-            console.log(
-                chalk.yellow(
-                    '⚠️ Browser login failed in this environment. Switching to device code.'
-                )
-            );
-        }
-    } else {
-        console.log(chalk.dim('Detected headless/remote environment, using device code login.'));
-    }
-
-    await handleDeviceLogin();
-}
-
-export async function handleBrowserLogin(
-    options: { failOnBrowserOpenError?: boolean } = {}
-): Promise<void> {
-    try {
-        const result = await performOAuthLogin(DEFAULT_OAUTH_CONFIG, {
-            failOnBrowserOpenError: options.failOnBrowserOpenError ?? false,
-        });
-        const persisted = await persistOAuthLoginResult(result, {
-            onProvisionStatus: printProvisionStatus,
-        });
-
-        if (persisted.email) {
-            console.log(chalk.dim(`\nWelcome back, ${persisted.email}`));
-        }
-
-        printProvisionResult(persisted);
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        if (errorMessage.includes('timed out')) {
-            throw new Error('Login timed out. Please try again.');
-        }
-        if (errorMessage.includes('user denied') || isCancellationError(errorMessage)) {
-            throw new Error('Login was cancelled.');
-        }
-        throw new Error(`Login failed: ${errorMessage}`);
-    }
-}
-
 export async function handleDeviceLogin(): Promise<void> {
     try {
         const result = await performDeviceCodeLogin({
-            onPrompt: (prompt) => {
-                console.log(chalk.cyan('\nUse any browser to complete login:'));
+            onPrompt: async (prompt) => {
+                const verificationTarget = prompt.verificationUrlComplete ?? prompt.verificationUrl;
+
+                console.log(chalk.cyan('\nOpen your browser to complete login:'));
+                try {
+                    await open(verificationTarget);
+                    console.log(chalk.dim(`  • Opened automatically: ${verificationTarget}`));
+                } catch (error) {
+                    logger.debug(
+                        `Automatic browser launch failed during device login: ${
+                            error instanceof Error ? error.message : String(error)
+                        }`
+                    );
+                    console.log(chalk.dim(`  • Open: ${verificationTarget}`));
+                }
+
                 if (prompt.verificationUrlComplete) {
-                    console.log(chalk.dim(`  • Open: ${prompt.verificationUrlComplete}`));
                     console.log(chalk.dim(`  • If asked, code: ${prompt.userCode}`));
                 } else {
-                    console.log(chalk.dim(`  • Open: ${prompt.verificationUrl}`));
                     console.log(chalk.dim(`  • Enter code: ${prompt.userCode}`));
                 }
+
                 console.log(
                     chalk.dim(`  • Code expires in ~${Math.ceil(prompt.expiresIn / 60)} min`)
                 );
@@ -292,6 +198,7 @@ export async function handleDeviceLogin(): Promise<void> {
         const persisted = await persistOAuthLoginResult(result, {
             onProvisionStatus: printProvisionStatus,
         });
+
         if (persisted.email) {
             console.log(chalk.dim(`\nWelcome back, ${persisted.email}`));
         }
@@ -315,7 +222,7 @@ async function handleTokenLogin(): Promise<boolean> {
         },
     });
 
-    if (p.isCancel(token)) {
+    if (p.isCancel(token) || typeof token !== 'string') {
         return false;
     }
 
@@ -323,7 +230,7 @@ async function handleTokenLogin(): Promise<boolean> {
     spinner.start('Verifying token...');
 
     try {
-        const isValid = await verifyToken(token as string);
+        const isValid = await verifyToken(token);
         if (!isValid) {
             spinner.stop('Invalid token');
             throw new Error('Token verification failed');
@@ -332,11 +239,11 @@ async function handleTokenLogin(): Promise<boolean> {
         spinner.stop('Token verified!');
 
         await storeAuth({
-            token: token as string,
+            token,
             createdAt: Date.now(),
         });
 
-        const ensured = await ensureDextoApiKeyForAuthToken(token as string, {
+        const ensured = await ensureDextoApiKeyForAuthToken(token, {
             onStatus: printProvisionStatus,
         });
         printProvisionResult({

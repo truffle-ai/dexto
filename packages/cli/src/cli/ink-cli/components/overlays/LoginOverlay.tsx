@@ -9,15 +9,12 @@ import React, {
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import {
+    type AuthLoginResult,
     type DextoApiKeyProvisionStatus,
-    beginOAuthLogin,
-    DEFAULT_OAUTH_CONFIG,
     type DeviceLoginPrompt,
     loadAuth,
-    type OAuthResult,
     performDeviceCodeLogin,
     persistOAuthLoginResult,
-    shouldAttemptBrowserLaunch,
 } from '../../../auth/index.js';
 
 export type LoginOverlayOutcome =
@@ -43,22 +40,9 @@ type LoginStep =
     | 'checking'
     | 'already-authenticated'
     | 'starting'
-    | 'opening-browser'
     | 'waiting'
     | 'finalizing'
     | 'error';
-
-function isCancellationError(errorMessage: string): boolean {
-    const lower = errorMessage.toLowerCase();
-    return (
-        lower.includes('canceled') ||
-        lower.includes('cancelled') ||
-        lower.includes('user denied') ||
-        lower.includes('user_denied') ||
-        lower.includes('access_denied') ||
-        lower.includes('access denied by user')
-    );
-}
 
 const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function LoginOverlay(
     { isVisible, onDone },
@@ -66,7 +50,6 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
 ) {
     const [step, setStep] = useState<LoginStep>('checking');
     const [existingUser, setExistingUser] = useState<string | null>(null);
-    const [authUrl, setAuthUrl] = useState<string | null>(null);
     const [devicePrompt, setDevicePrompt] = useState<DeviceLoginPrompt | null>(null);
     const [status, setStatus] = useState<string>('Preparing login...');
     const [error, setError] = useState<string | null>(null);
@@ -91,71 +74,42 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
         abortControllerRef.current = null;
     }, []);
 
-    const runBrowserLogin = useCallback(
-        async (abortController: AbortController): Promise<OAuthResult | null> => {
-            setStep('starting');
-            safeSetStatus('Starting local callback server...');
-
-            const session = await beginOAuthLogin(DEFAULT_OAUTH_CONFIG, {
-                signal: abortController.signal,
-            });
-
-            if (!isActiveRef.current || abortController.signal.aborted) {
-                void session.result.catch(() => undefined);
-                session.cancel();
-                return null;
-            }
-
-            setAuthUrl(session.authUrl);
-            setDevicePrompt(null);
-            setStep('opening-browser');
-            safeSetStatus('Opening browser for authentication...');
-
-            let browserOpened = false;
-            try {
-                const { default: open } = await import('open');
-                await open(session.authUrl);
-                browserOpened = true;
-            } catch {
-                // Fall through to device flow fallback
-            }
-
-            if (!isActiveRef.current || abortController.signal.aborted) {
-                void session.result.catch(() => undefined);
-                session.cancel();
-                return null;
-            }
-
-            if (!browserOpened) {
-                void session.result.catch(() => undefined);
-                session.cancel();
-                throw new Error('Automatic browser launch unavailable');
-            }
-
-            setStep('waiting');
-            safeSetStatus('Waiting for authentication...');
-            return session.result;
-        },
-        [safeSetStatus]
-    );
-
     const runDeviceLogin = useCallback(
-        async (abortController: AbortController): Promise<OAuthResult> => {
+        async (abortController: AbortController): Promise<AuthLoginResult> => {
             setStep('starting');
             safeSetStatus('Starting device code login...');
-            setAuthUrl(null);
             setDevicePrompt(null);
 
             return performDeviceCodeLogin({
                 signal: abortController.signal,
-                onPrompt: (prompt) => {
+                onPrompt: async (prompt) => {
                     if (!isActiveRef.current || abortController.signal.aborted) {
                         return;
                     }
+
+                    const verificationTarget =
+                        prompt.verificationUrlComplete ?? prompt.verificationUrl;
+
                     setDevicePrompt(prompt);
-                    setAuthUrl(prompt.verificationUrlComplete ?? prompt.verificationUrl);
                     setStep('waiting');
-                    safeSetStatus('Open the URL below and approve login.');
+                    safeSetStatus('Opening browser for device verification...');
+
+                    try {
+                        const { default: open } = await import('open');
+                        await open(verificationTarget);
+
+                        if (!isActiveRef.current || abortController.signal.aborted) {
+                            return;
+                        }
+
+                        safeSetStatus('Browser opened. Approve login to continue.');
+                    } catch {
+                        if (!isActiveRef.current || abortController.signal.aborted) {
+                            return;
+                        }
+
+                        safeSetStatus('Open the URL below and approve login.');
+                    }
                 },
             });
         },
@@ -165,34 +119,15 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
     const startLogin = useCallback(async () => {
         cancelInFlight();
         setError(null);
-        setAuthUrl(null);
         setDevicePrompt(null);
 
         const abortController = new AbortController();
         abortControllerRef.current = abortController;
 
         try {
-            const browserLikelyUsable = shouldAttemptBrowserLaunch();
-            let result: OAuthResult | null = null;
+            const result = await runDeviceLogin(abortController);
 
-            if (browserLikelyUsable) {
-                try {
-                    result = await runBrowserLogin(abortController);
-                } catch (err) {
-                    const errorMessage = err instanceof Error ? err.message : String(err);
-                    if (isCancellationError(errorMessage)) {
-                        throw err;
-                    }
-
-                    safeSetStatus('Browser callback unavailable. Switching to device code...');
-                    result = await runDeviceLogin(abortController);
-                }
-            } else {
-                safeSetStatus('Detected headless/remote environment. Using device code login...');
-                result = await runDeviceLogin(abortController);
-            }
-
-            if (!result || !isActiveRef.current || abortController.signal.aborted) return;
+            if (!isActiveRef.current || abortController.signal.aborted) return;
 
             setStep('finalizing');
             safeSetStatus('Finalizing login...');
@@ -220,14 +155,7 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
         } finally {
             abortControllerRef.current = null;
         }
-    }, [
-        cancelInFlight,
-        handleProvisionStatus,
-        onDone,
-        runBrowserLogin,
-        runDeviceLogin,
-        safeSetStatus,
-    ]);
+    }, [cancelInFlight, handleProvisionStatus, onDone, runDeviceLogin, safeSetStatus]);
 
     // Initialize when shown
     useEffect(() => {
@@ -236,7 +164,6 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
         isActiveRef.current = true;
         setStep('checking');
         setExistingUser(null);
-        setAuthUrl(null);
         setDevicePrompt(null);
         setStatus('Preparing login...');
         setError(null);
@@ -337,13 +264,6 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
                         {devicePrompt.verificationUrlComplete ?? devicePrompt.verificationUrl}
                     </Text>
                     <Text color="gray">Code: {devicePrompt.userCode}</Text>
-                </Box>
-            )}
-
-            {authUrl && !devicePrompt && (
-                <Box flexDirection="column" marginBottom={1}>
-                    <Text color="gray">If your browser didn&apos;t open, use this URL:</Text>
-                    <Text color="yellowBright">{authUrl}</Text>
                 </Box>
             )}
 

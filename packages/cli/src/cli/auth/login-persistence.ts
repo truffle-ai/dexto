@@ -1,5 +1,5 @@
 import { type DextoApiKeyProvisionStatus, ensureDextoApiKeyForAuthToken } from './dexto-api-key.js';
-import type { OAuthResult } from './oauth.js';
+import type { AuthLoginResult } from './types.js';
 import { storeAuth } from './service.js';
 
 export interface PersistOAuthLoginOptions {
@@ -14,7 +14,7 @@ export interface PersistedLoginResult {
 }
 
 export async function persistOAuthLoginResult(
-    result: OAuthResult,
+    result: AuthLoginResult,
     options: PersistOAuthLoginOptions = {}
 ): Promise<PersistedLoginResult> {
     const expiresAt = result.expiresIn ? Date.now() + result.expiresIn * 1000 : undefined;
