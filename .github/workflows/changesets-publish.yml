@@ -71,11 +71,12 @@ jobs:
         env:
           PUBLISHED_PACKAGES: ${{ needs.release.outputs.published_packages }}
         run: |
-          VERSION="$(
-            echo "${PUBLISHED_PACKAGES}" \
-              | jq -r '.[] | select(.name == "dexto") | .version' \
-              | head -n 1
-          )"
+          set -euo pipefail
+
+          if ! VERSION="$(jq -r 'map(select(.name == "dexto")) | .[0].version // empty' <<< "${PUBLISHED_PACKAGES}")"; then
+            echo "Failed to parse publishedPackages JSON; aborting." >&2
+            exit 1
+          fi
 
           if [[ -z "${VERSION}" || "${VERSION}" == "null" ]]; then
             echo "No dexto package found in publishedPackages; skipping standalone binaries."
@@ -96,7 +97,7 @@ jobs:
         include:
           - runner: macos-14
             target: darwin-arm64
-          - runner: macos-13
+          - runner: macos-15-intel
             target: darwin-x64
           - runner: ubuntu-24.04
             target: linux-x64
