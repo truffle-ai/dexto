@@ -72,6 +72,11 @@ import {
     getAllSupportedModels,
     startLlmRegistryAutoUpdate,
     DextoAgent,
+    isTextPart,
+    safeStringify,
+    type SanitizedToolResult,
+    type ShellDisplayData,
+    type StreamingEvent,
     type LLMProvider,
     isPath,
     resolveApiKeyForProvider,
@@ -179,7 +184,9 @@ const versionCheckPromise = checkForUpdates(cliVersion);
 
 // Start self-updating LLM registry refresh (models.dev + OpenRouter mapping).
 // Uses a cached snapshot on disk and refreshes in the background.
-startLlmRegistryAutoUpdate();
+// Important: do NOT start this globally at process boot because one-off/headless
+// subcommands (like `dexto run`) require clean stdout/stderr contracts.
+// It is started in the main mode flow instead.
 
 // 1) GLOBAL OPTIONS
 program
@@ -771,12 +778,44 @@ marketplaceCommand
         )
     );
 
-// Helper to bootstrap a minimal agent for non-interactive session/search ops
-async function bootstrapAgentFromGlobalOpts() {
+type BootstrapAgentMode = 'headless-run' | 'non-interactive';
+
+// Helper to bootstrap a minimal agent for non-interactive commands
+async function bootstrapAgentFromGlobalOpts(options: { mode: BootstrapAgentMode }) {
+    const { mode } = options;
+    const isHeadlessRun = mode === 'headless-run';
     const globalOpts = program.opts();
+    let inferredProvider: LLMProvider | undefined;
+    let inferredApiKey: string | undefined;
+
+    // Non-interactive subcommands bypass the main mode action, so replicate
+    // model -> provider/apiKey inference here.
+    if (globalOpts.model) {
+        if (globalOpts.model.includes('/')) {
+            throw new Error(
+                `Model '${globalOpts.model}' looks like an OpenRouter-format ID (provider/model). Please set provider/model explicitly in agent config for this command.`
+            );
+        }
+
+        inferredProvider = getProviderFromModel(globalOpts.model);
+        const apiKey = resolveApiKeyForProvider(inferredProvider);
+        if (!apiKey) {
+            const envVar = getPrimaryApiKeyEnvVar(inferredProvider);
+            throw new Error(
+                `Missing API key for provider '${inferredProvider}' - please set $${envVar}`
+            );
+        }
+
+        inferredApiKey = apiKey;
+    }
+
     const resolvedPath = await resolveAgentPath(globalOpts.agent, globalOpts.autoInstall !== false);
     const rawConfig = await loadAgentConfig(resolvedPath);
     const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
+    if (inferredProvider && inferredApiKey) {
+        mergedConfig.llm.provider = inferredProvider;
+        mergedConfig.llm.apiKey = inferredApiKey;
+    }
 
     // Load image first to apply defaults and resolve DI services
     // Priority: CLI flag > Agent config > Environment variable > Default
@@ -802,11 +841,24 @@ async function bootstrapAgentFromGlobalOpts() {
 
     // Enrich config with per-agent paths BEFORE validation
     const enrichedConfig = enrichAgentConfig(configWithImageDefaults, resolvedPath, {
-        logLevel: 'info', // CLI uses info-level logging for visibility
+        // Headless run keeps output deterministic and noise-free.
+        // Other non-interactive commands keep visible logs.
+        logLevel: isHeadlessRun ? 'error' : 'info',
+        ...(isHeadlessRun ? { isInteractiveCli: true } : {}),
     });
 
-    // Override approval config for read-only commands (never run conversations)
-    // This avoids needing to set up unused approval handlers
+    if (isHeadlessRun) {
+        // Force silent transport in headless mode even when agent config defines logger settings.
+        // `dexto run` owns stderr formatting and should be the only writer.
+        enrichedConfig.logger = {
+            level: 'error',
+            transports: [{ type: 'silent' }],
+        };
+    }
+
+    // Override approval config for non-interactive commands.
+    // Headless operations default to auto-approve and disable elicitation to
+    // avoid waiting for interactive approval handlers.
     enrichedConfig.permissions = {
         ...(enrichedConfig.permissions ?? {}),
         mode: 'auto-approve',
@@ -838,6 +890,332 @@ async function bootstrapAgentFromGlobalOpts() {
     return agent;
 }
 
+const HEADLESS_TOOL_OUTPUT_MAX_LINES = 20;
+
+type HeadlessToolCallState = {
+    toolName: string;
+    args: Record<string, unknown>;
+    startedAt: number;
+};
+
+type HeadlessRunResult = {
+    finalMessage?: string;
+    totalTokens?: number;
+    fatalError?: Error;
+};
+
+function writeHeadlessLine(line: string = ''): void {
+    process.stderr.write(`${line}\n`);
+}
+
+function formatHeadlessDuration(durationMs: number): string {
+    if (durationMs < 1000) {
+        return `${Math.round(durationMs)}ms`;
+    }
+    const seconds = durationMs / 1000;
+    if (seconds < 10) {
+        return `${seconds.toFixed(2)}s`;
+    }
+    return `${seconds.toFixed(1)}s`;
+}
+
+function formatToolNameForHeadless(toolName: string): string {
+    const delimiter = '--';
+    const delimiterIndex = toolName.indexOf(delimiter);
+    if (delimiterIndex > 0) {
+        return `${toolName.slice(0, delimiterIndex)}.${toolName.slice(delimiterIndex + delimiter.length)}`;
+    }
+    return toolName;
+}
+
+function formatToolArgsForHeadless(args: Record<string, unknown>): string {
+    if (Object.keys(args).length === 0) {
+        return '{}';
+    }
+    return safeStringify(args);
+}
+
+function formatToolInvocationForHeadless(toolName: string, args: Record<string, unknown>): string {
+    return `${formatToolNameForHeadless(toolName)}(${formatToolArgsForHeadless(args)})`;
+}
+
+function truncateOutputForHeadless(output: string): string {
+    const lines = output.split('\n');
+    if (lines.length <= HEADLESS_TOOL_OUTPUT_MAX_LINES) {
+        return output;
+    }
+    const omittedLineCount = lines.length - HEADLESS_TOOL_OUTPUT_MAX_LINES;
+    return `${lines.slice(0, HEADLESS_TOOL_OUTPUT_MAX_LINES).join('\n')}\n... (${omittedLineCount} more lines)`;
+}
+
+function extractSanitizedToolText(sanitized: SanitizedToolResult | undefined): string | undefined {
+    if (!sanitized) {
+        return undefined;
+    }
+
+    const display = sanitized.meta.display;
+    if (display?.type === 'shell') {
+        const shellDisplay = display as ShellDisplayData;
+        const chunks = [shellDisplay.stdout, shellDisplay.stderr].filter((chunk): chunk is string =>
+            Boolean(chunk && chunk.trim())
+        );
+        if (chunks.length > 0) {
+            return chunks.join('\n');
+        }
+    }
+
+    if (display?.type === 'diff') {
+        return display.unified;
+    }
+
+    if (display?.type === 'search') {
+        return safeStringify(display.matches);
+    }
+
+    if (display?.type === 'file') {
+        return safeStringify(display);
+    }
+
+    const textParts = sanitized.content.filter(isTextPart).map((part) => part.text);
+    if (textParts.length > 0) {
+        return textParts.join('\n');
+    }
+
+    return safeStringify(sanitized.content);
+}
+
+function extractToolOutputForHeadless(
+    event: Extract<StreamingEvent, { name: 'llm:tool-result' }>
+): string | undefined {
+    if (!event.success && event.error) {
+        return event.error;
+    }
+    return extractSanitizedToolText(event.sanitized);
+}
+
+function getTotalTokensFromResponse(
+    event: Extract<StreamingEvent, { name: 'llm:response' }>
+): number | undefined {
+    const usage = event.tokenUsage;
+    if (!usage) {
+        return undefined;
+    }
+    if (typeof usage.totalTokens === 'number') {
+        return usage.totalTokens;
+    }
+
+    const inputTokens = usage.inputTokens ?? 0;
+    const outputTokens = usage.outputTokens ?? 0;
+    const reasoningTokens = usage.reasoningTokens ?? 0;
+    const computedTotal = inputTokens + outputTokens + reasoningTokens;
+
+    return computedTotal > 0 ? computedTotal : undefined;
+}
+
+async function readPromptFromStdin(): Promise<string> {
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) {
+        if (typeof chunk === 'string') {
+            chunks.push(Buffer.from(chunk));
+        } else {
+            chunks.push(chunk);
+        }
+    }
+    return Buffer.concat(chunks).toString('utf-8');
+}
+
+async function resolveHeadlessPrompt(promptArg?: string): Promise<string> {
+    if (promptArg && promptArg !== '-') {
+        return promptArg;
+    }
+
+    if (!promptArg && process.stdin.isTTY) {
+        throw new Error(
+            'No prompt provided. Pass a prompt argument (e.g., dexto run "your prompt") or pipe input via stdin.'
+        );
+    }
+
+    return await readPromptFromStdin();
+}
+
+function printHeadlessMcpStartup(agent: DextoAgent): void {
+    const serverStatuses = agent.getMcpServersWithStatus().filter((server) => server.enabled);
+
+    if (serverStatuses.length === 0) {
+        writeHeadlessLine('mcp startup: no servers');
+        return;
+    }
+
+    const readyServers: string[] = [];
+    const failedServers: string[] = [];
+
+    for (const server of serverStatuses) {
+        if (server.status === 'connected') {
+            readyServers.push(server.name);
+            writeHeadlessLine(`mcp: ${server.name} ready`);
+            continue;
+        }
+
+        failedServers.push(server.name);
+        const reason = server.error ? `failed: ${server.error}` : `failed: ${server.status}`;
+        writeHeadlessLine(`mcp: ${server.name} ${reason}`);
+    }
+
+    const summaryParts: string[] = [];
+    if (readyServers.length > 0) {
+        summaryParts.push(`ready: ${readyServers.join(', ')}`);
+    }
+    if (failedServers.length > 0) {
+        summaryParts.push(`failed: ${failedServers.join(', ')}`);
+    }
+
+    writeHeadlessLine(`mcp startup: ${summaryParts.join('; ')}`);
+}
+
+function printHeadlessRunSummary(
+    agent: DextoAgent,
+    sessionId: string,
+    prompt: string,
+    agentPath: string
+): void {
+    const llmConfig = agent.getCurrentLLMConfig(sessionId);
+
+    writeHeadlessLine(`Dexto CLI v${cliVersion}`);
+    writeHeadlessLine('--------');
+    writeHeadlessLine(`workdir: ${process.cwd()}`);
+    writeHeadlessLine(`agent: ${agentPath}`);
+    writeHeadlessLine(`model: ${llmConfig.model}`);
+    writeHeadlessLine(`provider: ${llmConfig.provider}`);
+    writeHeadlessLine(`approval: ${agent.config.permissions.mode}`);
+    writeHeadlessLine(`session id: ${sessionId}`);
+    writeHeadlessLine('--------');
+    writeHeadlessLine('user');
+    writeHeadlessLine(prompt);
+}
+
+function writeFinalMessageToStdout(message: string): void {
+    if (message.endsWith('\n')) {
+        process.stdout.write(message);
+        return;
+    }
+    process.stdout.write(`${message}\n`);
+}
+
+async function executeHeadlessRun(
+    agent: DextoAgent,
+    sessionId: string,
+    prompt: string
+): Promise<HeadlessRunResult> {
+    const toolCallState = new Map<string, HeadlessToolCallState>();
+    let anonymousToolCallCounter = 0;
+    let finalMessage: string | undefined;
+    let totalTokens: number | undefined;
+    let fatalError: Error | undefined;
+
+    for await (const event of await agent.stream(prompt, sessionId)) {
+        switch (event.name) {
+            case 'llm:tool-call': {
+                const callKey = event.callId ?? `anonymous-${++anonymousToolCallCounter}`;
+                const call = {
+                    toolName: event.toolName,
+                    args: event.args,
+                    startedAt: Date.now(),
+                };
+                toolCallState.set(callKey, call);
+                writeHeadlessLine(
+                    `tool ${formatToolInvocationForHeadless(call.toolName, call.args)}`
+                );
+                break;
+            }
+
+            case 'tool:running': {
+                const runningCall = toolCallState.get(event.toolCallId);
+                if (runningCall) {
+                    runningCall.startedAt = Date.now();
+                }
+                break;
+            }
+
+            case 'llm:tool-result': {
+                let matchedCallKey: string | undefined = event.callId;
+                let matchedCall = matchedCallKey ? toolCallState.get(matchedCallKey) : undefined;
+
+                if (!matchedCall) {
+                    const reverseEntries = Array.from(toolCallState.entries()).reverse();
+                    const fallback = reverseEntries.find(
+                        ([, call]) => call.toolName === event.toolName
+                    );
+                    if (fallback) {
+                        matchedCallKey = fallback[0];
+                        matchedCall = fallback[1];
+                    }
+                }
+
+                const toolName = matchedCall?.toolName ?? event.toolName;
+                const args = matchedCall?.args ?? {};
+                const invocation = formatToolInvocationForHeadless(toolName, args);
+                const durationText = matchedCall
+                    ? ` in ${formatHeadlessDuration(Date.now() - matchedCall.startedAt)}`
+                    : '';
+                const status = event.success ? 'success' : 'failed';
+
+                writeHeadlessLine(`${invocation} ${status}${durationText}:`);
+                const output = extractToolOutputForHeadless(event);
+                if (output && output.trim().length > 0) {
+                    writeHeadlessLine(truncateOutputForHeadless(output));
+                }
+
+                if (matchedCallKey) {
+                    toolCallState.delete(matchedCallKey);
+                }
+                break;
+            }
+
+            case 'llm:response': {
+                finalMessage = event.content;
+                totalTokens = getTotalTokensFromResponse(event);
+                break;
+            }
+
+            case 'llm:unsupported-input': {
+                writeHeadlessLine(`warning: ${event.errors.join('; ')}`);
+                break;
+            }
+
+            case 'llm:error': {
+                if (!event.recoverable) {
+                    fatalError = event.error;
+                    writeHeadlessLine(`error: ${event.error.message}`);
+                }
+                break;
+            }
+
+            case 'run:complete': {
+                if (event.finishReason === 'error' && event.error) {
+                    fatalError = event.error;
+                    writeHeadlessLine(`error: ${event.error.message}`);
+                }
+                break;
+            }
+
+            default:
+                break;
+        }
+    }
+
+    const result: HeadlessRunResult = {};
+    if (finalMessage !== undefined) {
+        result.finalMessage = finalMessage;
+    }
+    if (totalTokens !== undefined) {
+        result.totalTokens = totalTokens;
+    }
+    if (fatalError !== undefined) {
+        result.fatalError = fatalError;
+    }
+    return result;
+}
+
 // Helper to find the most recent session
 async function getMostRecentSessionId(agent: DextoAgent): Promise<string | null> {
     const sessionIds = await agent.listSessions();
@@ -860,7 +1238,90 @@ async function getMostRecentSessionId(agent: DextoAgent): Promise<string | null>
     return mostRecentId;
 }
 
-// 11) `session` SUB-COMMAND
+// 11) `run` SUB-COMMAND
+program
+    .command('run [prompt]')
+    .description('Run a single prompt non-interactively (headless mode)')
+    .addHelpText(
+        'after',
+        `
+Examples:
+  $ dexto run "summarize this repository"
+  $ echo "fix lint errors" | dexto run
+  $ dexto run - < prompt.txt
+`
+    )
+    .action(
+        withAnalytics('run', async (promptArg?: string) => {
+            let agent: DextoAgent | undefined;
+            let exitCode = 0;
+            let exitReason = 'ok';
+
+            try {
+                const prompt = await resolveHeadlessPrompt(promptArg);
+                if (prompt.trim().length === 0) {
+                    writeHeadlessLine('❌ Prompt cannot be empty.');
+                    exitCode = 1;
+                    exitReason = 'empty-prompt';
+                } else {
+                    agent = await bootstrapAgentFromGlobalOpts({ mode: 'headless-run' });
+                    const session = await agent.createSession();
+
+                    const globalOpts = program.opts();
+                    const resolvedAgentPath = await resolveAgentPath(
+                        globalOpts.agent,
+                        globalOpts.autoInstall !== false
+                    );
+
+                    printHeadlessRunSummary(agent, session.id, prompt, resolvedAgentPath);
+                    printHeadlessMcpStartup(agent);
+
+                    const runResult = await executeHeadlessRun(agent, session.id, prompt);
+
+                    if (runResult.finalMessage !== undefined) {
+                        writeHeadlessLine('dexto');
+                        writeHeadlessLine(runResult.finalMessage);
+
+                        if (typeof runResult.totalTokens === 'number') {
+                            writeHeadlessLine('tokens used');
+                            writeHeadlessLine(
+                                new Intl.NumberFormat('en-US').format(runResult.totalTokens)
+                            );
+                        }
+
+                        writeFinalMessageToStdout(runResult.finalMessage);
+                    } else {
+                        writeHeadlessLine('❌ No final response was produced.');
+                        exitCode = 1;
+                        exitReason = 'no-final-response';
+                    }
+
+                    if (runResult.fatalError) {
+                        exitCode = 1;
+                        exitReason = 'fatal-error';
+                    }
+                }
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                const errorMessage = err instanceof Error ? err.message : String(err);
+                writeHeadlessLine(`❌ dexto run failed: ${errorMessage}`);
+                exitCode = 1;
+                exitReason = 'error';
+            } finally {
+                if (agent) {
+                    try {
+                        await agent.stop();
+                    } catch {
+                        // Ignore shutdown errors in headless mode cleanup
+                    }
+                }
+            }
+
+            safeExit('run', exitCode, exitReason);
+        })
+    );
+
+// 12) `session` SUB-COMMAND
 const sessionCommand = program.command('session').description('Manage chat sessions');
 
 sessionCommand
@@ -869,7 +1330,7 @@ sessionCommand
     .action(
         withAnalytics('session list', async () => {
             try {
-                const agent = await bootstrapAgentFromGlobalOpts();
+                const agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
 
                 await handleSessionListCommand(agent);
                 await agent.stop();
@@ -889,7 +1350,7 @@ sessionCommand
     .action(
         withAnalytics('session history', async (sessionId: string) => {
             try {
-                const agent = await bootstrapAgentFromGlobalOpts();
+                const agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
 
                 await handleSessionHistoryCommand(agent, sessionId);
                 await agent.stop();
@@ -909,7 +1370,7 @@ sessionCommand
     .action(
         withAnalytics('session delete', async (sessionId: string) => {
             try {
-                const agent = await bootstrapAgentFromGlobalOpts();
+                const agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
 
                 await handleSessionDeleteCommand(agent, sessionId);
                 await agent.stop();
@@ -922,7 +1383,7 @@ sessionCommand
         })
     );
 
-// 12) `search` SUB-COMMAND
+// 13) `search` SUB-COMMAND
 program
     .command('search')
     .description('Search session history')
@@ -935,7 +1396,7 @@ program
             'search',
             async (query: string, options: { session?: string; role?: string; limit?: string }) => {
                 try {
-                    const agent = await bootstrapAgentFromGlobalOpts();
+                    const agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
 
                     const searchOptions: {
                         sessionId?: string;
@@ -983,7 +1444,7 @@ program
         )
     );
 
-// 13) `auth` SUB-COMMAND GROUP
+// 14) `auth` SUB-COMMAND GROUP
 const authCommand = program.command('auth').description('Manage authentication');
 
 authCommand
@@ -1078,7 +1539,7 @@ program
         })
     );
 
-// 14) `billing` COMMAND
+// 15) `billing` COMMAND
 program
     .command('billing')
     .description('Show billing status and credit balance')
@@ -1096,7 +1557,7 @@ program
         })
     );
 
-// 15) `mcp` SUB-COMMAND
+// 16) `mcp` SUB-COMMAND
 // For now, this mode simply aggregates and re-expose tools from configured MCP servers (no agent)
 // dexto --mode mcp will be moved to this sub-command in the future
 program
@@ -1186,7 +1647,7 @@ program
         )
     );
 
-// 16) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/server/mcp)
+// 17) Main dexto CLI - Interactive (CLI) or run in other modes (--mode web/server/mcp)
 program
     // Main customer facing description
     .description(
@@ -1194,7 +1655,8 @@ program
             'Basic Usage:\n' +
             '  dexto                    Start web UI (default)\n' +
             '  dexto --mode cli         Start interactive CLI\n' +
-            '  dexto --prompt "query"   Start interactive CLI and run the prompt\n\n' +
+            '  dexto --prompt "query"   Start interactive CLI and run the prompt\n' +
+            '  dexto run "query"        Run one-off headless task\n\n' +
             'Session Management Commands:\n' +
             '  dexto session list              List all sessions\n' +
             '  dexto session history [id]      Show session history\n' +
@@ -1226,6 +1688,11 @@ program
                 }
 
                 const opts = program.opts();
+
+                // Start self-updating LLM registry refresh (models.dev + OpenRouter mapping).
+                // Uses a cached snapshot on disk and refreshes in the background.
+                // Scoped to main mode flow (web/cli/server/mcp), not global subcommands.
+                startLlmRegistryAutoUpdate();
 
                 // Set dev mode early to use local repo agents instead of ~/.dexto
                 if (opts.dev) {
@@ -1277,7 +1744,7 @@ program
                 if (opts.mode === 'cli' && !process.stdin.isTTY) {
                     console.error('❌ Interactive CLI requires a TTY.');
                     console.error(
-                        '💡 Headless one-shot mode has been removed. Run in an interactive terminal, or use --mode server for automation.'
+                        '💡 For non-interactive runs, use `dexto run "<prompt>"`, or use --mode server for automation.'
                     );
                     safeExit('main', 1, 'no-tty');
                 }
@@ -2094,5 +2561,5 @@ program
         )
     );
 
-// 17) PARSE & EXECUTE
+// 18) PARSE & EXECUTE
 program.parseAsync(process.argv);
