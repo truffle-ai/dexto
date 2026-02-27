@@ -1,6 +1,6 @@
 {
     "name": "@dexto/storage",
-    "version": "1.6.6",
+    "version": "1.6.7",
     "description": "Storage backends and factories for Dexto agents",
     "type": "module",
     "main": "./dist/index.js",

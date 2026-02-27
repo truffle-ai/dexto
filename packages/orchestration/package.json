@@ -1,6 +1,6 @@
 {
     "name": "@dexto/orchestration",
-    "version": "1.6.6",
+    "version": "1.6.7",
     "description": "Agent orchestration layer for background task management, event-driven completion handling, and async workflows",
     "type": "module",
     "main": "./dist/index.js",
