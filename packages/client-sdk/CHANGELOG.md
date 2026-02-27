@@ -1,5 +1,11 @@
 # @dexto/client-sdk
 
+## 1.6.7
+
+### Patch Changes
+
+- 785978b: Fix upload standalone bianries release tag finding logic
+
 ## 1.6.6
 
 ### Patch Changes
