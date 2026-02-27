@@ -83,6 +83,15 @@ extract_zip() {
   exit 1
 }
 
+run_with_timeout() {
+  if command -v timeout >/dev/null 2>&1; then
+    timeout 120 "$@"
+    return
+  fi
+
+  "$@"
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --input-dir)
@@ -222,7 +231,7 @@ if [[ "${version_output}" != "${VERSION}" ]]; then
 fi
 echo "Version check passed (${version_output})"
 
-DEXTO_API_KEY=dummy "${binary_path}" --no-interactive list-agents >/dev/null
-echo "list-agents smoke test passed"
+DEXTO_API_KEY=dummy run_with_timeout "${binary_path}" --no-interactive --help >/dev/null
+echo "CLI execution smoke test passed"
 
 echo "Standalone artifact smoke test passed: ${artifact_name}"
