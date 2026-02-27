@@ -84,12 +84,35 @@ extract_zip() {
 }
 
 run_with_timeout() {
-  if command -v timeout >/dev/null 2>&1; then
-    timeout 120 "$@"
+  local timeout_secs="$1"
+  shift
+
+  if command -v timeout >/dev/null 2>&1 && timeout --version >/dev/null 2>&1; then
+    timeout "${timeout_secs}" "$@"
     return
   fi
 
-  "$@"
+  node -e "
+const { spawn } = require('node:child_process');
+const timeoutMs = Number(process.argv[1]);
+const cmd = process.argv[2];
+const args = process.argv.slice(3);
+const child = spawn(cmd, args, { stdio: 'inherit', env: process.env });
+const timer = setTimeout(() => {
+  child.kill();
+  process.exit(124);
+}, timeoutMs);
+child.on('exit', (code, signal) => {
+  clearTimeout(timer);
+  if (signal) process.exit(124);
+  process.exit(code ?? 1);
+});
+child.on('error', (error) => {
+  clearTimeout(timer);
+  console.error(error);
+  process.exit(1);
+});
+" "$((timeout_secs * 1000))" "$@"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -231,7 +254,7 @@ if [[ "${version_output}" != "${VERSION}" ]]; then
 fi
 echo "Version check passed (${version_output})"
 
-DEXTO_API_KEY=dummy run_with_timeout "${binary_path}" --no-interactive --help >/dev/null
+DEXTO_API_KEY=dummy run_with_timeout 120 "${binary_path}" --no-interactive --help >/dev/null
 echo "CLI execution smoke test passed"
 
 echo "Standalone artifact smoke test passed: ${artifact_name}"
