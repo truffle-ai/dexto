@@ -179,15 +179,20 @@ const entrypointPath = resolve(dirname(process.execPath), 'dist', 'index.js');
 });
 EOF
 
-cat > "${sea_config_path}" <<EOF
-{
-  "main": "${bootstrap_path}",
-  "output": "${blob_path}",
-  "disableExperimentalSEAWarning": true,
-  "useCodeCache": false,
-  "useSnapshot": false
-}
-EOF
+node -e "
+const fs = require('node:fs');
+const configPath = process.argv[1];
+const mainPath = process.argv[2];
+const outputPath = process.argv[3];
+const config = {
+  main: mainPath,
+  output: outputPath,
+  disableExperimentalSEAWarning: true,
+  useCodeCache: false,
+  useSnapshot: false
+};
+fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+" "${sea_config_path}" "${bootstrap_path}" "${blob_path}"
 
 echo "Creating SEA blob"
 node --experimental-sea-config "${sea_config_path}"
