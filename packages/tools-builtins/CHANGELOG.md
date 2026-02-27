@@ -1,5 +1,14 @@
 # @dexto/tools-builtins
 
+## 1.6.6
+
+### Patch Changes
+
+- 7e2bcd2: fix windows escape sequence
+- Updated dependencies [7e2bcd2]
+    - @dexto/agent-config@1.6.6
+    - @dexto/core@1.6.6
+
 ## 1.6.5
 
 ### Patch Changes
