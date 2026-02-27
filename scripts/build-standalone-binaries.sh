@@ -123,11 +123,21 @@ build_windows_zip() {
   local stage_dir="$1"
   local artifact_path="$2"
 
-  if command -v zip >/dev/null 2>&1; then
-    echo "Creating Windows zip archive with zip (this can take several minutes)"
+  if command -v 7z >/dev/null 2>&1; then
+    echo "Creating Windows zip archive with 7z (fast mode)"
     (
       cd "${stage_dir}"
-      zip -q -r "${artifact_path}" dexto.exe package.json dist node_modules
+      7z a -tzip -mx=1 "${artifact_path}" dexto.exe package.json dist node_modules >/dev/null
+    )
+    echo "Windows zip archive created"
+    return
+  fi
+
+  if command -v zip >/dev/null 2>&1; then
+    echo "Creating Windows zip archive with zip (fast mode)"
+    (
+      cd "${stage_dir}"
+      zip -1 -q -r "${artifact_path}" dexto.exe package.json dist node_modules
     )
     echo "Windows zip archive created"
     return
