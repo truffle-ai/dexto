@@ -19,8 +19,7 @@
  * - Enum options from schema enums
  * - Field types from schema types
  * This would eliminate hardcoded UI metadata and reduce maintenance.
- * See packages/core/src/utils/schema-metadata.ts for the core utilities that enable this (needs runtime fixes).
- * This TODO is linked with the corresponding TODO in schema-metadata.ts tracking the same goal.
+ * This likely requires shared runtime-safe schema metadata helpers in core.
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
