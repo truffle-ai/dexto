@@ -1,5 +1,23 @@
 # @dexto/image-local
 
+## 1.6.4
+
+### Patch Changes
+
+- 7cb9082: Bump to test binary distribution
+- Updated dependencies [7cb9082]
+    - @dexto/agent-config@1.6.4
+    - @dexto/agent-management@1.6.4
+    - @dexto/core@1.6.4
+    - @dexto/storage@1.6.4
+    - @dexto/tools-builtins@1.6.4
+    - @dexto/tools-filesystem@1.6.4
+    - @dexto/tools-lifecycle@1.6.4
+    - @dexto/tools-plan@1.6.4
+    - @dexto/tools-process@1.6.4
+    - @dexto/tools-scheduler@1.6.4
+    - @dexto/tools-todo@1.6.4
+
 ## 1.6.3
 
 ### Patch Changes

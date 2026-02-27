@@ -1,5 +1,22 @@
 # dexto
 
+## 1.6.4
+
+### Patch Changes
+
+- 7cb9082: Bump to test binary distribution
+- Updated dependencies [7cb9082]
+    - @dexto/agent-config@1.6.4
+    - @dexto/agent-management@1.6.4
+    - @dexto/analytics@1.6.4
+    - @dexto/core@1.6.4
+    - @dexto/image-local@1.6.4
+    - @dexto/image-logger-agent@1.6.4
+    - @dexto/registry@1.6.4
+    - @dexto/server@1.6.4
+    - @dexto/storage@1.6.4
+    - @dexto/tui@1.6.4
+
 ## 1.6.3
 
 ### Patch Changes
