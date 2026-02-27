@@ -1,6 +1,6 @@
 {
     "name": "@dexto/tools-filesystem",
-    "version": "1.6.5",
+    "version": "1.6.6",
     "description": "FileSystem tools factory for Dexto agents",
     "type": "module",
     "main": "./dist/index.js",
