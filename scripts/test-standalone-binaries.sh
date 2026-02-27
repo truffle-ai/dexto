@@ -59,6 +59,11 @@ extract_zip() {
   local archive_path="$1"
   local output_dir="$2"
 
+  if command -v 7z >/dev/null 2>&1; then
+    7z x -y "-o${output_dir}" "${archive_path}" >/dev/null
+    return
+  fi
+
   if command -v powershell.exe >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1; then
     local archive_path_win
     local output_dir_win
