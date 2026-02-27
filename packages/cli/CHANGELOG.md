@@ -1,5 +1,38 @@
 # dexto
 
+## 1.6.2
+
+### Patch Changes
+
+- 5e6383d: Add reasoning presets + reasoning trace controls across CLI/WebUI:
+    - Introduce structured reasoning config (preset + optional budget tokens) with provider-aware reasoning presets (`off|low|medium|high|max|xhigh`) and validate availability via the LLM registry (including the dynamic OpenRouter catalog).
+    - Map presets to provider-native knobs (e.g. OpenAI `reasoningEffort`, budget-token models) and reuse the same behavior across gateways (OpenRouter / Dexto Nova / native).
+    - Rename “reasoning effort” terminology to “reasoning preset” throughout the UX.
+    - CLI: Tab cycles the active reasoning preset; reasoning traces can be displayed in the transcript.
+    - Add `/reasoning` overlay to toggle reasoning trace visibility and (when supported) set/clear budget tokens.
+    - Enable Claude interleaved thinking for Claude 4+ models and align gateway/provider request headers so reasoning tuning behaves consistently (OpenRouter / Dexto Nova / native).
+    - Improve `/model` to surface all gateway models (OpenRouter/Dexto Nova) and their reasoning capability metadata.
+    - Default spawned sub-agents to reduced/no reasoning to avoid long-running spawned tasks.
+
+- feef3b3: Fix Ink CLI `/login` flow and add interactive `/logout`.
+- 1b3a411: Migrate ink-cli stuff to separate TUI package
+- 7b2c395: Added skill creation and management tools.
+- 30f2840: Add bypass permissions feature
+- Updated dependencies [669f16e]
+- Updated dependencies [5e6383d]
+- Updated dependencies [1b3a411]
+- Updated dependencies [7b2c395]
+    - @dexto/analytics@1.6.2
+    - @dexto/agent-management@1.6.2
+    - @dexto/server@1.6.2
+    - @dexto/core@1.6.2
+    - @dexto/tui@1.6.2
+    - @dexto/agent-config@1.6.2
+    - @dexto/image-local@1.6.2
+    - @dexto/image-logger-agent@1.6.2
+    - @dexto/storage@1.6.2
+    - @dexto/registry@1.6.2
+
 ## 1.6.1
 
 ### Patch Changes
