@@ -17,7 +17,7 @@
     "@dexto/server": "workspace:*",
     "@dexto/storage": "workspace:*",
     "@dexto/tui": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.25.2",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "@opentelemetry/instrumentation-http": "^0.210.0",
     "@opentelemetry/instrumentation-undici": "^0.20.0",
     "@opentelemetry/core": "^1.28.0",
