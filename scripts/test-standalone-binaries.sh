@@ -58,10 +58,6 @@ detect_arch() {
 extract_zip() {
   local archive_path="$1"
   local output_dir="$2"
-  if command -v unzip >/dev/null 2>&1; then
-    unzip -q "${archive_path}" -d "${output_dir}"
-    return
-  fi
 
   if command -v powershell.exe >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1; then
     local archive_path_win
@@ -70,6 +66,11 @@ extract_zip() {
     output_dir_win="$(cygpath -w "${output_dir}")"
     powershell.exe -NoProfile -Command \
       "Expand-Archive -Path '${archive_path_win}' -DestinationPath '${output_dir_win}' -Force" >/dev/null
+    return
+  fi
+
+  if command -v unzip >/dev/null 2>&1; then
+    unzip -q "${archive_path}" -d "${output_dir}"
     return
   fi
 

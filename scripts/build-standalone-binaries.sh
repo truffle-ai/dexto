@@ -124,10 +124,12 @@ build_windows_zip() {
   local artifact_path="$2"
 
   if command -v zip >/dev/null 2>&1; then
+    echo "Creating Windows zip archive with zip (this can take several minutes)"
     (
       cd "${stage_dir}"
       zip -q -r "${artifact_path}" dexto.exe package.json dist node_modules
     )
+    echo "Windows zip archive created"
     return
   fi
 
@@ -136,7 +138,8 @@ build_windows_zip() {
   stage_dir_win="$(cygpath -w "${stage_dir}")"
   artifact_path_win="$(cygpath -w "${artifact_path}")"
   powershell.exe -NoProfile -Command \
-    "Compress-Archive -Path '${stage_dir_win}\\dexto.exe','${stage_dir_win}\\package.json','${stage_dir_win}\\dist','${stage_dir_win}\\node_modules' -DestinationPath '${artifact_path_win}' -Force"
+    "\$ErrorActionPreference = 'Stop'; Set-Location -LiteralPath '${stage_dir_win}'; Compress-Archive -Path 'dexto.exe','package.json','dist','node_modules' -DestinationPath '${artifact_path_win}' -Force"
+  echo "Windows zip archive created via PowerShell"
 }
 
 PLATFORM_NAME="$(detect_platform)"
