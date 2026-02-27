@@ -1,5 +1,13 @@
 # @dexto/tui
 
+## 1.6.3
+
+### Patch Changes
+
+- @dexto/core@1.6.3
+- @dexto/agent-management@1.6.3
+- @dexto/registry@1.6.3
+
 ## 1.6.2
 
 ### Patch Changes
