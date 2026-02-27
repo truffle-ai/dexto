@@ -1,5 +1,24 @@
 # @dexto/image-local
 
+## 1.6.3
+
+### Patch Changes
+
+- 991739a: - Add a GitHub Actions workflow to build and upload standalone CLI binaries to existing `dexto@*` releases.
+    - Add `scripts/build-standalone-binaries.sh` to compile multi-platform Bun executables, package runtime `dist/` assets, and generate SHA-256 checksums.
+    - Improve standalone binary runtime bootstrapping by auto-setting `DEXTO_PACKAGE_ROOT` from the executable directory and extending WebUI asset resolution fallback paths.
+    - @dexto/core@1.6.3
+    - @dexto/storage@1.6.3
+    - @dexto/agent-config@1.6.3
+    - @dexto/agent-management@1.6.3
+    - @dexto/tools-filesystem@1.6.3
+    - @dexto/tools-builtins@1.6.3
+    - @dexto/tools-process@1.6.3
+    - @dexto/tools-todo@1.6.3
+    - @dexto/tools-plan@1.6.3
+    - @dexto/tools-scheduler@1.6.3
+    - @dexto/tools-lifecycle@1.6.3
+
 ## 1.6.2
 
 ### Patch Changes

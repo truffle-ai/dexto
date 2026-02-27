@@ -1,6 +1,6 @@
 {
     "name": "@dexto/tui",
-    "version": "1.6.2",
+    "version": "1.6.3",
     "description": "Interactive terminal UI for Dexto CLI",
     "type": "module",
     "main": "./dist/index.js",
