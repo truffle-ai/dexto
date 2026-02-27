@@ -421,10 +421,13 @@ const config = {
   }
 };
 fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-" "$(to_node_path "${sea_config_path}")" "$(to_node_path "${bootstrap_path}")" "$(to_node_path "${blob_path}")" "${PAYLOAD_ASSET_NAME}" "$(to_node_path "${payload_archive_path}")"
+" "${sea_config_path}" "$(basename "${bootstrap_path}")" "$(basename "${blob_path}")" "${PAYLOAD_ASSET_NAME}" "$(basename "${payload_archive_path}")"
 
 echo "Creating SEA blob"
-node --experimental-sea-config "$(to_node_path "${sea_config_path}")"
+(
+  cd "${stage_dir}"
+  node --experimental-sea-config "$(basename "${sea_config_path}")"
+)
 
 node_path="$(command -v node)"
 binary_path="${stage_dir}/${binary_name}"
