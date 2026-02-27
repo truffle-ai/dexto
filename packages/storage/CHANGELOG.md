@@ -1,5 +1,13 @@
 # @dexto/storage
 
+## 1.6.4
+
+### Patch Changes
+
+- 7cb9082: Bump to test binary distribution
+- Updated dependencies [7cb9082]
+    - @dexto/core@1.6.4
+
 ## 1.6.3
 
 ### Patch Changes
