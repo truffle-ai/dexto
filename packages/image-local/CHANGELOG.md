@@ -1,5 +1,24 @@
 # @dexto/image-local
 
+## 1.6.2
+
+### Patch Changes
+
+- 7b2c395: Added skill creation and management tools.
+- Updated dependencies [5e6383d]
+- Updated dependencies [7b2c395]
+    - @dexto/agent-management@1.6.2
+    - @dexto/core@1.6.2
+    - @dexto/tools-builtins@1.6.2
+    - @dexto/agent-config@1.6.2
+    - @dexto/storage@1.6.2
+    - @dexto/tools-filesystem@1.6.2
+    - @dexto/tools-lifecycle@1.6.2
+    - @dexto/tools-plan@1.6.2
+    - @dexto/tools-process@1.6.2
+    - @dexto/tools-scheduler@1.6.2
+    - @dexto/tools-todo@1.6.2
+
 ## 1.6.1
 
 ### Patch Changes

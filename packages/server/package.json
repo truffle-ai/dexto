@@ -1,6 +1,6 @@
 {
   "name": "@dexto/server",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "private": false,
   "type": "module",
   "main": "./dist/index.cjs",
@@ -36,7 +36,7 @@
     "hono": "^4.11.10",
     "ws": "^8.18.1",
     "yaml": "^2.7.1",
-    "@modelcontextprotocol/sdk": "^1.25.2"
+    "@modelcontextprotocol/sdk": "^1.26.0"
   },
   "scripts": {
     "build": "cross-env NODE_OPTIONS='--max-old-space-size=8192' tsup && node ../../scripts/clean-tsbuildinfo.mjs && cross-env NODE_OPTIONS='--max-old-space-size=8192' tsc -b tsconfig.json --emitDeclarationOnly",

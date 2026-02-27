@@ -9,9 +9,8 @@ import type { MessageStreamEvent } from '@dexto/client-sdk';
 import { eventBus } from '@/lib/events/EventBus.js';
 import { useChatStore } from '@/lib/stores/chatStore.js';
 import type { Session } from './useSessions.js';
-
-// Content part types - import from centralized types.ts
-import type { FileData } from '../../types.js';
+import type { Attachment } from '../../lib/attachment-types.js';
+import { resolveMessageContent } from '../../lib/attachment-utils.js';
 
 // Tool result types
 export interface ToolResultError {
@@ -249,12 +248,7 @@ export function useChat(
     );
 
     const sendMessage = useCallback(
-        async (
-            content: string,
-            imageData?: { image: string; mimeType: string },
-            fileData?: FileData,
-            sessionId?: string
-        ) => {
+        async (content: string, attachments?: Attachment[], sessionId?: string) => {
             if (!sessionId) {
                 console.error('Session ID required for sending message');
                 return;
@@ -267,59 +261,31 @@ export function useChat(
 
             useChatStore.getState().setProcessing(sessionId, true);
 
-            // Add user message to state
+            // Add user message to state with attachments
             const userId = generateUniqueId();
             lastUserMessageIdRef.current = userId;
             lastMessageIdRef.current = userId; // Track for error anchoring
+
+            const messageContent = resolveMessageContent(content, attachments);
+
+            // Store message with full content array if multimodal, otherwise just text
             useChatStore.getState().addMessage(sessionId, {
                 id: userId,
                 role: 'user',
-                content,
+                content: messageContent,
                 createdAt: Date.now(),
                 sessionId,
-                imageData,
-                fileData,
             });
 
             // Update sessions cache (user message sent)
             updateSessionActivity(sessionId);
 
             try {
-                // Build content parts array from text, image, and file data
-                // New API uses unified ContentInput = string | ContentPart[]
-                const contentParts: Array<
-                    | { type: 'text'; text: string }
-                    | { type: 'image'; image: string; mimeType?: string }
-                    | { type: 'file'; data: string; mimeType: string; filename?: string }
-                > = [];
-
-                if (content) {
-                    contentParts.push({ type: 'text', text: content });
-                }
-                if (imageData) {
-                    contentParts.push({
-                        type: 'image',
-                        image: imageData.image,
-                        mimeType: imageData.mimeType,
-                    });
-                }
-                if (fileData) {
-                    contentParts.push({
-                        type: 'file',
-                        data: fileData.data,
-                        mimeType: fileData.mimeType,
-                        filename: fileData.filename,
-                    });
-                }
-
                 // Always use SSE for all events (tool calls, approvals, responses)
                 // The 'stream' flag only controls whether chunks update UI incrementally
                 const responsePromise = client.api['message-stream'].$post({
                     json: {
-                        content:
-                            contentParts.length === 1 && contentParts[0]?.type === 'text'
-                                ? content // Simple text-only case: send as string
-                                : contentParts, // Multimodal: send as array
+                        content: messageContent,
                         sessionId,
                     },
                 });
