@@ -39,6 +39,15 @@ to_node_path() {
   printf '%s' "${path_value}"
 }
 
+to_bash_path() {
+  local path_value="$1"
+  if is_windows_shell && command -v cygpath >/dev/null 2>&1; then
+    cygpath -u "${path_value}"
+    return
+  fi
+  printf '%s' "${path_value}"
+}
+
 hash_file() {
   local file_path="$1"
   if command -v sha256sum >/dev/null 2>&1; then
@@ -111,6 +120,7 @@ if [[ ! -f "${CLI_PACKAGE_JSON}" ]]; then
   exit 1
 fi
 
+OUTPUT_DIR="$(to_bash_path "${OUTPUT_DIR}")"
 mkdir -p "${OUTPUT_DIR}"
 
 detect_platform() {
