@@ -1,5 +1,11 @@
 # @dexto/registry
 
+## 1.6.6
+
+### Patch Changes
+
+- 7e2bcd2: fix windows escape sequence
+
 ## 1.6.5
 
 ### Patch Changes
