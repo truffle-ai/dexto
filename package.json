@@ -59,6 +59,7 @@
         "test:ci": "vitest run --coverage",
         "test:integ": "vitest run --config vitest.integration.config.ts",
         "test:integ:watch": "vitest watch --config vitest.integration.config.ts",
+        "test:standalone": "bash scripts/test-standalone-binaries.sh",
         "test:unit": "vitest run --exclude '**/*.integration.test.ts'",
         "test:unit:watch": "vitest watch --exclude '**/*.integration.test.ts'",
         "test:watch": "vitest watch",
