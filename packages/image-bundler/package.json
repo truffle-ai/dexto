@@ -1,6 +1,6 @@
 {
     "name": "@dexto/image-bundler",
-    "version": "1.6.4",
+    "version": "1.6.5",
     "description": "Bundler for Dexto base images",
     "type": "module",
     "main": "./dist/index.js",
