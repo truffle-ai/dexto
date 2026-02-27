@@ -12,10 +12,7 @@ on:
       - scripts/copy-webui-dist.ts
       - package.json
       - pnpm-lock.yaml
-      - packages/**/package.json
-      - packages/cli/**
-      - packages/image-local/**
-      - packages/image-logger-agent/**
+      - packages/**
   workflow_dispatch: {}
 
 concurrency:
