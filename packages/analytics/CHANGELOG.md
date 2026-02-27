@@ -1,5 +1,49 @@
 # @dexto/analytics
 
+## 1.6.2
+
+### Patch Changes
+
+- 669f16e: Add copy-paste and drag-drop support for multiple file attachments
+
+    **New Features:**
+    - Support for up to 5 file attachments per message (5MB each, 25MB total)
+    - Copy-paste files from file manager, screenshots, and images from browser
+    - Drag-drop files with visual feedback and drop overlay
+    - Multiple file types supported: images, PDFs, and audio files
+    - Dedicated attachment preview component with individual remove buttons
+    - "Clear All" button for bulk attachment removal
+
+    **Improvements:**
+    - Comprehensive file validation with smart error messages
+    - Compatible model suggestions for unsupported file types
+    - File rejection analytics tracking
+    - Unified file handler for consistent validation across all input methods
+    - Consistent duplicate file rejection across all upload methods (paste/drop/button)
+    - Defensive checks for undefined mimeType and malformed data URLs
+
+    **Technical Changes:**
+    - Refactored from single image+file to unified `Attachment[]` array
+    - Updated `InputArea`, `ChatApp`, `ChatContext`, `useChat`, and `useQueue` signatures
+    - Created `AttachmentPreview` component for consistent rendering
+    - Added `FileRejectedEvent` analytics event
+    - Helper utilities for attachment management
+
+- 5e6383d: Add reasoning presets + reasoning trace controls across CLI/WebUI:
+    - Introduce structured reasoning config (preset + optional budget tokens) with provider-aware reasoning presets (`off|low|medium|high|max|xhigh`) and validate availability via the LLM registry (including the dynamic OpenRouter catalog).
+    - Map presets to provider-native knobs (e.g. OpenAI `reasoningEffort`, budget-token models) and reuse the same behavior across gateways (OpenRouter / Dexto Nova / native).
+    - Rename “reasoning effort” terminology to “reasoning preset” throughout the UX.
+    - CLI: Tab cycles the active reasoning preset; reasoning traces can be displayed in the transcript.
+    - Add `/reasoning` overlay to toggle reasoning trace visibility and (when supported) set/clear budget tokens.
+    - Enable Claude interleaved thinking for Claude 4+ models and align gateway/provider request headers so reasoning tuning behaves consistently (OpenRouter / Dexto Nova / native).
+    - Improve `/model` to surface all gateway models (OpenRouter/Dexto Nova) and their reasoning capability metadata.
+    - Default spawned sub-agents to reduced/no reasoning to avoid long-running spawned tasks.
+
+- Updated dependencies [5e6383d]
+- Updated dependencies [7b2c395]
+    - @dexto/agent-management@1.6.2
+    - @dexto/core@1.6.2
+
 ## 1.6.1
 
 ### Patch Changes

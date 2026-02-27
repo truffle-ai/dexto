@@ -1,5 +1,15 @@
 # @dexto/agent-config
 
+## 1.6.2
+
+### Patch Changes
+
+- 7b2c395: Added skill creation and management tools.
+- Updated dependencies [5e6383d]
+- Updated dependencies [7b2c395]
+    - @dexto/core@1.6.2
+    - @dexto/storage@1.6.2
+
 ## 1.6.1
 
 ### Patch Changes
