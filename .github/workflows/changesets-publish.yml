@@ -28,6 +28,9 @@ permissions:
 
 jobs:
   release:
+    outputs:
+      published: ${{ steps.changesets.outputs.published }}
+      published_packages: ${{ steps.changesets.outputs.publishedPackages }}
     runs-on: ubuntu-latest
     env:
       NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -47,9 +50,98 @@ jobs:
           scope: '@dexto'
       - run: pnpm install --frozen-lockfile
       - name: Version / Publish with Changesets
+        id: changesets
         uses: changesets/action@v1
         with:
           title: 'chore: version packages'
           commit: 'chore: version packages'
           version: pnpm run changeset:version
           publish: pnpm run changeset:publish
+
+  derive-dexto-release-tag:
+    needs: release
+    if: needs.release.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.tag.outputs.release_tag }}
+      version: ${{ steps.tag.outputs.version }}
+    steps:
+      - name: Derive dexto release tag from published packages
+        id: tag
+        env:
+          PUBLISHED_PACKAGES: ${{ needs.release.outputs.published_packages }}
+        run: |
+          VERSION="$(
+            echo "${PUBLISHED_PACKAGES}" \
+              | jq -r '.[] | select(.name == "dexto") | .version' \
+              | head -n 1
+          )"
+
+          if [[ -z "${VERSION}" || "${VERSION}" == "null" ]]; then
+            echo "No dexto package found in publishedPackages; skipping standalone binaries."
+            echo "release_tag=" >> "${GITHUB_OUTPUT}"
+            echo "version=" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          echo "release_tag=dexto@${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+
+  build-and-upload-standalone-binaries:
+    needs: derive-dexto-release-tag
+    if: needs.derive-dexto-release-tag.outputs.release_tag != ''
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ needs.derive-dexto-release-tag.outputs.release_tag }}
+      VERSION: ${{ needs.derive-dexto-release-tag.outputs.version }}
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.5'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages and embed WebUI
+        run: pnpm run build:all
+
+      - name: Build standalone binaries
+        run: |
+          scripts/build-standalone-binaries.sh \
+            --version "${VERSION}" \
+            --output-dir "${RUNNER_TEMP}/dexto-binaries"
+
+      - name: Wait for release to be available
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for _ in {1..12}; do
+            if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo "Release ${RELEASE_TAG} was not available in time." >&2
+          exit 1
+
+      - name: Upload binaries to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${RELEASE_TAG}" "${RUNNER_TEMP}/dexto-binaries"/* --clobber
