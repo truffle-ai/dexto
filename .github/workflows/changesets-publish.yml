@@ -186,10 +186,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          for _ in {1..30}; do
-            if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+          for attempt in {1..30}; do
+            if gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+              echo "Release ${RELEASE_TAG} is available."
               exit 0
             fi
+            echo "Waiting for release ${RELEASE_TAG} (attempt ${attempt}/30)..."
             sleep 10
           done
 
@@ -200,4 +202,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload "${RELEASE_TAG}" "${RUNNER_TEMP}/dexto-binaries"/* --clobber
+          gh release upload "${RELEASE_TAG}" "${RUNNER_TEMP}/dexto-binaries"/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --clobber
