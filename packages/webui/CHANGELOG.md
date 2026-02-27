@@ -1,5 +1,19 @@
 # @dexto/webui
 
+## 1.6.5
+
+### Patch Changes
+
+- 60aab0e: Fix windows build for binary distribution
+- Updated dependencies [60aab0e]
+- Updated dependencies [19a4983]
+    - @dexto/agent-config@1.6.5
+    - @dexto/analytics@1.6.5
+    - @dexto/client-sdk@1.6.5
+    - @dexto/core@1.6.5
+    - @dexto/registry@1.6.5
+    - @dexto/storage@1.6.5
+
 ## 1.6.4
 
 ### Patch Changes

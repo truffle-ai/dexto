@@ -1,6 +1,6 @@
 {
     "name": "@dexto/core",
-    "version": "1.6.4",
+    "version": "1.6.5",
     "private": false,
     "type": "module",
     "main": "./dist/index.js",

@@ -1,5 +1,11 @@
 # @dexto/registry
 
+## 1.6.5
+
+### Patch Changes
+
+- 60aab0e: Fix windows build for binary distribution
+
 ## 1.6.4
 
 ### Patch Changes

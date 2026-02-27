@@ -1,5 +1,16 @@
 # @dexto/tui
 
+## 1.6.5
+
+### Patch Changes
+
+- 60aab0e: Fix windows build for binary distribution
+- Updated dependencies [60aab0e]
+- Updated dependencies [19a4983]
+    - @dexto/agent-management@1.6.5
+    - @dexto/core@1.6.5
+    - @dexto/registry@1.6.5
+
 ## 1.6.4
 
 ### Patch Changes

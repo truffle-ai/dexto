@@ -1,5 +1,12 @@
 # @dexto/core
 
+## 1.6.5
+
+### Patch Changes
+
+- 60aab0e: Fix windows build for binary distribution
+- 19a4983: Update scripts to remove single quotes for windows compat
+
 ## 1.6.4
 
 ### Patch Changes
