@@ -59,7 +59,8 @@ done
 
 if [[ -z "${VERSION}" ]]; then
   VERSION="$(
-    node -e "const fs=require('node:fs'); const p='${ROOT_DIR}/packages/cli/package.json'; process.stdout.write(JSON.parse(fs.readFileSync(p,'utf8')).version);"
+    cd "${ROOT_DIR}"
+    node -e "const fs=require('node:fs'); const p='packages/cli/package.json'; process.stdout.write(JSON.parse(fs.readFileSync(p,'utf8')).version);"
   )"
 fi
 
