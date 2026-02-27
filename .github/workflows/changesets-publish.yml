@@ -87,10 +87,27 @@ jobs:
           echo "release_tag=dexto@${VERSION}" >> "${GITHUB_OUTPUT}"
           echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
 
-  build-and-upload-standalone-binaries:
+  build-standalone-binaries:
     needs: derive-dexto-release-tag
     if: needs.derive-dexto-release-tag.outputs.release_tag != ''
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            target: darwin-arm64
+          - runner: macos-13
+            target: darwin-x64
+          - runner: ubuntu-24.04
+            target: linux-x64
+          - runner: ubuntu-24.04-arm
+            target: linux-arm64
+          - runner: windows-latest
+            target: windows-x64
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
     env:
       RELEASE_TAG: ${{ needs.derive-dexto-release-tag.outputs.release_tag }}
       VERSION: ${{ needs.derive-dexto-release-tag.outputs.version }}
@@ -109,22 +126,60 @@ jobs:
           node-version: '20'
           cache: 'pnpm'
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.3.5'
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Build packages and embed WebUI
         run: pnpm run build:all
 
-      - name: Build standalone binaries
+      - name: Build standalone binary
         run: |
           scripts/build-standalone-binaries.sh \
             --version "${VERSION}" \
-            --output-dir "${RUNNER_TEMP}/dexto-binaries"
+            --output-dir "${RUNNER_TEMP}/dexto-binaries" \
+            --skip-checksums
+
+      - name: Upload standalone artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: standalone-${{ matrix.target }}
+          path: |
+            ${{ runner.temp }}/dexto-binaries/dexto-${{ env.VERSION }}-${{ matrix.target }}.tar.gz
+            ${{ runner.temp }}/dexto-binaries/dexto-${{ env.VERSION }}-${{ matrix.target }}.zip
+          if-no-files-found: error
+
+  upload-standalone-binaries:
+    needs:
+      - derive-dexto-release-tag
+      - build-standalone-binaries
+    if: needs.derive-dexto-release-tag.outputs.release_tag != ''
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ needs.derive-dexto-release-tag.outputs.release_tag }}
+      VERSION: ${{ needs.derive-dexto-release-tag.outputs.version }}
+    steps:
+      - name: Download standalone artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: standalone-*
+          path: ${{ runner.temp }}/dexto-binaries
+          merge-multiple: true
+
+      - name: Create checksums file
+        run: |
+          cd "${RUNNER_TEMP}/dexto-binaries"
+          {
+            shopt -s nullglob
+            assets=(dexto-"${VERSION}"-*.tar.gz dexto-"${VERSION}"-*.zip)
+            for asset in "${assets[@]}"; do
+              if command -v sha256sum >/dev/null 2>&1; then
+                hash="$(sha256sum "${asset}" | awk '{print $1}')"
+              else
+                hash="$(shasum -a 256 "${asset}" | awk '{print $1}')"
+              fi
+              echo "${hash}  ${asset}"
+            done
+          } | sort > "dexto-${VERSION}-checksums.txt"
 
       - name: Wait for release to be available
         env:
