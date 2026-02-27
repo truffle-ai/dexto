@@ -4,9 +4,8 @@ import { fileURLToPath } from 'url';
 import { Command } from 'commander';
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
-import { initAnalytics, capture, getWebUIAnalyticsConfig } from './analytics/index.js';
 import { withAnalytics, safeExit, ExitSignal } from './analytics/wrapper.js';
-import { createFileSessionLoggerFactory } from './utils/session-logger-factory.js';
+import type { UpdateInfo } from './cli/utils/version-check.js';
 
 function readVersionFromPackageJson(packageJsonPath: string): string | undefined {
     if (!existsSync(packageJsonPath)) {
@@ -53,25 +52,13 @@ const cliVersion = resolveCliVersion();
 // Set CLI version for Dexto Gateway usage tracking
 process.env.DEXTO_CLI_VERSION = cliVersion;
 
-// Populate DEXTO_API_KEY for Dexto gateway routing
-// Resolution order in getDextoApiKey():
-//   1. Explicit env var (CI, testing, account override)
-//   2. auth.json from `dexto login`
-import { isDextoAuthEnabled } from '@dexto/agent-management';
-if (isDextoAuthEnabled()) {
-    const { getDextoApiKey } = await import('./cli/auth/index.js');
-    const dextoApiKey = await getDextoApiKey();
-    if (dextoApiKey) {
-        process.env.DEXTO_API_KEY = dextoApiKey;
-    }
-}
-
 import {
     logger,
     getProviderFromModel,
     getAllSupportedModels,
     startLlmRegistryAutoUpdate,
     DextoAgent,
+    createAgentCard,
     type LLMProvider,
     isPath,
     resolveApiKeyForProvider,
@@ -95,12 +82,12 @@ import {
     globalPreferencesExist,
     loadGlobalPreferences,
     resolveBundledScript,
+    enrichAgentConfig,
+    isDextoAuthEnabled,
 } from '@dexto/agent-management';
-import { startHonoApiServer } from './api/server-hono.js';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
 import { validateAgentConfig } from './cli/utils/config-validation.js';
 import { applyCLIOverrides, applyUserPreferences } from './config/cli-overrides.js';
-import { enrichAgentConfig } from '@dexto/agent-management';
 import { getPort } from './utils/port-utils.js';
 import {
     createDextoProject,
@@ -109,8 +96,6 @@ import {
     getUserInputToInitDextoApp,
     initDexto,
     postInitDexto,
-} from './cli/commands/index.js';
-import {
     handleSetupCommand,
     type CLISetupOptionsInput,
     handleInstallCommand,
@@ -148,38 +133,59 @@ import {
     type PluginInstallCommandOptionsInput,
     type MarketplaceListCommandOptionsInput,
     type MarketplaceInstallCommandOptionsInput,
-} from './cli/commands/index.js';
-import {
     handleSessionListCommand,
     handleSessionHistoryCommand,
     handleSessionDeleteCommand,
     handleSessionSearchCommand,
-} from './cli/commands/session-commands.js';
-import { requiresSetup } from './cli/utils/setup-utils.js';
-import { checkForFileInCurrentDirectory, FileNotFoundError } from './cli/utils/package-mgmt.js';
-import { checkForUpdates, displayUpdateNotification } from './cli/utils/version-check.js';
-import { resolveWebRoot } from './web.js';
-import { initializeMcpServer, createMcpTransport } from '@dexto/server';
-import { createAgentCard } from '@dexto/core';
-import { initializeMcpToolAggregationServer } from './api/mcp/tool-aggregation-handler.js';
-import { CLIConfigOverrides } from './config/cli-overrides.js';
-import { importImageModule } from './cli/utils/image-store.js';
+} from './cli/commands/lazy.js';
+import type { CLIConfigOverrides } from './config/cli-overrides.js';
 
 const program = new Command();
 
-// Resolve images via the Dexto image store when installed; fall back to host imports (pnpm-safe).
-setImageImporter((specifier) => importImageModule(specifier));
+let imageImporterConfigured = false;
+let dextoApiKeyBootstrapped = false;
+let versionCheckPromise: Promise<UpdateInfo | null> | null = null;
+let llmRegistryAutoUpdateStarted = false;
 
-// Initialize analytics early (no-op if disabled)
-await initAnalytics({ appVersion: cliVersion });
+async function ensureImageImporterConfigured(): Promise<void> {
+    if (imageImporterConfigured) {
+        return;
+    }
+    const { importImageModule } = await import('./cli/utils/image-store.js');
+    setImageImporter((specifier) => importImageModule(specifier));
+    imageImporterConfigured = true;
+}
 
-// Start version check early (non-blocking)
-// We'll check the result later and display notification for interactive modes
-const versionCheckPromise = checkForUpdates(cliVersion);
+async function ensureDextoApiKeyBootstrap(): Promise<void> {
+    if (dextoApiKeyBootstrapped) {
+        return;
+    }
+    dextoApiKeyBootstrapped = true;
+    if (!isDextoAuthEnabled()) {
+        return;
+    }
+    const { getDextoApiKey } = await import('./cli/auth/index.js');
+    const dextoApiKey = await getDextoApiKey();
+    if (dextoApiKey) {
+        process.env.DEXTO_API_KEY = dextoApiKey;
+    }
+}
 
-// Start self-updating LLM registry refresh (models.dev + OpenRouter mapping).
-// Uses a cached snapshot on disk and refreshes in the background.
-startLlmRegistryAutoUpdate();
+async function getVersionCheckResult(): Promise<UpdateInfo | null> {
+    if (!versionCheckPromise) {
+        const { checkForUpdates } = await import('./cli/utils/version-check.js');
+        versionCheckPromise = checkForUpdates(cliVersion);
+    }
+    return versionCheckPromise;
+}
+
+function ensureLlmRegistryAutoUpdateStarted(): void {
+    if (llmRegistryAutoUpdateStarted) {
+        return;
+    }
+    startLlmRegistryAutoUpdate();
+    llmRegistryAutoUpdateStarted = true;
+}
 
 // 1) GLOBAL OPTIONS
 program
@@ -402,6 +408,9 @@ program
     .description('Initialize an existing Typescript app with Dexto')
     .action(
         withAnalytics('init-app', async () => {
+            const { checkForFileInCurrentDirectory, FileNotFoundError } = await import(
+                './cli/utils/package-mgmt.js'
+            );
             try {
                 // pre-condition: check that package.json and tsconfig.json exist in current directory to know that project is valid
                 await checkForFileInCurrentDirectory('package.json');
@@ -411,6 +420,7 @@ program
                 p.intro(chalk.inverse('Dexto Init App'));
                 const userInput = await getUserInputToInitDextoApp();
                 try {
+                    const { capture } = await import('./analytics/index.js');
                     capture('dexto_init', {
                         provider: userInput.llmProvider,
                         providedKey: Boolean(userInput.llmApiKey),
@@ -773,6 +783,9 @@ marketplaceCommand
 
 // Helper to bootstrap a minimal agent for non-interactive session/search ops
 async function bootstrapAgentFromGlobalOpts() {
+    await ensureDextoApiKeyBootstrap();
+    await ensureImageImporterConfigured();
+
     const globalOpts = program.opts();
     const resolvedPath = await resolveAgentPath(globalOpts.agent, globalOpts.autoInstall !== false);
     const rawConfig = await loadAgentConfig(resolvedPath);
@@ -1116,6 +1129,11 @@ program
         withAnalytics(
             'mcp',
             async (options) => {
+                const [{ createMcpTransport }, { initializeMcpToolAggregationServer }] =
+                    await Promise.all([
+                        import('@dexto/server'),
+                        import('./api/mcp/tool-aggregation-handler.js'),
+                    ]);
                 try {
                     // Validate that --group-servers flag is provided (mandatory for now)
                     if (!options.groupServers) {
@@ -1218,6 +1236,10 @@ program
         withAnalytics(
             'main',
             async () => {
+                await ensureDextoApiKeyBootstrap();
+                await ensureImageImporterConfigured();
+                ensureLlmRegistryAutoUpdateStarted();
+
                 // ——— ENV CHECK (optional) ———
                 if (!existsSync('.env')) {
                     logger.debug(
@@ -1376,6 +1398,7 @@ program
 
                         // Check setup state and auto-trigger if needed
                         // Skip if --skip-setup flag is set (for MCP mode, automation, etc.)
+                        const { requiresSetup } = await import('./cli/utils/setup-utils.js');
                         if (!opts.skipSetup && (await requiresSetup())) {
                             if (opts.interactive === false) {
                                 console.error(
@@ -1681,6 +1704,9 @@ program
                     // Config is already enriched and validated - ready for agent creation
                     // DextoAgent will parse/validate again (parse-twice pattern)
                     // isInteractiveMode is already defined above for validateAgentConfig
+                    const { createFileSessionLoggerFactory } = await import(
+                        './utils/session-logger-factory.js'
+                    );
                     const sessionLoggerFactory = createFileSessionLoggerFactory();
 
                     const mcpAuthProviderFactory =
@@ -1826,7 +1852,7 @@ program
                         }
 
                         // Check for updates (will be shown in Ink header)
-                        const cliUpdateInfo = await versionCheckPromise;
+                        const cliUpdateInfo = await getVersionCheckResult();
 
                         // Check if installed agents differ from bundled and prompt to sync
                         const needsSync = await shouldPromptForSync();
@@ -1877,6 +1903,7 @@ program
                                 },
                                 { isUsingDextoCredits },
                                 { canUseDextoProvider },
+                                { capture },
                             ] = await Promise.all([
                                 import('@dexto/tui'),
                                 import('./utils/graceful-shutdown.js'),
@@ -1885,6 +1912,7 @@ program
                                 import('./cli/auth/index.js'),
                                 import('./config/effective-llm.js'),
                                 import('./cli/utils/dexto-setup.js'),
+                                import('./analytics/index.js'),
                             ]);
 
                             setTuiRuntimeServices({
@@ -1947,6 +1975,16 @@ program
                     // falls through - safeExit returns never, but eslint doesn't know that
 
                     case 'web': {
+                        const [
+                            { resolveWebRoot },
+                            { startHonoApiServer },
+                            { getWebUIAnalyticsConfig },
+                        ] = await Promise.all([
+                            import('./web.js'),
+                            import('./api/server-hono.js'),
+                            import('./analytics/index.js'),
+                        ]);
+
                         // Default to 3000 for web mode
                         const defaultPort = opts.port ? parseInt(opts.port, 10) : 3000;
                         const port = getPort(process.env.PORT, defaultPort, 'PORT');
@@ -1979,8 +2017,11 @@ program
                         console.log(chalk.green(`✅ Server running at ${serverUrl}`));
 
                         // Show update notification if available
-                        const webUpdateInfo = await versionCheckPromise;
+                        const webUpdateInfo = await getVersionCheckResult();
                         if (webUpdateInfo) {
+                            const { displayUpdateNotification } = await import(
+                                './cli/utils/version-check.js'
+                            );
                             displayUpdateNotification(webUpdateInfo);
                         }
 
@@ -2003,6 +2044,8 @@ program
                     // Start server with REST APIs and SSE on port 3001
                     // This also enables dexto to be used as a remote mcp server at localhost:3001/mcp
                     case 'server': {
+                        const { startHonoApiServer } = await import('./api/server-hono.js');
+
                         // Start server with REST APIs and SSE only
                         const agentCard = agent.config.agentCard ?? {};
                         // Default to 3001 for server mode
@@ -2027,8 +2070,11 @@ program
                         console.log('  SSE support available for real-time events');
 
                         // Show update notification if available
-                        const serverUpdateInfo = await versionCheckPromise;
+                        const serverUpdateInfo = await getVersionCheckResult();
                         if (serverUpdateInfo) {
+                            const { displayUpdateNotification } = await import(
+                                './cli/utils/version-check.js'
+                            );
                             displayUpdateNotification(serverUpdateInfo);
                         }
                         break;
@@ -2056,6 +2102,9 @@ program
                                 agentCardConfig // preserve overrides from agent file
                             );
                             // Use stdio transport in mcp mode
+                            const { createMcpTransport, initializeMcpServer } = await import(
+                                '@dexto/server'
+                            );
                             const mcpTransport = await createMcpTransport('stdio');
                             await initializeMcpServer(agent, agentCardData, mcpTransport);
                         } catch (err) {
