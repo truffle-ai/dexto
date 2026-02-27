@@ -281,6 +281,17 @@ function escapePowerShellLiteral(value) {
     return String(value).replace(/'/g, "''");
 }
 
+function toMsysPath(value) {
+    const normalized = String(value);
+    const match = /^([A-Za-z]):\\(.*)$/.exec(normalized);
+    if (!match) {
+        return normalized.replace(/\\/g, '/');
+    }
+    const drive = match[1].toLowerCase();
+    const tail = match[2].replace(/\\/g, '/');
+    return `/${drive}/${tail}`;
+}
+
 function readMarker(markerPath) {
     try {
         return readFileSync(markerPath, 'utf8');
@@ -312,7 +323,9 @@ function extractPayload(archivePath, destinationDir) {
 
     const childEnv = { ...process.env };
     delete childEnv.LC_ALL;
-    const result = spawnSync('tar', ['-xzf', archivePath, '-C', destinationDir], {
+    const archiveArg = process.platform === 'win32' ? toMsysPath(archivePath) : archivePath;
+    const destinationArg = process.platform === 'win32' ? toMsysPath(destinationDir) : destinationDir;
+    const result = spawnSync('tar', ['-xzf', archiveArg, '-C', destinationArg], {
         stdio: 'inherit',
         env: childEnv,
     });
