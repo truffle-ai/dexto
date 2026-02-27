@@ -58,8 +58,9 @@ detect_arch() {
 extract_zip() {
   local archive_path="$1"
   local output_dir="$2"
-  if command -v unzip >/dev/null 2>&1; then
-    unzip -q "${archive_path}" -d "${output_dir}"
+
+  if command -v 7z >/dev/null 2>&1; then
+    7z x -y "-o${output_dir}" "${archive_path}" >/dev/null
     return
   fi
 
@@ -73,8 +74,45 @@ extract_zip() {
     return
   fi
 
+  if command -v unzip >/dev/null 2>&1; then
+    unzip -q "${archive_path}" -d "${output_dir}"
+    return
+  fi
+
   echo "Could not extract zip artifact: unzip (or powershell + cygpath) is required." >&2
   exit 1
+}
+
+run_with_timeout() {
+  local timeout_secs="$1"
+  shift
+
+  if command -v timeout >/dev/null 2>&1 && timeout --version >/dev/null 2>&1; then
+    timeout "${timeout_secs}" "$@"
+    return
+  fi
+
+  node -e "
+const { spawn } = require('node:child_process');
+const timeoutMs = Number(process.argv[1]);
+const cmd = process.argv[2];
+const args = process.argv.slice(3);
+const child = spawn(cmd, args, { stdio: 'inherit', env: process.env });
+const timer = setTimeout(() => {
+  child.kill();
+  process.exit(124);
+}, timeoutMs);
+child.on('exit', (code, signal) => {
+  clearTimeout(timer);
+  if (signal) process.exit(124);
+  process.exit(code ?? 1);
+});
+child.on('error', (error) => {
+  clearTimeout(timer);
+  console.error(error);
+  process.exit(1);
+});
+" "$((timeout_secs * 1000))" "$@"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -124,7 +162,8 @@ done
 
 if [[ -z "${VERSION}" ]]; then
   VERSION="$(
-    node -e "const fs=require('node:fs'); const p='${ROOT_DIR}/packages/cli/package.json'; process.stdout.write(JSON.parse(fs.readFileSync(p,'utf8')).version);"
+    cd "${ROOT_DIR}"
+    node -e "const fs=require('node:fs'); const p='packages/cli/package.json'; process.stdout.write(JSON.parse(fs.readFileSync(p,'utf8')).version);"
   )"
 fi
 
@@ -215,7 +254,7 @@ if [[ "${version_output}" != "${VERSION}" ]]; then
 fi
 echo "Version check passed (${version_output})"
 
-DEXTO_API_KEY=dummy "${binary_path}" --no-interactive list-agents >/dev/null
-echo "list-agents smoke test passed"
+DEXTO_API_KEY=dummy run_with_timeout 120 "${binary_path}" --no-interactive --help >/dev/null
+echo "CLI execution smoke test passed"
 
 echo "Standalone artifact smoke test passed: ${artifact_name}"

@@ -57,19 +57,20 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if ! command -v node >/dev/null 2>&1; then
+  echo "node is required but was not found in PATH." >&2
+  exit 1
+fi
+
 if [[ -z "${VERSION}" ]]; then
   VERSION="$(
-    node -e "const fs=require('node:fs'); const p='${ROOT_DIR}/packages/cli/package.json'; process.stdout.write(JSON.parse(fs.readFileSync(p,'utf8')).version);"
+    cd "${ROOT_DIR}"
+    node -e "const fs=require('node:fs'); const p='packages/cli/package.json'; process.stdout.write(JSON.parse(fs.readFileSync(p,'utf8')).version);"
   )"
 fi
 
 if [[ -z "${VERSION}" ]]; then
   echo "Could not determine CLI version." >&2
-  exit 1
-fi
-
-if ! command -v node >/dev/null 2>&1; then
-  echo "node is required but was not found in PATH." >&2
   exit 1
 fi
 
@@ -121,21 +122,39 @@ detect_arch() {
 build_windows_zip() {
   local stage_dir="$1"
   local artifact_path="$2"
+  rm -f "${artifact_path}"
 
-  if command -v zip >/dev/null 2>&1; then
+  if command -v 7z >/dev/null 2>&1; then
+    echo "Creating Windows zip archive with 7z (fast mode)"
     (
       cd "${stage_dir}"
-      zip -q -r "${artifact_path}" dexto.exe package.json dist node_modules
+      7z a -tzip -mx=1 "${artifact_path}" dexto.exe package.json dist node_modules >/dev/null
     )
+    echo "Windows zip archive created"
+    return
+  fi
+
+  if command -v zip >/dev/null 2>&1; then
+    echo "Creating Windows zip archive with zip (fast mode)"
+    (
+      cd "${stage_dir}"
+      zip -1 -q -r "${artifact_path}" dexto.exe package.json dist node_modules
+    )
+    echo "Windows zip archive created"
     return
   fi
 
   local stage_dir_win
   local artifact_path_win
+  local stage_dir_win_escaped
+  local artifact_path_win_escaped
   stage_dir_win="$(cygpath -w "${stage_dir}")"
   artifact_path_win="$(cygpath -w "${artifact_path}")"
+  stage_dir_win_escaped="${stage_dir_win//\'/''}"
+  artifact_path_win_escaped="${artifact_path_win//\'/''}"
   powershell.exe -NoProfile -Command \
-    "Compress-Archive -Path '${stage_dir_win}\\dexto.exe','${stage_dir_win}\\package.json','${stage_dir_win}\\dist','${stage_dir_win}\\node_modules' -DestinationPath '${artifact_path_win}' -Force"
+    "\$ErrorActionPreference = 'Stop'; Set-Location -LiteralPath '${stage_dir_win_escaped}'; Compress-Archive -Path 'dexto.exe','package.json','dist','node_modules' -DestinationPath '${artifact_path_win_escaped}' -Force"
+  echo "Windows zip archive created via PowerShell"
 }
 
 PLATFORM_NAME="$(detect_platform)"
@@ -179,15 +198,20 @@ const entrypointPath = resolve(dirname(process.execPath), 'dist', 'index.js');
 });
 EOF
 
-cat > "${sea_config_path}" <<EOF
-{
-  "main": "${bootstrap_path}",
-  "output": "${blob_path}",
-  "disableExperimentalSEAWarning": true,
-  "useCodeCache": false,
-  "useSnapshot": false
-}
-EOF
+node -e "
+const fs = require('node:fs');
+const configPath = process.argv[1];
+const mainPath = process.argv[2];
+const outputPath = process.argv[3];
+const config = {
+  main: mainPath,
+  output: outputPath,
+  disableExperimentalSEAWarning: true,
+  useCodeCache: false,
+  useSnapshot: false
+};
+fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+" "${sea_config_path}" "${bootstrap_path}" "${blob_path}"
 
 echo "Creating SEA blob"
 node --experimental-sea-config "${sea_config_path}"
@@ -217,6 +241,13 @@ fi
 
 if [[ "${PLATFORM_NAME}" != "windows" ]]; then
   chmod +x "${binary_path}"
+fi
+
+# Quick runtime sanity check before archiving.
+prearchive_version="$("${binary_path}" --version | tr -d '\r')"
+if [[ "${prearchive_version}" != "${VERSION}" ]]; then
+  echo "Pre-archive version check failed: expected ${VERSION}, got ${prearchive_version}" >&2
+  exit 1
 fi
 
 artifact_base="dexto-${VERSION}-${PLATFORM_NAME}-${ARCH_NAME}"

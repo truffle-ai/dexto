@@ -1,0 +1,92 @@
+name: Standalone Binary Smoke
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - .github/workflows/changesets-publish.yml
+      - .github/workflows/release-standalone-binaries.yml
+      - .github/workflows/standalone-binary-smoke.yml
+      - scripts/build-standalone-binaries.sh
+      - scripts/test-standalone-binaries.sh
+      - scripts/copy-webui-dist.ts
+      - package.json
+      - pnpm-lock.yaml
+      - packages/**
+  workflow_dispatch: {}
+
+concurrency:
+  group: standalone-binary-smoke-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            target: darwin-arm64
+          - runner: macos-15-intel
+            target: darwin-x64
+          - runner: ubuntu-24.04
+            target: linux-x64
+          - runner: ubuntu-24.04-arm
+            target: linux-arm64
+          - runner: windows-latest
+            target: windows-x64
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages and embed WebUI
+        run: pnpm run build:all
+
+      - name: Build standalone binary
+        run: |
+          scripts/build-standalone-binaries.sh \
+            --output-dir "${RUNNER_TEMP}/dexto-binaries" \
+            --skip-checksums
+
+      - name: Smoke test standalone binary
+        if: matrix.target != 'windows-x64'
+        run: |
+          scripts/test-standalone-binaries.sh \
+            --input-dir "${RUNNER_TEMP}/dexto-binaries" \
+            --skip-checksums
+
+      - name: Validate Windows standalone archive
+        if: matrix.target == 'windows-x64'
+        run: |
+          artifact_path="$(ls -1 "${RUNNER_TEMP}/dexto-binaries"/dexto-*.zip | head -n1)"
+          if [[ -z "${artifact_path}" || ! -f "${artifact_path}" ]]; then
+            echo "Windows artifact not found in ${RUNNER_TEMP}/dexto-binaries" >&2
+            exit 1
+          fi
+
+          if command -v 7z >/dev/null 2>&1; then
+            7z t "${artifact_path}" >/dev/null
+          elif command -v powershell.exe >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1; then
+            artifact_path_win="$(cygpath -w "${artifact_path}")"
+            powershell.exe -NoProfile -Command \
+              "if (-not (Test-Path -LiteralPath '${artifact_path_win}')) { exit 1 }"
+          else
+            echo "Could not validate Windows artifact: 7z (or powershell + cygpath) is required." >&2
+            exit 1
+          fi
