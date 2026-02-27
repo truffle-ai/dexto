@@ -41,11 +41,37 @@ import {
 } from '@dexto/agent-management';
 import { getLLMProviderDisplayName } from '../../utils/llm-provider-display.js';
 import { getMaxVisibleItemsForTerminalRows } from '../../utils/overlaySizing.js';
+import {
+    getCachedStringWidth,
+    stripUnsafeCharacters,
+    toCodePoints,
+} from '../../utils/textUtils.js';
 import { HintBar } from '../shared/HintBar.js';
 
-type ModelSelectorTab = 'for-you' | 'all-models';
-type ForYouSection = 'featured' | 'recents' | 'favorites' | 'custom';
+type ModelSelectorTab = 'all-models' | 'featured' | 'recents' | 'favorites' | 'custom';
 const FEATURED_SECTION_LIMIT = 8;
+const MODEL_SELECTOR_TABS: ReadonlyArray<{ id: ModelSelectorTab; label: string }> = [
+    { id: 'all-models', label: 'All' },
+    { id: 'featured', label: 'Featured' },
+    { id: 'recents', label: 'Recents' },
+    { id: 'favorites', label: 'Favorites' },
+    { id: 'custom', label: 'Custom' },
+];
+
+function getNextModelSelectorTab(current: ModelSelectorTab): ModelSelectorTab {
+    const currentIndex = MODEL_SELECTOR_TABS.findIndex((tab) => tab.id === current);
+    const nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % MODEL_SELECTOR_TABS.length;
+    return MODEL_SELECTOR_TABS[nextIndex]?.id ?? 'all-models';
+}
+
+function getPreviousModelSelectorTab(current: ModelSelectorTab): ModelSelectorTab {
+    const currentIndex = MODEL_SELECTOR_TABS.findIndex((tab) => tab.id === current);
+    const previousIndex =
+        currentIndex < 0
+            ? 0
+            : (currentIndex - 1 + MODEL_SELECTOR_TABS.length) % MODEL_SELECTOR_TABS.length;
+    return MODEL_SELECTOR_TABS[previousIndex]?.id ?? 'all-models';
+}
 interface ModelSelectorProps {
     isVisible: boolean;
     onSelectModel: (
@@ -91,20 +117,56 @@ interface AddCustomOption {
     type: 'add-custom';
 }
 
-interface SectionHeaderOption {
-    type: 'section-header';
-    section: ForYouSection;
-    label: string;
+type SelectorItem = ModelOption | AddCustomOption;
+
+function toModelIdentityKey(model: Pick<ModelOption, 'provider' | 'name'>): string {
+    return toModelPickerKey({ provider: model.provider, model: model.name });
 }
 
-type SelectorItem = ModelOption | AddCustomOption | SectionHeaderOption;
+function normalizeLineText(value: string): string {
+    return stripUnsafeCharacters(value).replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function formatLineToWidth(value: string, width: number): string {
+    if (width <= 0) return '';
+
+    const normalized = normalizeLineText(value);
+    if (!normalized) {
+        return ' '.repeat(width);
+    }
+
+    const normalizedWidth = getCachedStringWidth(normalized);
+    if (normalizedWidth <= width) {
+        return normalized + ' '.repeat(width - normalizedWidth);
+    }
+
+    if (width === 1) {
+        return '…';
+    }
+
+    const ellipsis = '…';
+    const targetWidth = width - getCachedStringWidth(ellipsis);
+    let truncated = '';
+
+    for (const char of toCodePoints(normalized)) {
+        const candidate = `${truncated}${char}`;
+        if (getCachedStringWidth(candidate) > targetWidth) {
+            break;
+        }
+        truncated = candidate;
+    }
+
+    const withEllipsis = `${truncated}${ellipsis}`;
+    const finalWidth = getCachedStringWidth(withEllipsis);
+    if (finalWidth >= width) {
+        return withEllipsis;
+    }
+
+    return withEllipsis + ' '.repeat(width - finalWidth);
+}
 
 function isAddCustomOption(item: SelectorItem): item is AddCustomOption {
     return 'type' in item && item.type === 'add-custom';
-}
-
-function isSectionHeaderOption(item: SelectorItem): item is SectionHeaderOption {
-    return 'type' in item && item.type === 'section-header';
 }
 
 function isModelOption(item: SelectorItem): item is ModelOption {
@@ -127,30 +189,6 @@ function getRowPrefix({
     return `${isSelected ? '›' : ' '} ${isDefault ? '✓' : ' '} ${isCurrent ? '●' : ' '} ${
         isFavorite ? '★' : isCustom ? '◇' : ' '
     }`;
-}
-
-function computeNextSelection(
-    currentIndex: number,
-    itemsLength: number,
-    viewportItems: number
-): { index: number; offset: number } {
-    const nextIndex = currentIndex;
-    let nextOffset = 0;
-    const modelsLength = Math.max(0, itemsLength - 1);
-
-    if (nextIndex > 0) {
-        const modelIndex = nextIndex - 1;
-        if (modelIndex < nextOffset) {
-            nextOffset = modelIndex;
-        } else if (modelIndex >= nextOffset + viewportItems) {
-            nextOffset = Math.max(0, modelIndex - viewportItems + 1);
-        }
-    }
-
-    const maxOffset = Math.max(0, modelsLength - viewportItems);
-    nextOffset = Math.min(maxOffset, Math.max(0, nextOffset));
-
-    return { index: nextIndex, offset: nextOffset };
 }
 
 type ReasoningOption = {
@@ -196,13 +234,6 @@ function getInitialVariantIndex(
     return idx >= 0 ? idx : 0;
 }
 
-const FOR_YOU_SECTION_LABELS: Record<ForYouSection, string> = {
-    featured: 'Featured',
-    recents: 'Recents',
-    favorites: 'Favorites',
-    custom: 'Custom',
-};
-
 /**
  * Model selector with search and custom model support
  */
@@ -218,7 +249,8 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
     },
     ref
 ) {
-    const { rows: terminalRows } = useTerminalSize();
+    const { rows: terminalRows, columns: terminalColumns } = useTerminalSize();
+    const overlayWidth = useMemo(() => Math.max(20, terminalColumns - 2), [terminalColumns]);
     const maxVisibleItems = useMemo(() => {
         return getMaxVisibleItemsForTerminalRows({
             rows: terminalRows,
@@ -229,12 +261,12 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
     const [models, setModels] = useState<ModelOption[]>([]);
     const [customModels, setCustomModels] = useState<CustomModel[]>([]);
     const [modelPickerState, setModelPickerState] = useState<ModelPickerState | null>(null);
-    const [activeTab, setActiveTab] = useState<ModelSelectorTab>('for-you');
+    const [activeTab, setActiveTab] = useState<ModelSelectorTab>('all-models');
     const [isLoading, setIsLoading] = useState(false);
     const [selection, setSelection] = useState({ index: 0, offset: 0 });
     const [searchQuery, setSearchQuery] = useState('');
     const [customModelAction, setCustomModelAction] = useState<
-        'edit' | 'default' | 'delete' | null
+        'favorite' | 'default' | 'edit' | 'delete' | null
     >(null);
     const [pendingDeleteConfirm, setPendingDeleteConfirm] = useState(false);
     const selectedIndexRef = useRef(0);
@@ -285,7 +317,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         setPendingReasoningModel(null);
         setIsSettingDefault(false);
         setReasoningVariantIndex(0);
-        setActiveTab('for-you');
+        setActiveTab('all-models');
         setModelPickerState(null);
         if (deleteTimeoutRef.current) {
             clearTimeout(deleteTimeoutRef.current);
@@ -478,21 +510,69 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 }
 
                 if (!cancelled) {
-                    setModels(modelList);
+                    const dedupedByKey = new Map<string, ModelOption>();
+                    const dedupeOrder: string[] = [];
+
+                    for (const model of modelList) {
+                        const key = toModelIdentityKey(model);
+                        const existing = dedupedByKey.get(key);
+
+                        if (!existing) {
+                            dedupedByKey.set(key, model);
+                            dedupeOrder.push(key);
+                            continue;
+                        }
+
+                        const preferred = model.isCustom && !existing.isCustom ? model : existing;
+                        const secondary = preferred === existing ? model : existing;
+                        const mergedBaseURL = preferred.baseURL ?? secondary.baseURL;
+                        const mergedReasoningVariant =
+                            preferred.reasoningVariant ?? secondary.reasoningVariant;
+                        const mergedOriginalProvider =
+                            preferred.originalProvider ?? secondary.originalProvider;
+                        const mergedModel: ModelOption = {
+                            ...preferred,
+                            isDefault: preferred.isDefault || secondary.isDefault,
+                            isCurrent: preferred.isCurrent || secondary.isCurrent,
+                            displayName: preferred.displayName ?? secondary.displayName,
+                            maxInputTokens: Math.max(
+                                preferred.maxInputTokens,
+                                secondary.maxInputTokens
+                            ),
+                        };
+                        if (mergedBaseURL !== undefined) {
+                            mergedModel.baseURL = mergedBaseURL;
+                        }
+                        if (mergedReasoningVariant !== undefined) {
+                            mergedModel.reasoningVariant = mergedReasoningVariant;
+                        }
+                        if (mergedOriginalProvider !== undefined) {
+                            mergedModel.originalProvider = mergedOriginalProvider;
+                        }
+                        dedupedByKey.set(key, mergedModel);
+                    }
+
+                    const dedupedModelList = dedupeOrder
+                        .map((key) => dedupedByKey.get(key))
+                        .filter((model): model is ModelOption => model !== undefined);
+
+                    setModels(dedupedModelList);
                     setCustomModels(loadedCustomModels);
                     setModelPickerState(pickerState);
                     setIsLoading(false);
 
-                    // Set initial selection to current model (offset by 1 for "Add custom" option)
-                    const currentIndex = modelList.findIndex((m) => m.isCurrent);
+                    // Set initial selection to current model
+                    const currentIndex = dedupedModelList.findIndex((m) => m.isCurrent);
                     if (currentIndex >= 0) {
-                        const nextIndex = currentIndex + 1; // +1 for "Add custom" at top
+                        const nextIndex = currentIndex;
                         const nextMaxVisibleItems = maxVisibleItemsRef.current;
-                        const nextModelsViewportItems = Math.max(1, nextMaxVisibleItems - 1);
-                        const maxOffset = Math.max(0, modelList.length - nextModelsViewportItems);
+                        const maxOffset = Math.max(
+                            0,
+                            dedupedModelList.length - nextMaxVisibleItems
+                        );
                         const nextOffset = Math.min(
                             maxOffset,
-                            Math.max(0, currentIndex - nextModelsViewportItems + 1)
+                            Math.max(0, currentIndex - nextMaxVisibleItems + 1)
                         );
 
                         selectedIndexRef.current = nextIndex;
@@ -549,86 +629,83 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
     // Filter models based on active view and search query.
     const filteredItems = useMemo((): SelectorItem[] => {
         const addCustomOption: AddCustomOption = { type: 'add-custom' };
-        const allModels = models.filter(matchesSearch);
-
-        if (activeTab === 'all-models' || !modelPickerState) {
-            return [addCustomOption, ...allModels];
-        }
-
+        const hasSearchQuery = searchQuery.trim().length > 0;
         const modelsByKey = new Map<string, ModelOption>(
             models.map((model) => [
                 toModelPickerKey({ provider: model.provider, model: model.name }),
                 model,
             ])
         );
-
-        const forYouItems: SelectorItem[] = [addCustomOption];
-
-        const pushSection = (candidates: ModelOption[], section: ForYouSection) => {
-            const dedupedSectionModels: ModelOption[] = [];
-            const seenInSection = new Set<string>();
+        const toUniqueMatchingModels = (
+            candidates: Array<ModelOption | undefined>,
+            limit?: number
+        ): ModelOption[] => {
+            const deduped: ModelOption[] = [];
+            const seen = new Set<string>();
 
             for (const candidate of candidates) {
+                if (!candidate || !matchesSearch(candidate)) {
+                    continue;
+                }
                 const key = toModelPickerKey({
                     provider: candidate.provider,
                     model: candidate.name,
                 });
-                if (seenInSection.has(key) || !matchesSearch(candidate)) {
+                if (seen.has(key)) {
                     continue;
                 }
-                seenInSection.add(key);
-                dedupedSectionModels.push(candidate);
+                seen.add(key);
+                deduped.push(candidate);
+                if (limit !== undefined && deduped.length >= limit) {
+                    break;
+                }
             }
 
-            if (dedupedSectionModels.length === 0) {
-                return;
-            }
-
-            forYouItems.push({
-                type: 'section-header',
-                section,
-                label: FOR_YOU_SECTION_LABELS[section],
-            });
-            forYouItems.push(...dedupedSectionModels);
+            return deduped;
         };
 
         const providersInModels = Array.from(
             new Set(models.map((model) => model.provider))
         ) as LLMProvider[];
-        const featuredCandidates: ModelOption[] = [];
+        const featuredCandidates: Array<ModelOption | undefined> = [];
         for (const provider of providersInModels) {
             for (const curatedModel of getCuratedModelsForProvider(provider)) {
                 const key = toModelPickerKey({
                     provider,
                     model: curatedModel.name,
                 });
-                const matched = modelsByKey.get(key);
-                if (matched) {
-                    featuredCandidates.push(matched);
-                }
+                featuredCandidates.push(modelsByKey.get(key));
             }
         }
-        pushSection(featuredCandidates.slice(0, FEATURED_SECTION_LIMIT), 'featured');
 
-        const recentCandidates = modelPickerState.recents
-            .map((entry) =>
-                modelsByKey.get(toModelPickerKey({ provider: entry.provider, model: entry.model }))
-            )
-            .filter((model): model is ModelOption => Boolean(model));
-        pushSection(recentCandidates, 'recents');
-
-        const favoriteCandidates = modelPickerState.favorites
-            .map((entry) =>
-                modelsByKey.get(toModelPickerKey({ provider: entry.provider, model: entry.model }))
-            )
-            .filter((model): model is ModelOption => Boolean(model));
-        pushSection(favoriteCandidates, 'favorites');
-
+        const recentsFromState = (modelPickerState?.recents ?? []).map((entry) =>
+            modelsByKey.get(toModelPickerKey({ provider: entry.provider, model: entry.model }))
+        );
+        const favoritesFromState = (modelPickerState?.favorites ?? []).map((entry) =>
+            modelsByKey.get(toModelPickerKey({ provider: entry.provider, model: entry.model }))
+        );
         const customCandidates = models.filter((model) => model.isCustom);
-        pushSection(customCandidates, 'custom');
+        const allModels = models;
 
-        return forYouItems;
-    }, [activeTab, matchesSearch, modelPickerState, models]);
+        const tabModels = hasSearchQuery
+            ? toUniqueMatchingModels(allModels)
+            : activeTab === 'all-models'
+              ? toUniqueMatchingModels(allModels)
+              : activeTab === 'featured'
+                ? toUniqueMatchingModels(featuredCandidates, FEATURED_SECTION_LIMIT)
+                : activeTab === 'recents'
+                  ? toUniqueMatchingModels(recentsFromState)
+                  : activeTab === 'favorites'
+                    ? toUniqueMatchingModels(favoritesFromState)
+                    : toUniqueMatchingModels(customCandidates);
+
+        return activeTab === 'custom' && !hasSearchQuery
+            ? [addCustomOption, ...tabModels]
+            : tabModels;
+    }, [activeTab, matchesSearch, modelPickerState, models, searchQuery]);
+    const hasAddCustomOption = activeTab === 'custom' && searchQuery.trim().length === 0;
+    const modelStartIndex = hasAddCustomOption ? 1 : 0;
+    const listViewportItems = hasAddCustomOption ? modelsViewportItems : maxVisibleItems;
 
     // Keep selection valid and visible when filtering or terminal height changes.
     useEffect(() => {
@@ -637,18 +714,20 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             const nextIndex = Math.min(prev.index, maxIndex);
 
             let nextOffset = prev.offset;
-            const nextModelsLength = Math.max(0, filteredItems.length - 1);
+            const nextModelsLength = Math.max(0, filteredItems.length - modelStartIndex);
 
-            if (nextIndex > 0) {
-                const modelIndex = nextIndex - 1;
+            if (nextIndex >= modelStartIndex) {
+                const modelIndex = nextIndex - modelStartIndex;
                 if (modelIndex < nextOffset) {
                     nextOffset = modelIndex;
-                } else if (modelIndex >= nextOffset + modelsViewportItems) {
-                    nextOffset = Math.max(0, modelIndex - modelsViewportItems + 1);
+                } else if (modelIndex >= nextOffset + listViewportItems) {
+                    nextOffset = Math.max(0, modelIndex - listViewportItems + 1);
                 }
+            } else {
+                nextOffset = 0;
             }
 
-            const maxOffset = Math.max(0, nextModelsLength - modelsViewportItems);
+            const maxOffset = Math.max(0, nextModelsLength - listViewportItems);
             nextOffset = Math.min(maxOffset, Math.max(0, nextOffset));
 
             if (nextIndex === prev.index && nextOffset === prev.offset) {
@@ -658,7 +737,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             selectedIndexRef.current = nextIndex;
             return { index: nextIndex, offset: nextOffset };
         });
-    }, [filteredItems.length, modelsViewportItems]);
+    }, [filteredItems.length, listViewportItems, modelStartIndex]);
 
     // Handle delete custom model
     const handleDeleteCustomModel = useCallback(
@@ -809,9 +888,11 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
                 if (key.tab) {
                     clearActionState();
-                    const nextTab: ModelSelectorTab =
-                        activeTab === 'for-you' ? 'all-models' : 'for-you';
-                    setActiveTab(nextTab);
+                    setActiveTab((prev) =>
+                        key.shift
+                            ? getPreviousModelSelectorTab(prev)
+                            : getNextModelSelectorTab(prev)
+                    );
                     selectedIndexRef.current = 0;
                     setSelection({ index: 0, offset: 0 });
                     return true;
@@ -845,24 +926,27 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     if (!isSelectableItem) return false;
 
                     if (customModelAction === null) {
-                        if (isCustomActionItem) {
-                            setCustomModelAction('edit');
-                        } else {
-                            setCustomModelAction('default');
-                        }
+                        setCustomModelAction('favorite');
                         return true;
                     }
 
-                    if (customModelAction === 'edit') {
+                    if (customModelAction === 'favorite') {
                         setCustomModelAction('default');
                         return true;
                     }
 
                     if (customModelAction === 'default') {
                         if (isCustomActionItem) {
+                            setCustomModelAction('edit');
+                            return true;
+                        }
+                        return true;
+                    }
+
+                    if (customModelAction === 'edit') {
+                        if (isCustomActionItem) {
                             setCustomModelAction('delete');
                             setPendingDeleteConfirm(false);
-                            return true;
                         }
                         return true;
                     }
@@ -876,7 +960,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 // Left arrow - go back in action mode
                 if (key.leftArrow) {
                     if (customModelAction === 'delete') {
-                        setCustomModelAction('default');
+                        setCustomModelAction('edit');
                         setPendingDeleteConfirm(false);
                         if (deleteTimeoutRef.current) {
                             clearTimeout(deleteTimeoutRef.current);
@@ -886,15 +970,16 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     }
 
                     if (customModelAction === 'default') {
-                        if (isCustomActionItem) {
-                            setCustomModelAction('edit');
-                        } else {
-                            setCustomModelAction(null);
-                        }
+                        setCustomModelAction('favorite');
                         return true;
                     }
 
                     if (customModelAction === 'edit') {
+                        setCustomModelAction('default');
+                        return true;
+                    }
+
+                    if (customModelAction === 'favorite') {
                         setCustomModelAction(null);
                         return true;
                     }
@@ -941,17 +1026,19 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     selectedIndexRef.current = nextIndex;
                     setSelection((prev) => {
                         let nextOffset = prev.offset;
-                        const nextModelsLength = Math.max(0, itemsLength - 1);
+                        const nextModelsLength = Math.max(0, itemsLength - modelStartIndex);
 
-                        if (nextIndex > 0) {
-                            const modelIndex = nextIndex - 1;
+                        if (nextIndex >= modelStartIndex) {
+                            const modelIndex = nextIndex - modelStartIndex;
                             if (modelIndex < prev.offset) {
                                 nextOffset = modelIndex;
-                            } else if (modelIndex >= prev.offset + modelsViewportItems) {
-                                nextOffset = Math.max(0, modelIndex - modelsViewportItems + 1);
+                            } else if (modelIndex >= prev.offset + listViewportItems) {
+                                nextOffset = Math.max(0, modelIndex - listViewportItems + 1);
                             }
+                        } else {
+                            nextOffset = 0;
                         }
-                        const maxOffset = Math.max(0, nextModelsLength - modelsViewportItems);
+                        const maxOffset = Math.max(0, nextModelsLength - listViewportItems);
                         nextOffset = Math.min(maxOffset, Math.max(0, nextOffset));
                         return { index: nextIndex, offset: nextOffset };
                     });
@@ -967,17 +1054,19 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     selectedIndexRef.current = nextIndex;
                     setSelection((prev) => {
                         let nextOffset = prev.offset;
-                        const nextModelsLength = Math.max(0, itemsLength - 1);
+                        const nextModelsLength = Math.max(0, itemsLength - modelStartIndex);
 
-                        if (nextIndex > 0) {
-                            const modelIndex = nextIndex - 1;
+                        if (nextIndex >= modelStartIndex) {
+                            const modelIndex = nextIndex - modelStartIndex;
                             if (modelIndex < prev.offset) {
                                 nextOffset = modelIndex;
-                            } else if (modelIndex >= prev.offset + modelsViewportItems) {
-                                nextOffset = Math.max(0, modelIndex - modelsViewportItems + 1);
+                            } else if (modelIndex >= prev.offset + listViewportItems) {
+                                nextOffset = Math.max(0, modelIndex - listViewportItems + 1);
                             }
+                        } else {
+                            nextOffset = 0;
                         }
-                        const maxOffset = Math.max(0, nextModelsLength - modelsViewportItems);
+                        const maxOffset = Math.max(0, nextModelsLength - listViewportItems);
                         nextOffset = Math.min(maxOffset, Math.max(0, nextOffset));
                         return { index: nextIndex, offset: nextOffset };
                     });
@@ -991,11 +1080,28 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                             onAddCustomModel();
                             return true;
                         }
-                        if (isSectionHeaderOption(item)) {
+
+                        // Handle action mode confirmations
+                        if (customModelAction === 'favorite') {
+                            void (async () => {
+                                try {
+                                    await toggleFavoriteModel({
+                                        provider: item.provider,
+                                        model: item.name,
+                                    });
+                                    const nextState = await loadModelPickerState();
+                                    setModelPickerState(nextState);
+                                } catch (error) {
+                                    agent.logger.error(
+                                        `Failed to toggle favorite model: ${
+                                            error instanceof Error ? error.message : 'Unknown error'
+                                        }`
+                                    );
+                                }
+                            })();
                             return true;
                         }
 
-                        // Handle action mode confirmations
                         if (customModelAction === 'edit' && item.isCustom) {
                             // Find the full custom model data
                             const customModel = customModels.find(
@@ -1065,7 +1171,8 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             isLoading,
             filteredItems,
             maxVisibleItems,
-            modelsViewportItems,
+            listViewportItems,
+            modelStartIndex,
             onClose,
             onSelectModel,
             onSetDefaultModel,
@@ -1087,6 +1194,8 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
     if (!isVisible) return null;
 
+    const blankLine = ' '.repeat(overlayWidth);
+
     if (pendingReasoningModel) {
         const totalOptions = reasoningVariantOptions.length;
         const reasoningVisibleItems = Math.min(maxVisibleItems, totalOptions);
@@ -1102,25 +1211,38 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             reasoningVariantOptions[reasoningVariantIndex] ?? reasoningVariantOptions[0];
 
         return (
-            <Box flexDirection="column">
-                <Box paddingX={0} paddingY={0}>
+            <Box flexDirection="column" width={overlayWidth}>
+                <Box paddingX={0} paddingY={0} width={overlayWidth}>
                     <Text color="cyan" bold>
                         Reasoning Variant
                         {isSettingDefault ? <Text color="gray"> (default)</Text> : null}
                     </Text>
                 </Box>
-                <Box paddingX={0} paddingY={0}>
-                    <Text color="gray" wrap="truncate-end">
-                        {pendingReasoningModel.displayName || pendingReasoningModel.name}
+                <Box paddingX={0} paddingY={0} width={overlayWidth}>
+                    <Text color="gray">
+                        {formatLineToWidth(
+                            pendingReasoningModel.displayName || pendingReasoningModel.name,
+                            overlayWidth
+                        )}
                     </Text>
                 </Box>
-                <Box flexDirection="column" height={maxVisibleItems} marginTop={1}>
+                <Box
+                    flexDirection="column"
+                    height={maxVisibleItems}
+                    marginTop={1}
+                    width={overlayWidth}
+                >
                     {Array.from({ length: maxVisibleItems }, (_, rowIndex) => {
                         const option = visibleReasoningOptions[rowIndex];
                         if (!option) {
                             return (
-                                <Box key={`reasoning-empty-${rowIndex}`} paddingX={0} paddingY={0}>
-                                    <Text> </Text>
+                                <Box
+                                    key={`reasoning-empty-${rowIndex}`}
+                                    paddingX={0}
+                                    paddingY={0}
+                                    width={overlayWidth}
+                                >
+                                    <Text>{blankLine}</Text>
                                 </Box>
                             );
                         }
@@ -1128,24 +1250,26 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         const actualIndex = reasoningOffset + rowIndex;
                         const isSelected = actualIndex === reasoningVariantIndex;
                         return (
-                            <Box key={option.value} paddingX={0} paddingY={0}>
-                                <Text
-                                    color={isSelected ? 'cyan' : 'gray'}
-                                    bold={isSelected}
-                                    wrap="truncate-end"
-                                >
-                                    {isSelected ? '›' : ' '} {option.label}
+                            <Box key={option.value} paddingX={0} paddingY={0} width={overlayWidth}>
+                                <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
+                                    {formatLineToWidth(
+                                        `${isSelected ? '›' : ' '} ${option.label}`,
+                                        overlayWidth
+                                    )}
                                 </Text>
                             </Box>
                         );
                     })}
                 </Box>
-                <Box paddingX={0} paddingY={0} marginTop={1}>
-                    <Text color="gray" wrap="truncate-end">
-                        {selectedReasoningOption?.description ?? ''}
+                <Box paddingX={0} paddingY={0} marginTop={1} width={overlayWidth}>
+                    <Text color="gray">
+                        {formatLineToWidth(
+                            selectedReasoningOption?.description ?? '',
+                            overlayWidth
+                        )}
                     </Text>
                 </Box>
-                <Box paddingX={0} paddingY={0}>
+                <Box paddingX={0} paddingY={0} width={overlayWidth}>
                     <HintBar hints={['↑↓ navigate', 'Enter select', 'Esc back']} />
                 </Box>
             </Box>
@@ -1154,104 +1278,85 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
     const selectedIndex = selection.index;
     const scrollOffset = selection.offset;
-    const listItems = filteredItems.filter(
-        (item): item is ModelOption | SectionHeaderOption => !isAddCustomOption(item)
-    );
-    const visibleItems = listItems.slice(scrollOffset, scrollOffset + modelsViewportItems);
+    const listItems = filteredItems.filter((item): item is ModelOption => !isAddCustomOption(item));
+    const visibleItems = listItems.slice(scrollOffset, scrollOffset + listViewportItems);
     const selectedItem = filteredItems[selectedIndex];
     const hasActionableItems = Boolean(selectedItem && isModelOption(selectedItem));
 
-    let detailLine = '';
-    if (isLoading) {
-        detailLine = 'Loading models…';
-    } else if (customModelAction === 'delete' && pendingDeleteConfirm) {
-        detailLine = 'Confirm delete: press Enter again';
-    } else if (customModelAction) {
-        const label =
-            customModelAction === 'edit'
-                ? 'Edit'
-                : customModelAction === 'default'
-                  ? 'Set as default'
-                  : 'Delete';
-        detailLine = `Action: ${label}`;
-    } else if (searchQuery.trim() && filteredItems.length <= 1) {
-        detailLine = 'No models match your search';
-    } else if (!selectedItem) {
-        detailLine = '';
-    } else if (isAddCustomOption(selectedItem)) {
-        detailLine = 'Enter to add a custom model';
-    } else if (isSectionHeaderOption(selectedItem)) {
-        detailLine = `${selectedItem.label} section`;
-    } else {
-        const provider = getLLMProviderDisplayName(selectedItem.provider);
-        const name = selectedItem.displayName || selectedItem.name;
-        const flags: string[] = [];
-        if (selectedItem.isDefault) flags.push('default');
-        if (selectedItem.isCurrent) flags.push('current');
-        if (
-            favoriteKeySet.has(
-                toModelPickerKey({
-                    provider: selectedItem.provider,
-                    model: selectedItem.name,
-                })
-            )
-        ) {
-            flags.push('favorite');
-        }
-        detailLine =
-            flags.length > 0
-                ? `${name} (${provider}) • ${flags.join(', ')}`
-                : `${name} (${provider})`;
-    }
+    const searchLine = formatLineToWidth(
+        `Search: ${searchQuery || 'Type to filter models…'}`,
+        overlayWidth
+    );
+    const addCustomLine = hasAddCustomOption
+        ? formatLineToWidth(
+              `${getRowPrefix({
+                  isSelected: selectedIndex === 0,
+                  isDefault: false,
+                  isCurrent: false,
+                  isCustom: false,
+                  isFavorite: false,
+              })} Add custom model…`,
+              overlayWidth
+          )
+        : '';
 
     return (
-        <Box flexDirection="column">
+        <Box flexDirection="column" width={overlayWidth}>
             {/* Header */}
-            <Box paddingX={0} paddingY={0}>
+            <Box paddingX={0} paddingY={0} width={overlayWidth}>
                 <Text color="cyan" bold>
                     Models
                 </Text>
             </Box>
-            <Box paddingX={0} paddingY={0}>
-                <Text color="gray">View: </Text>
-                <Text color="white">{activeTab === 'for-you' ? 'For You' : 'All Models'}</Text>
-                <Text color="gray"> (Tab to switch)</Text>
+            <Box paddingX={0} paddingY={0} width={overlayWidth} flexDirection="row">
+                {MODEL_SELECTOR_TABS.map((tab) => (
+                    <Box
+                        key={tab.id}
+                        marginRight={1}
+                        borderStyle="round"
+                        borderColor={activeTab === tab.id ? 'cyan' : 'gray'}
+                        paddingX={1}
+                    >
+                        <Text
+                            color={activeTab === tab.id ? 'cyan' : 'gray'}
+                            bold={activeTab === tab.id}
+                        >
+                            {tab.label}
+                        </Text>
+                    </Box>
+                ))}
             </Box>
 
             {/* Search input */}
-            <Box paddingX={0} paddingY={0} marginTop={1}>
-                <Text color="gray">Search: </Text>
-                <Text color={searchQuery ? 'white' : 'gray'} wrap="truncate-end">
-                    {searchQuery || 'Type to filter models…'}
-                </Text>
+            <Box paddingX={0} paddingY={0} width={overlayWidth}>
+                <Text color={searchQuery ? 'white' : 'gray'}>{searchLine}</Text>
             </Box>
 
             {/* Items */}
-            <Box flexDirection="column" marginTop={1}>
-                <Box paddingX={0} paddingY={0}>
-                    <Text
-                        color={selectedIndex === 0 ? 'green' : 'gray'}
-                        bold={selectedIndex === 0}
-                        wrap="truncate-end"
-                    >
-                        {getRowPrefix({
-                            isSelected: selectedIndex === 0,
-                            isDefault: false,
-                            isCurrent: false,
-                            isCustom: false,
-                            isFavorite: false,
-                        })}{' '}
-                        Add custom model…
-                    </Text>
-                </Box>
-                <Box flexDirection="column" height={modelsViewportItems}>
+            <Box flexDirection="column" marginTop={1} width={overlayWidth}>
+                {hasAddCustomOption && (
+                    <Box paddingX={0} paddingY={0} width={overlayWidth}>
+                        <Text
+                            color={selectedIndex === 0 ? 'green' : 'gray'}
+                            bold={selectedIndex === 0}
+                        >
+                            {addCustomLine}
+                        </Text>
+                    </Box>
+                )}
+                <Box flexDirection="column" height={listViewportItems} width={overlayWidth}>
                     {isLoading || listItems.length === 0
-                        ? Array.from({ length: modelsViewportItems }, (_, index) => (
-                              <Box key={`model-empty-${index}`} paddingX={0} paddingY={0}>
-                                  <Text> </Text>
+                        ? Array.from({ length: listViewportItems }, (_, index) => (
+                              <Box
+                                  key={`model-empty-${index}`}
+                                  paddingX={0}
+                                  paddingY={0}
+                                  width={overlayWidth}
+                              >
+                                  <Text>{blankLine}</Text>
                               </Box>
                           ))
-                        : Array.from({ length: modelsViewportItems }, (_, rowIndex) => {
+                        : Array.from({ length: listViewportItems }, (_, rowIndex) => {
                               const item = visibleItems[rowIndex];
                               if (!item) {
                                   return (
@@ -1259,36 +1364,21 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                                           key={`model-empty-${rowIndex}`}
                                           paddingX={0}
                                           paddingY={0}
+                                          width={overlayWidth}
                                       >
-                                          <Text> </Text>
+                                          <Text>{blankLine}</Text>
                                       </Box>
                                   );
                               }
 
-                              const actualIndex = 1 + scrollOffset + rowIndex;
+                              const actualIndex = modelStartIndex + scrollOffset + rowIndex;
                               const isSelected = actualIndex === selectedIndex;
 
-                              if (isSectionHeaderOption(item)) {
-                                  return (
-                                      <Box
-                                          key={`section-${item.section}-${actualIndex}`}
-                                          flexDirection="row"
-                                          paddingX={0}
-                                          paddingY={0}
-                                      >
-                                          <Text
-                                              color={isSelected ? 'cyan' : 'yellow'}
-                                              bold
-                                              wrap="truncate-end"
-                                          >
-                                              {isSelected ? '›' : ' '} {item.label}
-                                          </Text>
-                                      </Box>
-                                  );
-                              }
-
                               const providerDisplay = getLLMProviderDisplayName(item.provider);
-                              const name = item.displayName || item.name;
+                              const name =
+                                  item.displayName && item.displayName !== item.name
+                                      ? `${item.displayName} [${item.name}]`
+                                      : item.displayName || item.name;
                               const isFavorite = favoriteKeySet.has(
                                   toModelPickerKey({
                                       provider: item.provider,
@@ -1305,97 +1395,33 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
                               return (
                                   <Box
-                                      key={`${item.provider}-${item.name}-${item.isCustom ? 'custom' : 'registry'}`}
+                                      key={`model-${activeTab}-${actualIndex}-${toModelIdentityKey(item)}`}
                                       flexDirection="row"
                                       paddingX={0}
                                       paddingY={0}
+                                      width={overlayWidth}
                                   >
-                                      <Box flexGrow={1}>
-                                          <Text
-                                              color={isSelected ? 'cyan' : 'gray'}
-                                              bold={isSelected}
-                                              wrap="truncate-end"
-                                          >
-                                              {prefix} {name} ({providerDisplay})
-                                          </Text>
-                                      </Box>
-                                      {isSelected && (
-                                          <Box flexDirection="row" marginLeft={1}>
-                                              <Text color={isFavorite ? 'yellow' : 'gray'}>
-                                                  {' '}
-                                                  {isFavorite ? 'Unfavorite' : 'Favorite'}{' '}
-                                              </Text>
-                                              <Text color="gray">(Ctrl+F)</Text>
-                                              <Text> </Text>
-                                              {item.isCustom && (
-                                                  <>
-                                                      <Text
-                                                          color={
-                                                              customModelAction === 'edit'
-                                                                  ? 'green'
-                                                                  : 'gray'
-                                                          }
-                                                          bold={customModelAction === 'edit'}
-                                                          inverse={customModelAction === 'edit'}
-                                                      >
-                                                          {' '}
-                                                          Edit{' '}
-                                                      </Text>
-                                                      <Text> </Text>
-                                                  </>
-                                              )}
-                                              <Text
-                                                  color={
-                                                      customModelAction === 'default'
-                                                          ? 'cyan'
-                                                          : 'gray'
-                                                  }
-                                                  bold={customModelAction === 'default'}
-                                                  inverse={customModelAction === 'default'}
-                                              >
-                                                  {' '}
-                                                  Set as Default{' '}
-                                              </Text>
-                                              {item.isCustom && (
-                                                  <>
-                                                      <Text> </Text>
-                                                      <Text
-                                                          color={
-                                                              customModelAction === 'delete'
-                                                                  ? 'red'
-                                                                  : 'gray'
-                                                          }
-                                                          bold={customModelAction === 'delete'}
-                                                          inverse={customModelAction === 'delete'}
-                                                      >
-                                                          {' '}
-                                                          Delete{' '}
-                                                      </Text>
-                                                  </>
-                                              )}
-                                          </Box>
-                                      )}
+                                      <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
+                                          {formatLineToWidth(
+                                              `${prefix} ${name} (${providerDisplay})`,
+                                              overlayWidth
+                                          )}
+                                      </Text>
                                   </Box>
                               );
                           })}
                 </Box>
             </Box>
 
-            <Box paddingX={0} paddingY={0} marginTop={1}>
-                <Text color="gray" wrap="truncate-end">
-                    {detailLine}
-                </Text>
-            </Box>
-
-            <Box paddingX={0} paddingY={0}>
+            <Box paddingX={0} paddingY={0} width={overlayWidth}>
                 <HintBar
                     hints={[
                         '↑↓ navigate',
-                        'Enter select',
+                        'Enter select/apply',
                         'Esc close',
-                        'Tab switch view',
-                        hasActionableItems ? 'Ctrl+F favorite' : '',
-                        hasActionableItems ? '←→ actions' : '',
+                        'Tab/Shift+Tab switch tab',
+                        hasActionableItems ? '←→ action' : '',
+                        hasActionableItems ? 'Ctrl+F quick favorite' : '',
                     ]}
                 />
             </Box>
