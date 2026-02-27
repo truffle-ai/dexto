@@ -6,6 +6,7 @@ OUTPUT_DIR="${ROOT_DIR}/.artifacts/standalone"
 VERSION=""
 SKIP_CHECKSUMS=0
 SEA_SENTINEL_FUSE="NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2"
+PAYLOAD_ASSET_NAME="dexto-runtime-payload"
 
 usage() {
   cat <<'EOF'
@@ -20,6 +21,22 @@ Options:
   --skip-checksums  Skip generating checksums file (useful for matrix builds)
   -h, --help    Show this help text
 EOF
+}
+
+is_windows_shell() {
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+to_node_path() {
+  local path_value="$1"
+  if is_windows_shell && command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "${path_value}"
+    return
+  fi
+  printf '%s' "${path_value}"
 }
 
 hash_file() {
@@ -62,10 +79,12 @@ if ! command -v node >/dev/null 2>&1; then
   exit 1
 fi
 
+CLI_PACKAGE_JSON="${ROOT_DIR}/packages/cli/package.json"
+CLI_PACKAGE_JSON_NODE_PATH="$(to_node_path "${CLI_PACKAGE_JSON}")"
+
 if [[ -z "${VERSION}" ]]; then
   VERSION="$(
-    cd "${ROOT_DIR}"
-    node -e "const fs=require('node:fs'); const p='packages/cli/package.json'; process.stdout.write(JSON.parse(fs.readFileSync(p,'utf8')).version);"
+    node -e "const fs=require('node:fs'); process.stdout.write(JSON.parse(fs.readFileSync(process.argv[1],'utf8')).version);" "${CLI_PACKAGE_JSON_NODE_PATH}"
   )"
 fi
 
@@ -81,8 +100,6 @@ fi
 
 CLI_DIST_DIR="${ROOT_DIR}/packages/cli/dist"
 CLI_ENTRYPOINT="${CLI_DIST_DIR}/index.js"
-CLI_PACKAGE_JSON="${ROOT_DIR}/packages/cli/package.json"
-
 if [[ ! -f "${CLI_ENTRYPOINT}" ]]; then
   echo "Missing CLI entrypoint at ${CLI_ENTRYPOINT}" >&2
   echo "Run: pnpm run build:all" >&2
@@ -122,13 +139,21 @@ detect_arch() {
 build_windows_zip() {
   local stage_dir="$1"
   local artifact_path="$2"
+  shift 2
+  local -a entries=("$@")
+
+  if [[ "${#entries[@]}" -eq 0 ]]; then
+    echo "build_windows_zip requires at least one entry" >&2
+    exit 1
+  fi
+
   rm -f "${artifact_path}"
 
   if command -v 7z >/dev/null 2>&1; then
     echo "Creating Windows zip archive with 7z (fast mode)"
     (
       cd "${stage_dir}"
-      7z a -tzip -mx=1 "${artifact_path}" dexto.exe package.json dist node_modules >/dev/null
+      7z a -tzip -mx=1 "${artifact_path}" "${entries[@]}" >/dev/null
     )
     echo "Windows zip archive created"
     return
@@ -138,7 +163,7 @@ build_windows_zip() {
     echo "Creating Windows zip archive with zip (fast mode)"
     (
       cd "${stage_dir}"
-      zip -1 -q -r "${artifact_path}" dexto.exe package.json dist node_modules
+      zip -1 -q -r "${artifact_path}" "${entries[@]}"
     )
     echo "Windows zip archive created"
     return
@@ -148,12 +173,23 @@ build_windows_zip() {
   local artifact_path_win
   local stage_dir_win_escaped
   local artifact_path_win_escaped
+  local powershell_entries=""
+  local entry_escaped
   stage_dir_win="$(cygpath -w "${stage_dir}")"
   artifact_path_win="$(cygpath -w "${artifact_path}")"
   stage_dir_win_escaped="${stage_dir_win//\'/''}"
   artifact_path_win_escaped="${artifact_path_win//\'/''}"
+
+  for entry in "${entries[@]}"; do
+    entry_escaped="${entry//\'/''}"
+    if [[ -n "${powershell_entries}" ]]; then
+      powershell_entries+=","
+    fi
+    powershell_entries+="'${entry_escaped}'"
+  done
+
   powershell.exe -NoProfile -Command \
-    "\$ErrorActionPreference = 'Stop'; Set-Location -LiteralPath '${stage_dir_win_escaped}'; Compress-Archive -Path 'dexto.exe','package.json','dist','node_modules' -DestinationPath '${artifact_path_win_escaped}' -Force"
+    "\$ErrorActionPreference = 'Stop'; Set-Location -LiteralPath '${stage_dir_win_escaped}'; Compress-Archive -Path ${powershell_entries} -DestinationPath '${artifact_path_win_escaped}' -Force"
   echo "Windows zip archive created via PowerShell"
 }
 
@@ -164,9 +200,12 @@ echo "Building standalone binary for dexto ${VERSION} (${PLATFORM_NAME}-${ARCH_N
 echo "Output directory: ${OUTPUT_DIR}"
 
 stage_dir="$(mktemp -d "${OUTPUT_DIR}/.stage-${PLATFORM_NAME}-${ARCH_NAME}-XXXX")"
+runtime_dir="${stage_dir}/runtime"
 blob_path="${stage_dir}/sea-prep.blob"
 bootstrap_path="${stage_dir}/sea-bootstrap.cjs"
 sea_config_path="${stage_dir}/sea-config.json"
+payload_archive_path=""
+payload_archive_extension=""
 binary_name="dexto"
 
 if [[ "${PLATFORM_NAME}" == "windows" ]]; then
@@ -174,21 +213,171 @@ if [[ "${PLATFORM_NAME}" == "windows" ]]; then
 fi
 
 echo "Creating portable CLI package"
-pnpm --filter dexto deploy --prod --legacy "${stage_dir}" >/dev/null
+mkdir -p "${runtime_dir}"
+pnpm --filter dexto deploy --prod --legacy "${runtime_dir}" >/dev/null
+
+if [[ "${PLATFORM_NAME}" == "windows" ]]; then
+  payload_archive_extension="zip"
+  payload_archive_path="${stage_dir}/runtime-payload.zip"
+  build_windows_zip "${runtime_dir}" "${payload_archive_path}" package.json dist node_modules
+else
+  payload_archive_extension="tar.gz"
+  payload_archive_path="${stage_dir}/runtime-payload.tar.gz"
+  env -u LC_ALL tar -C "${runtime_dir}" -czf "${payload_archive_path}" package.json dist node_modules
+fi
+
+payload_hash="$(hash_file "${payload_archive_path}")"
 
 cat > "${bootstrap_path}" <<'EOF'
-const { existsSync } = require('node:fs');
+const { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, unlinkSync, closeSync, openSync } = require('node:fs');
 const { dirname, join, resolve } = require('node:path');
+const { tmpdir, homedir } = require('node:os');
+const { spawnSync } = require('node:child_process');
 const { pathToFileURL } = require('node:url');
+const { getAsset, isSea } = require('node:sea');
 
-if (!process.env.DEXTO_PACKAGE_ROOT) {
-    const executableDir = dirname(process.execPath);
-    if (existsSync(join(executableDir, 'dist'))) {
-        process.env.DEXTO_PACKAGE_ROOT = executableDir;
+const RUNTIME_VERSION = '__DEXTO_VERSION__';
+const RUNTIME_PAYLOAD_HASH = '__DEXTO_PAYLOAD_HASH__';
+const RUNTIME_PAYLOAD_EXTENSION = '__DEXTO_PAYLOAD_EXTENSION__';
+const RUNTIME_PAYLOAD_ASSET = '__DEXTO_PAYLOAD_ASSET__';
+const MARKER_FILE = '.dexto-runtime-marker';
+
+function sleep(ms) {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function escapePowerShellLiteral(value) {
+    return String(value).replace(/'/g, "''");
+}
+
+function readMarker(markerPath) {
+    try {
+        return readFileSync(markerPath, 'utf8');
+    } catch {
+        return null;
     }
 }
 
-const entrypointPath = resolve(dirname(process.execPath), 'dist', 'index.js');
+function validateRuntimeDir(runtimeDir, expectedMarker) {
+    const markerPath = join(runtimeDir, MARKER_FILE);
+    return (
+        readMarker(markerPath) === expectedMarker &&
+        existsSync(join(runtimeDir, 'dist', 'index.js')) &&
+        existsSync(join(runtimeDir, 'package.json'))
+    );
+}
+
+function extractPayload(archivePath, destinationDir) {
+    if (process.platform === 'win32') {
+        const command = `$ErrorActionPreference = 'Stop'; Expand-Archive -LiteralPath '${escapePowerShellLiteral(archivePath)}' -DestinationPath '${escapePowerShellLiteral(destinationDir)}' -Force`;
+        const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], {
+            stdio: 'inherit',
+        });
+        if (result.status !== 0) {
+            throw new Error(`Failed to expand runtime payload archive (exit ${result.status ?? 'unknown'})`);
+        }
+        return;
+    }
+
+    const childEnv = { ...process.env };
+    delete childEnv.LC_ALL;
+    const result = spawnSync('tar', ['-xzf', archivePath, '-C', destinationDir], {
+        stdio: 'inherit',
+        env: childEnv,
+    });
+    if (result.status !== 0) {
+        throw new Error(`Failed to extract runtime payload archive (exit ${result.status ?? 'unknown'})`);
+    }
+}
+
+function ensureRuntimeExtracted() {
+    const expectedMarker = `${RUNTIME_VERSION}:${RUNTIME_PAYLOAD_HASH}`;
+    const runtimeDir =
+        process.env.DEXTO_RUNTIME_DIR ||
+        join(homedir(), '.dexto', 'standalone-runtime', `${RUNTIME_VERSION}-${process.platform}-${process.arch}`);
+
+    if (validateRuntimeDir(runtimeDir, expectedMarker)) {
+        return runtimeDir;
+    }
+
+    mkdirSync(dirname(runtimeDir), { recursive: true });
+    const lockPath = `${runtimeDir}.lock`;
+    let lockFd = null;
+    const lockDeadline = Date.now() + 5 * 60 * 1000;
+
+    while (lockFd === null) {
+        try {
+            lockFd = openSync(lockPath, 'wx');
+        } catch (error) {
+            if (error && error.code === 'EEXIST') {
+                if (validateRuntimeDir(runtimeDir, expectedMarker)) {
+                    return runtimeDir;
+                }
+                if (Date.now() > lockDeadline) {
+                    throw new Error(`Timed out waiting for runtime extraction lock at ${lockPath}`);
+                }
+                sleep(200);
+                continue;
+            }
+            throw error;
+        }
+    }
+
+    try {
+        if (validateRuntimeDir(runtimeDir, expectedMarker)) {
+            return runtimeDir;
+        }
+
+        rmSync(runtimeDir, { recursive: true, force: true });
+        mkdirSync(runtimeDir, { recursive: true });
+
+        const archivePath = join(tmpdir(), `dexto-runtime-${process.pid}-${Date.now()}.${RUNTIME_PAYLOAD_EXTENSION}`);
+        const payload = Buffer.from(getAsset(RUNTIME_PAYLOAD_ASSET));
+        writeFileSync(archivePath, payload);
+
+        try {
+            extractPayload(archivePath, runtimeDir);
+        } finally {
+            rmSync(archivePath, { force: true });
+        }
+
+        if (!existsSync(join(runtimeDir, 'dist', 'index.js'))) {
+            throw new Error(`Extracted runtime payload is missing dist/index.js at ${runtimeDir}`);
+        }
+
+        writeFileSync(join(runtimeDir, MARKER_FILE), expectedMarker, 'utf8');
+        return runtimeDir;
+    } finally {
+        if (lockFd !== null) {
+            closeSync(lockFd);
+        }
+        try {
+            unlinkSync(lockPath);
+        } catch {}
+    }
+}
+
+function resolvePackageRoot() {
+    if (!isSea()) {
+        const executableDir = dirname(process.execPath);
+        if (existsSync(join(executableDir, 'dist'))) {
+            return executableDir;
+        }
+        return null;
+    }
+    return ensureRuntimeExtracted();
+}
+
+const packageRoot = resolvePackageRoot();
+if (packageRoot) {
+    process.env.DEXTO_PACKAGE_ROOT = packageRoot;
+}
+
+if (!process.env.DEXTO_CLI_VERSION) {
+    process.env.DEXTO_CLI_VERSION = RUNTIME_VERSION;
+}
+
+const entrypointPath = resolve(process.env.DEXTO_PACKAGE_ROOT || dirname(process.execPath), 'dist', 'index.js');
 
 (async () => {
     await import(pathToFileURL(entrypointPath).href);
@@ -200,21 +389,42 @@ EOF
 
 node -e "
 const fs = require('node:fs');
+const filePath = process.argv[1];
+const replacements = {
+  '__DEXTO_VERSION__': process.argv[2],
+  '__DEXTO_PAYLOAD_HASH__': process.argv[3],
+  '__DEXTO_PAYLOAD_EXTENSION__': process.argv[4],
+  '__DEXTO_PAYLOAD_ASSET__': process.argv[5]
+};
+let content = fs.readFileSync(filePath, 'utf8');
+for (const [key, value] of Object.entries(replacements)) {
+  content = content.replaceAll(key, value);
+}
+fs.writeFileSync(filePath, content);
+" "$(to_node_path "${bootstrap_path}")" "${VERSION}" "${payload_hash}" "${payload_archive_extension}" "${PAYLOAD_ASSET_NAME}"
+
+node -e "
+const fs = require('node:fs');
 const configPath = process.argv[1];
 const mainPath = process.argv[2];
 const outputPath = process.argv[3];
+const assetName = process.argv[4];
+const assetPath = process.argv[5];
 const config = {
   main: mainPath,
   output: outputPath,
   disableExperimentalSEAWarning: true,
   useCodeCache: false,
-  useSnapshot: false
+  useSnapshot: false,
+  assets: {
+    [assetName]: assetPath
+  }
 };
 fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-" "${sea_config_path}" "${bootstrap_path}" "${blob_path}"
+" "$(to_node_path "${sea_config_path}")" "$(to_node_path "${bootstrap_path}")" "$(to_node_path "${blob_path}")" "${PAYLOAD_ASSET_NAME}" "$(to_node_path "${payload_archive_path}")"
 
 echo "Creating SEA blob"
-node --experimental-sea-config "${sea_config_path}"
+node --experimental-sea-config "$(to_node_path "${sea_config_path}")"
 
 node_path="$(command -v node)"
 binary_path="${stage_dir}/${binary_name}"
@@ -253,10 +463,10 @@ fi
 artifact_base="dexto-${VERSION}-${PLATFORM_NAME}-${ARCH_NAME}"
 if [[ "${PLATFORM_NAME}" == "windows" ]]; then
   artifact_path="${OUTPUT_DIR}/${artifact_base}.zip"
-  build_windows_zip "${stage_dir}" "${artifact_path}"
+  build_windows_zip "${stage_dir}" "${artifact_path}" "${binary_name}"
 else
   artifact_path="${OUTPUT_DIR}/${artifact_base}.tar.gz"
-  LC_ALL=C tar -C "${stage_dir}" -czf "${artifact_path}" "${binary_name}" package.json dist node_modules
+  env -u LC_ALL tar -C "${stage_dir}" -czf "${artifact_path}" "${binary_name}"
 fi
 
 rm -rf "${stage_dir}"
