@@ -1,8 +1,24 @@
+# Backfill-only workflow for standalone CLI binary assets.
+#
+# Normal path:
+# - `Changesets - Release` now builds and uploads standalone binaries automatically
+#   after publishing the `dexto` package.
+#
+# Run this workflow manually only when recovery is needed, for example:
+# - publish succeeded but release assets are missing
+# - binary upload job failed and needs a retry for an existing release tag
+#
+# Manual trigger example:
+#   gh workflow run release-standalone-binaries.yml \
+#     --repo truffle-ai/dexto \
+#     -f release_tag=dexto@1.6.3
+#
+# Notes:
+# - `release_tag` must match an existing GitHub Release (format: dexto@<version>)
+# - Upload uses `--clobber`, so existing assets with the same names are replaced
 name: Release Standalone Binaries
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       release_tag:
@@ -14,15 +30,12 @@ permissions:
   contents: write
 
 jobs:
-  build-and-upload:
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'dexto@')
+  derive-version:
     runs-on: ubuntu-latest
-    concurrency:
-      group: standalone-binaries-${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.event.release.tag_name }}
-      cancel-in-progress: false
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     env:
-      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.event.release.tag_name }}
-
+      RELEASE_TAG: ${{ inputs.release_tag }}
     steps:
       - name: Validate release tag
         run: |
@@ -30,7 +43,35 @@ jobs:
             echo "Release tag must start with dexto@ (got: ${RELEASE_TAG})" >&2
             exit 1
           fi
+      - name: Extract version from release tag
+        id: version
+        run: |
+          echo "version=${RELEASE_TAG#dexto@}" >> "${GITHUB_OUTPUT}"
 
+  build-standalone-binaries:
+    needs: derive-version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            target: darwin-arm64
+          - runner: macos-15-intel
+            target: darwin-x64
+          - runner: ubuntu-24.04
+            target: linux-x64
+          - runner: ubuntu-24.04-arm
+            target: linux-arm64
+          - runner: windows-latest
+            target: windows-x64
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      VERSION: ${{ needs.derive-version.outputs.version }}
+    steps:
       - name: Checkout release tag
         uses: actions/checkout@v4
         with:
@@ -45,23 +86,59 @@ jobs:
           node-version: '20'
           cache: 'pnpm'
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.3.5'
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Build packages and embed WebUI
         run: pnpm run build:all
 
-      - name: Build standalone binaries
+      - name: Build standalone binary
         run: |
-          VERSION="${RELEASE_TAG#dexto@}"
           scripts/build-standalone-binaries.sh \
             --version "${VERSION}" \
-            --output-dir "${RUNNER_TEMP}/dexto-binaries"
+            --output-dir "${RUNNER_TEMP}/dexto-binaries" \
+            --skip-checksums
+
+      - name: Upload standalone artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: standalone-${{ matrix.target }}
+          path: |
+            ${{ runner.temp }}/dexto-binaries/dexto-${{ env.VERSION }}-${{ matrix.target }}.tar.gz
+            ${{ runner.temp }}/dexto-binaries/dexto-${{ env.VERSION }}-${{ matrix.target }}.zip
+          if-no-files-found: error
+
+  upload-standalone-binaries:
+    needs:
+      - derive-version
+      - build-standalone-binaries
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      VERSION: ${{ needs.derive-version.outputs.version }}
+    steps:
+      - name: Download standalone artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: standalone-*
+          path: ${{ runner.temp }}/dexto-binaries
+          merge-multiple: true
+
+      - name: Create checksums file
+        run: |
+          cd "${RUNNER_TEMP}/dexto-binaries"
+          {
+            shopt -s nullglob
+            assets=(dexto-"${VERSION}"-*.tar.gz dexto-"${VERSION}"-*.zip)
+            for asset in "${assets[@]}"; do
+              if command -v sha256sum >/dev/null 2>&1; then
+                hash="$(sha256sum "${asset}" | awk '{print $1}')"
+              else
+                hash="$(shasum -a 256 "${asset}" | awk '{print $1}')"
+              fi
+              echo "${hash}  ${asset}"
+            done
+          } | sort > "dexto-${VERSION}-checksums.txt"
 
       - name: Upload binaries to release
         env:

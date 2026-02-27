@@ -4,17 +4,20 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUTPUT_DIR="${ROOT_DIR}/.artifacts/standalone"
 VERSION=""
+SKIP_CHECKSUMS=0
+SEA_SENTINEL_FUSE="NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2"
 
 usage() {
   cat <<'EOF'
-Build standalone dexto binaries and package them for GitHub Releases.
+Build a standalone dexto binary for the current platform using Node SEA.
 
 Usage:
-  scripts/build-standalone-binaries.sh [--version <version>] [--output-dir <path>]
+  scripts/build-standalone-binaries.sh [--version <version>] [--output-dir <path>] [--skip-checksums]
 
 Options:
   --version     CLI version to encode in artifact names (default: packages/cli/package.json version)
   --output-dir  Destination directory for artifacts (default: .artifacts/standalone)
+  --skip-checksums  Skip generating checksums file (useful for matrix builds)
   -h, --help    Show this help text
 EOF
 }
@@ -37,6 +40,10 @@ while [[ $# -gt 0 ]]; do
     --output-dir)
       OUTPUT_DIR="${2:-}"
       shift 2
+      ;;
+    --skip-checksums)
+      SKIP_CHECKSUMS=1
+      shift
       ;;
     -h|--help)
       usage
@@ -61,13 +68,13 @@ if [[ -z "${VERSION}" ]]; then
   exit 1
 fi
 
-if ! command -v bun >/dev/null 2>&1; then
-  echo "bun is required but was not found in PATH." >&2
+if ! command -v node >/dev/null 2>&1; then
+  echo "node is required but was not found in PATH." >&2
   exit 1
 fi
 
-if ! command -v zip >/dev/null 2>&1; then
-  echo "zip is required but was not found in PATH." >&2
+if ! command -v pnpm >/dev/null 2>&1; then
+  echo "pnpm is required but was not found in PATH." >&2
   exit 1
 fi
 
@@ -87,68 +94,153 @@ if [[ ! -f "${CLI_PACKAGE_JSON}" ]]; then
 fi
 
 mkdir -p "${OUTPUT_DIR}"
-rm -f "${OUTPUT_DIR}/dexto-${VERSION}-"*.tar.gz
-rm -f "${OUTPUT_DIR}/dexto-${VERSION}-"*.zip
-rm -f "${OUTPUT_DIR}/dexto-${VERSION}-checksums.txt"
 
-TARGETS=(
-  "bun-darwin-arm64:darwin:arm64"
-  "bun-darwin-x64:darwin:x64"
-  "bun-linux-arm64:linux:arm64"
-  "bun-linux-x64:linux:x64"
-  "bun-windows-x64:windows:x64"
-)
+detect_platform() {
+  case "$(uname -s)" in
+    Darwin*) echo "darwin" ;;
+    Linux*) echo "linux" ;;
+    MINGW*|MSYS*|CYGWIN*) echo "windows" ;;
+    *)
+      echo "Unsupported platform: $(uname -s)" >&2
+      exit 1
+      ;;
+  esac
+}
 
-echo "Building standalone binaries for dexto ${VERSION}"
-echo "Output directory: ${OUTPUT_DIR}"
+detect_arch() {
+  case "$(uname -m)" in
+    x86_64|amd64) echo "x64" ;;
+    arm64|aarch64) echo "arm64" ;;
+    *)
+      echo "Unsupported architecture: $(uname -m)" >&2
+      exit 1
+      ;;
+  esac
+}
 
-for target in "${TARGETS[@]}"; do
-  IFS=':' read -r bun_target platform_name arch_name <<<"${target}"
+build_windows_zip() {
+  local stage_dir="$1"
+  local artifact_path="$2"
 
-  stage_dir="$(mktemp -d "${OUTPUT_DIR}/.stage-${platform_name}-${arch_name}-XXXX")"
-  binary_name="dexto"
-  if [[ "${platform_name}" == "windows" ]]; then
-    binary_name="dexto.exe"
-  fi
-
-  cp -R "${CLI_DIST_DIR}" "${stage_dir}/dist"
-  cp "${CLI_PACKAGE_JSON}" "${stage_dir}/package.json"
-
-  echo "Compiling ${bun_target}"
-  bun build \
-    --compile \
-    --target="${bun_target}" \
-    --outfile "${stage_dir}/${binary_name}" \
-    "${CLI_ENTRYPOINT}"
-
-  if [[ "${platform_name}" != "windows" ]]; then
-    chmod +x "${stage_dir}/${binary_name}"
-  fi
-
-  artifact_base="dexto-${VERSION}-${platform_name}-${arch_name}"
-  if [[ "${platform_name}" == "windows" ]]; then
-    artifact_path="${OUTPUT_DIR}/${artifact_base}.zip"
+  if command -v zip >/dev/null 2>&1; then
     (
       cd "${stage_dir}"
-      zip -q -r "${artifact_path}" "${binary_name}" package.json dist
+      zip -q -r "${artifact_path}" dexto.exe package.json dist node_modules
     )
-  else
-    artifact_path="${OUTPUT_DIR}/${artifact_base}.tar.gz"
-    LC_ALL=C tar -C "${stage_dir}" -czf "${artifact_path}" "${binary_name}" package.json dist
+    return
   fi
 
-  rm -rf "${stage_dir}"
-  echo "Created ${artifact_path}"
-done
+  local stage_dir_win
+  local artifact_path_win
+  stage_dir_win="$(cygpath -w "${stage_dir}")"
+  artifact_path_win="$(cygpath -w "${artifact_path}")"
+  powershell.exe -NoProfile -Command \
+    "Compress-Archive -Path '${stage_dir_win}\\dexto.exe','${stage_dir_win}\\package.json','${stage_dir_win}\\dist','${stage_dir_win}\\node_modules' -DestinationPath '${artifact_path_win}' -Force"
+}
 
-checksum_file="${OUTPUT_DIR}/dexto-${VERSION}-checksums.txt"
+PLATFORM_NAME="$(detect_platform)"
+ARCH_NAME="$(detect_arch)"
+
+echo "Building standalone binary for dexto ${VERSION} (${PLATFORM_NAME}-${ARCH_NAME})"
+echo "Output directory: ${OUTPUT_DIR}"
+
+stage_dir="$(mktemp -d "${OUTPUT_DIR}/.stage-${PLATFORM_NAME}-${ARCH_NAME}-XXXX")"
+blob_path="${stage_dir}/sea-prep.blob"
+bootstrap_path="${stage_dir}/sea-bootstrap.cjs"
+sea_config_path="${stage_dir}/sea-config.json"
+binary_name="dexto"
+
+if [[ "${PLATFORM_NAME}" == "windows" ]]; then
+  binary_name="dexto.exe"
+fi
+
+echo "Creating portable CLI package"
+pnpm --filter dexto deploy --prod --legacy "${stage_dir}" >/dev/null
+
+cat > "${bootstrap_path}" <<'EOF'
+const { existsSync } = require('node:fs');
+const { dirname, join, resolve } = require('node:path');
+const { pathToFileURL } = require('node:url');
+
+if (!process.env.DEXTO_PACKAGE_ROOT) {
+    const executableDir = dirname(process.execPath);
+    if (existsSync(join(executableDir, 'dist'))) {
+        process.env.DEXTO_PACKAGE_ROOT = executableDir;
+    }
+}
+
+const entrypointPath = resolve(dirname(process.execPath), 'dist', 'index.js');
+
+(async () => {
+    await import(pathToFileURL(entrypointPath).href);
+})().catch((error) => {
+    console.error(error);
+    process.exit(1);
+});
+EOF
+
+cat > "${sea_config_path}" <<EOF
 {
-  shopt -s nullglob
-  assets=("${OUTPUT_DIR}/dexto-${VERSION}-"*.tar.gz "${OUTPUT_DIR}/dexto-${VERSION}-"*.zip)
-  for asset in "${assets[@]}"; do
-    hash="$(hash_file "${asset}")"
-    echo "${hash}  $(basename "${asset}")"
-  done
-} | sort > "${checksum_file}"
+  "main": "${bootstrap_path}",
+  "output": "${blob_path}",
+  "disableExperimentalSEAWarning": true,
+  "useCodeCache": false,
+  "useSnapshot": false
+}
+EOF
 
-echo "Created ${checksum_file}"
+echo "Creating SEA blob"
+node --experimental-sea-config "${sea_config_path}"
+
+node_path="$(command -v node)"
+binary_path="${stage_dir}/${binary_name}"
+
+cp "${node_path}" "${binary_path}"
+
+if [[ "${PLATFORM_NAME}" == "darwin" ]]; then
+  codesign --remove-signature "${binary_path}" >/dev/null 2>&1 || true
+fi
+
+echo "Injecting SEA blob"
+if [[ "${PLATFORM_NAME}" == "darwin" ]]; then
+  pnpm dlx postject "${binary_path}" NODE_SEA_BLOB "${blob_path}" \
+    --sentinel-fuse "${SEA_SENTINEL_FUSE}" \
+    --macho-segment-name NODE_SEA
+else
+  pnpm dlx postject "${binary_path}" NODE_SEA_BLOB "${blob_path}" \
+    --sentinel-fuse "${SEA_SENTINEL_FUSE}"
+fi
+
+if [[ "${PLATFORM_NAME}" == "darwin" ]]; then
+  codesign --sign - "${binary_path}" >/dev/null 2>&1
+fi
+
+if [[ "${PLATFORM_NAME}" != "windows" ]]; then
+  chmod +x "${binary_path}"
+fi
+
+artifact_base="dexto-${VERSION}-${PLATFORM_NAME}-${ARCH_NAME}"
+if [[ "${PLATFORM_NAME}" == "windows" ]]; then
+  artifact_path="${OUTPUT_DIR}/${artifact_base}.zip"
+  build_windows_zip "${stage_dir}" "${artifact_path}"
+else
+  artifact_path="${OUTPUT_DIR}/${artifact_base}.tar.gz"
+  LC_ALL=C tar -C "${stage_dir}" -czf "${artifact_path}" "${binary_name}" package.json dist node_modules
+fi
+
+rm -rf "${stage_dir}"
+echo "Created ${artifact_path}"
+
+if [[ "${SKIP_CHECKSUMS}" -eq 0 ]]; then
+  checksum_file="${OUTPUT_DIR}/dexto-${VERSION}-checksums.txt"
+  {
+    shopt -s nullglob
+    assets=("${OUTPUT_DIR}/dexto-${VERSION}-"*.tar.gz "${OUTPUT_DIR}/dexto-${VERSION}-"*.zip)
+    for asset in "${assets[@]}"; do
+      hash="$(hash_file "${asset}")"
+      echo "${hash}  $(basename "${asset}")"
+    done
+  } | sort > "${checksum_file}"
+
+  echo "Created ${checksum_file}"
+fi
