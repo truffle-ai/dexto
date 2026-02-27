@@ -139,7 +139,8 @@ detect_arch() {
 build_windows_zip() {
   local stage_dir="$1"
   local artifact_path="$2"
-  shift 2
+  local compression_mode="${3:-fast}"
+  shift 3
   local -a entries=("$@")
 
   if [[ "${#entries[@]}" -eq 0 ]]; then
@@ -147,23 +148,35 @@ build_windows_zip() {
     exit 1
   fi
 
+  if [[ "${compression_mode}" != "fast" && "${compression_mode}" != "max" ]]; then
+    echo "build_windows_zip compression_mode must be 'fast' or 'max' (got: ${compression_mode})" >&2
+    exit 1
+  fi
+
+  local zip_7z_level="-mx=1"
+  local zip_level="-1"
+  if [[ "${compression_mode}" == "max" ]]; then
+    zip_7z_level="-mx=9"
+    zip_level="-9"
+  fi
+
   rm -f "${artifact_path}"
 
   if command -v 7z >/dev/null 2>&1; then
-    echo "Creating Windows zip archive with 7z (fast mode)"
+    echo "Creating Windows zip archive with 7z (${compression_mode} mode)"
     (
       cd "${stage_dir}"
-      7z a -tzip -mx=1 "${artifact_path}" "${entries[@]}" >/dev/null
+      7z a -tzip "${zip_7z_level}" "${artifact_path}" "${entries[@]}" >/dev/null
     )
     echo "Windows zip archive created"
     return
   fi
 
   if command -v zip >/dev/null 2>&1; then
-    echo "Creating Windows zip archive with zip (fast mode)"
+    echo "Creating Windows zip archive with zip (${compression_mode} mode)"
     (
       cd "${stage_dir}"
-      zip -1 -q -r "${artifact_path}" "${entries[@]}"
+      zip "${zip_level}" -q -r "${artifact_path}" "${entries[@]}"
     )
     echo "Windows zip archive created"
     return
@@ -219,11 +232,22 @@ pnpm --filter dexto deploy --prod --legacy "${runtime_dir}" >/dev/null
 if [[ "${PLATFORM_NAME}" == "windows" ]]; then
   payload_archive_extension="zip"
   payload_archive_path="${stage_dir}/runtime-payload.zip"
-  build_windows_zip "${runtime_dir}" "${payload_archive_path}" package.json dist node_modules
+  build_windows_zip "${runtime_dir}" "${payload_archive_path}" max package.json dist node_modules
 else
   payload_archive_extension="tar.gz"
   payload_archive_path="${stage_dir}/runtime-payload.tar.gz"
   env -u LC_ALL tar -C "${runtime_dir}" -czf "${payload_archive_path}" package.json dist node_modules
+fi
+
+payload_size_bytes="$(wc -c < "${payload_archive_path}" | tr -d '[:space:]')"
+echo "Runtime payload archive size: ${payload_size_bytes} bytes"
+
+# Node SEA blob generation on Windows fails with opaque errors for very large payloads.
+# Keep a guardrail so the failure mode is deterministic and actionable.
+if [[ "${payload_size_bytes}" -ge 1900000000 ]]; then
+  echo "Runtime payload archive is too large (${payload_size_bytes} bytes)." >&2
+  echo "Reduce bundled runtime size before building SEA artifacts." >&2
+  exit 1
 fi
 
 payload_hash="$(hash_file "${payload_archive_path}")"
@@ -466,7 +490,7 @@ fi
 artifact_base="dexto-${VERSION}-${PLATFORM_NAME}-${ARCH_NAME}"
 if [[ "${PLATFORM_NAME}" == "windows" ]]; then
   artifact_path="${OUTPUT_DIR}/${artifact_base}.zip"
-  build_windows_zip "${stage_dir}" "${artifact_path}" "${binary_name}"
+  build_windows_zip "${stage_dir}" "${artifact_path}" fast "${binary_name}"
 else
   artifact_path="${OUTPUT_DIR}/${artifact_base}.tar.gz"
   env -u LC_ALL tar -C "${stage_dir}" -czf "${artifact_path}" "${binary_name}"
