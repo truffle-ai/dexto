@@ -80,14 +80,29 @@ extract_zip() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --input-dir)
+      if [[ -z "${2:-}" || "${2:-}" == -* ]]; then
+        echo "Error: --input-dir requires a value" >&2
+        usage
+        exit 1
+      fi
       INPUT_DIR="${2:-}"
       shift 2
       ;;
     --version)
+      if [[ -z "${2:-}" || "${2:-}" == -* ]]; then
+        echo "Error: --version requires a value" >&2
+        usage
+        exit 1
+      fi
       VERSION="${2:-}"
       shift 2
       ;;
     --artifact)
+      if [[ -z "${2:-}" || "${2:-}" == -* ]]; then
+        echo "Error: --artifact requires a value" >&2
+        usage
+        exit 1
+      fi
       ARTIFACT_PATH="${2:-}"
       shift 2
       ;;
