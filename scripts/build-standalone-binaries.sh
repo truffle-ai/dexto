@@ -232,15 +232,9 @@ echo "Creating portable CLI package"
 mkdir -p "${runtime_dir}"
 pnpm --filter dexto deploy --prod --legacy "${runtime_dir}" >/dev/null
 
-if [[ "${PLATFORM_NAME}" == "windows" ]]; then
-  payload_archive_extension="zip"
-  payload_archive_path="${stage_dir}/runtime-payload.zip"
-  build_windows_zip "${runtime_dir}" "${payload_archive_path}" balanced package.json dist node_modules
-else
-  payload_archive_extension="tar.gz"
-  payload_archive_path="${stage_dir}/runtime-payload.tar.gz"
-  env -u LC_ALL tar -C "${runtime_dir}" -czf "${payload_archive_path}" package.json dist node_modules
-fi
+payload_archive_extension="tar.gz"
+payload_archive_path="${stage_dir}/runtime-payload.tar.gz"
+env -u LC_ALL tar -C "${runtime_dir}" -czf "${payload_archive_path}" package.json dist node_modules
 
 payload_size_bytes="$(wc -c < "${payload_archive_path}" | tr -d '[:space:]')"
 echo "Runtime payload archive size: ${payload_size_bytes} bytes"
@@ -295,7 +289,7 @@ function validateRuntimeDir(runtimeDir, expectedMarker) {
 }
 
 function extractPayload(archivePath, destinationDir) {
-    if (process.platform === 'win32') {
+    if (RUNTIME_PAYLOAD_EXTENSION === 'zip') {
         const command = `$ErrorActionPreference = 'Stop'; Expand-Archive -LiteralPath '${escapePowerShellLiteral(archivePath)}' -DestinationPath '${escapePowerShellLiteral(destinationDir)}' -Force`;
         const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], {
             stdio: 'inherit',
