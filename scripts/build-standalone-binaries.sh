@@ -57,6 +57,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if ! command -v node >/dev/null 2>&1; then
+  echo "node is required but was not found in PATH." >&2
+  exit 1
+fi
+
 if [[ -z "${VERSION}" ]]; then
   VERSION="$(
     cd "${ROOT_DIR}"
@@ -66,11 +71,6 @@ fi
 
 if [[ -z "${VERSION}" ]]; then
   echo "Could not determine CLI version." >&2
-  exit 1
-fi
-
-if ! command -v node >/dev/null 2>&1; then
-  echo "node is required but was not found in PATH." >&2
   exit 1
 fi
 
@@ -122,6 +122,7 @@ detect_arch() {
 build_windows_zip() {
   local stage_dir="$1"
   local artifact_path="$2"
+  rm -f "${artifact_path}"
 
   if command -v 7z >/dev/null 2>&1; then
     echo "Creating Windows zip archive with 7z (fast mode)"
@@ -145,10 +146,14 @@ build_windows_zip() {
 
   local stage_dir_win
   local artifact_path_win
+  local stage_dir_win_escaped
+  local artifact_path_win_escaped
   stage_dir_win="$(cygpath -w "${stage_dir}")"
   artifact_path_win="$(cygpath -w "${artifact_path}")"
+  stage_dir_win_escaped="${stage_dir_win//\'/''}"
+  artifact_path_win_escaped="${artifact_path_win//\'/''}"
   powershell.exe -NoProfile -Command \
-    "\$ErrorActionPreference = 'Stop'; Set-Location -LiteralPath '${stage_dir_win}'; Compress-Archive -Path 'dexto.exe','package.json','dist','node_modules' -DestinationPath '${artifact_path_win}' -Force"
+    "\$ErrorActionPreference = 'Stop'; Set-Location -LiteralPath '${stage_dir_win_escaped}'; Compress-Archive -Path 'dexto.exe','package.json','dist','node_modules' -DestinationPath '${artifact_path_win_escaped}' -Force"
   echo "Windows zip archive created via PowerShell"
 }
 
