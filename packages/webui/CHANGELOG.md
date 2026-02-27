@@ -1,5 +1,18 @@
 # @dexto/webui
 
+## 1.6.7
+
+### Patch Changes
+
+- 785978b: Fix upload standalone bianries release tag finding logic
+- Updated dependencies [785978b]
+    - @dexto/agent-config@1.6.7
+    - @dexto/analytics@1.6.7
+    - @dexto/client-sdk@1.6.7
+    - @dexto/core@1.6.7
+    - @dexto/registry@1.6.7
+    - @dexto/storage@1.6.7
+
 ## 1.6.6
 
 ### Patch Changes

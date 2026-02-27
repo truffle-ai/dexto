@@ -1,6 +1,6 @@
 {
     "name": "@dexto/tools-plan",
-    "version": "1.6.6",
+    "version": "1.6.7",
     "description": "Implementation planning tools with session-linked plans",
     "type": "module",
     "main": "./dist/index.js",

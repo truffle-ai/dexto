@@ -1,6 +1,6 @@
 {
     "name": "@dexto/tools-scheduler",
-    "version": "1.6.6",
+    "version": "1.6.7",
     "description": "Scheduler tools provider for Dexto agents - enables proactive task scheduling",
     "type": "module",
     "main": "./dist/index.js",
