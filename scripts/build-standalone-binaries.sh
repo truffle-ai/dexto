@@ -148,14 +148,17 @@ build_windows_zip() {
     exit 1
   fi
 
-  if [[ "${compression_mode}" != "fast" && "${compression_mode}" != "max" ]]; then
-    echo "build_windows_zip compression_mode must be 'fast' or 'max' (got: ${compression_mode})" >&2
+  if [[ "${compression_mode}" != "fast" && "${compression_mode}" != "balanced" && "${compression_mode}" != "max" ]]; then
+    echo "build_windows_zip compression_mode must be 'fast', 'balanced', or 'max' (got: ${compression_mode})" >&2
     exit 1
   fi
 
   local zip_7z_level="-mx=1"
   local zip_level="-1"
-  if [[ "${compression_mode}" == "max" ]]; then
+  if [[ "${compression_mode}" == "balanced" ]]; then
+    zip_7z_level="-mx=3"
+    zip_level="-3"
+  elif [[ "${compression_mode}" == "max" ]]; then
     zip_7z_level="-mx=9"
     zip_level="-9"
   fi
@@ -232,7 +235,7 @@ pnpm --filter dexto deploy --prod --legacy "${runtime_dir}" >/dev/null
 if [[ "${PLATFORM_NAME}" == "windows" ]]; then
   payload_archive_extension="zip"
   payload_archive_path="${stage_dir}/runtime-payload.zip"
-  build_windows_zip "${runtime_dir}" "${payload_archive_path}" max package.json dist node_modules
+  build_windows_zip "${runtime_dir}" "${payload_archive_path}" balanced package.json dist node_modules
 else
   payload_archive_extension="tar.gz"
   payload_archive_path="${stage_dir}/runtime-payload.tar.gz"
