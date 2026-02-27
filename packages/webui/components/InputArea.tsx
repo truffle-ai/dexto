@@ -4,22 +4,15 @@ import TextareaAutosize from 'react-textarea-autosize';
 import { Button } from './ui/button';
 import { ChatInputContainer, ButtonFooter, AttachButton, RecordButton } from './ChatInput';
 import ModelPickerModal from './ModelPicker';
-import {
-    SendHorizontal,
-    X,
-    Loader2,
-    AlertCircle,
-    Square,
-    FileAudio,
-    File,
-    Brain,
-} from 'lucide-react';
+import AttachmentPreview from './AttachmentPreview';
+import { SendHorizontal, X, Loader2, AlertCircle, Square, Brain } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { useChatContext } from './hooks/ChatContext';
 import { useFontsReady } from './hooks/useFontsReady';
 import { cn, filterAndSortResources } from '../lib/utils';
 import { useCurrentSessionId, useSessionProcessing } from '@/lib/stores';
 import { useCurrentLLM } from './hooks/useCurrentLLM';
+import { useLLMCatalog } from './hooks/useLLM';
 import ResourceAutocomplete from './ResourceAutocomplete';
 import type { ResourceMetadata as UIResourceMetadata } from '@dexto/core';
 import { useResources } from './hooks/useResources';
@@ -37,13 +30,15 @@ import { useResolvePrompt } from './hooks/usePrompts';
 import { useInputHistory } from './hooks/useInputHistory';
 import { useQueuedMessages, useRemoveQueuedMessage, useQueueMessage } from './hooks/useQueue';
 import { QueuedMessagesDisplay } from './QueuedMessagesDisplay';
+import { Attachment, ATTACHMENT_LIMITS, DEFAULT_SAFE_FILE_TYPES } from '../lib/attachment-types.js';
+import {
+    generateAttachmentId,
+    estimateBase64Size,
+    formatFileSize,
+} from '../lib/attachment-utils.js';
 
 interface InputAreaProps {
-    onSend: (
-        content: string,
-        imageData?: { image: string; mimeType: string },
-        fileData?: { data: string; mimeType: string; filename?: string }
-    ) => void;
+    onSend: (content: string, attachments?: Attachment[]) => void;
     isSending?: boolean;
     variant?: 'welcome' | 'chat';
     isSessionsPanelOpen?: boolean;
@@ -57,12 +52,10 @@ export default function InputArea({
     const queryClient = useQueryClient();
     const [text, setText] = useState('');
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const [imageData, setImageData] = useState<{ image: string; mimeType: string } | null>(null);
-    const [fileData, setFileData] = useState<{
-        data: string;
-        mimeType: string;
-        filename?: string;
-    } | null>(null);
+
+    // NEW: Replace imageData and fileData with attachments array
+    const [attachments, setAttachments] = useState<Attachment[]>([]);
+
     const fileInputRef = useRef<HTMLInputElement>(null);
     const pdfInputRef = useRef<HTMLInputElement>(null);
     const audioInputRef = useRef<HTMLInputElement>(null);
@@ -77,6 +70,10 @@ export default function InputArea({
     const [isRecording, setIsRecording] = useState(false);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
+    // Drag-drop state
+    const [isDragging, setIsDragging] = useState(false);
+    const dragCounterRef = useRef(0); // Track nested drag events
+
     // Get state from centralized selectors
     const currentSessionId = useCurrentSessionId();
     const processing = useSessionProcessing(currentSessionId);
@@ -86,6 +83,7 @@ export default function InputArea({
 
     // Get state from stores and hooks
     const { data: currentLLM } = useCurrentLLM(currentSessionId);
+    const { data: catalogData } = useLLMCatalog({ mode: 'flat' });
 
     // Input history for Up/Down navigation
     const { invalidateHistory, navigateUp, navigateDown, resetCursor, isBrowsing } =
@@ -146,9 +144,6 @@ export default function InputArea({
         }
         return -1;
     };
-
-    // File size limit (64MB)
-    const MAX_FILE_SIZE = 64 * 1024 * 1024; // 64MB in bytes
 
     // Slash command state
     const [showSlashCommands, setShowSlashCommands] = useState(false);
@@ -211,10 +206,15 @@ export default function InputArea({
     // NOTE: We intentionally do not manually resize the textarea. We rely on
     // CSS max-height + overflow to keep layout stable.
 
+    // Calculate total size of all attachments
+    const totalAttachmentsSize = useMemo(() => {
+        return attachments.reduce((sum, att) => sum + att.size, 0);
+    }, [attachments]);
+
     const handleSend = async () => {
         let trimmed = text.trim();
         // Allow sending if we have text OR any attachment
-        if (!trimmed && !imageData && !fileData) return;
+        if (!trimmed && attachments.length === 0) return;
 
         // If slash command typed, resolve to full prompt content at send time
         if (trimmed === '/') {
@@ -259,26 +259,23 @@ export default function InputArea({
             queueMessage({
                 sessionId: currentSessionId,
                 message: trimmed || undefined,
-                imageData: imageData ?? undefined,
-                fileData: fileData ?? undefined,
+                attachments: attachments.length > 0 ? attachments : undefined,
             });
             // Invalidate history cache so it refetches with new message
             invalidateHistory();
             setText('');
-            setImageData(null);
-            setFileData(null);
+            setAttachments([]);
             setShowSlashCommands(false);
             // Keep focus in input for quick follow-up messages
             textareaRef.current?.focus();
             return;
         }
 
-        onSend(trimmed, imageData ?? undefined, fileData ?? undefined);
+        onSend(trimmed, attachments.length > 0 ? attachments : undefined);
         // Invalidate history cache so it refetches with new message
         invalidateHistory();
         setText('');
-        setImageData(null);
-        setFileData(null);
+        setAttachments([]);
         // Ensure guidance window closes after submit
         setShowSlashCommands(false);
         // Keep focus in input for quick follow-up messages
@@ -324,28 +321,36 @@ export default function InputArea({
                 .map((part: TextPart) => part.text)
                 .join('\n');
 
-            // Extract image attachment if present
-            const imagePart = message.content.find(isImagePart);
+            // Extract ALL image parts (multiple images now supported)
+            const imageParts = message.content.filter(isImagePart);
 
-            // Extract file attachment if present
-            const filePart = message.content.find(isFilePart);
+            // Extract ALL file parts (multiple files now supported)
+            const fileParts = message.content.filter(isFilePart);
+
+            // Convert to Attachment[] format
+            const loadedAttachments: Attachment[] = [
+                ...imageParts.map((img) => ({
+                    id: generateAttachmentId(),
+                    type: 'image' as const,
+                    data: img.image,
+                    mimeType: img.mimeType ?? 'image/jpeg',
+                    size: estimateBase64Size(img.image),
+                    source: 'button' as const,
+                })),
+                ...fileParts.map((file) => ({
+                    id: generateAttachmentId(),
+                    type: 'file' as const,
+                    data: file.data,
+                    mimeType: file.mimeType,
+                    filename: file.filename,
+                    size: estimateBase64Size(file.data),
+                    source: 'button' as const,
+                })),
+            ];
 
             // Load into input
             setText(textContent);
-            setImageData(
-                imagePart
-                    ? { image: imagePart.image, mimeType: imagePart.mimeType ?? 'image/jpeg' }
-                    : null
-            );
-            setFileData(
-                filePart
-                    ? {
-                          data: filePart.data,
-                          mimeType: filePart.mimeType,
-                          filename: filePart.filename,
-                      }
-                    : null
-            );
+            setAttachments(loadedAttachments);
 
             // Remove from queue
             removeQueuedMessage({ sessionId: currentSessionId, messageId: message.id });
@@ -592,70 +597,318 @@ export default function InputArea({
             return btoa(str);
         }
     };
-    const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-        const pasted = e.clipboardData.getData('text/plain');
+
+    // Unified file handler for button uploads, paste, and drag-drop
+    const handleFilesAdded = async (files: File[], source: 'button' | 'paste' | 'drop') => {
+        if (files.length === 0) return;
+
+        const errors: Array<{
+            filename: string;
+            reason: string;
+            compatibleModels?: string[];
+        }> = [];
+
+        // 1. Validate file count
+        if (attachments.length + files.length > ATTACHMENT_LIMITS.MAX_COUNT) {
+            showUserError(
+                `Cannot add ${files.length} file(s). Maximum ${ATTACHMENT_LIMITS.MAX_COUNT} attachments allowed (currently ${attachments.length}).`
+            );
+            return;
+        }
+
+        // 2. Validate total size
+        const currentTotalSize = attachments.reduce((sum, att) => sum + att.size, 0);
+        const newFilesSize = files.reduce((sum, f) => sum + f.size, 0);
+        if (currentTotalSize + newFilesSize > ATTACHMENT_LIMITS.MAX_TOTAL_SIZE) {
+            showUserError(
+                `Total size would exceed ${formatFileSize(ATTACHMENT_LIMITS.MAX_TOTAL_SIZE)}. Current: ${formatFileSize(currentTotalSize)}, Adding: ${formatFileSize(newFilesSize)}.`
+            );
+            return;
+        }
+
+        // 3. Process files
+        const validFiles: File[] = [];
+        const rejectedFiles: Array<{
+            file: File;
+            reason: 'size_limit' | 'type_unsupported' | 'duplicate';
+        }> = [];
+
+        for (const file of files) {
+            // Check individual file size
+            if (file.size > ATTACHMENT_LIMITS.MAX_FILE_SIZE) {
+                rejectedFiles.push({ file, reason: 'size_limit' });
+                errors.push({
+                    filename: file.name,
+                    reason: `File too large (${formatFileSize(file.size)}). Maximum ${formatFileSize(ATTACHMENT_LIMITS.MAX_FILE_SIZE)} per file.`,
+                });
+                continue;
+            }
+
+            // Check for duplicates (by filename and size)
+            const isDuplicate = attachments.some(
+                (att) => att.filename === file.name && att.size === file.size
+            );
+            if (isDuplicate) {
+                rejectedFiles.push({ file, reason: 'duplicate' });
+                errors.push({
+                    filename: file.name,
+                    reason: 'File already attached (duplicate name and size).',
+                });
+                continue;
+            }
+
+            // Check file type against supported types
+            // Always validate against default safe types for security
+            const fileCategory = file.type.startsWith('image/')
+                ? 'image'
+                : file.type.startsWith('audio/')
+                  ? 'audio'
+                  : file.type === 'application/pdf'
+                    ? 'pdf'
+                    : null;
+
+            // Security check: reject if not in default safe types
+            const isInDefaultSafeTypes =
+                fileCategory && DEFAULT_SAFE_FILE_TYPES.includes(fileCategory);
+            if (!isInDefaultSafeTypes) {
+                rejectedFiles.push({ file, reason: 'type_unsupported' });
+                errors.push({
+                    filename: file.name,
+                    reason: `File type not supported. Only images, PDFs, and audio files are allowed.`,
+                });
+                continue;
+            }
+
+            // Additional check: if model capabilities are loaded, validate against them
+            if (supportedFileTypes.length > 0) {
+                const isSupported = fileCategory && supportedFileTypes.includes(fileCategory);
+
+                if (!isSupported) {
+                    rejectedFiles.push({ file, reason: 'type_unsupported' });
+
+                    // Find compatible models
+                    const compatibleModels: string[] = [];
+                    if (catalogData && 'models' in catalogData) {
+                        const models = catalogData.models;
+                        for (const model of models) {
+                            if (fileCategory && model.supportedFileTypes?.includes(fileCategory)) {
+                                compatibleModels.push(`${model.provider}/${model.name}`);
+                            }
+                        }
+                    }
+
+                    errors.push({
+                        filename: file.name,
+                        reason: `File type not supported by current model (${currentLLM?.provider}/${currentLLM?.model}).`,
+                        compatibleModels:
+                            compatibleModels.length > 0 ? compatibleModels.slice(0, 3) : undefined,
+                    });
+                    continue;
+                }
+            }
+
+            validFiles.push(file);
+        }
+
+        // 4. Track rejected files
+        if (currentSessionId) {
+            for (const rejected of rejectedFiles) {
+                analyticsRef.current.trackFileRejected({
+                    reason: rejected.reason,
+                    fileType: rejected.file.type,
+                    fileSizeBytes: rejected.file.size,
+                    sessionId: currentSessionId,
+                });
+            }
+        }
+
+        // 5. Convert valid files to attachments
+        if (validFiles.length > 0) {
+            try {
+                const newAttachments = await Promise.all(
+                    validFiles.map((file) => fileToAttachment(file, source))
+                );
+
+                setAttachments((prev) => [...prev, ...newAttachments]);
+
+                // Track successful attachments
+                if (currentSessionId) {
+                    for (const attachment of newAttachments) {
+                        trackAttachment(attachment);
+                    }
+                }
+            } catch (error) {
+                showUserError(`Failed to process ${validFiles.length} file(s). Please try again.`);
+                console.error('File processing error:', error);
+            }
+        }
+
+        // 6. Show error summary if any files were rejected
+        if (errors.length > 0) {
+            setFileUploadError(
+                errors.length === 1
+                    ? `${errors[0].filename}: ${errors[0].reason}${errors[0].compatibleModels ? ` Try: ${errors[0].compatibleModels.join(', ')}` : ''}`
+                    : `${errors.length} file(s) rejected. Check file types and sizes.`
+            );
+        }
+    };
+
+    const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+        const clipboardData = e.clipboardData;
+
+        // Priority 1: Check for files (files copied from file manager or screenshots)
+        const files = Array.from(clipboardData.files);
+        if (files.length > 0) {
+            e.preventDefault();
+            await handleFilesAdded(files, 'paste');
+            return;
+        }
+
+        // Priority 2: Check for image data items (some browsers expose images as items)
+        const items = Array.from(clipboardData.items);
+        const imageItems = items.filter((item) => item.type.startsWith('image/'));
+        if (imageItems.length > 0) {
+            e.preventDefault();
+            const imageFiles = imageItems
+                .map((item) => item.getAsFile())
+                .filter((f): f is File => f !== null);
+            if (imageFiles.length > 0) {
+                await handleFilesAdded(imageFiles, 'paste');
+            }
+            return;
+        }
+
+        // Priority 3: Large text paste guard
+        const pasted = clipboardData.getData('text/plain');
         if (!pasted) return;
         if (pasted.length <= LARGE_PASTE_THRESHOLD) return;
+
         e.preventDefault();
         const attach = window.confirm(
             'Large text detected. Attach as a file instead of inflating the input?\n(OK = attach as file, Cancel = paste truncated preview)'
         );
         if (attach) {
-            setFileData({
+            // Calculate actual byte size using UTF-8 encoding
+            const textBytes = new TextEncoder().encode(pasted);
+            const byteSize = textBytes.length;
+
+            // Validate against attachment limits BEFORE creating attachment
+            // 1. Check attachment count
+            if (attachments.length >= ATTACHMENT_LIMITS.MAX_COUNT) {
+                showUserError(
+                    `Cannot attach pasted text. Maximum ${ATTACHMENT_LIMITS.MAX_COUNT} attachments allowed (currently ${attachments.length}).`
+                );
+                return;
+            }
+
+            // 2. Check individual file size
+            if (byteSize > ATTACHMENT_LIMITS.MAX_FILE_SIZE) {
+                showUserError(
+                    `Pasted text is too large (${formatFileSize(byteSize)}). Maximum ${formatFileSize(ATTACHMENT_LIMITS.MAX_FILE_SIZE)} per file.`
+                );
+                return;
+            }
+
+            // 3. Check total size
+            const currentTotalSize = attachments.reduce((sum, att) => sum + att.size, 0);
+            if (currentTotalSize + byteSize > ATTACHMENT_LIMITS.MAX_TOTAL_SIZE) {
+                showUserError(
+                    `Total size would exceed ${formatFileSize(ATTACHMENT_LIMITS.MAX_TOTAL_SIZE)}. Current: ${formatFileSize(currentTotalSize)}, Adding: ${formatFileSize(byteSize)}.`
+                );
+                return;
+            }
+
+            // All validations passed - create attachment
+            const attachment: Attachment = {
+                id: generateAttachmentId(),
+                type: 'file',
                 data: toBase64(pasted),
                 mimeType: 'text/plain',
                 filename: 'pasted.txt',
-            });
+                size: byteSize, // Use actual byte size, not character count
+                source: 'paste',
+            };
+            setAttachments((prev) => [...prev, attachment]);
         } else {
             const preview = pasted.slice(0, LARGE_PASTE_THRESHOLD);
             setText((prev) => prev + preview);
         }
     };
 
-    const handlePdfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+    // Helper: Convert File to Attachment
+    const fileToAttachment = async (
+        file: File,
+        source: 'button' | 'paste' | 'drop'
+    ): Promise<Attachment> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                try {
+                    const result = reader.result;
 
-        // File size validation
-        if (file.size > MAX_FILE_SIZE) {
-            showUserError('PDF file too large. Maximum size is 64MB.');
-            e.target.value = '';
-            return;
-        }
+                    // Validate that result is a string
+                    if (typeof result !== 'string') {
+                        reject(new Error('Malformed data URL: FileReader result is not a string'));
+                        return;
+                    }
 
-        if (file.type !== 'application/pdf') {
-            showUserError('Please select a valid PDF file.');
-            e.target.value = '';
-            return;
-        }
+                    // Validate that comma exists in data URL format (data:mime/type;base64,data)
+                    const commaIndex = result.indexOf(',');
+                    if (commaIndex === -1) {
+                        reject(new Error('Malformed data URL: missing comma separator'));
+                        return;
+                    }
 
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            try {
-                const result = reader.result as string;
-                const commaIndex = result.indexOf(',');
-                const data = result.substring(commaIndex + 1);
-                setFileData({ data, mimeType: 'application/pdf', filename: file.name });
-                setFileUploadError(null); // Clear any previous errors
+                    const data = result.substring(commaIndex + 1);
 
-                // Track file upload
-                if (currentSessionId) {
-                    analyticsRef.current.trackFileAttached({
-                        fileType: 'application/pdf',
-                        fileSizeBytes: file.size,
-                        sessionId: currentSessionId,
-                    });
+                    const attachment: Attachment = {
+                        id: generateAttachmentId(),
+                        type: file.type.startsWith('image/') ? 'image' : 'file',
+                        data,
+                        mimeType: file.type,
+                        filename: file.name,
+                        size: file.size,
+                        source,
+                    };
+                    resolve(attachment);
+                } catch (error) {
+                    reject(error);
                 }
-            } catch {
-                showUserError('Failed to process PDF file. Please try again.');
-                setFileData(null);
-            }
-        };
-        reader.onerror = () => {
-            showUserError('Failed to read PDF file. Please try again.');
-            setFileData(null);
-        };
-        reader.readAsDataURL(file);
+            };
+            reader.onerror = () => reject(new Error('Failed to read file'));
+            reader.readAsDataURL(file);
+        });
+    };
+
+    // Handle remove attachment
+    const handleRemoveAttachment = (id: string) => {
+        setAttachments((prev) => prev.filter((att) => att.id !== id));
+    };
+
+    // Track attachment analytics
+    const trackAttachment = (attachment: Attachment) => {
+        if (!currentSessionId) return;
+
+        if (attachment.type === 'image') {
+            analyticsRef.current.trackImageAttached({
+                imageType: attachment.mimeType,
+                imageSizeBytes: attachment.size,
+                sessionId: currentSessionId,
+            });
+        } else {
+            analyticsRef.current.trackFileAttached({
+                fileType: attachment.mimeType,
+                fileSizeBytes: attachment.size,
+                sessionId: currentSessionId,
+            });
+        }
+    };
+
+    const handlePdfChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+
+        await handleFilesAdded(files, 'button');
         e.target.value = '';
     };
 
@@ -697,23 +950,20 @@ export default function InputArea({
                         };
                         const ext = getExtensionFromMime(mimeType);
 
-                        setFileData({
+                        const attachment: Attachment = {
+                            id: generateAttachmentId(),
+                            type: 'file',
                             data,
-                            mimeType: mimeType,
+                            mimeType,
                             filename: `recording.${ext}`,
-                        });
+                            size: blob.size,
+                            source: 'button',
+                        };
 
-                        // Track audio recording upload
-                        if (currentSessionId) {
-                            analyticsRef.current.trackFileAttached({
-                                fileType: mimeType,
-                                fileSizeBytes: blob.size,
-                                sessionId: currentSessionId,
-                            });
-                        }
+                        setAttachments((prev) => [...prev, attachment]);
+                        trackAttachment(attachment);
                     } catch {
                         showUserError('Failed to process audio recording. Please try again.');
-                        setFileData(null);
                     }
                 };
                 reader.readAsDataURL(blob);
@@ -734,63 +984,13 @@ export default function InputArea({
         setIsRecording(false);
     };
 
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+    const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
 
-        // File size validation
-        if (file.size > MAX_FILE_SIZE) {
-            showUserError('Image file too large. Maximum size is 64MB.');
-            e.target.value = '';
-            return;
-        }
-
-        if (!file.type.startsWith('image/')) {
-            showUserError('Please select a valid image file.');
-            e.target.value = '';
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            try {
-                const result = reader.result as string;
-                const commaIndex = result.indexOf(',');
-                if (commaIndex === -1) throw new Error('Invalid Data URL format');
-
-                const meta = result.substring(0, commaIndex);
-                const image = result.substring(commaIndex + 1);
-
-                const mimeMatch = meta.match(/data:(.*);base64/);
-                const mimeType = mimeMatch ? mimeMatch[1] : file.type;
-
-                if (!mimeType) throw new Error('Could not determine MIME type');
-
-                setImageData({ image, mimeType });
-                setFileUploadError(null); // Clear any previous errors
-
-                // Track image upload
-                if (currentSessionId) {
-                    analyticsRef.current.trackImageAttached({
-                        imageType: mimeType,
-                        imageSizeBytes: file.size,
-                        sessionId: currentSessionId,
-                    });
-                }
-            } catch {
-                showUserError('Failed to process image file. Please try again.');
-                setImageData(null);
-            }
-        };
-        reader.onerror = () => {
-            showUserError('Failed to read image file. Please try again.');
-            setImageData(null);
-        };
-        reader.readAsDataURL(file);
+        await handleFilesAdded(files, 'button');
         e.target.value = '';
     };
-
-    const removeImage = () => setImageData(null);
 
     const triggerFileInput = () => fileInputRef.current?.click();
     const triggerPdfInput = () => pdfInputRef.current?.click();
@@ -806,52 +1006,48 @@ export default function InputArea({
         }
     }, [text, modelSwitchError, fileUploadError]);
 
-    const handleAudioFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+    const handleAudioFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
 
-        // File size validation
-        if (file.size > MAX_FILE_SIZE) {
-            showUserError('Audio file too large. Maximum size is 64MB.');
-            e.target.value = '';
-            return;
-        }
-
-        if (!file.type.startsWith('audio/')) {
-            showUserError('Please select a valid audio file.');
-            e.target.value = '';
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            try {
-                const result = reader.result as string;
-                const commaIndex = result.indexOf(',');
-                const data = result.substring(commaIndex + 1);
-                // Preserve original MIME type from file
-                setFileData({ data, mimeType: file.type, filename: file.name });
-                setFileUploadError(null); // Clear any previous errors
-
-                // Track file upload
-                if (currentSessionId) {
-                    analyticsRef.current.trackFileAttached({
-                        fileType: file.type,
-                        fileSizeBytes: file.size,
-                        sessionId: currentSessionId,
-                    });
-                }
-            } catch {
-                showUserError('Failed to process audio file. Please try again.');
-                setFileData(null);
-            }
-        };
-        reader.onerror = () => {
-            showUserError('Failed to read audio file. Please try again.');
-            setFileData(null);
-        };
-        reader.readAsDataURL(file);
+        await handleFilesAdded(files, 'button');
         e.target.value = '';
+    };
+
+    // Drag event handlers
+    const handleDragEnter = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounterRef.current++;
+        if (e.dataTransfer.types.includes('Files')) {
+            setIsDragging(true);
+        }
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounterRef.current--;
+        if (dragCounterRef.current === 0) {
+            setIsDragging(false);
+        }
+    };
+
+    const handleDrop = async (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+        dragCounterRef.current = 0;
+
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length > 0) {
+            await handleFilesAdded(files, 'drop');
+        }
     };
 
     // Unified input panel: use the same full-featured chat composer in both welcome and chat states
@@ -903,234 +1099,241 @@ export default function InputArea({
                         handleSend();
                     }}
                 >
-                    <ChatInputContainer>
-                        {/* Queued messages display (shows when messages are pending) */}
-                        {queuedMessages.length > 0 && (
-                            <QueuedMessagesDisplay
-                                messages={queuedMessages}
-                                onEditMessage={handleEditQueuedMessage}
-                                onRemoveMessage={(messageId) => {
-                                    if (currentSessionId) {
-                                        removeQueuedMessage({
-                                            sessionId: currentSessionId,
-                                            messageId,
-                                        });
-                                    }
-                                }}
-                            />
+                    <div
+                        role="region"
+                        aria-label="Message input area with file drop zone"
+                        className={cn(
+                            'relative transition-all duration-200',
+                            isDragging && 'ring-2 ring-primary ring-offset-2 rounded-lg'
                         )}
-
-                        {/* Attachments strip (inside bubble, above editor) */}
-                        {(imageData || fileData) && (
-                            <div className="px-4 pt-4">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    {imageData && (
-                                        <div className="relative w-fit border border-border rounded-lg p-1 bg-muted/50 group">
-                                            <img
-                                                src={`data:${imageData.mimeType};base64,${imageData.image}`}
-                                                alt="preview"
-                                                className="h-12 w-auto rounded-md"
-                                            />
-                                            <Button
-                                                variant="destructive"
-                                                size="icon"
-                                                onClick={removeImage}
-                                                className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground opacity-100 group-hover:opacity-100 transition-opacity duration-150 shadow-md"
-                                                aria-label="Remove image"
-                                            >
-                                                <X className="h-2 w-2" />
-                                            </Button>
-                                        </div>
-                                    )}
-                                    {fileData && (
-                                        <div className="relative w-fit border border-border rounded-lg p-2 bg-muted/50 flex items-center gap-2 group">
-                                            {fileData.mimeType.startsWith('audio') ? (
-                                                <>
-                                                    <FileAudio className="h-4 w-4" />
-                                                    <audio
-                                                        controls
-                                                        src={`data:${fileData.mimeType};base64,${fileData.data}`}
-                                                        className="h-8"
-                                                    />
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <File className="h-4 w-4" />
-                                                    <span className="text-xs font-medium max-w-[160px] truncate">
-                                                        {fileData.filename || 'attachment'}
-                                                    </span>
-                                                </>
-                                            )}
-                                            <Button
-                                                variant="destructive"
-                                                size="icon"
-                                                onClick={() => setFileData(null)}
-                                                className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground opacity-100 group-hover:opacity-100 transition-opacity duration-150 shadow-md"
-                                                aria-label="Remove attachment"
-                                            >
-                                                <X className="h-2 w-2" />
-                                            </Button>
-                                        </div>
-                                    )}
+                        onDragEnter={handleDragEnter}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                    >
+                        <ChatInputContainer>
+                            {/* Drop overlay with visual feedback */}
+                            {isDragging && (
+                                <div className="absolute inset-0 z-50 flex items-center justify-center bg-primary/10 rounded-lg pointer-events-none">
+                                    <div className="text-center">
+                                        <div className="text-4xl mb-2">📎</div>
+                                        <p className="text-sm font-medium text-primary">
+                                            Drop files to attach
+                                        </p>
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            Up to {ATTACHMENT_LIMITS.MAX_COUNT} files,{' '}
+                                            {formatFileSize(ATTACHMENT_LIMITS.MAX_FILE_SIZE)} each
+                                        </p>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
 
-                        {/* Editor area: scrollable, independent from footer */}
-                        <div className="flex-auto overflow-y-auto relative">
-                            {fontsReady ? (
-                                <TextareaAutosize
-                                    ref={textareaRef}
-                                    value={text}
-                                    onChange={handleInputChange}
-                                    onKeyDown={handleKeyDown}
-                                    onPaste={handlePaste}
-                                    placeholder="Ask Dexto anything... Type @ for resources, / for prompts, # for memories"
-                                    minRows={1}
-                                    maxRows={8}
-                                    className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none max-h-full"
-                                />
-                            ) : (
-                                <textarea
-                                    ref={textareaRef}
-                                    rows={1}
-                                    value={text}
-                                    onChange={handleInputChange}
-                                    onKeyDown={handleKeyDown}
-                                    onPaste={handlePaste}
-                                    placeholder="Ask Dexto anything... Type @ for resources, / for prompts, # for memories"
-                                    className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
+                            {/* Queued messages display (shows when messages are pending) */}
+                            {queuedMessages.length > 0 && (
+                                <QueuedMessagesDisplay
+                                    messages={queuedMessages}
+                                    onEditMessage={handleEditQueuedMessage}
+                                    onRemoveMessage={(messageId) => {
+                                        if (currentSessionId) {
+                                            removeQueuedMessage({
+                                                sessionId: currentSessionId,
+                                                messageId,
+                                            });
+                                        }
+                                    }}
                                 />
                             )}
 
-                            {showMention &&
-                                dropdownStyle &&
-                                typeof window !== 'undefined' &&
-                                ReactDOM.createPortal(
-                                    <div
-                                        style={dropdownStyle}
-                                        className="max-h-64 overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md"
-                                    >
-                                        <ResourceAutocomplete
-                                            resources={resources}
-                                            query={mentionQuery}
-                                            selectedIndex={mentionIndex}
-                                            onHoverIndex={(i) => setMentionIndex(i)}
-                                            onSelect={(r) => applyMentionSelection(mentionIndex, r)}
-                                            loading={resourcesLoading}
-                                        />
-                                    </div>,
-                                    document.body
-                                )}
-
-                            {showMemoryHint &&
-                                memoryHintStyle &&
-                                typeof window !== 'undefined' &&
-                                ReactDOM.createPortal(
-                                    <div
-                                        style={memoryHintStyle}
-                                        className="rounded-md border border-border bg-popover text-popover-foreground shadow-md"
-                                    >
-                                        <div className="p-2 flex items-center gap-2 text-sm text-muted-foreground">
-                                            <Brain className="h-3.5 w-3.5" />
-                                            <span>
-                                                Press{' '}
-                                                <kbd className="px-1.5 py-0.5 text-xs bg-muted border border-border rounded">
-                                                    Enter
-                                                </kbd>{' '}
-                                                to create a memory
-                                            </span>
+                            {/* Attachments strip (inside bubble, above editor) */}
+                            {attachments.length > 0 && (
+                                <div className="px-4 pt-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="text-xs text-muted-foreground">
+                                            {attachments.length} / {ATTACHMENT_LIMITS.MAX_COUNT}{' '}
+                                            files ({formatFileSize(totalAttachmentsSize)} /{' '}
+                                            {formatFileSize(ATTACHMENT_LIMITS.MAX_TOTAL_SIZE)})
                                         </div>
-                                    </div>,
-                                    document.body
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => setAttachments([])}
+                                            className="h-6 text-xs text-muted-foreground hover:text-destructive"
+                                        >
+                                            Clear all
+                                        </Button>
+                                    </div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        {attachments.map((attachment) => (
+                                            <AttachmentPreview
+                                                key={attachment.id}
+                                                attachment={attachment}
+                                                onRemove={() =>
+                                                    handleRemoveAttachment(attachment.id)
+                                                }
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Editor area: scrollable, independent from footer */}
+                            <div className="flex-auto overflow-y-auto relative">
+                                {fontsReady ? (
+                                    <TextareaAutosize
+                                        ref={textareaRef}
+                                        value={text}
+                                        onChange={handleInputChange}
+                                        onKeyDown={handleKeyDown}
+                                        onPaste={handlePaste}
+                                        placeholder="Ask Dexto anything... Type @ for resources, / for prompts, # for memories"
+                                        minRows={1}
+                                        maxRows={8}
+                                        className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none max-h-full"
+                                    />
+                                ) : (
+                                    <textarea
+                                        ref={textareaRef}
+                                        rows={1}
+                                        value={text}
+                                        onChange={handleInputChange}
+                                        onKeyDown={handleKeyDown}
+                                        onPaste={handlePaste}
+                                        placeholder="Ask Dexto anything... Type @ for resources, / for prompts, # for memories"
+                                        className="w-full px-4 pt-4 pb-1 text-lg leading-7 placeholder:text-lg bg-transparent border-none resize-none outline-none ring-0 ring-offset-0 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none"
+                                    />
                                 )}
-                        </div>
 
-                        {/* Slash command autocomplete overlay (inside container to anchor positioning) */}
-                        <SlashCommandAutocomplete
-                            isVisible={showSlashCommands}
-                            searchQuery={text}
-                            onSelectPrompt={handlePromptSelect}
-                            onClose={closeSlashCommands}
-                            onCreatePrompt={openCreatePromptModal}
-                            refreshKey={slashRefreshKey}
-                        />
+                                {showMention &&
+                                    dropdownStyle &&
+                                    typeof window !== 'undefined' &&
+                                    ReactDOM.createPortal(
+                                        <div
+                                            style={dropdownStyle}
+                                            className="max-h-64 overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md"
+                                        >
+                                            <ResourceAutocomplete
+                                                resources={resources}
+                                                query={mentionQuery}
+                                                selectedIndex={mentionIndex}
+                                                onHoverIndex={(i) => setMentionIndex(i)}
+                                                onSelect={(r) =>
+                                                    applyMentionSelection(mentionIndex, r)
+                                                }
+                                                loading={resourcesLoading}
+                                            />
+                                        </div>,
+                                        document.body
+                                    )}
 
-                        {/* Footer row: normal flow */}
-                        <ButtonFooter
-                            leftButtons={
-                                <div className="flex items-center gap-2">
-                                    <AttachButton
-                                        onImageAttach={triggerFileInput}
-                                        onPdfAttach={triggerPdfInput}
-                                        onAudioAttach={triggerAudioInput}
-                                        supports={{
-                                            // If not yet loaded (length===0), pass undefined so AttachButton defaults to enabled
-                                            image: supportedFileTypes.length
-                                                ? supportedFileTypes.includes('image')
-                                                : undefined,
-                                            pdf: supportedFileTypes.length
-                                                ? supportedFileTypes.includes('pdf')
-                                                : undefined,
-                                            audio: supportedFileTypes.length
-                                                ? supportedFileTypes.includes('audio')
-                                                : undefined,
-                                        }}
-                                        useLargeBreakpoint={isSessionsPanelOpen}
-                                    />
+                                {showMemoryHint &&
+                                    memoryHintStyle &&
+                                    typeof window !== 'undefined' &&
+                                    ReactDOM.createPortal(
+                                        <div
+                                            style={memoryHintStyle}
+                                            className="rounded-md border border-border bg-popover text-popover-foreground shadow-md"
+                                        >
+                                            <div className="p-2 flex items-center gap-2 text-sm text-muted-foreground">
+                                                <Brain className="h-3.5 w-3.5" />
+                                                <span>
+                                                    Press{' '}
+                                                    <kbd className="px-1.5 py-0.5 text-xs bg-muted border border-border rounded">
+                                                        Enter
+                                                    </kbd>{' '}
+                                                    to create a memory
+                                                </span>
+                                            </div>
+                                        </div>,
+                                        document.body
+                                    )}
+                            </div>
 
-                                    <RecordButton
-                                        isRecording={isRecording}
-                                        onToggleRecording={
-                                            isRecording ? stopRecording : startRecording
-                                        }
-                                        disabled={
-                                            supportedFileTypes.length > 0 &&
-                                            !supportedFileTypes.includes('audio')
-                                        }
-                                        useLargeBreakpoint={isSessionsPanelOpen}
-                                    />
-                                </div>
-                            }
-                            rightButtons={
-                                <div className="flex items-center gap-2">
-                                    <ModelPickerModal />
+                            {/* Slash command autocomplete overlay (inside container to anchor positioning) */}
+                            <SlashCommandAutocomplete
+                                isVisible={showSlashCommands}
+                                searchQuery={text}
+                                onSelectPrompt={handlePromptSelect}
+                                onClose={closeSlashCommands}
+                                onCreatePrompt={openCreatePromptModal}
+                                refreshKey={slashRefreshKey}
+                            />
 
-                                    {/* Stop/Cancel button shown when a run is in progress */}
-                                    <Button
-                                        type={processing ? 'button' : 'submit'}
-                                        onClick={
-                                            processing
-                                                ? () => cancel(currentSessionId || undefined)
-                                                : undefined
-                                        }
-                                        disabled={
-                                            processing
-                                                ? false
-                                                : (!text.trim() && !imageData && !fileData) ||
-                                                  isSending
-                                        }
-                                        className={cn(
-                                            'h-10 w-10 p-0 rounded-full transition-all duration-200',
-                                            processing
-                                                ? 'bg-secondary/80 text-secondary-foreground hover:bg-secondary shadow-sm hover:shadow-md border border-border/50'
-                                                : 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm hover:shadow-lg'
-                                        )}
-                                        aria-label={processing ? 'Stop' : 'Send message'}
-                                        title={processing ? 'Stop' : 'Send'}
-                                    >
-                                        {processing ? (
-                                            <Square className="h-3.5 w-3.5 fill-current" />
-                                        ) : isSending ? (
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                        ) : (
-                                            <SendHorizontal className="h-4 w-4" />
-                                        )}
-                                    </Button>
-                                </div>
-                            }
-                        />
-                    </ChatInputContainer>
+                            {/* Footer row: normal flow */}
+                            <ButtonFooter
+                                leftButtons={
+                                    <div className="flex items-center gap-2">
+                                        <AttachButton
+                                            onImageAttach={triggerFileInput}
+                                            onPdfAttach={triggerPdfInput}
+                                            onAudioAttach={triggerAudioInput}
+                                            supports={{
+                                                // If not yet loaded (length===0), pass undefined so AttachButton defaults to enabled
+                                                image: supportedFileTypes.length
+                                                    ? supportedFileTypes.includes('image')
+                                                    : undefined,
+                                                pdf: supportedFileTypes.length
+                                                    ? supportedFileTypes.includes('pdf')
+                                                    : undefined,
+                                                audio: supportedFileTypes.length
+                                                    ? supportedFileTypes.includes('audio')
+                                                    : undefined,
+                                            }}
+                                            useLargeBreakpoint={isSessionsPanelOpen}
+                                        />
+
+                                        <RecordButton
+                                            isRecording={isRecording}
+                                            onToggleRecording={
+                                                isRecording ? stopRecording : startRecording
+                                            }
+                                            disabled={
+                                                supportedFileTypes.length > 0 &&
+                                                !supportedFileTypes.includes('audio')
+                                            }
+                                            useLargeBreakpoint={isSessionsPanelOpen}
+                                        />
+                                    </div>
+                                }
+                                rightButtons={
+                                    <div className="flex items-center gap-2">
+                                        <ModelPickerModal />
+
+                                        {/* Stop/Cancel button shown when a run is in progress */}
+                                        <Button
+                                            type={processing ? 'button' : 'submit'}
+                                            onClick={
+                                                processing
+                                                    ? () => cancel(currentSessionId || undefined)
+                                                    : undefined
+                                            }
+                                            disabled={
+                                                processing
+                                                    ? false
+                                                    : (!text.trim() && attachments.length === 0) ||
+                                                      isSending
+                                            }
+                                            className={cn(
+                                                'h-10 w-10 p-0 rounded-full transition-all duration-200',
+                                                processing
+                                                    ? 'bg-secondary/80 text-secondary-foreground hover:bg-secondary shadow-sm hover:shadow-md border border-border/50'
+                                                    : 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm hover:shadow-lg'
+                                            )}
+                                            aria-label={processing ? 'Stop' : 'Send message'}
+                                            title={processing ? 'Stop' : 'Send'}
+                                        >
+                                            {processing ? (
+                                                <Square className="h-3.5 w-3.5 fill-current" />
+                                            ) : isSending ? (
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                            ) : (
+                                                <SendHorizontal className="h-4 w-4" />
+                                            )}
+                                        </Button>
+                                    </div>
+                                }
+                            />
+                        </ChatInputContainer>
+                    </div>
                 </form>
 
                 {/* Previews moved inside bubble above editor */}
@@ -1141,6 +1344,7 @@ export default function InputArea({
                     type="file"
                     id="image-upload"
                     accept="image/*"
+                    multiple
                     className="hidden"
                     onChange={handleImageChange}
                 />
@@ -1149,6 +1353,7 @@ export default function InputArea({
                     type="file"
                     id="pdf-upload"
                     accept="application/pdf"
+                    multiple
                     className="hidden"
                     onChange={handlePdfChange}
                 />
@@ -1157,6 +1362,7 @@ export default function InputArea({
                     type="file"
                     id="audio-upload"
                     accept="audio/*"
+                    multiple
                     className="hidden"
                     onChange={handleAudioFileChange}
                 />
