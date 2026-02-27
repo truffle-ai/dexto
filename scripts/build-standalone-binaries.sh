@@ -240,7 +240,7 @@ fi
 
 echo "Creating portable CLI package"
 mkdir -p "${runtime_dir}"
-pnpm --filter dexto deploy --prod --legacy "${runtime_dir}" >/dev/null
+pnpm --filter dexto --config.node-linker=hoisted deploy --prod --legacy "${runtime_dir}" >/dev/null
 
 payload_archive_extension="tar.gz"
 payload_archive_path="${stage_dir}/runtime-payload.tar.gz"
