@@ -1,5 +1,11 @@
 # @dexto/core
 
+## 1.6.4
+
+### Patch Changes
+
+- 7cb9082: Bump to test binary distribution
+
 ## 1.6.3
 
 ## 1.6.2
