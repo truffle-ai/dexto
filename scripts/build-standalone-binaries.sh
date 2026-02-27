@@ -260,7 +260,7 @@ fi
 payload_hash="$(hash_file "${payload_archive_path}")"
 
 cat > "${bootstrap_path}" <<'EOF'
-const { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, unlinkSync, closeSync, openSync } = require('node:fs');
+const { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, unlinkSync, closeSync, openSync, statSync } = require('node:fs');
 const { dirname, join, resolve } = require('node:path');
 const { tmpdir, homedir } = require('node:os');
 const { spawnSync } = require('node:child_process');
@@ -315,6 +315,10 @@ function extractPayload(archivePath, destinationDir) {
         const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], {
             stdio: 'inherit',
         });
+        if (result.error) {
+            const codeSuffix = result.error.code ? ` (${result.error.code})` : '';
+            throw new Error(`Failed to expand runtime payload archive${codeSuffix}: ${result.error.message}`);
+        }
         if (result.status !== 0) {
             throw new Error(`Failed to expand runtime payload archive (exit ${result.status ?? 'unknown'})`);
         }
@@ -329,6 +333,10 @@ function extractPayload(archivePath, destinationDir) {
         stdio: 'inherit',
         env: childEnv,
     });
+    if (result.error) {
+        const codeSuffix = result.error.code ? ` (${result.error.code})` : '';
+        throw new Error(`Failed to extract runtime payload archive with tar${codeSuffix}: ${result.error.message}`);
+    }
     if (result.status !== 0) {
         throw new Error(`Failed to extract runtime payload archive (exit ${result.status ?? 'unknown'})`);
     }
@@ -336,24 +344,32 @@ function extractPayload(archivePath, destinationDir) {
 
 function ensureRuntimeExtracted() {
     const expectedMarker = `${RUNTIME_VERSION}:${RUNTIME_PAYLOAD_HASH}`;
-    const runtimeDir =
-        process.env.DEXTO_RUNTIME_DIR ||
-        join(homedir(), '.dexto', 'standalone-runtime', `${RUNTIME_VERSION}-${process.platform}-${process.arch}`);
+    const runtimeBase = process.env.DEXTO_RUNTIME_DIR
+        ? resolve(process.env.DEXTO_RUNTIME_DIR)
+        : join(homedir(), '.dexto', 'standalone-runtime');
+    const runtimeDir = join(runtimeBase, `${RUNTIME_VERSION}-${process.platform}-${process.arch}`);
 
     if (validateRuntimeDir(runtimeDir, expectedMarker)) {
         return runtimeDir;
     }
 
-    mkdirSync(dirname(runtimeDir), { recursive: true });
+    mkdirSync(runtimeBase, { recursive: true });
     const lockPath = `${runtimeDir}.lock`;
     let lockFd = null;
     const lockDeadline = Date.now() + 5 * 60 * 1000;
+    const staleLockMs = 10 * 60 * 1000;
 
     while (lockFd === null) {
         try {
             lockFd = openSync(lockPath, 'wx');
         } catch (error) {
             if (error && error.code === 'EEXIST') {
+                try {
+                    if (Date.now() - statSync(lockPath).mtimeMs > staleLockMs) {
+                        unlinkSync(lockPath);
+                        continue;
+                    }
+                } catch {}
                 if (validateRuntimeDir(runtimeDir, expectedMarker)) {
                     return runtimeDir;
                 }
@@ -465,7 +481,7 @@ const config = {
   }
 };
 fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-" "${sea_config_path}" "$(basename "${bootstrap_path}")" "$(basename "${blob_path}")" "${PAYLOAD_ASSET_NAME}" "$(basename "${payload_archive_path}")"
+" "$(to_node_path "${sea_config_path}")" "$(basename "${bootstrap_path}")" "$(basename "${blob_path}")" "${PAYLOAD_ASSET_NAME}" "$(basename "${payload_archive_path}")"
 
 echo "Creating SEA blob"
 (
