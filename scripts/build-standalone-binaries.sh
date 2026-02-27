@@ -238,6 +238,13 @@ if [[ "${PLATFORM_NAME}" != "windows" ]]; then
   chmod +x "${binary_path}"
 fi
 
+# Quick runtime sanity check before archiving.
+prearchive_version="$("${binary_path}" --version | tr -d '\r')"
+if [[ "${prearchive_version}" != "${VERSION}" ]]; then
+  echo "Pre-archive version check failed: expected ${VERSION}, got ${prearchive_version}" >&2
+  exit 1
+fi
+
 artifact_base="dexto-${VERSION}-${PLATFORM_NAME}-${ARCH_NAME}"
 if [[ "${PLATFORM_NAME}" == "windows" ]]; then
   artifact_path="${OUTPUT_DIR}/${artifact_base}.zip"

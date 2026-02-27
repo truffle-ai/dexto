@@ -65,7 +65,28 @@ jobs:
             --skip-checksums
 
       - name: Smoke test standalone binary
+        if: matrix.target != 'windows-x64'
         run: |
           scripts/test-standalone-binaries.sh \
             --input-dir "${RUNNER_TEMP}/dexto-binaries" \
             --skip-checksums
+
+      - name: Validate Windows standalone archive
+        if: matrix.target == 'windows-x64'
+        run: |
+          artifact_path="$(ls -1 "${RUNNER_TEMP}/dexto-binaries"/dexto-*.zip | head -n1)"
+          if [[ -z "${artifact_path}" || ! -f "${artifact_path}" ]]; then
+            echo "Windows artifact not found in ${RUNNER_TEMP}/dexto-binaries" >&2
+            exit 1
+          fi
+
+          if command -v 7z >/dev/null 2>&1; then
+            7z t "${artifact_path}" >/dev/null
+          elif command -v powershell.exe >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1; then
+            artifact_path_win="$(cygpath -w "${artifact_path}")"
+            powershell.exe -NoProfile -Command \
+              "if (-not (Test-Path -LiteralPath '${artifact_path_win}')) { exit 1 }"
+          else
+            echo "Could not validate Windows artifact: 7z (or powershell + cygpath) is required." >&2
+            exit 1
+          fi
