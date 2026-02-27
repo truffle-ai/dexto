@@ -186,7 +186,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          for _ in {1..12}; do
+          for _ in {1..30}; do
             if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
               exit 0
             fi
