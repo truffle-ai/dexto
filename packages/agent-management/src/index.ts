@@ -155,6 +155,7 @@ export {
     getModelFilePath,
     getModelDirectory,
     getModelStatePath,
+    getModelPickerStatePath,
     getModelTempDirectory,
     ensureModelsDirectory,
     ensureModelDirectory,
@@ -186,6 +187,20 @@ export {
     getTotalInstalledSize,
     getInstalledModelCount,
     registerManualModel,
+    MODEL_PICKER_STATE_VERSION,
+    MODEL_PICKER_RECENTS_LIMIT,
+    MODEL_PICKER_FAVORITES_LIMIT,
+    toModelPickerKey,
+    pruneModelPickerState,
+    loadModelPickerState,
+    saveModelPickerState,
+    recordRecentModel,
+    toggleFavoriteModel,
+    setFavoriteModels,
+    type ModelPickerModel,
+    type ModelPickerEntry,
+    type ModelPickerState,
+    type SetFavoriteModelsInput,
 } from './models/index.js';
 
 // Multi-Agent Runtime
