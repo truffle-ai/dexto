@@ -145,6 +145,9 @@ importers:
       '@dexto/orchestration':
         specifier: workspace:*
         version: link:../orchestration
+      '@dexto/registry':
+        specifier: workspace:*
+        version: link:../registry
       '@dexto/tools-builtins':
         specifier: workspace:*
         version: link:../tools-builtins

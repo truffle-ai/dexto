@@ -11,6 +11,7 @@ export interface ResolvedServices {
     storage: { blob: BlobStore; database: Database; cache: Cache };
     tools: Tool[];
     toolkitLoader?: ToolkitLoader;
+    availableToolkitTypes: string[];
     hooks: Hook[];
     compaction: CompactionStrategy | null;
 }
