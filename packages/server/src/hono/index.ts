@@ -27,6 +27,7 @@ import { createToolsRouter } from './routes/tools.js';
 import { createDiscoveryRouter } from './routes/discovery.js';
 import { createModelsRouter } from './routes/models.js';
 import { createDextoAuthRouter } from './routes/dexto-auth.js';
+import { createSystemPromptRouter } from './routes/system-prompt.js';
 import {
     createStaticRouter,
     createSpaFallbackHandler,
@@ -188,6 +189,7 @@ export function createDextoApp(options: CreateDextoAppOptions) {
         .route(routePrefix, createToolsRouter(getAgent))
         .route(routePrefix, createDiscoveryRouter(resolvedGetAgentConfigPath))
         .route(routePrefix, createModelsRouter())
+        .route(routePrefix, createSystemPromptRouter(getAgent))
         .route(routePrefix, createDextoAuthRouter(getAgent));
 
     // Expose OpenAPI document
