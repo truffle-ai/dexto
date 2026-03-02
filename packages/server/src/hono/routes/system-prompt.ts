@@ -1,5 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
+import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
+import { StandardErrorEnvelopeSchema } from '../schemas/responses.js';
 import type { Context } from 'hono';
 
 type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
@@ -31,12 +33,9 @@ const UpsertSystemPromptContributorSchema = z
     .strict()
     .describe('System prompt contributor update payload.');
 
-const SystemPromptContributorErrorSchema = z
-    .object({
-        error: z.string().describe('Error message'),
-    })
-    .strict()
-    .describe('System prompt contributor error response.');
+const SystemPromptContributorErrorSchema = StandardErrorEnvelopeSchema.describe(
+    'System prompt contributor error response.'
+);
 
 function sanitizeContributorId(value: string): string {
     return value
@@ -157,26 +156,36 @@ export function createSystemPromptRouter(getAgent: GetAgentFn) {
 
             const contributorId = sanitizeContributorId(payload.id);
             if (contributorId.length === 0) {
-                return ctx.json({ error: 'A valid contributor id is required' }, 400);
+                throw new DextoRuntimeError(
+                    'systemprompt_contributor_config_invalid',
+                    ErrorScope.SYSTEM_PROMPT,
+                    ErrorType.USER,
+                    'A valid contributor id is required',
+                    {
+                        id: payload.id,
+                    }
+                );
             }
 
             const enabled = payload.enabled !== false;
+            const hasContent = payload.content !== undefined;
             const rawContent = payload.content ?? '';
             const content = rawContent.slice(0, MAX_SYSTEM_PROMPT_CONTRIBUTOR_CONTENT_CHARS);
             const priority = resolveContributorPriority(payload.priority);
 
-            const replaced = agent.systemPromptManager.removeContributor(contributorId);
-            if (!enabled || content.trim().length === 0) {
+            if (!enabled || (hasContent && content.trim().length === 0)) {
+                const removed = agent.systemPromptManager.removeContributor(contributorId);
                 return ctx.json(
                     {
                         id: contributorId,
                         enabled: false,
-                        removed: replaced,
+                        removed,
                     },
                     200
                 );
             }
 
+            const replaced = agent.systemPromptManager.removeContributor(contributorId);
             agent.systemPromptManager.addContributor({
                 id: contributorId,
                 priority,
@@ -189,8 +198,8 @@ export function createSystemPromptRouter(getAgent: GetAgentFn) {
                     enabled: true,
                     priority,
                     replaced,
-                    contentLength: content.length,
-                    truncated: rawContent.length > content.length,
+                    contentLength: hasContent ? content.length : undefined,
+                    truncated: hasContent ? rawContent.length > content.length : undefined,
                 },
                 200
             );
