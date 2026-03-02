@@ -16615,7 +16615,7 @@
                   },
                   "content": {
                     "type": "string",
-                    "description": "Static contributor content. Empty content removes the contributor."
+                    "description": "Static contributor content (required when enabled)."
                   }
                 },
                 "required": [
