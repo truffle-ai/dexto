@@ -12,7 +12,8 @@ const ContributorInfoSchema = z
         id: z.string().describe('Contributor identifier'),
         priority: z.number().describe('Contributor priority'),
     })
-    .strict();
+    .strict()
+    .describe('System prompt contributor metadata.');
 
 const UpsertSystemPromptContributorSchema = z
     .object({
@@ -27,13 +28,15 @@ const UpsertSystemPromptContributorSchema = z
             .optional()
             .describe('Static contributor content. Empty content removes the contributor.'),
     })
-    .strict();
+    .strict()
+    .describe('System prompt contributor update payload.');
 
 const SystemPromptContributorErrorSchema = z
     .object({
-        error: z.string(),
+        error: z.string().describe('Error message'),
     })
-    .strict();
+    .strict()
+    .describe('System prompt contributor error response.');
 
 function sanitizeContributorId(value: string): string {
     return value
@@ -66,9 +69,12 @@ export function createSystemPromptRouter(getAgent: GetAgentFn) {
                     'application/json': {
                         schema: z
                             .object({
-                                contributors: z.array(ContributorInfoSchema),
+                                contributors: z
+                                    .array(ContributorInfoSchema)
+                                    .describe('Registered system prompt contributors.'),
                             })
-                            .strict(),
+                            .strict()
+                            .describe('System prompt contributors list response.'),
                     },
                 },
             },
@@ -98,15 +104,30 @@ export function createSystemPromptRouter(getAgent: GetAgentFn) {
                     'application/json': {
                         schema: z
                             .object({
-                                id: z.string(),
-                                enabled: z.boolean(),
-                                priority: z.number().optional(),
-                                replaced: z.boolean().optional(),
-                                removed: z.boolean().optional(),
-                                contentLength: z.number().optional(),
-                                truncated: z.boolean().optional(),
+                                id: z.string().describe('Contributor identifier'),
+                                enabled: z
+                                    .boolean()
+                                    .describe('Whether the contributor remains enabled'),
+                                priority: z.number().optional().describe('Contributor priority'),
+                                replaced: z
+                                    .boolean()
+                                    .optional()
+                                    .describe('Whether an existing contributor was replaced'),
+                                removed: z
+                                    .boolean()
+                                    .optional()
+                                    .describe('Whether the contributor was removed'),
+                                contentLength: z
+                                    .number()
+                                    .optional()
+                                    .describe('Stored content length in characters'),
+                                truncated: z
+                                    .boolean()
+                                    .optional()
+                                    .describe('Whether the submitted content was truncated'),
                             })
-                            .strict(),
+                            .strict()
+                            .describe('System prompt contributor upsert response.'),
                     },
                 },
             },
@@ -146,11 +167,14 @@ export function createSystemPromptRouter(getAgent: GetAgentFn) {
 
             const replaced = agent.systemPromptManager.removeContributor(contributorId);
             if (!enabled || content.trim().length === 0) {
-                return ctx.json({
-                    id: contributorId,
-                    enabled: false,
-                    removed: replaced,
-                });
+                return ctx.json(
+                    {
+                        id: contributorId,
+                        enabled: false,
+                        removed: replaced,
+                    },
+                    200
+                );
             }
 
             agent.systemPromptManager.addContributor({
@@ -159,13 +183,16 @@ export function createSystemPromptRouter(getAgent: GetAgentFn) {
                 getContent: async () => content,
             });
 
-            return ctx.json({
-                id: contributorId,
-                enabled: true,
-                priority,
-                replaced,
-                contentLength: content.length,
-                truncated: rawContent.length > content.length,
-            });
+            return ctx.json(
+                {
+                    id: contributorId,
+                    enabled: true,
+                    priority,
+                    replaced,
+                    contentLength: content.length,
+                    truncated: rawContent.length > content.length,
+                },
+                200
+            );
         });
 }
