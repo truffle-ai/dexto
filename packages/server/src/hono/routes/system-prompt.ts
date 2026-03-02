@@ -28,7 +28,7 @@ const UpsertSystemPromptContributorSchema = z
         content: z
             .string()
             .optional()
-            .describe('Static contributor content. Empty content removes the contributor.'),
+            .describe('Static contributor content (required when enabled).'),
     })
     .strict()
     .describe('System prompt contributor update payload.');
@@ -182,6 +182,18 @@ export function createSystemPromptRouter(getAgent: GetAgentFn) {
                         removed,
                     },
                     200
+                );
+            }
+
+            if (!hasContent || content.trim().length === 0) {
+                throw new DextoRuntimeError(
+                    'systemprompt_contributor_config_invalid',
+                    ErrorScope.SYSTEM_PROMPT,
+                    ErrorType.USER,
+                    'Contributor content is required when enabled',
+                    {
+                        id: payload.id,
+                    }
                 );
             }
 
