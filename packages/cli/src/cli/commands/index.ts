@@ -10,6 +10,8 @@ export { getUserInputToInitDextoApp, initDexto, postInitDexto } from './init-app
 export { handleSetupCommand, type CLISetupOptions, type CLISetupOptionsInput } from './setup.js';
 export { handleInstallCommand, type InstallCommandOptions } from './install.js';
 export { handleUninstallCommand, type UninstallCommandOptions } from './uninstall.js';
+export { handleUpgradeCommand, type UpgradeCommandOptions } from './upgrade.js';
+export { handleUninstallCliCommand, type UninstallCliCommandOptions } from './uninstall-cli.js';
 export {
     handleListAgentsCommand,
     type ListAgentsCommandOptions,

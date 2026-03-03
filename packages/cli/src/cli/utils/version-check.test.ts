@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { promises as fs } from 'fs';
-import { checkForUpdates, displayUpdateNotification } from './version-check.js';
 
 // Mock fs module
 vi.mock('fs', async () => {
@@ -19,12 +18,7 @@ vi.mock('fs', async () => {
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-// Mock getDextoGlobalPath
-vi.mock('@dexto/agent-management', () => ({
-    getDextoGlobalPath: vi.fn((_type: string, filename?: string) =>
-        filename ? `/mock/.dexto/cache/${filename}` : '/mock/.dexto/cache'
-    ),
-}));
+import { checkForUpdates, displayUpdateNotification } from './version-check.js';
 
 describe('version-check', () => {
     beforeEach(() => {
@@ -62,7 +56,7 @@ describe('version-check', () => {
             expect(result).toEqual({
                 current: '1.0.0',
                 latest: '2.0.0',
-                updateCommand: 'npm i -g dexto',
+                updateCommand: 'dexto upgrade',
             });
         });
 
@@ -110,7 +104,7 @@ describe('version-check', () => {
             expect(result).toEqual({
                 current: '1.0.0',
                 latest: '2.0.0',
-                updateCommand: 'npm i -g dexto',
+                updateCommand: 'dexto upgrade',
             });
             expect(mockFetch).not.toHaveBeenCalled();
         });
@@ -136,7 +130,7 @@ describe('version-check', () => {
             expect(result).toEqual({
                 current: '1.0.0',
                 latest: '2.0.0',
-                updateCommand: 'npm i -g dexto',
+                updateCommand: 'dexto upgrade',
             });
             expect(mockFetch).toHaveBeenCalled();
         });
@@ -220,7 +214,7 @@ describe('version-check', () => {
                 displayUpdateNotification({
                     current: '1.0.0',
                     latest: '2.0.0',
-                    updateCommand: 'npm i -g dexto',
+                    updateCommand: 'dexto upgrade',
                 })
             ).not.toThrow();
         });

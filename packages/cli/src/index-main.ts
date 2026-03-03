@@ -115,8 +115,12 @@ import {
     type CLISetupOptionsInput,
     handleInstallCommand,
     type InstallCommandOptions,
+    handleUpgradeCommand,
+    type UpgradeCommandOptions,
     handleUninstallCommand,
     type UninstallCommandOptions,
+    handleUninstallCliCommand,
+    type UninstallCliCommandOptions,
     handleImageDoctorCommand,
     handleImageInstallCommand,
     handleImageListCommand,
@@ -521,7 +525,52 @@ program
         )
     );
 
-// 8) `list-agents` SUB-COMMAND
+// 8) `upgrade` SUB-COMMAND
+program
+    .command('upgrade [version]')
+    .description('Upgrade Dexto CLI (auto-migrates npm installs to native)')
+    .option('--dry-run', 'Print commands without executing them')
+    .option('--force', 'Force reinstall during upgrade')
+    .action(
+        withAnalytics(
+            'upgrade',
+            async (version: string | undefined, options: Partial<UpgradeCommandOptions>) => {
+                try {
+                    await handleUpgradeCommand(version, options);
+                    safeExit('upgrade', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto upgrade command failed: ${err}`);
+                    safeExit('upgrade', 1, 'error');
+                }
+            }
+        )
+    );
+
+// 9) `uninstall-cli` SUB-COMMAND
+program
+    .command('uninstall-cli')
+    .description('Uninstall the Dexto CLI binary (does not uninstall agents)')
+    .option('--keep-config', 'Keep config files (default)')
+    .option('--keep-data', 'Keep data directories (default)')
+    .option('--remove-config', 'Remove config files (requires --force)')
+    .option('--remove-data', 'Remove data directories (requires --force)')
+    .option('--dry-run', 'Print actions without deleting files')
+    .option('--force', 'Allow removing config/data when requested')
+    .action(
+        withAnalytics('uninstall-cli', async (options: Partial<UninstallCliCommandOptions>) => {
+            try {
+                await handleUninstallCliCommand(options);
+                safeExit('uninstall-cli', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto uninstall-cli command failed: ${err}`);
+                safeExit('uninstall-cli', 1, 'error');
+            }
+        })
+    );
+
+// 10) `list-agents` SUB-COMMAND
 program
     .command('list-agents')
     .description('List available and installed agents')
@@ -541,7 +590,7 @@ program
         })
     );
 
-// 9) `which` SUB-COMMAND
+// 11) `which` SUB-COMMAND
 program
     .command('which <agent>')
     .description('Show the path to an agent')
@@ -558,7 +607,7 @@ program
         })
     );
 
-// 10) `sync-agents` SUB-COMMAND
+// 12) `sync-agents` SUB-COMMAND
 program
     .command('sync-agents')
     .description('Sync installed agents with bundled versions')
@@ -577,7 +626,7 @@ program
         })
     );
 
-// 11) `plugin` SUB-COMMAND
+// 13) `plugin` SUB-COMMAND
 const pluginCommand = program.command('plugin').description('Manage plugins');
 
 pluginCommand
