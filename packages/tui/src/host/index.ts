@@ -42,6 +42,7 @@ export interface TuiDeviceLoginPrompt {
 export interface TuiOAuthLoginSession {
     authUrl: string;
     result: Promise<TuiOAuthResult>;
+    cancel: () => void;
 }
 
 export type TuiDextoApiKeyProvisionStatusLevel = 'info' | 'success' | 'warning' | 'error';

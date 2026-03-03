@@ -13,7 +13,7 @@ export interface DeviceLoginPrompt {
 
 export interface DeviceLoginOptionsInput {
     apiUrl?: string;
-    signal?: AbortSignal;
+    signal?: AbortSignal | undefined;
     onPrompt?: ((prompt: DeviceLoginPrompt) => void | Promise<void>) | undefined;
 }
 
