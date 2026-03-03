@@ -8,7 +8,7 @@ import {
     findPackageRoot,
     resolveBundledScript,
 } from './path.js';
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
 
 function createTempDir() {
     return fs.mkdtempSync(path.join(tmpdir(), 'dexto-test-'));
@@ -37,10 +37,16 @@ function createTempDirStructure(structure: Record<string, unknown>, baseDir?: st
 
 const originalHomeDir = process.env.DEXTO_HOME_DIR;
 
+beforeEach(() => {
+    delete process.env.DEXTO_HOME_DIR;
+});
+
 afterEach(() => {
-    if (originalHomeDir === undefined) {
-        delete process.env.DEXTO_HOME_DIR;
-    } else {
+    delete process.env.DEXTO_HOME_DIR;
+});
+
+afterAll(() => {
+    if (originalHomeDir !== undefined) {
         process.env.DEXTO_HOME_DIR = originalHomeDir;
     }
 });
