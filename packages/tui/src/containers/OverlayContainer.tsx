@@ -2268,15 +2268,10 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         let commandsDir: string;
 
                         if (context === 'dexto-source') {
-                            const isDevMode = process.env.DEXTO_DEV_MODE === 'true';
-                            if (isDevMode) {
-                                const sourceRoot = findDextoSourceRoot();
-                                commandsDir = sourceRoot
-                                    ? join(sourceRoot, 'commands')
-                                    : getDextoGlobalPath('commands');
-                            } else {
-                                commandsDir = getDextoGlobalPath('commands');
-                            }
+                            const sourceRoot = findDextoSourceRoot();
+                            commandsDir = sourceRoot
+                                ? join(sourceRoot, 'commands')
+                                : getDextoGlobalPath('commands');
                         } else if (context === 'dexto-project') {
                             const projectRoot = findDextoProjectRoot();
                             commandsDir = projectRoot

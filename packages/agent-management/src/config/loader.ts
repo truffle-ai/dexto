@@ -22,7 +22,7 @@ interface TemplateContext {
  * Supported variables:
  * - ${{dexto.agent_dir}} - Agent's directory path (where config is located)
  * - ${{dexto.project_dir}} - Context-aware .dexto directory:
- *   - dexto-source + dev mode: <repo>/.dexto
+ *   - dexto-source: <repo>/.dexto
  *   - dexto-project: <project>/.dexto
  *   - global-cli: ~/.dexto
  */

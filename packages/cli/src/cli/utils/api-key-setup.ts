@@ -3,8 +3,8 @@
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
 import type { LLMProvider } from '@dexto/core';
-import { logger, getExecutionContext } from '@dexto/core';
-import { saveProviderApiKey } from '@dexto/agent-management';
+import { logger } from '@dexto/core';
+import { saveProviderApiKey, getExecutionContext, getDextoEnvPath } from '@dexto/agent-management';
 import { applyLayeredEnvironmentLoading } from '../../utils/env.js';
 import {
     getProviderDisplayName,
@@ -295,16 +295,17 @@ async function saveApiKeyWithSpinner(
 function showManualSaveInstructions(provider: LLMProvider, apiKey: string): void {
     const envVar = getProviderEnvVar(provider);
     const maskedKey = apiKey.slice(0, 8) + '...' + apiKey.slice(-4);
+    const envPath = getDextoEnvPath();
 
     const instructions =
         getExecutionContext() === 'global-cli'
             ? [
-                  `1. Create or edit: ${chalk.cyan('~/.dexto/.env')}`,
+                  `1. Create or edit: ${chalk.cyan(envPath)}`,
                   `2. Add this line: ${chalk.rgb(255, 165, 0)(`${envVar}=${maskedKey}`)}`,
                   `3. Run ${chalk.cyan('dexto')} again`,
               ]
             : [
-                  `1. Create or edit: ${chalk.cyan('.env')} in your project`,
+                  `1. Create or edit: ${chalk.cyan(envPath)}`,
                   `2. Add this line: ${chalk.rgb(255, 165, 0)(`${envVar}=your_api_key`)}`,
                   `3. Run ${chalk.cyan('dexto')} again`,
               ];

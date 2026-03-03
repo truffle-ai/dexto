@@ -3,9 +3,9 @@
 import {
     globalPreferencesExist,
     loadGlobalPreferences,
+    getExecutionContext,
     type GlobalPreferences,
 } from '@dexto/agent-management';
-import { getExecutionContext } from '@dexto/core';
 
 /**
  * Check if this is a first-time user (no preferences file exists)
@@ -33,8 +33,8 @@ export interface SetupState {
 export async function getSetupState(): Promise<SetupState> {
     const context = getExecutionContext();
 
-    // Skip setup checks in dev mode when in source context
-    if (context === 'dexto-source' && process.env.DEXTO_DEV_MODE === 'true') {
+    // Source context always skips setup checks and uses repository defaults.
+    if (context === 'dexto-source') {
         return {
             needsSetup: false,
             isFirstTime: false,
@@ -115,7 +115,7 @@ export async function getSetupState(): Promise<SetupState> {
 /**
  * Check if user requires setup (missing, corrupted, or incomplete preferences)
  * Context-aware:
- * - Dev mode (source + DEXTO_DEV_MODE): Skip setup, uses repo configs
+ * - Source context: Skip setup, uses repository config
  * - Project context: Skip setup (might have project-local config)
  * - First-time user (source/global-cli): Require setup
  * - Has preferences (source/global-cli): Validate them

@@ -6,7 +6,7 @@
  * into the configuration, eliminating the need for core services to resolve paths themselves.
  *
  * Also discovers command prompts from (in priority order):
- * - Local: <projectRoot>/commands/ (dexto-source dev mode or dexto-project only)
+ * - Local: <projectRoot>/commands/ (dexto-source or dexto-project only)
  * - Local: <cwd>/.dexto/commands/
  * - Global: ~/.dexto/commands/
  *

@@ -206,7 +206,6 @@ describe('discoverCommandPrompts', () => {
         // Default mocks
         process.cwd = vi.fn(() => '/test/project');
         process.env.HOME = '/home/user';
-        process.env.DEXTO_DEV_MODE = undefined;
         vi.mocked(getExecutionContext).mockReturnValue('global-cli');
         vi.mocked(getDextoGlobalPath).mockImplementation(
             (subpath: string) => `/home/user/.dexto/${subpath}`
@@ -424,11 +423,10 @@ describe('discoverCommandPrompts', () => {
         });
     });
 
-    describe('dexto-source context (dev mode)', () => {
-        it('should include local commands/ when DEXTO_DEV_MODE=true', () => {
+    describe('dexto-source context', () => {
+        it('should include source-root commands/', () => {
             vi.mocked(getExecutionContext).mockReturnValue('dexto-source');
             vi.mocked(findDextoSourceRoot).mockReturnValue('/dexto-source');
-            process.env.DEXTO_DEV_MODE = 'true';
 
             vi.mocked(fs.existsSync).mockImplementation((p) => p === '/dexto-source/commands');
             vi.mocked(fs.readdirSync).mockImplementation((dir) => {
@@ -444,34 +442,6 @@ describe('discoverCommandPrompts', () => {
             expect(result[0]).toEqual({
                 type: 'file',
                 file: '/dexto-source/commands/dev-command.md',
-            });
-        });
-
-        it('should NOT include local commands/ when DEXTO_DEV_MODE is not set', () => {
-            vi.mocked(getExecutionContext).mockReturnValue('dexto-source');
-            vi.mocked(findDextoSourceRoot).mockReturnValue('/dexto-source');
-            process.env.DEXTO_DEV_MODE = undefined;
-
-            vi.mocked(fs.existsSync).mockImplementation(
-                (p) => p === '/dexto-source/commands' || p === '/test/project/.dexto/commands'
-            );
-            vi.mocked(fs.readdirSync).mockImplementation((dir) => {
-                if (dir === '/dexto-source/commands') {
-                    return [createDirent('dev-command.md', true)] as any;
-                }
-                if (dir === '/test/project/.dexto/commands') {
-                    return [createDirent('local-dexto.md', true)] as any;
-                }
-                return [];
-            });
-
-            const result = discoverCommandPrompts();
-
-            // Should not include dev-command.md, but should include local .dexto/commands
-            expect(result).toHaveLength(1);
-            expect(result[0]).toEqual({
-                type: 'file',
-                file: '/test/project/.dexto/commands/local-dexto.md',
             });
         });
     });

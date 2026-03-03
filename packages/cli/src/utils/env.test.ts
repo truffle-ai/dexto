@@ -25,6 +25,26 @@ vi.mock('@dexto/agent-management', async () => {
             }
             return 'global-cli';
         }),
+        getDextoGlobalPath: vi.fn(
+            (type: string, filename?: string, startPath: string = process.cwd()) => {
+                const override = process.env.DEXTO_HOME_DIR?.trim();
+                const context =
+                    fs.existsSync(path.join(startPath, 'package.json')) &&
+                    JSON.parse(fs.readFileSync(path.join(startPath, 'package.json'), 'utf-8'))
+                        .name === 'dexto-monorepo'
+                        ? 'dexto-source'
+                        : 'global-cli';
+
+                const homeRoot = override
+                    ? path.resolve(override)
+                    : context === 'dexto-source'
+                      ? path.join(startPath, '.dexto')
+                      : path.join(tmpdir(), '.dexto-test-global');
+
+                const basePath = path.join(homeRoot, type);
+                return filename ? path.join(basePath, filename) : basePath;
+            }
+        ),
         ensureDextoGlobalDirectory: vi.fn(async () => {
             // No-op in tests to avoid creating real directories
         }),

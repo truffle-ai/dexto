@@ -3,6 +3,7 @@
 This guide covers development workflows for working on the Dexto codebase.
 
 ## Table of Contents
+
 - [Project Structure](#project-structure)
 - [Development Setup](#development-setup)
 - [Development Workflows](#development-workflows)
@@ -27,6 +28,7 @@ dexto/
 ```
 
 ### Package Dependencies
+
 - `dexto` (CLI) depends on `@dexto/core`
 - `@dexto/webui` is embedded into CLI at build time
 - All packages version together (fixed versioning)
@@ -34,10 +36,12 @@ dexto/
 ## Development Setup
 
 ### Prerequisites
+
 - Node.js >= 20.0.0
 - pnpm (automatically managed via Corepack)
 
 ### Initial Setup
+
 ```bash
 # Clone the repository
 git clone https://github.com/truffle-ai/dexto.git
@@ -56,6 +60,7 @@ pnpm run build
 ## Development Workflows
 
 ### 1. Hot Reload Development (Recommended)
+
 Best for frontend development with automatic reload:
 
 ```bash
@@ -63,17 +68,20 @@ pnpm run dev
 ```
 
 This command:
+
 - Builds core and CLI packages
 - Runs API server on port 3001 (from built dist)
 - Runs WebUI dev server on port 3000 (with hot reload)
 - Prefixes output with `[API]` and `[UI]` for clarity
-- **Automatically sets `DEXTO_DEV_MODE=true`** to use repository agent configs
+- Uses source-context defaults (repo `commands/` and repo `.dexto/` paths)
 
 Access:
+
 - API: http://localhost:3001
 - WebUI: http://localhost:3000
 
 ### 2. Symlink Development
+
 Best for CLI development with instant changes:
 
 ```bash
@@ -90,6 +98,7 @@ pnpm run unlink-cli
 Now `dexto` command uses your local development code directly.
 
 ### 3. Production-like Testing
+
 Test the actual installation experience:
 
 ```bash
@@ -105,6 +114,7 @@ This creates tarballs and installs them globally, simulating `npm install -g dex
 ### Switching Between Workflows
 
 The `link-cli` and `install-cli` commands are mutually exclusive:
+
 - Running `link-cli` removes any npm installation
 - Running `install-cli` removes any pnpm symlink
 - Use `unlink-cli` to remove everything
@@ -112,6 +122,7 @@ The `link-cli` and `install-cli` commands are mutually exclusive:
 ## Build Commands
 
 ### Complete Builds
+
 ```bash
 # Full build with cleaning
 pnpm run build
@@ -124,6 +135,7 @@ pnpm run build:check
 ```
 
 ### Package-Specific Builds
+
 ```bash
 # Build individual packages
 pnpm run build:core
@@ -135,6 +147,7 @@ pnpm run build:cli-only
 ```
 
 ### WebUI Embedding
+
 The WebUI is embedded into the CLI's dist folder during build:
 
 ```bash
@@ -145,6 +158,7 @@ pnpm run embed-webui
 ## Testing
 
 ### Automated Tests
+
 ```bash
 # Run all tests
 pnpm test
@@ -162,9 +176,10 @@ pnpm run test:ci
 ### Manual testing
 
 1. Common commands
+
 ```bash
 cd ~
-dexto --help 
+dexto --help
 dexto "what is the current time"
 dexto "list files in current directory"
 
@@ -184,6 +199,7 @@ dexto --mode telegram
 2. Execution contexts
 
 Dexto CLI operates differently based on the directory you are running in.
+
 - source context -> when Dexto CLI is run in the source repository
 - global context -> when Dexto CLI is run outside the source repository
 - project context -> when Dexto CLI is run in a project that consumes @dexto dependencies
@@ -193,24 +209,26 @@ Run the CLI in different places and see the console logs to understand this.
 
 Test above commands in different execution contexts for manual testing coverage.
 
-**Developer Mode Environment Variable:**
+**Home Directory Override (Optional):**
 
-When running `dexto` from within this repository, it normally uses your `dexto setup` preferences and global `~/.dexto` directory. To force isolated testing with repository files:
+When running in this repository (`dexto-source` context), Dexto already uses repository-local defaults:
+
+- **Agent/command discovery** from repo paths
+- **Logs/database/cache** under `repo/.dexto/`
+- **Setup checks** skipped for maintainer workflows
+
+If you want an explicit custom storage root for local testing, set:
+
 ```bash
-export DEXTO_DEV_MODE=true  # Use repo configs and local .dexto directory
+export DEXTO_HOME_DIR=/tmp/dexto
 ```
 
-**DEXTO_DEV_MODE Behavior:**
-- **Agent Config**: Uses `agents/coding-agent/coding-agent.yml` from repo (instead of `~/.dexto/agents/`)
-- **Logs/Database**: Uses `repo/.dexto/` (instead of `~/.dexto/`)
-- **Preferences**: Skips global setup validation
-- **Use Case**: Isolated testing and development on Dexto itself
-
-**Note**: `pnpm run dev` automatically sets `DEXTO_DEV_MODE=true`, so the development server always uses repository configs and local storage.
+This overrides all home-backed Dexto storage paths and `.env` loading to use that directory.
 
 ## Code Quality
 
 ### Type Checking
+
 ```bash
 # Type check all packages
 pnpm run typecheck
@@ -223,6 +241,7 @@ pnpm run typecheck:core
 ```
 
 ### Linting
+
 ```bash
 # Run linter
 pnpm run lint
@@ -232,7 +251,9 @@ pnpm run lint:fix
 ```
 
 ### Pre-commit Checks
+
 Before committing, always run:
+
 ```bash
 pnpm run build:check  # Typecheck + build
 pnpm test            # Run tests
@@ -246,9 +267,10 @@ pnpm run lint        # Check linting
 We use [Changesets](https://github.com/changesets/changesets) for version management:
 
 1. **Create a changeset** for your changes:
-   ```bash
-   pnpm changeset
-   ```
+
+    ```bash
+    pnpm changeset
+    ```
 
 2. **Select packages** affected by your change
 
@@ -265,6 +287,7 @@ We use [Changesets](https://github.com/changesets/changesets) for version manage
 ### Publishing Process
 
 Publishing is automated via GitHub Actions:
+
 1. Merge PR with changeset
 2. Bot creates "Version Packages" PR
 3. Merge version PR to trigger npm publish
@@ -272,6 +295,7 @@ Publishing is automated via GitHub Actions:
 ## Common Tasks
 
 ### Clean Everything
+
 ```bash
 # Clean all build artifacts and caches
 pnpm run clean
@@ -281,6 +305,7 @@ pnpm run clean:storage
 ```
 
 ### Start Production Server
+
 ```bash
 # Start the CLI (requires build first)
 pnpm start
@@ -289,6 +314,7 @@ pnpm start
 ### Working with Turbo
 
 Turbo commands run tasks across all packages:
+
 ```bash
 pnpm run repo:build      # Build all packages with Turbo
 pnpm run repo:test       # Test all packages with Turbo
@@ -299,7 +325,9 @@ pnpm run repo:typecheck  # Typecheck all packages with Turbo
 ## Troubleshooting
 
 ### Native Dependencies
+
 If you see errors about missing bindings (e.g., better-sqlite3):
+
 ```bash
 # Reinstall dependencies
 pnpm install
@@ -310,17 +338,22 @@ pnpm install
 ```
 
 ### Port Conflicts
+
 Default ports:
+
 - API/Server: 3001
 - WebUI Dev: 3000
 
 Set environment variables to use different ports:
+
 ```bash
 PORT=4000 API_PORT=4001 pnpm run dev
 ```
 
 ### Global Command Not Found
+
 If `dexto` command is not found after linking:
+
 ```bash
 # Check global installations
 pnpm list -g

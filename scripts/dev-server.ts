@@ -91,7 +91,6 @@ apiProcess = spawn('node', cliArgs, {
     env: {
         ...process.env,
         PORT: apiPort,
-        DEXTO_DEV_MODE: 'true', // Force use of repo config for development
     },
 });
 

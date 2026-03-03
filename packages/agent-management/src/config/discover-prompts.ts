@@ -7,7 +7,7 @@
  * Discovery locations (in priority order):
  *
  * Local commands (project-specific):
- * 1. <projectRoot>/commands/ (dexto-source dev mode or dexto-project only)
+ * 1. <projectRoot>/commands/ (dexto-source or dexto-project only)
  * 2. <cwd>/.dexto/commands/
  * 3. <cwd>/.claude/commands/ (Claude Code compatibility)
  * 4. <cwd>/.cursor/commands/ (Cursor compatibility)
@@ -69,13 +69,9 @@ export function discoverCommandPrompts(): FilePromptEntry[] {
 
     switch (context) {
         case 'dexto-source': {
-            // Only use local commands in dev mode
-            const isDevMode = process.env.DEXTO_DEV_MODE === 'true';
-            if (isDevMode) {
-                const sourceRoot = findDextoSourceRoot();
-                if (sourceRoot) {
-                    localCommandsDir = path.join(sourceRoot, 'commands');
-                }
+            const sourceRoot = findDextoSourceRoot();
+            if (sourceRoot) {
+                localCommandsDir = path.join(sourceRoot, 'commands');
             }
             break;
         }

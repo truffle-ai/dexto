@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { ensureDextoGlobalDirectory, getDextoEnvPath, logger } from '@dexto/core';
+import { logger } from '@dexto/core';
+import { ensureDextoGlobalDirectory, getDextoEnvPath } from '@dexto/agent-management';
 import { getDextoApiClient } from './api-client.js';
 import { loadAuth, storeAuth } from './service.js';
 
