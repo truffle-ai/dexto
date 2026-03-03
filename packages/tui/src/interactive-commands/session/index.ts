@@ -8,9 +8,10 @@
  * - searchCommand: Opens interactive search overlay
  * - resumeCommand: Shows interactive session selector
  * - renameCommand: Rename the current session
+ * - forkCommand: Fork the current (or specified) session
  *
  * Note: For non-interactive session subcommands (list, history, delete),
  * see src/cli/commands/session-commands.ts
  */
 
-export { searchCommand, resumeCommand, renameCommand } from './session-commands.js';
+export { searchCommand, resumeCommand, renameCommand, forkCommand } from './session-commands.js';

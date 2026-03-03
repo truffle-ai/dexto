@@ -359,7 +359,7 @@ describe('SessionManager', () => {
                     parentSessionId,
                     workspaceId: 'workspace-1',
                     llmOverride: parentSessionData.llmOverride,
-                    metadata: { title: 'Parent title' },
+                    metadata: { title: 'Fork: Parent title' },
                 })
             );
             expect(mockStorageManager.database.append).toHaveBeenNthCalledWith(
@@ -371,6 +371,43 @@ describe('SessionManager', () => {
                 2,
                 'messages:mock-uuid-123',
                 historyBatch[1]
+            );
+            expect(createSessionSpy).toHaveBeenCalledWith('mock-uuid-123');
+        });
+
+        test('should derive child title from parent session id when parent title is missing', async () => {
+            const parentSessionId = 'parent-session-no-title';
+            const parentSessionData = {
+                id: parentSessionId,
+                createdAt: 1000,
+                lastActivity: 2000,
+                messageCount: 0,
+            };
+
+            mockStorageManager.database.get.mockImplementation((key: string) => {
+                if (key === `session:${parentSessionId}`) {
+                    return Promise.resolve(parentSessionData);
+                }
+                if (key === 'session:mock-uuid-123') {
+                    return Promise.resolve(undefined);
+                }
+                return Promise.resolve(undefined);
+            });
+            mockStorageManager.database.getRange.mockResolvedValueOnce([]);
+
+            const mockChildSession = { id: 'mock-uuid-123' } as any;
+            const createSessionSpy = vi
+                .spyOn(sessionManager, 'createSession')
+                .mockResolvedValue(mockChildSession);
+
+            const childSession = await sessionManager.forkSession(parentSessionId);
+
+            expect(childSession).toBe(mockChildSession);
+            expect(mockStorageManager.database.set).toHaveBeenCalledWith(
+                'session:mock-uuid-123',
+                expect.objectContaining({
+                    metadata: { title: 'Fork: parent-s' },
+                })
             );
             expect(createSessionSpy).toHaveBeenCalledWith('mock-uuid-123');
         });

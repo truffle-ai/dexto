@@ -279,6 +279,7 @@ describe('Hono API Integration Tests', () => {
                 res.body as {
                     session: {
                         id: string;
+                        title: string | null;
                         parentSessionId: string | null;
                     };
                 }
@@ -286,6 +287,7 @@ describe('Hono API Integration Tests', () => {
             expect(child.id).toBeDefined();
             expect(child.id).not.toBe(parentSessionId);
             expect(child.parentSessionId).toBe(parentSessionId);
+            expect(child.title).toBe('Fork: test-for');
         });
 
         it('POST /api/sessions/:id/fork clones persisted parent history', async () => {

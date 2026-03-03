@@ -114,6 +114,8 @@ export class SessionManager {
     private logger: Logger;
     private static readonly FORK_HISTORY_BATCH_SIZE = 500;
     private static readonly FORK_ID_GENERATION_MAX_ATTEMPTS = 5;
+    private static readonly FORK_TITLE_PREFIX = 'Fork: ';
+    private static readonly FORK_PARENT_ID_PREVIEW_LENGTH = 8;
 
     private readonly sessionLoggerFactory: SessionLoggerFactory;
 
@@ -261,7 +263,8 @@ export class SessionManager {
      * The child session:
      * - Always gets a generated session ID
      * - Stores lineage via parentSessionId
-     * - Copies title/messageCount/workspaceId/llmOverride from parent metadata
+     * - Uses a fork-prefixed title derived from parent title (or parent ID)
+     * - Copies messageCount/workspaceId/llmOverride from parent metadata
      * - Starts fresh token/cost/modelStats accounting
      */
     public async forkSession(parentSessionId: string): Promise<ChatSession> {
@@ -282,18 +285,16 @@ export class SessionManager {
         const childMessagesKey = `messages:${childSessionId}`;
         const now = Date.now();
 
-        const childTitle = parentSessionData.metadata?.title;
+        const childTitle = this.buildForkTitle(parentSessionData, parentSessionId);
         const childSessionData: SessionData = {
             id: childSessionId,
             createdAt: now,
             lastActivity: now,
             messageCount: parentSessionData.messageCount,
             parentSessionId,
-            ...(childTitle !== undefined && {
-                metadata: {
-                    title: childTitle,
-                },
-            }),
+            metadata: {
+                title: childTitle,
+            },
             ...(parentSessionData.workspaceId !== undefined && {
                 workspaceId: parentSessionData.workspaceId,
             }),
@@ -329,6 +330,21 @@ export class SessionManager {
 
             throw error;
         }
+    }
+
+    private buildForkTitle(parentSessionData: SessionData, parentSessionId: string): string {
+        const rawParentTitle = parentSessionData.metadata?.title;
+        const parentTitle = typeof rawParentTitle === 'string' ? rawParentTitle.trim() : '';
+        const prefix = SessionManager.FORK_TITLE_PREFIX;
+
+        const baseTitle =
+            parentTitle.length > 0
+                ? parentTitle.startsWith(prefix)
+                    ? parentTitle.slice(prefix.length).trim() || parentTitle
+                    : parentTitle
+                : parentSessionId.slice(0, SessionManager.FORK_PARENT_ID_PREVIEW_LENGTH);
+
+        return `${prefix}${baseTitle}`;
     }
 
     private async generateForkSessionId(): Promise<string> {

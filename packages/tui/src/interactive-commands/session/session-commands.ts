@@ -8,6 +8,7 @@
  * - resume: Shows interactive session selector
  * - search: Opens interactive search overlay
  * - rename: Rename the current session
+ * - fork: Fork the current (or specified) session
  *
  * Note: For non-interactive session subcommands (list, history, delete),
  * see src/cli/commands/session-commands.ts
@@ -80,5 +81,37 @@ export const renameCommand: CommandDefinition = {
     ): Promise<boolean> => {
         // Interactive overlay handles everything - just return success
         return true;
+    },
+};
+
+/**
+ * Fork command - creates a child session from current or specified parent session.
+ */
+export const forkCommand: CommandDefinition = {
+    name: 'fork',
+    description: 'Fork a session and create a child session with copied history',
+    usage: '/fork [parentSessionId]',
+    category: 'General',
+    handler: async (args: string[], agent: DextoAgent, ctx: CommandContext): Promise<string> => {
+        const parentSessionId = args[0] ?? ctx.sessionId;
+
+        if (!parentSessionId) {
+            return [
+                '❌ No session to fork.',
+                'Start a session first or run /fork <sessionId>.',
+            ].join('\n');
+        }
+
+        const childSession = await agent.forkSession(parentSessionId);
+        const childMetadata = await agent.getSessionMetadata(childSession.id);
+        const title = childMetadata?.title ? ` (${childMetadata.title})` : '';
+
+        return [
+            '🍴 Session forked',
+            `Parent: ${parentSessionId}`,
+            `Child: ${childSession.id}${title}`,
+            '',
+            'Use /resume to switch to the new session.',
+        ].join('\n');
     },
 };

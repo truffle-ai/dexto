@@ -132,6 +132,10 @@ const SessionSelector = forwardRef<SessionSelectorHandle, SessionSelectorProps>(
                 parts.push('New Session');
             }
 
+            if (session.metadata?.parentSessionId) {
+                parts.push(`forked from ${session.metadata.parentSessionId.slice(0, 8)}`);
+            }
+
             // Always show short ID
             parts.push(session.id.slice(0, 8));
 

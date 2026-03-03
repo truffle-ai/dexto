@@ -214,7 +214,7 @@ describe('Session Integration: Chat History Preservation', () => {
 
         const childMetadata = await agent.getSessionMetadata(childSessionId);
         expect(childMetadata?.parentSessionId).toBe(parentSessionId);
-        expect(childMetadata?.title).toBe('Parent Session Title');
+        expect(childMetadata?.title).toBe('Fork: Parent Session Title');
         expect(childMetadata?.messageCount).toBe(parentHistory.length);
         expect(childMetadata?.tokenUsage).toBeUndefined();
         expect(childMetadata?.estimatedCost).toBeUndefined();
