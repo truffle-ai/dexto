@@ -586,7 +586,7 @@ async function handleDextoProviderSetup(
     if (!hasKey) {
         p.note(
             `Dexto gives you instant access to ${chalk.cyan('all AI models')} with a single account.\n\n` +
-                `We'll guide you through login. Browser callback is used when available, otherwise device code flow.`,
+                `We'll guide you through device-code login.`,
             'Login Required'
         );
 

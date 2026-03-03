@@ -12,12 +12,9 @@ import {
     type TuiDextoApiKeyProvisionStatus as DextoApiKeyProvisionStatus,
     type TuiDeviceLoginPrompt as DeviceLoginPrompt,
     type TuiOAuthResult as OAuthResult,
-    beginOAuthLogin,
-    getDefaultOAuthConfig,
     loadAuth,
     performDeviceCodeLogin,
     persistOAuthLoginResult,
-    shouldAttemptBrowserLaunch,
 } from '../../host/index.js';
 
 export type LoginOverlayOutcome =
@@ -43,22 +40,9 @@ type LoginStep =
     | 'checking'
     | 'already-authenticated'
     | 'starting'
-    | 'opening-browser'
     | 'waiting'
     | 'finalizing'
     | 'error';
-
-function isCancellationError(errorMessage: string): boolean {
-    const lower = errorMessage.toLowerCase();
-    return (
-        lower.includes('canceled') ||
-        lower.includes('cancelled') ||
-        lower.includes('user denied') ||
-        lower.includes('user_denied') ||
-        lower.includes('access_denied') ||
-        lower.includes('access denied by user')
-    );
-}
 
 const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function LoginOverlay(
     { isVisible, onDone },
@@ -90,54 +74,6 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
         abortControllerRef.current?.abort(new Error('Authentication cancelled'));
         abortControllerRef.current = null;
     }, []);
-
-    const runBrowserLogin = useCallback(
-        async (abortController: AbortController): Promise<OAuthResult | null> => {
-            setStep('starting');
-            safeSetStatus('Starting local callback server...');
-
-            const session = await beginOAuthLogin(getDefaultOAuthConfig(), {
-                signal: abortController.signal,
-            });
-
-            if (!isActiveRef.current || abortController.signal.aborted) {
-                void session.result.catch(() => undefined);
-                session.cancel();
-                return null;
-            }
-
-            setAuthUrl(session.authUrl);
-            setDevicePrompt(null);
-            setStep('opening-browser');
-            safeSetStatus('Opening browser for authentication...');
-
-            let browserOpened = false;
-            try {
-                const { default: open } = await import('open');
-                await open(session.authUrl);
-                browserOpened = true;
-            } catch {
-                // Fall through to device flow fallback
-            }
-
-            if (!isActiveRef.current || abortController.signal.aborted) {
-                void session.result.catch(() => undefined);
-                session.cancel();
-                return null;
-            }
-
-            if (!browserOpened) {
-                void session.result.catch(() => undefined);
-                session.cancel();
-                throw new Error('Automatic browser launch unavailable');
-            }
-
-            setStep('waiting');
-            safeSetStatus('Waiting for authentication...');
-            return session.result;
-        },
-        [safeSetStatus]
-    );
 
     const runDeviceLogin = useCallback(
         async (abortController: AbortController): Promise<OAuthResult> => {
@@ -172,25 +108,7 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
         abortControllerRef.current = abortController;
 
         try {
-            const browserLikelyUsable = shouldAttemptBrowserLaunch();
-            let result: OAuthResult | null = null;
-
-            if (browserLikelyUsable) {
-                try {
-                    result = await runBrowserLogin(abortController);
-                } catch (err) {
-                    const errorMessage = err instanceof Error ? err.message : String(err);
-                    if (isCancellationError(errorMessage)) {
-                        throw err;
-                    }
-
-                    safeSetStatus('Browser callback unavailable. Switching to device code...');
-                    result = await runDeviceLogin(abortController);
-                }
-            } else {
-                safeSetStatus('Detected headless/remote environment. Using device code login...');
-                result = await runDeviceLogin(abortController);
-            }
+            const result = await runDeviceLogin(abortController);
 
             if (!result || !isActiveRef.current || abortController.signal.aborted) return;
 
@@ -220,14 +138,7 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
         } finally {
             abortControllerRef.current = null;
         }
-    }, [
-        cancelInFlight,
-        handleProvisionStatus,
-        onDone,
-        runBrowserLogin,
-        runDeviceLogin,
-        safeSetStatus,
-    ]);
+    }, [cancelInFlight, handleProvisionStatus, onDone, runDeviceLogin, safeSetStatus]);
 
     // Initialize when shown
     useEffect(() => {

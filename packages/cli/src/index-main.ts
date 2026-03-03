@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { Command, Option } from 'commander';
+import { Command } from 'commander';
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
 import { initAnalytics, capture, getWebUIAnalyticsConfig } from './analytics/index.js';
@@ -989,25 +989,13 @@ const authCommand = program.command('auth').description('Manage authentication')
 authCommand
     .command('login')
     .description('Login to Dexto')
-    .option('--api-key <key>', 'Use Dexto API key instead of OAuth/device login')
+    .option('--api-key <key>', 'Use Dexto API key instead of device-code login')
     .option('--token <token>', 'Use an existing Supabase access token')
-    .addOption(
-        new Option('--auth-mode <mode>', 'Login method: auto | browser | device').conflicts(
-            'device'
-        )
-    )
-    .addOption(new Option('--device', 'Shortcut for --auth-mode device').conflicts('authMode'))
     .option('--no-interactive', 'Disable interactive prompts')
     .action(
         withAnalytics(
             'auth login',
-            async (options: {
-                apiKey?: string;
-                token?: string;
-                interactive?: boolean;
-                authMode?: string;
-                device?: boolean;
-            }) => {
+            async (options: { apiKey?: string; token?: string; interactive?: boolean }) => {
                 try {
                     await handleLoginCommand(options);
                     safeExit('auth login', 0);
@@ -1061,25 +1049,13 @@ authCommand
 program
     .command('login')
     .description('Login to Dexto (alias for `dexto auth login`)')
-    .option('--api-key <key>', 'Use Dexto API key instead of OAuth/device login')
+    .option('--api-key <key>', 'Use Dexto API key instead of device-code login')
     .option('--token <token>', 'Use an existing Supabase access token')
-    .addOption(
-        new Option('--auth-mode <mode>', 'Login method: auto | browser | device').conflicts(
-            'device'
-        )
-    )
-    .addOption(new Option('--device', 'Shortcut for --auth-mode device').conflicts('authMode'))
     .option('--no-interactive', 'Disable interactive prompts')
     .action(
         withAnalytics(
             'login',
-            async (options: {
-                apiKey?: string;
-                token?: string;
-                interactive?: boolean;
-                authMode?: string;
-                device?: boolean;
-            }) => {
+            async (options: { apiKey?: string; token?: string; interactive?: boolean }) => {
                 try {
                     await handleLoginCommand(options);
                     safeExit('login', 0);
@@ -1899,11 +1875,8 @@ program
                                     getProviderInstructions,
                                 },
                                 {
-                                    beginOAuthLogin,
-                                    DEFAULT_OAUTH_CONFIG,
                                     performDeviceCodeLogin,
                                     persistOAuthLoginResult,
-                                    shouldAttemptBrowserLaunch,
                                     ensureDextoApiKeyForAuthToken,
                                     loadAuth,
                                     storeAuth,
@@ -1931,11 +1904,8 @@ program
                                 getProviderDisplayName,
                                 isValidApiKeyFormat,
                                 getProviderInstructions,
-                                beginOAuthLogin,
-                                defaultOAuthConfig: DEFAULT_OAUTH_CONFIG,
                                 performDeviceCodeLogin,
                                 persistOAuthLoginResult,
-                                shouldAttemptBrowserLaunch,
                                 ensureDextoApiKeyForAuthToken,
                                 loadAuth,
                                 storeAuth,

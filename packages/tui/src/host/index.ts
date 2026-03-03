@@ -12,13 +12,6 @@ export interface TuiAuthConfig {
     dextoApiKeySource?: 'provisioned' | 'user-supplied' | undefined;
 }
 
-export interface TuiOAuthConfig {
-    authUrl: string;
-    clientId: string;
-    provider?: string;
-    scopes?: string[];
-}
-
 export interface TuiOAuthResult {
     accessToken: string;
     refreshToken?: string | undefined;
@@ -37,12 +30,6 @@ export interface TuiDeviceLoginPrompt {
     verificationUrl: string;
     verificationUrlComplete: string | null;
     expiresIn: number;
-}
-
-export interface TuiOAuthLoginSession {
-    authUrl: string;
-    result: Promise<TuiOAuthResult>;
-    cancel: () => void;
 }
 
 export type TuiDextoApiKeyProvisionStatusLevel = 'info' | 'success' | 'warning' | 'error';
@@ -68,11 +55,6 @@ export interface TuiRuntimeServices {
     getProviderInstructions?: (
         provider: LLMProvider
     ) => { title: string; content: string; url?: string | undefined } | null;
-    beginOAuthLogin?: (
-        config: TuiOAuthConfig,
-        options?: { signal?: AbortSignal | undefined }
-    ) => Promise<TuiOAuthLoginSession>;
-    defaultOAuthConfig?: TuiOAuthConfig;
     performDeviceCodeLogin?: (options?: {
         signal?: AbortSignal | undefined;
         onPrompt?: ((prompt: TuiDeviceLoginPrompt) => void) | undefined;
@@ -83,7 +65,6 @@ export interface TuiRuntimeServices {
             onProvisionStatus?: ((status: TuiDextoApiKeyProvisionStatus) => void) | undefined;
         }
     ) => Promise<TuiPersistedLoginResult>;
-    shouldAttemptBrowserLaunch?: () => boolean;
     ensureDextoApiKeyForAuthToken?: (
         authToken: string,
         options?: {
@@ -147,24 +128,6 @@ export function getProviderInstructions(provider: LLMProvider): {
     return runtimeServices.getProviderInstructions?.(provider) ?? null;
 }
 
-export function getDefaultOAuthConfig(): TuiOAuthConfig {
-    const config = runtimeServices.defaultOAuthConfig;
-    if (!config) {
-        throw missingHostMethod('defaultOAuthConfig');
-    }
-    return config;
-}
-
-export async function beginOAuthLogin(
-    config: TuiOAuthConfig,
-    options?: { signal?: AbortSignal | undefined }
-): Promise<TuiOAuthLoginSession> {
-    if (!runtimeServices.beginOAuthLogin) {
-        throw missingHostMethod('beginOAuthLogin');
-    }
-    return runtimeServices.beginOAuthLogin(config, options);
-}
-
 export async function performDeviceCodeLogin(options?: {
     signal?: AbortSignal | undefined;
     onPrompt?: ((prompt: TuiDeviceLoginPrompt) => void) | undefined;
@@ -183,10 +146,6 @@ export async function persistOAuthLoginResult(
         throw missingHostMethod('persistOAuthLoginResult');
     }
     return runtimeServices.persistOAuthLoginResult(result, options);
-}
-
-export function shouldAttemptBrowserLaunch(): boolean {
-    return runtimeServices.shouldAttemptBrowserLaunch?.() ?? true;
 }
 
 export async function ensureDextoApiKeyForAuthToken(
