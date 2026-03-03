@@ -8,7 +8,7 @@
  * - resume: Shows interactive session selector
  * - search: Opens interactive search overlay
  * - rename: Rename the current session
- * - fork: Fork the current (or specified) session
+ * - fork: Fork the current session
  *
  * Note: For non-interactive session subcommands (list, history, delete),
  * see src/cli/commands/session-commands.ts
@@ -85,21 +85,20 @@ export const renameCommand: CommandDefinition = {
 };
 
 /**
- * Fork command - creates a child session from current or specified parent session.
+ * Fork command - creates a child session from the current session.
  */
 export const forkCommand: CommandDefinition = {
     name: 'fork',
     description: 'Fork a session and create a child session with copied history',
-    usage: '/fork [parentSessionId]',
+    usage: '/fork',
     category: 'General',
-    handler: async (args: string[], agent: DextoAgent, ctx: CommandContext): Promise<string> => {
-        const parentSessionId = args[0] ?? ctx.sessionId;
+    handler: async (_args: string[], agent: DextoAgent, ctx: CommandContext): Promise<string> => {
+        const parentSessionId = ctx.sessionId;
 
         if (!parentSessionId) {
-            return [
-                '❌ No session to fork.',
-                'Start a session first or run /fork <sessionId>.',
-            ].join('\n');
+            return ['❌ No active session to fork.', 'Start a session first, then run /fork.'].join(
+                '\n'
+            );
         }
 
         const childSession = await agent.forkSession(parentSessionId);

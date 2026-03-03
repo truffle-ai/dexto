@@ -8,7 +8,7 @@
  * - searchCommand: Opens interactive search overlay
  * - resumeCommand: Shows interactive session selector
  * - renameCommand: Rename the current session
- * - forkCommand: Fork the current (or specified) session
+ * - forkCommand: Fork the current session
  *
  * Note: For non-interactive session subcommands (list, history, delete),
  * see src/cli/commands/session-commands.ts

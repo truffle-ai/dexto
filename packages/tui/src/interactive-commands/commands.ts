@@ -64,7 +64,7 @@ const baseCommands: CommandDefinition[] = [
     searchCommand, // /search - opens search overlay
     resumeCommand, // /resume - opens session selector overlay
     renameCommand, // /rename <title> - rename current session
-    forkCommand, // /fork [sessionId] - creates a forked session
+    forkCommand, // /fork - creates a forked session from current session
     exportCommand, // /export - opens export wizard overlay
 
     // Model management
