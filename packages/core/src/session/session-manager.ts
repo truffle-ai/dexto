@@ -56,6 +56,7 @@ export interface SessionMetadata {
     estimatedCost?: number;
     modelStats?: ModelStatistics[];
     workspaceId?: string;
+    parentSessionId?: string;
 }
 
 export interface SessionManagerConfig {
@@ -78,6 +79,7 @@ export interface SessionData {
     estimatedCost?: number;
     modelStats?: ModelStatistics[];
     workspaceId?: string;
+    parentSessionId?: string;
     /** Persisted LLM config override for this session */
     llmOverride?: PersistedLLMConfig;
 }
@@ -110,6 +112,8 @@ export class SessionManager {
     // Per-session mutex for token usage updates to prevent lost updates from concurrent calls
     private readonly tokenUsageLocks = new Map<string, Promise<void>>();
     private logger: Logger;
+    private static readonly FORK_HISTORY_BATCH_SIZE = 500;
+    private static readonly FORK_ID_GENERATION_MAX_ATTEMPTS = 5;
 
     private readonly sessionLoggerFactory: SessionLoggerFactory;
 
@@ -248,6 +252,133 @@ export class SessionManager {
         } finally {
             // Always clean up the pending creation tracker
             this.pendingCreations.delete(id);
+        }
+    }
+
+    /**
+     * Fork an existing session by cloning its persisted history into a new child session.
+     *
+     * The child session:
+     * - Always gets a generated session ID
+     * - Stores lineage via parentSessionId
+     * - Copies title/messageCount/workspaceId/llmOverride from parent metadata
+     * - Starts fresh token/cost/modelStats accounting
+     */
+    public async forkSession(parentSessionId: string): Promise<ChatSession> {
+        await this.ensureInitialized();
+
+        const database = this.services.storageManager.getDatabase();
+        const cache = this.services.storageManager.getCache();
+        const parentSessionKey = `session:${parentSessionId}`;
+        const parentMessagesKey = `messages:${parentSessionId}`;
+
+        const parentSessionData = await database.get<SessionData>(parentSessionKey);
+        if (!parentSessionData) {
+            throw SessionError.notFound(parentSessionId);
+        }
+
+        const childSessionId = await this.generateForkSessionId();
+        const childSessionKey = `session:${childSessionId}`;
+        const childMessagesKey = `messages:${childSessionId}`;
+        const now = Date.now();
+
+        const childTitle = parentSessionData.metadata?.title;
+        const childSessionData: SessionData = {
+            id: childSessionId,
+            createdAt: now,
+            lastActivity: now,
+            messageCount: parentSessionData.messageCount,
+            parentSessionId,
+            ...(childTitle !== undefined && {
+                metadata: {
+                    title: childTitle,
+                },
+            }),
+            ...(parentSessionData.workspaceId !== undefined && {
+                workspaceId: parentSessionData.workspaceId,
+            }),
+            ...(parentSessionData.llmOverride !== undefined && {
+                llmOverride: parentSessionData.llmOverride,
+            }),
+        };
+
+        try {
+            await database.set(childSessionKey, childSessionData);
+            await this.copySessionHistory(parentMessagesKey, childMessagesKey);
+
+            const childSession = await this.createSession(childSessionId);
+            this.logger.info(`Forked session '${parentSessionId}' into child '${childSessionId}'`);
+            return childSession;
+        } catch (error) {
+            // Best-effort rollback for partially created fork state.
+            await Promise.allSettled([
+                database.delete(childSessionKey),
+                database.delete(childMessagesKey),
+                cache.delete(childSessionKey),
+            ]);
+
+            const inMemorySession = this.sessions.get(childSessionId);
+            if (inMemorySession) {
+                try {
+                    await inMemorySession.cleanup();
+                } catch {
+                    // Ignore cleanup errors during rollback.
+                }
+                this.sessions.delete(childSessionId);
+            }
+
+            throw error;
+        }
+    }
+
+    private async generateForkSessionId(): Promise<string> {
+        const database = this.services.storageManager.getDatabase();
+
+        for (let attempt = 0; attempt < SessionManager.FORK_ID_GENERATION_MAX_ATTEMPTS; attempt++) {
+            const candidateId = randomUUID();
+            if (this.sessions.has(candidateId) || this.pendingCreations.has(candidateId)) {
+                continue;
+            }
+
+            const existing = await database.get<SessionData>(`session:${candidateId}`);
+            if (!existing) {
+                return candidateId;
+            }
+        }
+
+        throw SessionError.initializationFailed(
+            'fork',
+            'failed to generate unique child session ID'
+        );
+    }
+
+    private async copySessionHistory(
+        parentMessagesKey: string,
+        childMessagesKey: string
+    ): Promise<void> {
+        const database = this.services.storageManager.getDatabase();
+        let offset = 0;
+
+        while (true) {
+            const batch = await database.getRange<unknown>(
+                parentMessagesKey,
+                offset,
+                SessionManager.FORK_HISTORY_BATCH_SIZE
+            );
+
+            if (batch.length === 0) {
+                return;
+            }
+
+            for (const message of batch) {
+                await database.append(childMessagesKey, message);
+            }
+
+            offset += batch.length;
+
+            if (batch.length < SessionManager.FORK_HISTORY_BATCH_SIZE) {
+                return;
+            }
         }
     }
 
@@ -573,6 +704,9 @@ export class SessionManager {
             }),
             ...(sessionData.modelStats && { modelStats: sessionData.modelStats }),
             ...(sessionData.workspaceId && { workspaceId: sessionData.workspaceId }),
+            ...(sessionData.parentSessionId !== undefined && {
+                parentSessionId: sessionData.parentSessionId,
+            }),
         };
     }
 

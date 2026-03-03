@@ -304,6 +304,88 @@ describe('SessionManager', () => {
         });
     });
 
+    describe('Session Forking', () => {
+        beforeEach(async () => {
+            await sessionManager.init();
+        });
+
+        test('should fork a session with parent metadata lineage and copied history', async () => {
+            const parentSessionId = 'parent-session';
+            const parentSessionData = {
+                id: parentSessionId,
+                createdAt: 1000,
+                lastActivity: 2000,
+                messageCount: 2,
+                metadata: { title: 'Parent title' },
+                workspaceId: 'workspace-1',
+                llmOverride: {
+                    provider: 'openai',
+                    model: 'gpt-5',
+                    maxIterations: 50,
+                    maxInputTokens: 128000,
+                },
+            };
+            const historyBatch = [
+                { id: 'm1', role: 'user', content: 'hello' },
+                { id: 'm2', role: 'assistant', content: 'hi' },
+            ];
+
+            mockStorageManager.database.get.mockImplementation((key: string) => {
+                if (key === `session:${parentSessionId}`) {
+                    return Promise.resolve(parentSessionData);
+                }
+                if (key === 'session:mock-uuid-123') {
+                    return Promise.resolve(undefined);
+                }
+                return Promise.resolve(undefined);
+            });
+            mockStorageManager.database.getRange
+                .mockResolvedValueOnce(historyBatch)
+                .mockResolvedValueOnce([]);
+
+            const mockChildSession = { id: 'mock-uuid-123' } as any;
+            const createSessionSpy = vi
+                .spyOn(sessionManager, 'createSession')
+                .mockResolvedValue(mockChildSession);
+
+            const childSession = await sessionManager.forkSession(parentSessionId);
+
+            expect(childSession).toBe(mockChildSession);
+            expect(mockStorageManager.database.set).toHaveBeenCalledWith(
+                'session:mock-uuid-123',
+                expect.objectContaining({
+                    id: 'mock-uuid-123',
+                    messageCount: 2,
+                    parentSessionId,
+                    workspaceId: 'workspace-1',
+                    llmOverride: parentSessionData.llmOverride,
+                    metadata: { title: 'Parent title' },
+                })
+            );
+            expect(mockStorageManager.database.append).toHaveBeenNthCalledWith(
+                1,
+                'messages:mock-uuid-123',
+                historyBatch[0]
+            );
+            expect(mockStorageManager.database.append).toHaveBeenNthCalledWith(
+                2,
+                'messages:mock-uuid-123',
+                historyBatch[1]
+            );
+            expect(createSessionSpy).toHaveBeenCalledWith('mock-uuid-123');
+        });
+
+        test('should throw not found when forking a non-existent parent session', async () => {
+            mockStorageManager.database.get.mockResolvedValue(undefined);
+
+            await expect(sessionManager.forkSession('missing-parent')).rejects.toMatchObject({
+                code: SessionErrorCode.SESSION_NOT_FOUND,
+                scope: ErrorScope.SESSION,
+                type: ErrorType.NOT_FOUND,
+            });
+        });
+    });
+
     describe('Session Limits and Resource Management', () => {
         test('should enforce maximum session limits', async () => {
             const maxSessions = 2;

@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import type { SessionMetadata as CoreSessionMetadata } from '@dexto/core';
 import { SessionMetadataSchema, InternalMessageSchema } from '../schemas/responses.js';
 import type { GetAgentFn } from '../index.js';
 
@@ -7,6 +8,29 @@ const CreateSessionSchema = z
         sessionId: z.string().optional().describe('A custom ID for the new session'),
     })
     .describe('Request body for creating a new session');
+
+function mapSessionMetadata(
+    sessionId: string,
+    metadata: CoreSessionMetadata | undefined,
+    defaults?: {
+        createdAt?: number | null;
+        lastActivity?: number | null;
+        messageCount?: number;
+        title?: string | null;
+        workspaceId?: string | null;
+        parentSessionId?: string | null;
+    }
+) {
+    return {
+        id: sessionId,
+        createdAt: metadata?.createdAt ?? defaults?.createdAt ?? null,
+        lastActivity: metadata?.lastActivity ?? defaults?.lastActivity ?? null,
+        messageCount: metadata?.messageCount ?? defaults?.messageCount ?? 0,
+        title: metadata?.title ?? defaults?.title ?? null,
+        workspaceId: metadata?.workspaceId ?? defaults?.workspaceId ?? null,
+        parentSessionId: metadata?.parentSessionId ?? defaults?.parentSessionId ?? null,
+    };
+}
 
 export function createSessionsRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
@@ -83,6 +107,36 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                                 })
                                     .strict()
                                     .describe('Session metadata with history count'),
+                            })
+                            .strict(),
+                    },
+                },
+            },
+        },
+    });
+
+    const forkRoute = createRoute({
+        method: 'post',
+        path: '/sessions/{sessionId}/fork',
+        summary: 'Fork Session',
+        description:
+            'Creates a new child session by cloning the specified parent session history and metadata lineage.',
+        tags: ['sessions'],
+        request: {
+            params: z.object({
+                sessionId: z.string().describe('Parent session identifier'),
+            }),
+        },
+        responses: {
+            201: {
+                description: 'Forked session created successfully',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                session: SessionMetadataSchema.describe(
+                                    'Newly created child session metadata'
+                                ),
                             })
                             .strict(),
                     },
@@ -325,24 +379,10 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                 sessionIds.map(async (id) => {
                     try {
                         const metadata = await agent.getSessionMetadata(id);
-                        return {
-                            id,
-                            createdAt: metadata?.createdAt || null,
-                            lastActivity: metadata?.lastActivity || null,
-                            messageCount: metadata?.messageCount || 0,
-                            title: metadata?.title || null,
-                            workspaceId: metadata?.workspaceId || null,
-                        };
+                        return mapSessionMetadata(id, metadata);
                     } catch {
                         // Skip sessions that no longer exist
-                        return {
-                            id,
-                            createdAt: null,
-                            lastActivity: null,
-                            messageCount: 0,
-                            title: null,
-                            workspaceId: null,
-                        };
+                        return mapSessionMetadata(id, undefined);
                     }
                 })
             );
@@ -355,14 +395,22 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             const metadata = await agent.getSessionMetadata(session.id);
             return ctx.json(
                 {
-                    session: {
-                        id: session.id,
-                        createdAt: metadata?.createdAt || Date.now(),
-                        lastActivity: metadata?.lastActivity || Date.now(),
-                        messageCount: metadata?.messageCount || 0,
-                        title: metadata?.title || null,
-                        workspaceId: metadata?.workspaceId || null,
-                    },
+                    session: mapSessionMetadata(session.id, metadata, {
+                        createdAt: Date.now(),
+                        lastActivity: Date.now(),
+                    }),
+                },
+                201
+            );
+        })
+        .openapi(forkRoute, async (ctx) => {
+            const agent = await getAgent(ctx);
+            const { sessionId: parentSessionId } = ctx.req.valid('param');
+            const session = await agent.forkSession(parentSessionId);
+            const metadata = await agent.getSessionMetadata(session.id);
+            return ctx.json(
+                {
+                    session: mapSessionMetadata(session.id, metadata),
                 },
                 201
             );
@@ -374,12 +422,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             const history = await agent.getSessionHistory(sessionId);
             return ctx.json({
                 session: {
-                    id: sessionId,
-                    createdAt: metadata?.createdAt || null,
-                    lastActivity: metadata?.lastActivity || null,
-                    messageCount: metadata?.messageCount || 0,
-                    title: metadata?.title || null,
-                    workspaceId: metadata?.workspaceId || null,
+                    ...mapSessionMetadata(sessionId, metadata),
                     history: history.length,
                 },
             });
@@ -460,12 +503,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             return ctx.json(
                 {
                     session: {
-                        id: sessionId,
-                        createdAt: metadata?.createdAt || null,
-                        lastActivity: metadata?.lastActivity || null,
-                        messageCount: metadata?.messageCount || 0,
-                        title: metadata?.title || null,
-                        workspaceId: metadata?.workspaceId || null,
+                        ...mapSessionMetadata(sessionId, metadata),
                         isBusy,
                     },
                 },
@@ -479,14 +517,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             await agent.setSessionTitle(sessionId, title);
             const metadata = await agent.getSessionMetadata(sessionId);
             return ctx.json({
-                session: {
-                    id: sessionId,
-                    createdAt: metadata?.createdAt || null,
-                    lastActivity: metadata?.lastActivity || null,
-                    messageCount: metadata?.messageCount || 0,
-                    title: metadata?.title || title,
-                    workspaceId: metadata?.workspaceId || null,
-                },
+                session: mapSessionMetadata(sessionId, metadata, { title }),
             });
         })
         .openapi(generateTitleRoute, async (ctx) => {
