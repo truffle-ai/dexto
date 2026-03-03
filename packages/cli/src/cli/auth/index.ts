@@ -12,13 +12,15 @@ export {
     getAuthFilePath,
 } from './service.js';
 
+export { type OAuthResult } from './oauth.js';
+
+export { type DeviceLoginPrompt, performDeviceCodeLogin } from './device.js';
+
 export {
-    type OAuthResult,
-    type OAuthLoginSession,
-    beginOAuthLogin,
-    performOAuthLogin,
-    DEFAULT_OAUTH_CONFIG,
-} from './oauth.js';
+    type PersistOAuthLoginOptions,
+    type PersistedLoginResult,
+    persistOAuthLoginResult,
+} from './login-persistence.js';
 
 export { type UsageSummaryResponse, DextoApiClient, getDextoApiClient } from './api-client.js';
 
