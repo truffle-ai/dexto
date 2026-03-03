@@ -41,6 +41,7 @@ export type DeviceCodePollResponse =
     | { status: 'slowDown' }
     | { status: 'expired' }
     | { status: 'denied' }
+    | { status: 'transientError' }
     | { status: 'success'; token: DeviceCodeTokenResponse };
 
 export interface UsageSummaryResponse {
@@ -199,6 +200,14 @@ function parseDeviceErrorCode(payload: unknown): string | null {
     }
 
     return parseString(Reflect.get(payload, 'error'));
+}
+
+function isTransientDevicePollErrorCode(errorCode: string): boolean {
+    return (
+        errorCode === 'server_error' ||
+        errorCode === 'temporary_unavailable' ||
+        errorCode === 'temporarily_unavailable'
+    );
 }
 
 function parseSupabaseUser(payload: unknown): AuthenticatedUser | null {
@@ -534,14 +543,27 @@ export class DextoApiClient {
         deviceCode: string,
         options: RequestOptions = {}
     ): Promise<DeviceCodePollResponse> {
-        const response = await fetch(`${this.baseUrl}/auth/device/poll`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ device_code: deviceCode }),
-            signal: this.createRequestSignal(options.signal),
-        });
+        let response: Response;
+        try {
+            response = await fetch(`${this.baseUrl}/auth/device/poll`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ device_code: deviceCode }),
+                signal: this.createRequestSignal(options.signal),
+            });
+        } catch (error) {
+            if (options.signal?.aborted) {
+                throw options.signal.reason instanceof Error
+                    ? options.signal.reason
+                    : new Error('Authentication cancelled');
+            }
+            logger.debug(
+                `Device login poll request failed transiently: ${error instanceof Error ? error.message : String(error)}`
+            );
+            return { status: 'transientError' };
+        }
 
         const payload: unknown = await response.json().catch(() => null);
 
@@ -565,6 +587,12 @@ export class DextoApiClient {
             }
             if (errorCode === 'access_denied') {
                 return { status: 'denied' };
+            }
+            if (errorCode && isTransientDevicePollErrorCode(errorCode)) {
+                return { status: 'transientError' };
+            }
+            if (response.status >= 500) {
+                return { status: 'transientError' };
             }
             if (errorCode) {
                 throw new Error(`Device login failed: ${errorCode}`);
@@ -593,6 +621,9 @@ export class DextoApiClient {
         }
         if (errorCode === 'access_denied') {
             return { status: 'denied' };
+        }
+        if (errorCode && isTransientDevicePollErrorCode(errorCode)) {
+            return { status: 'transientError' };
         }
 
         return { status: 'pending' };

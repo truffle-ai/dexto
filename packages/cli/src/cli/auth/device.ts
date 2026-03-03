@@ -4,6 +4,9 @@
 import { DextoApiClient, getDextoApiClient } from './api-client.js';
 import type { AuthLoginResult } from './types.js';
 
+const TRANSIENT_POLL_BACKOFF_MS = 2_000;
+const MAX_POLL_INTERVAL_MS = 30_000;
+
 export interface DeviceLoginPrompt {
     userCode: string;
     verificationUrl: string;
@@ -99,7 +102,15 @@ export async function performDeviceCodeLogin(
         }
 
         if (pollResult.status === 'slowDown') {
-            pollIntervalMs += 5_000;
+            pollIntervalMs = Math.min(pollIntervalMs + 5_000, MAX_POLL_INTERVAL_MS);
+            continue;
+        }
+
+        if (pollResult.status === 'transientError') {
+            pollIntervalMs = Math.min(
+                pollIntervalMs + TRANSIENT_POLL_BACKOFF_MS,
+                MAX_POLL_INTERVAL_MS
+            );
             continue;
         }
 
