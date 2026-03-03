@@ -343,7 +343,7 @@ function formatHttpFailure(status: number, payload: unknown, rawText: string): s
         return `${status} ${rawText}`;
     }
 
-    if (payload !== null) {
+    if (payload != null) {
         return `${status} ${JSON.stringify(payload)}`;
     }
 

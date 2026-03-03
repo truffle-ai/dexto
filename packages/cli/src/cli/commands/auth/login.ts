@@ -27,7 +27,8 @@ function isCancellationError(errorMessage: string): boolean {
         lower.includes('user denied') ||
         lower.includes('user_denied') ||
         lower.includes('access_denied') ||
-        lower.includes('access denied by user')
+        lower.includes('access denied by user') ||
+        lower.includes('device login was denied')
     );
 }
 
