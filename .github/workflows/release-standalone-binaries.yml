@@ -99,6 +99,13 @@ jobs:
             --output-dir "${RUNNER_TEMP}/dexto-binaries" \
             --skip-checksums
 
+      - name: Smoke test standalone binary
+        run: |
+          scripts/test-standalone-binaries.sh \
+            --input-dir "${RUNNER_TEMP}/dexto-binaries" \
+            --version "${VERSION}" \
+            --skip-checksums
+
       - name: Upload standalone artifact
         uses: actions/upload-artifact@v4
         with:

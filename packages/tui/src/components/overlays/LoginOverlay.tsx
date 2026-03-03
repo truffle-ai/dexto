@@ -10,11 +10,11 @@ import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import {
     type TuiDextoApiKeyProvisionStatus as DextoApiKeyProvisionStatus,
-    beginOAuthLogin,
-    getDefaultOAuthConfig,
-    ensureDextoApiKeyForAuthToken,
+    type TuiDeviceLoginPrompt as DeviceLoginPrompt,
+    type TuiOAuthResult as OAuthResult,
     loadAuth,
-    storeAuth,
+    performDeviceCodeLogin,
+    persistOAuthLoginResult,
 } from '../../host/index.js';
 
 export type LoginOverlayOutcome =
@@ -40,7 +40,6 @@ type LoginStep =
     | 'checking'
     | 'already-authenticated'
     | 'starting'
-    | 'opening-browser'
     | 'waiting'
     | 'finalizing'
     | 'error';
@@ -52,6 +51,7 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
     const [step, setStep] = useState<LoginStep>('checking');
     const [existingUser, setExistingUser] = useState<string | null>(null);
     const [authUrl, setAuthUrl] = useState<string | null>(null);
+    const [devicePrompt, setDevicePrompt] = useState<DeviceLoginPrompt | null>(null);
     const [status, setStatus] = useState<string>('Preparing login...');
     const [error, setError] = useState<string | null>(null);
 
@@ -75,72 +75,56 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
         abortControllerRef.current = null;
     }, []);
 
+    const runDeviceLogin = useCallback(
+        async (abortController: AbortController): Promise<OAuthResult> => {
+            setStep('starting');
+            safeSetStatus('Starting device code login...');
+            setAuthUrl(null);
+            setDevicePrompt(null);
+
+            return performDeviceCodeLogin({
+                signal: abortController.signal,
+                onPrompt: (prompt) => {
+                    if (!isActiveRef.current || abortController.signal.aborted) {
+                        return;
+                    }
+                    setDevicePrompt(prompt);
+                    setAuthUrl(prompt.verificationUrlComplete ?? prompt.verificationUrl);
+                    setStep('waiting');
+                    safeSetStatus('Open the URL below and approve login.');
+                },
+            });
+        },
+        [safeSetStatus]
+    );
+
     const startLogin = useCallback(async () => {
         cancelInFlight();
         setError(null);
         setAuthUrl(null);
+        setDevicePrompt(null);
 
         const abortController = new AbortController();
         abortControllerRef.current = abortController;
 
         try {
-            setStep('starting');
-            safeSetStatus('Starting local callback server...');
+            const result = await runDeviceLogin(abortController);
 
-            const session = await beginOAuthLogin(getDefaultOAuthConfig(), {
-                signal: abortController.signal,
-            });
-            if (!isActiveRef.current || abortController.signal.aborted) return;
-
-            setAuthUrl(session.authUrl);
-            setStep('opening-browser');
-            safeSetStatus('Opening browser for authentication...');
-
-            let browserOpened = false;
-            try {
-                const { default: open } = await import('open');
-                await open(session.authUrl);
-                browserOpened = true;
-            } catch {
-                // Best-effort: user can open URL manually
-            }
-
-            if (!isActiveRef.current || abortController.signal.aborted) return;
-
-            setStep('waiting');
-            safeSetStatus(
-                browserOpened
-                    ? 'Waiting for authentication...'
-                    : 'Browser did not open automatically. Open the URL below to continue.'
-            );
-
-            const result = await session.result;
-            if (!isActiveRef.current || abortController.signal.aborted) return;
+            if (!result || !isActiveRef.current || abortController.signal.aborted) return;
 
             setStep('finalizing');
             safeSetStatus('Finalizing login...');
 
-            const expiresAt = result.expiresIn ? Date.now() + result.expiresIn * 1000 : undefined;
-            await storeAuth({
-                token: result.accessToken,
-                refreshToken: result.refreshToken,
-                userId: result.user?.id,
-                email: result.user?.email,
-                createdAt: Date.now(),
-                expiresAt,
-            });
-
-            safeSetStatus('Provisioning Dexto API key (DEXTO_API_KEY)...');
-            const ensured = await ensureDextoApiKeyForAuthToken(result.accessToken, {
-                onStatus: handleProvisionStatus,
+            const persisted = await persistOAuthLoginResult(result, {
+                onProvisionStatus: handleProvisionStatus,
             });
 
             if (!isActiveRef.current || abortController.signal.aborted) return;
             onDone({
                 outcome: 'success',
-                email: result.user?.email,
-                keyId: ensured?.keyId ?? undefined,
-                hasDextoApiKey: Boolean(ensured?.dextoApiKey),
+                email: persisted.email,
+                keyId: persisted.keyId,
+                hasDextoApiKey: persisted.hasDextoApiKey,
             });
         } catch (err) {
             if (abortController.signal.aborted) {
@@ -154,7 +138,7 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
         } finally {
             abortControllerRef.current = null;
         }
-    }, [cancelInFlight, handleProvisionStatus, onDone, safeSetStatus]);
+    }, [cancelInFlight, handleProvisionStatus, onDone, runDeviceLogin, safeSetStatus]);
 
     // Initialize when shown
     useEffect(() => {
@@ -164,6 +148,7 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
         setStep('checking');
         setExistingUser(null);
         setAuthUrl(null);
+        setDevicePrompt(null);
         setStatus('Preparing login...');
         setError(null);
 
@@ -256,7 +241,17 @@ const LoginOverlay = forwardRef<LoginOverlayHandle, LoginOverlayProps>(function 
                 <Text>{status}</Text>
             </Box>
 
-            {authUrl && (
+            {devicePrompt && (
+                <Box flexDirection="column" marginBottom={1}>
+                    <Text color="gray">Open this URL on any device:</Text>
+                    <Text color="yellowBright">
+                        {devicePrompt.verificationUrlComplete ?? devicePrompt.verificationUrl}
+                    </Text>
+                    <Text color="gray">Code: {devicePrompt.userCode}</Text>
+                </Box>
+            )}
+
+            {authUrl && !devicePrompt && (
                 <Box flexDirection="column" marginBottom={1}>
                     <Text color="gray">If your browser didn&apos;t open, use this URL:</Text>
                     <Text color="yellowBright">{authUrl}</Text>

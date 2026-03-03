@@ -23,6 +23,22 @@ Options:
 EOF
 }
 
+is_windows_shell() {
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+to_node_path() {
+  local path_value="$1"
+  if is_windows_shell && command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "${path_value}"
+    return
+  fi
+  printf '%s' "${path_value}"
+}
+
 hash_file() {
   local file_path="$1"
   if command -v sha256sum >/dev/null 2>&1; then
@@ -67,10 +83,14 @@ extract_zip() {
   if command -v powershell.exe >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1; then
     local archive_path_win
     local output_dir_win
+    local archive_path_win_escaped
+    local output_dir_win_escaped
     archive_path_win="$(cygpath -w "${archive_path}")"
     output_dir_win="$(cygpath -w "${output_dir}")"
+    archive_path_win_escaped="${archive_path_win//\'/''}"
+    output_dir_win_escaped="${output_dir_win//\'/''}"
     powershell.exe -NoProfile -Command \
-      "Expand-Archive -Path '${archive_path_win}' -DestinationPath '${output_dir_win}' -Force" >/dev/null
+      "Expand-Archive -Path '${archive_path_win_escaped}' -DestinationPath '${output_dir_win_escaped}' -Force" >/dev/null
     return
   fi
 
@@ -162,8 +182,7 @@ done
 
 if [[ -z "${VERSION}" ]]; then
   VERSION="$(
-    cd "${ROOT_DIR}"
-    node -e "const fs=require('node:fs'); const p='packages/cli/package.json'; process.stdout.write(JSON.parse(fs.readFileSync(p,'utf8')).version);"
+    node -e "const fs=require('node:fs'); process.stdout.write(JSON.parse(fs.readFileSync(process.argv[1],'utf8')).version);" "$(to_node_path "${ROOT_DIR}/packages/cli/package.json")"
   )"
 fi
 
@@ -222,7 +241,7 @@ trap cleanup EXIT
 
 case "${ARTIFACT_PATH}" in
   *.tar.gz)
-    tar -xzf "${ARTIFACT_PATH}" -C "${run_dir}"
+    env -u LC_ALL tar -xzf "${ARTIFACT_PATH}" -C "${run_dir}"
     ;;
   *.zip)
     extract_zip "${ARTIFACT_PATH}" "${run_dir}"
@@ -254,7 +273,7 @@ if [[ "${version_output}" != "${VERSION}" ]]; then
 fi
 echo "Version check passed (${version_output})"
 
-DEXTO_API_KEY=dummy run_with_timeout 120 "${binary_path}" --no-interactive --help >/dev/null
+DEXTO_API_KEY=dummy run_with_timeout 240 "${binary_path}" --no-interactive --help >/dev/null
 echo "CLI execution smoke test passed"
 
 echo "Standalone artifact smoke test passed: ${artifact_name}"

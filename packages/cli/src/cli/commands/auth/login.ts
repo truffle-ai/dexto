@@ -3,66 +3,64 @@
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
 import {
-    type DextoApiKeyProvisionStatus,
+    getDextoApiClient,
     isAuthenticated,
     loadAuth,
+    performDeviceCodeLogin,
+    persistOAuthLoginResult,
     storeAuth,
-    getDextoApiClient,
     ensureDextoApiKeyForAuthToken,
-    SUPABASE_URL,
-    SUPABASE_ANON_KEY,
 } from '../../auth/index.js';
 import { logger } from '@dexto/core';
 
-function printProvisionStatus(status: DextoApiKeyProvisionStatus): void {
-    switch (status.level) {
-        case 'success':
-            console.log(chalk.green(`✅ ${status.message}`));
-            return;
-        case 'error':
-            console.log(chalk.red(`❌ ${status.message}`));
-            return;
-        case 'warning':
-            console.log(chalk.yellow(`⚠️ ${status.message}`));
-            return;
-        case 'info':
-            console.log(chalk.cyan(`ℹ️ ${status.message}`));
-            return;
-    }
+export interface LoginCommandOptions {
+    apiKey?: string;
+    token?: string;
+    interactive?: boolean;
 }
 
-/**
- * Handle login command - multiple methods supported
- */
-export async function handleLoginCommand(
-    options: {
-        apiKey?: string;
-        interactive?: boolean;
-    } = {}
-): Promise<void> {
+function isCancellationError(errorMessage: string): boolean {
+    const lower = errorMessage.toLowerCase();
+    return (
+        lower.includes('canceled') ||
+        lower.includes('cancelled') ||
+        lower.includes('user denied') ||
+        lower.includes('user_denied') ||
+        lower.includes('access_denied') ||
+        lower.includes('access denied by user') ||
+        lower.includes('device login was denied')
+    );
+}
+
+// Handle login command with device code as the default flow.
+export async function handleLoginCommand(options: LoginCommandOptions = {}): Promise<void> {
     try {
+        if (options.apiKey && options.token) {
+            throw new Error('Cannot use both --api-key and --token. Choose one.');
+        }
+
         if (await isAuthenticated()) {
             const auth = await loadAuth();
             const userInfo = auth?.email || auth?.userId || 'user';
             console.log(chalk.green(`✅ Already logged in as: ${userInfo}`));
 
-            // In non-interactive mode, already authenticated = success (idempotent)
-            if (options.interactive === false) {
-                return;
-            }
+            if (!options.apiKey && !options.token) {
+                if (options.interactive === false) {
+                    return;
+                }
 
-            const shouldContinue = await p.confirm({
-                message: 'Do you want to login with a different account?',
-                initialValue: false,
-            });
+                const shouldContinue = await p.confirm({
+                    message: 'Do you want to login with a different account?',
+                    initialValue: false,
+                });
 
-            if (p.isCancel(shouldContinue) || !shouldContinue) {
-                return;
+                if (p.isCancel(shouldContinue) || !shouldContinue) {
+                    return;
+                }
             }
         }
 
         if (options.apiKey) {
-            // Validate the Dexto API key before storing
             const client = getDextoApiClient();
             const isValid = await client.validateDextoApiKey(options.apiKey);
             if (!isValid) {
@@ -77,102 +75,94 @@ export async function handleLoginCommand(
             return;
         }
 
-        if (options.interactive === false) {
-            throw new Error('--api-key is required when --no-interactive is used');
-        }
-
-        p.intro(chalk.inverse(' Login to Dexto '));
-        console.log(chalk.dim('This will open your browser for authentication.'));
-
-        const shouldUseOAuth = await p.confirm({
-            message: 'Continue with browser authentication?',
-            initialValue: true,
-        });
-
-        if (p.isCancel(shouldUseOAuth)) {
-            p.cancel('Login cancelled');
+        if (options.token) {
+            const didLogin = await handleTokenLogin(options.token);
+            if (!didLogin) {
+                throw new Error('Login was cancelled.');
+            }
+            console.log(chalk.green('🎉 Login successful!'));
             return;
         }
 
-        if (shouldUseOAuth) {
-            await handleBrowserLogin();
-        } else {
-            console.log(chalk.dim('\nAlternatively, you can enter a token manually:'));
-            await handleTokenLogin();
+        if (options.interactive === false) {
+            await handleDeviceLogin();
+            console.log(chalk.green('🎉 Login successful!'));
+            return;
         }
 
+        p.intro(chalk.inverse(' Login to Dexto '));
+        await handleDeviceLogin();
         p.outro(chalk.green('🎉 Login successful!'));
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         p.outro(chalk.red(`❌ Login failed: ${errorMessage}`));
-        // Re-throw to let CLI wrapper handle exit and analytics tracking
         throw error;
     }
 }
 
-export async function handleBrowserLogin(): Promise<void> {
-    const { performOAuthLogin, DEFAULT_OAUTH_CONFIG } = await import('../../auth/oauth.js');
+// Compatibility wrapper used by setup flow; always device login.
+export async function handleAutoLogin(): Promise<void> {
+    await handleDeviceLogin();
+}
 
+export async function handleDeviceLogin(): Promise<void> {
     try {
-        const result = await performOAuthLogin(DEFAULT_OAUTH_CONFIG);
-        const expiresAt = result.expiresIn ? Date.now() + result.expiresIn * 1000 : undefined;
-
-        await storeAuth({
-            token: result.accessToken,
-            refreshToken: result.refreshToken,
-            userId: result.user?.id,
-            email: result.user?.email,
-            createdAt: Date.now(),
-            expiresAt,
+        const result = await performDeviceCodeLogin({
+            onPrompt: (prompt) => {
+                console.log(chalk.cyan('\nUse any browser to complete login:'));
+                if (prompt.verificationUrlComplete) {
+                    console.log(chalk.dim(`  • Open: ${prompt.verificationUrlComplete}`));
+                    console.log(chalk.dim(`  • If asked, code: ${prompt.userCode}`));
+                } else {
+                    console.log(chalk.dim(`  • Open: ${prompt.verificationUrl}`));
+                    console.log(chalk.dim(`  • Enter code: ${prompt.userCode}`));
+                }
+                console.log(
+                    chalk.dim(`  • Code expires in ~${Math.ceil(prompt.expiresIn / 60)} min`)
+                );
+            },
         });
 
-        if (result.user?.email) {
-            console.log(chalk.dim(`\nWelcome back, ${result.user.email}`));
-        }
-
-        const ensured = await ensureDextoApiKeyForAuthToken(result.accessToken, {
-            onStatus: printProvisionStatus,
-        });
-        if (ensured?.keyId) {
-            console.log(chalk.dim(`   Key ID: ${ensured.keyId}`));
-        }
-        if (!ensured) {
-            console.log(chalk.dim('   You can still use Dexto with your own API keys'));
+        const persisted = await persistOAuthLoginResult(result);
+        if (persisted.email) {
+            console.log(chalk.dim(`\nWelcome back, ${persisted.email}`));
         }
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-
-        if (errorMessage.includes('timed out')) {
-            throw new Error('Login timed out. Please try again.');
-        } else if (errorMessage.includes('user denied')) {
+        if (isCancellationError(errorMessage)) {
             throw new Error('Login was cancelled.');
-        } else {
-            throw new Error(`Login failed: ${errorMessage}`);
         }
+        throw new Error(`Device login failed: ${errorMessage}`);
     }
 }
 
-async function handleTokenLogin(): Promise<void> {
-    const token = await p.password({
-        message: 'Enter your API token:',
-        validate: (value) => {
-            if (!value) return 'Token is required';
-            if (value.length < 10) return 'Token seems too short';
-            return undefined;
-        },
-    });
+async function handleTokenLogin(tokenInput?: string): Promise<boolean> {
+    let token = tokenInput?.trim();
+    if (!token) {
+        const promptedToken = await p.password({
+            message: 'Enter your API token:',
+            validate: (value) => {
+                if (!value) return 'Token is required';
+                if (value.length < 10) return 'Token seems too short';
+                return undefined;
+            },
+        });
 
-    if (p.isCancel(token)) {
-        p.cancel('Token entry cancelled');
-        return;
+        if (p.isCancel(promptedToken)) {
+            return false;
+        }
+
+        token = promptedToken as string;
+    }
+    if (token.length < 10) {
+        throw new Error('Token seems too short');
     }
 
     const spinner = p.spinner();
     spinner.start('Verifying token...');
 
     try {
-        const isValid = await verifyToken(token as string);
-
+        const isValid = await verifyToken(token);
         if (!isValid) {
             spinner.stop('Invalid token');
             throw new Error('Token verification failed');
@@ -181,20 +171,12 @@ async function handleTokenLogin(): Promise<void> {
         spinner.stop('Token verified!');
 
         await storeAuth({
-            token: token as string,
+            token,
             createdAt: Date.now(),
         });
 
-        // Provision Dexto API key for gateway access
-        const ensured = await ensureDextoApiKeyForAuthToken(token as string, {
-            onStatus: printProvisionStatus,
-        });
-        if (ensured?.keyId) {
-            console.log(chalk.dim(`   Key ID: ${ensured.keyId}`));
-        }
-        if (!ensured) {
-            console.log(chalk.dim('   You can still use Dexto with your own API keys'));
-        }
+        await ensureDextoApiKeyForAuthToken(token);
+        return true;
     } catch (error) {
         spinner.stop('Verification failed');
         throw error;
@@ -203,21 +185,8 @@ async function handleTokenLogin(): Promise<void> {
 
 async function verifyToken(token: string): Promise<boolean> {
     try {
-        const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-            headers: {
-                Authorization: `Bearer ${token}`,
-                apikey: SUPABASE_ANON_KEY,
-                'User-Agent': 'dexto-cli/1.0.0',
-            },
-            signal: AbortSignal.timeout(10_000),
-        });
-
-        if (response.ok) {
-            const userData = await response.json();
-            return !!userData.id;
-        }
-
-        return false;
+        const apiClient = getDextoApiClient();
+        return apiClient.validateSupabaseAccessToken(token);
     } catch (error) {
         logger.debug(
             `Token verification failed: ${error instanceof Error ? error.message : String(error)}`
