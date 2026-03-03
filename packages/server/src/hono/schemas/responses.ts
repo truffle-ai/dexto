@@ -671,6 +671,27 @@ export const ErrorResponseSchema = z
 
 export type ErrorResponse = z.output<typeof ErrorResponseSchema>;
 
+// Standard error envelope used by middleware
+export const StandardErrorEnvelopeSchema = z
+    .object({
+        code: z.string().describe('Error code'),
+        message: z.string().describe('Error message'),
+        scope: z.string().describe('Error scope'),
+        type: z.string().describe('Error type'),
+        context: z.unknown().optional().describe('Error context'),
+        recovery: z
+            .union([z.string(), z.array(z.string())])
+            .optional()
+            .describe('Recovery guidance'),
+        traceId: z.string().describe('Trace identifier'),
+        endpoint: z.string().describe('Request endpoint'),
+        method: z.string().describe('HTTP method'),
+    })
+    .strict()
+    .describe('Standard API error envelope');
+
+export type StandardErrorEnvelope = z.output<typeof StandardErrorEnvelopeSchema>;
+
 // Status response (for operations that don't return data)
 export const StatusResponseSchema = z
     .object({
