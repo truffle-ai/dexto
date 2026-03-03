@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+set -e
+
+# post-checkout args: <old-ref> <new-ref> <is-branch-checkout>
+# Skip file-level checkouts and only bootstrap for branch/worktree checkouts.
+if [ "${3:-0}" != "1" ]; then
+    exit 0
+fi
+
+./scripts/bootstrap-worktree.sh
