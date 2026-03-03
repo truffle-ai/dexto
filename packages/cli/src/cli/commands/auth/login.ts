@@ -3,7 +3,6 @@
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
 import {
-    type DextoApiKeyProvisionStatus,
     getDextoApiClient,
     isAuthenticated,
     loadAuth,
@@ -18,35 +17,6 @@ export interface LoginCommandOptions {
     apiKey?: string;
     token?: string;
     interactive?: boolean;
-}
-
-function printProvisionStatus(status: DextoApiKeyProvisionStatus): void {
-    switch (status.level) {
-        case 'success':
-            console.log(chalk.green(`✅ ${status.message}`));
-            return;
-        case 'error':
-            console.log(chalk.red(`❌ ${status.message}`));
-            return;
-        case 'warning':
-            console.log(chalk.yellow(`⚠️ ${status.message}`));
-            return;
-        case 'info':
-            console.log(chalk.cyan(`ℹ️ ${status.message}`));
-            return;
-    }
-}
-
-function printProvisionResult(result: {
-    keyId?: string | undefined;
-    hasDextoApiKey: boolean;
-}): void {
-    if (result.keyId) {
-        console.log(chalk.dim(`   Key ID: ${result.keyId}`));
-    }
-    if (!result.hasDextoApiKey) {
-        console.log(chalk.dim('   You can still use Dexto with your own API keys'));
-    }
 }
 
 function isCancellationError(errorMessage: string): boolean {
@@ -152,13 +122,10 @@ export async function handleDeviceLogin(): Promise<void> {
             },
         });
 
-        const persisted = await persistOAuthLoginResult(result, {
-            onProvisionStatus: printProvisionStatus,
-        });
+        const persisted = await persistOAuthLoginResult(result);
         if (persisted.email) {
             console.log(chalk.dim(`\nWelcome back, ${persisted.email}`));
         }
-        printProvisionResult(persisted);
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         if (isCancellationError(errorMessage)) {
@@ -207,13 +174,7 @@ async function handleTokenLogin(tokenInput?: string): Promise<boolean> {
             createdAt: Date.now(),
         });
 
-        const ensured = await ensureDextoApiKeyForAuthToken(token, {
-            onStatus: printProvisionStatus,
-        });
-        printProvisionResult({
-            keyId: ensured?.keyId ?? undefined,
-            hasDextoApiKey: Boolean(ensured?.dextoApiKey),
-        });
+        await ensureDextoApiKeyForAuthToken(token);
         return true;
     } catch (error) {
         spinner.stop('Verification failed');
