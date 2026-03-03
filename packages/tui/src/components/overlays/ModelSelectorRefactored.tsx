@@ -679,12 +679,12 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             modelsByKey.get(toModelPickerKey({ provider: entry.provider, model: entry.model }))
         );
         const customCandidates = models.filter((model) => model.isCustom);
-        const allModels = models;
+        const allCandidates = models;
 
         const tabModels = hasSearchQuery
-            ? toUniqueMatchingModels(allModels)
+            ? toUniqueMatchingModels(allCandidates)
             : activeTab === 'all-models'
-              ? toUniqueMatchingModels(allModels)
+              ? toUniqueMatchingModels(allCandidates)
               : activeTab === 'featured'
                 ? toUniqueMatchingModels(featuredCandidates)
                 : activeTab === 'recents'
@@ -748,6 +748,24 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             } catch (error) {
                 agent.logger.error(
                     `Failed to delete custom model: ${error instanceof Error ? error.message : 'Unknown error'}`
+                );
+            }
+        },
+        [agent]
+    );
+
+    const handleToggleFavoriteModel = useCallback(
+        async (model: ModelOption) => {
+            try {
+                await toggleFavoriteModel({
+                    provider: model.provider,
+                    model: model.name,
+                });
+                const nextState = await loadModelPickerState();
+                setModelPickerState(nextState);
+            } catch (error) {
+                agent.logger.error(
+                    `Failed to toggle favorite model: ${error instanceof Error ? error.message : 'Unknown error'}`
                 );
             }
         },
@@ -896,22 +914,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     const item = selectedModel;
                     if (!item) return true;
                     clearActionState();
-                    void (async () => {
-                        try {
-                            await toggleFavoriteModel({
-                                provider: item.provider,
-                                model: item.name,
-                            });
-                            const nextState = await loadModelPickerState();
-                            setModelPickerState(nextState);
-                        } catch (error) {
-                            agent.logger.error(
-                                `Failed to toggle favorite model: ${
-                                    error instanceof Error ? error.message : 'Unknown error'
-                                }`
-                            );
-                        }
-                    })();
+                    void handleToggleFavoriteModel(item);
                     return true;
                 }
 
@@ -1077,22 +1080,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
                         // Handle action mode confirmations
                         if (customModelAction === 'favorite') {
-                            void (async () => {
-                                try {
-                                    await toggleFavoriteModel({
-                                        provider: item.provider,
-                                        model: item.name,
-                                    });
-                                    const nextState = await loadModelPickerState();
-                                    setModelPickerState(nextState);
-                                } catch (error) {
-                                    agent.logger.error(
-                                        `Failed to toggle favorite model: ${
-                                            error instanceof Error ? error.message : 'Unknown error'
-                                        }`
-                                    );
-                                }
-                            })();
+                            void handleToggleFavoriteModel(item);
                             return true;
                         }
 
@@ -1176,6 +1164,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             pendingDeleteConfirm,
             customModels,
             handleDeleteCustomModel,
+            handleToggleFavoriteModel,
             pendingReasoningModel,
             reasoningVariantIndex,
             reasoningVariantOptions,

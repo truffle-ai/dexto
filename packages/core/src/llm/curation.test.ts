@@ -34,7 +34,9 @@ describe('getCuratedModelsForProvider', () => {
             expect(missing).toEqual([]);
         }
     });
+});
 
+describe('getCuratedModelRefsForProviders', () => {
     it('interleaves curated refs across providers when limited', () => {
         const refs = getCuratedModelRefsForProviders({
             providers: ['openai', 'anthropic'],

@@ -6665,6 +6665,213 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Validation or request error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard error response for model picker endpoints"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard error response for model picker endpoints"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard error response for model picker endpoints"
+                }
+              }
+            }
           }
         }
       }
@@ -6677,6 +6884,7 @@
           "llm"
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -6744,6 +6952,213 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Validation or request error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard error response for model picker endpoints"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard error response for model picker endpoints"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard error response for model picker endpoints"
+                }
+              }
+            }
           }
         }
       }
@@ -6756,6 +7171,7 @@
           "llm"
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -6828,6 +7244,213 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Validation or request error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard error response for model picker endpoints"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard error response for model picker endpoints"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard error response for model picker endpoints"
+                }
+              }
+            }
           }
         }
       }
@@ -6840,6 +7463,7 @@
           "llm"
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -6923,6 +7547,213 @@
                     "count"
                   ],
                   "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or request error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard error response for model picker endpoints"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard error response for model picker endpoints"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard error response for model picker endpoints"
                 }
               }
             }

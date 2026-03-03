@@ -785,6 +785,7 @@ export default function ModelPickerModal() {
             customModelsByKey,
             installedLocalModelsById,
             resolveModelInfoFromEntry,
+            onPickModel,
             onPickCustomModel,
             onPickInstalledModel,
             refetchModelPickerState,
@@ -816,22 +817,22 @@ export default function ModelPickerModal() {
             {
                 id: 'featured',
                 title: 'Featured',
-                entries: modelPickerState.featured as ModelPickerSectionEntry[],
+                entries: modelPickerState.featured,
             },
             {
                 id: 'recents',
                 title: 'Recents',
-                entries: modelPickerState.recents as ModelPickerSectionEntry[],
+                entries: modelPickerState.recents,
             },
             {
                 id: 'favorites',
                 title: 'Favorites',
-                entries: modelPickerState.favorites as ModelPickerSectionEntry[],
+                entries: modelPickerState.favorites,
             },
             {
                 id: 'custom',
                 title: 'Custom',
-                entries: modelPickerState.custom as ModelPickerSectionEntry[],
+                entries: modelPickerState.custom,
             },
         ];
 

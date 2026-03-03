@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
-import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
+import { DextoRuntimeError, ErrorScope, ErrorType, logger } from '@dexto/core';
 import {
     LLM_REGISTRY,
     LLM_PROVIDERS,
@@ -38,6 +38,7 @@ import {
     ProviderCatalogSchema,
     ModelFlatSchema,
     LLMConfigResponseSchema,
+    StandardErrorEnvelopeSchema,
 } from '../schemas/responses.js';
 
 type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
@@ -146,6 +147,37 @@ const ModelPickerEntrySchema = z
     })
     .strict()
     .describe('Hydrated model picker entry');
+
+const ModelPickerErrorSchema = StandardErrorEnvelopeSchema.describe(
+    'Standard error response for model picker endpoints'
+);
+
+const ModelPickerErrorResponses = {
+    400: {
+        description: 'Validation or request error',
+        content: {
+            'application/json': {
+                schema: ModelPickerErrorSchema,
+            },
+        },
+    },
+    404: {
+        description: 'Resource not found',
+        content: {
+            'application/json': {
+                schema: ModelPickerErrorSchema,
+            },
+        },
+    },
+    500: {
+        description: 'Internal server error',
+        content: {
+            'application/json': {
+                schema: ModelPickerErrorSchema,
+            },
+        },
+    },
+} as const;
 
 export function createLlmRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
@@ -475,6 +507,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            ...ModelPickerErrorResponses,
         },
     });
 
@@ -486,6 +519,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
         tags: ['llm'],
         request: {
             body: {
+                required: true,
                 content: {
                     'application/json': {
                         schema: ModelPickerModelRefSchema,
@@ -506,6 +540,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            ...ModelPickerErrorResponses,
         },
     });
 
@@ -517,6 +552,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
         tags: ['llm'],
         request: {
             body: {
+                required: true,
                 content: {
                     'application/json': {
                         schema: ModelPickerModelRefSchema,
@@ -540,6 +576,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            ...ModelPickerErrorResponses,
         },
     });
 
@@ -551,6 +588,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
         tags: ['llm'],
         request: {
             body: {
+                required: true,
                 content: {
                     'application/json': {
                         schema: z
@@ -582,6 +620,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            ...ModelPickerErrorResponses,
         },
     });
 
@@ -687,7 +726,13 @@ export function createLlmRouter(getAgent: GetAgentFn) {
             state.favorites.length !== pruned.favorites.length;
 
         if (shouldPersistPrunedState) {
-            await saveModelPickerState(pruned);
+            void saveModelPickerState(pruned).catch((error) => {
+                logger.warn(
+                    `Failed to persist pruned model picker state: ${
+                        error instanceof Error ? error.message : String(error)
+                    }`
+                );
+            });
         }
 
         const recents = pruned.recents
