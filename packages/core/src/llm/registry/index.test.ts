@@ -836,7 +836,7 @@ describe('getAllModelsForProvider', () => {
         expect(dextoNativeModels.length).toBeGreaterThan(0);
         const dextoNativeModelNames = dextoNativeModels.map((m) => m.name);
         expect(dextoNativeModelNames).toContain('z-ai/glm-4.7');
-        expect(dextoNativeModelNames).toContain('minimax/minimax-m2.1');
+        expect(dextoNativeModelNames).toContain('minimax/minimax-m2.5');
     });
 
     it('uses cached OpenRouter catalog for openrouter provider when available', () => {
