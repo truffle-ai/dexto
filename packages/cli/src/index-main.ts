@@ -781,23 +781,27 @@ marketplaceCommand
 type BootstrapAgentMode = 'headless-run' | 'non-interactive';
 
 // Helper to bootstrap a minimal agent for non-interactive commands
-async function bootstrapAgentFromGlobalOpts(options: { mode: BootstrapAgentMode }) {
-    const { mode } = options;
+async function bootstrapAgentFromGlobalOpts(options: {
+    mode: BootstrapAgentMode;
+    modelOverride?: string;
+}) {
+    const { mode, modelOverride } = options;
     const isHeadlessRun = mode === 'headless-run';
     const globalOpts = program.opts();
+    const effectiveModel = modelOverride ?? globalOpts.model;
     let inferredProvider: LLMProvider | undefined;
     let inferredApiKey: string | undefined;
 
     // Non-interactive subcommands bypass the main mode action, so replicate
     // model -> provider/apiKey inference here.
-    if (globalOpts.model) {
-        if (globalOpts.model.includes('/')) {
+    if (effectiveModel) {
+        if (effectiveModel.includes('/')) {
             throw new Error(
-                `Model '${globalOpts.model}' looks like an OpenRouter-format ID (provider/model). Please set provider/model explicitly in agent config for this command.`
+                `Model '${effectiveModel}' looks like an OpenRouter-format ID (provider/model). Please set provider/model explicitly in agent config for this command.`
             );
         }
 
-        inferredProvider = getProviderFromModel(globalOpts.model);
+        inferredProvider = getProviderFromModel(effectiveModel);
         const apiKey = resolveApiKeyForProvider(inferredProvider);
         if (!apiKey) {
             const envVar = getPrimaryApiKeyEnvVar(inferredProvider);
@@ -811,7 +815,13 @@ async function bootstrapAgentFromGlobalOpts(options: { mode: BootstrapAgentMode 
 
     const resolvedPath = await resolveAgentPath(globalOpts.agent, globalOpts.autoInstall !== false);
     const rawConfig = await loadAgentConfig(resolvedPath);
-    const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
+    const mergedConfig = applyCLIOverrides(rawConfig, {
+        ...globalOpts,
+        ...(modelOverride ? { model: modelOverride } : {}),
+    });
+    if (effectiveModel) {
+        mergedConfig.llm.model = effectiveModel;
+    }
     if (inferredProvider && inferredApiKey) {
         mergedConfig.llm.provider = inferredProvider;
         mergedConfig.llm.apiKey = inferredApiKey;
@@ -1261,6 +1271,7 @@ async function getMostRecentSessionId(agent: DextoAgent): Promise<string | null>
 program
     .command('run [prompt]')
     .description('Run a single prompt non-interactively (headless mode)')
+    .option('-m, --model <model>', 'Specify the LLM model to use for this run')
     .addHelpText(
         'after',
         `
@@ -1271,7 +1282,7 @@ Examples:
 `
     )
     .action(
-        withAnalytics('run', async (promptArg?: string) => {
+        withAnalytics('run', async (promptArg?: string, runOptions?: { model?: string }) => {
             let agent: DextoAgent | undefined;
             let exitCode = 0;
             let exitReason = 'ok';
@@ -1283,7 +1294,10 @@ Examples:
                     exitCode = 1;
                     exitReason = 'empty-prompt';
                 } else {
-                    agent = await bootstrapAgentFromGlobalOpts({ mode: 'headless-run' });
+                    const bootstrapOptions = runOptions?.model
+                        ? { mode: 'headless-run' as const, modelOverride: runOptions.model }
+                        : { mode: 'headless-run' as const };
+                    agent = await bootstrapAgentFromGlobalOpts(bootstrapOptions);
                     const session = await agent.createSession();
 
                     const globalOpts = program.opts();
