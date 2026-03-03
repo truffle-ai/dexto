@@ -1,5 +1,7 @@
 # @dexto/client-sdk
 
+## 1.6.8
+
 ## 1.6.7
 
 ### Patch Changes
