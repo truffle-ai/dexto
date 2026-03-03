@@ -2,7 +2,12 @@
 
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
-import { isAuthenticated, removeAuth } from '../../auth/index.js';
+import {
+    isAuthenticated,
+    loadAuth,
+    removeAuth,
+    removeDextoApiKeyFromEnv,
+} from '../../auth/index.js';
 import { isUsingDextoCredits } from '../../../config/effective-llm.js';
 import { logger } from '@dexto/core';
 
@@ -53,7 +58,42 @@ export async function handleLogoutCommand(
             }
         }
 
-        await removeAuth();
+        let provisionedApiKey: string | null = null;
+        const auth = await loadAuth();
+        if (auth?.dextoApiKey && auth.dextoApiKeySource === 'provisioned') {
+            provisionedApiKey = auth.dextoApiKey;
+        }
+
+        let removeAuthError: unknown;
+        try {
+            await removeAuth();
+        } catch (error) {
+            removeAuthError = error;
+        }
+
+        if (provisionedApiKey) {
+            try {
+                await removeDextoApiKeyFromEnv({ expectedValue: provisionedApiKey });
+            } catch (cleanupError) {
+                if (!removeAuthError) {
+                    throw cleanupError;
+                }
+
+                logger.warn('Failed to clean up provisioned DEXTO_API_KEY after removeAuth error', {
+                    removeAuthError:
+                        removeAuthError instanceof Error
+                            ? removeAuthError.message
+                            : String(removeAuthError),
+                    cleanupError:
+                        cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+                });
+            }
+        }
+
+        if (removeAuthError) {
+            throw removeAuthError;
+        }
+
         console.log(chalk.green('✅ Successfully logged out'));
 
         if (usingDextoCredits) {

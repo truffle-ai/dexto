@@ -1469,19 +1469,23 @@ const authCommand = program.command('auth').description('Manage authentication')
 authCommand
     .command('login')
     .description('Login to Dexto')
-    .option('--api-key <key>', 'Use Dexto API key instead of browser login')
+    .option('--api-key <key>', 'Use Dexto API key instead of device-code login')
+    .option('--token <token>', 'Use an existing Supabase access token')
     .option('--no-interactive', 'Disable interactive prompts')
     .action(
-        withAnalytics('auth login', async (options: { apiKey?: string; interactive?: boolean }) => {
-            try {
-                await handleLoginCommand(options);
-                safeExit('auth login', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto auth login command failed: ${err}`);
-                safeExit('auth login', 1, 'error');
+        withAnalytics(
+            'auth login',
+            async (options: { apiKey?: string; token?: string; interactive?: boolean }) => {
+                try {
+                    await handleLoginCommand(options);
+                    safeExit('auth login', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto auth login command failed: ${err}`);
+                    safeExit('auth login', 1, 'error');
+                }
             }
-        })
+        )
     );
 
 authCommand
@@ -1525,19 +1529,23 @@ authCommand
 program
     .command('login')
     .description('Login to Dexto (alias for `dexto auth login`)')
-    .option('--api-key <key>', 'Use Dexto API key instead of browser login')
+    .option('--api-key <key>', 'Use Dexto API key instead of device-code login')
+    .option('--token <token>', 'Use an existing Supabase access token')
     .option('--no-interactive', 'Disable interactive prompts')
     .action(
-        withAnalytics('login', async (options: { apiKey?: string; interactive?: boolean }) => {
-            try {
-                await handleLoginCommand(options);
-                safeExit('login', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto login command failed: ${err}`);
-                safeExit('login', 1, 'error');
+        withAnalytics(
+            'login',
+            async (options: { apiKey?: string; token?: string; interactive?: boolean }) => {
+                try {
+                    await handleLoginCommand(options);
+                    safeExit('login', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto login command failed: ${err}`);
+                    safeExit('login', 1, 'error');
+                }
             }
-        })
+        )
     );
 
 program
@@ -1936,7 +1944,7 @@ program
                                 const { handleLoginCommand } = await import(
                                     './cli/commands/auth/login.js'
                                 );
-                                await handleLoginCommand({ interactive: true });
+                                await handleLoginCommand();
 
                                 // Verify key was actually provisioned (provisionKeys silently catches errors)
                                 const { canUseDextoProvider } = await import(
@@ -2353,8 +2361,8 @@ program
                                     getProviderInstructions,
                                 },
                                 {
-                                    beginOAuthLogin,
-                                    DEFAULT_OAUTH_CONFIG,
+                                    performDeviceCodeLogin,
+                                    persistOAuthLoginResult,
                                     ensureDextoApiKeyForAuthToken,
                                     loadAuth,
                                     storeAuth,
@@ -2382,8 +2390,8 @@ program
                                 getProviderDisplayName,
                                 isValidApiKeyFormat,
                                 getProviderInstructions,
-                                beginOAuthLogin,
-                                defaultOAuthConfig: DEFAULT_OAUTH_CONFIG,
+                                performDeviceCodeLogin,
+                                persistOAuthLoginResult,
                                 ensureDextoApiKeyForAuthToken,
                                 loadAuth,
                                 storeAuth,
