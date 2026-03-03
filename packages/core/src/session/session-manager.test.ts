@@ -421,6 +421,36 @@ describe('SessionManager', () => {
                 type: ErrorType.NOT_FOUND,
             });
         });
+
+        test('should enforce max sessions limit when forking', async () => {
+            const parentSessionId = 'parent-session';
+            const parentSessionData = {
+                id: parentSessionId,
+                createdAt: 1000,
+                lastActivity: 2000,
+                messageCount: 0,
+            };
+
+            mockStorageManager.database.get.mockImplementation((key: string) => {
+                if (key === `session:${parentSessionId}`) {
+                    return Promise.resolve(parentSessionData);
+                }
+                return Promise.resolve(undefined);
+            });
+            mockStorageManager.database.list.mockResolvedValue(
+                Array.from({ length: 10 }, (_, i) => `session:existing-${i}`)
+            );
+
+            await expect(sessionManager.forkSession(parentSessionId)).rejects.toMatchObject({
+                code: SessionErrorCode.SESSION_MAX_SESSIONS_EXCEEDED,
+                scope: ErrorScope.SESSION,
+                type: ErrorType.USER,
+            });
+            expect(mockStorageManager.database.set).not.toHaveBeenCalledWith(
+                'session:mock-uuid-123',
+                expect.anything()
+            );
+        });
     });
 
     describe('Session Limits and Resource Management', () => {

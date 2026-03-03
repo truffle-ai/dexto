@@ -280,6 +280,11 @@ export class SessionManager {
             throw SessionError.notFound(parentSessionId);
         }
 
+        const activeSessionKeys = await database.list('session:');
+        if (activeSessionKeys.length >= this.maxSessions) {
+            throw SessionError.maxSessionsExceeded(activeSessionKeys.length, this.maxSessions);
+        }
+
         const childSessionId = await this.generateForkSessionId();
         const childSessionKey = `session:${childSessionId}`;
         const childMessagesKey = `messages:${childSessionId}`;

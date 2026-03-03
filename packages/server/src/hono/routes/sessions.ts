@@ -1,6 +1,10 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { SessionMetadata as CoreSessionMetadata } from '@dexto/core';
-import { SessionMetadataSchema, InternalMessageSchema } from '../schemas/responses.js';
+import {
+    SessionMetadataSchema,
+    InternalMessageSchema,
+    StandardErrorEnvelopeSchema,
+} from '../schemas/responses.js';
 import type { GetAgentFn } from '../index.js';
 
 const CreateSessionSchema = z
@@ -139,6 +143,22 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                                 ),
                             })
                             .strict(),
+                    },
+                },
+            },
+            400: {
+                description: 'Invalid fork request (for example, max session limit reached)',
+                content: {
+                    'application/json': {
+                        schema: StandardErrorEnvelopeSchema,
+                    },
+                },
+            },
+            404: {
+                description: 'Parent session not found',
+                content: {
+                    'application/json': {
+                        schema: StandardErrorEnvelopeSchema,
                     },
                 },
             },
