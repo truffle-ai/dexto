@@ -106,42 +106,6 @@ import type {
 
 const program = new Command();
 
-const commandModuleLoaders = {
-    createApp: () => import('./cli/commands/create-app.js'),
-    createImage: () => import('./cli/commands/create-image.js'),
-    initApp: () => import('./cli/commands/init-app.js'),
-    setup: () => import('./cli/commands/setup.js'),
-    install: () => import('./cli/commands/install.js'),
-    uninstall: () => import('./cli/commands/uninstall.js'),
-    image: () => import('./cli/commands/image.js'),
-    listAgents: () => import('./cli/commands/list-agents.js'),
-    which: () => import('./cli/commands/which.js'),
-    syncAgents: () => import('./cli/commands/sync-agents.js'),
-    plugin: () => import('./cli/commands/plugin.js'),
-    session: () => import('./cli/commands/session-commands.js'),
-    authLogin: () => import('./cli/commands/auth/login.js'),
-    authLogout: () => import('./cli/commands/auth/logout.js'),
-    authStatus: () => import('./cli/commands/auth/status.js'),
-    billing: () => import('./cli/commands/billing/status.js'),
-} as const;
-
-type CommandModuleKey = keyof typeof commandModuleLoaders;
-const commandModuleCache = new Map<CommandModuleKey, Promise<unknown>>();
-
-function loadCommandModule<K extends CommandModuleKey>(
-    key: K
-): ReturnType<(typeof commandModuleLoaders)[K]> {
-    const cached = commandModuleCache.get(key);
-    if (cached) {
-        return cached as ReturnType<(typeof commandModuleLoaders)[K]>;
-    }
-    const modulePromise = commandModuleLoaders[key]() as ReturnType<
-        (typeof commandModuleLoaders)[K]
-    >;
-    commandModuleCache.set(key, modulePromise as Promise<unknown>);
-    return modulePromise;
-}
-
 let imageImporterConfigured = false;
 let dextoApiKeyBootstrapped = false;
 let versionCheckPromise: Promise<UpdateInfo | null> | null = null;
@@ -236,7 +200,7 @@ program
                 p.intro(chalk.inverse('Create Dexto App'));
 
                 // Create the app project structure (fully self-contained)
-                const { createDextoProject } = await loadCommandModule('createApp');
+                const { createDextoProject } = await import('./cli/commands/create-app.js');
                 await createDextoProject(name, options);
 
                 p.outro(chalk.greenBright('Dexto app created successfully!'));
@@ -259,7 +223,7 @@ program
                 p.intro(chalk.inverse('Create Dexto Image'));
 
                 // Create the image project structure
-                const { createImage } = await loadCommandModule('createImage');
+                const { createImage } = await import('./cli/commands/create-image.js');
                 const projectPath = await createImage(name);
 
                 p.outro(chalk.greenBright(`Dexto image created successfully at ${projectPath}!`));
@@ -298,7 +262,7 @@ imageCommand
                 p.intro(chalk.inverse('Create Dexto Image'));
 
                 // Create the image project structure
-                const { createImage } = await loadCommandModule('createImage');
+                const { createImage } = await import('./cli/commands/create-image.js');
                 const projectPath = await createImage(name);
 
                 p.outro(chalk.greenBright(`Dexto image created successfully at ${projectPath}!`));
@@ -330,7 +294,7 @@ Examples:
             'image install',
             async (image: string, options: Omit<ImageInstallCommandOptionsInput, 'image'>) => {
                 try {
-                    const { handleImageInstallCommand } = await loadCommandModule('image');
+                    const { handleImageInstallCommand } = await import('./cli/commands/image.js');
                     await handleImageInstallCommand({ ...options, image });
                     safeExit('image install', 0);
                 } catch (err) {
@@ -348,7 +312,7 @@ imageCommand
     .action(
         withAnalytics('image list', async () => {
             try {
-                const { handleImageListCommand } = await loadCommandModule('image');
+                const { handleImageListCommand } = await import('./cli/commands/image.js');
                 await handleImageListCommand();
                 safeExit('image list', 0);
             } catch (err) {
@@ -365,7 +329,7 @@ imageCommand
     .action(
         withAnalytics('image use', async (image: string) => {
             try {
-                const { handleImageUseCommand } = await loadCommandModule('image');
+                const { handleImageUseCommand } = await import('./cli/commands/image.js');
                 await handleImageUseCommand({ image });
                 safeExit('image use', 0);
             } catch (err) {
@@ -382,7 +346,7 @@ imageCommand
     .action(
         withAnalytics('image remove', async (image: string) => {
             try {
-                const { handleImageRemoveCommand } = await loadCommandModule('image');
+                const { handleImageRemoveCommand } = await import('./cli/commands/image.js');
                 await handleImageRemoveCommand({ image });
                 safeExit('image remove', 0);
             } catch (err) {
@@ -399,7 +363,7 @@ imageCommand
     .action(
         withAnalytics('image doctor', async () => {
             try {
-                const { handleImageDoctorCommand } = await loadCommandModule('image');
+                const { handleImageDoctorCommand } = await import('./cli/commands/image.js');
                 await handleImageDoctorCommand();
                 safeExit('image doctor', 0);
             } catch (err) {
@@ -426,8 +390,9 @@ program
 
                 // start intro
                 p.intro(chalk.inverse('Dexto Init App'));
-                const { getUserInputToInitDextoApp, initDexto, postInitDexto } =
-                    await loadCommandModule('initApp');
+                const { getUserInputToInitDextoApp, initDexto, postInitDexto } = await import(
+                    './cli/commands/init-app.js'
+                );
                 const userInput = await getUserInputToInitDextoApp();
                 try {
                     const { capture } = await import('./analytics/index.js');
@@ -474,7 +439,7 @@ program
     .action(
         withAnalytics('setup', async (options: CLISetupOptionsInput) => {
             try {
-                const { handleSetupCommand } = await loadCommandModule('setup');
+                const { handleSetupCommand } = await import('./cli/commands/setup.js');
                 await handleSetupCommand(options);
                 safeExit('setup', 0);
             } catch (err) {
@@ -509,7 +474,7 @@ Examples:
             'install',
             async (agents: string[] = [], options: Partial<InstallCommandOptions>) => {
                 try {
-                    const { handleInstallCommand } = await loadCommandModule('install');
+                    const { handleInstallCommand } = await import('./cli/commands/install.js');
                     await handleInstallCommand(agents, options);
                     safeExit('install', 0);
                 } catch (err) {
@@ -532,7 +497,7 @@ program
             'uninstall',
             async (agents: string[], options: Partial<UninstallCommandOptions>) => {
                 try {
-                    const { handleUninstallCommand } = await loadCommandModule('uninstall');
+                    const { handleUninstallCommand } = await import('./cli/commands/uninstall.js');
                     await handleUninstallCommand(agents, options);
                     safeExit('uninstall', 0);
                 } catch (err) {
@@ -554,7 +519,7 @@ program
     .action(
         withAnalytics('list-agents', async (options: ListAgentsCommandOptionsInput) => {
             try {
-                const { handleListAgentsCommand } = await loadCommandModule('listAgents');
+                const { handleListAgentsCommand } = await import('./cli/commands/list-agents.js');
                 await handleListAgentsCommand(options);
                 safeExit('list-agents', 0);
             } catch (err) {
@@ -572,7 +537,7 @@ program
     .action(
         withAnalytics('which', async (agent: string) => {
             try {
-                const { handleWhichCommand } = await loadCommandModule('which');
+                const { handleWhichCommand } = await import('./cli/commands/which.js');
                 await handleWhichCommand(agent);
                 safeExit('which', 0);
             } catch (err) {
@@ -592,7 +557,7 @@ program
     .action(
         withAnalytics('sync-agents', async (options: Partial<SyncAgentsCommandOptions>) => {
             try {
-                const { handleSyncAgentsCommand } = await loadCommandModule('syncAgents');
+                const { handleSyncAgentsCommand } = await import('./cli/commands/sync-agents.js');
                 await handleSyncAgentsCommand(options);
                 safeExit('sync-agents', 0);
             } catch (err) {
@@ -613,7 +578,7 @@ pluginCommand
     .action(
         withAnalytics('plugin list', async (options: PluginListCommandOptionsInput) => {
             try {
-                const { handlePluginListCommand } = await loadCommandModule('plugin');
+                const { handlePluginListCommand } = await import('./cli/commands/plugin.js');
                 await handlePluginListCommand(options);
                 safeExit('plugin list', 0);
             } catch (err) {
@@ -633,7 +598,7 @@ pluginCommand
     .action(
         withAnalytics('plugin install', async (options: PluginInstallCommandOptionsInput) => {
             try {
-                const { handlePluginInstallCommand } = await loadCommandModule('plugin');
+                const { handlePluginInstallCommand } = await import('./cli/commands/plugin.js');
                 await handlePluginInstallCommand(options);
                 safeExit('plugin install', 0);
             } catch (err) {
@@ -650,7 +615,7 @@ pluginCommand
     .action(
         withAnalytics('plugin uninstall', async (name: string) => {
             try {
-                const { handlePluginUninstallCommand } = await loadCommandModule('plugin');
+                const { handlePluginUninstallCommand } = await import('./cli/commands/plugin.js');
                 await handlePluginUninstallCommand({ name });
                 safeExit('plugin uninstall', 0);
             } catch (err) {
@@ -667,7 +632,7 @@ pluginCommand
     .action(
         withAnalytics('plugin validate', async (path?: string) => {
             try {
-                const { handlePluginValidateCommand } = await loadCommandModule('plugin');
+                const { handlePluginValidateCommand } = await import('./cli/commands/plugin.js');
                 await handlePluginValidateCommand({ path: path || '.' });
                 safeExit('plugin validate', 0);
             } catch (err) {
@@ -693,7 +658,9 @@ marketplaceCommand
             'plugin marketplace add',
             async (source: string, options: { name?: string }) => {
                 try {
-                    const { handleMarketplaceAddCommand } = await loadCommandModule('plugin');
+                    const { handleMarketplaceAddCommand } = await import(
+                        './cli/commands/plugin.js'
+                    );
                     await handleMarketplaceAddCommand({ source, name: options.name });
                     safeExit('plugin marketplace add', 0);
                 } catch (err) {
@@ -714,7 +681,9 @@ marketplaceCommand
             'plugin marketplace list',
             async (options: MarketplaceListCommandOptionsInput) => {
                 try {
-                    const { handleMarketplaceListCommand } = await loadCommandModule('plugin');
+                    const { handleMarketplaceListCommand } = await import(
+                        './cli/commands/plugin.js'
+                    );
                     await handleMarketplaceListCommand(options);
                     safeExit('plugin marketplace list', 0);
                 } catch (err) {
@@ -733,7 +702,7 @@ marketplaceCommand
     .action(
         withAnalytics('plugin marketplace remove', async (name: string) => {
             try {
-                const { handleMarketplaceRemoveCommand } = await loadCommandModule('plugin');
+                const { handleMarketplaceRemoveCommand } = await import('./cli/commands/plugin.js');
                 await handleMarketplaceRemoveCommand({ name });
                 safeExit('plugin marketplace remove', 0);
             } catch (err) {
@@ -750,7 +719,7 @@ marketplaceCommand
     .action(
         withAnalytics('plugin marketplace update', async (name?: string) => {
             try {
-                const { handleMarketplaceUpdateCommand } = await loadCommandModule('plugin');
+                const { handleMarketplaceUpdateCommand } = await import('./cli/commands/plugin.js');
                 await handleMarketplaceUpdateCommand({ name });
                 safeExit('plugin marketplace update', 0);
             } catch (err) {
@@ -770,7 +739,9 @@ marketplaceCommand
             'plugin marketplace plugins',
             async (marketplace?: string, options?: { verbose?: boolean }) => {
                 try {
-                    const { handleMarketplacePluginsCommand } = await loadCommandModule('plugin');
+                    const { handleMarketplacePluginsCommand } = await import(
+                        './cli/commands/plugin.js'
+                    );
                     await handleMarketplacePluginsCommand({
                         marketplace,
                         verbose: options?.verbose,
@@ -795,7 +766,9 @@ marketplaceCommand
             'plugin marketplace install',
             async (plugin: string, options: MarketplaceInstallCommandOptionsInput) => {
                 try {
-                    const { handleMarketplaceInstallCommand } = await loadCommandModule('plugin');
+                    const { handleMarketplaceInstallCommand } = await import(
+                        './cli/commands/plugin.js'
+                    );
                     await handleMarketplaceInstallCommand({ ...options, plugin });
                     safeExit('plugin marketplace install', 0);
                 } catch (err) {
@@ -1059,7 +1032,9 @@ sessionCommand
             try {
                 const agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
 
-                const { handleSessionListCommand } = await loadCommandModule('session');
+                const { handleSessionListCommand } = await import(
+                    './cli/commands/session-commands.js'
+                );
                 await handleSessionListCommand(agent);
                 await agent.stop();
                 safeExit('session list', 0);
@@ -1080,7 +1055,9 @@ sessionCommand
             try {
                 const agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
 
-                const { handleSessionHistoryCommand } = await loadCommandModule('session');
+                const { handleSessionHistoryCommand } = await import(
+                    './cli/commands/session-commands.js'
+                );
                 await handleSessionHistoryCommand(agent, sessionId);
                 await agent.stop();
                 safeExit('session history', 0);
@@ -1101,7 +1078,9 @@ sessionCommand
             try {
                 const agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
 
-                const { handleSessionDeleteCommand } = await loadCommandModule('session');
+                const { handleSessionDeleteCommand } = await import(
+                    './cli/commands/session-commands.js'
+                );
                 await handleSessionDeleteCommand(agent, sessionId);
                 await agent.stop();
                 safeExit('session delete', 0);
@@ -1162,7 +1141,9 @@ program
                         searchOptions.limit = parsed;
                     }
 
-                    const { handleSessionSearchCommand } = await loadCommandModule('session');
+                    const { handleSessionSearchCommand } = await import(
+                        './cli/commands/session-commands.js'
+                    );
                     await handleSessionSearchCommand(agent, query, searchOptions);
                     await agent.stop();
                     safeExit('search', 0);
@@ -1189,7 +1170,7 @@ authCommand
             'auth login',
             async (options: { apiKey?: string; token?: string; interactive?: boolean }) => {
                 try {
-                    const { handleLoginCommand } = await loadCommandModule('authLogin');
+                    const { handleLoginCommand } = await import('./cli/commands/auth/login.js');
                     await handleLoginCommand(options);
                     safeExit('auth login', 0);
                 } catch (err) {
@@ -1211,7 +1192,7 @@ authCommand
             'auth logout',
             async (options: { force?: boolean; interactive?: boolean }) => {
                 try {
-                    const { handleLogoutCommand } = await loadCommandModule('authLogout');
+                    const { handleLogoutCommand } = await import('./cli/commands/auth/logout.js');
                     await handleLogoutCommand(options);
                     safeExit('auth logout', 0);
                 } catch (err) {
@@ -1229,7 +1210,7 @@ authCommand
     .action(
         withAnalytics('auth status', async () => {
             try {
-                const { handleStatusCommand } = await loadCommandModule('authStatus');
+                const { handleStatusCommand } = await import('./cli/commands/auth/status.js');
                 await handleStatusCommand();
                 safeExit('auth status', 0);
             } catch (err) {
@@ -1252,7 +1233,7 @@ program
             'login',
             async (options: { apiKey?: string; token?: string; interactive?: boolean }) => {
                 try {
-                    const { handleLoginCommand } = await loadCommandModule('authLogin');
+                    const { handleLoginCommand } = await import('./cli/commands/auth/login.js');
                     await handleLoginCommand(options);
                     safeExit('login', 0);
                 } catch (err) {
@@ -1272,7 +1253,7 @@ program
     .action(
         withAnalytics('logout', async (options: { force?: boolean; interactive?: boolean }) => {
             try {
-                const { handleLogoutCommand } = await loadCommandModule('authLogout');
+                const { handleLogoutCommand } = await import('./cli/commands/auth/logout.js');
                 await handleLogoutCommand(options);
                 safeExit('logout', 0);
             } catch (err) {
@@ -1291,7 +1272,9 @@ program
     .action(
         withAnalytics('billing', async (options: { buy?: boolean }) => {
             try {
-                const { handleBillingStatusCommand } = await loadCommandModule('billing');
+                const { handleBillingStatusCommand } = await import(
+                    './cli/commands/billing/status.js'
+                );
                 await handleBillingStatusCommand(options);
                 safeExit('billing', 0);
             } catch (err) {
@@ -1604,7 +1587,7 @@ program
                                 safeExit('main', 1, 'setup-required-non-interactive');
                             }
 
-                            const { handleSetupCommand } = await loadCommandModule('setup');
+                            const { handleSetupCommand } = await import('./cli/commands/setup.js');
                             await handleSetupCommand({ interactive: true });
 
                             // Reload preferences after setup to get the newly selected default mode
@@ -1665,7 +1648,9 @@ program
                         if (!authCheck.shouldContinue) {
                             if (authCheck.action === 'login') {
                                 // User wants to log in - run login flow then restart
-                                const { handleLoginCommand } = await loadCommandModule('authLogin');
+                                const { handleLoginCommand } = await import(
+                                    './cli/commands/auth/login.js'
+                                );
                                 await handleLoginCommand();
 
                                 // Verify key was actually provisioned (provisionKeys silently catches errors)
@@ -1681,7 +1666,9 @@ program
                                 // After login, continue with startup (preferences unchanged, now authenticated)
                             } else if (authCheck.action === 'setup') {
                                 // User wants to configure different provider - run setup
-                                const { handleSetupCommand } = await loadCommandModule('setup');
+                                const { handleSetupCommand } = await import(
+                                    './cli/commands/setup.js'
+                                );
                                 await handleSetupCommand({ interactive: true, force: true });
                                 // Reload preferences after setup
                                 preferences = await loadGlobalPreferences();
@@ -2046,8 +2033,9 @@ program
                         const cliUpdateInfo = await getVersionCheckResult();
 
                         // Check if installed agents differ from bundled and prompt to sync
-                        const { shouldPromptForSync, handleSyncAgentsCommand } =
-                            await loadCommandModule('syncAgents');
+                        const { shouldPromptForSync, handleSyncAgentsCommand } = await import(
+                            './cli/commands/sync-agents.js'
+                        );
                         const needsSync = await shouldPromptForSync();
                         if (needsSync) {
                             const shouldSync = await p.confirm({
