@@ -10,7 +10,22 @@ type CuratedModelsOptions = {
     max?: number;
 };
 
+type CuratedModelRefsOptions = {
+    /**
+     * Providers to include in selection order.
+     */
+    providers: readonly LLMProvider[];
+    /**
+     * Maximum number of model refs to return.
+     */
+    max?: number;
+};
+
 const DEFAULT_MAX = 8;
+export type CuratedModelRef = {
+    provider: LLMProvider;
+    model: string;
+};
 
 /**
  * Returns a small, UI-friendly set of models for a provider.
@@ -49,6 +64,65 @@ export function getCuratedModelsForProvider(
         seen.add(key);
         picked.push(m);
         if (picked.length >= max) break;
+    }
+
+    return picked;
+}
+
+/**
+ * Returns curated provider/model refs interleaved across providers.
+ *
+ * This prevents early providers from consuming the entire featured budget.
+ */
+export function getCuratedModelRefsForProviders(
+    options: CuratedModelRefsOptions
+): CuratedModelRef[] {
+    const max = options.max ?? DEFAULT_MAX;
+    if (max <= 0 || options.providers.length === 0) {
+        return [];
+    }
+
+    const providerCurated = options.providers.map((provider) => ({
+        provider,
+        models: getCuratedModelsForProvider(provider, { max }),
+    }));
+    const cursorByProvider = new Array<number>(providerCurated.length).fill(0);
+    const picked: CuratedModelRef[] = [];
+    const seen = new Set<string>();
+
+    let madeProgress = true;
+    while (picked.length < max && madeProgress) {
+        madeProgress = false;
+
+        for (let i = 0; i < providerCurated.length; i++) {
+            const bucket = providerCurated[i]!;
+            let cursor = cursorByProvider[i]!;
+
+            while (cursor < bucket.models.length) {
+                const modelName = bucket.models[cursor]!.name;
+                cursor += 1;
+
+                const key = `${bucket.provider}|${modelName}`.toLowerCase();
+                if (seen.has(key)) {
+                    continue;
+                }
+
+                seen.add(key);
+                cursorByProvider[i] = cursor;
+                picked.push({
+                    provider: bucket.provider,
+                    model: modelName,
+                });
+                madeProgress = true;
+                break;
+            }
+
+            cursorByProvider[i] = cursor;
+
+            if (picked.length >= max) {
+                break;
+            }
+        }
     }
 
     return picked;

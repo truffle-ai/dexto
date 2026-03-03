@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getCuratedModelsForProvider } from './curation.js';
+import { getCuratedModelRefsForProviders, getCuratedModelsForProvider } from './curation.js';
 import { LLM_REGISTRY } from './registry/index.js';
 import { CURATED_MODEL_IDS_BY_PROVIDER } from './curation-config.js';
 import type { LLMProvider } from './types.js';
@@ -33,5 +33,25 @@ describe('getCuratedModelsForProvider', () => {
             const missing = lowerIds.filter((id) => !registrySet.has(id));
             expect(missing).toEqual([]);
         }
+    });
+
+    it('interleaves curated refs across providers when limited', () => {
+        const refs = getCuratedModelRefsForProviders({
+            providers: ['openai', 'anthropic'],
+            max: 2,
+        });
+
+        expect(refs).toHaveLength(2);
+        expect(refs[0]?.provider).toBe('openai');
+        expect(refs[1]?.provider).toBe('anthropic');
+    });
+
+    it('returns empty refs when max is zero', () => {
+        const refs = getCuratedModelRefsForProviders({
+            providers: ['openai', 'anthropic'],
+            max: 0,
+        });
+
+        expect(refs).toEqual([]);
     });
 });

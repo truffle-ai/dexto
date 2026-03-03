@@ -134,6 +134,7 @@ export default function ModelPickerModal() {
         data: modelPickerState,
         isLoading: modelPickerStateLoading,
         error: modelPickerStateError,
+        refetch: refetchModelPickerState,
     } = useModelPickerState({ enabled: open });
 
     // Fetch provider API key status for the current form provider (for smart storage logic)
@@ -772,6 +773,10 @@ export default function ModelPickerModal() {
                     onPickInstalledModel(localModel);
                     return;
                 }
+
+                setError(`Local model "${entry.model}" is no longer installed.`);
+                void refetchModelPickerState();
+                return;
             }
 
             onPickModel(entry.provider, resolveModelInfoFromEntry(entry));
@@ -782,6 +787,7 @@ export default function ModelPickerModal() {
             resolveModelInfoFromEntry,
             onPickCustomModel,
             onPickInstalledModel,
+            refetchModelPickerState,
         ]
     );
 
@@ -832,10 +838,14 @@ export default function ModelPickerModal() {
         return sections
             .map((section) => ({
                 ...section,
-                entries: section.entries.filter(modelPickerEntryMatchesSearch),
+                entries: section.entries.filter(
+                    (entry) =>
+                        (entry.provider !== 'local' || installedLocalModelsById.has(entry.model)) &&
+                        modelPickerEntryMatchesSearch(entry)
+                ),
             }))
             .filter((section) => section.entries.length > 0);
-    }, [modelPickerEntryMatchesSearch, modelPickerState]);
+    }, [installedLocalModelsById, modelPickerEntryMatchesSearch, modelPickerState]);
 
     // All models flat list (filtered by search and provider)
     const allModels = useMemo(() => {

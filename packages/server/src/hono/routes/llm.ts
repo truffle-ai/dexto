@@ -8,6 +8,7 @@ import {
     supportsBaseURL,
     getAllModelsForProvider,
     getCuratedModelsForProvider,
+    getCuratedModelRefsForProviders,
     getSupportedFileTypesForModel,
     getLocalModelById,
     getReasoningProfile,
@@ -667,23 +668,13 @@ export function createLlmRouter(getAgent: GetAgentFn) {
             byKey.set(toModelPickerKey(entry), entry);
         }
 
-        const featured: Array<z.output<typeof ModelPickerEntrySchema>> = [];
-        for (const provider of LLM_PROVIDERS) {
-            if (!isProviderEnabled(provider)) {
-                continue;
-            }
-
-            for (const curatedModel of getCuratedModelsForProvider(provider)) {
-                const key = toModelPickerKey({
-                    provider,
-                    model: curatedModel.name,
-                });
-                const entry = byKey.get(key);
-                if (entry) {
-                    featured.push(entry);
-                }
-            }
-        }
+        const featuredProviders = LLM_PROVIDERS.filter((provider) => isProviderEnabled(provider));
+        const featured = getCuratedModelRefsForProviders({
+            providers: featuredProviders,
+            max: MODEL_PICKER_FEATURED_LIMIT,
+        })
+            .map((ref) => byKey.get(toModelPickerKey(ref)))
+            .filter((entry): entry is z.output<typeof ModelPickerEntrySchema> => Boolean(entry));
 
         const state = await loadModelPickerState();
         const pruned = pruneModelPickerState({
@@ -708,7 +699,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
             .filter((entry): entry is z.output<typeof ModelPickerEntrySchema> => Boolean(entry));
 
         return {
-            featured: dedupeEntries(featured).slice(0, MODEL_PICKER_FEATURED_LIMIT),
+            featured: dedupeEntries(featured),
             recents,
             favorites,
             custom: dedupeEntries(customSection),

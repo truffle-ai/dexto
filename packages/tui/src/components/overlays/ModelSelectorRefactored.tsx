@@ -22,7 +22,7 @@ import {
     listOllamaModels,
     DEFAULT_OLLAMA_URL,
     getLocalModelById,
-    getCuratedModelsForProvider,
+    getCuratedModelRefsForProviders,
     getOpenRouterModelCacheInfo,
     getReasoningProfile,
     refreshOpenRouterModelCache,
@@ -667,16 +667,10 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         const providersInModels = Array.from(
             new Set(models.map((model) => model.provider))
         ) as LLMProvider[];
-        const featuredCandidates: Array<ModelOption | undefined> = [];
-        for (const provider of providersInModels) {
-            for (const curatedModel of getCuratedModelsForProvider(provider)) {
-                const key = toModelPickerKey({
-                    provider,
-                    model: curatedModel.name,
-                });
-                featuredCandidates.push(modelsByKey.get(key));
-            }
-        }
+        const featuredCandidates = getCuratedModelRefsForProviders({
+            providers: providersInModels,
+            max: FEATURED_SECTION_LIMIT,
+        }).map((ref) => modelsByKey.get(toModelPickerKey(ref)));
 
         const recentsFromState = (modelPickerState?.recents ?? []).map((entry) =>
             modelsByKey.get(toModelPickerKey({ provider: entry.provider, model: entry.model }))
@@ -692,7 +686,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             : activeTab === 'all-models'
               ? toUniqueMatchingModels(allModels)
               : activeTab === 'featured'
-                ? toUniqueMatchingModels(featuredCandidates, FEATURED_SECTION_LIMIT)
+                ? toUniqueMatchingModels(featuredCandidates)
                 : activeTab === 'recents'
                   ? toUniqueMatchingModels(recentsFromState)
                   : activeTab === 'favorites'
