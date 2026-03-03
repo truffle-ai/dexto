@@ -20,6 +20,9 @@ This runs `scripts/quality-checks.sh` for build, tests, lint, and typecheck. See
 - Read relevant code before recommending changes. Prefer grep/glob + direct file references over assumptions.
 - If something requires assumptions, state them and ask for confirmation.
 - Don't communicate to the user via code comments. Comments are for future readers of the code, not for explaining decisions to the user.
+- Keep npm/pnpm scripts cross-platform (Unix + Windows):
+    - In `package.json` scripts, avoid single-quoted CLI arguments like `--filter='...'` or `--exclude '...'` because Windows `cmd.exe` treats single quotes as literal characters.
+    - Prefer unquoted `--flag=value` when possible, or escaped double quotes (`\"...\"`) for glob patterns.
 
 ## Stack Rules (important)
 

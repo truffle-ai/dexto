@@ -15,6 +15,18 @@ import {
 } from './execution-context.js';
 
 /**
+ * Returns the package root for standalone binary installs.
+ *
+ * This is intentionally `undefined` for normal npm/pnpm installs.
+ * The env var is set by the CLI bootstrap (`packages/cli/src/index.ts`)
+ * when it detects executable-based distribution layout.
+ */
+export function getDextoPackageRoot(): string | undefined {
+    const packageRoot = process.env.DEXTO_PACKAGE_ROOT;
+    return typeof packageRoot === 'string' && packageRoot.length > 0 ? packageRoot : undefined;
+}
+
+/**
  * Standard path resolver for logs/db/config/anything in dexto projects
  * Context-aware with dev mode support:
  * - dexto-source + DEXTO_DEV_MODE=true: Use local repo .dexto (isolated testing)
@@ -172,7 +184,7 @@ export function resolveBundledScript(scriptPath: string): string {
     };
 
     // 0) Explicit env override (useful for exotic/linked setups)
-    const envRoot = process?.env?.DEXTO_PACKAGE_ROOT;
+    const envRoot = getDextoPackageRoot();
     const fromEnv = tryRoots([envRoot]);
     if (fromEnv) return fromEnv;
 

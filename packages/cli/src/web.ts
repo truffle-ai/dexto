@@ -7,27 +7,36 @@
 import { existsSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getDextoPackageRoot } from '@dexto/agent-management';
+
+function isValidWebRoot(webRootPath: string): boolean {
+    if (!existsSync(webRootPath)) {
+        return false;
+    }
+
+    // Verify index.html exists (Vite output)
+    const indexPath = path.join(webRootPath, 'index.html');
+    return existsSync(indexPath);
+}
 
 /**
  * Discovers the webui path for embedded Vite build.
  * @returns Absolute path to webui dist folder, or undefined if not found
  */
 export function resolveWebRoot(): string | undefined {
-    // Path discovery logic for the built webui
     const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+    const roots = Array.from(
+        new Set([getDextoPackageRoot(), path.dirname(process.execPath), scriptDir])
+    ).filter((value): value is string => Boolean(value));
 
-    // Look for embedded webui in CLI's dist folder
-    const webuiPath = path.resolve(scriptDir, 'webui');
-
-    if (!existsSync(webuiPath)) {
-        return undefined;
+    for (const root of roots) {
+        const candidates = [path.resolve(root, 'webui'), path.resolve(root, 'dist', 'webui')];
+        for (const webRootPath of candidates) {
+            if (isValidWebRoot(webRootPath)) {
+                return webRootPath;
+            }
+        }
     }
 
-    // Verify index.html exists (Vite output)
-    const indexPath = path.join(webuiPath, 'index.html');
-    if (!existsSync(indexPath)) {
-        return undefined;
-    }
-
-    return webuiPath;
+    return undefined;
 }

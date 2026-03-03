@@ -27,6 +27,7 @@ import {
     useIsWelcomeState,
     useSessionMessages,
 } from '@/lib/stores/index.js';
+import type { Attachment } from '../../lib/attachment-types.js';
 
 // Helper to get history endpoint type (workaround for string literal path)
 type HistoryEndpoint = (typeof client.api.sessions)[':sessionId']['history'];
@@ -41,11 +42,7 @@ type ToolCall = NonNullable<HistoryMessage['toolCalls']>[number];
 
 interface ChatContextType {
     messages: Message[];
-    sendMessage: (
-        content: string,
-        imageData?: { image: string; mimeType: string },
-        fileData?: { data: string; mimeType: string; filename?: string }
-    ) => void;
+    sendMessage: (content: string, attachments?: Attachment[]) => void;
     reset: () => void;
     switchSession: (sessionId: string) => void;
     loadSessionHistory: (sessionId: string) => Promise<void>;
@@ -418,11 +415,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     // Enhanced sendMessage with auto-session creation
     const sendMessage = useCallback(
-        async (
-            content: string,
-            imageData?: { image: string; mimeType: string },
-            fileData?: { data: string; mimeType: string; filename?: string }
-        ) => {
+        async (content: string, attachments?: Attachment[]) => {
             let sessionId = currentSessionId;
             let isNewSession = false;
 
@@ -442,7 +435,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     currentSessionIdRef.current = sessionId;
 
                     // Send message BEFORE navigating
-                    originalSendMessage(content, imageData, fileData, sessionId);
+                    originalSendMessage(content, attachments, sessionId);
 
                     // Navigate - this will trigger switchSession via ChatApp useEffect
                     navigate({ to: `/chat/${sessionId}`, replace: true });
@@ -464,17 +457,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
             // Only send if we're using an existing session (not a newly created one)
             if (sessionId && !isNewSession) {
-                originalSendMessage(content, imageData, fileData, sessionId);
+                originalSendMessage(content, attachments, sessionId);
             }
 
             // Track message sent
             if (sessionId) {
+                const hasImage = attachments?.some((a) => a.type === 'image') ?? false;
+                const hasFile = attachments?.some((a) => a.type === 'file') ?? false;
                 analytics.trackMessageSent({
                     sessionId,
                     provider: 'unknown', // Provider/model tracking moved to component level
                     model: 'unknown',
-                    hasImage: !!imageData,
-                    hasFile: !!fileData,
+                    hasImage,
+                    hasFile,
                     messageLength: content.length,
                 });
             } else {

@@ -1,5 +1,52 @@
 # @dexto/storage
 
+## 1.6.7
+
+### Patch Changes
+
+- 785978b: Fix upload standalone bianries release tag finding logic
+- Updated dependencies [785978b]
+    - @dexto/core@1.6.7
+
+## 1.6.6
+
+### Patch Changes
+
+- 7e2bcd2: fix windows escape sequence
+- Updated dependencies [7e2bcd2]
+    - @dexto/core@1.6.6
+
+## 1.6.5
+
+### Patch Changes
+
+- 60aab0e: Fix windows build for binary distribution
+- Updated dependencies [60aab0e]
+- Updated dependencies [19a4983]
+    - @dexto/core@1.6.5
+
+## 1.6.4
+
+### Patch Changes
+
+- 7cb9082: Bump to test binary distribution
+- Updated dependencies [7cb9082]
+    - @dexto/core@1.6.4
+
+## 1.6.3
+
+### Patch Changes
+
+- @dexto/core@1.6.3
+
+## 1.6.2
+
+### Patch Changes
+
+- Updated dependencies [5e6383d]
+- Updated dependencies [7b2c395]
+    - @dexto/core@1.6.2
+
 ## 1.6.1
 
 ### Patch Changes

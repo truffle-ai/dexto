@@ -7,7 +7,9 @@ import {
     ReactiveOverflowCompactionConfigSchema,
     type ReactiveOverflowCompactionConfig,
 } from '@dexto/agent-config';
-import { createRequire } from 'module';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import {
     ContentPolicyHook,
@@ -32,10 +34,71 @@ import { todoToolsFactory } from '@dexto/tools-todo';
 import { planToolsFactory } from '@dexto/tools-plan';
 import { schedulerToolsFactory } from '@dexto/tools-scheduler';
 import { lifecycleToolsFactory } from '@dexto/tools-lifecycle';
-import { agentSpawnerToolsFactory, creatorToolsFactory } from '@dexto/agent-management';
+import {
+    agentSpawnerToolsFactory,
+    creatorToolsFactory,
+    getDextoPackageRoot,
+} from '@dexto/agent-management';
 
-const require = createRequire(import.meta.url);
-const packageJson = require('../package.json') as { name?: string; version?: string };
+function readPackageJson(packageJsonPath: string): { name?: string; version?: string } | null {
+    if (!existsSync(packageJsonPath)) {
+        return null;
+    }
+
+    try {
+        return JSON.parse(readFileSync(packageJsonPath, 'utf-8')) as {
+            name?: string;
+            version?: string;
+        };
+    } catch {
+        return null;
+    }
+}
+
+function resolveModuleDir(): string | undefined {
+    const importMetaUrl = typeof import.meta !== 'undefined' ? import.meta.url : undefined;
+    if (importMetaUrl) {
+        return path.dirname(fileURLToPath(importMetaUrl));
+    }
+
+    const filenameFromGlobal = (globalThis as { __filename?: unknown }).__filename;
+    if (typeof filenameFromGlobal === 'string' && filenameFromGlobal.length > 0) {
+        return path.dirname(filenameFromGlobal);
+    }
+
+    return undefined;
+}
+
+function resolveImageMetadata(defaultName: string): { name: string; version: string } {
+    const moduleDir = resolveModuleDir();
+    if (moduleDir) {
+        const localPackageJson = readPackageJson(path.resolve(moduleDir, '..', 'package.json'));
+        if (localPackageJson) {
+            return {
+                name: localPackageJson.name ?? defaultName,
+                version: localPackageJson.version ?? '0.0.0',
+            };
+        }
+    }
+
+    const packageRoot = getDextoPackageRoot();
+    if (packageRoot) {
+        const bundledPackageJson = readPackageJson(path.join(packageRoot, 'package.json'));
+        if (bundledPackageJson) {
+            return {
+                name: defaultName,
+                version: bundledPackageJson.version ?? '0.0.0',
+            };
+        }
+    }
+
+    return {
+        name: defaultName,
+        version: process.env.DEXTO_CLI_VERSION || '0.0.0',
+    };
+}
+
+const imageMetadata = resolveImageMetadata('@dexto/image-local');
 
 const contentPolicyConfigSchema = z
     .object({
@@ -92,8 +155,8 @@ const reactiveOverflowCompactionFactory: CompactionFactory<ReactiveOverflowCompa
 
 const imageLocal: DextoImage = {
     metadata: {
-        name: packageJson.name ?? '@dexto/image-local',
-        version: packageJson.version ?? '0.0.0',
+        name: imageMetadata.name,
+        version: imageMetadata.version,
         description: 'Local development image with filesystem and process tools',
         target: 'local-development',
         constraints: ['filesystem-required', 'offline-capable'],

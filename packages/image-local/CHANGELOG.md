@@ -1,5 +1,116 @@
 # @dexto/image-local
 
+## 1.6.7
+
+### Patch Changes
+
+- 785978b: Fix upload standalone bianries release tag finding logic
+- Updated dependencies [785978b]
+    - @dexto/agent-config@1.6.7
+    - @dexto/agent-management@1.6.7
+    - @dexto/core@1.6.7
+    - @dexto/storage@1.6.7
+    - @dexto/tools-builtins@1.6.7
+    - @dexto/tools-filesystem@1.6.7
+    - @dexto/tools-lifecycle@1.6.7
+    - @dexto/tools-plan@1.6.7
+    - @dexto/tools-process@1.6.7
+    - @dexto/tools-scheduler@1.6.7
+    - @dexto/tools-todo@1.6.7
+
+## 1.6.6
+
+### Patch Changes
+
+- 7e2bcd2: fix windows escape sequence
+- Updated dependencies [7e2bcd2]
+    - @dexto/agent-config@1.6.6
+    - @dexto/agent-management@1.6.6
+    - @dexto/core@1.6.6
+    - @dexto/storage@1.6.6
+    - @dexto/tools-builtins@1.6.6
+    - @dexto/tools-filesystem@1.6.6
+    - @dexto/tools-lifecycle@1.6.6
+    - @dexto/tools-plan@1.6.6
+    - @dexto/tools-process@1.6.6
+    - @dexto/tools-scheduler@1.6.6
+    - @dexto/tools-todo@1.6.6
+
+## 1.6.5
+
+### Patch Changes
+
+- 60aab0e: Fix windows build for binary distribution
+- Updated dependencies [60aab0e]
+- Updated dependencies [19a4983]
+    - @dexto/agent-config@1.6.5
+    - @dexto/agent-management@1.6.5
+    - @dexto/core@1.6.5
+    - @dexto/storage@1.6.5
+    - @dexto/tools-builtins@1.6.5
+    - @dexto/tools-filesystem@1.6.5
+    - @dexto/tools-lifecycle@1.6.5
+    - @dexto/tools-plan@1.6.5
+    - @dexto/tools-process@1.6.5
+    - @dexto/tools-scheduler@1.6.5
+    - @dexto/tools-todo@1.6.5
+
+## 1.6.4
+
+### Patch Changes
+
+- 7cb9082: Bump to test binary distribution
+- Updated dependencies [7cb9082]
+    - @dexto/agent-config@1.6.4
+    - @dexto/agent-management@1.6.4
+    - @dexto/core@1.6.4
+    - @dexto/storage@1.6.4
+    - @dexto/tools-builtins@1.6.4
+    - @dexto/tools-filesystem@1.6.4
+    - @dexto/tools-lifecycle@1.6.4
+    - @dexto/tools-plan@1.6.4
+    - @dexto/tools-process@1.6.4
+    - @dexto/tools-scheduler@1.6.4
+    - @dexto/tools-todo@1.6.4
+
+## 1.6.3
+
+### Patch Changes
+
+- 991739a: - Add a GitHub Actions workflow to build and upload standalone CLI binaries to existing `dexto@*` releases.
+    - Add `scripts/build-standalone-binaries.sh` to compile multi-platform Bun executables, package runtime `dist/` assets, and generate SHA-256 checksums.
+    - Improve standalone binary runtime bootstrapping by auto-setting `DEXTO_PACKAGE_ROOT` from the executable directory and extending WebUI asset resolution fallback paths.
+    - @dexto/core@1.6.3
+    - @dexto/storage@1.6.3
+    - @dexto/agent-config@1.6.3
+    - @dexto/agent-management@1.6.3
+    - @dexto/tools-filesystem@1.6.3
+    - @dexto/tools-builtins@1.6.3
+    - @dexto/tools-process@1.6.3
+    - @dexto/tools-todo@1.6.3
+    - @dexto/tools-plan@1.6.3
+    - @dexto/tools-scheduler@1.6.3
+    - @dexto/tools-lifecycle@1.6.3
+
+## 1.6.2
+
+### Patch Changes
+
+- 7b2c395: Added skill creation and management tools.
+- Updated dependencies [5e6383d]
+- Updated dependencies [7b2c395]
+    - @dexto/agent-management@1.6.2
+    - @dexto/core@1.6.2
+    - @dexto/tools-builtins@1.6.2
+    - @dexto/agent-config@1.6.2
+    - @dexto/storage@1.6.2
+    - @dexto/tools-filesystem@1.6.2
+    - @dexto/tools-lifecycle@1.6.2
+    - @dexto/tools-plan@1.6.2
+    - @dexto/tools-process@1.6.2
+    - @dexto/tools-scheduler@1.6.2
+    - @dexto/tools-todo@1.6.2
+
 ## 1.6.1
 
 ### Patch Changes
