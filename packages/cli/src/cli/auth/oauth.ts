@@ -16,18 +16,52 @@ import * as querystring from 'querystring';
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
 import { logger } from '@dexto/core';
-import { readFileSync } from 'node:fs';
+import { getDextoPackageRoot } from '@dexto/agent-management';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './constants.js';
 
 // Track active OAuth callback servers by port for cleanup
 const oauthStateStore = new Map<number, string>();
 
+function resolveLogoPath(): string | null {
+    const packageRoot = getDextoPackageRoot();
+    if (packageRoot) {
+        const standaloneAssetPath = path.join(
+            packageRoot,
+            'dist',
+            'cli',
+            'assets',
+            'dexto-logo.svg'
+        );
+        if (existsSync(standaloneAssetPath)) {
+            return standaloneAssetPath;
+        }
+    }
+
+    try {
+        const localAssetPath = new URL('../assets/dexto-logo.svg', import.meta.url);
+        const resolvedPath = url.fileURLToPath(localAssetPath);
+        if (existsSync(resolvedPath)) {
+            return resolvedPath;
+        }
+    } catch {
+        // Ignore URL/path errors and return null.
+    }
+
+    return null;
+}
+
 const DEXTO_LOGO_DATA_URL = (() => {
     try {
-        const svg = readFileSync(new URL('../assets/dexto-logo.svg', import.meta.url), 'utf-8');
+        const logoPath = resolveLogoPath();
+        if (!logoPath) {
+            return '';
+        }
+        const svg = readFileSync(logoPath, 'utf-8');
         return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
     } catch (error) {
-        logger.warn(
+        logger.debug(
             `Failed to load Dexto logo asset for OAuth screen: ${error instanceof Error ? error.message : String(error)}`
         );
         return '';
@@ -390,6 +424,10 @@ export interface OAuthLoginSession {
     cancel: () => void;
 }
 
+export interface PerformOAuthLoginOptions {
+    failOnBrowserOpenError?: boolean | undefined;
+}
+
 export async function beginOAuthLogin(
     config: OAuthConfig,
     options: CallbackServerOptionsInput = {}
@@ -439,7 +477,10 @@ export async function beginOAuthLogin(
 /**
  * Perform OAuth login flow with Supabase
  */
-export async function performOAuthLogin(config: OAuthConfig): Promise<OAuthResult> {
+export async function performOAuthLogin(
+    config: OAuthConfig,
+    options: PerformOAuthLoginOptions = {}
+): Promise<OAuthResult> {
     try {
         const session = await beginOAuthLogin(config);
 
@@ -449,7 +490,13 @@ export async function performOAuthLogin(config: OAuthConfig): Promise<OAuthResul
             const { default: open } = await import('open');
             await open(session.authUrl);
             console.log(chalk.green('✅ Browser opened'));
-        } catch (_error) {
+        } catch (error) {
+            if (options.failOnBrowserOpenError) {
+                session.cancel();
+                throw new Error(
+                    `Browser launch failed: ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
             console.log(chalk.yellow(`💡 Please open manually: ${session.authUrl}`));
         }
 

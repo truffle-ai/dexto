@@ -1,5 +1,35 @@
 # @dexto/client-sdk
 
+## 1.6.8
+
+## 1.6.7
+
+### Patch Changes
+
+- 785978b: Fix upload standalone bianries release tag finding logic
+
+## 1.6.6
+
+### Patch Changes
+
+- 7e2bcd2: fix windows escape sequence
+
+## 1.6.5
+
+### Patch Changes
+
+- 60aab0e: Fix windows build for binary distribution
+
+## 1.6.4
+
+### Patch Changes
+
+- 7cb9082: Bump to test binary distribution
+
+## 1.6.3
+
+## 1.6.2
+
 ## 1.6.1
 
 ### Patch Changes

@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Dexto API",
-    "version": "1.6.1",
+    "version": "1.6.8",
     "description": "OpenAPI spec for the Dexto REST API server"
   },
   "servers": [
@@ -28891,6 +28891,214 @@
                     "fileDeleted"
                   ],
                   "description": "Delete model response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/system-prompt/contributors": {
+      "get": {
+        "summary": "List System Prompt Contributors",
+        "description": "Lists currently registered system prompt contributors.",
+        "tags": [
+          "config"
+        ],
+        "responses": {
+          "200": {
+            "description": "Current contributor list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "contributors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "Contributor identifier"
+                          },
+                          "priority": {
+                            "type": "number",
+                            "description": "Contributor priority"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "priority"
+                        ],
+                        "additionalProperties": false,
+                        "description": "System prompt contributor metadata."
+                      },
+                      "description": "Registered system prompt contributors."
+                    }
+                  },
+                  "required": [
+                    "contributors"
+                  ],
+                  "additionalProperties": false,
+                  "description": "System prompt contributors list response."
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Upsert System Prompt Contributor",
+        "description": "Adds or updates a static system prompt contributor. Set enabled=false (or empty content) to remove.",
+        "tags": [
+          "config"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Contributor identifier"
+                  },
+                  "priority": {
+                    "type": "number",
+                    "description": "Optional priority override"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "Set false to remove the contributor instead of adding/updating it"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "Static contributor content (required when enabled)."
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "additionalProperties": false,
+                "description": "System prompt contributor update payload."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Contributor upsert result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Contributor identifier"
+                    },
+                    "enabled": {
+                      "type": "boolean",
+                      "description": "Whether the contributor remains enabled"
+                    },
+                    "priority": {
+                      "type": "number",
+                      "description": "Contributor priority"
+                    },
+                    "replaced": {
+                      "type": "boolean",
+                      "description": "Whether an existing contributor was replaced"
+                    },
+                    "removed": {
+                      "type": "boolean",
+                      "description": "Whether the contributor was removed"
+                    },
+                    "contentLength": {
+                      "type": "number",
+                      "description": "Stored content length in characters"
+                    },
+                    "truncated": {
+                      "type": "boolean",
+                      "description": "Whether the submitted content was truncated"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "enabled"
+                  ],
+                  "additionalProperties": false,
+                  "description": "System prompt contributor upsert response."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid contributor update request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "System prompt contributor error response."
                 }
               }
             }

@@ -1,5 +1,143 @@
 # dexto
 
+## 1.6.8
+
+### Patch Changes
+
+- 35051d2: Improve standalone binary release reliability across platforms by hardening SEA runtime packaging and extraction in the build/release workflows.
+    - @dexto/core@1.6.8
+    - @dexto/storage@1.6.8
+    - @dexto/agent-config@1.6.8
+    - @dexto/agent-management@1.6.8
+    - @dexto/analytics@1.6.8
+    - @dexto/registry@1.6.8
+    - @dexto/server@1.6.8
+    - @dexto/image-local@1.6.8
+    - @dexto/image-logger-agent@1.6.8
+    - @dexto/tui@1.6.8
+
+## 1.6.7
+
+### Patch Changes
+
+- 785978b: Fix upload standalone bianries release tag finding logic
+- Updated dependencies [785978b]
+    - @dexto/agent-config@1.6.7
+    - @dexto/agent-management@1.6.7
+    - @dexto/analytics@1.6.7
+    - @dexto/core@1.6.7
+    - @dexto/image-local@1.6.7
+    - @dexto/image-logger-agent@1.6.7
+    - @dexto/registry@1.6.7
+    - @dexto/server@1.6.7
+    - @dexto/storage@1.6.7
+    - @dexto/tui@1.6.7
+
+## 1.6.6
+
+### Patch Changes
+
+- 7e2bcd2: fix windows escape sequence
+- Updated dependencies [7e2bcd2]
+    - @dexto/agent-config@1.6.6
+    - @dexto/agent-management@1.6.6
+    - @dexto/analytics@1.6.6
+    - @dexto/core@1.6.6
+    - @dexto/image-local@1.6.6
+    - @dexto/image-logger-agent@1.6.6
+    - @dexto/registry@1.6.6
+    - @dexto/server@1.6.6
+    - @dexto/storage@1.6.6
+    - @dexto/tui@1.6.6
+
+## 1.6.5
+
+### Patch Changes
+
+- 60aab0e: Fix windows build for binary distribution
+- 19a4983: Update scripts to remove single quotes for windows compat
+- Updated dependencies [60aab0e]
+- Updated dependencies [19a4983]
+    - @dexto/agent-config@1.6.5
+    - @dexto/agent-management@1.6.5
+    - @dexto/analytics@1.6.5
+    - @dexto/core@1.6.5
+    - @dexto/image-local@1.6.5
+    - @dexto/image-logger-agent@1.6.5
+    - @dexto/registry@1.6.5
+    - @dexto/server@1.6.5
+    - @dexto/storage@1.6.5
+    - @dexto/tui@1.6.5
+
+## 1.6.4
+
+### Patch Changes
+
+- 7cb9082: Bump to test binary distribution
+- Updated dependencies [7cb9082]
+    - @dexto/agent-config@1.6.4
+    - @dexto/agent-management@1.6.4
+    - @dexto/analytics@1.6.4
+    - @dexto/core@1.6.4
+    - @dexto/image-local@1.6.4
+    - @dexto/image-logger-agent@1.6.4
+    - @dexto/registry@1.6.4
+    - @dexto/server@1.6.4
+    - @dexto/storage@1.6.4
+    - @dexto/tui@1.6.4
+
+## 1.6.3
+
+### Patch Changes
+
+- 991739a: - Add a GitHub Actions workflow to build and upload standalone CLI binaries to existing `dexto@*` releases.
+    - Add `scripts/build-standalone-binaries.sh` to compile multi-platform Bun executables, package runtime `dist/` assets, and generate SHA-256 checksums.
+    - Improve standalone binary runtime bootstrapping by auto-setting `DEXTO_PACKAGE_ROOT` from the executable directory and extending WebUI asset resolution fallback paths.
+- Updated dependencies [991739a]
+    - @dexto/image-local@1.6.3
+    - @dexto/image-logger-agent@1.6.3
+    - @dexto/server@1.6.3
+    - @dexto/core@1.6.3
+    - @dexto/storage@1.6.3
+    - @dexto/agent-config@1.6.3
+    - @dexto/agent-management@1.6.3
+    - @dexto/analytics@1.6.3
+    - @dexto/registry@1.6.3
+    - @dexto/tui@1.6.3
+
+## 1.6.2
+
+### Patch Changes
+
+- 5e6383d: Add reasoning presets + reasoning trace controls across CLI/WebUI:
+    - Introduce structured reasoning config (preset + optional budget tokens) with provider-aware reasoning presets (`off|low|medium|high|max|xhigh`) and validate availability via the LLM registry (including the dynamic OpenRouter catalog).
+    - Map presets to provider-native knobs (e.g. OpenAI `reasoningEffort`, budget-token models) and reuse the same behavior across gateways (OpenRouter / Dexto Nova / native).
+    - Rename “reasoning effort” terminology to “reasoning preset” throughout the UX.
+    - CLI: Tab cycles the active reasoning preset; reasoning traces can be displayed in the transcript.
+    - Add `/reasoning` overlay to toggle reasoning trace visibility and (when supported) set/clear budget tokens.
+    - Enable Claude interleaved thinking for Claude 4+ models and align gateway/provider request headers so reasoning tuning behaves consistently (OpenRouter / Dexto Nova / native).
+    - Improve `/model` to surface all gateway models (OpenRouter/Dexto Nova) and their reasoning capability metadata.
+    - Default spawned sub-agents to reduced/no reasoning to avoid long-running spawned tasks.
+
+- feef3b3: Fix Ink CLI `/login` flow and add interactive `/logout`.
+- 1b3a411: Migrate ink-cli stuff to separate TUI package
+- 7b2c395: Added skill creation and management tools.
+- 30f2840: Add bypass permissions feature
+- Updated dependencies [669f16e]
+- Updated dependencies [5e6383d]
+- Updated dependencies [1b3a411]
+- Updated dependencies [7b2c395]
+    - @dexto/analytics@1.6.2
+    - @dexto/agent-management@1.6.2
+    - @dexto/server@1.6.2
+    - @dexto/core@1.6.2
+    - @dexto/tui@1.6.2
+    - @dexto/agent-config@1.6.2
+    - @dexto/image-local@1.6.2
+    - @dexto/image-logger-agent@1.6.2
+    - @dexto/storage@1.6.2
+    - @dexto/registry@1.6.2
+
 ## 1.6.1
 
 ### Patch Changes

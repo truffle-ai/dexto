@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'fs';
-import { createRequire } from 'module';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { Command } from 'commander';
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
@@ -8,12 +8,50 @@ import { initAnalytics, capture, getWebUIAnalyticsConfig } from './analytics/ind
 import { withAnalytics, safeExit, ExitSignal } from './analytics/wrapper.js';
 import { createFileSessionLoggerFactory } from './utils/session-logger-factory.js';
 
-// Use createRequire to import package.json without experimental warning
-const require = createRequire(import.meta.url);
-const pkg = require('../package.json');
+function readVersionFromPackageJson(packageJsonPath: string): string | undefined {
+    if (!existsSync(packageJsonPath)) {
+        return undefined;
+    }
+
+    try {
+        const content = readFileSync(packageJsonPath, 'utf-8');
+        const pkg = JSON.parse(content) as { version?: unknown };
+        if (typeof pkg.version === 'string' && pkg.version.length > 0) {
+            return pkg.version;
+        }
+    } catch {
+        // Ignore parse/read errors and fall back.
+    }
+
+    return undefined;
+}
+
+function resolveCliVersion(): string {
+    // Regular installs (npm/pnpm): package.json is next to dist/.
+    const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+    const localPackageJsonPath = path.resolve(scriptDir, '..', 'package.json');
+    const localVersion = readVersionFromPackageJson(localPackageJsonPath);
+    if (localVersion) {
+        return localVersion;
+    }
+
+    // Standalone release archives ship package.json next to the executable.
+    const packageRoot = getDextoPackageRoot();
+    if (packageRoot) {
+        const packageJsonPath = path.join(packageRoot, 'package.json');
+        const packageVersion = readVersionFromPackageJson(packageJsonPath);
+        if (packageVersion) {
+            return packageVersion;
+        }
+    }
+
+    return process.env.DEXTO_CLI_VERSION || '0.0.0';
+}
+
+const cliVersion = resolveCliVersion();
 
 // Set CLI version for Dexto Gateway usage tracking
-process.env.DEXTO_CLI_VERSION = pkg.version;
+process.env.DEXTO_CLI_VERSION = cliVersion;
 
 // Populate DEXTO_API_KEY for Dexto gateway routing
 // Resolution order in getDextoApiKey():
@@ -51,6 +89,7 @@ import {
     type ValidatedAgentConfig,
 } from '@dexto/agent-config';
 import {
+    getDextoPackageRoot,
     resolveAgentPath,
     loadAgentConfig,
     globalPreferencesExist,
@@ -132,11 +171,11 @@ const program = new Command();
 setImageImporter((specifier) => importImageModule(specifier));
 
 // Initialize analytics early (no-op if disabled)
-await initAnalytics({ appVersion: pkg.version });
+await initAnalytics({ appVersion: cliVersion });
 
 // Start version check early (non-blocking)
 // We'll check the result later and display notification for interactive modes
-const versionCheckPromise = checkForUpdates(pkg.version);
+const versionCheckPromise = checkForUpdates(cliVersion);
 
 // Start self-updating LLM registry refresh (models.dev + OpenRouter mapping).
 // Uses a cached snapshot on disk and refreshes in the background.
@@ -146,7 +185,7 @@ startLlmRegistryAutoUpdate();
 program
     .name('dexto')
     .description('AI-powered CLI and WebUI for interacting with MCP servers.')
-    .version(pkg.version, '-v, --version', 'output the current version')
+    .version(cliVersion, '-v, --version', 'output the current version')
     .option('-a, --agent <id|path>', 'Agent ID or path to agent config file')
     .option('-p, --prompt <text>', 'Start the interactive CLI and immediately run the prompt')
     .option('-s, --strict', 'Require all server connections to succeed')
@@ -956,19 +995,23 @@ const authCommand = program.command('auth').description('Manage authentication')
 authCommand
     .command('login')
     .description('Login to Dexto')
-    .option('--api-key <key>', 'Use Dexto API key instead of browser login')
+    .option('--api-key <key>', 'Use Dexto API key instead of device-code login')
+    .option('--token <token>', 'Use an existing Supabase access token')
     .option('--no-interactive', 'Disable interactive prompts')
     .action(
-        withAnalytics('auth login', async (options: { apiKey?: string; interactive?: boolean }) => {
-            try {
-                await handleLoginCommand(options);
-                safeExit('auth login', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto auth login command failed: ${err}`);
-                safeExit('auth login', 1, 'error');
+        withAnalytics(
+            'auth login',
+            async (options: { apiKey?: string; token?: string; interactive?: boolean }) => {
+                try {
+                    await handleLoginCommand(options);
+                    safeExit('auth login', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto auth login command failed: ${err}`);
+                    safeExit('auth login', 1, 'error');
+                }
             }
-        })
+        )
     );
 
 authCommand
@@ -1012,19 +1055,23 @@ authCommand
 program
     .command('login')
     .description('Login to Dexto (alias for `dexto auth login`)')
-    .option('--api-key <key>', 'Use Dexto API key instead of browser login')
+    .option('--api-key <key>', 'Use Dexto API key instead of device-code login')
+    .option('--token <token>', 'Use an existing Supabase access token')
     .option('--no-interactive', 'Disable interactive prompts')
     .action(
-        withAnalytics('login', async (options: { apiKey?: string; interactive?: boolean }) => {
-            try {
-                await handleLoginCommand(options);
-                safeExit('login', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto login command failed: ${err}`);
-                safeExit('login', 1, 'error');
+        withAnalytics(
+            'login',
+            async (options: { apiKey?: string; token?: string; interactive?: boolean }) => {
+                try {
+                    await handleLoginCommand(options);
+                    safeExit('login', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto login command failed: ${err}`);
+                    safeExit('login', 1, 'error');
+                }
             }
-        })
+        )
     );
 
 program
@@ -1417,7 +1464,7 @@ program
                                 const { handleLoginCommand } = await import(
                                     './cli/commands/auth/login.js'
                                 );
-                                await handleLoginCommand({ interactive: true });
+                                await handleLoginCommand();
 
                                 // Verify key was actually provisioned (provisionKeys silently catches errors)
                                 const { canUseDextoProvider } = await import(
@@ -1825,9 +1872,56 @@ program
 
                         let inkError: unknown = undefined;
                         try {
-                            const { startInkCliRefactored } = await import(
-                                './cli/ink-cli/InkCLIRefactored.js'
-                            );
+                            const [
+                                { startInkCliRefactored, setTuiRuntimeServices },
+                                { registerGracefulShutdown },
+                                { applyLayeredEnvironmentLoading },
+                                {
+                                    getProviderDisplayName,
+                                    isValidApiKeyFormat,
+                                    getProviderInstructions,
+                                },
+                                {
+                                    performDeviceCodeLogin,
+                                    persistOAuthLoginResult,
+                                    ensureDextoApiKeyForAuthToken,
+                                    loadAuth,
+                                    storeAuth,
+                                    removeAuth,
+                                    removeDextoApiKeyFromEnv,
+                                },
+                                { isUsingDextoCredits },
+                                { canUseDextoProvider },
+                            ] = await Promise.all([
+                                import('@dexto/tui'),
+                                import('./utils/graceful-shutdown.js'),
+                                import('./utils/env.js'),
+                                import('./cli/utils/provider-setup.js'),
+                                import('./cli/auth/index.js'),
+                                import('./config/effective-llm.js'),
+                                import('./cli/utils/dexto-setup.js'),
+                            ]);
+
+                            setTuiRuntimeServices({
+                                registerGracefulShutdown,
+                                capture: (event, properties) => {
+                                    capture(event as never, properties as never);
+                                },
+                                applyLayeredEnvironmentLoading,
+                                getProviderDisplayName,
+                                isValidApiKeyFormat,
+                                getProviderInstructions,
+                                performDeviceCodeLogin,
+                                persistOAuthLoginResult,
+                                ensureDextoApiKeyForAuthToken,
+                                loadAuth,
+                                storeAuth,
+                                removeAuth,
+                                removeDextoApiKeyFromEnv,
+                                isUsingDextoCredits,
+                                canUseDextoProvider,
+                            });
+
                             await startInkCliRefactored(agent, cliSessionId, {
                                 updateInfo: cliUpdateInfo ?? undefined,
                                 configFilePath: resolvedPath,

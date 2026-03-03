@@ -20,6 +20,9 @@ This runs `scripts/quality-checks.sh` for build, tests, lint, and typecheck. See
 - Read relevant code before recommending changes. Prefer grep/glob + direct file references over assumptions.
 - If something requires assumptions, state them and ask for confirmation.
 - Don't communicate to the user via code comments. Comments are for future readers of the code, not for explaining decisions to the user.
+- Keep npm/pnpm scripts cross-platform (Unix + Windows):
+    - In `package.json` scripts, avoid single-quoted CLI arguments like `--filter='...'` or `--exclude '...'` because Windows `cmd.exe` treats single quotes as literal characters.
+    - Prefer unquoted `--flag=value` when possible, or escaped double quotes (`\"...\"`) for glob patterns.
 
 ## Stack Rules (important)
 
@@ -45,8 +48,11 @@ These rules are intended to prevent stack fragmentation and review churn.
 
 - Entry point: `packages/cli/src/cli/index.ts`
 - Static commands (e.g., `dexto init`, `dexto setup`): `packages/cli/src/cli/commands/`
-- Interactive CLI commands (e.g., `/help`, `/compact`): `packages/cli/src/cli/commands/interactive-commands/`
-- Ink-based UI components: `packages/cli/src/cli/ink-cli/`
+
+### TUI (`packages/tui`)
+
+- Interactive CLI commands (e.g., `/help`, `/compact`): `packages/tui/src/interactive-commands/`
+- Ink-based UI components: `packages/tui/src/`
 
 ### Other Important Packages
 

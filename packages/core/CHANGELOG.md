@@ -1,5 +1,50 @@
 # @dexto/core
 
+## 1.6.8
+
+## 1.6.7
+
+### Patch Changes
+
+- 785978b: Fix upload standalone bianries release tag finding logic
+
+## 1.6.6
+
+### Patch Changes
+
+- 7e2bcd2: fix windows escape sequence
+
+## 1.6.5
+
+### Patch Changes
+
+- 60aab0e: Fix windows build for binary distribution
+- 19a4983: Update scripts to remove single quotes for windows compat
+
+## 1.6.4
+
+### Patch Changes
+
+- 7cb9082: Bump to test binary distribution
+
+## 1.6.3
+
+## 1.6.2
+
+### Patch Changes
+
+- 5e6383d: Add reasoning presets + reasoning trace controls across CLI/WebUI:
+    - Introduce structured reasoning config (preset + optional budget tokens) with provider-aware reasoning presets (`off|low|medium|high|max|xhigh`) and validate availability via the LLM registry (including the dynamic OpenRouter catalog).
+    - Map presets to provider-native knobs (e.g. OpenAI `reasoningEffort`, budget-token models) and reuse the same behavior across gateways (OpenRouter / Dexto Nova / native).
+    - Rename “reasoning effort” terminology to “reasoning preset” throughout the UX.
+    - CLI: Tab cycles the active reasoning preset; reasoning traces can be displayed in the transcript.
+    - Add `/reasoning` overlay to toggle reasoning trace visibility and (when supported) set/clear budget tokens.
+    - Enable Claude interleaved thinking for Claude 4+ models and align gateway/provider request headers so reasoning tuning behaves consistently (OpenRouter / Dexto Nova / native).
+    - Improve `/model` to surface all gateway models (OpenRouter/Dexto Nova) and their reasoning capability metadata.
+    - Default spawned sub-agents to reduced/no reasoning to avoid long-running spawned tasks.
+
+- 7b2c395: Added skill creation and management tools.
+
 ## 1.6.1
 
 ### Patch Changes
