@@ -891,6 +891,7 @@ async function bootstrapAgentFromGlobalOpts(options: { mode: BootstrapAgentMode 
 }
 
 const HEADLESS_TOOL_OUTPUT_MAX_LINES = 20;
+const HEADLESS_SECTION_SEPARATOR = '========================================';
 
 type HeadlessToolCallState = {
     toolName: string;
@@ -906,6 +907,22 @@ type HeadlessRunResult = {
 
 function writeHeadlessLine(line: string = ''): void {
     process.stderr.write(`${line}\n`);
+}
+
+function writeHeadlessSeparator(): void {
+    writeHeadlessLine(HEADLESS_SECTION_SEPARATOR);
+}
+
+function writeHeadlessTaggedLine(tag: string, message: string): void {
+    writeHeadlessLine(`[${tag}] ${message}`);
+}
+
+function writeHeadlessTaggedBlock(tag: string, content: string): void {
+    writeHeadlessLine(`[${tag}]`);
+    const lines = content.length > 0 ? content.split('\n') : [''];
+    for (const line of lines) {
+        writeHeadlessLine(`| ${line}`);
+    }
 }
 
 function formatHeadlessDuration(durationMs: number): string {
@@ -1042,7 +1059,7 @@ function printHeadlessMcpStartup(agent: DextoAgent): void {
     const serverStatuses = agent.getMcpServersWithStatus().filter((server) => server.enabled);
 
     if (serverStatuses.length === 0) {
-        writeHeadlessLine('mcp startup: no servers');
+        writeHeadlessTaggedLine('MCP', 'startup: no servers');
         return;
     }
 
@@ -1052,13 +1069,13 @@ function printHeadlessMcpStartup(agent: DextoAgent): void {
     for (const server of serverStatuses) {
         if (server.status === 'connected') {
             readyServers.push(server.name);
-            writeHeadlessLine(`mcp: ${server.name} ready`);
+            writeHeadlessTaggedLine('MCP', `${server.name} ready`);
             continue;
         }
 
         failedServers.push(server.name);
         const reason = server.error ? `failed: ${server.error}` : `failed: ${server.status}`;
-        writeHeadlessLine(`mcp: ${server.name} ${reason}`);
+        writeHeadlessTaggedLine('MCP', `${server.name} ${reason}`);
     }
 
     const summaryParts: string[] = [];
@@ -1069,7 +1086,7 @@ function printHeadlessMcpStartup(agent: DextoAgent): void {
         summaryParts.push(`failed: ${failedServers.join(', ')}`);
     }
 
-    writeHeadlessLine(`mcp startup: ${summaryParts.join('; ')}`);
+    writeHeadlessTaggedLine('MCP', `startup: ${summaryParts.join('; ')}`);
 }
 
 function printHeadlessRunSummary(
@@ -1080,17 +1097,18 @@ function printHeadlessRunSummary(
 ): void {
     const llmConfig = agent.getCurrentLLMConfig(sessionId);
 
-    writeHeadlessLine(`Dexto CLI v${cliVersion}`);
-    writeHeadlessLine('--------');
+    writeHeadlessSeparator();
+    writeHeadlessTaggedLine('RUN', `Dexto CLI v${cliVersion}`);
+    writeHeadlessSeparator();
+    writeHeadlessLine('[CONFIG]');
     writeHeadlessLine(`workdir: ${process.cwd()}`);
     writeHeadlessLine(`agent: ${agentPath}`);
     writeHeadlessLine(`model: ${llmConfig.model}`);
     writeHeadlessLine(`provider: ${llmConfig.provider}`);
     writeHeadlessLine(`approval: ${agent.config.permissions.mode}`);
     writeHeadlessLine(`session id: ${sessionId}`);
-    writeHeadlessLine('--------');
-    writeHeadlessLine('user');
-    writeHeadlessLine(prompt);
+    writeHeadlessSeparator();
+    writeHeadlessTaggedBlock('USER', prompt);
 }
 
 function writeFinalMessageToStdout(message: string): void {
@@ -1122,8 +1140,9 @@ async function executeHeadlessRun(
                     startedAt: Date.now(),
                 };
                 toolCallState.set(callKey, call);
-                writeHeadlessLine(
-                    `tool ${formatToolInvocationForHeadless(call.toolName, call.args)}`
+                writeHeadlessTaggedLine(
+                    'TOOL',
+                    formatToolInvocationForHeadless(call.toolName, call.args)
                 );
                 break;
             }
@@ -1157,12 +1176,12 @@ async function executeHeadlessRun(
                 const durationText = matchedCall
                     ? ` in ${formatHeadlessDuration(Date.now() - matchedCall.startedAt)}`
                     : '';
-                const status = event.success ? 'success' : 'failed';
+                const statusTag = event.success ? 'TOOL:OK' : 'TOOL:ERR';
 
-                writeHeadlessLine(`${invocation} ${status}${durationText}:`);
+                writeHeadlessTaggedLine(statusTag, `${invocation}${durationText}`);
                 const output = extractToolOutputForHeadless(event);
                 if (output && output.trim().length > 0) {
-                    writeHeadlessLine(truncateOutputForHeadless(output));
+                    writeHeadlessTaggedBlock('TOOL:OUT', truncateOutputForHeadless(output));
                 }
 
                 if (matchedCallKey) {
@@ -1178,14 +1197,14 @@ async function executeHeadlessRun(
             }
 
             case 'llm:unsupported-input': {
-                writeHeadlessLine(`warning: ${event.errors.join('; ')}`);
+                writeHeadlessTaggedLine('WARNING', event.errors.join('; '));
                 break;
             }
 
             case 'llm:error': {
                 if (!event.recoverable) {
                     fatalError = event.error;
-                    writeHeadlessLine(`error: ${event.error.message}`);
+                    writeHeadlessTaggedLine('ERROR', event.error.message);
                 }
                 break;
             }
@@ -1193,7 +1212,7 @@ async function executeHeadlessRun(
             case 'run:complete': {
                 if (event.finishReason === 'error' && event.error) {
                     fatalError = event.error;
-                    writeHeadlessLine(`error: ${event.error.message}`);
+                    writeHeadlessTaggedLine('ERROR', event.error.message);
                 }
                 break;
             }
@@ -1260,7 +1279,7 @@ Examples:
             try {
                 const prompt = await resolveHeadlessPrompt(promptArg);
                 if (prompt.trim().length === 0) {
-                    writeHeadlessLine('❌ Prompt cannot be empty.');
+                    writeHeadlessTaggedLine('ERROR', 'Prompt cannot be empty.');
                     exitCode = 1;
                     exitReason = 'empty-prompt';
                 } else {
@@ -1279,19 +1298,19 @@ Examples:
                     const runResult = await executeHeadlessRun(agent, session.id, prompt);
 
                     if (runResult.finalMessage !== undefined) {
-                        writeHeadlessLine('dexto');
-                        writeHeadlessLine(runResult.finalMessage);
+                        writeHeadlessSeparator();
+                        writeHeadlessTaggedBlock('DEXTO', runResult.finalMessage);
 
                         if (typeof runResult.totalTokens === 'number') {
-                            writeHeadlessLine('tokens used');
-                            writeHeadlessLine(
+                            writeHeadlessTaggedLine(
+                                'TOKENS',
                                 new Intl.NumberFormat('en-US').format(runResult.totalTokens)
                             );
                         }
 
                         writeFinalMessageToStdout(runResult.finalMessage);
                     } else {
-                        writeHeadlessLine('❌ No final response was produced.');
+                        writeHeadlessTaggedLine('ERROR', 'No final response was produced.');
                         exitCode = 1;
                         exitReason = 'no-final-response';
                     }
@@ -1304,7 +1323,7 @@ Examples:
             } catch (err) {
                 if (err instanceof ExitSignal) throw err;
                 const errorMessage = err instanceof Error ? err.message : String(err);
-                writeHeadlessLine(`❌ dexto run failed: ${errorMessage}`);
+                writeHeadlessTaggedLine('ERROR', `dexto run failed: ${errorMessage}`);
                 exitCode = 1;
                 exitReason = 'error';
             } finally {
