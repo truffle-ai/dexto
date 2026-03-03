@@ -1,5 +1,21 @@
 # dexto
 
+## 1.6.8
+
+### Patch Changes
+
+- 35051d2: Improve standalone binary release reliability across platforms by hardening SEA runtime packaging and extraction in the build/release workflows.
+    - @dexto/core@1.6.8
+    - @dexto/storage@1.6.8
+    - @dexto/agent-config@1.6.8
+    - @dexto/agent-management@1.6.8
+    - @dexto/analytics@1.6.8
+    - @dexto/registry@1.6.8
+    - @dexto/server@1.6.8
+    - @dexto/image-local@1.6.8
+    - @dexto/image-logger-agent@1.6.8
+    - @dexto/tui@1.6.8
+
 ## 1.6.7
 
 ### Patch Changes
