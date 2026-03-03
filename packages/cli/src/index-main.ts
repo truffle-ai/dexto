@@ -858,7 +858,6 @@ async function bootstrapAgentFromGlobalOpts(options: {
         // Headless run keeps output deterministic and noise-free.
         // Other non-interactive commands keep visible logs.
         logLevel: isHeadlessRun ? 'error' : 'info',
-        ...(isHeadlessRun ? { isInteractiveCli: true } : {}),
     });
 
     if (isHeadlessRun) {
