@@ -92,7 +92,8 @@ export function getDextoPath(type: string, filename?: string, startPath?: string
  * @param type Path type (agents, cache, etc.)
  * @param filename Optional filename to append
  * @param startPath Optional starting path for execution-context detection
- * @returns Absolute path to the global location (~/.dexto/...)
+ * @returns Absolute path to the resolved location (home override, source-local,
+ * or global ~/.dexto), with filename appended when provided
  */
 export function getDextoGlobalPath(type: string, filename?: string, startPath?: string): string {
     const homeOverride = getDextoHomeDirOverride();
