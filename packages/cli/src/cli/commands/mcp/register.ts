@@ -46,6 +46,7 @@ export function registerMcpCommand({ program }: McpCommandRegisterContext): void
                             );
                             console.error('Usage: dexto mcp --group-servers');
                             safeExit('mcp', 1, 'missing-group-servers');
+                            return;
                         }
 
                         // Load and resolve config
@@ -66,6 +67,7 @@ export function registerMcpCommand({ program }: McpCommandRegisterContext): void
                                 '❌ No MCP servers configured. Please configure mcpServers in your config file.'
                             );
                             safeExit('mcp', 1, 'no-mcp-servers');
+                            return;
                         }
 
                         const { ServersConfigSchema } = await import('@dexto/core');
