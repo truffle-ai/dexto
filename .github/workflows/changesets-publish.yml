@@ -31,7 +31,7 @@ jobs:
     outputs:
       published: ${{ steps.changesets.outputs.published }}
       published_packages: ${{ steps.changesets.outputs.publishedPackages }}
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     env:
       NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -61,7 +61,7 @@ jobs:
   derive-dexto-release-tag:
     needs: release
     if: needs.release.outputs.published == 'true'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       release_tag: ${{ steps.tag.outputs.release_tag }}
       version: ${{ steps.tag.outputs.version }}
@@ -101,7 +101,7 @@ jobs:
             target: darwin-x64
           - runner: ubuntu-24.04
             target: linux-x64
-          - runner: ubuntu-24.04-arm
+          - runner: blacksmith-4vcpu-ubuntu-2404-arm
             target: linux-arm64
           - runner: windows-latest
             target: windows-x64
@@ -161,7 +161,7 @@ jobs:
       - derive-dexto-release-tag
       - build-standalone-binaries
     if: needs.derive-dexto-release-tag.outputs.release_tag != ''
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     env:
       RELEASE_TAG: ${{ needs.derive-dexto-release-tag.outputs.release_tag }}
       VERSION: ${{ needs.derive-dexto-release-tag.outputs.version }}

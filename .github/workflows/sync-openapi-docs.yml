@@ -13,7 +13,7 @@ permissions:
 jobs:
   sync:
     name: Ensure OpenAPI docs are in sync
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Checkout PR head
         uses: actions/checkout@v4
