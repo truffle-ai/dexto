@@ -232,7 +232,7 @@ export function resolveBundledScript(scriptPath: string): string {
 }
 
 /**
- * Ensure resolved dexto global directory exists for global storage.
+ * Ensure the resolved dexto storage directory exists.
  */
 export async function ensureDextoGlobalDirectory(): Promise<void> {
     const dextoDir = getDextoGlobalPath('');
