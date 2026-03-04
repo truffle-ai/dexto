@@ -1358,10 +1358,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                               const isSelected = actualIndex === selectedIndex;
 
                               const providerDisplay = getLLMProviderDisplayName(item.provider);
-                              const name =
-                                  item.displayName && item.displayName !== item.name
-                                      ? `${item.displayName} [${item.name}]`
-                                      : item.displayName || item.name;
+                              const name = item.displayName || item.name;
                               const isFavorite = favoriteKeySet.has(
                                   toModelPickerKey({
                                       provider: item.provider,
@@ -1396,7 +1393,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 </Box>
             </Box>
 
-            <Box paddingX={0} paddingY={0} width={overlayWidth}>
+            <Box paddingX={0} paddingY={0} marginTop={1} width={overlayWidth}>
                 <HintBar
                     hints={[
                         '↑↓ navigate',
