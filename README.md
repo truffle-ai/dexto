@@ -98,13 +98,51 @@ The coding agent is just one example of what you can build. Create your own agen
 ### Install
 
 ```bash
-# Install globally via npm
-npm install -g dexto
+# macOS / Linux / WSL (native installer, recommended)
+curl -fsSL https://dexto.ai/install | bash
+
+# Windows PowerShell
+irm https://dexto.ai/install.ps1 | iex
 
 # Or build from source
 git clone https://github.com/truffle-ai/dexto.git
 cd dexto && pnpm install && pnpm install-cli
 ```
+
+### Upgrade CLI
+
+```bash
+# Upgrade to latest
+dexto upgrade
+
+# Upgrade to a specific version
+dexto upgrade 1.6.8
+```
+
+### Uninstall CLI
+
+```bash
+# Preview what will be removed
+dexto uninstall-cli --dry-run
+
+# Remove CLI binary + cache (default)
+dexto uninstall-cli
+
+# Also remove config and agent/data directories
+dexto uninstall-cli --remove-config --remove-data --force
+```
+
+### Troubleshooting Multiple Installs In PATH
+
+If you previously installed Dexto with npm/pnpm/bun, `dexto upgrade` auto-migrates to native install.
+
+If your shell still resolves an older binary first, run:
+
+```bash
+which -a dexto
+```
+
+Then remove stale installs and run `dexto upgrade` again.
 
 ### Run
 

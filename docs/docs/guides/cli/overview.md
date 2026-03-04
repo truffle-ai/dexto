@@ -165,6 +165,45 @@ dexto uninstall --all
 - `--all` - Uninstall all installed agents
 - `--force` - Force uninstall even if agent is protected (e.g., coding-agent)
 
+### `upgrade` - Upgrade Dexto CLI
+
+Upgrade the Dexto CLI itself. If an older npm/pnpm/bun global install is detected, this command migrates to native installer automatically.
+
+```bash
+# Upgrade to latest
+dexto upgrade
+
+# Upgrade to a specific version
+dexto upgrade 1.6.8
+```
+
+**Options:**
+- `--dry-run` - Print install/migration commands without executing
+- `--force` - Force reinstall for native install target
+
+### `uninstall-cli` - Uninstall Dexto CLI
+
+Uninstall the Dexto CLI binary (this is separate from `dexto uninstall`, which removes agents).
+
+```bash
+# Remove CLI binary + cache (default)
+dexto uninstall-cli
+
+# Preview changes
+dexto uninstall-cli --dry-run
+
+# Also remove config and agent/data directories
+dexto uninstall-cli --remove-config --remove-data --force
+```
+
+**Options:**
+- `--keep-config` - Keep config files (default)
+- `--keep-data` - Keep data directories (default)
+- `--remove-config` - Remove config files (requires `--force`)
+- `--remove-data` - Remove data directories (requires `--force`)
+- `--dry-run` - Show what would be removed
+- `--force` - Required when removing config/data
+
 ### `sync-agents` - Sync Agent Configs
 
 Sync installed agents with bundled versions after Dexto updates.

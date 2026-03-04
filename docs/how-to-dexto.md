@@ -10,9 +10,9 @@ This document provides a concise guide for using the Dexto agent runtime, optimi
 Dexto is a lightweight runtime for creating and running AI agents. It translates natural language prompts into actions using configured tools and LLMs. It can be controlled via CLI, a programmatic SDK, or a REST API.
 
 ### Installation
-Install the Dexto CLI globally via npm:
+Install the Dexto CLI via native installer:
 ```bash
-npm install -g dexto
+curl -fsSL https://dexto.ai/install | bash
 ```
 
 ### LLM API Keys
