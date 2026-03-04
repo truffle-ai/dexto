@@ -1,6 +1,4 @@
 import type { Command } from 'commander';
-import { logger } from '@dexto/core';
-import { resolveAgentPath, loadAgentConfig } from '@dexto/agent-management';
 import { withAnalytics, safeExit, ExitSignal } from '../../../analytics/wrapper.js';
 
 export interface McpCommandRegisterContext {
@@ -33,12 +31,6 @@ export function registerMcpCommand({ program }: McpCommandRegisterContext): void
                     version: string;
                 }) => {
                     try {
-                        const [{ createMcpTransport }, { initializeMcpToolAggregationServer }] =
-                            await Promise.all([
-                                import('@dexto/server'),
-                                import('../../../api/mcp/tool-aggregation-handler.js'),
-                            ]);
-
                         // Validate that --group-servers flag is provided (mandatory for now)
                         if (!options.groupServers) {
                             console.error(
@@ -49,6 +41,14 @@ export function registerMcpCommand({ program }: McpCommandRegisterContext): void
                             return;
                         }
 
+                        const [
+                            { logger, ServersConfigSchema },
+                            { resolveAgentPath, loadAgentConfig },
+                        ] = await Promise.all([
+                            import('@dexto/core'),
+                            import('@dexto/agent-management'),
+                        ]);
+
                         // Load and resolve config
                         // Get the global agent option from the main program
                         const globalOpts = program.opts();
@@ -57,7 +57,7 @@ export function registerMcpCommand({ program }: McpCommandRegisterContext): void
                             globalOpts.autoInstall !== false
                         );
 
-                        console.log(`📄 Loading Dexto config from: ${configPath}`);
+                        logger.info(`Loading Dexto config from: ${configPath}`);
                         const config = await loadAgentConfig(configPath);
 
                         logger.info('Validating MCP servers...');
@@ -70,11 +70,16 @@ export function registerMcpCommand({ program }: McpCommandRegisterContext): void
                             return;
                         }
 
-                        const { ServersConfigSchema } = await import('@dexto/core');
                         const validatedServers = ServersConfigSchema.parse(config.mcpServers);
                         logger.info(
                             `Validated MCP servers. Configured servers: ${Object.keys(validatedServers).join(', ')}`
                         );
+
+                        const [{ createMcpTransport }, { initializeMcpToolAggregationServer }] =
+                            await Promise.all([
+                                import('@dexto/server'),
+                                import('../../../api/mcp/tool-aggregation-handler.js'),
+                            ]);
 
                         // Logs are already redirected to file by default to prevent interference with stdio transport
                         const currentLogPath = logger.getLogFilePath();
