@@ -322,7 +322,6 @@ program
 // 8) `uninstall` SUB-COMMAND (CLI self uninstall)
 program
     .command('uninstall')
-    .alias('uninstall-cli')
     .description('Uninstall the Dexto CLI binary (does not uninstall agents)')
     .option('--keep-config', 'Keep config files (default)')
     .option('--keep-data', 'Keep data directories (default)')
