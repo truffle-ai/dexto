@@ -124,8 +124,8 @@ async function ensureDextoApiKeyBootstrap(): Promise<void> {
     if (dextoApiKeyBootstrapped) {
         return;
     }
-    dextoApiKeyBootstrapped = true;
     if (!isDextoAuthEnabled()) {
+        dextoApiKeyBootstrapped = true;
         return;
     }
     const { getDextoApiKey } = await import('./cli/auth/index.js');
@@ -133,6 +133,7 @@ async function ensureDextoApiKeyBootstrap(): Promise<void> {
     if (dextoApiKey) {
         process.env.DEXTO_API_KEY = dextoApiKey;
     }
+    dextoApiKeyBootstrapped = true;
 }
 
 async function getVersionCheckResult(): Promise<UpdateInfo | null> {
