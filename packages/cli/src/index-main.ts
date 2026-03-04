@@ -95,15 +95,12 @@ import { registerBillingCommand } from './cli/commands/billing/register.js';
 import { registerMcpCommand } from './cli/commands/mcp/register.js';
 import { registerImageCommand } from './cli/commands/image/register.js';
 import { registerPluginCommand } from './cli/commands/plugin/register.js';
+import { registerAgentsCommand } from './cli/commands/agents/register.js';
 import type { BootstrapAgentMode } from './cli/commands/register-context.js';
 import type { MainModeOptions } from './cli/modes/context.js';
 import type { CLIConfigOverrides } from './config/cli-overrides.js';
 import type { CreateAppOptions } from './cli/commands/create-app.js';
 import type { CLISetupOptionsInput } from './cli/commands/setup.js';
-import type { InstallCommandOptions } from './cli/commands/install.js';
-import type { UninstallCommandOptions } from './cli/commands/uninstall.js';
-import type { ListAgentsCommandOptionsInput } from './cli/commands/list-agents.js';
-import type { SyncAgentsCommandOptions } from './cli/commands/sync-agents.js';
 
 const program = new Command();
 
@@ -295,85 +292,9 @@ program
         })
     );
 
-// 6) `install` SUB-COMMAND
-program
-    .command('install [agents...]')
-    .description('Install agents from registry or custom YAML files/directories')
-    .option('--all', 'Install all available agents from registry')
-    .option('--no-inject-preferences', 'Skip injecting global preferences into installed agents')
-    .option('--force', 'Force reinstall even if agent is already installed')
-    .addHelpText(
-        'after',
-        `
-Examples:
-  $ dexto install coding-agent               Install agent from registry
-  $ dexto install agent1 agent2              Install multiple registry agents
-  $ dexto install --all                      Install all available registry agents
-  $ dexto install ./my-agent.yml             Install custom agent from YAML file
-  $ dexto install ./my-agent-dir/            Install custom agent from directory (interactive)`
-    )
-    .action(
-        withAnalytics(
-            'install',
-            async (agents: string[] = [], options: Partial<InstallCommandOptions>) => {
-                try {
-                    const { handleInstallCommand } = await import('./cli/commands/install.js');
-                    await handleInstallCommand(agents, options);
-                    safeExit('install', 0);
-                } catch (err) {
-                    if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto install command failed: ${err}`);
-                    safeExit('install', 1, 'error');
-                }
-            }
-        )
-    );
+registerAgentsCommand({ program });
 
-// 7) `uninstall` SUB-COMMAND
-program
-    .command('uninstall [agents...]')
-    .description('Uninstall agents from the local installation')
-    .option('--all', 'Uninstall all installed agents')
-    .option('--force', 'Force uninstall even if agent is protected (e.g., coding-agent)')
-    .action(
-        withAnalytics(
-            'uninstall',
-            async (agents: string[], options: Partial<UninstallCommandOptions>) => {
-                try {
-                    const { handleUninstallCommand } = await import('./cli/commands/uninstall.js');
-                    await handleUninstallCommand(agents, options);
-                    safeExit('uninstall', 0);
-                } catch (err) {
-                    if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto uninstall command failed: ${err}`);
-                    safeExit('uninstall', 1, 'error');
-                }
-            }
-        )
-    );
-
-// 8) `list-agents` SUB-COMMAND
-program
-    .command('list-agents')
-    .description('List available and installed agents')
-    .option('--verbose', 'Show detailed agent information')
-    .option('--installed', 'Show only installed agents')
-    .option('--available', 'Show only available agents')
-    .action(
-        withAnalytics('list-agents', async (options: ListAgentsCommandOptionsInput) => {
-            try {
-                const { handleListAgentsCommand } = await import('./cli/commands/list-agents.js');
-                await handleListAgentsCommand(options);
-                safeExit('list-agents', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto list-agents command failed: ${err}`);
-                safeExit('list-agents', 1, 'error');
-            }
-        })
-    );
-
-// 9) `which` SUB-COMMAND
+// 7) `which` SUB-COMMAND
 program
     .command('which <agent>')
     .description('Show the path to an agent')
@@ -387,26 +308,6 @@ program
                 if (err instanceof ExitSignal) throw err;
                 console.error(`❌ dexto which command failed: ${err}`);
                 safeExit('which', 1, 'error');
-            }
-        })
-    );
-
-// 10) `sync-agents` SUB-COMMAND
-program
-    .command('sync-agents')
-    .description('Sync installed agents with bundled versions')
-    .option('--list', 'List agent status without updating')
-    .option('--force', 'Update all agents without prompting')
-    .action(
-        withAnalytics('sync-agents', async (options: Partial<SyncAgentsCommandOptions>) => {
-            try {
-                const { handleSyncAgentsCommand } = await import('./cli/commands/sync-agents.js');
-                await handleSyncAgentsCommand(options);
-                safeExit('sync-agents', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto sync-agents command failed: ${err}`);
-                safeExit('sync-agents', 1, 'error');
             }
         })
     );
