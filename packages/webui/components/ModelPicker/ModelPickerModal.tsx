@@ -217,7 +217,6 @@ export default function ModelPickerModal() {
                 setFavoritesMigrationDone(true);
             } catch (migrationError) {
                 console.warn('Failed to migrate favorites from localStorage:', migrationError);
-                setFavoritesMigrationDone(true);
             }
         };
 
@@ -553,115 +552,134 @@ export default function ModelPickerModal() {
         [search, providers]
     );
 
-    function onPickModel(
-        providerId: LLMProvider,
-        model: ModelInfo,
-        customBaseURL?: string,
-        skipApiKeyCheck = false,
-        customApiKey?: string
-    ) {
-        const provider = providers[providerId];
-        const effectiveBaseURL = customBaseURL || baseURL;
-        const supportsBaseURL = provider?.supportsBaseURL ?? Boolean(effectiveBaseURL);
+    const onPickModel = useCallback(
+        (
+            providerId: LLMProvider,
+            model: ModelInfo,
+            customBaseURL?: string,
+            skipApiKeyCheck = false,
+            customApiKey?: string
+        ) => {
+            const provider = providers[providerId];
+            const effectiveBaseURL = customBaseURL || baseURL;
+            const supportsBaseURL = provider?.supportsBaseURL ?? Boolean(effectiveBaseURL);
 
-        if (supportsBaseURL && effectiveBaseURL) {
-            const v = validateBaseURL(effectiveBaseURL);
-            if (!v.isValid) {
-                setError(v.error || 'Invalid base URL');
+            if (supportsBaseURL && effectiveBaseURL) {
+                const v = validateBaseURL(effectiveBaseURL);
+                if (!v.isValid) {
+                    setError(v.error || 'Invalid base URL');
+                    return;
+                }
+            }
+
+            // Dexto Nova provider requires OAuth login via CLI, not manual API key entry
+            // Check canUse from auth status API (requires both authentication AND API key)
+            if (!skipApiKeyCheck && providerId === 'dexto-nova') {
+                if (!dextoAuthStatus?.canUse) {
+                    setError(
+                        'Run `dexto login` or `/login` from the CLI to authenticate with Dexto'
+                    );
+                    return;
+                }
+            } else if (!skipApiKeyCheck && provider && !provider.hasApiKey && !customApiKey) {
+                // Other providers - show API key modal if no key configured
+                setPendingSelection({ provider: providerId, model });
+                setPendingKeyProvider(providerId);
+                setKeyModalOpen(true);
                 return;
             }
-        }
 
-        // Dexto Nova provider requires OAuth login via CLI, not manual API key entry
-        // Check canUse from auth status API (requires both authentication AND API key)
-        if (!skipApiKeyCheck && providerId === 'dexto-nova') {
-            if (!dextoAuthStatus?.canUse) {
-                setError('Run `dexto login` or `/login` from the CLI to authenticate with Dexto');
-                return;
-            }
-        } else if (!skipApiKeyCheck && provider && !provider.hasApiKey && !customApiKey) {
-            // Other providers - show API key modal if no key configured
-            setPendingSelection({ provider: providerId, model });
-            setPendingKeyProvider(providerId);
-            setKeyModalOpen(true);
-            return;
-        }
+            const basePayload: SwitchLLMPayload = {
+                provider: providerId,
+                model: model.name,
+                ...(supportsBaseURL && effectiveBaseURL && { baseURL: effectiveBaseURL }),
+                ...(customApiKey && { apiKey: customApiKey }),
+            };
 
-        const basePayload: SwitchLLMPayload = {
-            provider: providerId,
-            model: model.name,
-            ...(supportsBaseURL && effectiveBaseURL && { baseURL: effectiveBaseURL }),
-            ...(customApiKey && { apiKey: customApiKey }),
-        };
-
-        // Always update global default first (no sessionId), then switch current session if active
-        switchLLMMutation.mutate(basePayload, {
-            onSuccess: async () => {
-                // If there's an active session, also switch it to the new model
-                if (currentSessionId) {
-                    try {
-                        await switchLLMMutation.mutateAsync({
-                            ...basePayload,
-                            sessionId: currentSessionId,
-                        });
-                    } catch (err) {
-                        setError(
-                            err instanceof Error
-                                ? err.message
-                                : 'Failed to switch model for current session'
-                        );
-                        return;
+            // Always update global default first (no sessionId), then switch current session if active
+            switchLLMMutation.mutate(basePayload, {
+                onSuccess: async () => {
+                    // If there's an active session, also switch it to the new model
+                    if (currentSessionId) {
+                        try {
+                            await switchLLMMutation.mutateAsync({
+                                ...basePayload,
+                                sessionId: currentSessionId,
+                            });
+                        } catch (err) {
+                            setError(
+                                err instanceof Error
+                                    ? err.message
+                                    : 'Failed to switch model for current session'
+                            );
+                            return;
+                        }
                     }
-                }
 
-                await refreshCurrentLLM();
+                    await refreshCurrentLLM();
 
-                if (currentLLM) {
-                    analyticsRef.current.trackLLMSwitched({
-                        fromProvider: currentLLM.provider,
-                        fromModel: currentLLM.model,
-                        toProvider: providerId,
-                        toModel: model.name,
-                        sessionId: currentSessionId || undefined,
-                        trigger: 'user_action',
-                    });
-                }
+                    if (currentLLM) {
+                        analyticsRef.current.trackLLMSwitched({
+                            fromProvider: currentLLM.provider,
+                            fromModel: currentLLM.model,
+                            toProvider: providerId,
+                            toModel: model.name,
+                            sessionId: currentSessionId || undefined,
+                            trigger: 'user_action',
+                        });
+                    }
 
-                setOpen(false);
-                setError(null);
-            },
-            onError: (error: Error) => {
-                setError(error.message);
-            },
-        });
-    }
+                    setOpen(false);
+                    setError(null);
+                },
+                onError: (error: Error) => {
+                    setError(error.message);
+                },
+            });
+        },
+        [
+            baseURL,
+            currentLLM,
+            currentSessionId,
+            dextoAuthStatus,
+            providers,
+            refreshCurrentLLM,
+            switchLLMMutation,
+        ]
+    );
 
-    function onPickCustomModel(customModel: CustomModel) {
-        const provider = (customModel.provider ?? 'openai-compatible') as LLMProvider;
-        const modelInfo: ModelInfo = {
-            name: customModel.name,
-            displayName: customModel.displayName || customModel.name,
-            maxInputTokens: customModel.maxInputTokens || 128000,
-            supportedFileTypes: ['pdf', 'image', 'audio'],
-        };
-        // Skip API key check for custom models - user already configured them.
-        // If they didn't add an API key, it's intentional (self-hosted, local, or env var).
-        // Pass the custom model's apiKey for per-model override if present.
-        onPickModel(provider, modelInfo, customModel.baseURL, true, customModel.apiKey);
-    }
+    const onPickCustomModel = useCallback(
+        (customModel: CustomModel) => {
+            const provider = (customModel.provider ?? 'openai-compatible') as LLMProvider;
+            const modelInfo: ModelInfo = {
+                name: customModel.name,
+                displayName: customModel.displayName || customModel.name,
+                maxInputTokens: customModel.maxInputTokens || 128000,
+                supportedFileTypes: ['pdf', 'image', 'audio'],
+            };
+            // Skip API key check for custom models - user already configured them.
+            // If they didn't add an API key, it's intentional (self-hosted, local, or env var).
+            // Pass the custom model's apiKey for per-model override if present.
+            onPickModel(provider, modelInfo, customModel.baseURL, true, customModel.apiKey);
+        },
+        [onPickModel]
+    );
 
-    function onPickInstalledModel(model: LocalModel) {
-        // Installed local models use the model ID as the name
-        // Context length is auto-detected by node-llama-cpp at runtime
-        const modelInfo: ModelInfo = {
-            name: model.id,
-            displayName: model.displayName,
-            maxInputTokens: model.contextLength || 8192,
-            supportedFileTypes: [], // Local models typically don't support file attachments
-        };
-        // Skip API key check - local models don't need API keys
-        onPickModel('local', modelInfo, undefined, true);
-    }
+    const onPickInstalledModel = useCallback(
+        (model: LocalModel) => {
+            // Installed local models use the model ID as the name
+            // Context length is auto-detected by node-llama-cpp at runtime
+            const modelInfo: ModelInfo = {
+                name: model.id,
+                displayName: model.displayName,
+                maxInputTokens: model.contextLength || 8192,
+                supportedFileTypes: [], // Local models typically don't support file attachments
+            };
+            // Skip API key check - local models don't need API keys
+            onPickModel('local', modelInfo, undefined, true);
+        },
+        [onPickModel]
+    );
 
     function onApiKeySaved(meta: { provider: string; envVar: string }) {
         const providerKey = meta.provider as LLMProvider;

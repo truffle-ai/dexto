@@ -910,7 +910,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     return true;
                 }
 
-                if (key.ctrl && (input === 'f' || input === 'F') && isSelectableItem) {
+                if (key.ctrl && input === 'f' && isSelectableItem) {
                     const item = selectedModel;
                     if (!item) return true;
                     clearActionState();

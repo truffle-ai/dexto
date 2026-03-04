@@ -694,6 +694,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
             customSection.push(entry);
         }
 
+        const localProviderSupportedFileTypes = LLM_REGISTRY.local.supportedFileTypes;
         const installedLocalModels = await getAllInstalledModels();
         for (const installedModel of installedLocalModels) {
             const modelInfo = getLocalModelById(installedModel.id);
@@ -701,7 +702,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                 provider: 'local',
                 model: installedModel.id,
                 displayName: modelInfo?.name || installedModel.id,
-                supportedFileTypes: [],
+                supportedFileTypes: localProviderSupportedFileTypes,
                 source: 'local-installed',
             };
             byKey.set(toModelPickerKey(entry), entry);
