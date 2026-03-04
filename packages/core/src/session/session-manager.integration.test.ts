@@ -179,6 +179,56 @@ describe('Session Integration: Chat History Preservation', () => {
         expect(await storage.getDatabase().get(messagesKey)).toBeUndefined();
     });
 
+    test('full integration: forked session stores parent lineage and clones history', async () => {
+        const parentSessionId = 'fork-parent-session';
+        const parentSession = await agent.createSession(parentSessionId);
+        expect(parentSession.id).toBe(parentSessionId);
+
+        const storage = agent.services.storageManager;
+        const parentMessagesKey = `messages:${parentSessionId}`;
+        const parentSessionKey = `session:${parentSessionId}`;
+        const parentHistory = [
+            { role: 'user', content: 'Parent question 1' },
+            { role: 'assistant', content: 'Parent answer 1' },
+            { role: 'user', content: 'Parent question 2' },
+        ];
+
+        for (const message of parentHistory) {
+            await storage.getDatabase().append(parentMessagesKey, message);
+        }
+
+        await agent.setSessionTitle(parentSessionId, 'Parent Session Title');
+        await agent.switchLLM({ model: 'gpt-5' }, parentSessionId);
+
+        const parentSessionData = await storage.getDatabase().get<SessionData>(parentSessionKey);
+        if (!parentSessionData) {
+            throw new Error('Parent session data not found');
+        }
+        parentSessionData.messageCount = parentHistory.length;
+        await storage.getDatabase().set(parentSessionKey, parentSessionData);
+
+        const childSession = await agent.forkSession(parentSessionId);
+        const childSessionId = childSession.id;
+
+        expect(childSessionId).not.toBe(parentSessionId);
+
+        const childMetadata = await agent.getSessionMetadata(childSessionId);
+        expect(childMetadata?.parentSessionId).toBe(parentSessionId);
+        expect(childMetadata?.title).toBe('Fork: Parent Session Title');
+        expect(childMetadata?.messageCount).toBe(parentHistory.length);
+        expect(childMetadata?.tokenUsage).toBeUndefined();
+        expect(childMetadata?.estimatedCost).toBeUndefined();
+        expect(childMetadata?.modelStats).toBeUndefined();
+
+        const childHistory = await storage
+            .getDatabase()
+            .getRange<(typeof parentHistory)[number]>(`messages:${childSessionId}`, 0, 100);
+        expect(childHistory).toEqual(parentHistory);
+
+        const childSessionData = await agent.sessionManager.getSessionData(childSessionId);
+        expect(childSessionData?.llmOverride).toEqual(parentSessionData.llmOverride);
+    });
+
     test('full integration: multiple concurrent sessions with independent histories', async () => {
         const sessionIds = ['concurrent-1', 'concurrent-2', 'concurrent-3'];
         const histories = sessionIds.map((_, index) => [
