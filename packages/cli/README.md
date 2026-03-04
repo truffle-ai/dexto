@@ -123,13 +123,13 @@ dexto upgrade 1.6.8
 
 ```bash
 # Preview what will be removed
-dexto uninstall-cli --dry-run
+dexto uninstall --dry-run
 
 # Remove CLI binary + cache (default)
-dexto uninstall-cli
+dexto uninstall
 
 # Also remove config and agent/data directories
-dexto uninstall-cli --remove-config --remove-data --force
+dexto uninstall --remove-config --remove-data --force
 ```
 
 ### Troubleshooting Multiple Installs In PATH
@@ -471,10 +471,10 @@ Pre-built agents for common use cases:
 
 ```bash
 # List available agents
-dexto list-agents
+dexto agents list
 
 # Install and run
-dexto install coding-agent podcast-agent
+dexto agents install coding-agent podcast-agent
 dexto --agent coding-agent
 ```
 
@@ -644,8 +644,8 @@ Options:
 
 Commands:
   setup                    Configure global preferences
-  install <agents...>      Install agents from registry
-  list-agents              List available agents
+  agents install <agents...>  Install agents from registry
+  agents list              List available agents
   session list|history     Manage sessions
   search <query>           Search conversation history
 ```

@@ -45,10 +45,10 @@ dexto upgrade 1.6.8
 
 ```bash
 # default: remove CLI binary + cache
-dexto uninstall-cli
+dexto uninstall
 
 # remove config/data too
-dexto uninstall-cli --remove-config --remove-data --force
+dexto uninstall --remove-config --remove-data --force
 ```
 
 ### PATH Troubleshooting
