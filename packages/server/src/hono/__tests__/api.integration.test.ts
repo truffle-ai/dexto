@@ -189,12 +189,14 @@ describe('Hono API Integration Tests', () => {
                         lastActivity: number | null;
                         messageCount: number;
                         title: string | null;
+                        parentSessionId: string | null;
                     };
                 }
             ).session;
             expect(session.id).toBe('test-session-1');
             expect(typeof session.messageCount).toBe('number');
             expect(session.createdAt === null || typeof session.createdAt === 'number').toBe(true);
+            expect(session.parentSessionId).toBeNull();
         });
 
         it('GET /api/sessions/:id returns session details', async () => {
@@ -256,6 +258,99 @@ describe('Hono API Integration Tests', () => {
             );
             expect(res.status).toBe(200);
             expect(Array.isArray((res.body as { history: unknown[] }).history)).toBe(true);
+        });
+
+        it('POST /api/sessions/:id/fork creates child with parentSessionId', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const parentSessionId = 'test-fork-parent';
+
+            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId: parentSessionId,
+            });
+
+            const res = await httpRequest(
+                testServer.baseUrl,
+                'POST',
+                `/api/sessions/${parentSessionId}/fork`
+            );
+
+            expect(res.status).toBe(201);
+            const child = (
+                res.body as {
+                    session: {
+                        id: string;
+                        title: string | null;
+                        parentSessionId: string | null;
+                    };
+                }
+            ).session;
+            expect(child.id).toBeDefined();
+            expect(child.id).not.toBe(parentSessionId);
+            expect(child.parentSessionId).toBe(parentSessionId);
+            expect(child.title).toBe('Fork: test-for');
+        });
+
+        it('POST /api/sessions/:id/fork clones persisted parent history', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const parentSessionId = 'test-fork-history-parent';
+
+            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId: parentSessionId,
+            });
+
+            const parentHistory = [
+                { role: 'user', content: 'fork me 1' },
+                { role: 'assistant', content: 'forked 1' },
+                { role: 'user', content: 'fork me 2' },
+            ];
+
+            const database = testServer.agent.services.storageManager.getDatabase();
+            for (const message of parentHistory) {
+                await database.append(`messages:${parentSessionId}`, message);
+            }
+            const parentSessionData = await database.get<
+                { messageCount: number } & Record<string, unknown>
+            >(`session:${parentSessionId}`);
+            if (!parentSessionData) {
+                throw new Error(`Expected parent session '${parentSessionId}' to exist`);
+            }
+            parentSessionData.messageCount = parentHistory.length;
+            await database.set(`session:${parentSessionId}`, parentSessionData);
+
+            const forkRes = await httpRequest(
+                testServer.baseUrl,
+                'POST',
+                `/api/sessions/${parentSessionId}/fork`
+            );
+            expect(forkRes.status).toBe(201);
+            const childSessionId = (forkRes.body as { session: { id: string } }).session.id;
+
+            const childHistory = await testServer.agent.services.storageManager
+                .getDatabase()
+                .getRange<
+                    (typeof parentHistory)[number]
+                >(`messages:${childSessionId}`, 0, parentHistory.length);
+            expect(childHistory).toEqual(parentHistory);
+
+            const childDetailsRes = await httpRequest(
+                testServer.baseUrl,
+                'GET',
+                `/api/sessions/${childSessionId}`
+            );
+            expect(childDetailsRes.status).toBe(200);
+            expect(
+                (childDetailsRes.body as { session: { messageCount: number } }).session.messageCount
+            ).toBe(parentHistory.length);
+        });
+
+        it('POST /api/sessions/:id/fork returns 404 for non-existent parent', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const res = await httpRequest(
+                testServer.baseUrl,
+                'POST',
+                '/api/sessions/non-existent-parent/fork'
+            );
+            expect(res.status).toBe(404);
         });
 
         it('DELETE /api/sessions/:id deletes session', async () => {
