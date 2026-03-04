@@ -295,6 +295,11 @@ export const SessionMetadataSchema = z
             .optional()
             .describe('Per-model usage statistics (for multi-model sessions)'),
         workspaceId: z.string().optional().nullable().describe('Associated workspace ID, if any'),
+        parentSessionId: z
+            .string()
+            .optional()
+            .nullable()
+            .describe('Parent session ID if this session was forked, otherwise null'),
     })
     .strict()
     .describe('Session metadata');

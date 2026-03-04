@@ -155,6 +155,15 @@ import {
     handleSessionDeleteCommand,
     handleSessionSearchCommand,
 } from './cli/commands/session-commands.js';
+import {
+    executeHeadlessRun,
+    printHeadlessAssistantResponse,
+    printHeadlessMcpStartup,
+    printHeadlessRunSummary,
+    resolveHeadlessPrompt,
+    writeFinalMessageToStdout,
+    writeHeadlessError,
+} from './cli/commands/run/headless.js';
 import { requiresSetup } from './cli/utils/setup-utils.js';
 import { checkForFileInCurrentDirectory, FileNotFoundError } from './cli/utils/package-mgmt.js';
 import { checkForUpdates, displayUpdateNotification } from './cli/utils/version-check.js';
@@ -179,7 +188,9 @@ const versionCheckPromise = checkForUpdates(cliVersion);
 
 // Start self-updating LLM registry refresh (models.dev + OpenRouter mapping).
 // Uses a cached snapshot on disk and refreshes in the background.
-startLlmRegistryAutoUpdate();
+// Important: do NOT start this globally at process boot because one-off/headless
+// subcommands (like `dexto run`) require clean stdout/stderr contracts.
+// It is started in the main mode flow instead.
 
 // 1) GLOBAL OPTIONS
 program
@@ -771,12 +782,54 @@ marketplaceCommand
         )
     );
 
-// Helper to bootstrap a minimal agent for non-interactive session/search ops
-async function bootstrapAgentFromGlobalOpts() {
+type BootstrapAgentMode = 'headless-run' | 'non-interactive';
+
+// Helper to bootstrap a minimal agent for non-interactive commands
+async function bootstrapAgentFromGlobalOpts(options: {
+    mode: BootstrapAgentMode;
+    modelOverride?: string;
+}) {
+    const { mode, modelOverride } = options;
+    const isHeadlessRun = mode === 'headless-run';
     const globalOpts = program.opts();
+    const effectiveModel = modelOverride ?? globalOpts.model;
+    let inferredProvider: LLMProvider | undefined;
+    let inferredApiKey: string | undefined;
+
+    // Non-interactive subcommands bypass the main mode action, so replicate
+    // model -> provider/apiKey inference here.
+    if (effectiveModel) {
+        if (effectiveModel.includes('/')) {
+            throw new Error(
+                `Model '${effectiveModel}' looks like an OpenRouter-format ID (provider/model). Please set provider/model explicitly in agent config for this command.`
+            );
+        }
+
+        inferredProvider = getProviderFromModel(effectiveModel);
+        const apiKey = resolveApiKeyForProvider(inferredProvider);
+        if (!apiKey) {
+            const envVar = getPrimaryApiKeyEnvVar(inferredProvider);
+            throw new Error(
+                `Missing API key for provider '${inferredProvider}' - please set $${envVar}`
+            );
+        }
+
+        inferredApiKey = apiKey;
+    }
+
     const resolvedPath = await resolveAgentPath(globalOpts.agent, globalOpts.autoInstall !== false);
     const rawConfig = await loadAgentConfig(resolvedPath);
-    const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
+    const mergedConfig = applyCLIOverrides(rawConfig, {
+        ...globalOpts,
+        ...(modelOverride ? { model: modelOverride } : {}),
+    });
+    if (effectiveModel) {
+        mergedConfig.llm.model = effectiveModel;
+    }
+    if (inferredProvider && inferredApiKey) {
+        mergedConfig.llm.provider = inferredProvider;
+        mergedConfig.llm.apiKey = inferredApiKey;
+    }
 
     // Load image first to apply defaults and resolve DI services
     // Priority: CLI flag > Agent config > Environment variable > Default
@@ -802,11 +855,23 @@ async function bootstrapAgentFromGlobalOpts() {
 
     // Enrich config with per-agent paths BEFORE validation
     const enrichedConfig = enrichAgentConfig(configWithImageDefaults, resolvedPath, {
-        logLevel: 'info', // CLI uses info-level logging for visibility
+        // Headless run keeps output deterministic and noise-free.
+        // Other non-interactive commands keep visible logs.
+        logLevel: isHeadlessRun ? 'error' : 'info',
     });
 
-    // Override approval config for read-only commands (never run conversations)
-    // This avoids needing to set up unused approval handlers
+    if (isHeadlessRun) {
+        // Force silent transport in headless mode even when agent config defines logger settings.
+        // `dexto run` owns stderr formatting and should be the only writer.
+        enrichedConfig.logger = {
+            level: 'error',
+            transports: [{ type: 'silent' }],
+        };
+    }
+
+    // Override approval config for non-interactive commands.
+    // Headless operations default to auto-approve and disable elicitation to
+    // avoid waiting for interactive approval handlers.
     enrichedConfig.permissions = {
         ...(enrichedConfig.permissions ?? {}),
         mode: 'auto-approve',
@@ -860,7 +925,94 @@ async function getMostRecentSessionId(agent: DextoAgent): Promise<string | null>
     return mostRecentId;
 }
 
-// 11) `session` SUB-COMMAND
+// 11) `run` SUB-COMMAND
+program
+    .command('run [prompt]')
+    .description('Run a single prompt non-interactively (headless mode)')
+    .option('-m, --model <model>', 'Specify the LLM model to use for this run')
+    .addHelpText(
+        'after',
+        `
+Examples:
+  $ dexto run "summarize this repository"
+  $ echo "fix lint errors" | dexto run
+  $ dexto run - < prompt.txt
+`
+    )
+    .action(
+        withAnalytics('run', async (promptArg?: string, runOptions?: { model?: string }) => {
+            let agent: DextoAgent | undefined;
+            let exitCode = 0;
+            let exitReason = 'ok';
+
+            try {
+                const prompt = await resolveHeadlessPrompt(promptArg);
+                if (prompt.trim().length === 0) {
+                    writeHeadlessError('Prompt cannot be empty.');
+                    exitCode = 1;
+                    exitReason = 'empty-prompt';
+                } else {
+                    const bootstrapOptions = runOptions?.model
+                        ? { mode: 'headless-run' as const, modelOverride: runOptions.model }
+                        : { mode: 'headless-run' as const };
+                    agent = await bootstrapAgentFromGlobalOpts(bootstrapOptions);
+                    const session = await agent.createSession();
+
+                    const globalOpts = program.opts();
+                    const resolvedAgentPath = await resolveAgentPath(
+                        globalOpts.agent,
+                        globalOpts.autoInstall !== false
+                    );
+
+                    printHeadlessRunSummary({
+                        agent,
+                        sessionId: session.id,
+                        prompt,
+                        agentPath: resolvedAgentPath,
+                        cliVersion,
+                    });
+                    printHeadlessMcpStartup(agent);
+
+                    const runResult = await executeHeadlessRun(agent, session.id, prompt);
+
+                    if (runResult.finalMessage !== undefined) {
+                        printHeadlessAssistantResponse(
+                            runResult.finalMessage,
+                            runResult.totalTokens
+                        );
+                        writeFinalMessageToStdout(runResult.finalMessage);
+                    } else {
+                        writeHeadlessError('No final response was produced.');
+                        exitCode = 1;
+                        exitReason = 'no-final-response';
+                    }
+
+                    if (runResult.fatalError) {
+                        exitCode = 1;
+                        exitReason = 'fatal-error';
+                    }
+                }
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                const errorMessage = err instanceof Error ? err.message : String(err);
+                writeHeadlessError(`dexto run failed: ${errorMessage}`);
+                exitCode = 1;
+                exitReason = 'error';
+            } finally {
+                if (agent) {
+                    try {
+                        await agent.stop();
+                    } catch {
+                        // Ignore shutdown errors in headless mode cleanup
+                    }
+                }
+            }
+
+            safeExit('run', exitCode, exitReason);
+        })
+    );
+
+// 12) `session` SUB-COMMAND
 const sessionCommand = program.command('session').description('Manage chat sessions');
 
 sessionCommand
@@ -869,7 +1021,7 @@ sessionCommand
     .action(
         withAnalytics('session list', async () => {
             try {
-                const agent = await bootstrapAgentFromGlobalOpts();
+                const agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
 
                 await handleSessionListCommand(agent);
                 await agent.stop();
@@ -889,7 +1041,7 @@ sessionCommand
     .action(
         withAnalytics('session history', async (sessionId: string) => {
             try {
-                const agent = await bootstrapAgentFromGlobalOpts();
+                const agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
 
                 await handleSessionHistoryCommand(agent, sessionId);
                 await agent.stop();
@@ -909,7 +1061,7 @@ sessionCommand
     .action(
         withAnalytics('session delete', async (sessionId: string) => {
             try {
-                const agent = await bootstrapAgentFromGlobalOpts();
+                const agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
 
                 await handleSessionDeleteCommand(agent, sessionId);
                 await agent.stop();
@@ -922,7 +1074,7 @@ sessionCommand
         })
     );
 
-// 12) `search` SUB-COMMAND
+// 13) `search` SUB-COMMAND
 program
     .command('search')
     .description('Search session history')
@@ -935,7 +1087,7 @@ program
             'search',
             async (query: string, options: { session?: string; role?: string; limit?: string }) => {
                 try {
-                    const agent = await bootstrapAgentFromGlobalOpts();
+                    const agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
 
                     const searchOptions: {
                         sessionId?: string;
@@ -983,7 +1135,7 @@ program
         )
     );
 
-// 13) `auth` SUB-COMMAND GROUP
+// 14) `auth` SUB-COMMAND GROUP
 const authCommand = program.command('auth').description('Manage authentication');
 
 authCommand
@@ -1086,7 +1238,7 @@ program
         })
     );
 
-// 14) `billing` COMMAND
+// 15) `billing` COMMAND
 program
     .command('billing')
     .description('Show billing status and credit balance')
@@ -1104,7 +1256,7 @@ program
         })
     );
 
-// 15) `mcp` SUB-COMMAND
+// 16) `mcp` SUB-COMMAND
 // For now, this mode simply aggregates and re-expose tools from configured MCP servers (no agent)
 // dexto --mode mcp will be moved to this sub-command in the future
 program
@@ -1194,7 +1346,7 @@ program
         )
     );
 
-// 16) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/server/mcp)
+// 17) Main dexto CLI - Interactive (CLI) or run in other modes (--mode web/server/mcp)
 program
     // Main customer facing description
     .description(
@@ -1202,7 +1354,8 @@ program
             'Basic Usage:\n' +
             '  dexto                    Start web UI (default)\n' +
             '  dexto --mode cli         Start interactive CLI\n' +
-            '  dexto --prompt "query"   Start interactive CLI and run the prompt\n\n' +
+            '  dexto --prompt "query"   Start interactive CLI and run the prompt\n' +
+            '  dexto run "query"        Run one-off headless task\n\n' +
             'Session Management Commands:\n' +
             '  dexto session list              List all sessions\n' +
             '  dexto session history [id]      Show session history\n' +
@@ -1234,6 +1387,11 @@ program
                 }
 
                 const opts = program.opts();
+
+                // Start self-updating LLM registry refresh (models.dev + OpenRouter mapping).
+                // Uses a cached snapshot on disk and refreshes in the background.
+                // Scoped to main mode flow (web/cli/server/mcp), not global subcommands.
+                startLlmRegistryAutoUpdate();
 
                 // Set dev mode early to use local repo agents instead of ~/.dexto
                 if (opts.dev) {
@@ -1285,7 +1443,7 @@ program
                 if (opts.mode === 'cli' && !process.stdin.isTTY) {
                     console.error('❌ Interactive CLI requires a TTY.');
                     console.error(
-                        '💡 Headless one-shot mode has been removed. Run in an interactive terminal, or use --mode server for automation.'
+                        '💡 For non-interactive runs, use `dexto run "<prompt>"`, or use --mode server for automation.'
                     );
                     safeExit('main', 1, 'no-tty');
                 }
@@ -2102,5 +2260,5 @@ program
         )
     );
 
-// 17) PARSE & EXECUTE
+// 18) PARSE & EXECUTE
 program.parseAsync(process.argv);
