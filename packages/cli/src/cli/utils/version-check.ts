@@ -25,7 +25,7 @@ export interface UpdateInfo {
 }
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
-const NPM_REGISTRY_URL = 'https://registry.npmjs.org/dexto/latest';
+const GITHUB_RELEASES_LATEST_URL = 'https://api.github.com/repos/truffle-ai/dexto/releases/latest';
 const CACHE_FILE_PATH = path.join(os.homedir(), '.dexto', 'cache', 'version-check.json');
 
 function debugLog(message: string): void {
@@ -96,28 +96,62 @@ async function saveCache(cache: VersionCache): Promise<void> {
     }
 }
 
+function normalizeReleaseTag(tagName: string): string | null {
+    const trimmed = tagName.trim();
+    if (trimmed.length === 0) {
+        return null;
+    }
+
+    if (trimmed.startsWith('dexto@')) {
+        const withoutPrefix = trimmed.slice('dexto@'.length).trim();
+        return withoutPrefix.length > 0 ? withoutPrefix : null;
+    }
+
+    return trimmed;
+}
+
+function extractLatestVersionFromRelease(payload: unknown): string | null {
+    if (!payload || typeof payload !== 'object') {
+        return null;
+    }
+
+    const tagName = Reflect.get(payload, 'tag_name');
+    if (typeof tagName !== 'string') {
+        return null;
+    }
+
+    return normalizeReleaseTag(tagName);
+}
+
 /**
- * Fetch latest version from npm registry
+ * Fetch latest version from GitHub Releases
  */
 async function fetchLatestVersion(): Promise<string | null> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
 
     try {
-        const response = await fetch(NPM_REGISTRY_URL, {
+        const response = await fetch(GITHUB_RELEASES_LATEST_URL, {
             signal: controller.signal,
             headers: {
-                Accept: 'application/json',
+                Accept: 'application/vnd.github+json',
+                'User-Agent': 'dexto-cli-version-check',
             },
         });
 
         if (!response.ok) {
-            debugLog(`npm registry returned status ${response.status}`);
+            debugLog(`GitHub releases API returned status ${response.status}`);
             return null;
         }
 
-        const data = (await response.json()) as { version?: string };
-        return data.version || null;
+        const data = (await response.json()) as unknown;
+        const latestVersion = extractLatestVersionFromRelease(data);
+        if (!latestVersion) {
+            debugLog('GitHub releases API response missing valid tag_name');
+            return null;
+        }
+
+        return latestVersion;
     } catch (error) {
         // Network errors, timeouts, etc. - silent fail
         debugLog(
@@ -179,8 +213,8 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateInf
             }
         }
 
-        // Cache expired or invalid - fetch from npm
-        debugLog('Fetching latest version from npm registry');
+        // Cache expired or invalid - fetch from GitHub releases
+        debugLog('Fetching latest version from GitHub releases');
         const latestVersion = await fetchLatestVersion();
 
         if (!latestVersion) {
