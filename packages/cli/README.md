@@ -433,10 +433,10 @@ Pre-built agents for common use cases:
 
 ```bash
 # List available agents
-dexto list-agents
+dexto agents list
 
 # Install and run
-dexto install coding-agent podcast-agent
+dexto agents install coding-agent podcast-agent
 dexto --agent coding-agent
 ```
 
