@@ -1,5 +1,4 @@
 // packages/cli/src/analytics/wrapper.ts
-import { onCommandStart, onCommandEnd, capture } from './index.js';
 import { COMMAND_TIMEOUT_MS } from './constants.js';
 import type {
     CliCommandEndEvent,
@@ -7,6 +6,26 @@ import type {
     SanitizedOptionValue,
     CliCommandTimeoutEvent,
 } from './events.js';
+
+type AnalyticsModule = typeof import('./index.js');
+let analyticsModulePromise: Promise<AnalyticsModule> | null = null;
+let analyticsInitialized = false;
+
+async function getAnalyticsModule(): Promise<AnalyticsModule> {
+    if (!analyticsModulePromise) {
+        analyticsModulePromise = import('./index.js');
+    }
+    return analyticsModulePromise;
+}
+
+async function ensureAnalyticsInitialized(): Promise<AnalyticsModule> {
+    const analytics = await getAnalyticsModule();
+    if (!analyticsInitialized) {
+        await analytics.initAnalytics({ appVersion: process.env.DEXTO_CLI_VERSION || '0.0.0' });
+        analyticsInitialized = true;
+    }
+    return analytics;
+}
 
 function sanitizeOptions(obj: Record<string, unknown>): Record<string, SanitizedOptionValue> {
     const redactedKeys = /key|token|secret|password|api[_-]?key|authorization|auth/i;
@@ -56,7 +75,13 @@ export function withAnalytics<A extends unknown[], R = unknown>(
     const timeoutMs = opts?.timeoutMs ?? COMMAND_TIMEOUT_MS;
     return async (...args: A): Promise<R> => {
         const argsMeta = buildArgsPayload(args as unknown[]);
-        await onCommandStart(commandName, { args: argsMeta });
+        let analytics: AnalyticsModule | null = null;
+        try {
+            analytics = await ensureAnalyticsInitialized();
+            await analytics.onCommandStart(commandName, { args: argsMeta });
+        } catch {
+            analytics = null;
+        }
         const timeout =
             timeoutMs > 0
                 ? (() => {
@@ -68,7 +93,13 @@ export function withAnalytics<A extends unknown[], R = unknown>(
                                   timeoutMs,
                                   args: argsMeta,
                               };
-                              capture('dexto_cli_command', payload);
+                              if (analytics) {
+                                  analytics.capture('dexto_cli_command', payload);
+                                  return;
+                              }
+                              void getAnalyticsModule()
+                                  .then((mod) => mod.capture('dexto_cli_command', payload))
+                                  .catch(() => {});
                           } catch {
                               // Timeout instrumentation must never throw.
                           }
@@ -81,7 +112,9 @@ export function withAnalytics<A extends unknown[], R = unknown>(
         try {
             const result = await handler(...args);
             const success = (typeof process.exitCode === 'number' ? process.exitCode : 0) === 0;
-            await onCommandEnd(commandName, success, { args: argsMeta });
+            if (analytics) {
+                await analytics.onCommandEnd(commandName, success, { args: argsMeta });
+            }
             return result as R;
         } catch (err) {
             if (err instanceof ExitSignal) {
@@ -97,7 +130,9 @@ export function withAnalytics<A extends unknown[], R = unknown>(
                     if (err.commandName) {
                         endMeta.command = err.commandName;
                     }
-                    await onCommandEnd(commandName, exitCode === 0, endMeta);
+                    if (analytics) {
+                        await analytics.onCommandEnd(commandName, exitCode === 0, endMeta);
+                    }
                 } catch {
                     // Ignore analytics errors when propagating ExitSignal.
                 }
@@ -105,10 +140,12 @@ export function withAnalytics<A extends unknown[], R = unknown>(
                 process.exit(exitCode);
             }
             try {
-                await onCommandEnd(commandName, false, {
-                    error: err instanceof Error ? err.message : String(err),
-                    args: argsMeta,
-                });
+                if (analytics) {
+                    await analytics.onCommandEnd(commandName, false, {
+                        error: err instanceof Error ? err.message : String(err),
+                        args: argsMeta,
+                    });
+                }
             } catch {
                 // Ignore analytics errors when recording failures.
             }
