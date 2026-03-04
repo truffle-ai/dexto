@@ -17,6 +17,6 @@ export const modelCommands: CommandDefinition = {
     description: 'Switch AI model (interactive selector)',
     usage: '/model',
     category: 'General',
-    aliases: ['m'],
+    aliases: ['m', 'models'],
     handler: overlayOnlyHandler,
 };
