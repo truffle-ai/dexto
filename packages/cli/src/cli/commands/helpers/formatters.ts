@@ -27,8 +27,12 @@ export function formatSessionInfo(
         const displayTitle = title.length > 0 ? title : 'Untitled';
         info += chalk.white(` "${displayTitle}"`);
 
-        if (metadata.parentSessionId) {
-            info += chalk.magenta(` [forked from ${metadata.parentSessionId.slice(0, 8)}]`);
+        const parentSessionId =
+            'parentSessionId' in metadata && typeof metadata.parentSessionId === 'string'
+                ? metadata.parentSessionId
+                : undefined;
+        if (parentSessionId) {
+            info += chalk.magenta(` [forked from ${parentSessionId.slice(0, 8)}]`);
         }
 
         const messages = metadata.messageCount || 0;
