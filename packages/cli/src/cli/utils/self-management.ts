@@ -384,8 +384,57 @@ export async function detectInstallMethodWithDeps(
     const allDetectedPaths = await getPathEntries();
     const activePath = allDetectedPaths[0] ?? null;
 
+    async function detectMethodFromActivePath(pathEntry: string): Promise<InstallMethod> {
+        let method = inferInstallMethodFromPath(pathEntry);
+        if (method === 'unknown' || method === 'native') {
+            const pmMethod = await detectNodeManager(pathEntry);
+            if (pmMethod) {
+                method = pmMethod;
+            }
+        }
+
+        if (method === 'unknown') {
+            const systemPmMethod = detectSystemManager(pathEntry);
+            if (systemPmMethod) {
+                method = systemPmMethod;
+            }
+        }
+
+        if (method === 'unknown' && pathBasenameIsDexto(pathEntry)) {
+            const normalizedPath = normalizePathForComparison(pathEntry);
+            if (
+                normalizedPath.includes(
+                    normalizePathForComparison(path.join(os.homedir(), '.local', 'bin'))
+                )
+            ) {
+                method = 'native';
+            }
+        }
+
+        return method;
+    }
+
     if (metadata) {
         const installedPath = metadata.installedPath;
+        const metadataPathDetected = allDetectedPaths.some(
+            (entry) =>
+                normalizePathForComparison(entry) === normalizePathForComparison(installedPath)
+        );
+
+        if (!metadataPathDetected && activePath) {
+            const method = await detectMethodFromActivePath(activePath);
+
+            return {
+                method,
+                source: 'heuristic',
+                metadata,
+                installedPath: activePath,
+                installDir: path.dirname(activePath),
+                allDetectedPaths,
+                multipleInstallWarning: buildMultipleInstallWarning(allDetectedPaths, activePath),
+            };
+        }
+
         const installDir = path.dirname(installedPath);
 
         return {
@@ -411,31 +460,7 @@ export async function detectInstallMethodWithDeps(
         };
     }
 
-    let method = inferInstallMethodFromPath(activePath);
-    if (method === 'unknown' || method === 'native') {
-        const pmMethod = await detectNodeManager(activePath);
-        if (pmMethod) {
-            method = pmMethod;
-        }
-    }
-
-    if (method === 'unknown') {
-        const systemPmMethod = detectSystemManager(activePath);
-        if (systemPmMethod) {
-            method = systemPmMethod;
-        }
-    }
-
-    if (method === 'unknown' && pathBasenameIsDexto(activePath)) {
-        const normalizedPath = normalizePathForComparison(activePath);
-        if (
-            normalizedPath.includes(
-                normalizePathForComparison(path.join(os.homedir(), '.local', 'bin'))
-            )
-        ) {
-            method = 'native';
-        }
-    }
+    const method = await detectMethodFromActivePath(activePath);
 
     return {
         method,

@@ -84,6 +84,7 @@ export async function handleUninstallCliCommand(
     printMultiInstallWarning(detection.multipleInstallWarning);
 
     const uninstallPaths = getSelfUninstallPaths();
+    let managedUninstallError: Error | null = null;
 
     if (
         detection.method === 'npm' ||
@@ -96,14 +97,21 @@ export async function handleUninstallCliCommand(
         const command = resolveUninstallCommandForMethod(detection.method);
         if (command) {
             console.log(`🧹 Uninstalling CLI via ${detection.method}...`);
-            await executeManagedCommand(
-                {
-                    command: command.command,
-                    args: command.args,
-                    displayCommand: command.displayCommand,
-                },
-                { dryRun: validated.dryRun }
-            );
+            try {
+                await executeManagedCommand(
+                    {
+                        command: command.command,
+                        args: command.args,
+                        displayCommand: command.displayCommand,
+                    },
+                    { dryRun: validated.dryRun }
+                );
+            } catch (error) {
+                managedUninstallError = error instanceof Error ? error : new Error(String(error));
+                console.warn(
+                    `⚠️  Package-manager uninstall failed, continuing with local cleanup: ${managedUninstallError.message}`
+                );
+            }
         } else {
             console.warn(
                 `⚠️  No automatic uninstall command for ${detection.method}. Remove it manually.`
@@ -146,6 +154,10 @@ export async function handleUninstallCliCommand(
     if (validated.dryRun) {
         console.log('✅ Dry run completed. No files were deleted.');
         return;
+    }
+
+    if (managedUninstallError) {
+        throw managedUninstallError;
     }
 
     console.log('✅ Dexto CLI uninstall completed.');

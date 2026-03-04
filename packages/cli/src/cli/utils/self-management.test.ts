@@ -45,6 +45,27 @@ describe('self-management utils', () => {
         expect(result.installedPath).toBe('/usr/local/bin/dexto');
     });
 
+    it('falls back to heuristics when metadata path is stale', async () => {
+        const metadata: InstallMetadata = {
+            schemaVersion: 1,
+            method: 'native',
+            installedPath: '/Users/test/.local/bin/dexto',
+            installedAt: '2026-03-03T12:00:00Z',
+            version: '1.6.8',
+        };
+
+        const result = await detectInstallMethodWithDeps({
+            readMetadata: async () => metadata,
+            getPathEntries: async () => ['/usr/local/bin/dexto'],
+            detectNodeManager: async () => 'npm',
+            detectSystemManager: () => null,
+        });
+
+        expect(result.method).toBe('npm');
+        expect(result.source).toBe('heuristic');
+        expect(result.installedPath).toBe('/usr/local/bin/dexto');
+    });
+
     it('returns unknown when no binary is found in PATH', async () => {
         const result = await detectInstallMethodWithDeps({
             readMetadata: async () => null,

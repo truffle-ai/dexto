@@ -118,25 +118,25 @@ dexto setup --force
 
 See [Global Preferences](./global-preferences) for detailed configuration guide.
 
-### `install` - Install Agents
+### `agents install` - Install Agents
 
 Install agents from the registry or custom YAML files/directories.
 
 ```bash
 # Install single agent from registry
-dexto install nano-banana-agent
+dexto agents install nano-banana-agent
 
 # Install multiple agents
-dexto install podcast-agent coding-agent database-agent
+dexto agents install podcast-agent coding-agent database-agent
 
 # Install all available agents
-dexto install --all
+dexto agents install --all
 
 # Install custom agent from file
-dexto install ./my-agent.yml
+dexto agents install ./my-agent.yml
 
 # Install from directory (interactive)
-dexto install ./my-agent-dir/
+dexto agents install ./my-agent-dir/
 ```
 
 **Options:**
@@ -146,19 +146,19 @@ dexto install ./my-agent-dir/
 
 See the [Agent Registry](/docs/guides/agent-registry) for available agents.
 
-### `uninstall` - Uninstall Agents
+### `agents uninstall` - Uninstall Agents
 
 Remove agents from your local installation.
 
 ```bash
 # Uninstall single agent
-dexto uninstall nano-banana-agent
+dexto agents uninstall nano-banana-agent
 
 # Uninstall multiple agents
-dexto uninstall agent1 agent2
+dexto agents uninstall agent1 agent2
 
 # Uninstall all agents
-dexto uninstall --all
+dexto agents uninstall --all
 ```
 
 **Options:**
@@ -181,42 +181,42 @@ dexto upgrade 1.6.8
 - `--dry-run` - Print install/migration commands without executing
 - `--force` - Force reinstall for native install target
 
-### `uninstall-cli` - Uninstall Dexto CLI
+### `uninstall` - Uninstall Dexto CLI
 
-Uninstall the Dexto CLI binary (this is separate from `dexto uninstall`, which removes agents).
+Uninstall the Dexto CLI binary (agent removal is handled by `dexto agents uninstall`).
 
 ```bash
 # Remove CLI binary + cache (default)
-dexto uninstall-cli
+dexto uninstall
 
 # Preview changes
-dexto uninstall-cli --dry-run
+dexto uninstall --dry-run
 
 # Also remove config and agent/data directories
-dexto uninstall-cli --remove-config --remove-data --force
+dexto uninstall --remove-config --remove-data --force
 ```
 
 **Options:**
 - `--keep-config` - Keep config files (default)
 - `--keep-data` - Keep data directories (default)
-- `--remove-config` - Remove config files (requires `--force`)
-- `--remove-data` - Remove data directories (requires `--force`)
+- `--remove-config` - Remove config files (requires `--force`, except with `--dry-run`)
+- `--remove-data` - Remove data directories (requires `--force`, except with `--dry-run`)
 - `--dry-run` - Show what would be removed
 - `--force` - Required when removing config/data
 
-### `sync-agents` - Sync Agent Configs
+### `agents sync` - Sync Agent Configs
 
 Sync installed agents with bundled versions after Dexto updates.
 
 ```bash
 # Check status and prompt for updates
-dexto sync-agents
+dexto agents sync
 
 # List what would change (dry run)
-dexto sync-agents --list
+dexto agents sync --list
 
 # Force update all without prompts
-dexto sync-agents --force
+dexto agents sync --force
 ```
 
 **Options:**
@@ -225,22 +225,22 @@ dexto sync-agents --force
 
 **When to use:** When Dexto shows "Agent updates available" notification after an update, or when you want to reset agents to their default configurations.
 
-### `list-agents` - List Available Agents
+### `agents list` - List Available Agents
 
 List agents from the registry and locally installed agents.
 
 ```bash
 # List all agents (registry + installed)
-dexto list-agents
+dexto agents list
 
 # Show only installed agents
-dexto list-agents --installed
+dexto agents list --installed
 
 # Show only registry agents
-dexto list-agents --available
+dexto agents list --available
 
 # Show detailed information
-dexto list-agents --verbose
+dexto agents list --verbose
 ```
 
 **Options:**

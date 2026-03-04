@@ -125,4 +125,27 @@ describe('uninstall-cli command', () => {
 
         expect(removePath).not.toHaveBeenCalled();
     });
+
+    it('continues local cleanup when package-manager uninstall fails and then throws', async () => {
+        vi.mocked(detectInstallMethod).mockResolvedValue({
+            method: 'npm',
+            source: 'heuristic',
+            metadata: null,
+            installedPath: '/usr/local/bin/dexto',
+            installDir: '/usr/local/bin',
+            allDetectedPaths: ['/usr/local/bin/dexto'],
+            multipleInstallWarning: null,
+        });
+
+        vi.mocked(resolveUninstallCommandForMethod).mockReturnValue({
+            command: 'npm',
+            args: ['uninstall', '-g', 'dexto'],
+            displayCommand: 'npm uninstall -g dexto',
+        });
+
+        vi.mocked(executeManagedCommand).mockRejectedValue(new Error('pm uninstall failed'));
+
+        await expect(handleUninstallCliCommand({})).rejects.toThrow('pm uninstall failed');
+        expect(removePath).toHaveBeenCalledWith('/home/test/.dexto/cache');
+    });
 });

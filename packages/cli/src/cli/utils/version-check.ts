@@ -7,7 +7,7 @@ import chalk from 'chalk';
 import boxen from 'boxen';
 
 /**
- * Version cache stored in ~/.dexto/version-check.json
+ * Version cache stored in ~/.dexto/cache/version-check.json
  */
 interface VersionCache {
     lastCheck: number; // timestamp in ms
