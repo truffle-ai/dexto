@@ -938,12 +938,13 @@ program
         withAnalytics(
             'mcp',
             async (options) => {
-                const [{ createMcpTransport }, { initializeMcpToolAggregationServer }] =
-                    await Promise.all([
-                        import('@dexto/server'),
-                        import('./api/mcp/tool-aggregation-handler.js'),
-                    ]);
                 try {
+                    const [{ createMcpTransport }, { initializeMcpToolAggregationServer }] =
+                        await Promise.all([
+                            import('@dexto/server'),
+                            import('./api/mcp/tool-aggregation-handler.js'),
+                        ]);
+
                     // Validate that --group-servers flag is provided (mandatory for now)
                     if (!options.groupServers) {
                         console.error(

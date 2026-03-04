@@ -19,11 +19,9 @@ export function registerSearchCommand({
                     query: string,
                     options: { session?: string; role?: string; limit?: string }
                 ) => {
+                    let agent: Awaited<ReturnType<typeof bootstrapAgentFromGlobalOpts>> | null =
+                        null;
                     try {
-                        const agent = await bootstrapAgentFromGlobalOpts({
-                            mode: 'non-interactive',
-                        });
-
                         const searchOptions: {
                             sessionId?: string;
                             role?: 'user' | 'assistant' | 'system' | 'tool';
@@ -48,8 +46,13 @@ export function registerSearchCommand({
                                 | 'tool';
                         }
                         if (options.limit) {
-                            const parsed = parseInt(options.limit, 10);
-                            if (Number.isNaN(parsed) || parsed <= 0) {
+                            const rawLimit = options.limit.trim();
+                            const parsed = Number(rawLimit);
+                            if (
+                                !/^\d+$/.test(rawLimit) ||
+                                !Number.isInteger(parsed) ||
+                                parsed <= 0
+                            ) {
                                 console.error(
                                     `❌ Invalid --limit: ${options.limit}. Use a positive integer (e.g., 10).`
                                 );
@@ -58,16 +61,23 @@ export function registerSearchCommand({
                             searchOptions.limit = parsed;
                         }
 
+                        agent = await bootstrapAgentFromGlobalOpts({
+                            mode: 'non-interactive',
+                        });
+
                         const { handleSessionSearchCommand } = await import(
                             '../session-commands.js'
                         );
                         await handleSessionSearchCommand(agent, query, searchOptions);
-                        await agent.stop();
                         safeExit('search', 0);
                     } catch (err) {
                         if (err instanceof ExitSignal) throw err;
                         console.error(`❌ dexto search command failed: ${err}`);
                         safeExit('search', 1, 'error');
+                    } finally {
+                        if (agent) {
+                            await agent.stop().catch(() => {});
+                        }
                     }
                 }
             )

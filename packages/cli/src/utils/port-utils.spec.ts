@@ -16,6 +16,12 @@ describe('getPort', () => {
         );
     });
 
+    it('throws error for partially numeric string', () => {
+        expect(() => getPort('8080abc', 3000, 'TEST')).toThrow(
+            'Environment variable TEST value "8080abc" is not a valid port'
+        );
+    });
+
     it('throws error for negative port', () => {
         expect(() => getPort('-1', 3000, 'TEST')).toThrow(
             'Environment variable TEST value "-1" is not a valid port'
@@ -25,6 +31,12 @@ describe('getPort', () => {
     it('throws error for port > 65535', () => {
         expect(() => getPort('70000', 3000, 'TEST')).toThrow(
             'Environment variable TEST value "70000" is not a valid port'
+        );
+    });
+
+    it('throws error for invalid default port', () => {
+        expect(() => getPort(undefined, Number.NaN, 'TEST')).toThrow(
+            'Default port value "NaN" is not a valid port'
         );
     });
 });

@@ -7,7 +7,24 @@ export async function runServerMode(context: MainModeContext): Promise<void> {
     const { startHonoApiServer } = await import('../../api/server-hono.js');
 
     const agentCard = agent.config.agentCard ?? {};
-    const defaultPort = opts.port ? parseInt(opts.port, 10) : 3001;
+    const defaultPort = (() => {
+        if (!opts.port) {
+            return 3001;
+        }
+
+        const rawPort = opts.port.trim();
+        const parsedPort = Number(rawPort);
+        if (
+            !/^\d+$/.test(rawPort) ||
+            !Number.isInteger(parsedPort) ||
+            parsedPort <= 0 ||
+            parsedPort > 65535
+        ) {
+            throw new Error(`Invalid --port value "${opts.port}". Use a port between 1 and 65535.`);
+        }
+
+        return parsedPort;
+    })();
     const apiPort = getPort(process.env.PORT, defaultPort, 'PORT');
     const apiUrl = process.env.DEXTO_URL ?? `http://localhost:${apiPort}`;
 

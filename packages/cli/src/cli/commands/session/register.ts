@@ -12,17 +12,21 @@ export function registerSessionCommand({
         .description('List all sessions')
         .action(
             withAnalytics('session list', async () => {
+                let agent: Awaited<ReturnType<typeof bootstrapAgentFromGlobalOpts>> | null = null;
                 try {
-                    const agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
+                    agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
 
                     const { handleSessionListCommand } = await import('../session-commands.js');
                     await handleSessionListCommand(agent);
-                    await agent.stop();
                     safeExit('session list', 0);
                 } catch (err) {
                     if (err instanceof ExitSignal) throw err;
                     console.error(`❌ dexto session list command failed: ${err}`);
                     safeExit('session list', 1, 'error');
+                } finally {
+                    if (agent) {
+                        await agent.stop().catch(() => {});
+                    }
                 }
             })
         );
@@ -33,17 +37,21 @@ export function registerSessionCommand({
         .argument('[sessionId]', 'Session ID (defaults to current session)')
         .action(
             withAnalytics('session history', async (sessionId: string) => {
+                let agent: Awaited<ReturnType<typeof bootstrapAgentFromGlobalOpts>> | null = null;
                 try {
-                    const agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
+                    agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
 
                     const { handleSessionHistoryCommand } = await import('../session-commands.js');
                     await handleSessionHistoryCommand(agent, sessionId);
-                    await agent.stop();
                     safeExit('session history', 0);
                 } catch (err) {
                     if (err instanceof ExitSignal) throw err;
                     console.error(`❌ dexto session history command failed: ${err}`);
                     safeExit('session history', 1, 'error');
+                } finally {
+                    if (agent) {
+                        await agent.stop().catch(() => {});
+                    }
                 }
             })
         );
@@ -54,17 +62,21 @@ export function registerSessionCommand({
         .argument('<sessionId>', 'Session ID to delete')
         .action(
             withAnalytics('session delete', async (sessionId: string) => {
+                let agent: Awaited<ReturnType<typeof bootstrapAgentFromGlobalOpts>> | null = null;
                 try {
-                    const agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
+                    agent = await bootstrapAgentFromGlobalOpts({ mode: 'non-interactive' });
 
                     const { handleSessionDeleteCommand } = await import('../session-commands.js');
                     await handleSessionDeleteCommand(agent, sessionId);
-                    await agent.stop();
                     safeExit('session delete', 0);
                 } catch (err) {
                     if (err instanceof ExitSignal) throw err;
                     console.error(`❌ dexto session delete command failed: ${err}`);
                     safeExit('session delete', 1, 'error');
+                } finally {
+                    if (agent) {
+                        await agent.stop().catch(() => {});
+                    }
                 }
             })
         );
