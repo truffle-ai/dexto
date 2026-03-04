@@ -2,7 +2,7 @@ import { safeExit, ExitSignal } from '../../analytics/wrapper.js';
 import type { MainModeContext } from './context.js';
 
 export async function dispatchMainMode(context: MainModeContext): Promise<void> {
-    const mode = context.opts.mode ?? 'web';
+    const mode = context.opts.mode;
     try {
         switch (mode) {
             case 'cli': {
