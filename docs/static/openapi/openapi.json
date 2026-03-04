@@ -6363,6 +6363,1404 @@
         }
       }
     },
+    "/api/llm/model-picker-state": {
+      "get": {
+        "summary": "Model Picker State",
+        "description": "Returns hydrated Featured, Recents, Favorites, and Custom sections for the model picker.",
+        "tags": [
+          "llm"
+        ],
+        "responses": {
+          "200": {
+            "description": "Hydrated model picker sections",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "featured": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "provider": {
+                            "type": "string",
+                            "enum": [
+                              "openai",
+                              "openai-compatible",
+                              "anthropic",
+                              "google",
+                              "groq",
+                              "xai",
+                              "cohere",
+                              "minimax",
+                              "glm",
+                              "openrouter",
+                              "litellm",
+                              "glama",
+                              "vertex",
+                              "bedrock",
+                              "local",
+                              "ollama",
+                              "dexto-nova"
+                            ],
+                            "description": "LLM provider"
+                          },
+                          "model": {
+                            "type": "string",
+                            "description": "Model ID"
+                          },
+                          "displayName": {
+                            "type": "string",
+                            "description": "Human-readable model name"
+                          },
+                          "supportedFileTypes": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "pdf",
+                                "image",
+                                "audio"
+                              ]
+                            },
+                            "description": "File types supported by this model"
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "catalog",
+                              "custom",
+                              "local-installed"
+                            ],
+                            "description": "Where this model comes from"
+                          }
+                        },
+                        "required": [
+                          "provider",
+                          "model",
+                          "supportedFileTypes",
+                          "source"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Hydrated model picker entry"
+                      },
+                      "description": "Curated featured models"
+                    },
+                    "recents": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "provider": {
+                            "type": "string",
+                            "enum": [
+                              "openai",
+                              "openai-compatible",
+                              "anthropic",
+                              "google",
+                              "groq",
+                              "xai",
+                              "cohere",
+                              "minimax",
+                              "glm",
+                              "openrouter",
+                              "litellm",
+                              "glama",
+                              "vertex",
+                              "bedrock",
+                              "local",
+                              "ollama",
+                              "dexto-nova"
+                            ],
+                            "description": "LLM provider"
+                          },
+                          "model": {
+                            "type": "string",
+                            "description": "Model ID"
+                          },
+                          "displayName": {
+                            "type": "string",
+                            "description": "Human-readable model name"
+                          },
+                          "supportedFileTypes": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "pdf",
+                                "image",
+                                "audio"
+                              ]
+                            },
+                            "description": "File types supported by this model"
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "catalog",
+                              "custom",
+                              "local-installed"
+                            ],
+                            "description": "Where this model comes from"
+                          }
+                        },
+                        "required": [
+                          "provider",
+                          "model",
+                          "supportedFileTypes",
+                          "source"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Hydrated model picker entry"
+                      },
+                      "description": "Most recently used models"
+                    },
+                    "favorites": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "provider": {
+                            "type": "string",
+                            "enum": [
+                              "openai",
+                              "openai-compatible",
+                              "anthropic",
+                              "google",
+                              "groq",
+                              "xai",
+                              "cohere",
+                              "minimax",
+                              "glm",
+                              "openrouter",
+                              "litellm",
+                              "glama",
+                              "vertex",
+                              "bedrock",
+                              "local",
+                              "ollama",
+                              "dexto-nova"
+                            ],
+                            "description": "LLM provider"
+                          },
+                          "model": {
+                            "type": "string",
+                            "description": "Model ID"
+                          },
+                          "displayName": {
+                            "type": "string",
+                            "description": "Human-readable model name"
+                          },
+                          "supportedFileTypes": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "pdf",
+                                "image",
+                                "audio"
+                              ]
+                            },
+                            "description": "File types supported by this model"
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "catalog",
+                              "custom",
+                              "local-installed"
+                            ],
+                            "description": "Where this model comes from"
+                          }
+                        },
+                        "required": [
+                          "provider",
+                          "model",
+                          "supportedFileTypes",
+                          "source"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Hydrated model picker entry"
+                      },
+                      "description": "User favorited models"
+                    },
+                    "custom": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "provider": {
+                            "type": "string",
+                            "enum": [
+                              "openai",
+                              "openai-compatible",
+                              "anthropic",
+                              "google",
+                              "groq",
+                              "xai",
+                              "cohere",
+                              "minimax",
+                              "glm",
+                              "openrouter",
+                              "litellm",
+                              "glama",
+                              "vertex",
+                              "bedrock",
+                              "local",
+                              "ollama",
+                              "dexto-nova"
+                            ],
+                            "description": "LLM provider"
+                          },
+                          "model": {
+                            "type": "string",
+                            "description": "Model ID"
+                          },
+                          "displayName": {
+                            "type": "string",
+                            "description": "Human-readable model name"
+                          },
+                          "supportedFileTypes": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "pdf",
+                                "image",
+                                "audio"
+                              ]
+                            },
+                            "description": "File types supported by this model"
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "catalog",
+                              "custom",
+                              "local-installed"
+                            ],
+                            "description": "Where this model comes from"
+                          }
+                        },
+                        "required": [
+                          "provider",
+                          "model",
+                          "supportedFileTypes",
+                          "source"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Hydrated model picker entry"
+                      },
+                      "description": "User-defined custom models"
+                    }
+                  },
+                  "required": [
+                    "featured",
+                    "recents",
+                    "favorites",
+                    "custom"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or request error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard error response for model picker endpoints"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard error response for model picker endpoints"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard error response for model picker endpoints"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/model-picker-state/recents": {
+      "post": {
+        "summary": "Record Recent Model",
+        "description": "Records a model selection in recents.",
+        "tags": [
+          "llm"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "enum": [
+                      "openai",
+                      "openai-compatible",
+                      "anthropic",
+                      "google",
+                      "groq",
+                      "xai",
+                      "cohere",
+                      "minimax",
+                      "glm",
+                      "openrouter",
+                      "litellm",
+                      "glama",
+                      "vertex",
+                      "bedrock",
+                      "local",
+                      "ollama",
+                      "dexto-nova"
+                    ],
+                    "description": "LLM provider"
+                  },
+                  "model": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Model ID"
+                  }
+                },
+                "required": [
+                  "provider",
+                  "model"
+                ],
+                "additionalProperties": false,
+                "description": "Provider/model pair for model picker state operations"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recent model recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Success indicator"
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or request error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard error response for model picker endpoints"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard error response for model picker endpoints"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard error response for model picker endpoints"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/model-picker-state/favorites/toggle": {
+      "post": {
+        "summary": "Toggle Favorite Model",
+        "description": "Adds or removes a model from favorites.",
+        "tags": [
+          "llm"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "enum": [
+                      "openai",
+                      "openai-compatible",
+                      "anthropic",
+                      "google",
+                      "groq",
+                      "xai",
+                      "cohere",
+                      "minimax",
+                      "glm",
+                      "openrouter",
+                      "litellm",
+                      "glama",
+                      "vertex",
+                      "bedrock",
+                      "local",
+                      "ollama",
+                      "dexto-nova"
+                    ],
+                    "description": "LLM provider"
+                  },
+                  "model": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Model ID"
+                  }
+                },
+                "required": [
+                  "provider",
+                  "model"
+                ],
+                "additionalProperties": false,
+                "description": "Provider/model pair for model picker state operations"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Favorite toggled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Success indicator"
+                    },
+                    "isFavorite": {
+                      "type": "boolean",
+                      "description": "Whether the model is now favorited"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "isFavorite"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or request error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard error response for model picker endpoints"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard error response for model picker endpoints"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard error response for model picker endpoints"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/model-picker-state/favorites": {
+      "put": {
+        "summary": "Set Favorite Models",
+        "description": "Replaces favorite models list. Used by migration or bulk updates.",
+        "tags": [
+          "llm"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "favorites": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "provider": {
+                          "type": "string",
+                          "enum": [
+                            "openai",
+                            "openai-compatible",
+                            "anthropic",
+                            "google",
+                            "groq",
+                            "xai",
+                            "cohere",
+                            "minimax",
+                            "glm",
+                            "openrouter",
+                            "litellm",
+                            "glama",
+                            "vertex",
+                            "bedrock",
+                            "local",
+                            "ollama",
+                            "dexto-nova"
+                          ],
+                          "description": "LLM provider"
+                        },
+                        "model": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "Model ID"
+                        }
+                      },
+                      "required": [
+                        "provider",
+                        "model"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Provider/model pair for model picker state operations"
+                    },
+                    "description": "Complete list of favorite model references"
+                  }
+                },
+                "required": [
+                  "favorites"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Favorites updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Success indicator"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of favorites persisted"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "count"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or request error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard error response for model picker endpoints"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard error response for model picker endpoints"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard error response for model picker endpoints"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/llm/capabilities": {
       "get": {
         "summary": "Get Model Capabilities",
@@ -6736,6 +8134,11 @@
                             "type": "string",
                             "nullable": true,
                             "description": "Associated workspace ID, if any"
+                          },
+                          "parentSessionId": {
+                            "type": "string",
+                            "nullable": true,
+                            "description": "Parent session ID if this session was forked, otherwise null"
                           }
                         },
                         "required": [
@@ -6970,6 +8373,11 @@
                           "type": "string",
                           "nullable": true,
                           "description": "Associated workspace ID, if any"
+                        },
+                        "parentSessionId": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "Parent session ID if this session was forked, otherwise null"
                         }
                       },
                       "required": [
@@ -6986,6 +8394,379 @@
                     "session"
                   ],
                   "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/fork": {
+      "post": {
+        "summary": "Fork Session",
+        "description": "Creates a new child session by cloning the specified parent session history and metadata lineage.",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Parent session identifier"
+            },
+            "required": true,
+            "description": "Parent session identifier",
+            "name": "sessionId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Forked session created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "session": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Unique session identifier"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "nullable": true,
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Creation timestamp (Unix ms, null if unavailable)"
+                        },
+                        "lastActivity": {
+                          "type": "integer",
+                          "nullable": true,
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Last activity timestamp (Unix ms, null if unavailable)"
+                        },
+                        "messageCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Total number of messages in session"
+                        },
+                        "title": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "Optional session title"
+                        },
+                        "tokenUsage": {
+                          "type": "object",
+                          "properties": {
+                            "inputTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of input tokens"
+                            },
+                            "outputTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of output tokens"
+                            },
+                            "reasoningTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of reasoning tokens"
+                            },
+                            "cacheReadTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of cache read tokens"
+                            },
+                            "cacheWriteTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Number of cache write tokens"
+                            },
+                            "totalTokens": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Total tokens used"
+                            }
+                          },
+                          "required": [
+                            "inputTokens",
+                            "outputTokens",
+                            "reasoningTokens",
+                            "cacheReadTokens",
+                            "cacheWriteTokens",
+                            "totalTokens"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Aggregate token usage across all models"
+                        },
+                        "estimatedCost": {
+                          "type": "number",
+                          "minimum": 0,
+                          "description": "Total estimated cost in USD across all models"
+                        },
+                        "modelStats": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "provider": {
+                                "type": "string",
+                                "description": "LLM provider identifier"
+                              },
+                              "model": {
+                                "type": "string",
+                                "description": "Model identifier"
+                              },
+                              "messageCount": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Number of messages using this model"
+                              },
+                              "tokenUsage": {
+                                "type": "object",
+                                "properties": {
+                                  "inputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of input tokens"
+                                  },
+                                  "outputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of output tokens"
+                                  },
+                                  "reasoningTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of reasoning tokens"
+                                  },
+                                  "cacheReadTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache read tokens"
+                                  },
+                                  "cacheWriteTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache write tokens"
+                                  },
+                                  "totalTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Total tokens used"
+                                  }
+                                },
+                                "required": [
+                                  "inputTokens",
+                                  "outputTokens",
+                                  "reasoningTokens",
+                                  "cacheReadTokens",
+                                  "cacheWriteTokens",
+                                  "totalTokens"
+                                ],
+                                "additionalProperties": false,
+                                "description": "Token usage for this model"
+                              },
+                              "estimatedCost": {
+                                "type": "number",
+                                "minimum": 0,
+                                "description": "Estimated cost in USD for this model"
+                              },
+                              "firstUsedAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "First use timestamp (Unix ms)"
+                              },
+                              "lastUsedAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "Last use timestamp (Unix ms)"
+                              }
+                            },
+                            "required": [
+                              "provider",
+                              "model",
+                              "messageCount",
+                              "tokenUsage",
+                              "estimatedCost",
+                              "firstUsedAt",
+                              "lastUsedAt"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Per-model statistics within a session"
+                          },
+                          "description": "Per-model usage statistics (for multi-model sessions)"
+                        },
+                        "workspaceId": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "Associated workspace ID, if any"
+                        },
+                        "parentSessionId": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "Parent session ID if this session was forked, otherwise null"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "createdAt",
+                        "lastActivity",
+                        "messageCount"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Newly created child session metadata"
+                    }
+                  },
+                  "required": [
+                    "session"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid fork request (for example, max session limit reached)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard API error envelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Parent session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard API error envelope"
                 }
               }
             }
@@ -7200,6 +8981,11 @@
                           "type": "string",
                           "nullable": true,
                           "description": "Associated workspace ID, if any"
+                        },
+                        "parentSessionId": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "Parent session ID if this session was forked, otherwise null"
                         },
                         "history": {
                           "type": "integer",
@@ -7503,6 +9289,11 @@
                           "type": "string",
                           "nullable": true,
                           "description": "Associated workspace ID, if any"
+                        },
+                        "parentSessionId": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "Parent session ID if this session was forked, otherwise null"
                         }
                       },
                       "required": [
@@ -8171,6 +9962,11 @@
                           "type": "string",
                           "nullable": true,
                           "description": "Associated workspace ID, if any"
+                        },
+                        "parentSessionId": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "Parent session ID if this session was forked, otherwise null"
                         },
                         "isBusy": {
                           "type": "boolean",
