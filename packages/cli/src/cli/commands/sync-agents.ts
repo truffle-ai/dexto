@@ -305,9 +305,9 @@ function formatStatus(status: AgentStatus): string {
  *
  * @example
  * ```bash
- * dexto sync-agents          # Interactive - prompt for each
- * dexto sync-agents --list   # Show what would be updated
- * dexto sync-agents --force  # Update all without prompting
+ * dexto agents sync          # Interactive - prompt for each
+ * dexto agents sync --list   # Show what would be updated
+ * dexto agents sync --force  # Update all without prompting
  * ```
  */
 export async function handleSyncAgentsCommand(options: SyncAgentsCommandOptions): Promise<void> {
@@ -453,7 +453,7 @@ export async function handleSyncAgentsCommand(options: SyncAgentsCommandOptions)
 
         // If list mode, stop here
         if (list) {
-            p.outro('Use `dexto sync-agents` to update agents');
+            p.outro('Use `dexto agents sync` to update agents');
             return;
         }
 
