@@ -606,8 +606,8 @@ Options:
 
 Commands:
   setup                    Configure global preferences
-  install <agents...>      Install agents from registry
-  list-agents              List available agents
+  agents install <agents...>  Install agents from registry
+  agents list              List available agents
   session list|history     Manage sessions
   search <query>           Search conversation history
 ```
