@@ -34,7 +34,7 @@ function getDextoHomeDirOverride(): string | null {
 /**
  * Standard path resolver for logs/db/config/anything in dexto projects
  * Context-aware with explicit home-dir override:
- * - DEXTO_HOME_DIR set: Use <DEXTO_HOME_DIR>
+ * - DEXTO_HOME_DIR set: Use <DEXTO_HOME_DIR>/<type>
  * - dexto-source: Use local repo .dexto
  * - dexto-project: Use project-local .dexto
  * - global-cli: Use global ~/.dexto
@@ -86,7 +86,7 @@ export function getDextoPath(type: string, filename?: string, startPath?: string
 /**
  * Global path resolver for user-global resources that should not be project-relative.
  *
- * - DEXTO_HOME_DIR set: Use <DEXTO_HOME_DIR>
+ * - DEXTO_HOME_DIR set: Use <DEXTO_HOME_DIR>/<type>
  * - dexto-source: Use repo-local `.dexto`
  * - otherwise: Use global `~/.dexto`
  * @param type Path type (agents, cache, etc.)

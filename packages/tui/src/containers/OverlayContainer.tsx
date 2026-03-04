@@ -2269,9 +2269,12 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
 
                         if (context === 'dexto-source') {
                             const sourceRoot = findDextoSourceRoot();
-                            commandsDir = sourceRoot
-                                ? join(sourceRoot, 'commands')
-                                : getDextoGlobalPath('commands');
+                            if (!sourceRoot) {
+                                throw new Error(
+                                    'Unable to resolve source root in dexto-source context'
+                                );
+                            }
+                            commandsDir = join(sourceRoot, 'commands');
                         } else if (context === 'dexto-project') {
                             const projectRoot = findDextoProjectRoot();
                             commandsDir = projectRoot

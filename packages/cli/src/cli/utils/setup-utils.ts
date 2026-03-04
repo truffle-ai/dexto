@@ -117,8 +117,8 @@ export async function getSetupState(): Promise<SetupState> {
  * Context-aware:
  * - Source context: Skip setup, uses repository config
  * - Project context: Skip setup (might have project-local config)
- * - First-time user (source/global-cli): Require setup
- * - Has preferences (source/global-cli): Validate them
+ * - First-time user (global-cli): Require setup
+ * - Has preferences (global-cli): Validate them
  * @returns true if setup is required
  */
 export async function requiresSetup(): Promise<boolean> {

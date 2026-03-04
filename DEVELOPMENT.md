@@ -215,7 +215,7 @@ When running in this repository (`dexto-source` context), Dexto already uses rep
 
 - **Agent/command discovery** from repo paths
 - **Logs/database/cache** under `repo/.dexto/`
-- **Setup checks** skipped for maintainer workflows
+- **Setup checks** skipped in `dexto-source` context
 
 If you want an explicit custom storage root for local testing, set:
 

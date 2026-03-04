@@ -11,7 +11,10 @@ import { getDextoGlobalPath } from '../utils/path.js';
 
 /**
  * Get the base models directory path.
- * Always returns the resolved global path: <dexto-home>/models/
+ * Returns the resolved models path from getDextoGlobalPath('models'):
+ * - DEXTO_HOME_DIR set: <DEXTO_HOME_DIR>/models
+ * - dexto-source: <sourceRoot>/.dexto/models
+ * - otherwise: ~/.dexto/models
  */
 export function getModelsDirectory(): string {
     return getDextoGlobalPath('models');

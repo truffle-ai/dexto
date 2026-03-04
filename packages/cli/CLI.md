@@ -118,7 +118,7 @@ The CLI is built on a modern, maintainable architecture:
 ### Core Components
 
 - **InkCLIRefactored** - Main orchestrator using React Ink
-- **State Management** - Centralized reducer pattern for predictable state
+- **State Management** - Localized React `useState` hooks by concern (no centralized reducer)
 - **Custom Hooks** - Reusable logic (events, history, shortcuts, overlays)
 - **Services** - Business logic layer (commands, messages, input parsing)
 - **Base Components** - Reusable UI primitives (selectors, autocomplete)
