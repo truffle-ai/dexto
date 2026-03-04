@@ -53,6 +53,7 @@ interface DetectInstallMethodDeps {
     getPathEntries: () => Promise<string[]>;
     detectNodeManager: (binaryPath: string) => Promise<InstallMethod | null>;
     detectSystemManager: (binaryPath: string) => InstallMethod | null;
+    pathExists: (targetPath: string) => Promise<boolean>;
 }
 
 export interface CommandExecutionResult {
@@ -379,6 +380,7 @@ export async function detectInstallMethodWithDeps(
     const getPathEntries = deps.getPathEntries ?? getBinaryPathsFromPath;
     const detectNodeManager = deps.detectNodeManager ?? detectNodePackageManagerFromPath;
     const detectSystemManager = deps.detectSystemManager ?? detectSystemPackageManagerFromPath;
+    const pathExistsFn = deps.pathExists ?? pathExists;
 
     const metadata = await readMetadata();
     const allDetectedPaths = await getPathEntries();
@@ -416,12 +418,15 @@ export async function detectInstallMethodWithDeps(
 
     if (metadata) {
         const installedPath = metadata.installedPath;
+        const metadataPathExists = await pathExistsFn(installedPath);
         const metadataPathDetected = allDetectedPaths.some(
             (entry) =>
                 normalizePathForComparison(entry) === normalizePathForComparison(installedPath)
         );
+        const metadataIsTrusted =
+            metadataPathExists && (metadataPathDetected || allDetectedPaths.length === 0);
 
-        if (!metadataPathDetected && activePath) {
+        if (!metadataIsTrusted && activePath) {
             const method = await detectMethodFromActivePath(activePath);
 
             return {
@@ -432,6 +437,18 @@ export async function detectInstallMethodWithDeps(
                 installDir: path.dirname(activePath),
                 allDetectedPaths,
                 multipleInstallWarning: buildMultipleInstallWarning(allDetectedPaths, activePath),
+            };
+        }
+
+        if (!metadataIsTrusted) {
+            return {
+                method: 'unknown',
+                source: 'heuristic',
+                metadata,
+                installedPath: null,
+                installDir: null,
+                allDetectedPaths,
+                multipleInstallWarning: null,
             };
         }
 

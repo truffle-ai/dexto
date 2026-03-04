@@ -75,13 +75,13 @@ Check out [Music Agent Demo and Tutorial](../tutorials/cli/examples/music-agent.
 
 ### 4. Uninstall the agent
 ```bash
-dexto uninstall music-agent
+dexto agents uninstall music-agent
 ```
 
 This command uninstalls the agent.
 
 ```bash
-dexto list-agents
+dexto agents list
 ```
 
 Verify the music-agent was successfully uninstalled.
@@ -89,7 +89,7 @@ Verify the music-agent was successfully uninstalled.
 ### 5. Reinstall the agent with in-built LLM settings
 
 ```bash
-dexto install music-agent --no-inject-preferences
+dexto agents install music-agent --no-inject-preferences
 ```
 
 The first time when you installed `music-agent`, Dexto automatically injected your preferred LLM you configured during setup to be the LLM for this agent.
@@ -259,4 +259,3 @@ You've learned how to:
 You are now ready to explore other in-built agents like the podcast agent, triage agent, database agent, and more!
 
 **Next Steps**: Explore adding more [tools](../concepts/tools.md) or building [multi-agent systems](../tutorials/cli/examples/multi-agent-systems.md).
-

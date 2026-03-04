@@ -220,13 +220,13 @@ dexto --mode mcp --agent coding-assistant
 
 ```bash
 # Show all agents (registry + installed)
-dexto list-agents
+dexto agents list
 
 # Show only installed agents
-dexto list-agents --installed
+dexto agents list --installed
 
 # Show detailed information
-dexto list-agents --verbose
+dexto agents list --verbose
 ```
 
 ### Find Agent Location
@@ -240,13 +240,13 @@ dexto which nano-banana-agent
 
 ```bash
 # Uninstall specific agent
-dexto uninstall nano-banana-agent
+dexto agents uninstall nano-banana-agent
 
 # Uninstall multiple agents
-dexto uninstall agent1 agent2 agent3
+dexto agents uninstall agent1 agent2 agent3
 
 # Uninstall all agents
-dexto uninstall --all
+dexto agents uninstall --all
 ```
 
 ## Creating Your Own Agent Template

@@ -25,6 +25,7 @@ describe('self-management utils', () => {
             getPathEntries: async () => ['/usr/local/bin/dexto', '/Users/test/.local/bin/dexto'],
             detectNodeManager: async () => 'npm',
             detectSystemManager: () => 'brew',
+            pathExists: async () => true,
         });
 
         expect(result.method).toBe('native');
@@ -59,11 +60,34 @@ describe('self-management utils', () => {
             getPathEntries: async () => ['/usr/local/bin/dexto'],
             detectNodeManager: async () => 'npm',
             detectSystemManager: () => null,
+            pathExists: async () => false,
         });
 
         expect(result.method).toBe('npm');
         expect(result.source).toBe('heuristic');
         expect(result.installedPath).toBe('/usr/local/bin/dexto');
+    });
+
+    it('keeps metadata result when binary is not on PATH but metadata path exists', async () => {
+        const metadata: InstallMetadata = {
+            schemaVersion: 1,
+            method: 'native',
+            installedPath: '/Users/test/.local/bin/dexto',
+            installedAt: '2026-03-03T12:00:00Z',
+            version: '1.6.8',
+        };
+
+        const result = await detectInstallMethodWithDeps({
+            readMetadata: async () => metadata,
+            getPathEntries: async () => [],
+            detectNodeManager: async () => null,
+            detectSystemManager: () => null,
+            pathExists: async () => true,
+        });
+
+        expect(result.method).toBe('native');
+        expect(result.source).toBe('metadata');
+        expect(result.installedPath).toBe('/Users/test/.local/bin/dexto');
     });
 
     it('returns unknown when no binary is found in PATH', async () => {

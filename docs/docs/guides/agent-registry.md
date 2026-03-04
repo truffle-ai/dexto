@@ -547,7 +547,7 @@ dexto install podcast-agent music-agent coding-agent
 dexto install nano-banana-agent --no-inject-preferences
 
 # Install all agents
-dexto install --all
+dexto agents install --all
 ```
 
 ### Using Installed Agents
@@ -564,13 +564,13 @@ dexto -a podcast-agent "Generate a podcast intro"
 
 ```bash
 # List installed agents
-dexto list-agents --installed
+dexto agents list --installed
 
 # Find agent location
 dexto which nano-banana-agent
 
 # Uninstall agent
-dexto uninstall music-agent
+dexto agents uninstall music-agent
 ```
 
 ### Setting Default Agent
