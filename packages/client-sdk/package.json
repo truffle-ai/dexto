@@ -16,7 +16,7 @@
     "./package.json": "./package.json"
   },
   "dependencies": {
-    "hono": "^4.11.10"
+    "hono": "^4.12.4"
   },
   "devDependencies": {
     "@dexto/core": "workspace:*",
