@@ -1,5 +1,12 @@
 # @dexto/analytics
 
+## 1.6.10
+
+### Patch Changes
+
+- @dexto/core@1.6.10
+- @dexto/agent-management@1.6.10
+
 ## 1.6.9
 
 ### Patch Changes

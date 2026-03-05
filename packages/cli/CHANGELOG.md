@@ -1,5 +1,21 @@
 # dexto
 
+## 1.6.10
+
+### Patch Changes
+
+- b4ef63f: Fix repeated "agent config updates available" prompts for single-file agents
+    - @dexto/core@1.6.10
+    - @dexto/storage@1.6.10
+    - @dexto/agent-config@1.6.10
+    - @dexto/agent-management@1.6.10
+    - @dexto/analytics@1.6.10
+    - @dexto/registry@1.6.10
+    - @dexto/server@1.6.10
+    - @dexto/image-local@1.6.10
+    - @dexto/image-logger-agent@1.6.10
+    - @dexto/tui@1.6.10
+
 ## 1.6.9
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @dexto/orchestration
 
+## 1.6.10
+
+### Patch Changes
+
+- @dexto/core@1.6.10
+
 ## 1.6.9
 
 ### Patch Changes
