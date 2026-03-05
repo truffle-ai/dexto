@@ -60,6 +60,25 @@ describe('version-check', () => {
             });
         });
 
+        it('extracts trailing semver from scoped monorepo release tags', async () => {
+            vi.mocked(fs.readFile).mockRejectedValue(new Error('ENOENT'));
+            vi.mocked(fs.writeFile).mockResolvedValue();
+            vi.mocked(fs.mkdir).mockResolvedValue(undefined);
+
+            mockFetch.mockResolvedValue({
+                ok: true,
+                json: () => Promise.resolve({ tag_name: '@dexto/tools-filesystem@2.0.0' }),
+            });
+
+            const result = await checkForUpdates('1.0.0');
+
+            expect(result).toEqual({
+                current: '1.0.0',
+                latest: '2.0.0',
+                updateCommand: 'dexto upgrade',
+            });
+        });
+
         it('returns null when current version matches latest release', async () => {
             vi.mocked(fs.readFile).mockRejectedValue(new Error('ENOENT'));
             vi.mocked(fs.writeFile).mockResolvedValue();
@@ -151,6 +170,19 @@ describe('version-check', () => {
             mockFetch.mockResolvedValue({
                 ok: false,
                 status: 404,
+            });
+
+            const result = await checkForUpdates('1.0.0');
+
+            expect(result).toBeNull();
+        });
+
+        it('returns null when tag_name does not contain a semver', async () => {
+            vi.mocked(fs.readFile).mockRejectedValue(new Error('ENOENT'));
+
+            mockFetch.mockResolvedValue({
+                ok: true,
+                json: () => Promise.resolve({ tag_name: 'latest-release' }),
             });
 
             const result = await checkForUpdates('1.0.0');

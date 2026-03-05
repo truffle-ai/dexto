@@ -331,12 +331,11 @@ export async function detectInstallMethodWithDeps(
     if (metadata) {
         const installedPath = metadata.installedPath;
         const metadataPathExists = await pathExistsFn(installedPath);
-        const metadataPathDetected = allDetectedPaths.some(
-            (entry) =>
-                normalizePathForComparison(entry) === normalizePathForComparison(installedPath)
-        );
+        const metadataMatchesActivePath =
+            activePath !== null &&
+            normalizePathForComparison(activePath) === normalizePathForComparison(installedPath);
         const metadataIsTrusted =
-            metadataPathExists && (metadataPathDetected || allDetectedPaths.length === 0);
+            metadataPathExists && (allDetectedPaths.length === 0 || metadataMatchesActivePath);
 
         if (!metadataIsTrusted && activePath) {
             const method = await detectMethodFromActivePath(activePath);

@@ -10,7 +10,28 @@ import {
 } from './self-management.js';
 
 describe('self-management utils', () => {
-    it('prefers install metadata over fallback heuristics', async () => {
+    it('prefers install metadata when metadata path matches active binary', async () => {
+        const metadata: InstallMetadata = {
+            schemaVersion: 1,
+            method: 'native',
+            installedPath: '/Users/test/.local/bin/dexto',
+            installedAt: '2026-03-03T12:00:00Z',
+            version: '1.6.8',
+        };
+
+        const result = await detectInstallMethodWithDeps({
+            readMetadata: async () => metadata,
+            getPathEntries: async () => ['/Users/test/.local/bin/dexto', '/usr/local/bin/dexto'],
+            detectNodeManager: async () => 'npm',
+            pathExists: async () => true,
+        });
+
+        expect(result.method).toBe('native');
+        expect(result.source).toBe('metadata');
+        expect(result.installedPath).toBe('/Users/test/.local/bin/dexto');
+    });
+
+    it('uses active PATH binary when metadata path is present but not active', async () => {
         const metadata: InstallMetadata = {
             schemaVersion: 1,
             method: 'native',
@@ -26,9 +47,9 @@ describe('self-management utils', () => {
             pathExists: async () => true,
         });
 
-        expect(result.method).toBe('native');
-        expect(result.source).toBe('metadata');
-        expect(result.installedPath).toBe('/Users/test/.local/bin/dexto');
+        expect(result.method).toBe('npm');
+        expect(result.source).toBe('heuristic');
+        expect(result.installedPath).toBe('/usr/local/bin/dexto');
     });
 
     it('uses fallback node package-manager detection when metadata is missing', async () => {

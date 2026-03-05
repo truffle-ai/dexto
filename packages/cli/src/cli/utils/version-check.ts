@@ -102,12 +102,17 @@ function normalizeReleaseTag(tagName: string): string | null {
         return null;
     }
 
-    if (trimmed.startsWith('dexto@')) {
-        const withoutPrefix = trimmed.slice('dexto@'.length).trim();
-        return withoutPrefix.length > 0 ? withoutPrefix : null;
+    // GitHub releases in this monorepo can include scoped package tags like
+    // "@dexto/tools-filesystem@1.6.10". Always extract a trailing semver.
+    const trailingSemverMatch = trimmed.match(
+        /(v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$/
+    );
+    if (!trailingSemverMatch) {
+        return null;
     }
 
-    return trimmed;
+    const version = trailingSemverMatch[1]?.trim();
+    return version && version.length > 0 ? version : null;
 }
 
 function extractLatestVersionFromRelease(payload: unknown): string | null {
