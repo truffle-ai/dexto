@@ -16,7 +16,7 @@ Custom agents are specialized AI configurations tailored for specific tasks. The
 - **Memory and storage** – Configure how agents remember context
 
 Dexto provides two ways to install custom agents:
-1. **From the CLI** – Using `dexto install` command
+1. **From the CLI** – Using `dexto agents install` command
 2. **From the Web UI** – Using the "+New Agent" button
 
 ## Installing from CLI
@@ -27,16 +27,16 @@ Dexto comes with a curated registry of agent templates ready to use:
 
 ```bash
 # List available agents
-dexto list-agents
+dexto agents list
 
 # Install a specific agent
-dexto install nano-banana-agent
+dexto agents install nano-banana-agent
 
 # Install multiple agents at once
-dexto install podcast-agent database-agent music-agent
+dexto agents install podcast-agent database-agent music-agent
 
 # Install all available agents
-dexto install --all
+dexto agents install --all
 ```
 
 **Available agent templates include:**
@@ -57,7 +57,7 @@ dexto install --all
 You can install an agent from a local YAML configuration file:
 
 ```bash
-dexto install ./my-agent.yml
+dexto agents install ./my-agent.yml
 ```
 
 Dexto will prompt you for metadata:
@@ -69,7 +69,7 @@ Dexto will prompt you for metadata:
 
 **Example:**
 ```bash
-$ dexto install ./coding-assistant.yml
+$ dexto agents install ./coding-assistant.yml
 
 📝 Custom Agent Installation
 Agent name: coding-assistant
@@ -85,7 +85,7 @@ Tags (comma-separated): coding, development, productivity
 For more complex agents with multiple files (prompts, tools, resources):
 
 ```bash
-dexto install ./my-complex-agent/
+dexto agents install ./my-complex-agent/
 ```
 
 Dexto will ask for:
@@ -107,12 +107,12 @@ my-complex-agent/
 
 **Force Reinstall:**
 ```bash
-dexto install nano-banana-agent --force
+dexto agents install nano-banana-agent --force
 ```
 
 **Skip Preference Injection:**
 ```bash
-dexto install nano-banana-agent --no-inject-preferences
+dexto agents install nano-banana-agent --no-inject-preferences
 ```
 
 By default, Dexto injects your global preferences (like API keys from `~/.dexto/.env`) into installed agents. Use `--no-inject-preferences` to skip this.
@@ -285,7 +285,7 @@ tools:
 
 Install with:
 ```bash
-dexto install ./my-agent.yml
+dexto agents install ./my-agent.yml
 ```
 
 ### Directory-Based Agent
@@ -325,7 +325,7 @@ mcp:
 
 Install with:
 ```bash
-dexto install ./project-manager-agent/
+dexto agents install ./project-manager-agent/
 # When prompted for "Main config file:", enter: agent.yml
 ```
 
@@ -361,7 +361,7 @@ dexto install ./project-manager-agent/
 
 - The ID conflicts with a bundled agent or existing custom agent
 - Choose a different, unique ID
-- To reinstall, use `dexto install --force <agent>`
+- To reinstall, use `dexto agents install --force <agent>`
 
 ### API key not working
 

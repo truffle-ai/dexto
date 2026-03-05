@@ -9,7 +9,7 @@ The Dexto CLI provides two ways to interact with AI agents:
 
 | Mode | What It Is | How to Use |
 |------|------------|------------|
-| **CLI Tool** | Terminal commands for managing agents, sessions, and configuration | `dexto install`, `dexto setup`, `dexto list-agents` |
+| **CLI Tool** | Terminal commands for managing agents, sessions, and configuration | `dexto agents install`, `dexto setup`, `dexto agents list` |
 | **Interactive Mode** | Chat session with slash commands for real-time control | `/model switch`, `/mcp add`, `/search` |
 
 This guide covers the **CLI Tool** commands. For slash commands available during chat, see [Interactive Commands](./interactive-commands.md).
@@ -398,13 +398,13 @@ dexto -r my-project-session "fix the bug we discussed"
 
 ```bash
 # Install agents for specific use cases
-dexto install podcast-agent music-agent coding-agent
+dexto agents install podcast-agent music-agent coding-agent
 
 # Install all available agents
-dexto install --all
+dexto agents install --all
 
 # List what's installed
-dexto list-agents --installed
+dexto agents list --installed
 
 # Find agent config location
 dexto which coding-agent

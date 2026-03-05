@@ -15,10 +15,10 @@ Want to add your Agent to this registry? Check out our [Community Contribution G
 
 ```bash
 # List all available agents
-dexto list-agents
+dexto agents list
 
 # Install an agent
-dexto install <agent-name>
+dexto agents install <agent-name>
 
 # Use an installed agent
 dexto --agent <agent-name>
@@ -538,13 +538,13 @@ dexto --agent default-agent
 
 ```bash
 # Install single agent
-dexto install nano-banana-agent
+dexto agents install nano-banana-agent
 
 # Install multiple agents
-dexto install podcast-agent music-agent coding-agent
+dexto agents install podcast-agent music-agent coding-agent
 
 # Install with default LLM (skip preference injection)
-dexto install nano-banana-agent --no-inject-preferences
+dexto agents install nano-banana-agent --no-inject-preferences
 
 # Install all agents
 dexto agents install --all

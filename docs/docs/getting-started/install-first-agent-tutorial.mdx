@@ -19,10 +19,10 @@ Now that you have used Dexto to build your own agent, let's explore some of the 
 
 Dexto comes shipped with in-built agents for common use-cases.
 
-Use the `list-agents` command to list the in-built agents.
+Use the `agents list` command to list the in-built agents.
 
 ```bash
-dexto list-agents
+dexto agents list
 ```
 
 You will see many different agents. Some of the available agents are:
@@ -48,13 +48,13 @@ No setup required — just install and start using them.
 ### 2. Install a new agent
 
 ```bash
-dexto install music-agent
+dexto agents install music-agent
 ```
 
 This will install the music-agent with your preferred LLM you chose during setup, and you can immediately start running it!
 
 ```bash
-dexto list-agents
+dexto agents list
 ```
 
 This command will verify that the agent was installed successfully.
@@ -98,10 +98,10 @@ To avoid this and use the default LLM shipped for the music-agent, use the `--no
 
 This is preferable for certain agents that work better with or require pre-set LLMs, such as the nano-banana agent, which requires gemini.
 
-Now let's rerun the list-agents command to see the installed agents.
+Now let's rerun the `agents list` command to see the installed agents.
 
 ```bash
-dexto list-agents
+dexto agents list
 ```
 
 You will now see that the music-agent has a different LLM configuration (the default one, as opposed to your preferred one)
@@ -234,10 +234,10 @@ You've just installed your first pre-built AI agent with Dexto!
 
 You've learned how to:
 
-- ✅ List available agents in dexto with the `dexto list-agents` command
-- ✅ Install agents with the `dexto install` command
-- ✅ Uninstall agents with the `dexto uninstall` command
-- ✅ Use the `--no-inject-preferences` argument with `dexto install` command to use default LLM preferences
+- ✅ List available agents in dexto with the `dexto agents list` command
+- ✅ Install agents with the `dexto agents install` command
+- ✅ Uninstall agents with the `dexto agents uninstall` command
+- ✅ Use the `--no-inject-preferences` argument with `dexto agents install` command to use default LLM preferences
 - ✅ Find the file path to installed agents with the `dexto which` command
 - ✅ Set any agent as your preferred default agent in `dexto`
 - ✅ Automatically install and run an agent with `dexto -a <agent_name>`

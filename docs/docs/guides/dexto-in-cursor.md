@@ -39,7 +39,7 @@ Cursor looks for MCP definitions in `.cursor/mcp.json` within your project root.
 }
 ```
 
-Replace `music-agent` with any of the agents you see in `dexto list-agents`
+Replace `music-agent` with any of the agents you see in `dexto agents list`
 
 ### Expose a custom agent
 
