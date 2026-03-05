@@ -5,8 +5,6 @@ import {
     executeManagedCommand,
     normalizeRequestedVersion,
     resolveUninstallCommandForMethod,
-    resolveUpgradeCommandForMethod,
-    type InstallMethod,
 } from '../utils/self-management.js';
 
 const UpgradeCommandSchema = z
@@ -41,28 +39,8 @@ async function runNativeUpgrade(
     await executeManagedCommand(nativeCommand, { dryRun: options.dryRun });
 }
 
-async function runPackageManagerUpgrade(
-    method: InstallMethod,
-    options: UpgradeCommandOptions
-): Promise<void> {
-    const packageCommand = resolveUpgradeCommandForMethod(method);
-    if (!packageCommand) {
-        throw new Error(`No upgrade command available for install method: ${method}`);
-    }
-
-    console.log(`⬆️  Upgrading Dexto via ${method}...`);
-    await executeManagedCommand(
-        {
-            command: packageCommand.command,
-            args: packageCommand.args,
-            displayCommand: packageCommand.displayCommand,
-        },
-        { dryRun: options.dryRun }
-    );
-}
-
 async function runHardMigrationToNative(
-    method: InstallMethod,
+    method: 'npm',
     version: string | null,
     options: UpgradeCommandOptions
 ): Promise<void> {
@@ -114,19 +92,7 @@ export async function handleUpgradeCommand(
             await runNativeUpgrade(version, detection.installDir, validated);
             break;
         case 'npm':
-        case 'pnpm':
-        case 'bun':
             await runHardMigrationToNative(detection.method, version, validated);
-            break;
-        case 'brew':
-        case 'choco':
-        case 'scoop':
-            if (version) {
-                console.warn(
-                    `⚠️  ${detection.method} upgrades do not support a pinned version here. Ignoring '${version}'.`
-                );
-            }
-            await runPackageManagerUpgrade(detection.method, validated);
             break;
         case 'unknown':
         default:

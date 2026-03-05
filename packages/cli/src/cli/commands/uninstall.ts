@@ -1,160 +1,157 @@
-// packages/cli/src/cli/commands/uninstall.ts
-
 import { z } from 'zod';
-import { uninstallAgent, listInstalledAgents } from '../../utils/agent-helpers.js';
-import { capture } from '../../analytics/index.js';
+import {
+    detectInstallMethod,
+    executeManagedCommand,
+    getDefaultNativeBinaryPath,
+    getSelfUninstallPaths,
+    pathExists,
+    removePath,
+    resolveUninstallCommandForMethod,
+} from '../utils/self-management.js';
 
-// Zod schema for uninstall command validation
-const UninstallCommandSchema = z
+const UninstallCliCommandSchema = z
     .object({
-        agents: z.array(z.string().min(1, 'Agent name cannot be empty')),
-        all: z.boolean().default(false),
+        keepConfig: z.boolean().default(true),
+        keepData: z.boolean().default(true),
+        removeConfig: z.boolean().default(false),
+        removeData: z.boolean().default(false),
+        dryRun: z.boolean().default(false),
         force: z.boolean().default(false),
     })
     .strict();
 
-export type UninstallCommandOptions = z.output<typeof UninstallCommandSchema>;
+export type UninstallCliCommandOptions = z.output<typeof UninstallCliCommandSchema>;
 
-/**
- * Validate uninstall command arguments
- */
-async function validateUninstallCommand(
-    agents: string[],
-    options: Partial<UninstallCommandOptions>
-): Promise<UninstallCommandOptions> {
-    // Basic structure validation
-    const validated = UninstallCommandSchema.parse({
-        ...options,
-        agents,
-    });
+interface RemovalSummary {
+    removed: string[];
+    skipped: string[];
+}
 
-    // Business logic validation
-    const installedAgents = await listInstalledAgents();
-
-    if (installedAgents.length === 0) {
-        throw new Error('No agents are currently installed.');
+function printMultiInstallWarning(warning: string | null): void {
+    if (!warning) {
+        return;
     }
 
-    if (!validated.all && validated.agents.length === 0) {
+    console.warn(`⚠️  ${warning}`);
+}
+
+async function removeTargets(targets: string[], dryRun: boolean): Promise<RemovalSummary> {
+    const removed: string[] = [];
+    const skipped: string[] = [];
+
+    for (const target of targets) {
+        if (!(await pathExists(target))) {
+            skipped.push(target);
+            continue;
+        }
+
+        if (dryRun) {
+            console.log(`[dry-run] remove ${target}`);
+            removed.push(target);
+            continue;
+        }
+
+        await removePath(target);
+        removed.push(target);
+    }
+
+    return { removed, skipped };
+}
+
+function resolveKeepFlags(options: UninstallCliCommandOptions): {
+    keepConfig: boolean;
+    keepData: boolean;
+} {
+    const keepConfig = options.keepConfig && !options.removeConfig;
+    const keepData = options.keepData && !options.removeData;
+
+    return { keepConfig, keepData };
+}
+
+export async function handleUninstallCliCommand(
+    options: Partial<UninstallCliCommandOptions>
+): Promise<void> {
+    const validated = UninstallCliCommandSchema.parse(options);
+    const keep = resolveKeepFlags(validated);
+
+    if ((!keep.keepConfig || !keep.keepData) && !validated.force && !validated.dryRun) {
         throw new Error(
-            `No agents specified. Use agent names or --all flag. Installed agents: ${installedAgents.join(', ')}`
+            'Removing config/data requires --force. Re-run with --force or keep defaults.'
         );
     }
 
-    return validated;
-}
+    const detection = await detectInstallMethod();
+    printMultiInstallWarning(detection.multipleInstallWarning);
 
-export async function handleUninstallCommand(
-    agents: string[],
-    options: Partial<UninstallCommandOptions>
-): Promise<void> {
-    // Validate command with Zod
-    const validated = await validateUninstallCommand(agents, options);
-    const installedAgents = await listInstalledAgents();
+    const uninstallPaths = getSelfUninstallPaths();
+    let managedUninstallError: Error | null = null;
 
-    if (installedAgents.length === 0) {
-        console.log('📋 No agents are currently installed.');
-        return;
-    }
-
-    // Determine which agents to uninstall
-    let agentsToUninstall: string[];
-    if (validated.all) {
-        agentsToUninstall = installedAgents;
-        console.log(`📋 Uninstalling all ${agentsToUninstall.length} installed agents...`);
-    } else {
-        agentsToUninstall = validated.agents;
-
-        // Validate all specified agents are actually installed
-        const notInstalled = agentsToUninstall.filter((agent) => !installedAgents.includes(agent));
-        if (notInstalled.length > 0) {
-            throw new Error(
-                `Agents not installed: ${notInstalled.join(', ')}. ` +
-                    `Installed agents: ${installedAgents.join(', ')}`
+    if (detection.method === 'npm') {
+        const command = resolveUninstallCommandForMethod(detection.method);
+        if (command) {
+            console.log(`🧹 Uninstalling CLI via ${detection.method}...`);
+            try {
+                await executeManagedCommand(
+                    {
+                        command: command.command,
+                        args: command.args,
+                        displayCommand: command.displayCommand,
+                    },
+                    { dryRun: validated.dryRun }
+                );
+            } catch (error) {
+                managedUninstallError = error instanceof Error ? error : new Error(String(error));
+                console.warn(
+                    `⚠️  Package-manager uninstall failed, continuing with local cleanup: ${managedUninstallError.message}`
+                );
+            }
+        } else {
+            console.warn(
+                `⚠️  No automatic uninstall command for ${detection.method}. Remove it manually.`
             );
         }
-    }
+    } else {
+        const binaryPath = detection.installedPath ?? getDefaultNativeBinaryPath();
+        const binaryRemoval = await removeTargets([binaryPath], validated.dryRun);
 
-    console.log(`🗑️  Uninstalling ${agentsToUninstall.length} agents...`);
-
-    let successCount = 0;
-    let errorCount = 0;
-    const errors: string[] = [];
-    const uninstalled: string[] = [];
-    const failed: string[] = [];
-
-    // Uninstall each agent
-    for (const agentName of agentsToUninstall) {
-        try {
-            console.log(`\n🗑️  Uninstalling ${agentName}...`);
-            await uninstallAgent(agentName);
-            successCount++;
-            console.log(`✅ ${agentName} uninstalled successfully`);
-            uninstalled.push(agentName);
-            // Per-agent analytics for successful uninstall
-            try {
-                capture('dexto_uninstall_agent', {
-                    agent: agentName,
-                    status: 'uninstalled',
-                    force: validated.force,
-                });
-            } catch {
-                // Analytics failures should not block CLI execution.
-            }
-        } catch (error) {
-            errorCount++;
-            const errorMsg = `Failed to uninstall ${agentName}: ${error instanceof Error ? error.message : String(error)}`;
-            errors.push(errorMsg);
-            failed.push(agentName);
-            console.error(`❌ ${errorMsg}`);
-            // Per-agent analytics for failed uninstall
-            try {
-                capture('dexto_uninstall_agent', {
-                    agent: agentName,
-                    status: 'failed',
-                    error_message: error instanceof Error ? error.message : String(error),
-                    force: validated.force,
-                });
-            } catch {
-                // Analytics failures should not block CLI execution.
-            }
+        if (binaryRemoval.removed.length > 0) {
+            console.log(`🗑️  Removed CLI binary: ${binaryRemoval.removed.join(', ')}`);
+        } else {
+            console.log('ℹ️  CLI binary was not found at expected path.');
         }
     }
 
-    // Emit analytics for both single- and multi-agent cases
-    try {
-        capture('dexto_uninstall', {
-            requested: agentsToUninstall,
-            uninstalled,
-            failed,
-            successCount,
-            errorCount,
-        });
-    } catch {
-        // Analytics failures should not block CLI execution.
+    const cacheRemoval = await removeTargets(uninstallPaths.cachePaths, validated.dryRun);
+    if (cacheRemoval.removed.length > 0) {
+        console.log('🗑️  Removed cache data.');
     }
 
-    // For single agent operations, throw error if it failed (after emitting analytics)
-    if (agentsToUninstall.length === 1) {
-        if (errorCount > 0) {
-            throw new Error(errors[0]);
+    if (!keep.keepConfig) {
+        const configRemoval = await removeTargets(uninstallPaths.configPaths, validated.dryRun);
+        if (configRemoval.removed.length > 0) {
+            console.log('🗑️  Removed config files.');
         }
+    } else {
+        console.log('ℹ️  Keeping config files.');
+    }
+
+    if (!keep.keepData) {
+        const dataRemoval = await removeTargets(uninstallPaths.dataPaths, validated.dryRun);
+        if (dataRemoval.removed.length > 0) {
+            console.log('🗑️  Removed data directories.');
+        }
+    } else {
+        console.log('ℹ️  Keeping data directories.');
+    }
+
+    if (validated.dryRun) {
+        console.log('✅ Dry run completed. No files were deleted.');
         return;
     }
 
-    // Show summary if more than 1 agent uninstalled
-    console.log(`\n📊 Uninstallation Summary:`);
-    console.log(`✅ Successfully uninstalled: ${successCount}`);
-    if (errorCount > 0) {
-        console.log(`❌ Failed to uninstall: ${errorCount}`);
-        errors.forEach((error) => console.log(`   • ${error}`));
+    if (managedUninstallError) {
+        throw managedUninstallError;
     }
 
-    if (errorCount > 0 && successCount === 0) {
-        throw new Error('All uninstallations failed');
-    } else if (errorCount > 0) {
-        console.log(`⚠️  Some uninstallations failed, but ${successCount} succeeded.`);
-    } else {
-        console.log(`🎉 All agents uninstalled successfully!`);
-    }
+    console.log('✅ Dexto CLI uninstall completed.');
 }

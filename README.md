@@ -109,40 +109,9 @@ git clone https://github.com/truffle-ai/dexto.git
 cd dexto && pnpm install && pnpm install-cli
 ```
 
-### Upgrade CLI
-
-```bash
-# Upgrade to latest
-dexto upgrade
-
-# Upgrade to a specific version
-dexto upgrade 1.6.8
-```
-
-### Uninstall CLI
-
-```bash
-# Preview what will be removed
-dexto uninstall --dry-run
-
-# Remove CLI binary + cache (default)
-dexto uninstall
-
-# Also remove config and agent/data directories
-dexto uninstall --remove-config --remove-data --force
-```
-
-### Troubleshooting Multiple Installs In PATH
-
-If you previously installed Dexto with npm/pnpm/bun, `dexto upgrade` auto-migrates to native install.
-
-If your shell still resolves an older binary first, run:
-
-```bash
-which -a dexto
-```
-
-Then remove stale installs and run `dexto upgrade` again.
+Upgrade/uninstall and migration troubleshooting live in docs:
+- Installation guide: https://docs.dexto.ai/docs/getting-started/installation
+- CLI command reference: https://docs.dexto.ai/docs/guides/cli/overview
 
 ### Run
 

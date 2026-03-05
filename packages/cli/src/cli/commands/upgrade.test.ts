@@ -6,7 +6,6 @@ vi.mock('../utils/self-management.js', () => ({
     executeManagedCommand: vi.fn(),
     normalizeRequestedVersion: vi.fn(),
     resolveUninstallCommandForMethod: vi.fn(),
-    resolveUpgradeCommandForMethod: vi.fn(),
 }));
 
 import { handleUpgradeCommand } from './upgrade.js';
@@ -16,7 +15,6 @@ import {
     executeManagedCommand,
     normalizeRequestedVersion,
     resolveUninstallCommandForMethod,
-    resolveUpgradeCommandForMethod,
 } from '../utils/self-management.js';
 
 describe('upgrade command', () => {
@@ -98,41 +96,6 @@ describe('upgrade command', () => {
         });
         expect(executeManagedCommand).toHaveBeenCalledTimes(2);
         expect(resolveUninstallCommandForMethod).toHaveBeenCalledWith('npm');
-    });
-
-    it('uses system package-manager command for brew installs', async () => {
-        vi.mocked(normalizeRequestedVersion).mockReturnValue('1.7.0');
-
-        vi.mocked(detectInstallMethod)
-            .mockResolvedValueOnce({
-                method: 'brew',
-                source: 'heuristic',
-                metadata: null,
-                installedPath: '/opt/homebrew/bin/dexto',
-                installDir: '/opt/homebrew/bin',
-                allDetectedPaths: ['/opt/homebrew/bin/dexto'],
-                multipleInstallWarning: null,
-            })
-            .mockResolvedValueOnce({
-                method: 'brew',
-                source: 'heuristic',
-                metadata: null,
-                installedPath: '/opt/homebrew/bin/dexto',
-                installDir: '/opt/homebrew/bin',
-                allDetectedPaths: ['/opt/homebrew/bin/dexto'],
-                multipleInstallWarning: null,
-            });
-
-        vi.mocked(resolveUpgradeCommandForMethod).mockReturnValue({
-            command: 'brew',
-            args: ['upgrade', 'dexto'],
-            displayCommand: 'brew upgrade dexto',
-        });
-
-        await expect(handleUpgradeCommand('1.7.0', {})).resolves.not.toThrow();
-
-        expect(resolveUpgradeCommandForMethod).toHaveBeenCalledWith('brew');
-        expect(executeManagedCommand).toHaveBeenCalledTimes(1);
     });
 
     it('falls back to native installer when method is unknown', async () => {

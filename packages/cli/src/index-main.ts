@@ -26,7 +26,7 @@ function readVersionFromPackageJson(packageJsonPath: string): string | undefined
 }
 
 function resolveCliVersion(): string {
-    // Regular installs (npm/pnpm): package.json is next to dist/.
+    // Regular npm installs: package.json is next to dist/.
     const scriptDir = path.dirname(fileURLToPath(import.meta.url));
     const localPackageJsonPath = path.resolve(scriptDir, '..', 'package.json');
     const localVersion = readVersionFromPackageJson(localPackageJsonPath);
@@ -102,7 +102,7 @@ import type { CLIConfigOverrides } from './config/cli-overrides.js';
 import type { CreateAppOptions } from './cli/commands/create-app.js';
 import type { CLISetupOptionsInput } from './cli/commands/setup.js';
 import type { UpgradeCommandOptions } from './cli/commands/upgrade.js';
-import type { UninstallCliCommandOptions } from './cli/commands/uninstall-cli.js';
+import type { UninstallCliCommandOptions } from './cli/commands/uninstall.js';
 
 const program = new Command();
 
@@ -332,9 +332,7 @@ program
     .action(
         withAnalytics('uninstall', async (options: Partial<UninstallCliCommandOptions>) => {
             try {
-                const { handleUninstallCliCommand } = await import(
-                    './cli/commands/uninstall-cli.js'
-                );
+                const { handleUninstallCliCommand } = await import('./cli/commands/uninstall.js');
                 await handleUninstallCliCommand(options);
                 safeExit('uninstall', 0);
             } catch (err) {

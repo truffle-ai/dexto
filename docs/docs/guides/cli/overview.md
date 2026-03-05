@@ -167,7 +167,7 @@ dexto agents uninstall --all
 
 ### `upgrade` - Upgrade Dexto CLI
 
-Upgrade the Dexto CLI itself. If an older npm/pnpm/bun global install is detected, this command migrates to native installer automatically.
+Upgrade the Dexto CLI itself. If an older npm global install is detected, this command migrates to native installer automatically.
 
 ```bash
 # Upgrade to latest

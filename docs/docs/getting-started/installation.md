@@ -53,7 +53,7 @@ dexto uninstall --remove-config --remove-data --force
 
 ### PATH Troubleshooting
 
-If you had an older npm/pnpm/bun global install, `dexto upgrade` automatically migrates it to native.
+If you had an older npm global install, `dexto upgrade` automatically migrates it to native.
 
 If your shell still resolves the wrong binary:
 

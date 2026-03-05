@@ -10,22 +10,14 @@ const DEXTO_PATH_ARGS = process.platform === 'win32' ? ['dexto'] : ['-a', 'dexto
 const DEFAULT_NATIVE_INSTALL_URL = 'https://dexto.ai/install';
 const DEFAULT_WINDOWS_INSTALL_URL = 'https://dexto.ai/install.ps1';
 
-export type InstallMethod =
-    | 'native'
-    | 'npm'
-    | 'pnpm'
-    | 'bun'
-    | 'brew'
-    | 'choco'
-    | 'scoop'
-    | 'unknown';
+export type InstallMethod = 'native' | 'npm' | 'unknown';
 
 type MetadataInstallMethod = Exclude<InstallMethod, 'unknown'>;
 
 const InstallMetadataSchema = z
     .object({
         schemaVersion: z.number().int().positive().default(1),
-        method: z.enum(['native', 'npm', 'pnpm', 'bun', 'brew', 'choco', 'scoop']),
+        method: z.enum(['native', 'npm']),
         installedPath: z.string().min(1),
         installedAt: z.string().min(1),
         version: z.string().min(1),
@@ -52,7 +44,6 @@ interface DetectInstallMethodDeps {
     readMetadata: () => Promise<InstallMetadata | null>;
     getPathEntries: () => Promise<string[]>;
     detectNodeManager: (binaryPath: string) => Promise<InstallMethod | null>;
-    detectSystemManager: (binaryPath: string) => InstallMethod | null;
     pathExists: (targetPath: string) => Promise<boolean>;
 }
 
@@ -233,30 +224,6 @@ function inferInstallMethodFromPath(binaryPath: string): InstallMethod {
         return 'native';
     }
 
-    if (
-        normalized.includes('homebrew') ||
-        normalized.includes('/cellar/') ||
-        normalized.includes('linuxbrew')
-    ) {
-        return 'brew';
-    }
-
-    if (normalized.includes('scoop') && normalized.includes('apps')) {
-        return 'scoop';
-    }
-
-    if (normalized.includes('chocolatey')) {
-        return 'choco';
-    }
-
-    if (normalized.includes('.pnpm') || normalized.includes('pnpm')) {
-        return 'pnpm';
-    }
-
-    if (normalized.includes('.bun') || normalized.includes(path.join('bun', 'bin'))) {
-        return 'bun';
-    }
-
     if (normalized.includes('node_modules') || normalized.includes(path.join('npm', 'bin'))) {
         return 'npm';
     }
@@ -288,53 +255,6 @@ async function detectNodePackageManagerFromPath(binaryPath: string): Promise<Ins
                 return 'npm';
             }
         }
-    }
-
-    const pnpmBin = await executeCommand('pnpm', ['bin', '-g']);
-    if (pnpmBin.code === 0) {
-        const binDir = pnpmBin.stdout.trim();
-        if (binDir.length > 0 && pathStartsWith(binaryPath, binDir)) {
-            return 'pnpm';
-        }
-    }
-
-    const bunGlobalBinCandidates: string[] = [];
-    const bunGlobalBin = await executeCommand('bun', ['pm', 'bin', '--global']);
-    if (bunGlobalBin.code === 0) {
-        const output = bunGlobalBin.stdout.trim();
-        if (output.length > 0) {
-            bunGlobalBinCandidates.push(output);
-        }
-    }
-
-    const bunBin = await executeCommand('bun', ['pm', 'bin']);
-    if (bunBin.code === 0) {
-        const output = bunBin.stdout.trim();
-        if (output.length > 0) {
-            bunGlobalBinCandidates.push(output);
-        }
-    }
-
-    const bunInstallEnv = process.env.BUN_INSTALL;
-    if (bunInstallEnv && bunInstallEnv.length > 0) {
-        bunGlobalBinCandidates.push(path.join(bunInstallEnv, 'bin'));
-    } else {
-        bunGlobalBinCandidates.push(path.join(os.homedir(), '.bun', 'bin'));
-    }
-
-    for (const candidate of uniquePaths(bunGlobalBinCandidates)) {
-        if (pathStartsWith(binaryPath, candidate)) {
-            return 'bun';
-        }
-    }
-
-    return null;
-}
-
-function detectSystemPackageManagerFromPath(binaryPath: string): InstallMethod | null {
-    const inferred = inferInstallMethodFromPath(binaryPath);
-    if (inferred === 'brew' || inferred === 'choco' || inferred === 'scoop') {
-        return inferred;
     }
 
     return null;
@@ -379,7 +299,6 @@ export async function detectInstallMethodWithDeps(
     const readMetadata = deps.readMetadata ?? readInstallMetadata;
     const getPathEntries = deps.getPathEntries ?? getBinaryPathsFromPath;
     const detectNodeManager = deps.detectNodeManager ?? detectNodePackageManagerFromPath;
-    const detectSystemManager = deps.detectSystemManager ?? detectSystemPackageManagerFromPath;
     const pathExistsFn = deps.pathExists ?? pathExists;
 
     const metadata = await readMetadata();
@@ -392,13 +311,6 @@ export async function detectInstallMethodWithDeps(
             const pmMethod = await detectNodeManager(pathEntry);
             if (pmMethod) {
                 method = pmMethod;
-            }
-        }
-
-        if (method === 'unknown') {
-            const systemPmMethod = detectSystemManager(pathEntry);
-            if (systemPmMethod) {
-                method = systemPmMethod;
             }
         }
 
@@ -550,33 +462,6 @@ export function createNativeInstallCommand(options: NativeInstallOptions): Execu
     };
 }
 
-export function resolveUpgradeCommandForMethod(
-    method: InstallMethod
-): PackageManagerCommand | null {
-    switch (method) {
-        case 'brew':
-            return {
-                command: 'brew',
-                args: ['upgrade', 'dexto'],
-                displayCommand: 'brew upgrade dexto',
-            };
-        case 'choco':
-            return {
-                command: 'choco',
-                args: ['upgrade', 'dexto', '-y'],
-                displayCommand: 'choco upgrade dexto -y',
-            };
-        case 'scoop':
-            return {
-                command: 'scoop',
-                args: ['update', 'dexto'],
-                displayCommand: 'scoop update dexto',
-            };
-        default:
-            return null;
-    }
-}
-
 export function resolveUninstallCommandForMethod(
     method: InstallMethod
 ): PackageManagerCommand | null {
@@ -586,36 +471,6 @@ export function resolveUninstallCommandForMethod(
                 command: 'npm',
                 args: ['uninstall', '-g', 'dexto'],
                 displayCommand: 'npm uninstall -g dexto',
-            };
-        case 'pnpm':
-            return {
-                command: 'pnpm',
-                args: ['remove', '-g', 'dexto'],
-                displayCommand: 'pnpm remove -g dexto',
-            };
-        case 'bun':
-            return {
-                command: 'bun',
-                args: ['remove', '-g', 'dexto'],
-                displayCommand: 'bun remove -g dexto',
-            };
-        case 'brew':
-            return {
-                command: 'brew',
-                args: ['uninstall', 'dexto'],
-                displayCommand: 'brew uninstall dexto',
-            };
-        case 'choco':
-            return {
-                command: 'choco',
-                args: ['uninstall', 'dexto', '-y'],
-                displayCommand: 'choco uninstall dexto -y',
-            };
-        case 'scoop':
-            return {
-                command: 'scoop',
-                args: ['uninstall', 'dexto'],
-                displayCommand: 'scoop uninstall dexto',
             };
         default:
             return null;

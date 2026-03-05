@@ -6,7 +6,6 @@ import {
     getSelfUninstallPaths,
     normalizeRequestedVersion,
     resolveUninstallCommandForMethod,
-    resolveUpgradeCommandForMethod,
     type InstallMetadata,
 } from './self-management.js';
 
@@ -24,7 +23,6 @@ describe('self-management utils', () => {
             readMetadata: async () => metadata,
             getPathEntries: async () => ['/usr/local/bin/dexto', '/Users/test/.local/bin/dexto'],
             detectNodeManager: async () => 'npm',
-            detectSystemManager: () => 'brew',
             pathExists: async () => true,
         });
 
@@ -38,7 +36,6 @@ describe('self-management utils', () => {
             readMetadata: async () => null,
             getPathEntries: async () => ['/usr/local/bin/dexto'],
             detectNodeManager: async () => 'npm',
-            detectSystemManager: () => null,
         });
 
         expect(result.method).toBe('npm');
@@ -59,7 +56,6 @@ describe('self-management utils', () => {
             readMetadata: async () => metadata,
             getPathEntries: async () => ['/usr/local/bin/dexto'],
             detectNodeManager: async () => 'npm',
-            detectSystemManager: () => null,
             pathExists: async () => false,
         });
 
@@ -81,7 +77,6 @@ describe('self-management utils', () => {
             readMetadata: async () => metadata,
             getPathEntries: async () => [],
             detectNodeManager: async () => null,
-            detectSystemManager: () => null,
             pathExists: async () => true,
         });
 
@@ -95,7 +90,6 @@ describe('self-management utils', () => {
             readMetadata: async () => null,
             getPathEntries: async () => [],
             detectNodeManager: async () => null,
-            detectSystemManager: () => null,
         });
 
         expect(result.method).toBe('unknown');
@@ -123,18 +117,7 @@ describe('self-management utils', () => {
         expect(resolveUninstallCommandForMethod('npm')?.displayCommand).toBe(
             'npm uninstall -g dexto'
         );
-        expect(resolveUninstallCommandForMethod('pnpm')?.displayCommand).toBe(
-            'pnpm remove -g dexto'
-        );
         expect(resolveUninstallCommandForMethod('unknown')).toBeNull();
-    });
-
-    it('resolves package-manager upgrade commands', () => {
-        expect(resolveUpgradeCommandForMethod('brew')?.displayCommand).toBe('brew upgrade dexto');
-        expect(resolveUpgradeCommandForMethod('choco')?.displayCommand).toBe(
-            'choco upgrade dexto -y'
-        );
-        expect(resolveUpgradeCommandForMethod('native')).toBeNull();
     });
 
     it('builds native install command payload', () => {

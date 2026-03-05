@@ -1,7 +1,7 @@
 import type { Command } from 'commander';
 import { withAnalytics, safeExit, ExitSignal } from '../../../analytics/wrapper.js';
 import type { InstallCommandOptions } from '../install.js';
-import type { UninstallCommandOptions } from '../uninstall.js';
+import type { UninstallCommandOptions } from '../uninstall-agents.js';
 import type { ListAgentsCommandOptionsInput } from '../list-agents.js';
 import type { SyncAgentsCommandOptions } from '../sync-agents.js';
 
@@ -58,7 +58,7 @@ Examples:
                 'agents uninstall',
                 async (agents: string[], options: Partial<UninstallCommandOptions>) => {
                     try {
-                        const { handleUninstallCommand } = await import('../uninstall.js');
+                        const { handleUninstallCommand } = await import('../uninstall-agents.js');
                         await handleUninstallCommand(agents, options);
                         safeExit('agents uninstall', 0);
                     } catch (err) {
