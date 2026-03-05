@@ -20,7 +20,7 @@ vi.mock('@dexto/agent-management', async (importOriginal) => {
 });
 
 // Mock agent-helpers
-vi.mock('../../utils/agent-helpers.js', () => ({
+vi.mock('../../../utils/agent-helpers.js', () => ({
     installBundledAgent: vi.fn(),
     installCustomAgent: vi.fn(),
     listInstalledAgents: vi.fn(),
@@ -42,7 +42,7 @@ vi.mock('@clack/prompts', () => ({
 }));
 
 // Mock analytics
-vi.mock('../../analytics/index.js', () => ({
+vi.mock('../../../analytics/index.js', () => ({
     capture: vi.fn(),
 }));
 
@@ -52,7 +52,7 @@ import {
     installBundledAgent,
     installCustomAgent,
     listInstalledAgents,
-} from '../../utils/agent-helpers.js';
+} from '../../../utils/agent-helpers.js';
 import { loadBundledRegistryAgents } from '@dexto/agent-management';
 
 describe('Install Command', () => {

@@ -1,8 +1,8 @@
-// packages/cli/src/cli/commands/uninstall-agents.ts
+// packages/cli/src/cli/commands/agents/uninstall.ts
 
 import { z } from 'zod';
-import { uninstallAgent, listInstalledAgents } from '../../utils/agent-helpers.js';
-import { capture } from '../../analytics/index.js';
+import { uninstallAgent, listInstalledAgents } from '../../../utils/agent-helpers.js';
+import { capture } from '../../../analytics/index.js';
 
 // Zod schema for uninstall command validation
 const UninstallCommandSchema = z

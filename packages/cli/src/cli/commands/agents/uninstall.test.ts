@@ -1,19 +1,19 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 // Mock the agent-helpers module
-vi.mock('../../utils/agent-helpers.js', () => ({
+vi.mock('../../../utils/agent-helpers.js', () => ({
     uninstallAgent: vi.fn(),
     listInstalledAgents: vi.fn(),
 }));
 
 // Mock analytics
-vi.mock('../../analytics/index.js', () => ({
+vi.mock('../../../analytics/index.js', () => ({
     capture: vi.fn(),
 }));
 
 // Import SUT after mocks
-import { handleUninstallCommand } from './uninstall-agents.js';
-import { uninstallAgent, listInstalledAgents } from '../../utils/agent-helpers.js';
+import { handleUninstallCommand } from './uninstall.js';
+import { uninstallAgent, listInstalledAgents } from '../../../utils/agent-helpers.js';
 
 describe('Uninstall Command', () => {
     let consoleSpy: ReturnType<typeof vi.spyOn>;

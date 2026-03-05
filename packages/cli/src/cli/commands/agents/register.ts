@@ -1,9 +1,9 @@
 import type { Command } from 'commander';
 import { withAnalytics, safeExit, ExitSignal } from '../../../analytics/wrapper.js';
-import type { InstallCommandOptions } from '../install.js';
-import type { UninstallCommandOptions } from '../uninstall-agents.js';
-import type { ListAgentsCommandOptionsInput } from '../list-agents.js';
-import type { SyncAgentsCommandOptions } from '../sync-agents.js';
+import type { InstallCommandOptions } from './install.js';
+import type { UninstallCommandOptions } from './uninstall.js';
+import type { ListAgentsCommandOptionsInput } from './list.js';
+import type { SyncAgentsCommandOptions } from './sync.js';
 
 export interface AgentsCommandRegisterContext {
     program: Command;
@@ -36,7 +36,7 @@ Examples:
                 'agents install',
                 async (agents: string[] = [], options: Partial<InstallCommandOptions>) => {
                     try {
-                        const { handleInstallCommand } = await import('../install.js');
+                        const { handleInstallCommand } = await import('./install.js');
                         await handleInstallCommand(agents, options);
                         safeExit('agents install', 0);
                     } catch (err) {
@@ -58,7 +58,7 @@ Examples:
                 'agents uninstall',
                 async (agents: string[], options: Partial<UninstallCommandOptions>) => {
                     try {
-                        const { handleUninstallCommand } = await import('../uninstall-agents.js');
+                        const { handleUninstallCommand } = await import('./uninstall.js');
                         await handleUninstallCommand(agents, options);
                         safeExit('agents uninstall', 0);
                     } catch (err) {
@@ -79,7 +79,7 @@ Examples:
         .action(
             withAnalytics('agents list', async (options: ListAgentsCommandOptionsInput) => {
                 try {
-                    const { handleListAgentsCommand } = await import('../list-agents.js');
+                    const { handleListAgentsCommand } = await import('./list.js');
                     await handleListAgentsCommand(options);
                     safeExit('agents list', 0);
                 } catch (err) {
@@ -98,7 +98,7 @@ Examples:
         .action(
             withAnalytics('agents sync', async (options: Partial<SyncAgentsCommandOptions>) => {
                 try {
-                    const { handleSyncAgentsCommand } = await import('../sync-agents.js');
+                    const { handleSyncAgentsCommand } = await import('./sync.js');
                     await handleSyncAgentsCommand(options);
                     safeExit('agents sync', 0);
                 } catch (err) {
