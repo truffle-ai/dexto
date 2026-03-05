@@ -122,6 +122,51 @@ describe('sync-agents', () => {
             expect(result).toBe(false);
         });
 
+        it('returns false for single-file bundled agents installed as directories', async () => {
+            vi.mocked(fs.readFile).mockImplementation(async (pathArg) => {
+                const filePath = String(pathArg);
+                if (filePath === '/bundled/agents/default-agent.yml') {
+                    return Buffer.from('same content');
+                }
+                if (filePath === '/mock/.dexto/agents/default-agent/default-agent.yml') {
+                    return Buffer.from('same content');
+                }
+                throw new Error(`Unexpected readFile path: ${filePath}`);
+            });
+
+            vi.mocked(fs.readdir).mockResolvedValue([
+                { name: 'default-agent', isDirectory: () => true } as any,
+            ]);
+
+            vi.mocked(fs.stat).mockImplementation(async (pathArg) => {
+                const filePath = String(pathArg);
+                if (filePath === '/bundled/agents/default-agent.yml') {
+                    return { isDirectory: () => false } as any;
+                }
+                if (filePath === '/mock/.dexto/agents/default-agent') {
+                    return { isDirectory: () => true } as any;
+                }
+                throw new Error(`Unexpected stat path: ${filePath}`);
+            });
+
+            mockLoadBundledRegistryAgents.mockReturnValue({
+                'default-agent': {
+                    id: 'default-agent',
+                    name: 'Default',
+                    source: 'default-agent.yml',
+                    description: 'Default agent',
+                    author: 'Test',
+                    tags: [],
+                },
+            });
+
+            mockResolveBundledScript.mockReturnValue('/bundled/agents/default-agent.yml');
+
+            const result = await shouldPromptForSync();
+
+            expect(result).toBe(false);
+        });
+
         it('skips custom agents not in bundled registry', async () => {
             // Custom agent installed but not in bundled registry
             vi.mocked(fs.readdir).mockResolvedValue([
