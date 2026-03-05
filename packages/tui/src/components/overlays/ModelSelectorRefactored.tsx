@@ -41,6 +41,7 @@ import {
 } from '@dexto/agent-management';
 import { getLLMProviderDisplayName } from '../../utils/llm-provider-display.js';
 import { getMaxVisibleItemsForTerminalRows } from '../../utils/overlaySizing.js';
+import { compareModelsLatestFirst, isDeprecatedModelStatus } from '../../utils/modelOrdering.js';
 import {
     getCachedStringWidth,
     stripUnsafeCharacters,
@@ -58,6 +59,137 @@ const MODEL_SELECTOR_TABS: ReadonlyArray<{ id: ModelSelectorTab; label: string }
     { id: 'custom', label: 'Custom' },
 ];
 
+const PROVIDER_COLLATOR = new Intl.Collator('en', { sensitivity: 'base' });
+const PROVIDER_TOKEN_PATTERN = /[^a-z0-9]/g;
+
+function normalizeProviderToken(value: string): string {
+    return value.toLowerCase().replace(PROVIDER_TOKEN_PATTERN, '');
+}
+
+function toReleaseDateLookupKey(provider: LLMProvider, modelName: string): string {
+    return `${provider}::${modelName.toLowerCase()}`;
+}
+
+function splitGatewayModelName(
+    modelName: string
+): { providerPrefix: string; unprefixedName: string } | null {
+    const slashIndex = modelName.indexOf('/');
+    if (slashIndex <= 0 || slashIndex >= modelName.length - 1) {
+        return null;
+    }
+
+    return {
+        providerPrefix: modelName.slice(0, slashIndex),
+        unprefixedName: modelName.slice(slashIndex + 1),
+    };
+}
+
+function createReleaseDateResolver({
+    allModels,
+    providers,
+}: {
+    allModels: Record<LLMProvider, Array<{ name: string; releaseDate?: string }>>;
+    providers: readonly LLMProvider[];
+}): (provider: LLMProvider, modelName: string, explicitReleaseDate?: string) => string | undefined {
+    const releaseDateByProviderAndName = new Map<string, string>();
+    const releaseDateCandidatesByName = new Map<
+        string,
+        Array<{ provider: LLMProvider; releaseDate: string }>
+    >();
+    const latestReleaseDateByName = new Map<string, string>();
+    const providerByToken = new Map<string, LLMProvider>();
+
+    for (const provider of providers) {
+        const token = normalizeProviderToken(provider);
+        if (token && !providerByToken.has(token)) {
+            providerByToken.set(token, provider);
+        }
+
+        const modelsForProvider = allModels[provider];
+        if (!modelsForProvider || modelsForProvider.length === 0) {
+            continue;
+        }
+
+        for (const model of modelsForProvider) {
+            const releaseDate = model.releaseDate;
+            if (!releaseDate) {
+                continue;
+            }
+
+            const lowerName = model.name.toLowerCase();
+            releaseDateByProviderAndName.set(
+                toReleaseDateLookupKey(provider, lowerName),
+                releaseDate
+            );
+
+            const existingLatest = latestReleaseDateByName.get(lowerName);
+            if (!existingLatest || releaseDate > existingLatest) {
+                latestReleaseDateByName.set(lowerName, releaseDate);
+            }
+
+            const candidates = releaseDateCandidatesByName.get(lowerName) ?? [];
+            candidates.push({ provider, releaseDate });
+            releaseDateCandidatesByName.set(lowerName, candidates);
+        }
+    }
+
+    return (
+        provider: LLMProvider,
+        modelName: string,
+        explicitReleaseDate?: string
+    ): string | undefined => {
+        if (explicitReleaseDate) {
+            return explicitReleaseDate;
+        }
+
+        const lowerName = modelName.toLowerCase();
+        const sameProviderDate = releaseDateByProviderAndName.get(
+            toReleaseDateLookupKey(provider, lowerName)
+        );
+        if (sameProviderDate) {
+            return sameProviderDate;
+        }
+
+        const openRouterDate = releaseDateByProviderAndName.get(
+            toReleaseDateLookupKey('openrouter', lowerName)
+        );
+        if (openRouterDate) {
+            return openRouterDate;
+        }
+
+        const parsedGatewayModel = splitGatewayModelName(modelName);
+        if (!parsedGatewayModel) {
+            return undefined;
+        }
+
+        const unprefixedName = parsedGatewayModel.unprefixedName.toLowerCase();
+        const preferredProvider = providerByToken.get(
+            normalizeProviderToken(parsedGatewayModel.providerPrefix)
+        );
+
+        if (preferredProvider) {
+            const providerDate = releaseDateByProviderAndName.get(
+                toReleaseDateLookupKey(preferredProvider, unprefixedName)
+            );
+            if (providerDate) {
+                return providerDate;
+            }
+        }
+
+        const candidates = releaseDateCandidatesByName.get(unprefixedName);
+        if (candidates && preferredProvider) {
+            const preferredProviderCandidate = candidates.find(
+                (candidate) => candidate.provider === preferredProvider
+            );
+            if (preferredProviderCandidate) {
+                return preferredProviderCandidate.releaseDate;
+            }
+        }
+
+        return latestReleaseDateByName.get(unprefixedName);
+    };
+}
+
 function getNextModelSelectorTab(current: ModelSelectorTab): ModelSelectorTab {
     const currentIndex = MODEL_SELECTOR_TABS.findIndex((tab) => tab.id === current);
     const nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % MODEL_SELECTOR_TABS.length;
@@ -71,6 +203,20 @@ function getPreviousModelSelectorTab(current: ModelSelectorTab): ModelSelectorTa
             ? 0
             : (currentIndex - 1 + MODEL_SELECTOR_TABS.length) % MODEL_SELECTOR_TABS.length;
     return MODEL_SELECTOR_TABS[previousIndex]?.id ?? 'all-models';
+}
+
+function compareModelOptionsForDisplay(left: ModelOption, right: ModelOption): number {
+    const byRecency = compareModelsLatestFirst(left, right);
+    if (byRecency !== 0) {
+        return byRecency;
+    }
+
+    const byProvider = PROVIDER_COLLATOR.compare(left.provider, right.provider);
+    if (byProvider !== 0) {
+        return byProvider;
+    }
+
+    return 0;
 }
 interface ModelSelectorProps {
     isVisible: boolean;
@@ -103,6 +249,8 @@ interface ModelOption {
     name: string;
     displayName: string | undefined;
     maxInputTokens: number;
+    releaseDate?: string;
+    status?: string;
     isDefault: boolean;
     isCurrent: boolean;
     isCustom: boolean;
@@ -352,6 +500,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 const defaultModel = preferences?.llm.model;
                 const defaultBaseURL = preferences?.llm.baseURL;
                 const defaultReasoningVariant = preferences?.llm.reasoning?.variant;
+                const resolveReleaseDate = createReleaseDateResolver({ allModels, providers });
 
                 // Fetch dynamic models for local providers
                 let ollamaModels: Array<{ name: string; size?: number }> = [];
@@ -417,8 +566,17 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         continue;
                     }
 
-                    const providerModels = allModels[provider];
+                    const providerModels = [...allModels[provider]].sort(compareModelsLatestFirst);
                     for (const model of providerModels) {
+                        if (isDeprecatedModelStatus(model.status)) {
+                            continue;
+                        }
+                        const releaseDate = resolveReleaseDate(
+                            provider,
+                            model.name,
+                            model.releaseDate
+                        );
+
                         // For dexto-nova provider, models have originalProvider field
                         // showing which provider the model originally came from
                         const originalProvider =
@@ -434,6 +592,8 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                                 provider === currentConfig.provider &&
                                 model.name === currentConfig.model,
                             isCustom: false,
+                            ...(releaseDate !== undefined ? { releaseDate } : {}),
+                            ...(model.status !== undefined ? { status: model.status } : {}),
                             ...(defaultReasoningVariant &&
                             provider === defaultProvider &&
                             model.name === defaultModel
@@ -489,7 +649,16 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 // Add Vertex AI models from registry
                 const vertexModels = allModels['vertex'];
                 if (vertexModels) {
-                    for (const model of vertexModels) {
+                    for (const model of [...vertexModels].sort(compareModelsLatestFirst)) {
+                        if (isDeprecatedModelStatus(model.status)) {
+                            continue;
+                        }
+                        const releaseDate = resolveReleaseDate(
+                            'vertex',
+                            model.name,
+                            model.releaseDate
+                        );
+
                         modelList.push({
                             provider: 'vertex',
                             name: model.name,
@@ -500,6 +669,8 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                                 currentConfig.provider === 'vertex' &&
                                 currentConfig.model === model.name,
                             isCustom: false,
+                            ...(releaseDate !== undefined ? { releaseDate } : {}),
+                            ...(model.status !== undefined ? { status: model.status } : {}),
                             ...(defaultReasoningVariant &&
                             defaultProvider === 'vertex' &&
                             defaultModel === model.name
@@ -530,6 +701,8 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                             preferred.reasoningVariant ?? secondary.reasoningVariant;
                         const mergedOriginalProvider =
                             preferred.originalProvider ?? secondary.originalProvider;
+                        const mergedReleaseDate = preferred.releaseDate ?? secondary.releaseDate;
+                        const mergedStatus = preferred.status ?? secondary.status;
                         const mergedModel: ModelOption = {
                             ...preferred,
                             isDefault: preferred.isDefault || secondary.isDefault,
@@ -548,6 +721,12 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         }
                         if (mergedOriginalProvider !== undefined) {
                             mergedModel.originalProvider = mergedOriginalProvider;
+                        }
+                        if (mergedReleaseDate !== undefined) {
+                            mergedModel.releaseDate = mergedReleaseDate;
+                        }
+                        if (mergedStatus !== undefined) {
+                            mergedModel.status = mergedStatus;
                         }
                         dedupedByKey.set(key, mergedModel);
                     }
@@ -630,8 +809,9 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
     const filteredItems = useMemo((): SelectorItem[] => {
         const addCustomOption: AddCustomOption = { type: 'add-custom' };
         const hasSearchQuery = searchQuery.trim().length > 0;
+        const allCandidates = [...models].sort(compareModelOptionsForDisplay);
         const modelsByKey = new Map<string, ModelOption>(
-            models.map((model) => [
+            allCandidates.map((model) => [
                 toModelPickerKey({ provider: model.provider, model: model.name }),
                 model,
             ])
@@ -678,8 +858,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         const favoritesFromState = (modelPickerState?.favorites ?? []).map((entry) =>
             modelsByKey.get(toModelPickerKey({ provider: entry.provider, model: entry.model }))
         );
-        const customCandidates = models.filter((model) => model.isCustom);
-        const allCandidates = models;
+        const customCandidates = allCandidates.filter((model) => model.isCustom);
 
         const tabModels = hasSearchQuery
             ? toUniqueMatchingModels(allCandidates)
@@ -900,11 +1079,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
                 if (key.tab) {
                     clearActionState();
-                    setActiveTab((prev) =>
-                        key.shift
-                            ? getPreviousModelSelectorTab(prev)
-                            : getNextModelSelectorTab(prev)
-                    );
+                    setActiveTab((prev) => getNextModelSelectorTab(prev));
                     selectedIndexRef.current = 0;
                     setSelection({ index: 0, offset: 0 });
                     return true;
@@ -918,8 +1093,8 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     return true;
                 }
 
-                // Right arrow - enter/advance action mode for custom or selectable models
-                if (key.rightArrow) {
+                // Ctrl+Right arrow - enter/advance action mode for custom or selectable models
+                if (key.ctrl && key.rightArrow) {
                     if (!isSelectableItem) return false;
 
                     if (customModelAction === null) {
@@ -954,8 +1129,8 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     }
                 }
 
-                // Left arrow - go back in action mode
-                if (key.leftArrow) {
+                // Ctrl+Left arrow - go back in action mode
+                if (key.ctrl && key.leftArrow) {
                     if (customModelAction === 'delete') {
                         setCustomModelAction('edit');
                         setPendingDeleteConfirm(false);
@@ -982,6 +1157,24 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     }
 
                     return false;
+                }
+
+                // Right arrow - switch tabs (and clear action mode if active)
+                if (key.rightArrow) {
+                    clearActionState();
+                    setActiveTab((prev) => getNextModelSelectorTab(prev));
+                    selectedIndexRef.current = 0;
+                    setSelection({ index: 0, offset: 0 });
+                    return true;
+                }
+
+                // Left arrow - switch tabs backwards (and clear action mode if active)
+                if (key.leftArrow) {
+                    clearActionState();
+                    setActiveTab((prev) => getPreviousModelSelectorTab(prev));
+                    selectedIndexRef.current = 0;
+                    setSelection({ index: 0, offset: 0 });
+                    return true;
                 }
 
                 // Handle character input for search
@@ -1399,8 +1592,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         '↑↓ navigate',
                         'Enter select/apply',
                         'Esc close',
-                        'Tab/Shift+Tab switch tab',
-                        hasActionableItems ? '←→ action' : '',
+                        '←→ switch tab',
                         hasActionableItems ? 'Ctrl+F quick favorite' : '',
                     ]}
                 />
