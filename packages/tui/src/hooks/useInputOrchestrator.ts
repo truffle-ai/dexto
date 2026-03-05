@@ -543,7 +543,14 @@ export function useInputOrchestrator({
             // Shift+Tab: Cycle through modes (when not in approval modal)
             // Modes: Normal → Plan Mode → Accept All Edits → Bypass Permissions → Normal
             // Note: When in approval modal for edit/write tools, ApprovalPrompt handles Shift+Tab differently
-            if (key.shift && key.tab && !key.ctrl && !key.meta && currentApproval === null) {
+            if (
+                key.shift &&
+                key.tab &&
+                !key.ctrl &&
+                !key.meta &&
+                currentApproval === null &&
+                currentUi.activeOverlay === 'none'
+            ) {
                 setUi((prev) => {
                     const isNormal =
                         !prev.planModeActive && !prev.autoApproveEdits && !prev.bypassPermissions;
