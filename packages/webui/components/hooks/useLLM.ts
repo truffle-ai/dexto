@@ -62,6 +62,7 @@ export function useSwitchLLM() {
             // Invalidate catalog and all current LLM queries to refresh all views
             queryClient.invalidateQueries({ queryKey: queryKeys.llm.catalog });
             queryClient.invalidateQueries({ queryKey: ['llm', 'current'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.llm.modelPickerState });
         },
     });
 }
@@ -135,6 +136,7 @@ export function useCreateCustomModel() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.llm.customModels });
+            queryClient.invalidateQueries({ queryKey: queryKeys.llm.modelPickerState });
         },
     });
 }
@@ -156,6 +158,79 @@ export function useDeleteCustomModel() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.llm.customModels });
+            queryClient.invalidateQueries({ queryKey: queryKeys.llm.modelPickerState });
+        },
+    });
+}
+
+export function useModelPickerState(options?: { enabled?: boolean }) {
+    return useQuery({
+        queryKey: queryKeys.llm.modelPickerState,
+        queryFn: async () => {
+            const response = await client.api.llm['model-picker-state'].$get();
+            if (!response.ok) {
+                throw new Error(`Failed to fetch model picker state: ${response.status}`);
+            }
+            return await response.json();
+        },
+        enabled: options?.enabled ?? true,
+        staleTime: 30 * 1000,
+    });
+}
+
+export function useRecordRecentModel() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (payload: ModelPickerModelRefPayload) => {
+            const response = await client.api.llm['model-picker-state'].recents.$post({
+                json: payload,
+            });
+            if (!response.ok) {
+                throw new Error(`Failed to record recent model: ${response.status}`);
+            }
+            return await response.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.llm.modelPickerState });
+        },
+    });
+}
+
+export function useToggleFavoriteModel() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (payload: ModelPickerModelRefPayload) => {
+            const response = await client.api.llm['model-picker-state'].favorites.toggle.$post({
+                json: payload,
+            });
+            if (!response.ok) {
+                throw new Error(`Failed to toggle favorite model: ${response.status}`);
+            }
+            return await response.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.llm.modelPickerState });
+        },
+    });
+}
+
+export function useSetFavoriteModels() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (payload: SetFavoriteModelsPayload) => {
+            const response = await client.api.llm['model-picker-state'].favorites.$put({
+                json: payload,
+            });
+            if (!response.ok) {
+                throw new Error(`Failed to set favorite models: ${response.status}`);
+            }
+            return await response.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.llm.modelPickerState });
         },
     });
 }
@@ -192,3 +267,11 @@ export type SwitchLLMPayload = Parameters<typeof client.api.llm.switch.$post>[0]
 type CustomModelsEndpoint = (typeof client.api.llm)['custom-models'];
 export type CustomModelPayload = Parameters<CustomModelsEndpoint['$post']>[0]['json'];
 export type CustomModel = NonNullable<ReturnType<typeof useCustomModels>['data']>[number];
+
+type ModelPickerStateEndpoint = (typeof client.api.llm)['model-picker-state'];
+export type ModelPickerModelRefPayload = Parameters<
+    ModelPickerStateEndpoint['recents']['$post']
+>[0]['json'];
+export type SetFavoriteModelsPayload = Parameters<
+    ModelPickerStateEndpoint['favorites']['$put']
+>[0]['json'];

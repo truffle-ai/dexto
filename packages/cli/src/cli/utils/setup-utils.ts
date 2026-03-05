@@ -139,7 +139,7 @@ export async function getSetupGuidanceMessage(): Promise<string> {
             '   • Set up your API keys',
             '   • Configure your default agent',
             '',
-            '💡 After setup, you can install agents with: `dexto install <agent-name>`',
+            '💡 After setup, you can install agents with: `dexto agents install <agent-name>`',
         ].join('\n');
     }
 
