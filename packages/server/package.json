@@ -31,9 +31,9 @@
     "@dexto/image-local": "workspace:*",
     "@dexto/storage": "workspace:*",
     "@dexto/tools-scheduler": "workspace:*",
-    "@hono/node-server": "1.19.5",
+    "@hono/node-server": "1.19.10",
     "@hono/zod-openapi": "^0.19.1",
-    "hono": "^4.11.10",
+    "hono": "^4.12.4",
     "ws": "^8.18.1",
     "yaml": "^2.7.1",
     "@modelcontextprotocol/sdk": "^1.27.1"
