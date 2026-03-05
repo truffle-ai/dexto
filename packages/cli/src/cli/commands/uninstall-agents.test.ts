@@ -16,8 +16,8 @@ import { handleUninstallCommand } from './uninstall-agents.js';
 import { uninstallAgent, listInstalledAgents } from '../../utils/agent-helpers.js';
 
 describe('Uninstall Command', () => {
-    let consoleSpy: any;
-    let consoleErrorSpy: any;
+    let consoleSpy: ReturnType<typeof vi.spyOn>;
+    let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
     beforeEach(() => {
         vi.clearAllMocks();

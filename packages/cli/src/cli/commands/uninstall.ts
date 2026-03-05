@@ -85,6 +85,7 @@ export async function handleUninstallCliCommand(
 
     const uninstallPaths = getSelfUninstallPaths();
     let managedUninstallError: Error | null = null;
+    let binaryRemovalError: Error | null = null;
 
     if (detection.method === 'npm') {
         const command = resolveUninstallCommandForMethod(detection.method);
@@ -112,12 +113,23 @@ export async function handleUninstallCliCommand(
         }
     } else {
         const binaryPath = detection.installedPath ?? getDefaultNativeBinaryPath();
-        const binaryRemoval = await removeTargets([binaryPath], validated.dryRun);
+        let binaryRemoval: RemovalSummary = { removed: [], skipped: [] };
 
-        if (binaryRemoval.removed.length > 0) {
-            console.log(`🗑️  Removed CLI binary: ${binaryRemoval.removed.join(', ')}`);
-        } else {
-            console.log('ℹ️  CLI binary was not found at expected path.');
+        try {
+            binaryRemoval = await removeTargets([binaryPath], validated.dryRun);
+        } catch (error) {
+            binaryRemovalError = error instanceof Error ? error : new Error(String(error));
+            console.warn(
+                `⚠️  Binary removal failed, continuing with local cleanup: ${binaryRemovalError.message}`
+            );
+        }
+
+        if (!binaryRemovalError) {
+            if (binaryRemoval.removed.length > 0) {
+                console.log(`🗑️  Removed CLI binary: ${binaryRemoval.removed.join(', ')}`);
+            } else {
+                console.log('ℹ️  CLI binary was not found at expected path.');
+            }
         }
     }
 
@@ -151,6 +163,10 @@ export async function handleUninstallCliCommand(
 
     if (managedUninstallError) {
         throw managedUninstallError;
+    }
+
+    if (binaryRemovalError) {
+        throw binaryRemovalError;
     }
 
     console.log('✅ Dexto CLI uninstall completed.');

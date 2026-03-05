@@ -148,4 +148,25 @@ describe('uninstall command', () => {
         await expect(handleUninstallCliCommand({})).rejects.toThrow('pm uninstall failed');
         expect(removePath).toHaveBeenCalledWith('/home/test/.dexto/cache');
     });
+
+    it('continues local cleanup when native binary removal fails and then throws', async () => {
+        vi.mocked(detectInstallMethod).mockResolvedValue({
+            method: 'native',
+            source: 'metadata',
+            metadata: null,
+            installedPath: '/home/test/.local/bin/dexto',
+            installDir: '/home/test/.local/bin',
+            allDetectedPaths: ['/home/test/.local/bin/dexto'],
+            multipleInstallWarning: null,
+        });
+
+        vi.mocked(removePath).mockImplementation(async (targetPath: string) => {
+            if (targetPath === '/home/test/.local/bin/dexto') {
+                throw new Error('binary removal failed');
+            }
+        });
+
+        await expect(handleUninstallCliCommand({})).rejects.toThrow('binary removal failed');
+        expect(removePath).toHaveBeenCalledWith('/home/test/.dexto/cache');
+    });
 });
