@@ -11,6 +11,7 @@ const DEFAULT_NATIVE_INSTALL_URL = 'https://dexto.ai/install';
 const DEFAULT_WINDOWS_INSTALL_URL = 'https://dexto.ai/install.ps1';
 
 export type InstallMethod = 'native' | 'npm' | 'unknown';
+export type UnsupportedPackageManager = 'pnpm' | 'bun';
 
 type MetadataInstallMethod = Exclude<InstallMethod, 'unknown'>;
 
@@ -260,6 +261,40 @@ async function detectNodePackageManagerFromPath(binaryPath: string): Promise<Ins
     return null;
 }
 
+function normalizePathForSignatureMatch(targetPath: string): string {
+    return normalizePathForComparison(targetPath).replace(/\\/g, '/');
+}
+
+export function detectUnsupportedPackageManagerFromPath(
+    binaryPath: string
+): UnsupportedPackageManager | null {
+    const normalized = normalizePathForSignatureMatch(binaryPath);
+
+    const pnpmHome = process.env.PNPM_HOME;
+    if (pnpmHome && pathStartsWith(binaryPath, pnpmHome)) {
+        return 'pnpm';
+    }
+
+    const bunInstall = process.env.BUN_INSTALL;
+    if (bunInstall && pathStartsWith(binaryPath, path.join(bunInstall, 'bin'))) {
+        return 'bun';
+    }
+
+    if (
+        normalized.includes('/.local/share/pnpm/') ||
+        normalized.includes('/appdata/local/pnpm/') ||
+        normalized.includes('/pnpm/')
+    ) {
+        return 'pnpm';
+    }
+
+    if (normalized.includes('/.bun/bin/')) {
+        return 'bun';
+    }
+
+    return null;
+}
+
 export function buildMultipleInstallWarning(
     allDetectedPaths: string[],
     activePath: string | null
@@ -499,6 +534,7 @@ export function getSelfUninstallPaths(): SelfUninstallPaths {
 
     const dataPaths = [
         path.join(getDextoHomeDirectory(), 'agents'),
+        path.join(getDextoHomeDirectory(), 'blobs'),
         path.join(getDextoHomeDirectory(), 'database'),
         path.join(getDextoHomeDirectory(), 'images'),
         path.join(getDextoHomeDirectory(), 'models'),

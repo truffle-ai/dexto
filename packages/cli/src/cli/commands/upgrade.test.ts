@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../utils/self-management.js', () => ({
     createNativeInstallCommand: vi.fn(),
     detectInstallMethod: vi.fn(),
+    detectUnsupportedPackageManagerFromPath: vi.fn(),
     executeManagedCommand: vi.fn(),
     normalizeRequestedVersion: vi.fn(),
     resolveUninstallCommandForMethod: vi.fn(),
@@ -12,6 +13,7 @@ import { handleUpgradeCommand } from './upgrade.js';
 import {
     createNativeInstallCommand,
     detectInstallMethod,
+    detectUnsupportedPackageManagerFromPath,
     executeManagedCommand,
     normalizeRequestedVersion,
     resolveUninstallCommandForMethod,
@@ -26,6 +28,7 @@ describe('upgrade command', () => {
             args: ['-lc', 'install'],
             displayCommand: 'install',
         });
+        vi.mocked(detectUnsupportedPackageManagerFromPath).mockReturnValue(null);
         vi.mocked(executeManagedCommand).mockResolvedValue(undefined);
     });
 
@@ -126,5 +129,33 @@ describe('upgrade command', () => {
             installDir: null,
             force: false,
         });
+    });
+
+    it('throws when non-native binary remains active after migration fallback', async () => {
+        vi.mocked(detectInstallMethod)
+            .mockResolvedValueOnce({
+                method: 'unknown',
+                source: 'heuristic',
+                metadata: null,
+                installedPath: '/home/test/.local/share/pnpm/dexto',
+                installDir: '/home/test/.local/share/pnpm',
+                allDetectedPaths: ['/home/test/.local/share/pnpm/dexto'],
+                multipleInstallWarning: null,
+            })
+            .mockResolvedValueOnce({
+                method: 'unknown',
+                source: 'heuristic',
+                metadata: null,
+                installedPath: '/home/test/.local/share/pnpm/dexto',
+                installDir: '/home/test/.local/share/pnpm',
+                allDetectedPaths: ['/home/test/.local/share/pnpm/dexto'],
+                multipleInstallWarning: null,
+            });
+
+        vi.mocked(detectUnsupportedPackageManagerFromPath).mockReturnValue('pnpm');
+
+        await expect(handleUpgradeCommand(undefined, {})).rejects.toThrow(
+            /active binary is still non-native/i
+        );
     });
 });

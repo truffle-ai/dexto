@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
     createNativeInstallCommand,
     detectInstallMethod,
+    detectUnsupportedPackageManagerFromPath,
     executeManagedCommand,
     normalizeRequestedVersion,
     resolveUninstallCommandForMethod,
@@ -71,6 +72,14 @@ async function runHardMigrationToNative(
     }
 }
 
+function getUnsupportedCleanupHint(manager: 'pnpm' | 'bun'): string {
+    if (manager === 'pnpm') {
+        return 'pnpm unlink --global dexto (linked/source) or pnpm remove -g dexto (global package)';
+    }
+
+    return 'bun remove -g dexto';
+}
+
 export async function handleUpgradeCommand(
     versionArg: string | undefined,
     options: Partial<UpgradeCommandOptions>
@@ -96,6 +105,17 @@ export async function handleUpgradeCommand(
             break;
         case 'unknown':
         default:
+            if (detection.installedPath) {
+                const unsupportedManager = detectUnsupportedPackageManagerFromPath(
+                    detection.installedPath
+                );
+                if (unsupportedManager) {
+                    console.warn(
+                        `⚠️  Active binary appears to come from ${unsupportedManager}. ` +
+                            'Dexto only auto-migrates npm installs.'
+                    );
+                }
+            }
             console.warn(
                 '⚠️  Could not determine install method. Falling back to native installer upgrade.'
             );
@@ -105,6 +125,24 @@ export async function handleUpgradeCommand(
 
     const postDetection = await detectInstallMethod();
     printMultiInstallWarning(postDetection.multipleInstallWarning);
+
+    if (postDetection.method !== 'native' && postDetection.installedPath) {
+        const unsupportedManager = detectUnsupportedPackageManagerFromPath(
+            postDetection.installedPath
+        );
+        const followUp = unsupportedManager
+            ? `Run ${getUnsupportedCleanupHint(unsupportedManager)}, then run dexto upgrade again.`
+            : 'Remove the stale binary from PATH, then run dexto upgrade again.';
+        const message =
+            `Upgrade completed, but active binary is still non-native: ${postDetection.installedPath}. ` +
+            followUp;
+
+        if (validated.dryRun) {
+            console.warn(`⚠️  ${message}`);
+        } else {
+            throw new Error(message);
+        }
+    }
 
     if (validated.dryRun) {
         console.log('✅ Dry run completed. No changes were made.');

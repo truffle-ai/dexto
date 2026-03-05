@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
+import path from 'path';
 import {
     buildMultipleInstallWarning,
     createNativeInstallCommand,
+    detectUnsupportedPackageManagerFromPath,
     detectInstallMethodWithDeps,
     getSelfUninstallPaths,
     normalizeRequestedVersion,
@@ -159,5 +161,14 @@ describe('self-management utils', () => {
         expect(paths.cachePaths.length).toBeGreaterThan(0);
         expect(paths.configPaths.length).toBeGreaterThan(0);
         expect(paths.dataPaths.length).toBeGreaterThan(0);
+        expect(paths.dataPaths.some((entry) => path.basename(entry) === 'blobs')).toBe(true);
+    });
+
+    it('detects pnpm/bun signatures for unsupported managers', () => {
+        expect(detectUnsupportedPackageManagerFromPath('/home/test/.local/share/pnpm/dexto')).toBe(
+            'pnpm'
+        );
+        expect(detectUnsupportedPackageManagerFromPath('/home/test/.bun/bin/dexto')).toBe('bun');
+        expect(detectUnsupportedPackageManagerFromPath('/usr/local/bin/dexto')).toBeNull();
     });
 });
