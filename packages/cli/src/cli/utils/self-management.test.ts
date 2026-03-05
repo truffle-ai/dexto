@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import path from 'path';
 import {
     buildMultipleInstallWarning,
+    commandDisplayWithEnvPosix,
+    commandDisplayWithEnvPowerShell,
     createNativeInstallCommand,
     detectUnsupportedPackageManagerFromPath,
     detectInstallMethodWithDeps,
@@ -153,6 +155,24 @@ describe('self-management utils', () => {
         expect(command.displayCommand).toContain('DEXTO_VERSION');
         expect(command.displayCommand).toContain('DEXTO_INSTALL_DIR');
         expect(command.displayCommand).toContain('DEXTO_INSTALL_FORCE');
+    });
+
+    it('formats display commands with explicit shell syntax', () => {
+        const envOverrides = {
+            DEXTO_VERSION: '1.8.0',
+            DEXTO_INSTALL_DIR: "/tmp/it's-here",
+        };
+
+        expect(
+            commandDisplayWithEnvPosix('curl -fsSL https://dexto.ai/install | bash', envOverrides)
+        ).toContain(`DEXTO_INSTALL_DIR='/tmp/it'\\''s-here'`);
+
+        const powershellDisplay = commandDisplayWithEnvPowerShell(
+            "powershell -NoProfile -ExecutionPolicy Bypass -Command 'irm https://dexto.ai/install.ps1 | iex'",
+            envOverrides
+        );
+        expect(powershellDisplay).toContain(`$env:DEXTO_VERSION='1.8.0';`);
+        expect(powershellDisplay).toContain(`$env:DEXTO_INSTALL_DIR='/tmp/it''s-here';`);
     });
 
     it('provides self-uninstall path groups', () => {

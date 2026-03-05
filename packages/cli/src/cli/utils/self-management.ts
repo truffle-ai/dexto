@@ -436,14 +436,37 @@ export async function detectInstallMethodWithDeps(
     };
 }
 
-function shellEscape(value: string): string {
+function shellEscapeForPosix(value: string): string {
     return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
-function commandDisplayWithEnv(command: string, envOverrides: Record<string, string>): string {
+function shellEscapeForPowerShell(value: string): string {
+    return `'${value.replace(/'/g, `''`)}'`;
+}
+
+export function commandDisplayWithEnvPosix(
+    command: string,
+    envOverrides: Record<string, string>
+): string {
     const parts: string[] = [];
     for (const [key, value] of Object.entries(envOverrides)) {
-        parts.push(`${key}=${shellEscape(value)}`);
+        parts.push(`${key}=${shellEscapeForPosix(value)}`);
+    }
+
+    if (parts.length === 0) {
+        return command;
+    }
+
+    return `${parts.join(' ')} ${command}`;
+}
+
+export function commandDisplayWithEnvPowerShell(
+    command: string,
+    envOverrides: Record<string, string>
+): string {
+    const parts: string[] = [];
+    for (const [key, value] of Object.entries(envOverrides)) {
+        parts.push(`$env:${key}=${shellEscapeForPowerShell(value)};`);
     }
 
     if (parts.length === 0) {
@@ -479,8 +502,8 @@ export function createNativeInstallCommand(options: NativeInstallOptions): Execu
             command: 'powershell',
             args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', commandText],
             env,
-            displayCommand: commandDisplayWithEnv(
-                `powershell -NoProfile -ExecutionPolicy Bypass -Command ${shellEscape(commandText)}`,
+            displayCommand: commandDisplayWithEnvPowerShell(
+                `powershell -NoProfile -ExecutionPolicy Bypass -Command ${shellEscapeForPowerShell(commandText)}`,
                 envOverrides
             ),
         };
@@ -492,7 +515,7 @@ export function createNativeInstallCommand(options: NativeInstallOptions): Execu
         command: 'bash',
         args: ['-lc', commandText],
         env,
-        displayCommand: commandDisplayWithEnv(commandText, envOverrides),
+        displayCommand: commandDisplayWithEnvPosix(commandText, envOverrides),
     };
 }
 
