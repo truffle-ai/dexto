@@ -244,6 +244,19 @@ export const SessionTokenUsageSchema = z
     .strict()
     .describe('Session-level token usage (all fields required for cumulative totals)');
 
+export const UsageSummarySchema = z
+    .object({
+        promptTokens: z.number().int().nonnegative().describe('Aggregated prompt/input tokens'),
+        completionTokens: z
+            .number()
+            .int()
+            .nonnegative()
+            .describe('Aggregated completion/output tokens'),
+        totalTokens: z.number().int().nonnegative().describe('Aggregated total tokens'),
+    })
+    .strict()
+    .describe('Usage summary for external billing');
+
 export const ModelStatisticsSchema = z
     .object({
         provider: z.string().describe('LLM provider identifier'),

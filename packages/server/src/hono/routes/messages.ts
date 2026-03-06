@@ -122,6 +122,11 @@ export function createMessagesRouter(
                                 sessionId: z.string().describe('Session ID used for this message'),
                                 tokenUsage:
                                     TokenUsageSchema.optional().describe('Token usage statistics'),
+                                messageId: z
+                                    .string()
+                                    .uuid()
+                                    .optional()
+                                    .describe('Assistant message ID for idempotency'),
                                 reasoning: z
                                     .string()
                                     .optional()
@@ -268,6 +273,7 @@ export function createMessagesRouter(
                 response: result.content,
                 sessionId: result.sessionId,
                 tokenUsage: result.usage,
+                messageId: result.messageId,
                 reasoning: result.reasoning,
                 model: llmConfig.model,
                 provider: llmConfig.provider,

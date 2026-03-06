@@ -844,6 +844,7 @@ export class DextoAgent {
             usage: usage as import('./types.js').TokenUsage,
             toolCalls,
             sessionId,
+            messageId: responseEvent.messageId,
         };
     }
 
