@@ -595,14 +595,21 @@ export async function pathExists(targetPath: string): Promise<boolean> {
     }
 }
 
-export async function removePath(targetPath: string): Promise<void> {
-    const stat = await fs.lstat(targetPath);
-    if (stat.isDirectory()) {
-        await fs.rm(targetPath, { recursive: true, force: true });
-        return;
-    }
+function hasErrorCode(error: unknown, code: string): boolean {
+    return typeof error === 'object' && error !== null && 'code' in error && error.code === code;
+}
 
-    await fs.rm(targetPath, { force: true });
+export async function removePath(targetPath: string): Promise<void> {
+    try {
+        const stat = await fs.lstat(targetPath);
+        await fs.rm(targetPath, { recursive: stat.isDirectory(), force: true });
+    } catch (error) {
+        if (hasErrorCode(error, 'ENOENT')) {
+            return;
+        }
+
+        throw error;
+    }
 }
 
 export function getDefaultNativeBinaryPath(): string {

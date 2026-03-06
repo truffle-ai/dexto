@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import os from 'os';
+import path from 'path';
 import {
     buildMultipleInstallWarning,
     commandDisplayWithEnvPosix,
@@ -9,6 +11,7 @@ import {
     getDextoHomePath,
     isProjectLocalBinaryPath,
     normalizeRequestedVersion,
+    removePath,
     resolveUninstallCommandForMethod,
     type InstallMetadata,
 } from './self-management.js';
@@ -190,6 +193,15 @@ describe('self-management utils', () => {
 
     it('exposes ~/.dexto as the purge target', () => {
         expect(getDextoHomePath()).toContain('.dexto');
+    });
+    it('treats missing paths as already removed', async () => {
+        const targetPath = path.join(
+            os.tmpdir(),
+            'dexto-remove-path-' + process.pid + '-' + Date.now(),
+            'missing'
+        );
+
+        await expect(removePath(targetPath)).resolves.toBeUndefined();
     });
 
     it('detects project-local path signatures', () => {
