@@ -57,7 +57,7 @@ The Triage Agent demonstrates multi-agent collaboration:
 
 ```bash
 # Install the agent
-dexto install triage-agent
+dexto agents install triage-agent
 
 # Run it
 dexto --agent triage-agent

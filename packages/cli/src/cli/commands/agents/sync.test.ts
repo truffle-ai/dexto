@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { promises as fs } from 'fs';
-import { shouldPromptForSync } from './sync-agents.js';
+import { shouldPromptForSync } from './sync.js';
 
 // Mock fs module
 vi.mock('fs', async () => {

@@ -1,4 +1,4 @@
-// packages/cli/src/cli/commands/list-agents.ts
+// packages/cli/src/cli/commands/agents/list.ts
 
 import { existsSync } from 'fs';
 import { promises as fs } from 'fs';
@@ -11,7 +11,7 @@ import {
     loadGlobalPreferences,
     loadBundledRegistryAgents,
 } from '@dexto/agent-management';
-import { getProviderDisplayName } from '../utils/provider-setup.js';
+import { getProviderDisplayName } from '../../utils/provider-setup.js';
 
 // Zod schema for list-agents command validation
 const ListAgentsCommandSchema = z

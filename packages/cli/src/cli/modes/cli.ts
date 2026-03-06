@@ -99,7 +99,7 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
         const cliUpdateInfo = await getVersionCheckResult();
 
         const { shouldPromptForSync, handleSyncAgentsCommand } = await import(
-            '../commands/sync-agents.js'
+            '../commands/agents/sync.js'
         );
         const needsSync = await shouldPromptForSync();
         if (needsSync) {

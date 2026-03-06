@@ -8,19 +8,21 @@ export { createImage } from './create-image.js';
 export { getUserInputToInitDextoApp, initDexto, postInitDexto } from './init-app.js';
 
 export { handleSetupCommand, type CLISetupOptions, type CLISetupOptionsInput } from './setup.js';
-export { handleInstallCommand, type InstallCommandOptions } from './install.js';
-export { handleUninstallCommand, type UninstallCommandOptions } from './uninstall.js';
+export { handleInstallCommand, type InstallCommandOptions } from './agents/install.js';
+export { handleUninstallCommand, type UninstallCommandOptions } from './agents/uninstall.js';
+export { handleUpgradeCommand, type UpgradeCommandOptions } from './upgrade.js';
+export { handleUninstallCliCommand, type UninstallCliCommandOptions } from './uninstall.js';
 export {
     handleListAgentsCommand,
     type ListAgentsCommandOptions,
     type ListAgentsCommandOptionsInput,
-} from './list-agents.js';
+} from './agents/list.js';
 export { handleWhichCommand, type WhichCommandOptions } from './which.js';
 export {
     handleSyncAgentsCommand,
     shouldPromptForSync,
     type SyncAgentsCommandOptions,
-} from './sync-agents.js';
+} from './agents/sync.js';
 
 // Image commands
 export {

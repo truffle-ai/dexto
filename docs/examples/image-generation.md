@@ -34,7 +34,7 @@ The Nano Banana Agent uses Google's Gemini 2.5 Flash Image model (formerly Nano 
 
 ```bash
 # Install the agent
-dexto install nano-banana-agent
+dexto agents install nano-banana-agent
 
 # Open the agent in web UI
 dexto --agent nano-banana-agent

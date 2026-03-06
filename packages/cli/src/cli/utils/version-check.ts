@@ -1,14 +1,13 @@
 // packages/cli/src/cli/utils/version-check.ts
 
 import { promises as fs } from 'fs';
+import os from 'os';
 import path from 'path';
 import chalk from 'chalk';
 import boxen from 'boxen';
-import { logger } from '@dexto/core';
-import { getDextoGlobalPath } from '@dexto/agent-management';
 
 /**
- * Version cache stored in ~/.dexto/version-check.json
+ * Version cache stored in ~/.dexto/cache/version-check.json
  */
 interface VersionCache {
     lastCheck: number; // timestamp in ms
@@ -26,8 +25,14 @@ export interface UpdateInfo {
 }
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
-const NPM_REGISTRY_URL = 'https://registry.npmjs.org/dexto/latest';
-const CACHE_FILE_PATH = getDextoGlobalPath('cache', 'version-check.json');
+const GITHUB_RELEASES_LATEST_URL = 'https://api.github.com/repos/truffle-ai/dexto/releases/latest';
+const CACHE_FILE_PATH = path.join(os.homedir(), '.dexto', 'cache', 'version-check.json');
+
+function debugLog(message: string): void {
+    if (process.env.DEXTO_DEBUG === 'true') {
+        console.debug(`[version-check] ${message}`);
+    }
+}
 
 /**
  * Compare two semver versions.
@@ -85,37 +90,76 @@ async function saveCache(cache: VersionCache): Promise<void> {
         await fs.writeFile(CACHE_FILE_PATH, JSON.stringify(cache, null, 2));
     } catch (error) {
         // Non-critical - just log and continue
-        logger.debug(
+        debugLog(
             `Failed to save version cache: ${error instanceof Error ? error.message : String(error)}`
         );
     }
 }
 
+function normalizeReleaseTag(tagName: string): string | null {
+    const trimmed = tagName.trim();
+    if (trimmed.length === 0) {
+        return null;
+    }
+
+    // GitHub releases in this monorepo can include scoped package tags like
+    // "@dexto/tools-filesystem@1.6.10". Always extract a trailing semver.
+    const trailingSemverMatch = trimmed.match(
+        /(v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$/
+    );
+    if (!trailingSemverMatch) {
+        return null;
+    }
+
+    const version = trailingSemverMatch[1]?.trim();
+    return version && version.length > 0 ? version : null;
+}
+
+function extractLatestVersionFromRelease(payload: unknown): string | null {
+    if (!payload || typeof payload !== 'object') {
+        return null;
+    }
+
+    const tagName = Reflect.get(payload, 'tag_name');
+    if (typeof tagName !== 'string') {
+        return null;
+    }
+
+    return normalizeReleaseTag(tagName);
+}
+
 /**
- * Fetch latest version from npm registry
+ * Fetch latest version from GitHub Releases
  */
 async function fetchLatestVersion(): Promise<string | null> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
 
     try {
-        const response = await fetch(NPM_REGISTRY_URL, {
+        const response = await fetch(GITHUB_RELEASES_LATEST_URL, {
             signal: controller.signal,
             headers: {
-                Accept: 'application/json',
+                Accept: 'application/vnd.github+json',
+                'User-Agent': 'dexto-cli-version-check',
             },
         });
 
         if (!response.ok) {
-            logger.debug(`npm registry returned status ${response.status}`);
+            debugLog(`GitHub releases API returned status ${response.status}`);
             return null;
         }
 
-        const data = (await response.json()) as { version?: string };
-        return data.version || null;
+        const data = (await response.json()) as unknown;
+        const latestVersion = extractLatestVersionFromRelease(data);
+        if (!latestVersion) {
+            debugLog('GitHub releases API response missing valid tag_name');
+            return null;
+        }
+
+        return latestVersion;
     } catch (error) {
         // Network errors, timeouts, etc. - silent fail
-        logger.debug(
+        debugLog(
             `Failed to fetch latest version: ${error instanceof Error ? error.message : String(error)}`
         );
         return null;
@@ -147,7 +191,7 @@ async function fetchLatestVersion(): Promise<string | null> {
 export async function checkForUpdates(currentVersion: string): Promise<UpdateInfo | null> {
     // Check if update checks are disabled
     if (process.env.DEXTO_NO_UPDATE_CHECK === 'true') {
-        logger.debug('Version check disabled via DEXTO_NO_UPDATE_CHECK');
+        debugLog('Version check disabled via DEXTO_NO_UPDATE_CHECK');
         return null;
     }
 
@@ -159,7 +203,7 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateInf
         if (cache && cache.currentVersion === currentVersion) {
             const cacheAge = now - cache.lastCheck;
             if (cacheAge < CACHE_TTL_MS) {
-                logger.debug(
+                debugLog(
                     `Using cached version info (age: ${Math.round(cacheAge / 1000 / 60)} minutes)`
                 );
                 // Return cached result if newer version exists
@@ -167,15 +211,15 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateInf
                     return {
                         current: currentVersion,
                         latest: cache.latestVersion,
-                        updateCommand: 'npm i -g dexto',
+                        updateCommand: 'dexto upgrade',
                     };
                 }
                 return null;
             }
         }
 
-        // Cache expired or invalid - fetch from npm
-        logger.debug('Fetching latest version from npm registry');
+        // Cache expired or invalid - fetch from GitHub releases
+        debugLog('Fetching latest version from GitHub releases');
         const latestVersion = await fetchLatestVersion();
 
         if (!latestVersion) {
@@ -195,16 +239,14 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateInf
             return {
                 current: currentVersion,
                 latest: latestVersion,
-                updateCommand: 'npm i -g dexto',
+                updateCommand: 'dexto upgrade',
             };
         }
 
         return null;
     } catch (error) {
         // Never fail the CLI startup due to version check errors
-        logger.debug(
-            `Version check error: ${error instanceof Error ? error.message : String(error)}`
-        );
+        debugLog(`Version check error: ${error instanceof Error ? error.message : String(error)}`);
         return null;
     }
 }
@@ -219,7 +261,7 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateInf
  * displayUpdateNotification({
  *   current: '1.5.4',
  *   latest: '1.6.0',
- *   updateCommand: 'npm i -g dexto'
+ *   updateCommand: 'dexto upgrade'
  * });
  * ```
  */

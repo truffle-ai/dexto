@@ -134,7 +134,7 @@ dexto setup --provider anthropic --model claude-sonnet-4-5-20250929
 When installing agents, global preferences are automatically injected:
 
 ```bash
-dexto install code-helper
+dexto agents install code-helper
 # Agent receives your LLM provider, model, and API key
 ```
 
