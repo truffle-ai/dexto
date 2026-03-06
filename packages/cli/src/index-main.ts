@@ -842,7 +842,7 @@ program
                         resolvedPath,
                         {
                             isInteractiveCli,
-                            logLevel: 'info',
+                            logLevel: 'info', // CLI uses info-level logging for visibility
                         }
                     );
 
