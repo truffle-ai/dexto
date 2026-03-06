@@ -123,7 +123,6 @@ export async function executeCommand(
         try {
             // Execute the handler with context
             const result = await cmd.handler(args, agent, ctx);
-            agent.logger.info(`[executeCommand] /${command} returned: ${JSON.stringify(result)}`);
             // If handler returns a string, it's formatted output for ink-cli
             // If it returns boolean, it's the old behavior (handled or not)
             return result;

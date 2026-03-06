@@ -20,7 +20,7 @@ import type { HelpStyledData, ShortcutsStyledData } from '../state/types.js';
 import { writeToClipboard } from '../utils/clipboardUtils.js';
 import { setExitStats } from './exit-stats.js';
 import { triggerExit } from './exit-handler.js';
-import { createSendMessageMarker } from '../../ink-cli/services/index.js';
+import { createSendMessageMarker } from '../services/index.js';
 
 /**
  * Get the shell rc file path for the given shell

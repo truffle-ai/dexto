@@ -1239,10 +1239,6 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 buffer.setText('');
                 setInput((prev) => ({ ...prev, historyIndex: -1 }));
 
-                // Show user message for the executed command
-                const userMessage = createUserMessage(commandText);
-                setMessages((prev) => [...prev, userMessage]);
-
                 setUi((prev) => ({ ...prev, isProcessing: true, isCancelling: false }));
 
                 const { CommandService } = await import('../services/CommandService.js');
@@ -1255,6 +1251,20 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         agent,
                         session.id || undefined
                     );
+
+                    // sendMessage: route through InputContainer's full streaming pipeline
+                    // (avoids duplicating processStream logic and deps here)
+                    if (result.type === 'sendMessage' && result.messageToSend) {
+                        setUi((prev) => ({ ...prev, isProcessing: false }));
+                        if (onSubmitPromptCommand) {
+                            await onSubmitPromptCommand(commandText);
+                        }
+                        return;
+                    }
+
+                    // Show user message for non-streaming commands
+                    const userMessage = createUserMessage(commandText);
+                    setMessages((prev) => [...prev, userMessage]);
 
                     if (result.type === 'output' && result.output) {
                         const output = result.output;
@@ -1308,7 +1318,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     }));
                 }
             },
-            [setInput, setUi, setMessages, agent, session.id, buffer]
+            [setInput, setUi, setMessages, agent, session.id, buffer, onSubmitPromptCommand]
         );
 
         const handleLoadIntoInput = useCallback(
