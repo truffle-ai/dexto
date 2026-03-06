@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { loadAgentConfig } from './loader.js';
 import { ErrorScope, ErrorType } from '@dexto/core';
 import { ConfigErrorCode } from './error-codes.js';
+import { getDextoPath } from '../utils/path.js';
 
 // Temp config file path relative to this test file (stable across monorepo runners)
 const tmpFile = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'temp-config.yml');
@@ -221,10 +222,10 @@ tools:
 
         const config = await loadAgentConfig(tmpFile);
 
-        // project_dir should be expanded to the context-aware .dexto path
+        // project_dir should be expanded using the shared resolved dexto path
         const basePath = (config.tools as any)?.[0]?.basePath as string;
         expect(basePath).toBeDefined();
-        expect(basePath).toContain('.dexto');
+        expect(basePath).toBe(path.join(getDextoPath(''), 'plans'));
         expect(basePath).toContain('plans');
         // Should be an absolute path
         expect(path.isAbsolute(basePath)).toBe(true);

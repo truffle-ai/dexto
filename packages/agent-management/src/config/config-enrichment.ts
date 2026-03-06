@@ -110,18 +110,15 @@ export interface EnrichAgentConfigOptions {
 export function enrichAgentConfig(
     config: AgentConfig,
     configPath?: string,
-    options: EnrichAgentConfigOptions | boolean = {}
+    options: EnrichAgentConfigOptions = {}
 ): AgentConfig {
-    // Handle backward compatibility: boolean arg was isInteractiveCli
-    const opts: EnrichAgentConfigOptions =
-        typeof options === 'boolean' ? { isInteractiveCli: options } : options;
     const {
         isInteractiveCli = false,
         logLevel = 'error',
         skipPluginDiscovery = false,
         bundledPlugins = [],
         forceStoragePaths = false,
-    } = opts;
+    } = options;
     const agentId = deriveAgentId(config, configPath);
 
     // Generate per-agent paths

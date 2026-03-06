@@ -207,8 +207,11 @@ export function getDextoEnvPath(startPath: string = process.cwd(), logger?: Logg
             break;
         }
         case 'global-cli': {
-            envPath = path.join(homedir(), '.dexto', '.env');
+            envPath = getDextoGlobalPath('', '.env', startPath);
             break;
+        }
+        default: {
+            throw new Error(`Unknown execution context: ${context}`);
         }
     }
     logger?.debug(`Dexto env path: ${envPath}, context: ${context}`);

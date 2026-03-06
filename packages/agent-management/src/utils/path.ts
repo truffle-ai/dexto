@@ -210,20 +210,15 @@ export function resolveBundledScript(scriptPath: string): string {
         // ignore, fall through to dev/project resolution
     }
 
-    // 2) Development fallback anchored to this module's location (monorepo source)
+    // 2) Development resolution anchored to this module's location (monorepo source)
     try {
         const thisModuleDir = path.dirname(fileURLToPath(import.meta.url));
         const sourceRoot = findDextoSourceRoot(thisModuleDir);
         const fromSource = tryRoots([sourceRoot ?? undefined]);
         if (fromSource) return fromSource;
     } catch {
-        // ignore and continue to legacy fallback
+        // ignore and continue to final error
     }
-
-    // 3) Legacy fallback: repo/project root derived from CWD
-    const repoRoot = findPackageRoot();
-    const fromCwd = tryRoots([repoRoot ?? undefined]);
-    if (fromCwd) return fromCwd;
 
     // Not found anywhere: throw with helpful message and absolute paths attempted
     throw new Error(
@@ -279,8 +274,11 @@ export function getDextoEnvPath(startPath: string = process.cwd()): string {
             break;
         }
         case 'global-cli': {
-            envPath = path.join(homedir(), '.dexto', '.env');
+            envPath = getDextoGlobalPath('', '.env', startPath);
             break;
+        }
+        default: {
+            throw new Error(`Unknown execution context: ${context}`);
         }
     }
     // logger.debug(`Dexto env path: ${envPath}, context: ${context}`); // TODO: (migration) Removed logger dependency

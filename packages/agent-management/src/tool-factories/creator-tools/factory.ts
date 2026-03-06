@@ -158,15 +158,8 @@ function resolveWorkspaceBasePath(context: ToolExecutionContext): string {
     return workspacePath || fallbackWorkingDir || process.cwd();
 }
 
-function resolveWorkspaceSkillDirs(context: ToolExecutionContext): {
-    primary: string;
-    legacy: string;
-} {
-    const base = resolveWorkspaceBasePath(context);
-    return {
-        primary: path.join(base, '.agents', 'skills'),
-        legacy: path.join(base, '.dexto', 'skills'),
-    };
+function resolveWorkspaceSkillDir(context: ToolExecutionContext): string {
+    return path.join(resolveWorkspaceBasePath(context), '.agents', 'skills');
 }
 
 function resolveSkillBaseDirectory(
@@ -177,7 +170,7 @@ function resolveSkillBaseDirectory(
         return { baseDir: getDextoGlobalPath('skills'), scope: 'global' };
     }
 
-    return { baseDir: resolveWorkspaceSkillDirs(context).primary, scope: 'workspace' };
+    return { baseDir: resolveWorkspaceSkillDir(context), scope: 'workspace' };
 }
 
 function resolveSkillDirectory(
@@ -202,19 +195,7 @@ async function resolveSkillUpdateDirectory(
         return resolveSkillBaseDirectory('global', context);
     }
 
-    const { primary, legacy } = resolveWorkspaceSkillDirs(context);
-    const skillId = input.id.trim();
-    const primaryFile = path.join(primary, skillId, 'SKILL.md');
-    if (await pathExists(primaryFile)) {
-        return { baseDir: primary, scope: 'workspace' };
-    }
-
-    const legacyFile = path.join(legacy, skillId, 'SKILL.md');
-    if (await pathExists(legacyFile)) {
-        return { baseDir: legacy, scope: 'workspace' };
-    }
-
-    return { baseDir: primary, scope: 'workspace' };
+    return { baseDir: resolveWorkspaceSkillDir(context), scope: 'workspace' };
 }
 
 function ensurePathWithinBase(baseDir: string, targetDir: string, toolId: string): void {
