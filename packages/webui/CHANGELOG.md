@@ -1,5 +1,33 @@
 # @dexto/webui
 
+## 1.6.10
+
+### Patch Changes
+
+- @dexto/core@1.6.10
+- @dexto/storage@1.6.10
+- @dexto/agent-config@1.6.10
+- @dexto/client-sdk@1.6.10
+- @dexto/analytics@1.6.10
+- @dexto/registry@1.6.10
+
+## 1.6.9
+
+### Patch Changes
+
+- dfbabfc: Improve the `/models` picker with curated **Featured**, cross-session **Recents**, and synced **Favorites** sections across TUI/WebUI.
+
+    Also improves featured-model selection fairness across providers and prevents stale deleted local models from being selectable.
+
+- Updated dependencies [dfbabfc]
+- Updated dependencies [1025ea7]
+    - @dexto/core@1.6.9
+    - @dexto/analytics@1.6.9
+    - @dexto/client-sdk@1.6.9
+    - @dexto/agent-config@1.6.9
+    - @dexto/storage@1.6.9
+    - @dexto/registry@1.6.9
+
 ## 1.6.8
 
 ### Patch Changes

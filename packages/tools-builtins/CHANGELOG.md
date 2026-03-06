@@ -1,5 +1,21 @@
 # @dexto/tools-builtins
 
+## 1.6.10
+
+### Patch Changes
+
+- @dexto/core@1.6.10
+- @dexto/agent-config@1.6.10
+
+## 1.6.9
+
+### Patch Changes
+
+- Updated dependencies [dfbabfc]
+- Updated dependencies [1025ea7]
+    - @dexto/core@1.6.9
+    - @dexto/agent-config@1.6.9
+
 ## 1.6.8
 
 ### Patch Changes

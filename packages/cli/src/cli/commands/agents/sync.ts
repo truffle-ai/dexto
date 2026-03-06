@@ -111,10 +111,23 @@ async function getBundledAgentHash(agentEntry: AgentRegistryEntry): Promise<stri
 /**
  * Get hash of installed agent
  */
-async function getInstalledAgentHash(agentId: string): Promise<string | null> {
+async function getInstalledAgentHash(
+    agentId: string,
+    agentEntry?: AgentRegistryEntry
+): Promise<string | null> {
     try {
         const installedPath = path.join(getDextoGlobalPath('agents'), agentId);
         const stat = await fs.stat(installedPath);
+
+        // Single-file bundled agents are installed inside an agent directory.
+        // Hash the installed YAML file so bundled vs installed comparisons stay symmetric.
+        if (agentEntry && !agentEntry.source.endsWith('/')) {
+            if (!stat.isDirectory()) {
+                return await hashFile(installedPath);
+            }
+            const installedFile = path.join(installedPath, path.basename(agentEntry.source));
+            return await hashFile(installedFile);
+        }
 
         if (stat.isDirectory()) {
             return await hashDirectory(installedPath);
@@ -175,7 +188,7 @@ async function getAgentStatus(agentId: string, agentEntry: AgentRegistryEntry): 
 
     try {
         const bundledHash = await getBundledAgentHash(agentEntry);
-        const installedHash = await getInstalledAgentHash(agentId);
+        const installedHash = await getInstalledAgentHash(agentId, agentEntry);
 
         if (!bundledHash || !installedHash) {
             return {
@@ -232,7 +245,7 @@ export async function shouldPromptForSync(): Promise<boolean> {
             if (!agentEntry) continue;
 
             const bundledHash = await getBundledAgentHash(agentEntry);
-            const installedHash = await getInstalledAgentHash(agentId);
+            const installedHash = await getInstalledAgentHash(agentId, agentEntry);
 
             if (bundledHash && installedHash && bundledHash !== installedHash) {
                 return true;
