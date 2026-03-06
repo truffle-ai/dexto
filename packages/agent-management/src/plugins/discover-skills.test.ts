@@ -11,7 +11,12 @@ vi.mock('fs', async () => {
     };
 });
 
+vi.mock('../utils/path.js', () => ({
+    getDextoGlobalPath: vi.fn(() => '/home/user/.dexto/skills'),
+}));
+
 import { discoverStandaloneSkills, getSkillSearchPaths } from './discover-skills.js';
+import { getDextoGlobalPath } from '../utils/path.js';
 
 // Mock Dirent type that matches fs.Dirent interface
 interface MockDirent
@@ -51,6 +56,7 @@ describe('discoverStandaloneSkills', () => {
         vi.resetAllMocks();
         process.cwd = vi.fn(() => '/test/project');
         process.env.HOME = '/home/user';
+        vi.mocked(getDextoGlobalPath).mockReturnValue('/home/user/.dexto/skills');
     });
 
     afterEach(() => {

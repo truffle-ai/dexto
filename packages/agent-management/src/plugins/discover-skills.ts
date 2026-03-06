@@ -16,6 +16,7 @@
 
 import * as path from 'path';
 import { existsSync, readdirSync } from 'fs';
+import { getDextoGlobalPath } from '../utils/path.js';
 
 /**
  * Represents a discovered standalone skill
@@ -48,6 +49,7 @@ export function discoverStandaloneSkills(projectPath?: string): DiscoveredSkill[
     const seenNames = new Set<string>();
     const homeDir = process.env.HOME || process.env.USERPROFILE || '';
     const cwd = projectPath || process.cwd();
+    const dextoSkillsDir = getDextoGlobalPath('skills', undefined, cwd);
 
     /**
      * Adds a skill if not already seen (deduplication by name)
@@ -100,11 +102,11 @@ export function discoverStandaloneSkills(projectPath?: string): DiscoveredSkill[
 
     // === User skills ===
     // 3. Agents user skills: ~/.agents/skills/
-    // 4. Dexto user skills: ~/.dexto/skills/
+    // 4. Dexto user skills: <dexto-home>/skills/
     if (homeDir) {
         scanSkillsDir(path.join(homeDir, '.agents', 'skills'), 'user');
-        scanSkillsDir(path.join(homeDir, '.dexto', 'skills'), 'user');
     }
+    scanSkillsDir(dextoSkillsDir, 'user');
 
     return skills;
 }
@@ -118,11 +120,12 @@ export function discoverStandaloneSkills(projectPath?: string): DiscoveredSkill[
 export function getSkillSearchPaths(): string[] {
     const homeDir = process.env.HOME || process.env.USERPROFILE || '';
     const cwd = process.cwd();
+    const dextoSkillsDir = getDextoGlobalPath('skills', undefined, cwd);
 
     return [
         path.join(cwd, '.agents', 'skills'),
         path.join(cwd, '.dexto', 'skills'),
         homeDir ? path.join(homeDir, '.agents', 'skills') : '',
-        homeDir ? path.join(homeDir, '.dexto', 'skills') : '',
+        dextoSkillsDir,
     ].filter(Boolean);
 }

@@ -6,7 +6,7 @@
  * into the configuration, eliminating the need for core services to resolve paths themselves.
  *
  * Also discovers command prompts from (in priority order):
- * - Local: <projectRoot>/commands/ (dexto-source dev mode or dexto-project only)
+ * - Local: <projectRoot>/commands/ (dexto-source or dexto-project only)
  * - Local: <cwd>/.dexto/commands/
  * - Global: ~/.dexto/commands/
  *
@@ -110,18 +110,15 @@ export interface EnrichAgentConfigOptions {
 export function enrichAgentConfig(
     config: AgentConfig,
     configPath?: string,
-    options: EnrichAgentConfigOptions | boolean = {}
+    options: EnrichAgentConfigOptions = {}
 ): AgentConfig {
-    // Handle backward compatibility: boolean arg was isInteractiveCli
-    const opts: EnrichAgentConfigOptions =
-        typeof options === 'boolean' ? { isInteractiveCli: options } : options;
     const {
         isInteractiveCli = false,
         logLevel = 'error',
         skipPluginDiscovery = false,
         bundledPlugins = [],
         forceStoragePaths = false,
-    } = opts;
+    } = options;
     const agentId = deriveAgentId(config, configPath);
 
     // Generate per-agent paths

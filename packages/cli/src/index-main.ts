@@ -181,10 +181,6 @@ program
         '--image <package>',
         'Image package to load (e.g., @dexto/image-local). Overrides config image field.'
     )
-    .option(
-        '--dev',
-        '[maintainers] Use local ./agents instead of ~/.dexto (for dexto repo development)'
-    )
     .enablePositionalOptions();
 
 // 2) `create-app` SUB-COMMAND
@@ -493,11 +489,6 @@ program
                 }
 
                 const opts = program.opts();
-
-                // Set dev mode early to use local repo agents instead of ~/.dexto
-                if (opts.dev) {
-                    process.env.DEXTO_DEV_MODE = 'true';
-                }
 
                 // ——— LOAD DEFAULT MODE FROM PREFERENCES ———
                 // If --mode was not explicitly provided on CLI, use defaultMode from preferences

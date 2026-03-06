@@ -1,6 +1,6 @@
 ---
-description: "Start the Dexto development server with optional agent file selection"
-allowed-tools: ["bash", "glob"]
+description: 'Start the Dexto development server with optional agent file selection'
+allowed-tools: ['bash', 'glob']
 ---
 
 # Dev Server Launcher
@@ -17,11 +17,13 @@ Starts the Dexto development servers (API + WebUI) with optional agent configura
 ## Usage
 
 ### Quick Start (Default Agent)
+
 ```bash
 /dev-server
 ```
 
 ### With Custom Agent
+
 ```bash
 /dev-server --agent agents/music-agent/music-agent.yml
 ```
@@ -31,16 +33,16 @@ Starts the Dexto development servers (API + WebUI) with optional agent configura
 When you run `/dev-server`, I will:
 
 1. **Find Available Agent Files**
-   - Scan the project for `*.agent.yml` files
-   - List common agent configurations
+    - Scan the project for `*.agent.yml` files
+    - List common agent configurations
 
 2. **Ask for Your Preference**
-   - Default agent (agents/default-agent.yml)
-   - Or select from available agents
+    - Default agent (agents/default-agent.yml)
+    - Or select from available agents
 
 3. **Start the Server**
-   - Run `pnpm dev` for default agent
-   - Run `pnpm dev -- --agent <path>` for custom agent
+    - Run `pnpm dev` for default agent
+    - Run `pnpm dev -- --agent <path>` for custom agent
 
 ## Available Agents
 
@@ -59,6 +61,7 @@ And many more in the `agents/` directory!
 ## Server Details
 
 Once started, you'll have:
+
 - **API Server**: <http://localhost:3001> (from dist build)
 - **WebUI**: <http://localhost:3000> (hot reload enabled)
 
@@ -69,7 +72,7 @@ Press `Ctrl+C` to stop all servers.
 - The dev server rebuilds core and CLI packages automatically
 - WebUI runs in dev mode with hot reload for rapid development
 - Agent configuration is loaded at startup
-- Runs with `DEXTO_DEV_MODE=true` to use repository agent configs instead of installed agents
+- Uses source-context defaults for repository configs and local `.dexto/` storage
 - Changes to agent.yml require server restart
 - Code changes to core/CLI require full rebuild (stop and restart dev server)
 - WebUI changes reload automatically

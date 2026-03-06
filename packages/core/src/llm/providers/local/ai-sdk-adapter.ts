@@ -26,7 +26,7 @@ import { LocalModelError } from './errors.js';
 import { getLocalModelById } from './registry.js';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
+import { getDextoGlobalPath } from '../../../utils/path.js';
 
 /**
  * Configuration for the local model AI SDK adapter.
@@ -67,7 +67,7 @@ interface ModelState {
  * Get the models directory path.
  */
 function getModelsDirectory(): string {
-    return path.join(os.homedir(), '.dexto', 'models');
+    return getDextoGlobalPath('models');
 }
 
 /**

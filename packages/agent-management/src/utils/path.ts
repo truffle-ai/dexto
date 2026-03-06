@@ -26,11 +26,16 @@ export function getDextoPackageRoot(): string | undefined {
     return typeof packageRoot === 'string' && packageRoot.length > 0 ? packageRoot : undefined;
 }
 
+function getDextoHomeDirOverride(): string | null {
+    const override = process.env.DEXTO_HOME_DIR?.trim();
+    return override ? path.resolve(override) : null;
+}
+
 /**
  * Standard path resolver for logs/db/config/anything in dexto projects
- * Context-aware with dev mode support:
- * - dexto-source + DEXTO_DEV_MODE=true: Use local repo .dexto (isolated testing)
- * - dexto-source (normal): Use global ~/.dexto (user experience)
+ * Context-aware with explicit home-dir override:
+ * - DEXTO_HOME_DIR set: Use <DEXTO_HOME_DIR>/<type>
+ * - dexto-source: Use local repo .dexto
  * - dexto-project: Use project-local .dexto
  * - global-cli: Use global ~/.dexto
  * @param type Path type (logs, database, config, etc.)
@@ -39,24 +44,23 @@ export function getDextoPackageRoot(): string | undefined {
  * @returns Absolute path to the requested location
  */
 export function getDextoPath(type: string, filename?: string, startPath?: string): string {
+    const homeOverride = getDextoHomeDirOverride();
+    if (homeOverride) {
+        const overridePath = path.join(homeOverride, type);
+        return filename ? path.join(overridePath, filename) : overridePath;
+    }
+
     const context = getExecutionContext(startPath);
 
     let basePath: string;
 
     switch (context) {
         case 'dexto-source': {
-            // Dev mode: use local repo .dexto for isolated testing
-            // Normal mode: use global ~/.dexto for user experience
-            const isDevMode = process.env.DEXTO_DEV_MODE === 'true';
-            if (isDevMode) {
-                const sourceRoot = findDextoSourceRoot(startPath);
-                if (!sourceRoot) {
-                    throw new Error('Not in dexto source context');
-                }
-                basePath = path.join(sourceRoot, '.dexto', type);
-            } else {
-                basePath = path.join(homedir(), '.dexto', type);
+            const sourceRoot = findDextoSourceRoot(startPath);
+            if (!sourceRoot) {
+                throw new Error('Not in dexto source context');
             }
+            basePath = path.join(sourceRoot, '.dexto', type);
             break;
         }
         case 'dexto-project': {
@@ -82,23 +86,30 @@ export function getDextoPath(type: string, filename?: string, startPath?: string
 /**
  * Global path resolver for user-global resources that should not be project-relative.
  *
- * Dev mode support:
- * - dexto-source + DEXTO_DEV_MODE=true: Use repo-local `.dexto` (isolated testing)
- * - otherwise: Use global `~/.dexto` (user experience)
+ * - DEXTO_HOME_DIR set: Use <DEXTO_HOME_DIR>/<type>
+ * - dexto-source: Use repo-local `.dexto`
+ * - otherwise: Use global `~/.dexto`
  * @param type Path type (agents, cache, etc.)
  * @param filename Optional filename to append
- * @returns Absolute path to the global location (~/.dexto/...)
+ * @param startPath Optional starting path for execution-context detection
+ * @returns Absolute path to the resolved location (home override, source-local,
+ * or global ~/.dexto), with filename appended when provided
  */
-export function getDextoGlobalPath(type: string, filename?: string): string {
-    const isDevMode = process.env.DEXTO_DEV_MODE === 'true';
-    if (isDevMode && getExecutionContext() === 'dexto-source') {
-        const sourceRoot = findDextoSourceRoot();
+export function getDextoGlobalPath(type: string, filename?: string, startPath?: string): string {
+    const homeOverride = getDextoHomeDirOverride();
+    if (homeOverride) {
+        const overridePath = path.join(homeOverride, type);
+        return filename ? path.join(overridePath, filename) : overridePath;
+    }
+
+    if (getExecutionContext(startPath) === 'dexto-source') {
+        const sourceRoot = findDextoSourceRoot(startPath);
         if (!sourceRoot) {
             throw new Error('Not in dexto source context');
         }
 
-        const devBasePath = path.join(sourceRoot, '.dexto', type);
-        return filename ? path.join(devBasePath, filename) : devBasePath;
+        const sourceBasePath = path.join(sourceRoot, '.dexto', type);
+        return filename ? path.join(sourceBasePath, filename) : sourceBasePath;
     }
 
     const basePath = path.join(homedir(), '.dexto', type);
@@ -199,20 +210,15 @@ export function resolveBundledScript(scriptPath: string): string {
         // ignore, fall through to dev/project resolution
     }
 
-    // 2) Development fallback anchored to this module's location (monorepo source)
+    // 2) Development resolution anchored to this module's location (monorepo source)
     try {
         const thisModuleDir = path.dirname(fileURLToPath(import.meta.url));
         const sourceRoot = findDextoSourceRoot(thisModuleDir);
         const fromSource = tryRoots([sourceRoot ?? undefined]);
         if (fromSource) return fromSource;
     } catch {
-        // ignore and continue to legacy fallback
+        // ignore and continue to final error
     }
-
-    // 3) Legacy fallback: repo/project root derived from CWD
-    const repoRoot = findPackageRoot();
-    const fromCwd = tryRoots([repoRoot ?? undefined]);
-    if (fromCwd) return fromCwd;
 
     // Not found anywhere: throw with helpful message and absolute paths attempted
     throw new Error(
@@ -221,7 +227,7 @@ export function resolveBundledScript(scriptPath: string): string {
 }
 
 /**
- * Ensure ~/.dexto directory exists for global storage
+ * Ensure the resolved dexto storage directory exists.
  */
 export async function ensureDextoGlobalDirectory(): Promise<void> {
     const dextoDir = getDextoGlobalPath('');
@@ -243,22 +249,20 @@ export async function ensureDextoGlobalDirectory(): Promise<void> {
  * @returns Absolute path to .env file for saving
  */
 export function getDextoEnvPath(startPath: string = process.cwd()): string {
+    const homeOverride = getDextoHomeDirOverride();
+    if (homeOverride) {
+        return path.join(homeOverride, '.env');
+    }
+
     const context = getExecutionContext(startPath);
     let envPath = '';
     switch (context) {
         case 'dexto-source': {
-            // Dev mode: use local repo .env for isolated testing
-            // Normal mode: use global ~/.dexto/.env for user experience
-            const isDevMode = process.env.DEXTO_DEV_MODE === 'true';
-            if (isDevMode) {
-                const sourceRoot = findDextoSourceRoot(startPath);
-                if (!sourceRoot) {
-                    throw new Error('Not in dexto source context');
-                }
-                envPath = path.join(sourceRoot, '.env');
-            } else {
-                envPath = path.join(homedir(), '.dexto', '.env');
+            const sourceRoot = findDextoSourceRoot(startPath);
+            if (!sourceRoot) {
+                throw new Error('Not in dexto source context');
             }
+            envPath = path.join(sourceRoot, '.env');
             break;
         }
         case 'dexto-project': {
@@ -270,8 +274,11 @@ export function getDextoEnvPath(startPath: string = process.cwd()): string {
             break;
         }
         case 'global-cli': {
-            envPath = path.join(homedir(), '.dexto', '.env');
+            envPath = getDextoGlobalPath('', '.env', startPath);
             break;
+        }
+        default: {
+            throw new Error(`Unknown execution context: ${context}`);
         }
     }
     // logger.debug(`Dexto env path: ${envPath}, context: ${context}`); // TODO: (migration) Removed logger dependency

@@ -151,9 +151,8 @@ async function resolveDefaultAgentByContext(autoInstall: boolean = true): Promis
 
 /**
  * Resolution for Dexto source code context
- * - Dev mode (DEXTO_DEV_MODE=true): Always use repo config file
- * - User with setup: Use their preferences
- * - Otherwise: Fallback to repo config file
+ * - Prefer user preferences when setup is complete
+ * - Otherwise use repo default config
  */
 async function resolveDefaultAgentForDextoSource(autoInstall: boolean = true): Promise<string> {
     logger.debug('Resolving default agent for dexto source context');
@@ -162,19 +161,6 @@ async function resolveDefaultAgentForDextoSource(autoInstall: boolean = true): P
         throw ConfigError.bundledNotFound('dexto source directory not found');
     }
     const repoConfigPath = path.join(sourceRoot, 'agents', 'coding-agent', 'coding-agent.yml');
-
-    // Check if we're in dev mode (maintainers testing the repo config)
-    const isDevMode = process.env.DEXTO_DEV_MODE === 'true';
-
-    if (isDevMode) {
-        logger.debug('Dev mode: using repository config file');
-        try {
-            await fs.access(repoConfigPath);
-            return repoConfigPath;
-        } catch {
-            throw ConfigError.bundledNotFound(repoConfigPath);
-        }
-    }
 
     // Prefer user preferences if setup is complete
     if (globalPreferencesExist()) {

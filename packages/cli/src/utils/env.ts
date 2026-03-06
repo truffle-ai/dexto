@@ -1,10 +1,10 @@
 import * as path from 'path';
-import { homedir } from 'os';
 import dotenv from 'dotenv';
 import {
     getExecutionContext,
     ensureDextoGlobalDirectory,
     getDextoEnvPath,
+    getDextoGlobalPath,
 } from '@dexto/agent-management';
 
 /**
@@ -12,7 +12,7 @@ import {
  * Loads environment variables in priority order:
  * 1. Shell environment (highest priority)
  * 2. Project .env (if in dexto project)
- * 3. Global ~/.dexto/.env (fallback)
+ * 3. Dexto home .env (fallback)
  *
  * @param startPath Starting directory for project detection
  * @returns Combined environment variables object
@@ -23,7 +23,7 @@ export async function loadEnvironmentVariables(
     const context = getExecutionContext(startPath);
     const env: Record<string, string> = {};
 
-    const globalEnvPath = path.join(homedir(), '.dexto', '.env');
+    const globalEnvPath = getDextoGlobalPath('', '.env', startPath);
     try {
         const globalResult = dotenv.config({ path: globalEnvPath, processEnv: {} });
         if (globalResult.parsed) {

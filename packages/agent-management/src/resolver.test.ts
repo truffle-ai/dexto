@@ -204,7 +204,6 @@ describe('Agent Resolver', () => {
 
     describe('resolveAgentPath - Default Resolution - Dexto Source Context', () => {
         let repoConfigPath: string;
-        const originalEnv = process.env.DEXTO_DEV_MODE;
 
         beforeEach(async () => {
             mockGetExecutionContext.mockReturnValue('dexto-source');
@@ -217,25 +216,7 @@ describe('Agent Resolver', () => {
             );
         });
 
-        afterEach(() => {
-            // Restore original env
-            if (originalEnv === undefined) {
-                delete process.env.DEXTO_DEV_MODE;
-            } else {
-                process.env.DEXTO_DEV_MODE = originalEnv;
-            }
-        });
-
-        it('uses repo config when DEXTO_DEV_MODE=true', async () => {
-            process.env.DEXTO_DEV_MODE = 'true';
-
-            const result = await resolveAgentPath();
-            expect(result).toBe(repoConfigPath);
-            expect(mockGlobalPreferencesExist).not.toHaveBeenCalled();
-        });
-
-        it('uses user preferences when DEXTO_DEV_MODE=false and setup complete', async () => {
-            process.env.DEXTO_DEV_MODE = 'false';
+        it('uses user preferences when setup is complete', async () => {
             mockGlobalPreferencesExist.mockReturnValue(true);
             mockLoadGlobalPreferences.mockResolvedValue({
                 setup: { completed: true },
@@ -274,8 +255,7 @@ describe('Agent Resolver', () => {
             expect(result).toBe(agentConfigPath);
         });
 
-        it('uses user preferences when DEXTO_DEV_MODE is not set and setup complete', async () => {
-            delete process.env.DEXTO_DEV_MODE;
+        it('uses user preferences for another configured default agent', async () => {
             mockGlobalPreferencesExist.mockReturnValue(true);
             mockLoadGlobalPreferences.mockResolvedValue({
                 setup: { completed: true },
@@ -321,7 +301,6 @@ describe('Agent Resolver', () => {
         });
 
         it('falls back to repo config when no preferences exist', async () => {
-            delete process.env.DEXTO_DEV_MODE;
             mockGlobalPreferencesExist.mockReturnValue(false);
 
             const result = await resolveAgentPath();
@@ -329,7 +308,6 @@ describe('Agent Resolver', () => {
         });
 
         it('falls back to repo config when setup incomplete', async () => {
-            delete process.env.DEXTO_DEV_MODE;
             mockGlobalPreferencesExist.mockReturnValue(true);
             mockLoadGlobalPreferences.mockResolvedValue({
                 setup: { completed: false },
@@ -341,7 +319,6 @@ describe('Agent Resolver', () => {
         });
 
         it('falls back to repo config when preferences loading fails', async () => {
-            delete process.env.DEXTO_DEV_MODE;
             mockGlobalPreferencesExist.mockReturnValue(true);
             mockLoadGlobalPreferences.mockRejectedValue(new Error('Failed to load preferences'));
 
@@ -349,21 +326,7 @@ describe('Agent Resolver', () => {
             expect(result).toBe(repoConfigPath);
         });
 
-        it('throws ConfigError.bundledNotFound when repo config missing in dev mode', async () => {
-            process.env.DEXTO_DEV_MODE = 'true';
-            await fs.rm(repoConfigPath); // Delete the config file
-
-            await expect(resolveAgentPath()).rejects.toThrow(
-                expect.objectContaining({
-                    code: ConfigErrorCode.BUNDLED_NOT_FOUND,
-                    scope: ErrorScope.CONFIG,
-                    type: ErrorType.NOT_FOUND,
-                })
-            );
-        });
-
         it('throws ConfigError.bundledNotFound when repo config missing and no preferences', async () => {
-            delete process.env.DEXTO_DEV_MODE;
             mockGlobalPreferencesExist.mockReturnValue(false);
             await fs.rm(repoConfigPath); // Delete the config file
 

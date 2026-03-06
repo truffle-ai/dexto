@@ -1,20 +1,23 @@
 /**
  * Path resolver for local model storage.
  *
- * Models are stored globally at ~/.dexto/models/ to be shared across projects.
+ * Models are stored in the resolved dexto home models directory to be shared across projects.
  * This avoids duplicating large model files for each project.
  */
 
 import * as path from 'path';
 import { promises as fs } from 'fs';
-import { homedir } from 'os';
+import { getDextoGlobalPath } from '../utils/path.js';
 
 /**
  * Get the base models directory path.
- * Always returns global path: ~/.dexto/models/
+ * Returns the resolved models path from getDextoGlobalPath('models'):
+ * - DEXTO_HOME_DIR set: <DEXTO_HOME_DIR>/models
+ * - dexto-source: <sourceRoot>/.dexto/models
+ * - otherwise: ~/.dexto/models
  */
 export function getModelsDirectory(): string {
-    return path.join(homedir(), '.dexto', 'models');
+    return getDextoGlobalPath('models');
 }
 
 /**
