@@ -3,23 +3,23 @@ import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
 vi.mock('../utils/self-management.js', () => ({
     detectInstallMethod: vi.fn(),
     executeManagedCommand: vi.fn(),
+    createLegacyNpmUninstallCommand: vi.fn(),
     getDefaultNativeBinaryPath: vi.fn(),
     getDextoHomePath: vi.fn(),
     pathExists: vi.fn(),
     removePath: vi.fn(),
-    resolveUninstallCommandForMethod: vi.fn(),
     scheduleDeferredWindowsRemoval: vi.fn(),
 }));
 
 import { handleUninstallCliCommand } from './uninstall.js';
 import {
+    createLegacyNpmUninstallCommand,
     detectInstallMethod,
     executeManagedCommand,
     getDefaultNativeBinaryPath,
     getDextoHomePath,
     pathExists,
     removePath,
-    resolveUninstallCommandForMethod,
     scheduleDeferredWindowsRemoval,
 } from '../utils/self-management.js';
 
@@ -53,7 +53,7 @@ describe('uninstall command', () => {
             multipleInstallWarning: null,
         });
 
-        vi.mocked(resolveUninstallCommandForMethod).mockReturnValue({
+        vi.mocked(createLegacyNpmUninstallCommand).mockReturnValue({
             command: 'npm',
             args: ['uninstall', '-g', 'dexto'],
             displayCommand: 'npm uninstall -g dexto',
@@ -70,7 +70,7 @@ describe('uninstall command', () => {
             { dryRun: false }
         );
         expect(removePath).not.toHaveBeenCalled();
-        expect(resolveUninstallCommandForMethod).toHaveBeenCalledWith('npm');
+        expect(createLegacyNpmUninstallCommand).toHaveBeenCalledTimes(1);
     });
 
     it('removes native binary and keeps ~/.dexto by default', async () => {
@@ -138,7 +138,7 @@ describe('uninstall command', () => {
             multipleInstallWarning: null,
         });
 
-        vi.mocked(resolveUninstallCommandForMethod).mockReturnValue({
+        vi.mocked(createLegacyNpmUninstallCommand).mockReturnValue({
             command: 'npm',
             args: ['uninstall', '-g', 'dexto'],
             displayCommand: 'npm uninstall -g dexto',

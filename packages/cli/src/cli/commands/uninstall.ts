@@ -1,13 +1,13 @@
 import path from 'path';
 import { z } from 'zod';
 import {
+    createLegacyNpmUninstallCommand,
     detectInstallMethod,
     executeManagedCommand,
     getDefaultNativeBinaryPath,
     getDextoHomePath,
     pathExists,
     removePath,
-    resolveUninstallCommandForMethod,
     scheduleDeferredWindowsRemoval,
 } from '../utils/self-management.js';
 
@@ -20,11 +20,6 @@ const UninstallCliCommandSchema = z
 
 export type UninstallCliCommandOptions = z.output<typeof UninstallCliCommandSchema>;
 
-interface RemovalSummary {
-    removed: string[];
-    skipped: string[];
-}
-
 function printMultiInstallWarning(warning: string | null): void {
     if (!warning) {
         return;
@@ -33,13 +28,11 @@ function printMultiInstallWarning(warning: string | null): void {
     console.warn(`⚠️  ${warning}`);
 }
 
-async function removeTargets(targets: string[], dryRun: boolean): Promise<RemovalSummary> {
+async function removeTargets(targets: string[], dryRun: boolean): Promise<string[]> {
     const removed: string[] = [];
-    const skipped: string[] = [];
 
     for (const target of targets) {
         if (!(await pathExists(target))) {
-            skipped.push(target);
             continue;
         }
 
@@ -53,7 +46,7 @@ async function removeTargets(targets: string[], dryRun: boolean): Promise<Remova
         removed.push(target);
     }
 
-    return { removed, skipped };
+    return removed;
 }
 
 function normalizeRuntimePath(targetPath: string): string {
@@ -94,28 +87,13 @@ export async function handleUninstallCliCommand(
     let homeRemovalDeferred = false;
 
     if (detection.method === 'npm') {
-        const command = resolveUninstallCommandForMethod(detection.method);
-        if (command) {
-            console.log(`🧹 Uninstalling CLI via ${detection.method}...`);
-            try {
-                await executeManagedCommand(
-                    {
-                        command: command.command,
-                        args: command.args,
-                        displayCommand: command.displayCommand,
-                    },
-                    { dryRun: validated.dryRun }
-                );
-            } catch (error) {
-                managedUninstallError = error instanceof Error ? error : new Error(String(error));
-                console.warn(
-                    `⚠️  Package-manager uninstall failed: ${managedUninstallError.message}`
-                );
-            }
-        } else {
-            console.warn(
-                `⚠️  No automatic uninstall command for ${detection.method}. Remove it manually.`
-            );
+        const command = createLegacyNpmUninstallCommand();
+        console.log('🧹 Uninstalling CLI via npm...');
+        try {
+            await executeManagedCommand(command, { dryRun: validated.dryRun });
+        } catch (error) {
+            managedUninstallError = error instanceof Error ? error : new Error(String(error));
+            console.warn(`⚠️  Package-manager uninstall failed: ${managedUninstallError.message}`);
         }
     } else {
         const binaryPath = detection.installedPath ?? getDefaultNativeBinaryPath();
@@ -136,9 +114,9 @@ export async function handleUninstallCliCommand(
                     console.log(`🗑️  Scheduled ${dextoHomePath} removal after exit.`);
                 }
             } else {
-                const binaryRemoval = await removeTargets([binaryPath], validated.dryRun);
-                if (binaryRemoval.removed.length > 0) {
-                    console.log(`🗑️  Removed CLI binary: ${binaryRemoval.removed.join(', ')}`);
+                const removedBinaryPaths = await removeTargets([binaryPath], validated.dryRun);
+                if (removedBinaryPaths.length > 0) {
+                    console.log(`🗑️  Removed CLI binary: ${removedBinaryPaths.join(', ')}`);
                 } else {
                     console.log('ℹ️  CLI binary was not found at expected path.');
                 }
@@ -150,8 +128,8 @@ export async function handleUninstallCliCommand(
     }
 
     if (validated.purge && !homeRemovalDeferred) {
-        const homeRemoval = await removeTargets([dextoHomePath], validated.dryRun);
-        if (homeRemoval.removed.length > 0) {
+        const removedHomePaths = await removeTargets([dextoHomePath], validated.dryRun);
+        if (removedHomePaths.length > 0) {
             console.log(`🗑️  Removed ${dextoHomePath}.`);
         } else {
             console.log(`ℹ️  ${dextoHomePath} was not found.`);

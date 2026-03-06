@@ -6,17 +6,17 @@ vi.mock('../utils/self-management.js', () => ({
     detectUnsupportedPackageManagerFromPath: vi.fn(),
     executeManagedCommand: vi.fn(),
     normalizeRequestedVersion: vi.fn(),
-    resolveUninstallCommandForMethod: vi.fn(),
+    createLegacyNpmUninstallCommand: vi.fn(),
 }));
 
 import { handleUpgradeCommand } from './upgrade.js';
 import {
+    createLegacyNpmUninstallCommand,
     createNativeInstallCommand,
     detectInstallMethod,
     detectUnsupportedPackageManagerFromPath,
     executeManagedCommand,
     normalizeRequestedVersion,
-    resolveUninstallCommandForMethod,
 } from '../utils/self-management.js';
 
 describe('upgrade command', () => {
@@ -84,7 +84,7 @@ describe('upgrade command', () => {
                 multipleInstallWarning: null,
             });
 
-        vi.mocked(resolveUninstallCommandForMethod).mockReturnValue({
+        vi.mocked(createLegacyNpmUninstallCommand).mockReturnValue({
             command: 'npm',
             args: ['uninstall', '-g', 'dexto'],
             displayCommand: 'npm uninstall -g dexto',
@@ -98,7 +98,7 @@ describe('upgrade command', () => {
             force: false,
         });
         expect(executeManagedCommand).toHaveBeenCalledTimes(2);
-        expect(resolveUninstallCommandForMethod).toHaveBeenCalledWith('npm');
+        expect(createLegacyNpmUninstallCommand).toHaveBeenCalledTimes(1);
     });
 
     it('falls back to native installer when method is unknown', async () => {

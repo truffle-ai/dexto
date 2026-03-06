@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import {
+    createLegacyNpmUninstallCommand,
     createNativeInstallCommand,
     detectInstallMethod,
     detectUnsupportedPackageManagerFromPath,
     executeManagedCommand,
     normalizeRequestedVersion,
-    resolveUninstallCommandForMethod,
 } from '../utils/self-management.js';
 
 const UpgradeCommandSchema = z
@@ -41,33 +41,22 @@ async function runNativeUpgrade(
 }
 
 async function runHardMigrationToNative(
-    method: 'npm',
     version: string | null,
     options: UpgradeCommandOptions
 ): Promise<void> {
-    console.log(`🔁 Detected ${method} global install. Migrating to native installer...`);
+    console.log('🔁 Detected npm global install. Migrating to native installer...');
 
     await runNativeUpgrade(version, null, options);
 
-    const uninstallCommand = resolveUninstallCommandForMethod(method);
-    if (!uninstallCommand) {
-        throw new Error(`No uninstall command available for install method: ${method}`);
-    }
+    const uninstallCommand = createLegacyNpmUninstallCommand();
 
-    console.log(`🧹 Removing legacy ${method} global install...`);
+    console.log('🧹 Removing legacy npm global install...');
 
     try {
-        await executeManagedCommand(
-            {
-                command: uninstallCommand.command,
-                args: uninstallCommand.args,
-                displayCommand: uninstallCommand.displayCommand,
-            },
-            { dryRun: options.dryRun }
-        );
+        await executeManagedCommand(uninstallCommand, { dryRun: options.dryRun });
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        console.warn(`⚠️  Automatic ${method} uninstall failed: ${message}`);
+        console.warn(`⚠️  Automatic npm uninstall failed: ${message}`);
         console.warn(`Run this command manually: ${uninstallCommand.displayCommand}`);
     }
 }
@@ -110,7 +99,7 @@ export async function handleUpgradeCommand(
             await runNativeUpgrade(version, detection.installDir, validated);
             break;
         case 'npm':
-            await runHardMigrationToNative(detection.method, version, validated);
+            await runHardMigrationToNative(version, validated);
             break;
         case 'project-local':
             throw new Error(buildProjectLocalInstallMessage(detection.installedPath));

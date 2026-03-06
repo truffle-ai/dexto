@@ -13,8 +13,6 @@ const DEFAULT_WINDOWS_INSTALL_URL = 'https://dexto.ai/install.ps1';
 export type InstallMethod = 'native' | 'npm' | 'project-local' | 'unknown';
 export type UnsupportedPackageManager = 'pnpm' | 'bun';
 
-type MetadataInstallMethod = Exclude<InstallMethod, 'project-local' | 'unknown'>;
-
 const InstallMetadataSchema = z
     .object({
         schemaVersion: z.number().int().positive().default(1),
@@ -31,7 +29,7 @@ const InstallMetadataSchema = z
 
 export type InstallMetadata = z.output<typeof InstallMetadataSchema>;
 
-export interface InstallDetectionResult {
+interface InstallDetectionResult {
     method: InstallMethod;
     source: 'metadata' | 'heuristic';
     metadata: InstallMetadata | null;
@@ -48,7 +46,7 @@ interface DetectInstallMethodDeps {
     pathExists: (targetPath: string) => Promise<boolean>;
 }
 
-export interface CommandExecutionResult {
+interface CommandExecutionResult {
     code: number;
     stdout: string;
     stderr: string;
@@ -60,22 +58,10 @@ interface ExecuteCommandOptions {
     stdio?: 'pipe' | 'inherit';
 }
 
-export interface ExecutableCommand {
+interface ExecutableCommand {
     command: string;
     args: string[];
     env?: NodeJS.ProcessEnv;
-    displayCommand: string;
-}
-
-export interface NativeInstallOptions {
-    version: string | null;
-    installDir: string | null;
-    force: boolean;
-}
-
-export interface PackageManagerCommand {
-    command: string;
-    args: string[];
     displayCommand: string;
 }
 
@@ -153,16 +139,12 @@ export async function executeManagedCommand(
     }
 }
 
-export function getInstallMetadataPath(): string {
-    return path.join(getDextoHomeDirectory(), 'install.json');
-}
-
-function getDextoHomeDirectory(): string {
+export function getDextoHomePath(): string {
     return path.join(os.homedir(), '.dexto');
 }
 
 export async function readInstallMetadata(): Promise<InstallMetadata | null> {
-    const metadataPath = getInstallMetadataPath();
+    const metadataPath = path.join(getDextoHomePath(), 'install.json');
 
     try {
         const content = await fs.readFile(metadataPath, 'utf-8');
@@ -317,10 +299,6 @@ export function buildMultipleInstallWarning(
     ].join('\n');
 }
 
-function normalizeInstallMethodFromMetadata(method: MetadataInstallMethod): InstallMethod {
-    return method;
-}
-
 export async function detectInstallMethod(): Promise<InstallDetectionResult> {
     return await detectInstallMethodWithDeps();
 }
@@ -402,7 +380,7 @@ export async function detectInstallMethodWithDeps(
         const installDir = path.dirname(installedPath);
 
         return {
-            method: normalizeInstallMethodFromMetadata(metadata.method),
+            method: metadata.method,
             source: 'metadata',
             metadata,
             installedPath,
@@ -477,7 +455,11 @@ export function commandDisplayWithEnvPowerShell(
     return `${parts.join(' ')} ${command}`;
 }
 
-export function createNativeInstallCommand(options: NativeInstallOptions): ExecutableCommand {
+export function createNativeInstallCommand(options: {
+    version: string | null;
+    installDir: string | null;
+    force: boolean;
+}): ExecutableCommand {
     const env: NodeJS.ProcessEnv = { ...process.env };
     const envOverrides: Record<string, string> = {};
 
@@ -520,19 +502,12 @@ export function createNativeInstallCommand(options: NativeInstallOptions): Execu
     };
 }
 
-export function resolveUninstallCommandForMethod(
-    method: InstallMethod
-): PackageManagerCommand | null {
-    switch (method) {
-        case 'npm':
-            return {
-                command: 'npm',
-                args: ['uninstall', '-g', 'dexto'],
-                displayCommand: 'npm uninstall -g dexto',
-            };
-        default:
-            return null;
-    }
+export function createLegacyNpmUninstallCommand(): ExecutableCommand {
+    return {
+        command: 'npm',
+        args: ['uninstall', '-g', 'dexto'],
+        displayCommand: 'npm uninstall -g dexto',
+    };
 }
 
 export function normalizeRequestedVersion(version: string | null | undefined): string | null {
@@ -546,10 +521,6 @@ export function normalizeRequestedVersion(version: string | null | undefined): s
     }
 
     return trimmed.startsWith('dexto@') ? trimmed.slice('dexto@'.length) : trimmed;
-}
-
-export function getDextoHomePath(): string {
-    return getDextoHomeDirectory();
 }
 
 export async function scheduleDeferredWindowsRemoval(targetPaths: string[]): Promise<void> {

@@ -5,6 +5,7 @@ import {
     buildMultipleInstallWarning,
     commandDisplayWithEnvPosix,
     commandDisplayWithEnvPowerShell,
+    createLegacyNpmUninstallCommand,
     createNativeInstallCommand,
     detectInstallMethodWithDeps,
     detectUnsupportedPackageManagerFromPath,
@@ -12,7 +13,6 @@ import {
     isProjectLocalBinaryPath,
     normalizeRequestedVersion,
     removePath,
-    resolveUninstallCommandForMethod,
     type InstallMetadata,
 } from './self-management.js';
 
@@ -153,12 +153,12 @@ describe('self-management utils', () => {
         expect(normalizeRequestedVersion('1.7.0')).toBe('1.7.0');
     });
 
-    it('resolves package-manager uninstall commands', () => {
-        expect(resolveUninstallCommandForMethod('npm')?.displayCommand).toBe(
-            'npm uninstall -g dexto'
-        );
-        expect(resolveUninstallCommandForMethod('project-local')).toBeNull();
-        expect(resolveUninstallCommandForMethod('unknown')).toBeNull();
+    it('builds the legacy npm uninstall command', () => {
+        expect(createLegacyNpmUninstallCommand()).toEqual({
+            command: 'npm',
+            args: ['uninstall', '-g', 'dexto'],
+            displayCommand: 'npm uninstall -g dexto',
+        });
     });
 
     it('builds native install command payload', () => {
