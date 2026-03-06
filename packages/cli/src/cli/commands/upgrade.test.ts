@@ -131,6 +131,23 @@ describe('upgrade command', () => {
         });
     });
 
+    it('rejects project-local installs before attempting self-upgrade', async () => {
+        vi.mocked(detectInstallMethod).mockResolvedValue({
+            method: 'project-local',
+            source: 'heuristic',
+            metadata: null,
+            installedPath: '/repo/node_modules/.bin/dexto',
+            installDir: '/repo/node_modules/.bin',
+            allDetectedPaths: ['/repo/node_modules/.bin/dexto'],
+            multipleInstallWarning: null,
+        });
+
+        await expect(handleUpgradeCommand(undefined, {})).rejects.toThrow(/project-local install/i);
+
+        expect(createNativeInstallCommand).not.toHaveBeenCalled();
+        expect(executeManagedCommand).not.toHaveBeenCalled();
+    });
+
     it('throws when non-native binary remains active after migration fallback', async () => {
         vi.mocked(detectInstallMethod)
             .mockResolvedValueOnce({

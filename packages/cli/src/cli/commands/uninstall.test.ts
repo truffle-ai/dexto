@@ -1,13 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
 
 vi.mock('../utils/self-management.js', () => ({
     detectInstallMethod: vi.fn(),
     executeManagedCommand: vi.fn(),
     getDefaultNativeBinaryPath: vi.fn(),
-    getSelfUninstallPaths: vi.fn(),
+    getDextoHomePath: vi.fn(),
     pathExists: vi.fn(),
     removePath: vi.fn(),
     resolveUninstallCommandForMethod: vi.fn(),
+    scheduleDeferredWindowsRemoval: vi.fn(),
 }));
 
 import { handleUninstallCliCommand } from './uninstall.js';
@@ -15,29 +16,33 @@ import {
     detectInstallMethod,
     executeManagedCommand,
     getDefaultNativeBinaryPath,
-    getSelfUninstallPaths,
+    getDextoHomePath,
     pathExists,
     removePath,
     resolveUninstallCommandForMethod,
+    scheduleDeferredWindowsRemoval,
 } from '../utils/self-management.js';
 
 describe('uninstall command', () => {
+    const originalPlatform = process.platform;
+
     beforeEach(() => {
         vi.clearAllMocks();
-
-        vi.mocked(getSelfUninstallPaths).mockReturnValue({
-            cachePaths: ['/home/test/.dexto/cache'],
-            configPaths: ['/home/test/.dexto/preferences.yml'],
-            dataPaths: ['/home/test/.dexto/agents'],
-        });
+        Object.defineProperty(process, 'platform', { value: originalPlatform });
 
         vi.mocked(pathExists).mockResolvedValue(true);
         vi.mocked(removePath).mockResolvedValue(undefined);
         vi.mocked(executeManagedCommand).mockResolvedValue(undefined);
+        vi.mocked(scheduleDeferredWindowsRemoval).mockResolvedValue(undefined);
         vi.mocked(getDefaultNativeBinaryPath).mockReturnValue('/home/test/.local/bin/dexto');
+        vi.mocked(getDextoHomePath).mockReturnValue('/home/test/.dexto');
     });
 
-    it('uninstalls npm installs via package-manager command and clears cache by default', async () => {
+    afterEach(() => {
+        Object.defineProperty(process, 'platform', { value: originalPlatform });
+    });
+
+    it('uninstalls npm installs via package-manager command and keeps ~/.dexto by default', async () => {
         vi.mocked(detectInstallMethod).mockResolvedValue({
             method: 'npm',
             source: 'heuristic',
@@ -64,11 +69,11 @@ describe('uninstall command', () => {
             },
             { dryRun: false }
         );
-        expect(removePath).toHaveBeenCalledWith('/home/test/.dexto/cache');
+        expect(removePath).not.toHaveBeenCalled();
         expect(resolveUninstallCommandForMethod).toHaveBeenCalledWith('npm');
     });
 
-    it('removes native binary and cache by default', async () => {
+    it('removes native binary and keeps ~/.dexto by default', async () => {
         vi.mocked(detectInstallMethod).mockResolvedValue({
             method: 'native',
             source: 'metadata',
@@ -81,17 +86,12 @@ describe('uninstall command', () => {
 
         await expect(handleUninstallCliCommand({})).resolves.not.toThrow();
 
+        expect(removePath).toHaveBeenCalledTimes(1);
         expect(removePath).toHaveBeenCalledWith('/home/test/.local/bin/dexto');
-        expect(removePath).toHaveBeenCalledWith('/home/test/.dexto/cache');
+        expect(scheduleDeferredWindowsRemoval).not.toHaveBeenCalled();
     });
 
-    it('requires --force when removing config or data', async () => {
-        await expect(handleUninstallCliCommand({ removeConfig: true })).rejects.toThrow(
-            /requires --force/
-        );
-    });
-
-    it('removes config/data when requested with --force', async () => {
+    it('removes ~/.dexto wholesale when --purge is passed', async () => {
         vi.mocked(detectInstallMethod).mockResolvedValue({
             method: 'native',
             source: 'metadata',
@@ -102,12 +102,10 @@ describe('uninstall command', () => {
             multipleInstallWarning: null,
         });
 
-        await expect(
-            handleUninstallCliCommand({ removeConfig: true, removeData: true, force: true })
-        ).resolves.not.toThrow();
+        await expect(handleUninstallCliCommand({ purge: true })).resolves.not.toThrow();
 
-        expect(removePath).toHaveBeenCalledWith('/home/test/.dexto/preferences.yml');
-        expect(removePath).toHaveBeenCalledWith('/home/test/.dexto/agents');
+        expect(removePath).toHaveBeenCalledWith('/home/test/.local/bin/dexto');
+        expect(removePath).toHaveBeenCalledWith('/home/test/.dexto');
     });
 
     it('supports dry-run mode without deleting files', async () => {
@@ -121,12 +119,15 @@ describe('uninstall command', () => {
             multipleInstallWarning: null,
         });
 
-        await expect(handleUninstallCliCommand({ dryRun: true })).resolves.not.toThrow();
+        await expect(
+            handleUninstallCliCommand({ dryRun: true, purge: true })
+        ).resolves.not.toThrow();
 
         expect(removePath).not.toHaveBeenCalled();
+        expect(scheduleDeferredWindowsRemoval).not.toHaveBeenCalled();
     });
 
-    it('continues local cleanup when package-manager uninstall fails and then throws', async () => {
+    it('still removes ~/.dexto on purge when npm uninstall fails', async () => {
         vi.mocked(detectInstallMethod).mockResolvedValue({
             method: 'npm',
             source: 'heuristic',
@@ -145,28 +146,48 @@ describe('uninstall command', () => {
 
         vi.mocked(executeManagedCommand).mockRejectedValue(new Error('pm uninstall failed'));
 
-        await expect(handleUninstallCliCommand({})).rejects.toThrow('pm uninstall failed');
-        expect(removePath).toHaveBeenCalledWith('/home/test/.dexto/cache');
+        await expect(handleUninstallCliCommand({ purge: true })).rejects.toThrow(
+            'pm uninstall failed'
+        );
+        expect(removePath).toHaveBeenCalledWith('/home/test/.dexto');
     });
 
-    it('continues local cleanup when native binary removal fails and then throws', async () => {
+    it('rejects project-local installs', async () => {
+        vi.mocked(detectInstallMethod).mockResolvedValue({
+            method: 'project-local',
+            source: 'heuristic',
+            metadata: null,
+            installedPath: '/repo/node_modules/.bin/dexto',
+            installDir: '/repo/node_modules/.bin',
+            allDetectedPaths: ['/repo/node_modules/.bin/dexto'],
+            multipleInstallWarning: null,
+        });
+
+        await expect(handleUninstallCliCommand({})).rejects.toThrow(/project-local install/i);
+
+        expect(executeManagedCommand).not.toHaveBeenCalled();
+        expect(removePath).not.toHaveBeenCalled();
+    });
+
+    it('defers Windows native binary removal until after exit', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+
         vi.mocked(detectInstallMethod).mockResolvedValue({
             method: 'native',
             source: 'metadata',
             metadata: null,
-            installedPath: '/home/test/.local/bin/dexto',
-            installDir: '/home/test/.local/bin',
-            allDetectedPaths: ['/home/test/.local/bin/dexto'],
+            installedPath: process.execPath,
+            installDir: '/home/test/.dexto/bin',
+            allDetectedPaths: [process.execPath],
             multipleInstallWarning: null,
         });
 
-        vi.mocked(removePath).mockImplementation(async (targetPath: string) => {
-            if (targetPath === '/home/test/.local/bin/dexto') {
-                throw new Error('binary removal failed');
-            }
-        });
+        await expect(handleUninstallCliCommand({ purge: true })).resolves.not.toThrow();
 
-        await expect(handleUninstallCliCommand({})).rejects.toThrow('binary removal failed');
-        expect(removePath).toHaveBeenCalledWith('/home/test/.dexto/cache');
+        expect(scheduleDeferredWindowsRemoval).toHaveBeenCalledWith([
+            process.execPath,
+            '/home/test/.dexto',
+        ]);
+        expect(removePath).not.toHaveBeenCalled();
     });
 });

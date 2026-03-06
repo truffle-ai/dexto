@@ -1,7 +1,7 @@
 // packages/cli/src/cli/commands/agents/uninstall.ts
 
 import { z } from 'zod';
-import { uninstallAgent, listInstalledAgents } from '../../../utils/agent-helpers.js';
+import { getAgentRegistry } from '@dexto/agent-management';
 import { capture } from '../../../analytics/index.js';
 
 // Zod schema for uninstall command validation
@@ -22,6 +22,8 @@ async function validateUninstallCommand(
     agents: string[],
     options: Partial<UninstallCommandOptions>
 ): Promise<UninstallCommandOptions> {
+    const registry = getAgentRegistry();
+
     // Basic structure validation
     const validated = UninstallCommandSchema.parse({
         ...options,
@@ -29,7 +31,7 @@ async function validateUninstallCommand(
     });
 
     // Business logic validation
-    const installedAgents = await listInstalledAgents();
+    const installedAgents = await registry.getInstalledAgents();
 
     if (installedAgents.length === 0) {
         throw new Error('No agents are currently installed.');
@@ -48,9 +50,11 @@ export async function handleUninstallCommand(
     agents: string[],
     options: Partial<UninstallCommandOptions>
 ): Promise<void> {
+    const registry = getAgentRegistry();
+
     // Validate command with Zod
     const validated = await validateUninstallCommand(agents, options);
-    const installedAgents = await listInstalledAgents();
+    const installedAgents = await registry.getInstalledAgents();
 
     if (installedAgents.length === 0) {
         console.log('📋 No agents are currently installed.');
@@ -87,7 +91,7 @@ export async function handleUninstallCommand(
     for (const agentName of agentsToUninstall) {
         try {
             console.log(`\n🗑️  Uninstalling ${agentName}...`);
-            await uninstallAgent(agentName);
+            await registry.uninstallAgent(agentName, validated.force);
             successCount++;
             console.log(`✅ ${agentName} uninstalled successfully`);
             uninstalled.push(agentName);
@@ -147,7 +151,9 @@ export async function handleUninstallCommand(
     console.log(`✅ Successfully uninstalled: ${successCount}`);
     if (errorCount > 0) {
         console.log(`❌ Failed to uninstall: ${errorCount}`);
-        errors.forEach((error) => console.log(`   • ${error}`));
+        errors.forEach((error) => {
+            console.log(`   • ${error}`);
+        });
     }
 
     if (errorCount > 0 && successCount === 0) {

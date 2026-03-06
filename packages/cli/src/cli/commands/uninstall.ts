@@ -1,22 +1,20 @@
+import path from 'path';
 import { z } from 'zod';
 import {
     detectInstallMethod,
     executeManagedCommand,
     getDefaultNativeBinaryPath,
-    getSelfUninstallPaths,
+    getDextoHomePath,
     pathExists,
     removePath,
     resolveUninstallCommandForMethod,
+    scheduleDeferredWindowsRemoval,
 } from '../utils/self-management.js';
 
 const UninstallCliCommandSchema = z
     .object({
-        keepConfig: z.boolean().default(true),
-        keepData: z.boolean().default(true),
-        removeConfig: z.boolean().default(false),
-        removeData: z.boolean().default(false),
+        purge: z.boolean().default(false),
         dryRun: z.boolean().default(false),
-        force: z.boolean().default(false),
     })
     .strict();
 
@@ -58,34 +56,42 @@ async function removeTargets(targets: string[], dryRun: boolean): Promise<Remova
     return { removed, skipped };
 }
 
-function resolveKeepFlags(options: UninstallCliCommandOptions): {
-    keepConfig: boolean;
-    keepData: boolean;
-} {
-    const keepConfig = options.keepConfig && !options.removeConfig;
-    const keepData = options.keepData && !options.removeData;
+function normalizeRuntimePath(targetPath: string): string {
+    const normalized = path.normalize(targetPath);
+    return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
+}
 
-    return { keepConfig, keepData };
+function isCurrentExecutable(binaryPath: string): boolean {
+    return normalizeRuntimePath(binaryPath) === normalizeRuntimePath(process.execPath);
+}
+
+function buildProjectLocalInstallMessage(
+    binaryPath: string | null,
+    action: 'uninstall' | 'upgrade'
+): string {
+    const resolvedPath = binaryPath ?? 'node_modules/.bin/dexto';
+    return [
+        `Project-local install detected at ${resolvedPath}.`,
+        `Self-${action} is only available for native installs and legacy global npm installs.`,
+        'Use the owning project package manager instead.',
+    ].join(' ');
 }
 
 export async function handleUninstallCliCommand(
     options: Partial<UninstallCliCommandOptions>
 ): Promise<void> {
     const validated = UninstallCliCommandSchema.parse(options);
-    const keep = resolveKeepFlags(validated);
-
-    if ((!keep.keepConfig || !keep.keepData) && !validated.force && !validated.dryRun) {
-        throw new Error(
-            'Removing config/data requires --force. Re-run with --force or keep defaults.'
-        );
-    }
-
     const detection = await detectInstallMethod();
     printMultiInstallWarning(detection.multipleInstallWarning);
 
-    const uninstallPaths = getSelfUninstallPaths();
+    if (detection.method === 'project-local') {
+        throw new Error(buildProjectLocalInstallMessage(detection.installedPath, 'uninstall'));
+    }
+
+    const dextoHomePath = getDextoHomePath();
     let managedUninstallError: Error | null = null;
     let binaryRemovalError: Error | null = null;
+    let homeRemovalDeferred = false;
 
     if (detection.method === 'npm') {
         const command = resolveUninstallCommandForMethod(detection.method);
@@ -103,7 +109,7 @@ export async function handleUninstallCliCommand(
             } catch (error) {
                 managedUninstallError = error instanceof Error ? error : new Error(String(error));
                 console.warn(
-                    `⚠️  Package-manager uninstall failed, continuing with local cleanup: ${managedUninstallError.message}`
+                    `⚠️  Package-manager uninstall failed: ${managedUninstallError.message}`
                 );
             }
         } else {
@@ -113,47 +119,45 @@ export async function handleUninstallCliCommand(
         }
     } else {
         const binaryPath = detection.installedPath ?? getDefaultNativeBinaryPath();
-        let binaryRemoval: RemovalSummary = { removed: [], skipped: [] };
 
         try {
-            binaryRemoval = await removeTargets([binaryPath], validated.dryRun);
+            if (
+                process.platform === 'win32' &&
+                isCurrentExecutable(binaryPath) &&
+                !validated.dryRun
+            ) {
+                const deferredTargets = validated.purge
+                    ? [binaryPath, dextoHomePath]
+                    : [binaryPath];
+                await scheduleDeferredWindowsRemoval(deferredTargets);
+                homeRemovalDeferred = validated.purge;
+                console.log('🗑️  Scheduled CLI binary removal after exit.');
+                if (validated.purge) {
+                    console.log(`🗑️  Scheduled ${dextoHomePath} removal after exit.`);
+                }
+            } else {
+                const binaryRemoval = await removeTargets([binaryPath], validated.dryRun);
+                if (binaryRemoval.removed.length > 0) {
+                    console.log(`🗑️  Removed CLI binary: ${binaryRemoval.removed.join(', ')}`);
+                } else {
+                    console.log('ℹ️  CLI binary was not found at expected path.');
+                }
+            }
         } catch (error) {
             binaryRemovalError = error instanceof Error ? error : new Error(String(error));
-            console.warn(
-                `⚠️  Binary removal failed, continuing with local cleanup: ${binaryRemovalError.message}`
-            );
-        }
-
-        if (!binaryRemovalError) {
-            if (binaryRemoval.removed.length > 0) {
-                console.log(`🗑️  Removed CLI binary: ${binaryRemoval.removed.join(', ')}`);
-            } else {
-                console.log('ℹ️  CLI binary was not found at expected path.');
-            }
+            console.warn(`⚠️  Binary removal failed: ${binaryRemovalError.message}`);
         }
     }
 
-    const cacheRemoval = await removeTargets(uninstallPaths.cachePaths, validated.dryRun);
-    if (cacheRemoval.removed.length > 0) {
-        console.log('🗑️  Removed cache data.');
-    }
-
-    if (!keep.keepConfig) {
-        const configRemoval = await removeTargets(uninstallPaths.configPaths, validated.dryRun);
-        if (configRemoval.removed.length > 0) {
-            console.log('🗑️  Removed config files.');
+    if (validated.purge && !homeRemovalDeferred) {
+        const homeRemoval = await removeTargets([dextoHomePath], validated.dryRun);
+        if (homeRemoval.removed.length > 0) {
+            console.log(`🗑️  Removed ${dextoHomePath}.`);
+        } else {
+            console.log(`ℹ️  ${dextoHomePath} was not found.`);
         }
-    } else {
-        console.log('ℹ️  Keeping config files.');
-    }
-
-    if (!keep.keepData) {
-        const dataRemoval = await removeTargets(uninstallPaths.dataPaths, validated.dryRun);
-        if (dataRemoval.removed.length > 0) {
-            console.log('🗑️  Removed data directories.');
-        }
-    } else {
-        console.log('ℹ️  Keeping data directories.');
+    } else if (!validated.purge) {
+        console.log(`ℹ️  Keeping ${dextoHomePath}.`);
     }
 
     if (validated.dryRun) {

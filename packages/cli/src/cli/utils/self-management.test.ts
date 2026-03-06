@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import path from 'path';
 import {
     buildMultipleInstallWarning,
     commandDisplayWithEnvPosix,
     commandDisplayWithEnvPowerShell,
     createNativeInstallCommand,
-    detectUnsupportedPackageManagerFromPath,
     detectInstallMethodWithDeps,
-    getSelfUninstallPaths,
+    detectUnsupportedPackageManagerFromPath,
+    getDextoHomePath,
+    isProjectLocalBinaryPath,
     normalizeRequestedVersion,
     resolveUninstallCommandForMethod,
     type InstallMetadata,
@@ -66,6 +66,18 @@ describe('self-management utils', () => {
         expect(result.method).toBe('npm');
         expect(result.source).toBe('heuristic');
         expect(result.installedPath).toBe('/usr/local/bin/dexto');
+    });
+
+    it('classifies project-local binaries separately from global npm installs', async () => {
+        const result = await detectInstallMethodWithDeps({
+            readMetadata: async () => null,
+            getPathEntries: async () => ['/repo/node_modules/.bin/dexto'],
+            detectNodeManager: async () => 'npm',
+        });
+
+        expect(result.method).toBe('project-local');
+        expect(result.source).toBe('heuristic');
+        expect(result.installedPath).toBe('/repo/node_modules/.bin/dexto');
     });
 
     it('falls back to heuristics when metadata path is stale', async () => {
@@ -142,6 +154,7 @@ describe('self-management utils', () => {
         expect(resolveUninstallCommandForMethod('npm')?.displayCommand).toBe(
             'npm uninstall -g dexto'
         );
+        expect(resolveUninstallCommandForMethod('project-local')).toBeNull();
         expect(resolveUninstallCommandForMethod('unknown')).toBeNull();
     });
 
@@ -175,13 +188,13 @@ describe('self-management utils', () => {
         expect(powershellDisplay).toContain(`$env:DEXTO_INSTALL_DIR='/tmp/it''s-here';`);
     });
 
-    it('provides self-uninstall path groups', () => {
-        const paths = getSelfUninstallPaths();
+    it('exposes ~/.dexto as the purge target', () => {
+        expect(getDextoHomePath()).toContain('.dexto');
+    });
 
-        expect(paths.cachePaths.length).toBeGreaterThan(0);
-        expect(paths.configPaths.length).toBeGreaterThan(0);
-        expect(paths.dataPaths.length).toBeGreaterThan(0);
-        expect(paths.dataPaths.some((entry) => path.basename(entry) === 'blobs')).toBe(true);
+    it('detects project-local path signatures', () => {
+        expect(isProjectLocalBinaryPath('/repo/node_modules/.bin/dexto')).toBe(true);
+        expect(isProjectLocalBinaryPath('/usr/local/bin/dexto')).toBe(false);
     });
 
     it('detects pnpm/bun signatures for unsupported managers', () => {

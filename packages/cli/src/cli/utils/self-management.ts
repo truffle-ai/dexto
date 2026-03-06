@@ -10,10 +10,10 @@ const DEXTO_PATH_ARGS = process.platform === 'win32' ? ['dexto'] : ['-a', 'dexto
 const DEFAULT_NATIVE_INSTALL_URL = 'https://dexto.ai/install';
 const DEFAULT_WINDOWS_INSTALL_URL = 'https://dexto.ai/install.ps1';
 
-export type InstallMethod = 'native' | 'npm' | 'unknown';
+export type InstallMethod = 'native' | 'npm' | 'project-local' | 'unknown';
 export type UnsupportedPackageManager = 'pnpm' | 'bun';
 
-type MetadataInstallMethod = Exclude<InstallMethod, 'unknown'>;
+type MetadataInstallMethod = Exclude<InstallMethod, 'project-local' | 'unknown'>;
 
 const InstallMetadataSchema = z
     .object({
@@ -77,12 +77,6 @@ export interface PackageManagerCommand {
     command: string;
     args: string[];
     displayCommand: string;
-}
-
-export interface SelfUninstallPaths {
-    cachePaths: string[];
-    configPaths: string[];
-    dataPaths: string[];
 }
 
 export async function executeCommand(
@@ -225,11 +219,14 @@ function inferInstallMethodFromPath(binaryPath: string): InstallMethod {
         return 'native';
     }
 
-    if (normalized.includes('node_modules') || normalized.includes(path.join('npm', 'bin'))) {
-        return 'npm';
-    }
-
     return 'unknown';
+}
+
+export function isProjectLocalBinaryPath(binaryPath: string): boolean {
+    const normalized = normalizePathForSignatureMatch(binaryPath);
+    return (
+        normalized.includes('/node_modules/.bin/') || normalized.includes('/node_modules/dexto/')
+    );
 }
 
 function pathStartsWith(targetPath: string, candidatePrefix: string): boolean {
@@ -341,6 +338,10 @@ export async function detectInstallMethodWithDeps(
     const activePath = allDetectedPaths[0] ?? null;
 
     async function detectMethodFromActivePath(pathEntry: string): Promise<InstallMethod> {
+        if (isProjectLocalBinaryPath(pathEntry)) {
+            return 'project-local';
+        }
+
         let method = inferInstallMethodFromPath(pathEntry);
         if (method === 'unknown' || method === 'native') {
             const pmMethod = await detectNodeManager(pathEntry);
@@ -547,32 +548,42 @@ export function normalizeRequestedVersion(version: string | null | undefined): s
     return trimmed.startsWith('dexto@') ? trimmed.slice('dexto@'.length) : trimmed;
 }
 
-export function getSelfUninstallPaths(): SelfUninstallPaths {
-    const configPaths = [
-        path.join(getDextoHomeDirectory(), 'preferences.yml'),
-        path.join(getDextoHomeDirectory(), 'auth.json'),
-        path.join(getDextoHomeDirectory(), '.env'),
-        path.join(getDextoHomeDirectory(), 'install.json'),
-    ];
+export function getDextoHomePath(): string {
+    return getDextoHomeDirectory();
+}
 
-    const dataPaths = [
-        path.join(getDextoHomeDirectory(), 'agents'),
-        path.join(getDextoHomeDirectory(), 'blobs'),
-        path.join(getDextoHomeDirectory(), 'database'),
-        path.join(getDextoHomeDirectory(), 'images'),
-        path.join(getDextoHomeDirectory(), 'models'),
-        path.join(getDextoHomeDirectory(), 'plugins'),
-        path.join(getDextoHomeDirectory(), 'skills'),
-        path.join(getDextoHomeDirectory(), 'logs'),
-    ];
+export async function scheduleDeferredWindowsRemoval(targetPaths: string[]): Promise<void> {
+    const uniqueTargets = uniquePaths(targetPaths);
+    const removalScript = uniqueTargets
+        .map((targetPath) => {
+            const escapedPath = shellEscapeForPowerShell(targetPath);
+            return [
+                `if (Test-Path -LiteralPath ${escapedPath}) {`,
+                `Remove-Item -LiteralPath ${escapedPath} -Recurse -Force -ErrorAction SilentlyContinue`,
+                '}',
+            ].join(' ');
+        })
+        .join('; ');
 
-    const cachePaths = [path.join(getDextoHomeDirectory(), 'cache')];
+    const commandText = `Start-Sleep -Seconds 2; ${removalScript}`;
 
-    return {
-        cachePaths,
-        configPaths,
-        dataPaths,
-    };
+    await new Promise<void>((resolve, reject) => {
+        const child = spawn(
+            'powershell',
+            ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', commandText],
+            {
+                detached: true,
+                stdio: 'ignore',
+                windowsHide: true,
+            }
+        );
+
+        child.once('error', reject);
+        child.once('spawn', () => {
+            child.unref();
+            resolve();
+        });
+    });
 }
 
 export async function pathExists(targetPath: string): Promise<boolean> {

@@ -186,23 +186,19 @@ dexto upgrade 1.6.8
 Uninstall the Dexto CLI binary (agent removal is handled by `dexto agents uninstall`).
 
 ```bash
-# Remove CLI binary + cache (default)
+# Remove CLI binary only (keeps ~/.dexto)
 dexto uninstall
 
 # Preview changes
 dexto uninstall --dry-run
 
-# Also remove config and agent/data directories
-dexto uninstall --remove-config --remove-data --force
+# Also remove ~/.dexto completely
+dexto uninstall --purge
 ```
 
 **Options:**
-- `--keep-config` - Keep config files (default)
-- `--keep-data` - Keep data directories (default)
-- `--remove-config` - Remove config files (requires `--force`, except with `--dry-run`)
-- `--remove-data` - Remove data directories (requires `--force`, except with `--dry-run`)
+- `--purge` - Remove `~/.dexto` completely
 - `--dry-run` - Show what would be removed
-- `--force` - Required when removing config/data
 
 ### `agents sync` - Sync Agent Configs
 

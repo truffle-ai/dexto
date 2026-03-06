@@ -323,12 +323,8 @@ program
 program
     .command('uninstall')
     .description('Uninstall the Dexto CLI binary (does not uninstall agents)')
-    .option('--keep-config', 'Keep config files (default)')
-    .option('--keep-data', 'Keep data directories (default)')
-    .option('--remove-config', 'Remove config files (requires --force)')
-    .option('--remove-data', 'Remove data directories (requires --force)')
+    .option('--purge', 'Also remove ~/.dexto completely')
     .option('--dry-run', 'Print actions without deleting files')
-    .option('--force', 'Allow removing config/data when requested')
     .action(
         withAnalytics('uninstall', async (options: Partial<UninstallCliCommandOptions>) => {
             try {

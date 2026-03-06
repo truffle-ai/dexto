@@ -80,6 +80,15 @@ function getUnsupportedCleanupHint(manager: 'pnpm' | 'bun'): string {
     return 'bun remove -g dexto';
 }
 
+function buildProjectLocalInstallMessage(binaryPath: string | null): string {
+    const resolvedPath = binaryPath ?? 'node_modules/.bin/dexto';
+    return [
+        `Project-local install detected at ${resolvedPath}.`,
+        'Self-upgrade is only available for native installs and legacy global npm installs.',
+        'Use the owning project package manager instead.',
+    ].join(' ');
+}
+
 export async function handleUpgradeCommand(
     versionArg: string | undefined,
     options: Partial<UpgradeCommandOptions>
@@ -103,6 +112,8 @@ export async function handleUpgradeCommand(
         case 'npm':
             await runHardMigrationToNative(detection.method, version, validated);
             break;
+        case 'project-local':
+            throw new Error(buildProjectLocalInstallMessage(detection.installedPath));
         case 'unknown':
         default:
             if (detection.installedPath) {
