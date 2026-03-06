@@ -139,10 +139,12 @@ export class A2ASseEventSubscriber {
                         role: 'agent',
                         content: [{ type: 'text', text: payload.content }],
                         timestamp: new Date().toISOString(),
+                        ...(payload.messageId && { messageId: payload.messageId }),
                     },
                     tokenUsage: payload.tokenUsage,
                     provider: payload.provider,
                     model: payload.model,
+                    ...(payload.messageId && { messageId: payload.messageId }),
                 });
             },
             { signal }
