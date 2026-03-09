@@ -9,7 +9,7 @@
 // Currently using plain fetch() with runtime response validation.
 
 import { logger } from '@dexto/core';
-import { DEXTO_API_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from './constants.js';
+import { DEXTO_API_URL, DEXTO_PLATFORM_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from './constants.js';
 import type { AuthenticatedUser } from './types.js';
 
 interface ProvisionResponse {
@@ -17,6 +17,28 @@ interface ProvisionResponse {
     dextoApiKey?: string;
     keyId?: string;
     isNewKey?: boolean;
+    error?: string;
+}
+
+interface PlatformKeyRecord {
+    id: string;
+    name: string | null;
+    status: string;
+    isActive: boolean;
+}
+
+interface PlatformKeyListResponse {
+    success: boolean;
+    data: PlatformKeyRecord[];
+    error?: string;
+}
+
+interface PlatformCreateKeyResponse {
+    success: boolean;
+    data?: {
+        id: string;
+        fullKey: string;
+    };
     error?: string;
 }
 
@@ -347,6 +369,71 @@ function parseValidateResponse(payload: unknown): boolean {
     return valid ?? false;
 }
 
+function parsePlatformKeyListResponse(payload: unknown): PlatformKeyListResponse {
+    if (typeof payload !== 'object' || payload === null) {
+        throw new Error('Invalid response from API');
+    }
+
+    const success = parseBoolean(Reflect.get(payload, 'success'));
+    if (success !== true) {
+        const error = parseString(Reflect.get(payload, 'error'));
+        throw new Error(error || 'Failed to fetch API keys');
+    }
+
+    const data = Reflect.get(payload, 'data');
+    if (!Array.isArray(data)) {
+        throw new Error('Invalid response from API');
+    }
+
+    const keys: PlatformKeyRecord[] = [];
+    for (const entry of data) {
+        if (typeof entry !== 'object' || entry === null) {
+            continue;
+        }
+
+        const id = parseString(Reflect.get(entry, 'id'));
+        const name = parseString(Reflect.get(entry, 'name'));
+        const status = parseString(Reflect.get(entry, 'status'));
+        const isActive = parseBoolean(Reflect.get(entry, 'isActive'));
+
+        if (!id || !status || isActive === null) {
+            continue;
+        }
+
+        keys.push({ id, name, status, isActive });
+    }
+
+    return { success: true, data: keys };
+}
+
+function parsePlatformCreateKeyResponse(payload: unknown): PlatformCreateKeyResponse {
+    if (typeof payload !== 'object' || payload === null) {
+        throw new Error('Invalid response from API');
+    }
+
+    const success = parseBoolean(Reflect.get(payload, 'success'));
+    if (success !== true) {
+        const error = parseString(Reflect.get(payload, 'error'));
+        return { success: false, error: error || 'Failed to create API key' };
+    }
+
+    const data = Reflect.get(payload, 'data');
+    if (typeof data !== 'object' || data === null) {
+        throw new Error('Invalid response from API');
+    }
+
+    const id = parseString(Reflect.get(data, 'id'));
+    const fullKey = parseString(Reflect.get(data, 'fullKey'));
+    if (!id || !fullKey) {
+        throw new Error('Invalid response from API');
+    }
+
+    return {
+        success: true,
+        data: { id, fullKey },
+    };
+}
+
 function formatHttpFailure(status: number, payload: unknown, rawText: string): string {
     if (rawText.trim().length > 0) {
         return `${status} ${rawText}`;
@@ -363,11 +450,27 @@ function formatHttpFailure(status: number, payload: unknown, rawText: string): s
  * Dexto API client for key management
  */
 export class DextoApiClient {
-    private readonly baseUrl: string;
+    private readonly gatewayBaseUrl: string;
+    private readonly platformBaseUrl: string;
     private readonly timeoutMs = 10_000;
 
-    constructor(baseUrl: string = DEXTO_API_URL) {
-        this.baseUrl = baseUrl;
+    constructor(
+        baseUrl:
+            | string
+            | {
+                  gatewayBaseUrl?: string | undefined;
+                  platformBaseUrl?: string | undefined;
+              } = {}
+    ) {
+        if (typeof baseUrl === 'string') {
+            const normalized = baseUrl.replace(/\/+$/, '');
+            this.gatewayBaseUrl = normalized;
+            this.platformBaseUrl = normalized;
+            return;
+        }
+
+        this.gatewayBaseUrl = (baseUrl.gatewayBaseUrl ?? DEXTO_API_URL).replace(/\/+$/, '');
+        this.platformBaseUrl = (baseUrl.platformBaseUrl ?? DEXTO_PLATFORM_URL).replace(/\/+$/, '');
     }
 
     private createRequestSignal(signal: AbortSignal | undefined): AbortSignal {
@@ -379,6 +482,88 @@ export class DextoApiClient {
         return AbortSignal.any([signal, timeoutSignal]);
     }
 
+    private getGatewayUrl(path: string): string {
+        return `${this.gatewayBaseUrl}${path}`;
+    }
+
+    private getPlatformUrl(path: string): string {
+        return `${this.platformBaseUrl}${path}`;
+    }
+
+    private async listPlatformApiKeys(authToken: string): Promise<PlatformKeyRecord[]> {
+        const response = await fetch(this.getPlatformUrl('/api/keys'), {
+            method: 'GET',
+            headers: {
+                Authorization: `Bearer ${authToken}`,
+            },
+            signal: this.createRequestSignal(undefined),
+        });
+
+        if (!response.ok) {
+            const rawText = await response.text();
+            throw new Error(
+                `API request failed: ${formatHttpFailure(response.status, null, rawText)}`
+            );
+        }
+
+        const payload: unknown = await response.json();
+        return parsePlatformKeyListResponse(payload).data;
+    }
+
+    private async createPlatformApiKey(
+        authToken: string,
+        name: string
+    ): Promise<{ dextoApiKey: string; keyId: string }> {
+        const response = await fetch(this.getPlatformUrl('/api/keys'), {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${authToken}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ name }),
+            signal: this.createRequestSignal(undefined),
+        });
+
+        if (!response.ok) {
+            const rawText = await response.text();
+            throw new Error(
+                `API request failed: ${formatHttpFailure(response.status, null, rawText)}`
+            );
+        }
+
+        const payload: unknown = await response.json();
+        const result = parsePlatformCreateKeyResponse(payload);
+
+        if (!result.success || !result.data) {
+            throw new Error(result.error || 'Failed to create Dexto API key');
+        }
+
+        return {
+            dextoApiKey: result.data.fullKey,
+            keyId: result.data.id,
+        };
+    }
+
+    private async deletePlatformApiKey(authToken: string, keyId: string): Promise<void> {
+        const response = await fetch(
+            this.getPlatformUrl(`/api/keys/${encodeURIComponent(keyId)}`),
+            {
+                method: 'DELETE',
+                headers: {
+                    Authorization: `Bearer ${authToken}`,
+                },
+                signal: this.createRequestSignal(undefined),
+            }
+        );
+
+        if (!response.ok) {
+            const rawText = await response.text();
+            throw new Error(
+                `API request failed: ${formatHttpFailure(response.status, null, rawText)}`
+            );
+        }
+    }
+
     /**
      * Validate if a Dexto API key is valid
      */
@@ -386,7 +571,7 @@ export class DextoApiClient {
         try {
             logger.debug('Validating DEXTO_API_KEY');
 
-            const response = await fetch(`${this.baseUrl}/keys/validate`, {
+            const response = await fetch(this.getPlatformUrl('/api/keys/validate'), {
                 method: 'GET',
                 headers: {
                     Authorization: `Bearer ${apiKey}`,
@@ -420,54 +605,31 @@ export class DextoApiClient {
                 `Provisioning DEXTO_API_KEY with name: ${name}, regenerate: ${regenerate}`
             );
 
-            const response = await fetch(`${this.baseUrl}/keys/provision`, {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${authToken}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ name, regenerate }),
-                signal: this.createRequestSignal(undefined),
-            });
+            const matchingKeys = (await this.listPlatformApiKeys(authToken)).filter(
+                (key) => key.isActive && key.name === name
+            );
 
-            if (!response.ok) {
-                const rawText = await response.text();
-                throw new Error(
-                    `API request failed: ${formatHttpFailure(response.status, null, rawText)}`
-                );
-            }
-
-            const payload: unknown = await response.json();
-            const result = parseProvisionResponse(payload);
-
-            if (!result.success) {
-                throw new Error(result.error || 'Failed to provision Dexto API key');
-            }
-
-            if (!result.keyId) {
-                throw new Error('Invalid response from API');
-            }
-
-            // If isNewKey is false, the key already exists (we don't get the key value back)
-            // This is expected - the key was already provisioned
-            if (!result.isNewKey && !result.dextoApiKey) {
-                logger.debug(`DEXTO_API_KEY already exists: ${result.keyId}`);
+            if (matchingKeys.length > 0 && !regenerate) {
+                logger.debug(`DEXTO_API_KEY already exists: ${matchingKeys[0]?.id ?? 'unknown'}`);
                 return {
-                    dextoApiKey: '', // Empty - key already exists, not returned for security
-                    keyId: result.keyId,
+                    dextoApiKey: '',
+                    keyId: matchingKeys[0]?.id ?? '',
                     isNewKey: false,
                 };
             }
 
-            if (!result.dextoApiKey) {
-                throw new Error('Invalid response from API - missing key');
+            if (regenerate) {
+                for (const key of matchingKeys) {
+                    await this.deletePlatformApiKey(authToken, key.id);
+                }
             }
 
-            logger.debug(`Successfully provisioned DEXTO_API_KEY: ${result.keyId}`);
+            const createdKey = await this.createPlatformApiKey(authToken, name);
+            logger.debug(`Successfully provisioned DEXTO_API_KEY: ${createdKey.keyId}`);
             return {
-                dextoApiKey: result.dextoApiKey,
-                keyId: result.keyId,
-                isNewKey: result.isNewKey ?? true,
+                dextoApiKey: createdKey.dextoApiKey,
+                keyId: createdKey.keyId,
+                isNewKey: true,
             };
         } catch (error) {
             logger.error(`Error provisioning Dexto API key: ${error}`);
@@ -482,7 +644,7 @@ export class DextoApiClient {
         try {
             logger.debug('Fetching usage summary');
 
-            const response = await fetch(`${this.baseUrl}/me/usage`, {
+            const response = await fetch(this.getGatewayUrl('/me/usage'), {
                 method: 'GET',
                 headers: {
                     Authorization: `Bearer ${apiKey}`,
@@ -506,13 +668,13 @@ export class DextoApiClient {
     }
 
     /**
-     * Start device code login at the gateway.
+     * Start device code login at the platform.
      */
     async startDeviceCodeLogin(
         client: string = 'dexto-cli',
         options: RequestOptions = {}
     ): Promise<DeviceCodeStartResponse> {
-        const response = await fetch(`${this.baseUrl}/auth/device/start`, {
+        const response = await fetch(this.getPlatformUrl('/api/auth/device/start'), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -537,7 +699,7 @@ export class DextoApiClient {
     }
 
     /**
-     * Poll the gateway for device-code login completion.
+     * Poll the platform for device-code login completion.
      */
     async pollDeviceCodeLogin(
         deviceCode: string,
@@ -545,7 +707,7 @@ export class DextoApiClient {
     ): Promise<DeviceCodePollResponse> {
         let response: Response;
         try {
-            response = await fetch(`${this.baseUrl}/auth/device/poll`, {
+            response = await fetch(this.getPlatformUrl('/api/auth/device/poll'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
