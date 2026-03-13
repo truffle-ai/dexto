@@ -658,6 +658,12 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                 modelInfo.supportedFileTypes.length > 0
                     ? modelInfo.supportedFileTypes
                     : providerInfo.supportedFileTypes;
+            const source: z.output<typeof ModelPickerEntrySchema>['source'] =
+                entry.provider === 'local'
+                    ? 'local-installed'
+                    : entry.baseURL
+                      ? 'custom'
+                      : 'catalog';
 
             return {
                 provider: entry.provider,
@@ -665,7 +671,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                 ...(entry.baseURL ? { baseURL: entry.baseURL } : {}),
                 displayName: modelInfo?.displayName || entry.model,
                 supportedFileTypes,
-                source: 'catalog',
+                source,
             };
         };
 

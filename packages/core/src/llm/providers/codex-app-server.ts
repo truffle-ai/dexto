@@ -121,6 +121,7 @@ export interface CodexAppServerClientOptions {
 }
 
 const CODEX_PROTOCOL_ERROR_CODE = 'llm_codex_protocol_invalid';
+const CODEX_CLIENT_RUNTIME_ERROR_CODE = 'llm_codex_client_runtime';
 
 function createCodexProtocolError(
     message: string,
@@ -130,6 +131,20 @@ function createCodexProtocolError(
         CODEX_PROTOCOL_ERROR_CODE,
         ErrorScope.LLM,
         ErrorType.THIRD_PARTY,
+        message,
+        context
+    );
+}
+
+function createCodexClientRuntimeError(
+    message: string,
+    context?: Record<string, unknown>,
+    type: ErrorType = ErrorType.SYSTEM
+): DextoRuntimeError<Record<string, unknown> | undefined> {
+    return new DextoRuntimeError(
+        CODEX_CLIENT_RUNTIME_ERROR_CODE,
+        ErrorScope.LLM,
+        type,
         message,
         context
     );
@@ -179,7 +194,7 @@ function getArray(value: unknown): unknown[] | null {
 }
 
 function normalizeError(error: unknown): Error {
-    return error instanceof Error ? error : new Error(String(error));
+    return error instanceof Error ? error : createCodexClientRuntimeError(String(error));
 }
 
 function parseCodexAccount(value: unknown): CodexAccount | null {
@@ -893,7 +908,7 @@ export class CodexAppServerClient {
 
         this.closed = true;
         this.started = false;
-        this.rejectPending(new Error('Codex app-server client closed'));
+        this.rejectPending(createCodexClientRuntimeError('Codex app-server client closed'));
         this.listeners.clear();
         this.requestListeners.clear();
 
@@ -1091,7 +1106,13 @@ export class CodexAppServerClient {
 
             timeout = setTimeout(() => {
                 cleanup(unsubscribe);
-                reject(new Error(`Timed out waiting for Codex notification: ${method}`));
+                reject(
+                    createCodexClientRuntimeError(
+                        `Timed out waiting for Codex notification: ${method}`,
+                        { method },
+                        ErrorType.TIMEOUT
+                    )
+                );
             }, timeoutMs);
 
             if (options.signal) {
@@ -1100,7 +1121,11 @@ export class CodexAppServerClient {
                     reject(
                         options.signal?.reason instanceof Error
                             ? options.signal.reason
-                            : new Error('Codex operation aborted')
+                            : createCodexClientRuntimeError(
+                                  'Codex operation aborted',
+                                  { method },
+                                  ErrorType.USER
+                              )
                     );
                 };
 
@@ -1138,8 +1163,13 @@ export class CodexAppServerClient {
         child.on('exit', (code, signal) => {
             if (!this.closed) {
                 this.rejectPending(
-                    new Error(
-                        `Codex app-server exited unexpectedly (${signal ?? `code ${code ?? 'unknown'}`})`
+                    createCodexClientRuntimeError(
+                        `Codex app-server exited unexpectedly (${signal ?? `code ${code ?? 'unknown'}`})`,
+                        {
+                            ...(code !== null ? { code } : {}),
+                            ...(signal !== null ? { signal } : {}),
+                        },
+                        ErrorType.THIRD_PARTY
                     )
                 );
             }
@@ -1203,7 +1233,9 @@ export class CodexAppServerClient {
             if (isRecord(payload['error'])) {
                 const message =
                     getString(payload['error']['message']) ?? 'Codex JSON-RPC request failed';
-                pending.reject(new Error(message));
+                pending.reject(
+                    createCodexClientRuntimeError(message, { id }, ErrorType.THIRD_PARTY)
+                );
                 return;
             }
 
@@ -1231,7 +1263,7 @@ export class CodexAppServerClient {
 
     private async request(method: string, params: unknown): Promise<unknown> {
         if (this.closed) {
-            throw new Error('Codex app-server client is closed');
+            throw createCodexClientRuntimeError('Codex app-server client is closed');
         }
 
         const id = this.nextId++;
@@ -1239,7 +1271,13 @@ export class CodexAppServerClient {
         return await new Promise<unknown>((resolve, reject) => {
             const timeout = setTimeout(() => {
                 this.pending.delete(id);
-                reject(new Error(`Codex request timed out: ${method}`));
+                reject(
+                    createCodexClientRuntimeError(
+                        `Codex request timed out: ${method}`,
+                        { method, id },
+                        ErrorType.TIMEOUT
+                    )
+                );
             }, this.requestTimeoutMs);
 
             this.pending.set(id, {
@@ -1281,7 +1319,7 @@ export class CodexAppServerClient {
 
     private write(payload: Record<string, unknown>): void {
         if (!this.child?.stdin.writable) {
-            throw new Error('Codex app-server stdin is not writable');
+            throw createCodexClientRuntimeError('Codex app-server stdin is not writable');
         }
 
         this.child.stdin.write(`${JSON.stringify(payload)}\n`);
@@ -1661,7 +1699,11 @@ export function createCodexLanguageModel(options: {
                             failStream(
                                 callOptions.abortSignal?.reason instanceof Error
                                     ? callOptions.abortSignal.reason
-                                    : new Error('Codex generation aborted')
+                                    : createCodexClientRuntimeError(
+                                          'Codex generation aborted',
+                                          { modelId: options.modelId },
+                                          ErrorType.USER
+                                      )
                             );
                         };
 

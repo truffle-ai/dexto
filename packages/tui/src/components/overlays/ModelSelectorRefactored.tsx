@@ -66,6 +66,7 @@ const MODEL_SELECTOR_TABS: ReadonlyArray<{ id: ModelSelectorTab; label: string }
 const PROVIDER_COLLATOR = new Intl.Collator('en', { sensitivity: 'base' });
 const PROVIDER_TOKEN_PATTERN = /[^a-z0-9]/g;
 const CODEX_CHATGPT_BASE_URL = createCodexBaseURL('chatgpt');
+const CHATGPT_CODEX_MODEL_LIST_TIMEOUT_MS = 5_000;
 
 function normalizeProviderToken(value: string): string {
     return value.toLowerCase().replace(PROVIDER_TOKEN_PATTERN, '');
@@ -97,6 +98,45 @@ function toCanonicalModelPickerKey(input: {
     });
 }
 
+function createModelIdentity(input: {
+    provider: LLMProvider;
+    name: string;
+    baseURL?: string | undefined;
+}): Pick<ModelOption, 'provider' | 'name' | 'baseURL'> {
+    return {
+        provider: input.provider,
+        name: input.name,
+        ...(input.baseURL ? { baseURL: input.baseURL } : {}),
+    };
+}
+
+async function raceWithTimeout<T>(
+    promise: Promise<T>,
+    options: {
+        timeoutMs: number;
+        errorMessage: string;
+        onTimeout?: () => void;
+    }
+): Promise<T> {
+    return await new Promise<T>((resolve, reject) => {
+        const timer = setTimeout(() => {
+            options.onTimeout?.();
+            reject(new Error(options.errorMessage));
+        }, options.timeoutMs);
+
+        promise.then(
+            (value) => {
+                clearTimeout(timer);
+                resolve(value);
+            },
+            (error) => {
+                clearTimeout(timer);
+                reject(error);
+            }
+        );
+    });
+}
+
 function matchesConfiguredModel(
     candidate: Pick<ModelOption, 'provider' | 'name' | 'baseURL'>,
     configured: { provider: LLMProvider; model: string; baseURL?: string }
@@ -121,13 +161,31 @@ async function loadChatGPTCodexModels(agent: DextoAgent): Promise<CodexModelInfo
     let client: CodexAppServerClient | null = null;
 
     try {
-        client = await CodexAppServerClient.create();
-        const account = await client.readAccount(false);
+        const createPromise = CodexAppServerClient.create({
+            requestTimeoutMs: CHATGPT_CODEX_MODEL_LIST_TIMEOUT_MS,
+        });
+        client = await raceWithTimeout(createPromise, {
+            timeoutMs: CHATGPT_CODEX_MODEL_LIST_TIMEOUT_MS,
+            errorMessage: `Timed out starting ChatGPT Codex model listing after ${CHATGPT_CODEX_MODEL_LIST_TIMEOUT_MS}ms`,
+            onTimeout: () => {
+                void createPromise
+                    .then((lateClient) => lateClient.close().catch(() => undefined))
+                    .catch(() => undefined);
+            },
+        });
+
+        const account = await raceWithTimeout(client.readAccount(false), {
+            timeoutMs: CHATGPT_CODEX_MODEL_LIST_TIMEOUT_MS,
+            errorMessage: `Timed out reading ChatGPT Codex account state after ${CHATGPT_CODEX_MODEL_LIST_TIMEOUT_MS}ms`,
+        });
         if (account.account?.type !== 'chatgpt') {
             return [];
         }
 
-        return await client.listModels();
+        return await raceWithTimeout(client.listModels(), {
+            timeoutMs: CHATGPT_CODEX_MODEL_LIST_TIMEOUT_MS,
+            errorMessage: `Timed out listing ChatGPT Codex models after ${CHATGPT_CODEX_MODEL_LIST_TIMEOUT_MS}ms`,
+        });
     } catch (error) {
         agent.logger.debug(
             `ChatGPT Codex model list unavailable: ${error instanceof Error ? error.message : String(error)}`
@@ -599,6 +657,14 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     model: currentConfig.model,
                     ...(currentConfig.baseURL ? { baseURL: currentConfig.baseURL } : {}),
                 };
+                const getMatchState = (
+                    candidate: Pick<ModelOption, 'provider' | 'name' | 'baseURL'>
+                ) => ({
+                    isDefault: defaultConfig
+                        ? matchesConfiguredModel(candidate, defaultConfig)
+                        : false,
+                    isCurrent: matchesConfiguredModel(candidate, currentModelConfig),
+                });
 
                 const addChatGPTCodexModel = (input: {
                     model: string;
@@ -672,16 +738,19 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 // Add custom models first
                 for (const custom of loadedCustomModels) {
                     const customProvider: LLMProvider = custom.provider;
+                    const candidate = createModelIdentity({
+                        provider: customProvider,
+                        name: custom.name,
+                        baseURL: custom.baseURL,
+                    });
+                    const { isDefault, isCurrent } = getMatchState(candidate);
                     const modelOption: ModelOption = {
                         provider: customProvider,
                         name: custom.name,
                         displayName: custom.displayName || custom.name,
                         maxInputTokens: custom.maxInputTokens ?? 128000,
-                        isDefault:
-                            customProvider === defaultProvider && custom.name === defaultModel,
-                        isCurrent:
-                            currentConfig.provider === customProvider &&
-                            currentConfig.model === custom.name,
+                        isDefault,
+                        isCurrent,
                         isCustom: true,
                     };
                     if (custom.baseURL) {
@@ -730,28 +799,24 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         // showing which provider the model originally came from
                         const originalProvider =
                             'originalProvider' in model ? model.originalProvider : undefined;
+                        const candidate = createModelIdentity({
+                            provider,
+                            name: model.name,
+                        });
+                        const { isDefault, isCurrent } = getMatchState(candidate);
 
                         modelList.push({
                             provider,
                             name: model.name,
                             displayName: model.displayName,
                             maxInputTokens: model.maxInputTokens,
-                            isDefault: provider === defaultProvider && model.name === defaultModel,
-                            isCurrent:
-                                provider === currentConfig.provider &&
-                                model.name === currentConfig.model,
+                            isDefault,
+                            isCurrent,
                             isCustom: false,
                             ...(releaseDate !== undefined ? { releaseDate } : {}),
                             ...(model.status !== undefined ? { status: model.status } : {}),
-                            ...(defaultReasoningVariant &&
-                            provider === defaultProvider &&
-                            model.name === defaultModel
+                            ...(defaultReasoningVariant && isDefault
                                 ? { reasoningVariant: defaultReasoningVariant }
-                                : {}),
-                            ...(defaultBaseURL &&
-                            provider === defaultProvider &&
-                            model.name === defaultModel
-                                ? { baseURL: defaultBaseURL }
                                 : {}),
                             // Store original provider for display purposes
                             ...(originalProvider && { originalProvider }),
@@ -845,16 +910,18 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
 
                 // Add Ollama models dynamically
                 for (const ollamaModel of ollamaModels) {
+                    const candidate = createModelIdentity({
+                        provider: 'ollama',
+                        name: ollamaModel.name,
+                    });
+                    const { isDefault, isCurrent } = getMatchState(candidate);
                     modelList.push({
                         provider: 'ollama',
                         name: ollamaModel.name,
                         displayName: ollamaModel.name,
                         maxInputTokens: 128000, // Default, actual varies by model
-                        isDefault:
-                            defaultProvider === 'ollama' && defaultModel === ollamaModel.name,
-                        isCurrent:
-                            currentConfig.provider === 'ollama' &&
-                            currentConfig.model === ollamaModel.name,
+                        isDefault,
+                        isCurrent,
                         isCustom: false,
                     });
                 }
@@ -865,16 +932,19 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     const modelInfo = getLocalModelById(localModel.id);
                     const displayName = modelInfo?.name || localModel.id;
                     const maxInputTokens = modelInfo?.contextLength || 128000;
+                    const candidate = createModelIdentity({
+                        provider: 'local',
+                        name: localModel.id,
+                    });
+                    const { isDefault, isCurrent } = getMatchState(candidate);
 
                     modelList.push({
                         provider: 'local',
                         name: localModel.id,
                         displayName,
                         maxInputTokens,
-                        isDefault: defaultProvider === 'local' && defaultModel === localModel.id,
-                        isCurrent:
-                            currentConfig.provider === 'local' &&
-                            currentConfig.model === localModel.id,
+                        isDefault,
+                        isCurrent,
                         isCustom: false,
                     });
                 }
@@ -891,22 +961,23 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                             model.name,
                             model.releaseDate
                         );
+                        const candidate = createModelIdentity({
+                            provider: 'vertex',
+                            name: model.name,
+                        });
+                        const { isDefault, isCurrent } = getMatchState(candidate);
 
                         modelList.push({
                             provider: 'vertex',
                             name: model.name,
                             displayName: model.displayName,
                             maxInputTokens: model.maxInputTokens,
-                            isDefault: defaultProvider === 'vertex' && defaultModel === model.name,
-                            isCurrent:
-                                currentConfig.provider === 'vertex' &&
-                                currentConfig.model === model.name,
+                            isDefault,
+                            isCurrent,
                             isCustom: false,
                             ...(releaseDate !== undefined ? { releaseDate } : {}),
                             ...(model.status !== undefined ? { status: model.status } : {}),
-                            ...(defaultReasoningVariant &&
-                            defaultProvider === 'vertex' &&
-                            defaultModel === model.name
+                            ...(defaultReasoningVariant && isDefault
                                 ? { reasoningVariant: defaultReasoningVariant }
                                 : {}),
                         });
