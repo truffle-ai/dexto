@@ -1,5 +1,14 @@
 # @dexto/agent-management
 
+## 1.6.12
+
+### Patch Changes
+
+- @dexto/core@1.6.12
+- @dexto/agent-config@1.6.12
+- @dexto/tools-builtins@1.6.12
+- @dexto/orchestration@1.6.12
+
 ## 1.6.11
 
 ### Patch Changes
