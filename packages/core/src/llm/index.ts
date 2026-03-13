@@ -18,6 +18,20 @@ export {
     type LookupStatus,
     type OpenRouterModelInfo,
 } from './providers/openrouter-model-registry.js';
+export {
+    createCodexBaseURL,
+    getCodexAuthModeLabel,
+    getCodexProviderDisplayName,
+    isCodexBaseURL,
+    parseCodexBaseURL,
+    type CodexAuthMode,
+} from './providers/codex-base-url.js';
+export {
+    CodexAppServerClient,
+    createCodexLanguageModel,
+    type CodexAppServerClientOptions,
+    type CodexModelInfo,
+} from './providers/codex-app-server.js';
 
 // Node-only: self-updating models.dev/OpenRouter-backed registry cache
 export {

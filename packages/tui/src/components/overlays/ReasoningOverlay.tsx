@@ -253,7 +253,7 @@ export const ReasoningOverlay = React.forwardRef<ReasoningOverlayHandle, Reasoni
 
         if (!isVisible) return null;
 
-        const providerLabel = getLLMProviderDisplayName(provider);
+        const providerLabel = getLLMProviderDisplayName(provider, llmConfig.baseURL);
         const modelLabel = getModelDisplayName(model);
 
         return (

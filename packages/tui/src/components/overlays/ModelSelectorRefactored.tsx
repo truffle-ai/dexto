@@ -17,14 +17,18 @@ import {
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
-import type { DextoAgent, LLMProvider, ReasoningVariant } from '@dexto/core';
+import type { CodexModelInfo, DextoAgent, LLMProvider, ReasoningVariant } from '@dexto/core';
 import {
+    CodexAppServerClient,
+    createCodexBaseURL,
     listOllamaModels,
     DEFAULT_OLLAMA_URL,
     getLocalModelById,
     getCuratedModelRefsForProviders,
+    getModelDisplayName,
     getOpenRouterModelCacheInfo,
     getReasoningProfile,
+    parseCodexBaseURL,
     refreshOpenRouterModelCache,
 } from '@dexto/core';
 import {
@@ -61,9 +65,61 @@ const MODEL_SELECTOR_TABS: ReadonlyArray<{ id: ModelSelectorTab; label: string }
 
 const PROVIDER_COLLATOR = new Intl.Collator('en', { sensitivity: 'base' });
 const PROVIDER_TOKEN_PATTERN = /[^a-z0-9]/g;
+const CODEX_CHATGPT_BASE_URL = createCodexBaseURL('chatgpt');
 
 function normalizeProviderToken(value: string): string {
     return value.toLowerCase().replace(PROVIDER_TOKEN_PATTERN, '');
+}
+
+function isChatGPTCodexBaseURL(baseURL?: string): boolean {
+    return parseCodexBaseURL(baseURL)?.authMode === 'chatgpt';
+}
+
+function isChatGPTCodexConfig(provider: LLMProvider, baseURL?: string): boolean {
+    return provider === 'openai-compatible' && isChatGPTCodexBaseURL(baseURL);
+}
+
+function matchesConfiguredModel(
+    candidate: Pick<ModelOption, 'provider' | 'name' | 'baseURL'>,
+    configured: { provider: LLMProvider; model: string; baseURL?: string }
+): boolean {
+    if (candidate.provider !== configured.provider || candidate.name !== configured.model) {
+        return false;
+    }
+
+    const candidateBaseURL = candidate.baseURL ?? '';
+    const configuredBaseURL = configured.baseURL ?? '';
+    if (candidateBaseURL === configuredBaseURL) {
+        return true;
+    }
+
+    const candidateCodex = parseCodexBaseURL(candidate.baseURL);
+    const configuredCodex = parseCodexBaseURL(configured.baseURL);
+
+    return candidateCodex?.authMode === configuredCodex?.authMode;
+}
+
+async function loadChatGPTCodexModels(agent: DextoAgent): Promise<CodexModelInfo[]> {
+    let client: CodexAppServerClient | null = null;
+
+    try {
+        client = await CodexAppServerClient.create();
+        const account = await client.readAccount(false);
+        if (account.account?.type !== 'chatgpt') {
+            return [];
+        }
+
+        return await client.listModels();
+    } catch (error) {
+        agent.logger.debug(
+            `ChatGPT Codex model list unavailable: ${error instanceof Error ? error.message : String(error)}`
+        );
+        return [];
+    } finally {
+        if (client) {
+            await client.close().catch(() => undefined);
+        }
+    }
 }
 
 function toReleaseDateLookupKey(provider: LLMProvider, modelName: string): string {
@@ -267,8 +323,9 @@ interface AddCustomOption {
 
 type SelectorItem = ModelOption | AddCustomOption;
 
-function toModelIdentityKey(model: Pick<ModelOption, 'provider' | 'name'>): string {
-    return toModelPickerKey({ provider: model.provider, model: model.name });
+function toModelIdentityKey(model: Pick<ModelOption, 'provider' | 'name' | 'baseURL'>): string {
+    const key = toModelPickerKey({ provider: model.provider, model: model.name });
+    return model.baseURL ? `${key}|${model.baseURL}` : key;
 }
 
 function normalizeLineText(value: string): string {
@@ -485,14 +542,21 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     );
                 }
 
-                const [allModels, providers, currentConfig, loadedCustomModels, preferences] =
-                    await Promise.all([
-                        Promise.resolve(agent.getSupportedModels()),
-                        Promise.resolve(agent.getSupportedProviders()),
-                        Promise.resolve(agent.getCurrentLLMConfig()),
-                        loadCustomModels(),
-                        loadGlobalPreferences().catch(() => null),
-                    ]);
+                const [
+                    allModels,
+                    providers,
+                    currentConfig,
+                    loadedCustomModels,
+                    preferences,
+                    codexModels,
+                ] = await Promise.all([
+                    Promise.resolve(agent.getSupportedModels()),
+                    Promise.resolve(agent.getSupportedProviders()),
+                    Promise.resolve(agent.getCurrentLLMConfig()),
+                    loadCustomModels(),
+                    loadGlobalPreferences().catch(() => null),
+                    loadChatGPTCodexModels(agent),
+                ]);
                 const pickerState = await loadModelPickerState().catch(() => null);
 
                 const modelList: ModelOption[] = [];
@@ -501,6 +565,70 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 const defaultBaseURL = preferences?.llm.baseURL;
                 const defaultReasoningVariant = preferences?.llm.reasoning?.variant;
                 const resolveReleaseDate = createReleaseDateResolver({ allModels, providers });
+                const defaultConfig =
+                    defaultProvider && defaultModel
+                        ? {
+                              provider: defaultProvider,
+                              model: defaultModel,
+                              ...(defaultBaseURL ? { baseURL: defaultBaseURL } : {}),
+                          }
+                        : null;
+                const currentModelConfig = {
+                    provider: currentConfig.provider,
+                    model: currentConfig.model,
+                    ...(currentConfig.baseURL ? { baseURL: currentConfig.baseURL } : {}),
+                };
+
+                const addChatGPTCodexModel = (input: {
+                    model: string;
+                    displayName?: string;
+                    releaseDate?: string;
+                    isDefault: boolean;
+                    isCurrent: boolean;
+                    reasoningVariant?: ReasoningVariant;
+                }) => {
+                    const existing = modelList.find(
+                        (candidate) =>
+                            candidate.provider === 'openai-compatible' &&
+                            candidate.name === input.model &&
+                            candidate.baseURL === CODEX_CHATGPT_BASE_URL
+                    );
+
+                    if (existing) {
+                        existing.isDefault = existing.isDefault || input.isDefault;
+                        existing.isCurrent = existing.isCurrent || input.isCurrent;
+                        if (existing.displayName === undefined && input.displayName !== undefined) {
+                            existing.displayName = input.displayName;
+                        }
+                        if (existing.releaseDate === undefined && input.releaseDate !== undefined) {
+                            existing.releaseDate = input.releaseDate;
+                        }
+                        if (
+                            existing.reasoningVariant === undefined &&
+                            input.reasoningVariant !== undefined
+                        ) {
+                            existing.reasoningVariant = input.reasoningVariant;
+                        }
+                        return;
+                    }
+
+                    modelList.push({
+                        provider: 'openai-compatible',
+                        name: input.model,
+                        displayName: input.displayName,
+                        maxInputTokens: 128000,
+                        isDefault: input.isDefault,
+                        isCurrent: input.isCurrent,
+                        isCustom: false,
+                        baseURL: CODEX_CHATGPT_BASE_URL,
+                        ...(input.releaseDate !== undefined
+                            ? { releaseDate: input.releaseDate }
+                            : {}),
+                        ...(input.reasoningVariant !== undefined
+                            ? { reasoningVariant: input.reasoningVariant }
+                            : {}),
+                    });
+                };
 
                 // Fetch dynamic models for local providers
                 let ollamaModels: Array<{ name: string; size?: number }> = [];
@@ -609,6 +737,90 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         });
                     }
                 }
+
+                // Add ChatGPT-backed Codex models dynamically when available.
+                for (const codexModel of codexModels) {
+                    const candidate = {
+                        provider: 'openai-compatible' as const,
+                        name: codexModel.model,
+                        baseURL: CODEX_CHATGPT_BASE_URL,
+                    };
+                    const isDefault = defaultConfig
+                        ? matchesConfiguredModel(candidate, defaultConfig)
+                        : false;
+                    const releaseDate =
+                        resolveReleaseDate('openai', codexModel.model) ??
+                        resolveReleaseDate('openrouter', codexModel.model);
+
+                    addChatGPTCodexModel({
+                        model: codexModel.model,
+                        displayName: codexModel.displayName,
+                        isDefault,
+                        isCurrent: matchesConfiguredModel(candidate, currentModelConfig),
+                        ...(releaseDate !== undefined ? { releaseDate } : {}),
+                        ...(isDefault && defaultReasoningVariant
+                            ? { reasoningVariant: defaultReasoningVariant }
+                            : {}),
+                    });
+                }
+
+                const addMissingConfiguredCodexModel = (
+                    configured: {
+                        provider: LLMProvider;
+                        model: string;
+                        baseURL?: string;
+                    } | null
+                ) => {
+                    if (
+                        !configured ||
+                        !isChatGPTCodexConfig(configured.provider, configured.baseURL)
+                    ) {
+                        return;
+                    }
+
+                    const releaseDate =
+                        resolveReleaseDate('openai', configured.model) ??
+                        resolveReleaseDate('openrouter', configured.model);
+
+                    addChatGPTCodexModel({
+                        model: configured.model,
+                        displayName: getModelDisplayName(configured.model, 'openai'),
+                        isDefault: defaultConfig
+                            ? matchesConfiguredModel(
+                                  {
+                                      provider: 'openai-compatible',
+                                      name: configured.model,
+                                      baseURL: CODEX_CHATGPT_BASE_URL,
+                                  },
+                                  defaultConfig
+                              )
+                            : false,
+                        isCurrent: matchesConfiguredModel(
+                            {
+                                provider: 'openai-compatible',
+                                name: configured.model,
+                                baseURL: CODEX_CHATGPT_BASE_URL,
+                            },
+                            currentModelConfig
+                        ),
+                        ...(releaseDate !== undefined ? { releaseDate } : {}),
+                        ...(defaultConfig &&
+                        defaultReasoningVariant &&
+                        matchesConfiguredModel(
+                            {
+                                provider: 'openai-compatible',
+                                name: configured.model,
+                                baseURL: CODEX_CHATGPT_BASE_URL,
+                            },
+                            defaultConfig
+                        )
+                            ? { reasoningVariant: defaultReasoningVariant }
+                            : {}),
+                    });
+                };
+
+                addMissingConfiguredCodexModel(defaultConfig);
+                addMissingConfiguredCodexModel(currentModelConfig);
 
                 // Add Ollama models dynamically
                 for (const ollamaModel of ollamaModels) {
@@ -800,7 +1012,15 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             const name = model.name.toLowerCase().replace(/[\s-]+/g, '');
             const displayName = (model.displayName || '').toLowerCase().replace(/[\s-]+/g, '');
             const provider = model.provider.toLowerCase().replace(/[\s-]+/g, '');
-            return name.includes(query) || displayName.includes(query) || provider.includes(query);
+            const providerDisplay = getLLMProviderDisplayName(model.provider, model.baseURL)
+                .toLowerCase()
+                .replace(/[\s-]+/g, '');
+            return (
+                name.includes(query) ||
+                displayName.includes(query) ||
+                provider.includes(query) ||
+                providerDisplay.includes(query)
+            );
         },
         [searchQuery]
     );
@@ -1550,7 +1770,10 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                               const actualIndex = modelStartIndex + scrollOffset + rowIndex;
                               const isSelected = actualIndex === selectedIndex;
 
-                              const providerDisplay = getLLMProviderDisplayName(item.provider);
+                              const providerDisplay = getLLMProviderDisplayName(
+                                  item.provider,
+                                  item.baseURL
+                              );
                               const name = item.displayName || item.name;
                               const isFavorite = favoriteKeySet.has(
                                   toModelPickerKey({

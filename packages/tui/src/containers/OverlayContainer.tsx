@@ -77,6 +77,7 @@ import McpCustomWizard, {
 import CustomModelWizard, {
     type CustomModelWizardHandle,
 } from '../components/overlays/CustomModelWizard.js';
+import { getLLMProviderDisplayName } from '../utils/llm-provider-display.js';
 import {
     getProviderKeyStatus,
     loadGlobalPreferences,
@@ -545,6 +546,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 baseURL?: string,
                 reasoningVariant?: ReasoningVariant
             ) => {
+                const providerLabel = getLLMProviderDisplayName(provider, baseURL);
+
                 // Session-only switch (default is set via explicit action)
 
                 // Pre-check: Dexto Nova provider requires OAuth login AND API key
@@ -591,7 +594,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('system'),
                             role: 'system',
-                            content: `🔄 Switching to ${displayName || model} (${provider})...`,
+                            content: `🔄 Switching to ${displayName || model} (${providerLabel})...`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -615,7 +618,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('system'),
                             role: 'system',
-                            content: `✅ Successfully switched to ${displayName || model} (${provider})`,
+                            content: `✅ Successfully switched to ${displayName || model} (${providerLabel})`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -641,7 +644,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             {
                                 id: generateMessageId('system'),
                                 role: 'system',
-                                content: `🔑 API key required for ${provider}`,
+                                content: `🔑 API key required for ${providerLabel}`,
                                 timestamp: new Date(),
                             },
                         ]);
@@ -679,6 +682,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 baseURL?: string,
                 reasoningVariant?: ReasoningVariant
             ) => {
+                const providerLabel = getLLMProviderDisplayName(provider, baseURL);
+
                 try {
                     let providerEnvVar: string | undefined;
                     try {
@@ -759,7 +764,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             {
                                 id: generateMessageId('system'),
                                 role: 'system',
-                                content: `✅ Default model set to ${displayName || model} (${provider})`,
+                                content: `✅ Default model set to ${displayName || model} (${providerLabel})`,
                                 timestamp: new Date(),
                             },
                         ]);
@@ -782,7 +787,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                 {
                                     id: generateMessageId('system'),
                                     role: 'system',
-                                    content: `🔑 API key required for ${provider}`,
+                                    content: `🔑 API key required for ${providerLabel}`,
                                     timestamp: new Date(),
                                 },
                             ]);
@@ -902,12 +907,16 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 // Retry the model switch
                 try {
                     const pendingDisplayName = pending.displayName || pending.model;
+                    const pendingProviderLabel = getLLMProviderDisplayName(
+                        pending.provider,
+                        pending.baseURL
+                    );
                     setMessages((prev) => [
                         ...prev,
                         {
                             id: generateMessageId('system'),
                             role: 'system',
-                            content: `🔄 Retrying switch to ${pendingDisplayName} (${pending.provider})...`,
+                            content: `🔄 Retrying switch to ${pendingDisplayName} (${pendingProviderLabel})...`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -935,7 +944,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('system'),
                             role: 'system',
-                            content: `✅ Successfully switched to ${pendingDisplayName} (${pending.provider})`,
+                            content: `✅ Successfully switched to ${pendingDisplayName} (${pendingProviderLabel})`,
                             timestamp: new Date(),
                         },
                     ]);

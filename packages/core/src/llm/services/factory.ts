@@ -21,6 +21,8 @@ import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { requiresApiKey } from '../registry/index.js';
 import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
+import { createCodexLanguageModel } from '../providers/codex-app-server.js';
+import { isCodexBaseURL } from '../providers/codex-base-url.js';
 import {
     ANTHROPIC_BETA_HEADER,
     ANTHROPIC_INTERLEAVED_THINKING_BETA,
@@ -89,6 +91,14 @@ export function createVercelModel(
             if (!compatibleBaseURL) {
                 throw LLMError.baseUrlMissing('openai-compatible');
             }
+
+            if (isCodexBaseURL(compatibleBaseURL)) {
+                return createCodexLanguageModel({
+                    modelId: model,
+                    baseURL: compatibleBaseURL,
+                });
+            }
+
             // Use the OpenAI-compatible provider so providerOptions can be keyed per-endpoint.
             // This also avoids mixing OpenAI Responses defaults into compatibility endpoints.
             const provider = createOpenAICompatible({

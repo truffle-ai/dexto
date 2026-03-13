@@ -46,7 +46,7 @@ export function Footer({
     // Provider is session-scoped because /model can switch LLM per session.
     const llmConfig = sessionId ? agent.getCurrentLLMConfig(sessionId) : null;
     const provider = llmConfig?.provider ?? null;
-    const providerLabel = provider ? getLLMProviderDisplayName(provider) : null;
+    const providerLabel = provider ? getLLMProviderDisplayName(provider, llmConfig?.baseURL) : null;
     const reasoningProfile =
         provider && llmConfig ? getReasoningProfile(provider, llmConfig.model) : null;
     const reasoningVariant =
