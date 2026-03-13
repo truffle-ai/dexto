@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DextoApiClient } from './api-client.js';
-import { DEXTO_PLATFORM_URL } from './constants.js';
 
 function createJsonResponse(body: unknown, status: number = 200): Response {
     return new Response(JSON.stringify(body), {
@@ -40,7 +39,7 @@ describe('DextoApiClient', () => {
         );
     });
 
-    it('keeps platform endpoints on DEXTO_PLATFORM_URL when only gateway URL is overridden', async () => {
+    it('uses the overridden base URL for control-plane endpoints when provided as a string', async () => {
         const fetchMock = vi
             .fn()
             .mockResolvedValueOnce(createJsonResponse({ valid: true }))
@@ -62,15 +61,14 @@ describe('DextoApiClient', () => {
         await client.validateDextoApiKey('dxt_test');
         await client.getUsageSummary('dxt_test');
 
-        const normalizedPlatformUrl = DEXTO_PLATFORM_URL.replace(/\/+$/, '');
         expect(fetchMock).toHaveBeenNthCalledWith(
             1,
-            `${normalizedPlatformUrl}/api/keys/validate`,
+            'http://gateway.local/api/keys/validate',
             expect.objectContaining({ method: 'GET' })
         );
         expect(fetchMock).toHaveBeenNthCalledWith(
             2,
-            'http://gateway.local/me/usage',
+            'http://gateway.local/api/account/usage',
             expect.objectContaining({ method: 'GET' })
         );
     });
