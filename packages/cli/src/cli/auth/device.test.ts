@@ -5,6 +5,7 @@ const mocked = vi.hoisted(() => ({
     pollDeviceCodeLogin: vi.fn(),
     fetchSupabaseUser: vi.fn(),
     getDextoApiClient: vi.fn(),
+    constructedWith: [] as unknown[],
 }));
 
 vi.mock('./api-client.js', () => ({
@@ -13,7 +14,9 @@ vi.mock('./api-client.js', () => ({
             _baseUrl?:
                 | string
                 | { gatewayBaseUrl?: string | undefined; platformBaseUrl?: string | undefined }
-        ) {}
+        ) {
+            mocked.constructedWith.push(_baseUrl);
+        }
 
         startDeviceCodeLogin(client: string, options?: { signal?: AbortSignal | undefined }) {
             return mocked.startDeviceCodeLogin(client, options);
@@ -39,6 +42,7 @@ describe('performDeviceCodeLogin', () => {
         mocked.pollDeviceCodeLogin.mockReset();
         mocked.fetchSupabaseUser.mockReset();
         mocked.getDextoApiClient.mockReset();
+        mocked.constructedWith.length = 0;
         mocked.getDextoApiClient.mockImplementation(() => ({
             startDeviceCodeLogin: mocked.startDeviceCodeLogin,
             pollDeviceCodeLogin: mocked.pollDeviceCodeLogin,
@@ -95,5 +99,36 @@ describe('performDeviceCodeLogin', () => {
         expect(result.accessToken).toBe('access-token');
         expect(result.refreshToken).toBe('refresh-token');
         expect(result.user?.email).toBe('user@example.com');
+    });
+
+    it('uses single apiUrl constructor path when apiUrl override is provided', async () => {
+        mocked.startDeviceCodeLogin.mockResolvedValue({
+            deviceCode: 'device-code',
+            userCode: 'ABCD-EFGH',
+            verificationUrl: 'https://app.dexto.ai/device',
+            verificationUrlComplete: 'https://app.dexto.ai/device?user_code=ABCD-EFGH',
+            expiresIn: 300,
+            interval: 1,
+        });
+
+        mocked.pollDeviceCodeLogin.mockResolvedValue({
+            status: 'success',
+            token: {
+                accessToken: 'access-token',
+                refreshToken: 'refresh-token',
+                expiresIn: 3600,
+            },
+        });
+
+        mocked.fetchSupabaseUser.mockResolvedValue(undefined);
+
+        const loginPromise = performDeviceCodeLogin({
+            apiUrl: 'http://gateway.local',
+        });
+        await vi.advanceTimersByTimeAsync(1_000);
+        await loginPromise;
+
+        expect(mocked.constructedWith).toEqual(['http://gateway.local']);
+        expect(mocked.getDextoApiClient).not.toHaveBeenCalled();
     });
 });
