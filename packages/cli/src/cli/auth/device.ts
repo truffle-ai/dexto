@@ -35,7 +35,12 @@ function resolveDeviceLoginOptions(options: DeviceLoginOptionsInput): DeviceLogi
 }
 
 function getAuthClient(apiUrl: string | undefined): DextoApiClient {
-    return apiUrl ? new DextoApiClient(apiUrl) : getDextoApiClient();
+    return apiUrl
+        ? new DextoApiClient({
+              gatewayBaseUrl: apiUrl,
+              platformBaseUrl: apiUrl,
+          })
+        : getDextoApiClient();
 }
 
 async function sleepWithAbort(ms: number, signal: AbortSignal | null): Promise<void> {

@@ -12,14 +12,6 @@ import { logger } from '@dexto/core';
 import { DEXTO_API_URL, DEXTO_PLATFORM_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from './constants.js';
 import type { AuthenticatedUser } from './types.js';
 
-interface ProvisionResponse {
-    success: boolean;
-    dextoApiKey?: string;
-    keyId?: string;
-    isNewKey?: boolean;
-    error?: string;
-}
-
 interface PlatformKeyRecord {
     id: string;
     name: string | null;
@@ -114,40 +106,6 @@ function parseNumber(value: unknown): number | null {
     }
 
     return null;
-}
-
-function parseProvisionResponse(payload: unknown): ProvisionResponse {
-    if (typeof payload !== 'object' || payload === null) {
-        throw new Error('Invalid response from API');
-    }
-
-    const success = parseBoolean(Reflect.get(payload, 'success'));
-    if (success === null) {
-        throw new Error('Invalid response from API');
-    }
-
-    const dextoApiKey = parseString(Reflect.get(payload, 'dextoApiKey')) ?? undefined;
-    const keyId = parseString(Reflect.get(payload, 'keyId')) ?? undefined;
-    const isNewKey = parseBoolean(Reflect.get(payload, 'isNewKey')) ?? undefined;
-    const error = parseString(Reflect.get(payload, 'error')) ?? undefined;
-
-    const result: ProvisionResponse = {
-        success,
-    };
-    if (dextoApiKey) {
-        result.dextoApiKey = dextoApiKey;
-    }
-    if (keyId) {
-        result.keyId = keyId;
-    }
-    if (isNewKey !== undefined) {
-        result.isNewKey = isNewKey;
-    }
-    if (error) {
-        result.error = error;
-    }
-
-    return result;
 }
 
 function parseDeviceCodeStartResponse(payload: unknown): DeviceCodeStartResponse {
@@ -465,7 +423,7 @@ export class DextoApiClient {
         if (typeof baseUrl === 'string') {
             const normalized = baseUrl.replace(/\/+$/, '');
             this.gatewayBaseUrl = normalized;
-            this.platformBaseUrl = normalized;
+            this.platformBaseUrl = DEXTO_PLATFORM_URL.replace(/\/+$/, '');
             return;
         }
 
@@ -592,8 +550,8 @@ export class DextoApiClient {
     }
 
     /**
-     * Provision Dexto API key (get existing or create new with given name)
-     * @param regenerate - If true, delete existing key and create new one
+     * Provision Dexto API key and always return a usable secret key value.
+     * @param regenerate - If true, delete existing key(s) and create a new one
      */
     async provisionDextoApiKey(
         authToken: string,
@@ -609,16 +567,12 @@ export class DextoApiClient {
                 (key) => key.isActive && key.name === name
             );
 
-            if (matchingKeys.length > 0 && !regenerate) {
-                logger.debug(`DEXTO_API_KEY already exists: ${matchingKeys[0]?.id ?? 'unknown'}`);
-                return {
-                    dextoApiKey: '',
-                    keyId: matchingKeys[0]?.id ?? '',
-                    isNewKey: false,
-                };
-            }
-
-            if (regenerate) {
+            if (matchingKeys.length > 0) {
+                if (!regenerate) {
+                    logger.debug(
+                        `Active key exists (${matchingKeys[0]?.id ?? 'unknown'}); rotating to obtain key value`
+                    );
+                }
                 for (const key of matchingKeys) {
                     await this.deletePlatformApiKey(authToken, key.id);
                 }

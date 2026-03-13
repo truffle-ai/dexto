@@ -9,7 +9,11 @@ const mocked = vi.hoisted(() => ({
 
 vi.mock('./api-client.js', () => ({
     DextoApiClient: class MockDextoApiClient {
-        constructor(_baseUrl?: string) {}
+        constructor(
+            _baseUrl?:
+                | string
+                | { gatewayBaseUrl?: string | undefined; platformBaseUrl?: string | undefined }
+        ) {}
 
         startDeviceCodeLogin(client: string, options?: { signal?: AbortSignal | undefined }) {
             return mocked.startDeviceCodeLogin(client, options);
