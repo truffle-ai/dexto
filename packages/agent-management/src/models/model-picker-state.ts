@@ -12,6 +12,7 @@ const ModelPickerModelSchema = z
     .object({
         provider: z.enum(LLM_PROVIDERS),
         model: z.string().trim().min(1),
+        baseURL: z.string().trim().min(1).optional(),
     })
     .strict();
 
@@ -93,12 +94,18 @@ function createEntry(input: { model: ModelPickerModel; updatedAt: string }): Mod
     return {
         provider: input.model.provider,
         model: input.model.model,
+        ...(input.model.baseURL ? { baseURL: input.model.baseURL } : {}),
         updatedAt: input.updatedAt,
     };
 }
 
-export function toModelPickerKey(input: { provider: LLMProvider; model: string }): string {
-    return `${input.provider}|${input.model}`;
+export function toModelPickerKey(input: {
+    provider: LLMProvider;
+    model: string;
+    baseURL?: string | undefined;
+}): string {
+    const key = `${input.provider}|${input.model}`;
+    return input.baseURL ? `${key}|${input.baseURL}` : key;
 }
 
 export function pruneModelPickerState(input: {

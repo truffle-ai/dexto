@@ -530,12 +530,19 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         };
 
         const persistRecentModel = useCallback(
-            async (provider: LLMProvider, model: string) => {
+            async (provider: LLMProvider, model: string, baseURL?: string) => {
                 try {
-                    await recordRecentModel({ provider, model });
+                    await recordRecentModel({
+                        provider,
+                        model,
+                        ...(baseURL ? { baseURL } : {}),
+                    });
                 } catch (error) {
+                    const modelKey = baseURL
+                        ? `${provider}/${model} (${baseURL})`
+                        : `${provider}/${model}`;
                     agent.logger.debug(
-                        `Failed to persist recent model (${provider}/${model}): ${
+                        `Failed to persist recent model (${modelKey}): ${
                             error instanceof Error ? error.message : String(error)
                         }`
                     );
@@ -615,7 +622,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         },
                         session.id || undefined
                     );
-                    await persistRecentModel(provider as LLMProvider, model);
+                    await persistRecentModel(provider as LLMProvider, model, baseURL);
 
                     // Update session state with display name (fallback to model ID)
                     setSession((prev) => ({ ...prev, modelName: displayName || model }));
@@ -633,6 +640,10 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     // Check if error is due to missing API key
                     const missingProvider = isApiKeyMissingError(error);
                     if (missingProvider) {
+                        const missingProviderLabel = getLLMProviderDisplayName(
+                            missingProvider,
+                            missingProvider === provider ? baseURL : undefined
+                        );
                         // Store pending model switch and show API key input
                         // Use missingProvider (from error) as the authoritative source
                         setUi((prev) => ({
@@ -651,7 +662,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             {
                                 id: generateMessageId('system'),
                                 role: 'system',
-                                content: `🔑 API key required for ${providerLabel}`,
+                                content: `🔑 API key required for ${missingProviderLabel}`,
                                 timestamp: new Date(),
                             },
                         ]);
@@ -763,7 +774,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             },
                             session.id || undefined
                         );
-                        await persistRecentModel(provider, model);
+                        await persistRecentModel(provider, model, baseURL);
                         setSession((prev) => ({ ...prev, modelName: displayName || model }));
 
                         setMessages((prev) => [
@@ -778,6 +789,10 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     } catch (error) {
                         const missingProvider = isApiKeyMissingError(error);
                         if (missingProvider) {
+                            const missingProviderLabel = getLLMProviderDisplayName(
+                                missingProvider,
+                                missingProvider === provider ? baseURL : undefined
+                            );
                             setUi((prev) => ({
                                 ...prev,
                                 activeOverlay: 'api-key-input',
@@ -794,7 +809,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                 {
                                     id: generateMessageId('system'),
                                     role: 'system',
-                                    content: `🔑 API key required for ${providerLabel}`,
+                                    content: `🔑 API key required for ${missingProviderLabel}`,
                                     timestamp: new Date(),
                                 },
                             ]);
@@ -996,7 +1011,11 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         },
                         session.id || undefined
                     );
-                    await persistRecentModel(pending.provider as LLMProvider, pending.model);
+                    await persistRecentModel(
+                        pending.provider as LLMProvider,
+                        pending.model,
+                        pending.baseURL
+                    );
 
                     // Update session state with display name (fallback to model ID)
                     setSession((prev) => ({ ...prev, modelName: pendingDisplayName }));

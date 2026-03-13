@@ -19,11 +19,19 @@ describe('codex base URL helpers', () => {
     it('parses codex URLs without an explicit auth mode as auto', () => {
         expect(parseCodexBaseURL('codex://')).toEqual({ authMode: 'auto' });
         expect(parseCodexBaseURL('codex:///auto')).toEqual({ authMode: 'auto' });
+        expect(parseCodexBaseURL('codex:///chatgpt')).toEqual({ authMode: 'chatgpt' });
     });
 
     it('rejects non-codex URLs', () => {
         expect(parseCodexBaseURL('https://example.com/v1')).toBeNull();
         expect(isCodexBaseURL('https://example.com/v1')).toBe(false);
+    });
+
+    it('rejects malformed codex URLs', () => {
+        expect(parseCodexBaseURL('codex://bogus')).toBeNull();
+        expect(parseCodexBaseURL('codex:///bogus')).toBeNull();
+        expect(parseCodexBaseURL('codex://bogus/auto')).toBeNull();
+        expect(parseCodexBaseURL('codex://chatgpt/extra')).toBeNull();
     });
 
     it('formats display labels for Codex auth modes', () => {

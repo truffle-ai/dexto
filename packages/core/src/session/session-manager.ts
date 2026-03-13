@@ -742,27 +742,37 @@ export class SessionManager {
         await this.ensureInitialized();
 
         const sessionKey = `session:${sessionId}`;
-        const sessionData = await this.services.storageManager
-            .getDatabase()
-            .get<SessionData>(sessionKey);
+        const previousLock = this.tokenUsageLocks.get(sessionKey) ?? Promise.resolve();
 
-        if (!sessionData) {
-            return;
+        const currentLock = previousLock.then(async () => {
+            const sessionData = await this.services.storageManager
+                .getDatabase()
+                .get<SessionData>(sessionKey);
+
+            if (!sessionData || sessionData.usageTracking?.hasUntrackedChatGPTLoginUsage) {
+                return;
+            }
+
+            sessionData.usageTracking = {
+                ...(sessionData.usageTracking ?? {}),
+                hasUntrackedChatGPTLoginUsage: true,
+            };
+
+            await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
+            await this.services.storageManager
+                .getCache()
+                .set(sessionKey, sessionData, this.sessionTTL / 1000);
+        });
+
+        this.tokenUsageLocks.set(sessionKey, currentLock);
+
+        try {
+            await currentLock;
+        } finally {
+            if (this.tokenUsageLocks.get(sessionKey) === currentLock) {
+                this.tokenUsageLocks.delete(sessionKey);
+            }
         }
-
-        if (sessionData.usageTracking?.hasUntrackedChatGPTLoginUsage) {
-            return;
-        }
-
-        sessionData.usageTracking = {
-            ...(sessionData.usageTracking ?? {}),
-            hasUntrackedChatGPTLoginUsage: true,
-        };
-
-        await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
-        await this.services.storageManager
-            .getCache()
-            .set(sessionKey, sessionData, this.sessionTTL / 1000);
     }
 
     /**

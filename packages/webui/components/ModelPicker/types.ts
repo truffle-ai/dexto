@@ -37,8 +37,9 @@ export type CurrentLLMConfigResponse = {
     };
 };
 
-export function favKey(provider: string, model: string) {
-    return `${provider}|${model}`;
+export function favKey(provider: string, model: string, baseURL?: string) {
+    const key = `${provider}|${model}`;
+    return baseURL ? `${key}|${baseURL}` : key;
 }
 
 export function validateBaseURL(url: string): { isValid: boolean; error?: string } {

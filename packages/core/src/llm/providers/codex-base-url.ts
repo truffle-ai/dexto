@@ -4,11 +4,15 @@ const CODEX_BASE_URL_PROTOCOL = 'codex:';
 const CODEX_AUTH_MODES: readonly CodexAuthMode[] = ['auto', 'apikey', 'chatgpt'];
 
 function normalizeCodexAuthMode(value: string | undefined): CodexAuthMode | null {
-    if (!value) {
-        return 'auto';
+    if (value === undefined) {
+        return null;
     }
 
     const normalized = value.trim().toLowerCase();
+    if (normalized.length === 0) {
+        return null;
+    }
+
     if (CODEX_AUTH_MODES.includes(normalized as CodexAuthMode)) {
         return normalized as CodexAuthMode;
     }
@@ -31,9 +35,19 @@ export function parseCodexBaseURL(value: string | undefined): { authMode: CodexA
             return null;
         }
 
+        const hostValue = parsed.host;
+        const pathValue = parsed.pathname.replace(/^\/+/, '');
+        const hostMode = normalizeCodexAuthMode(hostValue);
+        const pathMode = normalizeCodexAuthMode(pathValue);
+
+        if (hostValue.length > 0 && pathValue.length > 0) {
+            return null;
+        }
+
         const authMode =
-            normalizeCodexAuthMode(parsed.host) ??
-            normalizeCodexAuthMode(parsed.pathname.replace(/^\//, ''));
+            hostMode ??
+            pathMode ??
+            (hostValue.length === 0 && pathValue.length === 0 ? 'auto' : null);
 
         if (!authMode) {
             return null;

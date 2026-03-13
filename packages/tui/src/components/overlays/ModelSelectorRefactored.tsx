@@ -324,8 +324,11 @@ interface AddCustomOption {
 type SelectorItem = ModelOption | AddCustomOption;
 
 function toModelIdentityKey(model: Pick<ModelOption, 'provider' | 'name' | 'baseURL'>): string {
-    const key = toModelPickerKey({ provider: model.provider, model: model.name });
-    return model.baseURL ? `${key}|${model.baseURL}` : key;
+    return toModelPickerKey({
+        provider: model.provider,
+        model: model.name,
+        ...(model.baseURL ? { baseURL: model.baseURL } : {}),
+    });
 }
 
 function normalizeLineText(value: string): string {
@@ -990,15 +993,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
     }, [isVisible, agent, refreshVersion]);
 
     const favoriteKeySet = useMemo(
-        () =>
-            new Set(
-                (modelPickerState?.favorites ?? []).map((entry) =>
-                    toModelPickerKey({
-                        provider: entry.provider,
-                        model: entry.model,
-                    })
-                )
-            ),
+        () => new Set((modelPickerState?.favorites ?? []).map((entry) => toModelPickerKey(entry))),
         [modelPickerState]
     );
 
@@ -1031,10 +1026,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         const hasSearchQuery = searchQuery.trim().length > 0;
         const allCandidates = [...models].sort(compareModelOptionsForDisplay);
         const modelsByKey = new Map<string, ModelOption>(
-            allCandidates.map((model) => [
-                toModelPickerKey({ provider: model.provider, model: model.name }),
-                model,
-            ])
+            allCandidates.map((model) => [toModelIdentityKey(model), model])
         );
         const toUniqueMatchingModels = (
             candidates: Array<ModelOption | undefined>,
@@ -1047,10 +1039,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 if (!candidate || !matchesSearch(candidate)) {
                     continue;
                 }
-                const key = toModelPickerKey({
-                    provider: candidate.provider,
-                    model: candidate.name,
-                });
+                const key = toModelIdentityKey(candidate);
                 if (seen.has(key)) {
                     continue;
                 }
@@ -1073,10 +1062,10 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         }).map((ref) => modelsByKey.get(toModelPickerKey(ref)));
 
         const recentsFromState = (modelPickerState?.recents ?? []).map((entry) =>
-            modelsByKey.get(toModelPickerKey({ provider: entry.provider, model: entry.model }))
+            modelsByKey.get(toModelPickerKey(entry))
         );
         const favoritesFromState = (modelPickerState?.favorites ?? []).map((entry) =>
-            modelsByKey.get(toModelPickerKey({ provider: entry.provider, model: entry.model }))
+            modelsByKey.get(toModelPickerKey(entry))
         );
         const customCandidates = allCandidates.filter((model) => model.isCustom);
 
@@ -1159,6 +1148,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 await toggleFavoriteModel({
                     provider: model.provider,
                     model: model.name,
+                    ...(model.baseURL ? { baseURL: model.baseURL } : {}),
                 });
                 const nextState = await loadModelPickerState();
                 setModelPickerState(nextState);
@@ -1779,6 +1769,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                                   toModelPickerKey({
                                       provider: item.provider,
                                       model: item.name,
+                                      ...(item.baseURL ? { baseURL: item.baseURL } : {}),
                                   })
                               );
                               const prefix = getRowPrefix({

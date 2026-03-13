@@ -6410,6 +6410,10 @@
                             "type": "string",
                             "description": "Model ID"
                           },
+                          "baseURL": {
+                            "type": "string",
+                            "description": "Variant-specific base URL"
+                          },
                           "displayName": {
                             "type": "string",
                             "description": "Human-readable model name"
@@ -6478,6 +6482,10 @@
                           "model": {
                             "type": "string",
                             "description": "Model ID"
+                          },
+                          "baseURL": {
+                            "type": "string",
+                            "description": "Variant-specific base URL"
                           },
                           "displayName": {
                             "type": "string",
@@ -6548,6 +6556,10 @@
                             "type": "string",
                             "description": "Model ID"
                           },
+                          "baseURL": {
+                            "type": "string",
+                            "description": "Variant-specific base URL"
+                          },
                           "displayName": {
                             "type": "string",
                             "description": "Human-readable model name"
@@ -6616,6 +6628,10 @@
                           "model": {
                             "type": "string",
                             "description": "Model ID"
+                          },
+                          "baseURL": {
+                            "type": "string",
+                            "description": "Variant-specific base URL"
                           },
                           "displayName": {
                             "type": "string",
@@ -6917,6 +6933,11 @@
                     "type": "string",
                     "minLength": 1,
                     "description": "Model ID"
+                  },
+                  "baseURL": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Variant-specific base URL"
                   }
                 },
                 "required": [
@@ -7204,6 +7225,11 @@
                     "type": "string",
                     "minLength": 1,
                     "description": "Model ID"
+                  },
+                  "baseURL": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Variant-specific base URL"
                   }
                 },
                 "required": [
@@ -7501,6 +7527,11 @@
                           "type": "string",
                           "minLength": 1,
                           "description": "Model ID"
+                        },
+                        "baseURL": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "Variant-specific base URL"
                         }
                       },
                       "required": [

@@ -582,6 +582,13 @@ function promptMessageToTranscript(message: LanguageModelV2CallOptions['prompt']
                           }
                           return `[File: ${fileLabel}] data omitted`;
                       }
+                      default: {
+                          const unknownType =
+                              isRecord(part) && typeof part['type'] === 'string'
+                                  ? part['type']
+                                  : 'unknown';
+                          return `[Unknown Prompt Part: ${unknownType}]`;
+                      }
                   }
               });
 
