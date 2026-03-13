@@ -135,6 +135,48 @@ describe('createCodexLanguageModel', () => {
         vi.restoreAllMocks();
     });
 
+    it('serializes circular tool payloads in the transcript without throwing', async () => {
+        const mock = createMockClient();
+        vi.spyOn(CodexAppServerClient, 'create').mockResolvedValue(
+            mock.client as unknown as CodexAppServerClient
+        );
+
+        const circular: Record<string, unknown> = {};
+        circular['self'] = circular;
+        const prompt: LanguageModelV2CallOptions['prompt'] = [
+            {
+                role: 'tool',
+                content: [
+                    {
+                        toolName: 'lookup_repo',
+                        toolCallId: 'call-circular',
+                        // @ts-expect-error intentionally invalid circular payload to verify safe transcript serialization
+                        output: circular,
+                    },
+                ],
+            },
+        ];
+
+        const model = createCodexLanguageModel({
+            modelId: 'gpt-5.4',
+            baseURL: 'codex://chatgpt',
+        });
+
+        const execution = await model.doStream(
+            createCallOptions({
+                prompt,
+            })
+        );
+
+        await execution.stream.cancel();
+
+        expect(mock.client.startTurn).toHaveBeenCalledWith(
+            expect.objectContaining({
+                transcript: expect.stringContaining('[REDACTED_CIRCULAR]'),
+            })
+        );
+    });
+
     it('bridges Codex dynamic tool requests into AI SDK tool-call stream parts', async () => {
         const mock = createMockClient();
         vi.spyOn(CodexAppServerClient, 'create').mockResolvedValue(
@@ -447,6 +489,19 @@ describe('createCodexLanguageModel', () => {
         await expect(model.doStream(createCallOptions())).rejects.toMatchObject({
             code: LLMErrorCode.CONFIG_MISSING,
             message: expect.stringContaining('Codex CLI on PATH'),
+        });
+    });
+
+    it('fails fast when waiting on notifications after the client is closed', async () => {
+        const ClientCtor = CodexAppServerClient as unknown as {
+            new (options?: unknown): CodexAppServerClient;
+        };
+        const client = new ClientCtor();
+
+        await client.close();
+
+        await expect(client.waitForNotification('account/login/completed')).rejects.toMatchObject({
+            message: 'Codex app-server client is closed',
         });
     });
 });

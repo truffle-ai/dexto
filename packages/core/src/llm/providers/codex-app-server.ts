@@ -14,6 +14,7 @@ import type {
 } from '@ai-sdk/provider';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '../../errors/types.js';
+import { safeStringify } from '../../utils/safe-stringify.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { LLMError } from '../errors.js';
 import { type CodexAuthMode, parseCodexBaseURL } from './codex-base-url.js';
@@ -607,7 +608,7 @@ function promptMessageToTranscript(message: LanguageModelV2CallOptions['prompt']
     const parts =
         message.role === 'tool'
             ? message.content.map((part) => {
-                  const output = JSON.stringify(part.output);
+                  const output = safeStringify(part.output);
                   return `[Tool Result: ${part.toolName}#${part.toolCallId}]\n${output}`;
               })
             : message.content.map((part) => {
@@ -619,12 +620,12 @@ function promptMessageToTranscript(message: LanguageModelV2CallOptions['prompt']
                       case 'tool-call':
                           return (
                               `[Tool Call: ${part.toolName}#${part.toolCallId}]\n` +
-                              `${JSON.stringify(part.input)}`
+                              `${safeStringify(part.input)}`
                           );
                       case 'tool-result':
                           return (
                               `[Tool Result: ${part.toolName}#${part.toolCallId}]\n` +
-                              `${JSON.stringify(part.output)}`
+                              `${safeStringify(part.output)}`
                           );
                       case 'file': {
                           const url =
@@ -1075,6 +1076,10 @@ export class CodexAppServerClient {
         predicate?: ((params: unknown) => boolean) | undefined,
         options: { signal?: AbortSignal; timeoutMs?: number } = {}
     ): Promise<unknown> {
+        if (this.closed) {
+            throw createCodexClientRuntimeError('Codex app-server client is closed');
+        }
+
         const timeoutMs = options.timeoutMs ?? this.requestTimeoutMs;
 
         return await new Promise<unknown>((resolve, reject) => {
@@ -1155,12 +1160,15 @@ export class CodexAppServerClient {
             input: child.stdout,
             crlfDelay: Infinity,
         });
+        const drainStderr = () => undefined;
+        child.stderr.on('data', drainStderr);
 
         child.on('error', (error) => {
             this.rejectPending(error);
         });
 
         child.on('exit', (code, signal) => {
+            child.stderr.off('data', drainStderr);
             if (!this.closed) {
                 this.rejectPending(
                     createCodexClientRuntimeError(
