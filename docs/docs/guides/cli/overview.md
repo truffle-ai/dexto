@@ -9,7 +9,7 @@ The Dexto CLI provides two ways to interact with AI agents:
 
 | Mode | What It Is | How to Use |
 |------|------------|------------|
-| **CLI Tool** | Terminal commands for managing agents, sessions, and configuration | `dexto install`, `dexto setup`, `dexto list-agents` |
+| **CLI Tool** | Terminal commands for managing agents, sessions, and configuration | `dexto agents install`, `dexto setup`, `dexto agents list` |
 | **Interactive Mode** | Chat session with slash commands for real-time control | `/model switch`, `/mcp add`, `/search` |
 
 This guide covers the **CLI Tool** commands. For slash commands available during chat, see [Interactive Commands](./interactive-commands.md).
@@ -118,25 +118,25 @@ dexto setup --force
 
 See [Global Preferences](./global-preferences) for detailed configuration guide.
 
-### `install` - Install Agents
+### `agents install` - Install Agents
 
 Install agents from the registry or custom YAML files/directories.
 
 ```bash
 # Install single agent from registry
-dexto install nano-banana-agent
+dexto agents install nano-banana-agent
 
 # Install multiple agents
-dexto install podcast-agent coding-agent database-agent
+dexto agents install podcast-agent coding-agent database-agent
 
 # Install all available agents
-dexto install --all
+dexto agents install --all
 
 # Install custom agent from file
-dexto install ./my-agent.yml
+dexto agents install ./my-agent.yml
 
 # Install from directory (interactive)
-dexto install ./my-agent-dir/
+dexto agents install ./my-agent-dir/
 ```
 
 **Options:**
@@ -146,38 +146,73 @@ dexto install ./my-agent-dir/
 
 See the [Agent Registry](/docs/guides/agent-registry) for available agents.
 
-### `uninstall` - Uninstall Agents
+### `agents uninstall` - Uninstall Agents
 
 Remove agents from your local installation.
 
 ```bash
 # Uninstall single agent
-dexto uninstall nano-banana-agent
+dexto agents uninstall nano-banana-agent
 
 # Uninstall multiple agents
-dexto uninstall agent1 agent2
+dexto agents uninstall agent1 agent2
 
 # Uninstall all agents
-dexto uninstall --all
+dexto agents uninstall --all
 ```
 
 **Options:**
 - `--all` - Uninstall all installed agents
 - `--force` - Force uninstall even if agent is protected (e.g., coding-agent)
 
-### `sync-agents` - Sync Agent Configs
+### `upgrade` - Upgrade Dexto CLI
+
+Upgrade the Dexto CLI itself. If an older npm global install is detected, this command migrates to native installer automatically.
+
+```bash
+# Upgrade to latest
+dexto upgrade
+
+# Upgrade to a specific version
+dexto upgrade 1.6.8
+```
+
+**Options:**
+- `--dry-run` - Print install/migration commands without executing
+- `--force` - Force reinstall for native install target
+
+### `uninstall` - Uninstall Dexto CLI
+
+Uninstall the Dexto CLI binary (agent removal is handled by `dexto agents uninstall`).
+
+```bash
+# Remove CLI binary only (keeps ~/.dexto)
+dexto uninstall
+
+# Preview changes
+dexto uninstall --dry-run
+
+# Also remove ~/.dexto completely
+dexto uninstall --purge
+```
+
+**Options:**
+- `--purge` - Remove `~/.dexto` completely
+- `--dry-run` - Show what would be removed
+
+### `agents sync` - Sync Agent Configs
 
 Sync installed agents with bundled versions after Dexto updates.
 
 ```bash
 # Check status and prompt for updates
-dexto sync-agents
+dexto agents sync
 
 # List what would change (dry run)
-dexto sync-agents --list
+dexto agents sync --list
 
 # Force update all without prompts
-dexto sync-agents --force
+dexto agents sync --force
 ```
 
 **Options:**
@@ -186,22 +221,22 @@ dexto sync-agents --force
 
 **When to use:** When Dexto shows "Agent updates available" notification after an update, or when you want to reset agents to their default configurations.
 
-### `list-agents` - List Available Agents
+### `agents list` - List Available Agents
 
 List agents from the registry and locally installed agents.
 
 ```bash
 # List all agents (registry + installed)
-dexto list-agents
+dexto agents list
 
 # Show only installed agents
-dexto list-agents --installed
+dexto agents list --installed
 
 # Show only registry agents
-dexto list-agents --available
+dexto agents list --available
 
 # Show detailed information
-dexto list-agents --verbose
+dexto agents list --verbose
 ```
 
 **Options:**
@@ -359,13 +394,13 @@ dexto -r my-project-session "fix the bug we discussed"
 
 ```bash
 # Install agents for specific use cases
-dexto install podcast-agent music-agent coding-agent
+dexto agents install podcast-agent music-agent coding-agent
 
 # Install all available agents
-dexto install --all
+dexto agents install --all
 
 # List what's installed
-dexto list-agents --installed
+dexto agents list --installed
 
 # Find agent config location
 dexto which coding-agent

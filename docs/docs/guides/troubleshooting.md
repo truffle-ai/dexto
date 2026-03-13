@@ -75,8 +75,8 @@ Your provider requires an API key that isn't set up yet.
 ### Agent not found
 
 1. Check the agent name or path is correct
-2. List installed agents: `dexto list-agents --installed`
-3. Install the agent: `dexto install <agent-name>`
+2. List installed agents: `dexto agents list --installed`
+3. Install the agent: `dexto agents install <agent-name>`
 4. For custom agents, verify the path exists: `dexto --agent ./path/to/agent.yml`
 
 ### Rate-limiting errors
@@ -99,7 +99,7 @@ Run `dexto setup` to access the settings menu where you can change your provider
 
 After updating Dexto, run:
 ```bash
-dexto sync-agents
+dexto agents sync
 ```
 
 This syncs your installed agents with the latest bundled versions.

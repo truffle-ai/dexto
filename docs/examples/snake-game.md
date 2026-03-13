@@ -34,7 +34,7 @@ The Coding Agent can:
 
 ```bash
 # Install the agent
-dexto install coding-agent
+dexto agents install coding-agent
 
 # Open the agent in web UI
 dexto --agent coding-agent
