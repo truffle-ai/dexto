@@ -120,6 +120,21 @@ export interface CodexAppServerClientOptions {
     clientInfo?: CodexClientInfo;
 }
 
+const CODEX_PROTOCOL_ERROR_CODE = 'llm_codex_protocol_invalid';
+
+function createCodexProtocolError(
+    message: string,
+    context?: Record<string, unknown>
+): DextoRuntimeError<Record<string, unknown> | undefined> {
+    return new DextoRuntimeError(
+        CODEX_PROTOCOL_ERROR_CODE,
+        ErrorScope.LLM,
+        ErrorType.THIRD_PARTY,
+        message,
+        context
+    );
+}
+
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 const DEFAULT_CLIENT_INFO: CodexClientInfo = {
     name: 'dexto',
@@ -196,12 +211,19 @@ function parseCodexAccount(value: unknown): CodexAccount | null {
 
 function parseReadAccountResponse(value: unknown): CodexReadAccountResponse {
     if (!isRecord(value)) {
-        throw new Error('Invalid account/read response from Codex');
+        throw createCodexProtocolError('Invalid account/read response from Codex', {
+            method: 'account/read',
+        });
     }
 
     const requiresOpenaiAuth = getBoolean(value['requiresOpenaiAuth']);
     if (requiresOpenaiAuth === null) {
-        throw new Error('Codex account/read response is missing requiresOpenaiAuth');
+        throw createCodexProtocolError(
+            'Codex account/read response is missing requiresOpenaiAuth',
+            {
+                method: 'account/read',
+            }
+        );
     }
 
     return {
@@ -212,12 +234,16 @@ function parseReadAccountResponse(value: unknown): CodexReadAccountResponse {
 
 function parseLoginResponse(value: unknown): CodexLoginResponse {
     if (!isRecord(value)) {
-        throw new Error('Invalid account/login/start response from Codex');
+        throw createCodexProtocolError('Invalid account/login/start response from Codex', {
+            method: 'account/login/start',
+        });
     }
 
     const type = getString(value['type']);
     if (!type) {
-        throw new Error('Codex login response is missing type');
+        throw createCodexProtocolError('Codex login response is missing type', {
+            method: 'account/login/start',
+        });
     }
 
     if (type === 'apiKey') {
@@ -229,13 +255,18 @@ function parseLoginResponse(value: unknown): CodexLoginResponse {
     }
 
     if (type !== 'chatgpt') {
-        throw new Error(`Unsupported Codex login response type: ${type}`);
+        throw createCodexProtocolError(`Unsupported Codex login response type: ${type}`, {
+            method: 'account/login/start',
+            type,
+        });
     }
 
     const loginId = getString(value['loginId']);
     const authUrl = getString(value['authUrl']);
     if (!loginId || !authUrl) {
-        throw new Error('Codex ChatGPT login response is missing login details');
+        throw createCodexProtocolError('Codex ChatGPT login response is missing login details', {
+            method: 'account/login/start',
+        });
     }
 
     return {
@@ -250,12 +281,16 @@ function parseModelListResponse(value: unknown): {
     nextCursor: string | null;
 } {
     if (!isRecord(value)) {
-        throw new Error('Invalid model/list response from Codex');
+        throw createCodexProtocolError('Invalid model/list response from Codex', {
+            method: 'model/list',
+        });
     }
 
     const data = getArray(value['data']);
     if (!data) {
-        throw new Error('Codex model/list response is missing data');
+        throw createCodexProtocolError('Codex model/list response is missing data', {
+            method: 'model/list',
+        });
     }
 
     const models: CodexModelInfo[] = [];
@@ -310,12 +345,16 @@ function parseModelListResponse(value: unknown): {
 
 function parseThreadStartResponse(value: unknown): CodexThreadStartResponse {
     if (!isRecord(value) || !isRecord(value['thread'])) {
-        throw new Error('Invalid thread/start response from Codex');
+        throw createCodexProtocolError('Invalid thread/start response from Codex', {
+            method: 'thread/start',
+        });
     }
 
     const threadId = getString(value['thread']['id']);
     if (!threadId) {
-        throw new Error('Codex thread/start response is missing a thread ID');
+        throw createCodexProtocolError('Codex thread/start response is missing a thread ID', {
+            method: 'thread/start',
+        });
     }
 
     return {
@@ -327,12 +366,16 @@ function parseThreadStartResponse(value: unknown): CodexThreadStartResponse {
 
 function parseTurnStartResponse(value: unknown): CodexTurnStartResponse {
     if (!isRecord(value) || !isRecord(value['turn'])) {
-        throw new Error('Invalid turn/start response from Codex');
+        throw createCodexProtocolError('Invalid turn/start response from Codex', {
+            method: 'turn/start',
+        });
     }
 
     const turnId = getString(value['turn']['id']);
     if (!turnId) {
-        throw new Error('Codex turn/start response is missing a turn ID');
+        throw createCodexProtocolError('Codex turn/start response is missing a turn ID', {
+            method: 'turn/start',
+        });
     }
 
     return {
@@ -825,7 +868,7 @@ export class CodexAppServerClient {
     private started = false;
     private closed = false;
 
-    constructor(options: CodexAppServerClientOptions = {}) {
+    private constructor(options: CodexAppServerClientOptions = {}) {
         this.command = options.command ?? 'codex';
         this.cwd = options.cwd;
         this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
@@ -834,8 +877,13 @@ export class CodexAppServerClient {
 
     static async create(options: CodexAppServerClientOptions = {}): Promise<CodexAppServerClient> {
         const client = new CodexAppServerClient(options);
-        await client.start();
-        return client;
+        try {
+            await client.start();
+            return client;
+        } catch (error) {
+            await client.close().catch(() => undefined);
+            throw error;
+        }
     }
 
     async close(): Promise<void> {
@@ -857,7 +905,7 @@ export class CodexAppServerClient {
         const child = this.child;
         this.child = null;
 
-        if (!child || child.killed) {
+        if (!child || child.killed || child.exitCode !== null || child.signalCode !== null) {
             return;
         }
 
@@ -913,12 +961,19 @@ export class CodexAppServerClient {
         );
 
         if (!isRecord(params)) {
-            throw new Error('Invalid account/login/completed notification from Codex');
+            throw createCodexProtocolError(
+                'Invalid account/login/completed notification from Codex',
+                {
+                    method: 'account/login/completed',
+                }
+            );
         }
 
         const success = getBoolean(params['success']);
         if (success === null) {
-            throw new Error('Codex login completion is missing success');
+            throw createCodexProtocolError('Codex login completion is missing success', {
+                method: 'account/login/completed',
+            });
         }
 
         return {
@@ -1266,9 +1321,6 @@ export function createCodexLanguageModel(options: {
                 ? callOptions.responseFormat.schema
                 : undefined;
 
-        const client = await CodexAppServerClient.create({
-            ...(options.cwd ? { cwd: options.cwd } : {}),
-        });
         let latestRateLimitSnapshot: CodexRateLimitSnapshot | null = null;
         const emitRateLimitStatus = (snapshot: CodexRateLimitSnapshot | null) => {
             if (!snapshot) {
@@ -1279,27 +1331,32 @@ export function createCodexLanguageModel(options: {
             options.onRateLimitStatus?.(snapshot);
         };
 
+        let client: CodexAppServerClient | null = null;
         try {
-            const account = await client.readAccount(false);
+            client = await CodexAppServerClient.create({
+                ...(options.cwd ? { cwd: options.cwd } : {}),
+            });
+            const activeClient = client;
+            const account = await activeClient.readAccount(false);
             enforceAuthMode(authMode, account);
             const shouldTrackRateLimits =
                 account.account?.type === 'chatgpt' || authMode === 'chatgpt';
 
             if (shouldTrackRateLimits) {
-                void client
+                void activeClient
                     .readRateLimits()
                     .then((snapshot) => emitRateLimitStatus(snapshot))
                     .catch(() => undefined);
             }
 
-            const thread = await client.startEphemeralThread({
+            const thread = await activeClient.startEphemeralThread({
                 model: options.modelId,
                 ...(options.cwd ? { cwd: options.cwd } : {}),
                 developerInstructions,
                 dynamicTools,
             });
 
-            const turn = await client.startTurn({
+            const turn = await activeClient.startTurn({
                 threadId: thread.thread.id,
                 model: options.modelId,
                 transcript,
@@ -1329,7 +1386,7 @@ export function createCodexLanguageModel(options: {
                             offAbort();
                             offAbort = null;
                         }
-                        void client.close();
+                        void activeClient.close();
                     };
 
                     const ensureStreamStarted = () => {
@@ -1403,7 +1460,7 @@ export function createCodexLanguageModel(options: {
                         );
                     };
 
-                    const unsubscribeNotifications = client.onNotification((message) => {
+                    const unsubscribeNotifications = activeClient.onNotification((message) => {
                         if (message.method === 'account/rateLimits/updated') {
                             emitRateLimitStatus(pickPrimaryRateLimitSnapshot(message.params));
                             return;
@@ -1552,9 +1609,9 @@ export function createCodexLanguageModel(options: {
                         }
                     });
 
-                    const unsubscribeRequests = client.onServerRequest((request) => {
+                    const unsubscribeRequests = activeClient.onServerRequest((request) => {
                         if (request.method !== 'item/tool/call') {
-                            client.rejectServerRequest(
+                            activeClient.rejectServerRequest(
                                 request.id,
                                 `Codex request "${request.method}" is not supported because Dexto executes tools and approvals itself.`
                             );
@@ -1567,7 +1624,7 @@ export function createCodexLanguageModel(options: {
                             toolCall.threadId !== thread.thread.id ||
                             toolCall.turnId !== turn.turn.id
                         ) {
-                            client.rejectServerRequest(
+                            activeClient.rejectServerRequest(
                                 request.id,
                                 'Received an invalid Codex dynamic tool call payload.'
                             );
@@ -1619,7 +1676,7 @@ export function createCodexLanguageModel(options: {
                     }
                 },
                 cancel() {
-                    void client.close();
+                    void activeClient.close();
                 },
             });
 
@@ -1635,7 +1692,7 @@ export function createCodexLanguageModel(options: {
                 },
             };
         } catch (error) {
-            await client.close().catch(() => undefined);
+            await client?.close().catch(() => undefined);
             const mappedError = toCodexFailureMessage(error, options.modelId);
             if (
                 mappedError instanceof DextoRuntimeError &&

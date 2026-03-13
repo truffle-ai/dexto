@@ -6412,6 +6412,7 @@
                           },
                           "baseURL": {
                             "type": "string",
+                            "format": "uri",
                             "description": "Variant-specific base URL"
                           },
                           "displayName": {
@@ -6485,6 +6486,7 @@
                           },
                           "baseURL": {
                             "type": "string",
+                            "format": "uri",
                             "description": "Variant-specific base URL"
                           },
                           "displayName": {
@@ -6558,6 +6560,7 @@
                           },
                           "baseURL": {
                             "type": "string",
+                            "format": "uri",
                             "description": "Variant-specific base URL"
                           },
                           "displayName": {
@@ -6631,6 +6634,7 @@
                           },
                           "baseURL": {
                             "type": "string",
+                            "format": "uri",
                             "description": "Variant-specific base URL"
                           },
                           "displayName": {
@@ -6936,7 +6940,7 @@
                   },
                   "baseURL": {
                     "type": "string",
-                    "minLength": 1,
+                    "format": "uri",
                     "description": "Variant-specific base URL"
                   }
                 },
@@ -7228,7 +7232,7 @@
                   },
                   "baseURL": {
                     "type": "string",
-                    "minLength": 1,
+                    "format": "uri",
                     "description": "Variant-specific base URL"
                   }
                 },
@@ -7530,7 +7534,7 @@
                         },
                         "baseURL": {
                           "type": "string",
-                          "minLength": 1,
+                          "format": "uri",
                           "description": "Variant-specific base URL"
                         }
                       },

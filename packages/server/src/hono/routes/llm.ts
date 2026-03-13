@@ -129,7 +129,7 @@ const ModelPickerModelRefSchema = z
     .object({
         provider: z.enum(LLM_PROVIDERS).describe('LLM provider'),
         model: z.string().trim().min(1).describe('Model ID'),
-        baseURL: z.string().trim().min(1).optional().describe('Variant-specific base URL'),
+        baseURL: z.string().trim().url().optional().describe('Variant-specific base URL'),
     })
     .strict()
     .describe('Provider/model pair for model picker state operations');
@@ -138,7 +138,7 @@ const ModelPickerEntrySchema = z
     .object({
         provider: z.enum(LLM_PROVIDERS).describe('LLM provider'),
         model: z.string().describe('Model ID'),
-        baseURL: z.string().optional().describe('Variant-specific base URL'),
+        baseURL: z.string().url().optional().describe('Variant-specific base URL'),
         displayName: z.string().optional().describe('Human-readable model name'),
         supportedFileTypes: z
             .array(z.enum(SUPPORTED_FILE_TYPES))
@@ -741,6 +741,9 @@ export function createLlmRouter(getAgent: GetAgentFn) {
 
         const state = await loadModelPickerState();
         for (const entry of [...state.recents, ...state.favorites]) {
+            if (!isProviderEnabled(entry.provider)) {
+                continue;
+            }
             const key = toModelPickerKey(entry);
             if (!byKey.has(key)) {
                 byKey.set(key, hydrateStateEntry(entry));

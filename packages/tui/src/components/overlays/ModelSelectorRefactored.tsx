@@ -79,6 +79,24 @@ function isChatGPTCodexConfig(provider: LLMProvider, baseURL?: string): boolean 
     return provider === 'openai-compatible' && isChatGPTCodexBaseURL(baseURL);
 }
 
+function canonicalizeModelBaseURL(baseURL?: string): string | undefined {
+    const parsed = parseCodexBaseURL(baseURL);
+    return parsed ? createCodexBaseURL(parsed.authMode) : baseURL;
+}
+
+function toCanonicalModelPickerKey(input: {
+    provider: LLMProvider;
+    model: string;
+    baseURL?: string | undefined;
+}): string {
+    const baseURL = canonicalizeModelBaseURL(input.baseURL);
+    return toModelPickerKey({
+        provider: input.provider,
+        model: input.model,
+        ...(baseURL ? { baseURL } : {}),
+    });
+}
+
 function matchesConfiguredModel(
     candidate: Pick<ModelOption, 'provider' | 'name' | 'baseURL'>,
     configured: { provider: LLMProvider; model: string; baseURL?: string }
@@ -324,7 +342,7 @@ interface AddCustomOption {
 type SelectorItem = ModelOption | AddCustomOption;
 
 function toModelIdentityKey(model: Pick<ModelOption, 'provider' | 'name' | 'baseURL'>): string {
-    return toModelPickerKey({
+    return toCanonicalModelPickerKey({
         provider: model.provider,
         model: model.name,
         ...(model.baseURL ? { baseURL: model.baseURL } : {}),
@@ -993,7 +1011,10 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
     }, [isVisible, agent, refreshVersion]);
 
     const favoriteKeySet = useMemo(
-        () => new Set((modelPickerState?.favorites ?? []).map((entry) => toModelPickerKey(entry))),
+        () =>
+            new Set(
+                (modelPickerState?.favorites ?? []).map((entry) => toCanonicalModelPickerKey(entry))
+            ),
         [modelPickerState]
     );
 
@@ -1059,13 +1080,13 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         const featuredCandidates = getCuratedModelRefsForProviders({
             providers: providersInModels,
             max: FEATURED_SECTION_LIMIT,
-        }).map((ref) => modelsByKey.get(toModelPickerKey(ref)));
+        }).map((ref) => modelsByKey.get(toCanonicalModelPickerKey(ref)));
 
         const recentsFromState = (modelPickerState?.recents ?? []).map((entry) =>
-            modelsByKey.get(toModelPickerKey(entry))
+            modelsByKey.get(toCanonicalModelPickerKey(entry))
         );
         const favoritesFromState = (modelPickerState?.favorites ?? []).map((entry) =>
-            modelsByKey.get(toModelPickerKey(entry))
+            modelsByKey.get(toCanonicalModelPickerKey(entry))
         );
         const customCandidates = allCandidates.filter((model) => model.isCustom);
 
@@ -1145,10 +1166,11 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
     const handleToggleFavoriteModel = useCallback(
         async (model: ModelOption) => {
             try {
+                const baseURL = canonicalizeModelBaseURL(model.baseURL);
                 await toggleFavoriteModel({
                     provider: model.provider,
                     model: model.name,
-                    ...(model.baseURL ? { baseURL: model.baseURL } : {}),
+                    ...(baseURL ? { baseURL } : {}),
                 });
                 const nextState = await loadModelPickerState();
                 setModelPickerState(nextState);
@@ -1766,7 +1788,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                               );
                               const name = item.displayName || item.name;
                               const isFavorite = favoriteKeySet.has(
-                                  toModelPickerKey({
+                                  toCanonicalModelPickerKey({
                                       provider: item.provider,
                                       model: item.name,
                                       ...(item.baseURL ? { baseURL: item.baseURL } : {}),

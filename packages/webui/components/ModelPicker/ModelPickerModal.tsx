@@ -755,7 +755,9 @@ export default function ModelPickerModal() {
     const resolveModelInfoFromEntry = useCallback(
         (entry: ModelPickerSectionEntry): ModelInfo => {
             const key = favKey(entry.provider, entry.model, entry.baseURL);
-            const providerModel = providerModelsByKey.get(key);
+            const providerModel =
+                providerModelsByKey.get(key) ??
+                providerModelsByKey.get(favKey(entry.provider, entry.model));
             if (providerModel) {
                 return providerModel;
             }
@@ -964,7 +966,7 @@ export default function ModelPickerModal() {
     const isCurrentModel = (providerId: string, modelName: string, modelBaseURL?: string) =>
         currentLLM?.provider === providerId &&
         currentLLM?.model === modelName &&
-        (currentLLM.baseURL ?? '') === (modelBaseURL ?? '');
+        (modelBaseURL === undefined || (currentLLM.baseURL ?? '') === modelBaseURL);
 
     return (
         <>

@@ -435,4 +435,18 @@ describe('createCodexLanguageModel', () => {
             })
         );
     });
+
+    it('maps Codex startup failures through the standard LLM error path', async () => {
+        vi.spyOn(CodexAppServerClient, 'create').mockRejectedValue(new Error('spawn codex ENOENT'));
+
+        const model = createCodexLanguageModel({
+            modelId: 'gpt-5.4',
+            baseURL: 'codex://chatgpt',
+        });
+
+        await expect(model.doStream(createCallOptions())).rejects.toMatchObject({
+            code: LLMErrorCode.CONFIG_MISSING,
+            message: expect.stringContaining('Codex CLI on PATH'),
+        });
+    });
 });
