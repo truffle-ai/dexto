@@ -28,7 +28,8 @@ describe('codex base URL helpers', () => {
 
     it('formats display labels for Codex auth modes', () => {
         expect(getCodexAuthModeLabel('chatgpt')).toBe('ChatGPT');
-        expect(getCodexProviderDisplayName('apikey')).toBe('OpenAI Codex (API key)');
-        expect(getCodexProviderDisplayName()).toBe('OpenAI Codex');
+        expect(getCodexProviderDisplayName('chatgpt')).toBe('ChatGPT Login');
+        expect(getCodexProviderDisplayName('apikey')).toBe('ChatGPT Login (API key)');
+        expect(getCodexProviderDisplayName()).toBe('ChatGPT Login');
     });
 });

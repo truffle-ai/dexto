@@ -61,9 +61,9 @@ export function getCodexAuthModeLabel(mode: CodexAuthMode): string {
 }
 
 export function getCodexProviderDisplayName(mode: CodexAuthMode = 'auto'): string {
-    if (mode === 'auto') {
-        return 'OpenAI Codex';
+    if (mode === 'auto' || mode === 'chatgpt') {
+        return 'ChatGPT Login';
     }
 
-    return `OpenAI Codex (${getCodexAuthModeLabel(mode)})`;
+    return `ChatGPT Login (${getCodexAuthModeLabel(mode)})`;
 }

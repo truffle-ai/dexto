@@ -34,6 +34,10 @@ function defaultSessionLoggerFactory(options: {
  */
 export type SessionTokenUsage = Required<TokenUsage>;
 
+export interface SessionUsageTracking {
+    hasUntrackedChatGPTLoginUsage?: boolean;
+}
+
 /**
  * Per-model statistics for tracking usage across multiple models within a session.
  */
@@ -57,6 +61,7 @@ export interface SessionMetadata {
     modelStats?: ModelStatistics[];
     workspaceId?: string;
     parentSessionId?: string;
+    usageTracking?: SessionUsageTracking;
 }
 
 export interface SessionManagerConfig {
@@ -80,6 +85,7 @@ export interface SessionData {
     modelStats?: ModelStatistics[];
     workspaceId?: string;
     parentSessionId?: string;
+    usageTracking?: SessionUsageTracking;
     /** Persisted LLM config override for this session */
     llmOverride?: PersistedLLMConfig;
 }
@@ -728,7 +734,35 @@ export class SessionManager {
             ...(sessionData.parentSessionId !== undefined && {
                 parentSessionId: sessionData.parentSessionId,
             }),
+            ...(sessionData.usageTracking && { usageTracking: sessionData.usageTracking }),
         };
+    }
+
+    public async markUntrackedChatGPTLoginUsage(sessionId: string): Promise<void> {
+        await this.ensureInitialized();
+
+        const sessionKey = `session:${sessionId}`;
+        const sessionData = await this.services.storageManager
+            .getDatabase()
+            .get<SessionData>(sessionKey);
+
+        if (!sessionData) {
+            return;
+        }
+
+        if (sessionData.usageTracking?.hasUntrackedChatGPTLoginUsage) {
+            return;
+        }
+
+        sessionData.usageTracking = {
+            ...(sessionData.usageTracking ?? {}),
+            hasUntrackedChatGPTLoginUsage: true,
+        };
+
+        await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
+        await this.services.storageManager
+            .getCache()
+            .set(sessionKey, sessionData, this.sessionTTL / 1000);
     }
 
     /**

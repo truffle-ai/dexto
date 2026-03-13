@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import { tmpdir } from 'os';
+import { stripVTControlCharacters } from 'node:util';
 import { handleSetupCommand, type CLISetupOptionsInput } from './setup.js';
 
 const { mockCodexAppServerCreate, mockOpen } = vi.hoisted(() => ({
@@ -42,12 +43,12 @@ vi.mock('@dexto/core', async () => {
         }),
         getCodexProviderDisplayName: vi.fn((mode: string = 'auto') => {
             if (mode === 'chatgpt') {
-                return 'OpenAI Codex (ChatGPT)';
+                return 'ChatGPT Login';
             }
             if (mode === 'apikey') {
-                return 'OpenAI Codex (API key)';
+                return 'ChatGPT Login (API key)';
             }
-            return 'OpenAI Codex';
+            return 'ChatGPT Login';
         }),
         getCodexAuthModeLabel: vi.fn((mode: string) => {
             if (mode === 'chatgpt') {
@@ -323,7 +324,7 @@ describe('Setup Command', () => {
     });
 
     describe('Interactive setup', () => {
-        it('configures OpenAI Codex with ChatGPT login', async () => {
+        it('configures ChatGPT Login with ChatGPT auth', async () => {
             const codexClient = {
                 readAccount: vi.fn(),
                 startLogin: vi.fn(),
@@ -334,7 +335,6 @@ describe('Setup Command', () => {
             };
 
             codexClient.readAccount
-                .mockResolvedValueOnce({ account: null, requiresOpenaiAuth: true })
                 .mockResolvedValueOnce({ account: null, requiresOpenaiAuth: true })
                 .mockResolvedValueOnce({
                     account: {
@@ -825,11 +825,9 @@ describe('Setup Command', () => {
                 await handleSetupCommand({ interactive: true });
 
                 const stripAnsi = (value: unknown) =>
-                    typeof value === 'string'
-                        ? value.replace(/\u001B\[[0-9;]*m/g, '')
-                        : String(value);
+                    typeof value === 'string' ? stripVTControlCharacters(value) : String(value);
                 const [noteText] = mockPrompts.note.mock.calls[0] ?? [];
-                expect(stripAnsi(noteText)).toContain('Provider: OpenAI Codex (ChatGPT)');
+                expect(stripAnsi(noteText)).toContain('Provider: ChatGPT Login');
                 expect(stripAnsi(noteText)).toContain('Authentication: ChatGPT');
 
                 const [settingsSelect] = mockPrompts.select.mock.calls[0] ?? [];

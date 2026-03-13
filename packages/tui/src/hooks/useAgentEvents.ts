@@ -24,6 +24,7 @@ import { useEffect, useRef } from 'react';
 import { setMaxListeners } from 'events';
 import {
     getModelDisplayName,
+    parseCodexBaseURL,
     type DextoAgent,
     type QueuedMessage,
     type ContentPart,
@@ -109,6 +110,38 @@ export function useAgentEvents({
                         ),
                     }));
                 }
+
+                const nextIsChatGPTLogin =
+                    payload.newConfig?.provider === 'openai-compatible' &&
+                    parseCodexBaseURL(payload.newConfig?.baseURL)?.authMode === 'chatgpt';
+
+                if (!nextIsChatGPTLogin) {
+                    setUi((prev) => ({
+                        ...prev,
+                        chatgptRateLimitStatus: null,
+                        ...(prev.activeOverlay === 'chatgpt-usage-cap'
+                            ? { activeOverlay: 'none' as const }
+                            : {}),
+                    }));
+                }
+            },
+            { signal }
+        );
+
+        agent.on(
+            'llm:rate-limit-status',
+            (payload) => {
+                if (payload.sessionId !== currentSessionId) {
+                    return;
+                }
+
+                setUi((prev) => ({
+                    ...prev,
+                    chatgptRateLimitStatus: payload.snapshot,
+                    ...(payload.snapshot.exceeded && prev.activeOverlay === 'none'
+                        ? { activeOverlay: 'chatgpt-usage-cap' as const }
+                        : {}),
+                }));
             },
             { signal }
         );
@@ -211,7 +244,11 @@ export function useAgentEvents({
                 setApproval(null);
                 setApprovalQueue([]);
                 setQueuedMessages([]);
-                setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
+                setUi((prev) => ({
+                    ...prev,
+                    activeOverlay: 'none',
+                    chatgptRateLimitStatus: null,
+                }));
             },
             { signal }
         );
@@ -262,6 +299,7 @@ export function useAgentEvents({
                     setUi((prev) => ({
                         ...prev,
                         activeOverlay: 'none',
+                        chatgptRateLimitStatus: null,
                         historySearch: {
                             isActive: false,
                             query: '',
@@ -284,7 +322,11 @@ export function useAgentEvents({
                 setApproval(null);
                 setApprovalQueue([]);
                 setQueuedMessages([]);
-                setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
+                setUi((prev) => ({
+                    ...prev,
+                    activeOverlay: 'none',
+                    chatgptRateLimitStatus: null,
+                }));
             },
             { signal }
         );

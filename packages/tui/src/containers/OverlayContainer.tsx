@@ -77,7 +77,11 @@ import McpCustomWizard, {
 import CustomModelWizard, {
     type CustomModelWizardHandle,
 } from '../components/overlays/CustomModelWizard.js';
+import ChatGPTUsageCapOverlay, {
+    type ChatGPTUsageCapOverlayHandle,
+} from '../components/overlays/ChatGPTUsageCapOverlay.js';
 import { getLLMProviderDisplayName } from '../utils/llm-provider-display.js';
+import { resolveChatGPTFallbackModel } from '../utils/chatgpt-rate-limit.js';
 import {
     getProviderKeyStatus,
     loadGlobalPreferences,
@@ -261,6 +265,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const mcpCustomWizardRef = useRef<McpCustomWizardHandle>(null);
         const customModelWizardRef = useRef<CustomModelWizardHandle>(null);
         const sessionSubcommandSelectorRef = useRef<SessionSubcommandSelectorHandle>(null);
+        const chatGPTUsageCapRef = useRef<ChatGPTUsageCapOverlayHandle>(null);
         const apiKeyInputRef = useRef<ApiKeyInputHandle>(null);
         const loginOverlayRef = useRef<LoginOverlayHandle>(null);
         const logoutOverlayRef = useRef<LogoutOverlayHandle>(null);
@@ -361,6 +366,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                 sessionSubcommandSelectorRef.current?.handleInput(inputStr, key) ??
                                 false
                             );
+                        case 'chatgpt-usage-cap':
+                            return chatGPTUsageCapRef.current?.handleInput(inputStr, key) ?? false;
                         case 'api-key-input':
                             return apiKeyInputRef.current?.handleInput(inputStr, key) ?? false;
                         case 'login':
@@ -873,6 +880,61 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             },
             [setUi, setInput, setMessages, buffer, editingModel, handleModelSelect]
         );
+
+        const handleChatGPTUsageCapClose = useCallback(() => {
+            setUi((prev) => ({
+                ...prev,
+                activeOverlay: 'none',
+            }));
+        }, [setUi]);
+
+        const handleChatGPTUsageCapConfirm = useCallback(async () => {
+            const currentLLMConfig = session.id
+                ? agent.getCurrentLLMConfig(session.id)
+                : agent.getCurrentLLMConfig();
+            const fallbackTarget = resolveChatGPTFallbackModel(currentLLMConfig.model);
+            const providerKeyStatus = getProviderKeyStatus(fallbackTarget.provider);
+            const reasoningVariant = fallbackTarget.usedDefaultFallback
+                ? undefined
+                : currentLLMConfig.reasoning?.variant;
+
+            if (providerKeyStatus.hasApiKey) {
+                setUi((prev) => ({
+                    ...prev,
+                    activeOverlay: 'none',
+                }));
+
+                await handleModelSelect(
+                    fallbackTarget.provider,
+                    fallbackTarget.model,
+                    fallbackTarget.displayName,
+                    undefined,
+                    reasoningVariant
+                );
+                return;
+            }
+
+            setUi((prev) => ({
+                ...prev,
+                activeOverlay: 'api-key-input',
+                pendingModelSwitch: {
+                    provider: fallbackTarget.provider,
+                    model: fallbackTarget.model,
+                    displayName: fallbackTarget.displayName,
+                    ...(reasoningVariant !== undefined ? { reasoningVariant } : {}),
+                },
+            }));
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: generateMessageId('system'),
+                    role: 'system',
+                    content:
+                        '🔑 ChatGPT Login hit its usage cap. Add an OpenAI API key to continue with the API provider.',
+                    timestamp: new Date(),
+                },
+            ]);
+        }, [agent, handleModelSelect, session.id, setMessages, setUi]);
 
         // Handle API key saved - retry the model switch
         const handleApiKeySaved = useCallback(
@@ -2578,6 +2640,12 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
         }, [setUi]);
 
+        const currentLLMConfig = session.id
+            ? agent.getCurrentLLMConfig(session.id)
+            : agent.getCurrentLLMConfig();
+        const chatGPTFallbackTarget = resolveChatGPTFallbackModel(currentLLMConfig.model);
+        const chatGPTFallbackKeyStatus = getProviderKeyStatus(chatGPTFallbackTarget.provider);
+
         const hideCliChrome = shouldHideCliChrome(ui.activeOverlay, approval);
 
         const overlayContent = (
@@ -2899,6 +2967,23 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             isVisible={true}
                             onSelect={handleSessionSubcommandSelect}
                             onClose={handleClose}
+                        />
+                    </Box>
+                )}
+
+                {/* ChatGPT usage-cap recovery */}
+                {ui.activeOverlay === 'chatgpt-usage-cap' && (
+                    <Box marginTop={1}>
+                        <ChatGPTUsageCapOverlay
+                            ref={chatGPTUsageCapRef}
+                            isVisible={true}
+                            currentModelDisplayName={session.modelName}
+                            fallbackModelDisplayName={chatGPTFallbackTarget.displayName}
+                            usedDefaultFallback={chatGPTFallbackTarget.usedDefaultFallback}
+                            apiKeyConfigured={chatGPTFallbackKeyStatus.hasApiKey}
+                            status={ui.chatgptRateLimitStatus}
+                            onConfirm={handleChatGPTUsageCapConfirm}
+                            onClose={handleChatGPTUsageCapClose}
                         />
                     </Box>
                 )}

@@ -602,7 +602,7 @@ async function ensureCodexChatGPTLogin(client: CodexAppServerClient): Promise<Co
 
     p.note(
         `Finish the ChatGPT login in your browser.\n\n${chalk.dim(login.authUrl)}`,
-        'OpenAI Codex Login'
+        'ChatGPT Login'
     );
 
     const waitSpinner = p.spinner();
@@ -674,7 +674,7 @@ function getCodexModelOptions(
 }
 
 /**
- * OpenAI Codex setup flow - authenticate with ChatGPT through Codex, choose a model, save preferences
+ * ChatGPT Login setup flow - authenticate with ChatGPT through Codex, choose a model, save preferences
  *
  * Config storage:
  * - provider: 'openai-compatible'
@@ -693,7 +693,7 @@ async function handleCodexProviderSetup(
         return false;
     };
 
-    console.log(chalk.cyan('\nOpenAI Codex Setup\n'));
+    console.log(chalk.cyan('\nChatGPT Login Setup\n'));
 
     let client: CodexAppServerClient | null = null;
 
@@ -784,7 +784,7 @@ async function handleCodexProviderSetup(
         return true;
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        p.log.error(`OpenAI Codex setup failed: ${errorMessage}`);
+        p.log.error(`ChatGPT Login setup failed: ${errorMessage}`);
         return abort('Setup cancelled', 1);
     } finally {
         if (client) {
@@ -805,7 +805,7 @@ async function handleCodexChatGPTLoginRefresh(
         return false;
     };
 
-    console.log(chalk.cyan('\nOpenAI Codex ChatGPT Login\n'));
+    console.log(chalk.cyan('\nChatGPT Login\n'));
 
     let client: CodexAppServerClient | null = null;
 
@@ -822,7 +822,7 @@ async function handleCodexChatGPTLoginRefresh(
         return true;
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        p.log.error(`OpenAI Codex ChatGPT login failed: ${errorMessage}`);
+        p.log.error(`ChatGPT Login failed: ${errorMessage}`);
         return abort('ChatGPT login cancelled', 1);
     } finally {
         if (client) {
@@ -1122,7 +1122,7 @@ async function wizardStepSetupType(state: SetupWizardState): Promise<SetupWizard
     options.push(
         {
             value: 'openai-codex',
-            label: `${chalk.green('●')} OpenAI Codex`,
+            label: `${chalk.green('●')} ChatGPT Login`,
             hint: 'Use your ChatGPT account through Codex',
         },
         {
@@ -2108,7 +2108,7 @@ async function changeModel(currentProvider?: LLMProvider, currentBaseURL?: strin
         sourceOptions.push(
             {
                 value: 'openai-codex',
-                label: `${chalk.green('●')} OpenAI Codex`,
+                label: `${chalk.green('●')} ChatGPT Login`,
                 hint: 'Use your ChatGPT account through Codex',
             },
             {

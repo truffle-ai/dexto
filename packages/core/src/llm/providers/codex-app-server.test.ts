@@ -1,9 +1,13 @@
+/* global ReadableStream */
+
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
     JSONSchema7,
     LanguageModelV2CallOptions,
     LanguageModelV2StreamPart,
 } from '@ai-sdk/provider';
+import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
+import { LLMErrorCode } from '../error-codes.js';
 import { CodexAppServerClient, createCodexLanguageModel } from './codex-app-server.js';
 
 type TestNotification = {
@@ -65,6 +69,7 @@ function createMockClient() {
             },
             requiresOpenaiAuth: false,
         }),
+        readRateLimits: vi.fn().mockResolvedValue(null),
         startEphemeralThread: vi.fn().mockResolvedValue({
             thread: {
                 id: 'thread-1',
@@ -249,9 +254,7 @@ describe('createCodexLanguageModel', () => {
                 type: 'tool-call',
                 toolCallId: 'call-7',
                 toolName: 'lookup_repo',
-                input: {
-                    query: 'where is the codex provider',
-                },
+                input: '{"query":"where is the codex provider"}',
             },
         ]);
         expect(result.warnings).toEqual([]);
@@ -315,5 +318,121 @@ describe('createCodexLanguageModel', () => {
                 totalTokens: undefined,
             },
         });
+    });
+
+    it('emits best-effort ChatGPT rate-limit snapshots to the host callback', async () => {
+        const mock = createMockClient();
+        mock.client.readRateLimits.mockResolvedValue({
+            source: 'chatgpt-login',
+            usedPercent: 82,
+            exceeded: false,
+            limitName: '5-hour usage',
+            resetsAt: '2026-03-13T08:40:00.000Z',
+            windowMinutes: 300,
+        });
+        vi.spyOn(CodexAppServerClient, 'create').mockResolvedValue(
+            mock.client as unknown as CodexAppServerClient
+        );
+        const onRateLimitStatus = vi.fn();
+
+        const model = createCodexLanguageModel({
+            modelId: 'gpt-5.4',
+            baseURL: 'codex://chatgpt',
+            onRateLimitStatus,
+        });
+
+        const execution = await model.doStream(createCallOptions());
+        await Promise.resolve();
+
+        mock.emitNotification({
+            method: 'account/rateLimits/updated',
+            params: {
+                rateLimits: [
+                    {
+                        limitName: 'weekly usage',
+                        usedPercent: 91,
+                        resetsAt: '2026-03-15T00:00:00.000Z',
+                        windowDurationMins: 10080,
+                    },
+                ],
+            },
+        });
+        mock.emitNotification({
+            method: 'turn/completed',
+            params: {
+                threadId: 'thread-1',
+                turn: {
+                    id: 'turn-1',
+                    status: 'completed',
+                },
+            },
+        });
+        await readAllParts(execution.stream);
+
+        expect(onRateLimitStatus).toHaveBeenCalledWith(
+            expect.objectContaining({
+                usedPercent: 82,
+                exceeded: false,
+                limitName: '5-hour usage',
+            })
+        );
+        expect(onRateLimitStatus).toHaveBeenCalledWith(
+            expect.objectContaining({
+                usedPercent: 91,
+                exceeded: false,
+                limitName: 'weekly usage',
+                windowMinutes: 10080,
+            })
+        );
+    });
+
+    it('maps ChatGPT usage-limit failures to a rate-limit runtime error', async () => {
+        const mock = createMockClient();
+        vi.spyOn(CodexAppServerClient, 'create').mockResolvedValue(
+            mock.client as unknown as CodexAppServerClient
+        );
+        const onRateLimitStatus = vi.fn();
+
+        const model = createCodexLanguageModel({
+            modelId: 'gpt-5.4',
+            baseURL: 'codex://chatgpt',
+            onRateLimitStatus,
+        });
+
+        const execution = await model.doStream(createCallOptions());
+        await mock.requestReady;
+
+        mock.emitNotification({
+            method: 'error',
+            params: {
+                threadId: 'thread-1',
+                turnId: 'turn-1',
+                willRetry: false,
+                error: {
+                    message: "You've hit your usage limit.",
+                    additionalDetails: 'Visit ChatGPT settings to purchase more credits.',
+                    codexErrorInfo: {
+                        usageLimitExceeded: {},
+                    },
+                },
+            },
+        });
+
+        const parts = await readAllParts(execution.stream);
+        const errorPart = parts[0];
+
+        expect(errorPart?.type).toBe('error');
+        if (!errorPart || errorPart.type !== 'error') {
+            throw new Error('Expected a stream error part');
+        }
+
+        expect(errorPart.error).toBeInstanceOf(DextoRuntimeError);
+        expect((errorPart.error as DextoRuntimeError).code).toBe(LLMErrorCode.RATE_LIMIT_EXCEEDED);
+        expect(onRateLimitStatus).toHaveBeenCalledWith(
+            expect.objectContaining({
+                exceeded: true,
+                usedPercent: 100,
+            })
+        );
     });
 });

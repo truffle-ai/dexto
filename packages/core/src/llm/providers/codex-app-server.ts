@@ -1,3 +1,5 @@
+/* global ReadableStream */
+
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createInterface, type Interface } from 'node:readline';
 import type {
@@ -10,6 +12,9 @@ import type {
     LanguageModelV2StreamPart,
     LanguageModelV2Usage,
 } from '@ai-sdk/provider';
+import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
+import { ErrorScope, ErrorType } from '../../errors/types.js';
+import { LLMErrorCode } from '../error-codes.js';
 import { LLMError } from '../errors.js';
 import { type CodexAuthMode, parseCodexBaseURL } from './codex-base-url.js';
 
@@ -44,6 +49,16 @@ export type CodexModelInfo = {
     isDefault: boolean;
     supportedReasoningEfforts: string[];
     defaultReasoningEffort: string;
+};
+
+export type CodexRateLimitSnapshot = {
+    source: 'chatgpt-login';
+    usedPercent: number;
+    exceeded: boolean;
+    limitId?: string;
+    limitName?: string;
+    resetsAt?: string;
+    windowMinutes?: number;
 };
 
 type CodexThreadStartResponse = {
@@ -129,6 +144,19 @@ function getString(value: unknown): string | null {
 
 function getBoolean(value: unknown): boolean | null {
     return typeof value === 'boolean' ? value : null;
+}
+
+function getNumber(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
+    }
+
+    if (typeof value === 'string') {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    return null;
 }
 
 function getArray(value: unknown): unknown[] | null {
@@ -314,6 +342,197 @@ function parseTurnStartResponse(value: unknown): CodexTurnStartResponse {
     };
 }
 
+function parseRateLimitEntry(value: unknown): CodexRateLimitSnapshot | null {
+    if (!isRecord(value)) {
+        return null;
+    }
+
+    const usedPercent = getNumber(value['usedPercent']);
+    if (usedPercent === null) {
+        return null;
+    }
+
+    const normalizedUsedPercent = Math.max(0, Math.min(100, usedPercent));
+    const windowMinutes =
+        getNumber(value['windowDurationMins']) ?? getNumber(value['windowMinutes']);
+    const limitId = getString(value['limitId']);
+    const limitName = getString(value['limitName']);
+    const resetsAt = getString(value['resetsAt']);
+
+    return {
+        source: 'chatgpt-login',
+        usedPercent: normalizedUsedPercent,
+        exceeded: normalizedUsedPercent >= 100,
+        ...(limitId ? { limitId } : {}),
+        ...(limitName ? { limitName } : {}),
+        ...(resetsAt ? { resetsAt } : {}),
+        ...(windowMinutes !== null ? { windowMinutes } : {}),
+    };
+}
+
+function collectRateLimitEntries(value: unknown): CodexRateLimitSnapshot[] {
+    const entries: CodexRateLimitSnapshot[] = [];
+    const directEntry = parseRateLimitEntry(value);
+    if (directEntry) {
+        entries.push(directEntry);
+    }
+
+    if (!isRecord(value)) {
+        return entries;
+    }
+
+    const rateLimits = getArray(value['rateLimits']);
+    if (rateLimits) {
+        for (const candidate of rateLimits) {
+            const entry = parseRateLimitEntry(candidate);
+            if (entry) {
+                entries.push(entry);
+            }
+        }
+    }
+
+    const rateLimitsByLimitId = isRecord(value['rateLimitsByLimitId'])
+        ? value['rateLimitsByLimitId']
+        : null;
+    if (rateLimitsByLimitId) {
+        for (const candidate of Object.values(rateLimitsByLimitId)) {
+            if (Array.isArray(candidate)) {
+                for (const item of candidate) {
+                    const entry = parseRateLimitEntry(item);
+                    if (entry) {
+                        entries.push(entry);
+                    }
+                }
+                continue;
+            }
+
+            const entry = parseRateLimitEntry(candidate);
+            if (entry) {
+                entries.push(entry);
+            }
+        }
+    }
+
+    return entries;
+}
+
+function pickPrimaryRateLimitSnapshot(value: unknown): CodexRateLimitSnapshot | null {
+    const entries = collectRateLimitEntries(value);
+    if (entries.length === 0) {
+        return null;
+    }
+
+    entries.sort((left, right) => {
+        if (left.exceeded !== right.exceeded) {
+            return left.exceeded ? -1 : 1;
+        }
+
+        if (left.usedPercent !== right.usedPercent) {
+            return right.usedPercent - left.usedPercent;
+        }
+
+        const leftReset = left.resetsAt ? Date.parse(left.resetsAt) : Number.POSITIVE_INFINITY;
+        const rightReset = right.resetsAt ? Date.parse(right.resetsAt) : Number.POSITIVE_INFINITY;
+        return leftReset - rightReset;
+    });
+
+    return entries[0] ?? null;
+}
+
+type CodexErrorDetails = {
+    message: string | null;
+    additionalDetails: string | null;
+    errorInfoKeys: string[];
+};
+
+function parseCodexErrorDetails(value: unknown): CodexErrorDetails | null {
+    if (!isRecord(value)) {
+        return null;
+    }
+
+    const codexErrorInfo = isRecord(value['codexErrorInfo'])
+        ? value['codexErrorInfo']
+        : isRecord(value['codex_error_info'])
+          ? value['codex_error_info']
+          : null;
+
+    return {
+        message: getString(value['message']),
+        additionalDetails:
+            getString(value['additionalDetails']) ?? getString(value['additional_details']),
+        errorInfoKeys: codexErrorInfo ? Object.keys(codexErrorInfo) : [],
+    };
+}
+
+function isUsageLimitError(details: CodexErrorDetails | null): boolean {
+    if (!details) {
+        return false;
+    }
+
+    const normalizedInfoKeys = details.errorInfoKeys.map((key) => key.toLowerCase());
+    if (normalizedInfoKeys.includes('usagelimitexceeded')) {
+        return true;
+    }
+
+    const combinedText =
+        `${details.message ?? ''} ${details.additionalDetails ?? ''}`.toLowerCase();
+    return (
+        combinedText.includes('usage limit') ||
+        combinedText.includes('rate limit') ||
+        combinedText.includes('quota exceeded') ||
+        combinedText.includes('purchase more credits')
+    );
+}
+
+function buildUsageLimitSnapshot(existing: CodexRateLimitSnapshot | null): CodexRateLimitSnapshot {
+    if (!existing) {
+        return {
+            source: 'chatgpt-login',
+            usedPercent: 100,
+            exceeded: true,
+        };
+    }
+
+    return {
+        ...existing,
+        usedPercent: Math.max(100, existing.usedPercent),
+        exceeded: true,
+    };
+}
+
+function toChatGPTUsageLimitError(
+    details: CodexErrorDetails,
+    modelId: string,
+    snapshot: CodexRateLimitSnapshot | null
+): DextoRuntimeError {
+    const message = details.message ?? 'You have reached your ChatGPT usage limit.';
+
+    return new DextoRuntimeError(
+        LLMErrorCode.RATE_LIMIT_EXCEEDED,
+        ErrorScope.LLM,
+        ErrorType.RATE_LIMIT,
+        message,
+        {
+            provider: 'openai-compatible',
+            model: modelId,
+            source: 'chatgpt-login',
+            ...(snapshot?.limitId ? { limitId: snapshot.limitId } : {}),
+            ...(snapshot?.limitName ? { limitName: snapshot.limitName } : {}),
+            ...(snapshot?.resetsAt ? { resetsAt: snapshot.resetsAt } : {}),
+            ...(snapshot?.windowMinutes !== undefined
+                ? { windowMinutes: snapshot.windowMinutes }
+                : {}),
+            usedPercent: snapshot?.usedPercent ?? 100,
+            additionalDetails: details.additionalDetails ?? undefined,
+            errorInfoKeys: details.errorInfoKeys,
+        },
+        [
+            'Wait for your ChatGPT usage window to reset, or switch this session to an OpenAI API key.',
+            'Use `/model` to move this session onto your API key-backed OpenAI provider.',
+        ]
+    );
+}
+
 function createUsage(): LanguageModelV2Usage {
     return {
         inputTokens: undefined,
@@ -492,12 +711,25 @@ function buildDeveloperInstructions(
 }
 
 function toCodexFailureMessage(error: unknown, modelId: string): Error {
+    if (error instanceof DextoRuntimeError) {
+        return error;
+    }
+
     const normalized = normalizeError(error);
     if (normalized.message.includes('spawn codex ENOENT')) {
         return LLMError.missingConfig(
             'openai-compatible',
-            'the Codex CLI on PATH (install Codex to use OpenAI Codex setups)'
+            'the Codex CLI on PATH (install Codex to use ChatGPT Login in Dexto)'
         );
+    }
+
+    const fallbackDetails: CodexErrorDetails = {
+        message: normalized.message,
+        additionalDetails: null,
+        errorInfoKeys: [],
+    };
+    if (isUsageLimitError(fallbackDetails)) {
+        return toChatGPTUsageLimitError(fallbackDetails, modelId, null);
     }
 
     return LLMError.generationFailed(normalized.message, 'openai-compatible', modelId);
@@ -508,7 +740,7 @@ function enforceAuthMode(authMode: CodexAuthMode, accountState: CodexReadAccount
         if (accountState.requiresOpenaiAuth) {
             throw LLMError.missingConfig(
                 'openai-compatible',
-                'Codex authentication (run `codex login` or re-run `dexto setup` and choose OpenAI Codex)'
+                'Codex authentication (run `codex login` or re-run `dexto setup` and choose ChatGPT Login)'
             );
         }
         return;
@@ -707,6 +939,11 @@ export class CodexAppServerClient {
 
             cursor = parsed.nextCursor;
         }
+    }
+
+    async readRateLimits(): Promise<CodexRateLimitSnapshot | null> {
+        const result = await this.request('account/rateLimits/read', undefined);
+        return pickPrimaryRateLimitSnapshot(result);
     }
 
     async startEphemeralThread(params: {
@@ -1003,6 +1240,7 @@ export function createCodexLanguageModel(options: {
     modelId: string;
     baseURL: string;
     cwd?: string;
+    onRateLimitStatus?: (snapshot: CodexRateLimitSnapshot) => void;
 }): LanguageModelV2 {
     const parsedBaseURL = parseCodexBaseURL(options.baseURL);
     const authMode = parsedBaseURL?.authMode ?? 'auto';
@@ -1024,10 +1262,28 @@ export function createCodexLanguageModel(options: {
         const client = await CodexAppServerClient.create({
             ...(options.cwd ? { cwd: options.cwd } : {}),
         });
+        let latestRateLimitSnapshot: CodexRateLimitSnapshot | null = null;
+        const emitRateLimitStatus = (snapshot: CodexRateLimitSnapshot | null) => {
+            if (!snapshot) {
+                return;
+            }
+
+            latestRateLimitSnapshot = snapshot;
+            options.onRateLimitStatus?.(snapshot);
+        };
 
         try {
             const account = await client.readAccount(false);
             enforceAuthMode(authMode, account);
+            const shouldTrackRateLimits =
+                account.account?.type === 'chatgpt' || authMode === 'chatgpt';
+
+            if (shouldTrackRateLimits) {
+                void client
+                    .readRateLimits()
+                    .then((snapshot) => emitRateLimitStatus(snapshot))
+                    .catch(() => undefined);
+            }
 
             const thread = await client.startEphemeralThread({
                 model: options.modelId,
@@ -1118,7 +1374,34 @@ export function createCodexLanguageModel(options: {
                         controller.close();
                     };
 
+                    const failWithTurnError = (
+                        details: CodexErrorDetails | null,
+                        fallbackMessage: string
+                    ) => {
+                        if (details && isUsageLimitError(details)) {
+                            const snapshot = buildUsageLimitSnapshot(latestRateLimitSnapshot);
+                            emitRateLimitStatus(snapshot);
+                            failStream(
+                                toChatGPTUsageLimitError(details, options.modelId, snapshot)
+                            );
+                            return;
+                        }
+
+                        failStream(
+                            LLMError.generationFailed(
+                                details?.message ?? fallbackMessage,
+                                'openai-compatible',
+                                options.modelId
+                            )
+                        );
+                    };
+
                     const unsubscribeNotifications = client.onNotification((message) => {
+                        if (message.method === 'account/rateLimits/updated') {
+                            emitRateLimitStatus(pickPrimaryRateLimitSnapshot(message.params));
+                            return;
+                        }
+
                         if (message.method === 'item/agentMessage/delta') {
                             if (!isRecord(message.params)) {
                                 return;
@@ -1217,17 +1500,14 @@ export function createCodexLanguageModel(options: {
                                 return;
                             }
 
-                            const messageText = extractErrorMessage(message.params);
-                            if (!messageText) {
-                                return;
-                            }
-
-                            failStream(
-                                LLMError.generationFailed(
-                                    messageText,
-                                    'openai-compatible',
-                                    options.modelId
-                                )
+                            const details = parseCodexErrorDetails(
+                                isRecord(message.params['error'])
+                                    ? message.params['error']
+                                    : message.params
+                            );
+                            failWithTurnError(
+                                details,
+                                extractErrorMessage(message.params) ?? 'Codex turn failed'
                             );
                             return;
                         }
@@ -1253,18 +1533,11 @@ export function createCodexLanguageModel(options: {
                             }
 
                             if (status === 'failed') {
-                                const errorMessage =
+                                const details =
                                     turnInfo && isRecord(turnInfo['error'])
-                                        ? getString(turnInfo['error']['message'])
+                                        ? parseCodexErrorDetails(turnInfo['error'])
                                         : null;
-
-                                failStream(
-                                    LLMError.generationFailed(
-                                        errorMessage ?? 'Codex turn failed',
-                                        'openai-compatible',
-                                        options.modelId
-                                    )
-                                );
+                                failWithTurnError(details, 'Codex turn failed');
                                 return;
                             }
 
@@ -1356,7 +1629,14 @@ export function createCodexLanguageModel(options: {
             };
         } catch (error) {
             await client.close().catch(() => undefined);
-            throw toCodexFailureMessage(error, options.modelId);
+            const mappedError = toCodexFailureMessage(error, options.modelId);
+            if (
+                mappedError instanceof DextoRuntimeError &&
+                mappedError.code === LLMErrorCode.RATE_LIMIT_EXCEEDED
+            ) {
+                emitRateLimitStatus(buildUsageLimitSnapshot(latestRateLimitSnapshot));
+            }
+            throw mappedError;
         }
     }
 
