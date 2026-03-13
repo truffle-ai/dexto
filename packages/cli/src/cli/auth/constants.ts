@@ -14,8 +14,8 @@
  * Environment variable overrides (for local development):
  * - SUPABASE_URL: Override Supabase URL (e.g., http://localhost:54321)
  * - SUPABASE_ANON_KEY: Override anon key (from `supabase start` output)
- * - DEXTO_API_URL: Override Dexto gateway URL for data-plane/usage calls (e.g., http://localhost:3001)
- * - DEXTO_PLATFORM_URL: Override Dexto platform URL for auth/key control-plane calls (e.g., http://localhost:3002)
+ * - DEXTO_API_URL: Override Dexto gateway URL for data-plane calls (e.g., http://localhost:3001)
+ * - DEXTO_PLATFORM_URL: Override Dexto platform URL for auth/key/account control-plane calls (e.g., http://localhost:3002)
  */
 export const SUPABASE_URL = process.env.SUPABASE_URL || 'https://gdfbxznhnnsamvsrtwjq.supabase.co';
 export const SUPABASE_ANON_KEY =
@@ -23,12 +23,12 @@ export const SUPABASE_ANON_KEY =
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdkZmJ4em5obm5zYW12c3J0d2pxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQwNjkzNjksImV4cCI6MjA3OTY0NTM2OX0.j2NWOJDOy8gTT84XeomalkGSPpLdPvTCBnQMrTgdlI4';
 
 /**
- * Dexto gateway URL for usage-summary and other retained gateway endpoints.
+ * Dexto gateway URL for retained data-plane endpoints.
  */
 export const DEXTO_API_URL = process.env.DEXTO_API_URL || 'https://api.dexto.ai';
 
 /**
- * Dexto platform URL for auth/key control-plane endpoints.
+ * Dexto platform URL for auth/key/account control-plane endpoints.
  */
 export const DEXTO_PLATFORM_URL = process.env.DEXTO_PLATFORM_URL || 'https://app.dexto.ai';
 

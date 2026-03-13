@@ -1,5 +1,5 @@
 // packages/cli/src/cli/auth/api-client.ts
-// Dexto API client for key management and usage
+// Dexto API client for auth/key/account APIs
 
 // TODO: Migrate to typed client for type safety and better DX
 // Options:
@@ -9,7 +9,7 @@
 // Currently using plain fetch() with runtime response validation.
 
 import { logger } from '@dexto/core';
-import { DEXTO_API_URL, DEXTO_PLATFORM_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from './constants.js';
+import { DEXTO_PLATFORM_URL, SUPABASE_ANON_KEY, SUPABASE_URL } from './constants.js';
 import type { AuthenticatedUser } from './types.js';
 
 interface PlatformKeyRecord {
@@ -408,7 +408,6 @@ function formatHttpFailure(status: number, payload: unknown, rawText: string): s
  * Dexto API client for key management
  */
 export class DextoApiClient {
-    private readonly gatewayBaseUrl: string;
     private readonly platformBaseUrl: string;
     private readonly timeoutMs = 10_000;
 
@@ -422,13 +421,15 @@ export class DextoApiClient {
     ) {
         if (typeof baseUrl === 'string') {
             const normalized = baseUrl.replace(/\/+$/, '');
-            this.gatewayBaseUrl = normalized;
-            this.platformBaseUrl = DEXTO_PLATFORM_URL.replace(/\/+$/, '');
+            this.platformBaseUrl = normalized;
             return;
         }
 
-        this.gatewayBaseUrl = (baseUrl.gatewayBaseUrl ?? DEXTO_API_URL).replace(/\/+$/, '');
-        this.platformBaseUrl = (baseUrl.platformBaseUrl ?? DEXTO_PLATFORM_URL).replace(/\/+$/, '');
+        this.platformBaseUrl = (
+            baseUrl.platformBaseUrl ??
+            baseUrl.gatewayBaseUrl ??
+            DEXTO_PLATFORM_URL
+        ).replace(/\/+$/, '');
     }
 
     private createRequestSignal(signal: AbortSignal | undefined): AbortSignal {
@@ -438,10 +439,6 @@ export class DextoApiClient {
         }
 
         return AbortSignal.any([signal, timeoutSignal]);
-    }
-
-    private getGatewayUrl(path: string): string {
-        return `${this.gatewayBaseUrl}${path}`;
     }
 
     private getPlatformUrl(path: string): string {
@@ -598,7 +595,7 @@ export class DextoApiClient {
         try {
             logger.debug('Fetching usage summary');
 
-            const response = await fetch(this.getGatewayUrl('/me/usage'), {
+            const response = await fetch(this.getPlatformUrl('/api/account/usage'), {
                 method: 'GET',
                 headers: {
                     Authorization: `Bearer ${apiKey}`,
