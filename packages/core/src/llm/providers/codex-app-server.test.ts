@@ -465,7 +465,7 @@ describe('createCodexLanguageModel', () => {
 
         expect(errorPart?.type).toBe('error');
         if (!errorPart || errorPart.type !== 'error') {
-            throw new Error('Expected a stream error part');
+            expect.fail('Expected a stream error part');
         }
 
         expect(errorPart.error).toBeInstanceOf(DextoRuntimeError);
@@ -476,6 +476,43 @@ describe('createCodexLanguageModel', () => {
                 usedPercent: 100,
             })
         );
+    });
+
+    it('fails active streams when the Codex client exits unexpectedly', async () => {
+        const mock = createMockClient();
+        vi.spyOn(CodexAppServerClient, 'create').mockResolvedValue(
+            mock.client as unknown as CodexAppServerClient
+        );
+
+        const model = createCodexLanguageModel({
+            modelId: 'gpt-5.4',
+            baseURL: 'codex://chatgpt',
+        });
+
+        const execution = await model.doStream(createCallOptions());
+
+        mock.emitNotification({
+            method: 'codex/client-exited',
+            params: {
+                code: 9,
+            },
+        });
+
+        const parts = await readAllParts(execution.stream);
+        const errorPart = parts[0];
+
+        expect(errorPart?.type).toBe('error');
+        if (!errorPart || errorPart.type !== 'error') {
+            expect.fail('Expected a stream error part');
+        }
+
+        expect(errorPart.error).toBeInstanceOf(DextoRuntimeError);
+        if (!(errorPart.error instanceof DextoRuntimeError)) {
+            expect.fail('Expected a DextoRuntimeError');
+        }
+
+        expect(errorPart.error.message).toContain('Codex app-server exited unexpectedly');
+        expect(errorPart.error.message).toContain('code 9');
     });
 
     it('maps Codex startup failures through the standard LLM error path', async () => {

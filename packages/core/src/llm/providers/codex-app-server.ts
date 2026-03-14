@@ -151,6 +151,20 @@ function createCodexClientRuntimeError(
     );
 }
 
+function createCodexClientExitedError(input: {
+    code?: number | undefined;
+    signal?: string | undefined;
+}): DextoRuntimeError<Record<string, unknown> | undefined> {
+    return createCodexClientRuntimeError(
+        `Codex app-server exited unexpectedly (${input.signal ?? `code ${input.code ?? 'unknown'}`})`,
+        {
+            ...(input.code !== undefined ? { code: input.code } : {}),
+            ...(input.signal !== undefined ? { signal: input.signal } : {}),
+        },
+        ErrorType.THIRD_PARTY
+    );
+}
+
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 const DEFAULT_CLIENT_INFO: CodexClientInfo = {
     name: 'dexto',
@@ -1168,18 +1182,22 @@ export class CodexAppServerClient {
         });
 
         child.on('exit', (code, signal) => {
+            const wasClosed = this.closed;
+            const error = createCodexClientExitedError({
+                ...(code !== null ? { code } : {}),
+                ...(signal !== null ? { signal } : {}),
+            });
+
             child.stderr.off('data', drainStderr);
-            if (!this.closed) {
-                this.rejectPending(
-                    createCodexClientRuntimeError(
-                        `Codex app-server exited unexpectedly (${signal ?? `code ${code ?? 'unknown'}`})`,
-                        {
-                            ...(code !== null ? { code } : {}),
-                            ...(signal !== null ? { signal } : {}),
-                        },
-                        ErrorType.THIRD_PARTY
-                    )
-                );
+            if (!wasClosed) {
+                this.publishNotification({
+                    method: 'codex/client-exited',
+                    params: {
+                        ...(code !== null ? { code } : {}),
+                        ...(signal !== null ? { signal } : {}),
+                    },
+                });
+                this.rejectPending(error);
             }
         });
 
@@ -1260,6 +1278,10 @@ export class CodexAppServerClient {
             ...(payload['params'] !== undefined ? { params: payload['params'] } : {}),
         };
 
+        this.publishNotification(notification);
+    }
+
+    private publishNotification(notification: CodexNotification): void {
         for (const listener of this.listeners) {
             listener(notification);
         }
@@ -1507,6 +1529,21 @@ export function createCodexLanguageModel(options: {
                     };
 
                     const unsubscribeNotifications = activeClient.onNotification((message) => {
+                        if (message.method === 'codex/client-exited') {
+                            const params = isRecord(message.params) ? message.params : {};
+                            failStream(
+                                createCodexClientExitedError({
+                                    ...(getNumber(params['code']) !== null
+                                        ? { code: getNumber(params['code']) ?? undefined }
+                                        : {}),
+                                    ...(getString(params['signal']) !== null
+                                        ? { signal: getString(params['signal']) ?? undefined }
+                                        : {}),
+                                })
+                            );
+                            return;
+                        }
+
                         if (message.method === 'account/rateLimits/updated') {
                             emitRateLimitStatus(pickPrimaryRateLimitSnapshot(message.params));
                             return;
