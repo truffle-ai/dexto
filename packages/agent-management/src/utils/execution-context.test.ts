@@ -36,10 +36,16 @@ function createTempDirStructure(structure: Record<string, any>, baseDir?: string
 
 describe('Execution Context Detection', () => {
     let tempDir: string;
+    const originalProjectRoot = process.env.DEXTO_PROJECT_ROOT;
 
     afterEach(() => {
         if (tempDir) {
             fs.rmSync(tempDir, { recursive: true, force: true });
+        }
+        if (originalProjectRoot === undefined) {
+            delete process.env.DEXTO_PROJECT_ROOT;
+        } else {
+            process.env.DEXTO_PROJECT_ROOT = originalProjectRoot;
         }
     });
 
@@ -185,6 +191,23 @@ describe('Execution Context Detection', () => {
         it('find functions return null for non-dexto directories', () => {
             expect(findDextoSourceRoot(tempDir)).toBeNull();
             expect(findDextoProjectRoot(tempDir)).toBeNull();
+        });
+    });
+
+    describe('Forced project root override', () => {
+        beforeEach(() => {
+            tempDir = createTempDir();
+            process.env.DEXTO_PROJECT_ROOT = tempDir;
+        });
+
+        it('treats the override as dexto-project context', () => {
+            const result = getExecutionContext(path.join(tempDir, 'nested'));
+            expect(result).toBe('dexto-project');
+        });
+
+        it('returns the override from findDextoProjectRoot', () => {
+            const result = findDextoProjectRoot('/outside/of/project');
+            expect(result ? fs.realpathSync(result) : null).toBe(fs.realpathSync(tempDir));
         });
     });
 });

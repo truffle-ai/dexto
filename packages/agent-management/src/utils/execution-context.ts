@@ -8,6 +8,14 @@ import * as path from 'path';
 
 export type ExecutionContext = 'dexto-source' | 'dexto-project' | 'global-cli';
 
+function getForcedProjectRoot(): string | null {
+    const value = process.env.DEXTO_PROJECT_ROOT?.trim();
+    if (!value) {
+        return null;
+    }
+    return path.resolve(value);
+}
+
 /**
  * Check if directory is the dexto source code itself
  * @param dirPath Directory to check
@@ -69,6 +77,10 @@ export function findDextoSourceRoot(startPath: string = process.cwd()): string |
  * @returns Dexto project root directory or null if not found
  */
 export function findDextoProjectRoot(startPath: string = process.cwd()): string | null {
+    const forcedProjectRoot = getForcedProjectRoot();
+    if (forcedProjectRoot) {
+        return forcedProjectRoot;
+    }
     return walkUpDirectories(startPath, isDextoProjectDirectory);
 }
 
@@ -81,6 +93,10 @@ export function getExecutionContext(startPath: string = process.cwd()): Executio
     // Check for Dexto source context first (most specific)
     if (findDextoSourceRoot(startPath)) {
         return 'dexto-source';
+    }
+
+    if (getForcedProjectRoot()) {
+        return 'dexto-project';
     }
 
     // Check for Dexto project context
