@@ -53,15 +53,18 @@ export function shouldExcludeRelativePath(
 
 export async function createWorkspaceSnapshot(input: {
     workspaceRoot: string;
-    entryAgent: string;
+    workspaceAgentPath?: string;
     exclude: string[];
 }): Promise<WorkspaceSnapshotResult> {
     const workspaceRoot = path.resolve(input.workspaceRoot);
-    const entryAgent = normalizeWorkspaceRelativePath(input.entryAgent);
+    const workspaceAgentPath =
+        typeof input.workspaceAgentPath === 'string'
+            ? normalizeWorkspaceRelativePath(input.workspaceAgentPath)
+            : null;
 
-    if (shouldExcludeRelativePath(entryAgent, input.exclude)) {
+    if (workspaceAgentPath && shouldExcludeRelativePath(workspaceAgentPath, input.exclude)) {
         throw new Error(
-            `Deploy config excludes the selected entry agent: ${entryAgent}. Remove it from exclude before deploying.`
+            `Deploy config excludes the selected workspace agent: ${workspaceAgentPath}. Remove it from exclude before deploying.`
         );
     }
 

@@ -49,7 +49,35 @@ const WorkspaceRelativePathSchema = z
         }
     });
 
+const CloudDefaultDeployAgentSchema = z
+    .object({
+        type: z.literal('cloud-default'),
+    })
+    .strict();
+
+const WorkspaceDeployAgentSchema = z
+    .object({
+        type: z.literal('workspace'),
+        path: WorkspaceRelativePathSchema.describe(
+            'Repo-relative path to the agent YAML that should boot in cloud'
+        ),
+    })
+    .strict();
+
+export const DeployAgentSchema = z.discriminatedUnion('type', [
+    CloudDefaultDeployAgentSchema,
+    WorkspaceDeployAgentSchema,
+]);
+
 export const DeployConfigSchema = z
+    .object({
+        version: z.literal(1).default(1),
+        agent: DeployAgentSchema,
+        exclude: z.array(z.string().trim().min(1)).default([...DEFAULT_DEPLOY_EXCLUDES]),
+    })
+    .strict();
+
+const LegacyDeployConfigSchema = z
     .object({
         version: z.literal(1).default(1),
         entryAgent: WorkspaceRelativePathSchema.describe(
@@ -61,6 +89,8 @@ export const DeployConfigSchema = z
 
 export type DeployConfig = z.output<typeof DeployConfigSchema>;
 export type DeployConfigInput = z.input<typeof DeployConfigSchema>;
+export type DeployAgent = z.output<typeof DeployAgentSchema>;
+export type WorkspaceDeployAgent = z.output<typeof WorkspaceDeployAgentSchema>;
 
 export function getDeployConfigPath(workspaceRoot: string): string {
     return path.join(workspaceRoot, DEPLOY_CONFIG_RELATIVE_PATH);
@@ -73,7 +103,7 @@ export async function loadDeployConfig(workspaceRoot: string): Promise<DeployCon
     }
 
     const raw = await fs.readFile(configPath, 'utf8');
-    return DeployConfigSchema.parse(JSON.parse(raw));
+    return parseDeployConfig(JSON.parse(raw));
 }
 
 export async function saveDeployConfig(
@@ -87,17 +117,53 @@ export async function saveDeployConfig(
     return normalized;
 }
 
-export function createDefaultDeployConfig(entryAgent: string): DeployConfig {
+function parseDeployConfig(value: unknown): DeployConfig {
+    const parsed = DeployConfigSchema.safeParse(value);
+    if (parsed.success) {
+        return parsed.data;
+    }
+
+    const legacyParsed = LegacyDeployConfigSchema.safeParse(value);
+    if (legacyParsed.success) {
+        return createWorkspaceDeployConfig(legacyParsed.data.entryAgent, legacyParsed.data.exclude);
+    }
+
+    throw parsed.error;
+}
+
+export function createCloudDefaultDeployConfig(
+    exclude: readonly string[] = DEFAULT_DEPLOY_EXCLUDES
+): DeployConfig {
     return DeployConfigSchema.parse({
         version: 1,
-        entryAgent,
-        exclude: [...DEFAULT_DEPLOY_EXCLUDES],
+        agent: {
+            type: 'cloud-default',
+        },
+        exclude: [...exclude],
     });
 }
 
-export function resolveDeployEntryAgentPath(workspaceRoot: string, entryAgent: string): string {
-    const normalizedEntryAgent = normalizeWorkspaceRelativePath(entryAgent);
-    const resolvedPath = path.resolve(workspaceRoot, normalizedEntryAgent);
+export function createWorkspaceDeployConfig(
+    agentPath: string,
+    exclude: readonly string[] = DEFAULT_DEPLOY_EXCLUDES
+): DeployConfig {
+    return DeployConfigSchema.parse({
+        version: 1,
+        agent: {
+            type: 'workspace',
+            path: agentPath,
+        },
+        exclude: [...exclude],
+    });
+}
+
+export function isWorkspaceDeployAgent(agent: DeployAgent): agent is WorkspaceDeployAgent {
+    return agent.type === 'workspace';
+}
+
+export function resolveWorkspaceDeployAgentPath(workspaceRoot: string, agentPath: string): string {
+    const normalizedAgentPath = normalizeWorkspaceRelativePath(agentPath);
+    const resolvedPath = path.resolve(workspaceRoot, normalizedAgentPath);
     const relativeToWorkspace = path.relative(path.resolve(workspaceRoot), resolvedPath);
     if (
         relativeToWorkspace.length === 0 ||
@@ -105,7 +171,7 @@ export function resolveDeployEntryAgentPath(workspaceRoot: string, entryAgent: s
         relativeToWorkspace.startsWith(`..${path.sep}`) ||
         path.isAbsolute(relativeToWorkspace)
     ) {
-        throw new Error(`Entry agent path must stay inside the workspace: ${entryAgent}`);
+        throw new Error(`Workspace agent path must stay inside the workspace: ${agentPath}`);
     }
     return resolvedPath;
 }

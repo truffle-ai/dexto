@@ -2,18 +2,20 @@ import { existsSync } from 'fs';
 import path from 'path';
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
-import { confirmOrExit, selectOrExit, textOrExit } from '../../utils/prompt-helpers.js';
+import { confirmOrExit } from '../../utils/prompt-helpers.js';
 import {
-    createDefaultDeployConfig,
+    createCloudDefaultDeployConfig,
+    createWorkspaceDeployConfig,
     getDeployConfigPath,
+    isWorkspaceDeployAgent,
     loadDeployConfig,
-    normalizeWorkspaceRelativePath,
-    resolveDeployEntryAgentPath,
+    resolveWorkspaceDeployAgentPath,
     saveDeployConfig,
     type DeployConfig,
 } from './config.js';
 import { createDeployClient } from './client.js';
-import { discoverEntryAgentCandidates, isAgentYamlPath } from './entry-agent.js';
+import { discoverPrimaryWorkspaceAgent, isAgentYamlPath } from './entry-agent.js';
+import { getCloudAgentDashboardUrl } from './links.js';
 import {
     loadWorkspaceDeployLink,
     removeWorkspaceDeployLink,
@@ -29,116 +31,95 @@ function isInteractive(options?: InteractiveOptions): boolean {
     return options?.interactive !== false;
 }
 
-async function promptForEntryAgent(workspaceRoot: string): Promise<string> {
-    const discoveredCandidates = await discoverEntryAgentCandidates(workspaceRoot);
-    if (discoveredCandidates.length === 1) {
-        return discoveredCandidates[0]!;
+function describeDeployAgent(config: DeployConfig): string {
+    if (isWorkspaceDeployAgent(config.agent)) {
+        return `workspace agent (${config.agent.path})`;
     }
-
-    if (discoveredCandidates.length > 1) {
-        return selectOrExit<string>(
-            {
-                message: 'Select the agent config to boot in cloud',
-                options: discoveredCandidates.map((candidate) => ({
-                    value: candidate,
-                    label: candidate,
-                    hint: candidate,
-                })),
-            },
-            'Deployment cancelled'
-        );
-    }
-
-    const value = await textOrExit(
-        {
-            message: 'Enter the repo-relative path to the agent config',
-            placeholder: 'agents/reviewer/reviewer.yml',
-            validate(input) {
-                try {
-                    const relativePath = normalizeWorkspaceRelativePath(input);
-                    if (!isAgentYamlPath(relativePath)) {
-                        return 'Agent config must be a .yml or .yaml file';
-                    }
-                    const absolutePath = path.resolve(workspaceRoot, relativePath);
-                    if (!existsSync(absolutePath)) {
-                        return `File not found: ${relativePath}`;
-                    }
-                    return;
-                } catch (error) {
-                    return error instanceof Error ? error.message : 'Invalid path';
-                }
-            },
-        },
-        'Deployment cancelled'
-    );
-
-    return normalizeWorkspaceRelativePath(value);
+    return 'default cloud agent';
 }
 
-async function resolveDeployConfig(
-    workspaceRoot: string,
-    options?: InteractiveOptions
-): Promise<DeployConfig> {
+function formatCloudAgentSummary(input: {
+    cloudAgentId: string;
+    status: string;
+    agentUrl: string;
+}): string {
+    return [
+        `Cloud agent: ${input.cloudAgentId}`,
+        `Status: ${input.status}`,
+        `Agent URL: ${input.agentUrl}`,
+        `Dashboard: ${getCloudAgentDashboardUrl(input.cloudAgentId)}`,
+    ].join('\n');
+}
+
+async function resolveDeployConfig(workspaceRoot: string): Promise<DeployConfig> {
     const existingConfig = await loadDeployConfig(workspaceRoot);
     if (existingConfig) {
         return existingConfig;
     }
 
-    if (!isInteractive(options)) {
-        const configPath = path.relative(workspaceRoot, getDeployConfigPath(workspaceRoot));
-        throw new Error(
-            `No deploy config found at ${configPath}. Run \`dexto deploy\` interactively once to create it.`
-        );
-    }
-
-    const entryAgent = await promptForEntryAgent(workspaceRoot);
-    const nextConfig = createDefaultDeployConfig(entryAgent);
+    const primaryWorkspaceAgent = await discoverPrimaryWorkspaceAgent(workspaceRoot);
+    const nextConfig = primaryWorkspaceAgent
+        ? createWorkspaceDeployConfig(primaryWorkspaceAgent)
+        : createCloudDefaultDeployConfig();
     await saveDeployConfig(workspaceRoot, nextConfig);
     p.note(
-        `${nextConfig.entryAgent}\n${path.relative(workspaceRoot, getDeployConfigPath(workspaceRoot))}`,
+        `${describeDeployAgent(nextConfig)}\n${path.relative(workspaceRoot, getDeployConfigPath(workspaceRoot))}`,
         'Saved deploy config'
     );
     return nextConfig;
 }
 
-function ensureEntryAgentExists(workspaceRoot: string, config: DeployConfig): string {
-    const entryAgentPath = resolveDeployEntryAgentPath(workspaceRoot, config.entryAgent);
+function ensureWorkspaceAgentExists(workspaceRoot: string, config: DeployConfig): string | null {
+    if (!isWorkspaceDeployAgent(config.agent)) {
+        return null;
+    }
+
+    const entryAgentPath = resolveWorkspaceDeployAgentPath(workspaceRoot, config.agent.path);
     if (!existsSync(entryAgentPath)) {
         throw new Error(
-            `Entry agent not found: ${config.entryAgent}. Update ${path.relative(
+            `Workspace agent not found: ${config.agent.path}. Update ${path.relative(
                 workspaceRoot,
                 getDeployConfigPath(workspaceRoot)
             )} before deploying.`
         );
     }
-    if (!isAgentYamlPath(config.entryAgent)) {
-        throw new Error(`Entry agent must be a .yml or .yaml file: ${config.entryAgent}`);
+    if (!isAgentYamlPath(config.agent.path)) {
+        throw new Error(`Workspace agent must be a .yml or .yaml file: ${config.agent.path}`);
     }
     return entryAgentPath;
 }
 
 export async function handleDeployCommand(options?: InteractiveOptions): Promise<void> {
+    void options;
     p.intro(chalk.inverse('Deploy Workspace'));
 
     const workspaceRoot = process.cwd();
-    const deployConfig = await resolveDeployConfig(workspaceRoot, options);
-    ensureEntryAgentExists(workspaceRoot, deployConfig);
+    const deployConfig = await resolveDeployConfig(workspaceRoot);
+    ensureWorkspaceAgentExists(workspaceRoot, deployConfig);
 
     const deployLink = await loadWorkspaceDeployLink(workspaceRoot);
     const spinner = p.spinner();
     const client = createDeployClient();
 
     spinner.start('Packaging workspace snapshot...');
+    const workspaceSnapshotInput = isWorkspaceDeployAgent(deployConfig.agent)
+        ? {
+              workspaceRoot,
+              workspaceAgentPath: deployConfig.agent.path,
+              exclude: deployConfig.exclude,
+          }
+        : {
+              workspaceRoot,
+              exclude: deployConfig.exclude,
+          };
     const snapshot = await createWorkspaceSnapshot({
-        workspaceRoot,
-        entryAgent: deployConfig.entryAgent,
-        exclude: deployConfig.exclude,
+        ...workspaceSnapshotInput,
     });
 
     try {
         spinner.message('Uploading workspace and provisioning sandbox...');
         const deployed = await client.deployWorkspace({
-            entryAgent: deployConfig.entryAgent,
+            agent: deployConfig.agent,
             snapshotPath: snapshot.archivePath,
             ...(deployLink?.cloudAgentId ? { cloudAgentId: deployLink.cloudAgentId } : {}),
         });
@@ -151,9 +132,15 @@ export async function handleDeployCommand(options?: InteractiveOptions): Promise
         spinner.stop(chalk.green('✓ Workspace deployed'));
         p.outro(
             [
-                `Cloud agent: ${deployed.cloudAgentId}`,
-                `Status: ${deployed.state.status}`,
-                `Agent URL: ${deployed.agentUrl}`,
+                formatCloudAgentSummary({
+                    cloudAgentId: deployed.cloudAgentId,
+                    status: deployed.state.status,
+                    agentUrl: deployed.agentUrl,
+                }),
+                '',
+                'Next steps:',
+                `- Open the dashboard to inspect and interact with the deployment`,
+                `- Run \`dexto deploy status\` from this workspace`,
             ].join('\n')
         );
     } catch (error) {
@@ -176,12 +163,11 @@ export async function handleDeployStatusCommand(): Promise<void> {
     const client = createDeployClient();
     const status = await client.getCloudAgent(deployLink.cloudAgentId);
     p.outro(
-        [
-            `Cloud agent: ${status.cloudAgentId}`,
-            `Status: ${status.state.status}`,
-            `Agent URL: ${status.agentUrl}`,
-            `Stale: ${status.stale ? 'yes' : 'no'}`,
-        ].join('\n')
+        formatCloudAgentSummary({
+            cloudAgentId: status.cloudAgentId,
+            status: status.state.status,
+            agentUrl: status.agentUrl,
+        })
     );
 }
 

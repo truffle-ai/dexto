@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import { getAuthToken, getDextoApiKey } from '../../auth/service.js';
+import type { DeployAgent } from './config.js';
 
 const SANDBOX_URL_ENV_VAR = 'DEXTO_SANDBOX_URL';
 
@@ -209,13 +210,16 @@ async function throwApiError(response: Response): Promise<never> {
 export function createDeployClient() {
     return {
         async deployWorkspace(input: {
-            entryAgent: string;
+            agent: DeployAgent;
             snapshotPath: string;
             cloudAgentId?: string;
         }): Promise<DeployCloudAgentResult> {
             const snapshotBuffer = await fs.readFile(input.snapshotPath);
             const formData = new globalThis.FormData();
-            formData.set('entryAgent', input.entryAgent);
+            formData.set('agentType', input.agent.type);
+            if (input.agent.type === 'workspace') {
+                formData.set('entryAgent', input.agent.path);
+            }
             if (input.cloudAgentId && input.cloudAgentId.trim().length > 0) {
                 formData.set('cloudAgentId', input.cloudAgentId.trim());
             }

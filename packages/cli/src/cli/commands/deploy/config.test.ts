@@ -3,7 +3,7 @@ import * as path from 'path';
 import { tmpdir } from 'os';
 import { afterEach, describe, expect, it } from 'vitest';
 import { loadDeployConfig, normalizeWorkspaceRelativePath, saveDeployConfig } from './config.js';
-import { discoverEntryAgentCandidates } from './entry-agent.js';
+import { discoverPrimaryWorkspaceAgent } from './entry-agent.js';
 
 function createTempDir(): string {
     return fs.mkdtempSync(path.join(tmpdir(), 'dexto-deploy-config-'));
@@ -27,34 +27,67 @@ describe('deploy config', () => {
         }
     });
 
-    it('normalizes and reloads entry-agent paths', async () => {
+    it('normalizes and reloads workspace agent paths', async () => {
         tempDir = createTempDir();
         await saveDeployConfig(tempDir, {
-            entryAgent: 'agents\\reviewer\\reviewer.yml',
+            agent: {
+                type: 'workspace',
+                path: 'agents\\reviewer\\reviewer.yml',
+            },
             exclude: ['.git'],
         });
 
         const loaded = await loadDeployConfig(tempDir);
         expect(loaded).not.toBeNull();
-        expect(loaded?.entryAgent).toBe('agents/reviewer/reviewer.yml');
+        expect(loaded?.agent).toEqual({
+            type: 'workspace',
+            path: 'agents/reviewer/reviewer.yml',
+        });
         expect(loaded?.exclude).toEqual(['.git']);
     });
 
-    it('discovers the opinionated entry-agent locations in order', async () => {
+    it('normalizes legacy persisted entryAgent configs on load', async () => {
         tempDir = createTempDir();
         writeWorkspaceFiles(tempDir, {
-            'coding-agent.yml': 'agentCard:\n  name: Coding Agent\n',
-            'agents/builder/builder.yml': 'agentCard:\n  name: Builder\n',
-            'agents/reviewer/reviewer.yaml': 'agentCard:\n  name: Reviewer\n',
-            'agents/notes.txt': 'skip me',
+            '.dexto/deploy.json': JSON.stringify(
+                {
+                    version: 1,
+                    entryAgent: 'agents\\reviewer\\reviewer.yml',
+                    exclude: ['.git'],
+                },
+                null,
+                2
+            ),
         });
 
-        const candidates = await discoverEntryAgentCandidates(tempDir);
-        expect(candidates).toEqual([
-            'coding-agent.yml',
-            'agents/builder/builder.yml',
-            'agents/reviewer/reviewer.yaml',
-        ]);
+        const loaded = await loadDeployConfig(tempDir);
+        expect(loaded).not.toBeNull();
+        expect(loaded?.agent).toEqual({
+            type: 'workspace',
+            path: 'agents/reviewer/reviewer.yml',
+        });
+        expect(loaded?.exclude).toEqual(['.git']);
+    });
+
+    it('discovers the opinionated primary workspace agent locations in order', async () => {
+        tempDir = createTempDir();
+        writeWorkspaceFiles(tempDir, {
+            'agents/coding-agent.yml': 'agentCard:\n  name: Agent\n',
+            'src/dexto/agents/coding-agent.yml': 'agentCard:\n  name: Src Agent\n',
+        });
+
+        const candidate = await discoverPrimaryWorkspaceAgent(tempDir);
+        expect(candidate).toBe('agents/coding-agent.yml');
+    });
+
+    it('returns null when no opinionated primary workspace agent exists', async () => {
+        tempDir = createTempDir();
+        writeWorkspaceFiles(tempDir, {
+            'agents/reviewer/reviewer.yml': 'agentCard:\n  name: Reviewer\n',
+        });
+
+        const candidate = await discoverPrimaryWorkspaceAgent(tempDir);
+        expect(candidate).toBeNull();
     });
 
     it('rejects paths that escape the workspace', () => {

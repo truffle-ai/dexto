@@ -49,7 +49,7 @@ describe('workspace snapshot packaging', () => {
 
         const snapshot = await createWorkspaceSnapshot({
             workspaceRoot: tempDir,
-            entryAgent: 'coding-agent.yml',
+            workspaceAgentPath: 'coding-agent.yml',
             exclude: ['.git', '.env*'],
         });
 
@@ -73,9 +73,30 @@ describe('workspace snapshot packaging', () => {
         await expect(
             createWorkspaceSnapshot({
                 workspaceRoot: tempDir,
-                entryAgent: 'coding-agent.yml',
+                workspaceAgentPath: 'coding-agent.yml',
                 exclude: ['coding-agent.yml'],
             })
-        ).rejects.toThrow('Deploy config excludes the selected entry agent');
+        ).rejects.toThrow('Deploy config excludes the selected workspace agent');
+    });
+
+    it('allows cloud-default deploys without a workspace agent file', async () => {
+        tempDir = createTempDir();
+        writeWorkspaceFiles(tempDir, {
+            'README.md': '# Hello\n',
+            'src/index.ts': 'console.log("hello");\n',
+        });
+
+        const snapshot = await createWorkspaceSnapshot({
+            workspaceRoot: tempDir,
+            exclude: ['.git'],
+        });
+
+        try {
+            const entries = await listArchiveEntries(snapshot.archivePath);
+            expect(entries).toContain('workspace/README.md');
+            expect(entries).toContain('workspace/src/index.ts');
+        } finally {
+            await snapshot.cleanup();
+        }
     });
 });
