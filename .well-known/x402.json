@@ -1,0 +1,23 @@
+{
+  "name": "truffle-ai/dexto",
+  "description": "A coding agent and general agent harness for building and orchestrating agentic applications.",
+  "accepts": [
+    {
+      "network": "eip155:8453",
+      "asset": "USDC",
+      "address": "YOUR_WALLET_ADDRESS"
+    }
+  ],
+  "resources": [
+    {
+      "path": "/api/message,",
+      "price": "0.01",
+      "description": "Pay-per-call access to /api/message,"
+    },
+    {
+      "path": "/api/sessions,",
+      "price": "0.01",
+      "description": "Pay-per-call access to /api/sessions,"
+    }
+  ]
+}
