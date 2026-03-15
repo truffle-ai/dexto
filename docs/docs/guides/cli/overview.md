@@ -118,6 +118,70 @@ dexto setup --force
 
 See [Global Preferences](./global-preferences) for detailed configuration guide.
 
+### `deploy` - Deploy the Current Workspace to Cloud
+
+Deploy the current folder to a cloud sandbox and keep it linked to that deployment.
+
+```bash
+# First deploy from any folder
+dexto deploy
+
+# Inspect the linked deployment
+dexto deploy status
+
+# Stop the linked cloud sandbox
+dexto deploy stop
+
+# Delete the linked deployment and unlink this workspace
+dexto deploy delete
+```
+
+**How first-run deploy works:**
+- Creates `.dexto/deploy.json` in the current workspace
+- Uses the default cloud agent when the folder does not define a primary workspace agent
+- Automatically uses a workspace agent when one of these files exists:
+  - `coding-agent.yml`
+  - `agents/coding-agent.yml`
+  - `src/dexto/agents/coding-agent.yml`
+- Uploads the workspace snapshot and links the current folder to the created cloud deployment
+
+**Auth and environment:**
+- Authenticate with `dexto login` or set `DEXTO_API_KEY`
+- Point the CLI at your sandbox service with `DEXTO_SANDBOX_URL`
+- Optionally set `DEXTO_APP_URL` if you want dashboard links to resolve to a custom app host
+
+**Generated deploy config:**
+
+Default cloud agent:
+
+```json
+{
+  "version": 1,
+  "agent": {
+    "type": "cloud-default"
+  },
+  "exclude": [".git", "node_modules", "dist", ".next", ".turbo", ".env*"]
+}
+```
+
+Workspace agent:
+
+```json
+{
+  "version": 1,
+  "agent": {
+    "type": "workspace",
+    "path": "coding-agent.yml"
+  },
+  "exclude": [".git", "node_modules", "dist", ".next", ".turbo", ".env*"]
+}
+```
+
+**Notes:**
+- `dexto deploy` deploys the whole workspace, not just git-tracked files
+- `dexto deploy status`, `stop`, and `delete` work from the linked workspace folder
+- Dashboard links are printed after deploy and status so you can inspect the cloud workspace directly
+
 ### `install` - Install Agents
 
 Install agents from the registry or custom YAML files/directories.
@@ -434,6 +498,24 @@ dexto "run the test suite and explain any failures"
 
 # Git commit message generation
 git diff | dexto -p "generate a conventional commit message for these changes"
+```
+
+### Cloud Workspace Deploys
+
+```bash
+# Deploy any folder with the managed cloud agent
+dexto deploy
+
+# Deploy a repo that already defines coding-agent.yml
+cd my-project
+dexto deploy
+
+# Check the linked deployment later
+dexto deploy status
+
+# Stop or delete the linked deployment
+dexto deploy stop
+dexto deploy delete
 ```
 
 ### Multi-Agent Workflows

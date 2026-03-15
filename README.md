@@ -606,6 +606,7 @@ Options:
 
 Commands:
   setup                    Configure global preferences
+  deploy                   Deploy current workspace to cloud
   agents install <agents...>  Install agents from registry
   agents list              List available agents
   session list|history     Manage sessions
@@ -613,6 +614,17 @@ Commands:
 ```
 
 Full reference: `dexto --help`
+
+Cloud workspace deploys:
+
+```bash
+dexto deploy
+dexto deploy status
+dexto deploy stop
+dexto deploy delete
+```
+
+First run creates `.dexto/deploy.json` in the current folder, uploads the workspace, and prints a dashboard link for the deployment.
 
 </details>
 
