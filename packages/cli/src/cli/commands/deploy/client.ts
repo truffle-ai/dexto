@@ -5,6 +5,7 @@ import { getAuthToken, getDextoApiKey } from '../../auth/service.js';
 import type { DeployAgent } from './config.js';
 
 const SANDBOX_URL_ENV_VAR = 'DEXTO_SANDBOX_URL';
+const DEFAULT_SANDBOX_URL = 'https://sandbox.dexto.ai';
 
 type RequestHeaders = Record<string, string> | Array<[string, string]>;
 
@@ -122,7 +123,7 @@ class SandboxApiError extends Error {
     }
 }
 
-function resolveSandboxBaseUrl(): string {
+export function resolveSandboxBaseUrl(): string {
     const explicit = process.env[SANDBOX_URL_ENV_VAR]?.trim();
     if (explicit && explicit.length > 0) {
         return explicit.replace(/\/+$/, '');
@@ -133,9 +134,7 @@ function resolveSandboxBaseUrl(): string {
         return 'http://localhost:3004';
     }
 
-    throw new Error(
-        `Missing required environment variable: ${SANDBOX_URL_ENV_VAR}. Set it to your sandbox service URL before using \`dexto deploy\`.`
-    );
+    return DEFAULT_SANDBOX_URL;
 }
 
 async function resolveAccessToken(): Promise<string> {
