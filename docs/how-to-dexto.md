@@ -187,7 +187,7 @@ dexto deploy stop
 dexto deploy delete
 ```
 
-On first deploy, Dexto creates `.dexto/deploy.json` in the current folder. If the workspace already contains a primary agent file such as `coding-agent.yml`, Dexto deploys that config. Otherwise it uses the default cloud agent and still uploads the entire workspace.
+On first deploy, Dexto creates `.dexto/deploy.json` in the current folder. If the workspace already contains `agents/coding-agent.yml`, Dexto deploys that config. Otherwise it uses the default cloud agent and still uploads the entire workspace.
 
 ### Method 2: Programmatic SDK (`DextoAgent`)
 

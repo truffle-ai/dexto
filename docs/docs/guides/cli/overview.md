@@ -139,16 +139,11 @@ dexto deploy delete
 **How first-run deploy works:**
 - Creates `.dexto/deploy.json` in the current workspace
 - Uses the default cloud agent when the folder does not define a primary workspace agent
-- Automatically uses a workspace agent when one of these files exists:
-  - `coding-agent.yml`
-  - `agents/coding-agent.yml`
-  - `src/dexto/agents/coding-agent.yml`
+- Automatically uses a workspace agent when `agents/coding-agent.yml` exists
 - Uploads the workspace snapshot and links the current folder to the created cloud deployment
 
-**Auth and environment:**
+**Authentication:**
 - Authenticate with `dexto login` or set `DEXTO_API_KEY`
-- Point the CLI at your sandbox service with `DEXTO_SANDBOX_URL`
-- Optionally set `DEXTO_APP_URL` if you want dashboard links to resolve to a custom app host
 
 **Generated deploy config:**
 
@@ -171,7 +166,7 @@ Workspace agent:
   "version": 1,
   "agent": {
     "type": "workspace",
-    "path": "coding-agent.yml"
+    "path": "agents/coding-agent.yml"
   },
   "exclude": [".git", "node_modules", "dist", ".next", ".turbo", ".env*"]
 }
@@ -506,7 +501,7 @@ git diff | dexto -p "generate a conventional commit message for these changes"
 # Deploy any folder with the managed cloud agent
 dexto deploy
 
-# Deploy a repo that already defines coding-agent.yml
+# Deploy a repo that already defines agents/coding-agent.yml
 cd my-project
 dexto deploy
 

@@ -69,9 +69,10 @@ describe('deploy config', () => {
         expect(loaded?.exclude).toEqual(['.git']);
     });
 
-    it('discovers the opinionated primary workspace agent locations in order', async () => {
+    it('discovers the primary workspace agent from agents only', async () => {
         tempDir = createTempDir();
         writeWorkspaceFiles(tempDir, {
+            'coding-agent.yml': 'agentCard:\n  name: Root Agent\n',
             'agents/coding-agent.yml': 'agentCard:\n  name: Agent\n',
             'src/dexto/agents/coding-agent.yml': 'agentCard:\n  name: Src Agent\n',
         });
@@ -80,10 +81,12 @@ describe('deploy config', () => {
         expect(candidate).toBe('agents/coding-agent.yml');
     });
 
-    it('returns null when no opinionated primary workspace agent exists', async () => {
+    it('returns null when no primary workspace agent exists under agents', async () => {
         tempDir = createTempDir();
         writeWorkspaceFiles(tempDir, {
+            'coding-agent.yml': 'agentCard:\n  name: Root Agent\n',
             'agents/reviewer/reviewer.yml': 'agentCard:\n  name: Reviewer\n',
+            'src/dexto/agents/coding-agent.yml': 'agentCard:\n  name: Src Agent\n',
         });
 
         const candidate = await discoverPrimaryWorkspaceAgent(tempDir);
