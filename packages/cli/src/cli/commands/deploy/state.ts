@@ -25,6 +25,7 @@ const DeployStateSchema = z
     .strict();
 
 export type DeployLink = z.output<typeof DeployLinkSchema>;
+type DeployLinkInput = Pick<z.input<typeof DeployLinkSchema>, 'cloudAgentId' | 'agentUrl'>;
 type DeployState = z.output<typeof DeployStateSchema>;
 
 function getDeployLinksPath(): string {
@@ -102,7 +103,7 @@ export async function loadWorkspaceDeployLink(workspaceRoot: string): Promise<De
 
 export async function saveWorkspaceDeployLink(
     workspaceRoot: string,
-    link: Pick<DeployLink, 'cloudAgentId' | 'agentUrl'>
+    link: DeployLinkInput
 ): Promise<void> {
     await withDeployStateLock(async (filePath) => {
         const state = await loadDeployStateFromPath(filePath);

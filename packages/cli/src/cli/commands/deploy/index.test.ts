@@ -5,13 +5,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
     mockCreateWorkspaceSnapshot,
+    mockDeleteCloudAgent,
+    mockDeployWorkspace,
     mockLoadDeployConfig,
     mockLoadWorkspaceDeployLink,
+    mockOutro,
+    mockRemoveWorkspaceDeployLink,
+    mockSaveWorkspaceDeployLink,
     mockSpinner,
 } = vi.hoisted(() => ({
     mockCreateWorkspaceSnapshot: vi.fn(),
+    mockDeleteCloudAgent: vi.fn(),
+    mockDeployWorkspace: vi.fn(),
     mockLoadDeployConfig: vi.fn(),
     mockLoadWorkspaceDeployLink: vi.fn(),
+    mockOutro: vi.fn(),
+    mockRemoveWorkspaceDeployLink: vi.fn(),
+    mockSaveWorkspaceDeployLink: vi.fn(),
     mockSpinner: {
         start: vi.fn(),
         stop: vi.fn(),
@@ -22,7 +32,7 @@ const {
 vi.mock('@clack/prompts', () => ({
     intro: vi.fn(),
     note: vi.fn(),
-    outro: vi.fn(),
+    outro: mockOutro,
     spinner: vi.fn(() => mockSpinner),
 }));
 
@@ -46,10 +56,10 @@ vi.mock('./config.js', () => ({
 
 vi.mock('./client.js', () => ({
     createDeployClient: vi.fn(() => ({
-        deployWorkspace: vi.fn(),
+        deployWorkspace: mockDeployWorkspace,
         getCloudAgent: vi.fn(),
         stopCloudAgent: vi.fn(),
-        deleteCloudAgent: vi.fn(),
+        deleteCloudAgent: mockDeleteCloudAgent,
     })),
 }));
 
@@ -66,8 +76,8 @@ vi.mock('./links.js', () => ({
 
 vi.mock('./state.js', () => ({
     loadWorkspaceDeployLink: mockLoadWorkspaceDeployLink,
-    saveWorkspaceDeployLink: vi.fn(),
-    removeWorkspaceDeployLink: vi.fn(),
+    saveWorkspaceDeployLink: mockSaveWorkspaceDeployLink,
+    removeWorkspaceDeployLink: mockRemoveWorkspaceDeployLink,
 }));
 
 vi.mock('./snapshot.js', () => ({
@@ -94,6 +104,14 @@ describe('deploy command', () => {
             exclude: [],
         });
         mockLoadWorkspaceDeployLink.mockResolvedValue(null);
+        mockDeployWorkspace.mockResolvedValue({
+            cloudAgentId: 'cloud-agent-a',
+            agentUrl: 'https://sandbox.dexto.ai/api/cloud-agents/cloud-agent-a/agent',
+            state: { status: 'ready' },
+        });
+        mockDeleteCloudAgent.mockResolvedValue({
+            cloudAgentId: 'cloud-agent-a',
+        });
     });
 
     afterEach(() => {
@@ -109,5 +127,52 @@ describe('deploy command', () => {
         await expect(handleDeployCommand()).rejects.toThrow('packaging failed');
         expect(mockSpinner.start).toHaveBeenCalledWith('Packaging workspace snapshot...');
         expect(mockSpinner.stop).toHaveBeenCalledWith(expect.stringContaining('Deploy failed'));
+    });
+
+    it('warns when deploy succeeds but local link state cannot be saved', async () => {
+        const cleanup = vi.fn().mockResolvedValue(undefined);
+        mockCreateWorkspaceSnapshot.mockResolvedValue({
+            archivePath: '/tmp/workspace.tgz',
+            cleanup,
+        });
+        mockSaveWorkspaceDeployLink.mockRejectedValue(new Error('disk full'));
+
+        const { handleDeployCommand } = await import('./index.js');
+
+        await expect(handleDeployCommand()).resolves.toBeUndefined();
+
+        expect(mockSpinner.stop).toHaveBeenCalledWith(
+            expect.stringContaining('Workspace deployed')
+        );
+        expect(mockOutro).toHaveBeenCalledWith(
+            expect.stringContaining(
+                'Warning: deployment succeeded, but failed to save local link state (disk full)'
+            )
+        );
+        expect(mockOutro).toHaveBeenCalledWith(
+            expect.stringContaining('Run `dexto deploy` again in this workspace to re-link.')
+        );
+        expect(cleanup).toHaveBeenCalled();
+    });
+
+    it('warns when delete succeeds but local link state cannot be removed', async () => {
+        mockLoadWorkspaceDeployLink.mockResolvedValue({
+            cloudAgentId: 'cloud-agent-a',
+            updatedAt: new Date().toISOString(),
+        });
+        mockRemoveWorkspaceDeployLink.mockRejectedValue(new Error('permission denied'));
+
+        const { handleDeployDeleteCommand } = await import('./index.js');
+
+        await expect(handleDeployDeleteCommand({ interactive: false })).resolves.toBeUndefined();
+
+        expect(mockSpinner.stop).toHaveBeenCalledWith(
+            expect.stringContaining('Cloud deployment deleted')
+        );
+        expect(mockOutro).toHaveBeenCalledWith(
+            expect.stringContaining(
+                'Warning: failed to remove local deploy link state (permission denied)'
+            )
+        );
     });
 });

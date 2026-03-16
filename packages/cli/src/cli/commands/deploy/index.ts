@@ -51,6 +51,10 @@ function formatCloudAgentSummary(input: {
     ].join('\n');
 }
 
+function getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
+
 async function resolveDeployConfig(workspaceRoot: string): Promise<DeployConfig> {
     const existingConfig = await loadDeployConfig(workspaceRoot);
     if (existingConfig) {
@@ -123,11 +127,15 @@ export async function handleDeployCommand(options?: InteractiveOptions): Promise
             snapshotPath: snapshot.archivePath,
             ...(deployLink?.cloudAgentId ? { cloudAgentId: deployLink.cloudAgentId } : {}),
         });
-
-        await saveWorkspaceDeployLink(workspaceRoot, {
-            cloudAgentId: deployed.cloudAgentId,
-            agentUrl: deployed.agentUrl,
-        });
+        let linkSyncError: unknown = null;
+        try {
+            await saveWorkspaceDeployLink(workspaceRoot, {
+                cloudAgentId: deployed.cloudAgentId,
+                agentUrl: deployed.agentUrl,
+            });
+        } catch (error) {
+            linkSyncError = error;
+        }
 
         spinner.stop(chalk.green('✓ Workspace deployed'));
         p.outro(
@@ -137,6 +145,15 @@ export async function handleDeployCommand(options?: InteractiveOptions): Promise
                     status: deployed.state.status,
                     agentUrl: deployed.agentUrl,
                 }),
+                ...(linkSyncError
+                    ? [
+                          '',
+                          `Warning: deployment succeeded, but failed to save local link state (${getErrorMessage(
+                              linkSyncError
+                          )})`,
+                          'Run `dexto deploy` again in this workspace to re-link.',
+                      ]
+                    : []),
                 '',
                 'Next steps:',
                 `- Open the dashboard to inspect and interact with the deployment`,
@@ -228,9 +245,20 @@ export async function handleDeployDeleteCommand(options?: InteractiveOptions): P
     try {
         const client = createDeployClient();
         const result = await client.deleteCloudAgent(deployLink.cloudAgentId);
-        await removeWorkspaceDeployLink(workspaceRoot);
+        let linkRemoveError: unknown = null;
+        try {
+            await removeWorkspaceDeployLink(workspaceRoot);
+        } catch (error) {
+            linkRemoveError = error;
+        }
         spinner.stop(chalk.green('✓ Cloud deployment deleted'));
-        p.outro(`Deleted ${result.cloudAgentId}`);
+        p.outro(
+            linkRemoveError
+                ? `Deleted ${result.cloudAgentId}\nWarning: failed to remove local deploy link state (${getErrorMessage(
+                      linkRemoveError
+                  )})`
+                : `Deleted ${result.cloudAgentId}`
+        );
     } catch (error) {
         spinner.stop(chalk.red('✗ Delete failed'));
         throw error;
