@@ -1,4 +1,3 @@
-import * as p from '@clack/prompts';
 import chalk from 'chalk';
 import type { DextoAgent } from '@dexto/core';
 import { logger } from '@dexto/core';
@@ -97,21 +96,6 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
         }
 
         const cliUpdateInfo = await getVersionCheckResult();
-
-        const { shouldPromptForSync, handleSyncAgentsCommand } = await import(
-            '../commands/agents/sync.js'
-        );
-        const needsSync = await shouldPromptForSync();
-        if (needsSync) {
-            const shouldSync = await p.confirm({
-                message: 'Agent config updates available. Sync now?',
-                initialValue: true,
-            });
-
-            if (!p.isCancel(shouldSync) && shouldSync) {
-                await handleSyncAgentsCommand({ force: true, quiet: true });
-            }
-        }
 
         const originalConsole = {
             log: console.log,

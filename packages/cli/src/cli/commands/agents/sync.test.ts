@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { promises as fs } from 'fs';
-import { shouldPromptForSync } from './sync.js';
+import { getBundledSyncTargetForAgentPath, shouldPromptForSync } from './sync.js';
 
 // Mock fs module
 vi.mock('fs', async () => {
@@ -122,6 +122,91 @@ describe('sync-agents', () => {
             expect(result).toBe(false);
         });
 
+        it('returns false for non-bundled agent paths even when another installed agent is stale', async () => {
+            vi.mocked(fs.readFile).mockImplementation(async (pathArg) => {
+                const filePath = String(pathArg);
+                if (filePath.includes('/bundled/agents/test-agent.yml')) {
+                    return Buffer.from('bundled content v2');
+                }
+                return Buffer.from('installed content v1');
+            });
+
+            vi.mocked(fs.readdir).mockResolvedValue([
+                { name: 'test-agent', isDirectory: () => true } as any,
+            ]);
+
+            vi.mocked(fs.stat).mockImplementation(async (pathArg) => {
+                const filePath = String(pathArg);
+                if (filePath === '/mock/.dexto/agents/test-agent') {
+                    return { isDirectory: () => true } as any;
+                }
+                if (filePath === '/bundled/agents/test-agent.yml') {
+                    return { isDirectory: () => false } as any;
+                }
+                throw new Error(`Unexpected stat path: ${filePath}`);
+            });
+
+            mockLoadBundledRegistryAgents.mockReturnValue({
+                'test-agent': {
+                    id: 'test-agent',
+                    name: 'Test Agent',
+                    source: 'test-agent.yml',
+                    description: 'A test agent',
+                    author: 'Test',
+                    tags: [],
+                },
+            });
+
+            mockResolveBundledScript.mockReturnValue('/bundled/agents/test-agent.yml');
+
+            const result = await shouldPromptForSync('/workspace/agents/custom-agent.yml');
+
+            expect(result).toBe(false);
+        });
+
+        it('checks only the active bundled agent path when provided', async () => {
+            vi.mocked(fs.readFile).mockImplementation(async (pathArg) => {
+                const filePath = String(pathArg);
+                if (filePath === '/bundled/agents/default-agent.yml') {
+                    return Buffer.from('bundled content v2');
+                }
+                if (filePath === '/mock/.dexto/agents/default-agent/default-agent.yml') {
+                    return Buffer.from('installed content v1');
+                }
+                throw new Error(`Unexpected readFile path: ${filePath}`);
+            });
+
+            vi.mocked(fs.stat).mockImplementation(async (pathArg) => {
+                const filePath = String(pathArg);
+                if (filePath === '/bundled/agents/default-agent.yml') {
+                    return { isDirectory: () => false } as any;
+                }
+                if (filePath === '/mock/.dexto/agents/default-agent') {
+                    return { isDirectory: () => true } as any;
+                }
+                throw new Error(`Unexpected stat path: ${filePath}`);
+            });
+
+            mockLoadBundledRegistryAgents.mockReturnValue({
+                'default-agent': {
+                    id: 'default-agent',
+                    name: 'Default Agent',
+                    source: 'default-agent.yml',
+                    description: 'Default agent',
+                    author: 'Test',
+                    tags: [],
+                },
+            });
+
+            mockResolveBundledScript.mockReturnValue('/bundled/agents/default-agent.yml');
+
+            const result = await shouldPromptForSync(
+                '/mock/.dexto/agents/default-agent/default-agent.yml'
+            );
+
+            expect(result).toBe(true);
+        });
+
         it('returns false for single-file bundled agents installed as directories', async () => {
             vi.mocked(fs.readFile).mockImplementation(async (pathArg) => {
                 const filePath = String(pathArg);
@@ -191,6 +276,55 @@ describe('sync-agents', () => {
             const result = await shouldPromptForSync();
 
             expect(result).toBe(false);
+        });
+    });
+
+    describe('getBundledSyncTargetForAgentPath', () => {
+        it('resolves installed bundled agent configs and ignores other paths', () => {
+            mockLoadBundledRegistryAgents.mockReturnValue({
+                'default-agent': {
+                    id: 'default-agent',
+                    name: 'Default Agent',
+                    source: 'default-agent.yml',
+                    description: 'Default agent',
+                    author: 'Test',
+                    tags: [],
+                },
+                'coding-agent': {
+                    id: 'coding-agent',
+                    name: 'Coding Agent',
+                    source: 'coding-agent/',
+                    main: 'coding-agent.yml',
+                    description: 'Coding agent',
+                    author: 'Test',
+                    tags: [],
+                },
+            });
+
+            expect(
+                getBundledSyncTargetForAgentPath(
+                    '/mock/.dexto/agents/default-agent/default-agent.yml'
+                )
+            ).toEqual({
+                agentId: 'default-agent',
+                agentEntry: expect.objectContaining({ source: 'default-agent.yml' }),
+            });
+
+            expect(
+                getBundledSyncTargetForAgentPath(
+                    '/mock/.dexto/agents/coding-agent/coding-agent.yml'
+                )
+            ).toEqual({
+                agentId: 'coding-agent',
+                agentEntry: expect.objectContaining({
+                    source: 'coding-agent/',
+                    main: 'coding-agent.yml',
+                }),
+            });
+
+            expect(
+                getBundledSyncTargetForAgentPath('/workspace/agents/custom-agent.yml')
+            ).toBeNull();
         });
     });
 });

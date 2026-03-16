@@ -725,6 +725,30 @@ program
                             opts.agent,
                             opts.autoInstall !== false
                         );
+
+                        if (opts.interactive !== false) {
+                            const {
+                                getBundledSyncTargetForAgentPath,
+                                shouldPromptForSync,
+                                handleSyncAgentsCommand,
+                            } = await import('./cli/commands/agents/sync.js');
+                            const syncTarget = getBundledSyncTargetForAgentPath(resolvedPath);
+
+                            if (syncTarget && (await shouldPromptForSync(resolvedPath))) {
+                                const shouldSync = await p.confirm({
+                                    message: `Bundled agent updates available for '${syncTarget.agentId}'. Sync now?`,
+                                    initialValue: true,
+                                });
+
+                                if (!p.isCancel(shouldSync) && shouldSync) {
+                                    await handleSyncAgentsCommand({
+                                        force: true,
+                                        quiet: true,
+                                        agentIds: [syncTarget.agentId],
+                                    });
+                                }
+                            }
+                        }
                     }
 
                     // Load raw config and apply CLI overrides

@@ -3,6 +3,7 @@
 import { promises as fs } from 'fs';
 import { createHash } from 'crypto';
 import path from 'path';
+import { realpathSync } from 'fs';
 import chalk from 'chalk';
 import * as p from '@clack/prompts';
 import { logger } from '@dexto/core';
@@ -24,6 +25,8 @@ export interface SyncAgentsCommandOptions {
     force?: boolean;
     /** Minimal output - used when called from startup prompt */
     quiet?: boolean;
+    /** Restrict sync to specific bundled agent IDs */
+    agentIds?: string[];
 }
 
 /**
@@ -42,6 +45,60 @@ interface AgentInfo {
     description?: string | undefined;
     status: AgentStatus;
     error?: string | undefined;
+}
+
+export interface BundledSyncTarget {
+    agentId: string;
+    agentEntry: AgentRegistryEntry;
+}
+
+function normalizeComparablePath(filePath: string): string {
+    try {
+        return realpathSync(filePath);
+    } catch {
+        return path.resolve(filePath);
+    }
+}
+
+function getInstalledMainConfigPath(
+    agentId: string,
+    agentEntry: AgentRegistryEntry
+): string | null {
+    const installedRoot = path.join(getDextoGlobalPath('agents'), agentId);
+
+    if (agentEntry.source.endsWith('/')) {
+        if (!agentEntry.main) {
+            return null;
+        }
+        return path.join(installedRoot, agentEntry.main);
+    }
+
+    return path.join(installedRoot, path.basename(agentEntry.source));
+}
+
+export function getBundledSyncTargetForAgentPath(agentPath: string): BundledSyncTarget | null {
+    try {
+        const normalizedAgentPath = normalizeComparablePath(agentPath);
+        const bundledAgents = loadBundledRegistryAgents();
+
+        for (const [agentId, agentEntry] of Object.entries(bundledAgents)) {
+            const installedMainConfigPath = getInstalledMainConfigPath(agentId, agentEntry);
+            if (!installedMainConfigPath) {
+                continue;
+            }
+
+            if (normalizeComparablePath(installedMainConfigPath) === normalizedAgentPath) {
+                return { agentId, agentEntry };
+            }
+        }
+
+        return null;
+    } catch (error) {
+        logger.debug(
+            `Failed to resolve sync target for agent path '${agentPath}': ${error instanceof Error ? error.message : String(error)}`
+        );
+        return null;
+    }
 }
 
 /**
@@ -234,9 +291,25 @@ async function getAgentStatus(agentId: string, agentEntry: AgentRegistryEntry): 
  *
  * @returns true if should prompt for sync
  */
-export async function shouldPromptForSync(): Promise<boolean> {
+export async function shouldPromptForSync(agentPath?: string): Promise<boolean> {
     try {
         const bundledAgents = loadBundledRegistryAgents();
+
+        if (agentPath) {
+            const syncTarget = getBundledSyncTargetForAgentPath(agentPath);
+            if (!syncTarget) {
+                return false;
+            }
+
+            const bundledHash = await getBundledAgentHash(syncTarget.agentEntry);
+            const installedHash = await getInstalledAgentHash(
+                syncTarget.agentId,
+                syncTarget.agentEntry
+            );
+
+            return Boolean(bundledHash && installedHash && bundledHash !== installedHash);
+        }
+
         const installedAgentIds = await getInstalledAgentIds();
 
         for (const agentId of installedAgentIds) {
@@ -324,7 +397,7 @@ function formatStatus(status: AgentStatus): string {
  * ```
  */
 export async function handleSyncAgentsCommand(options: SyncAgentsCommandOptions): Promise<void> {
-    const { list = false, force = false, quiet = false } = options;
+    const { list = false, force = false, quiet = false, agentIds = [] } = options;
 
     if (!quiet) {
         p.intro(chalk.cyan('Agent Sync'));
@@ -336,13 +409,17 @@ export async function handleSyncAgentsCommand(options: SyncAgentsCommandOptions)
     try {
         // Load bundled registry (uses existing function from agent-management)
         const bundledAgents = loadBundledRegistryAgents();
-        const bundledAgentIds = Object.keys(bundledAgents);
+        const targetAgentIds = new Set(agentIds);
+        const bundledAgentIds = Object.keys(bundledAgents).filter(
+            (agentId) => targetAgentIds.size === 0 || targetAgentIds.has(agentId)
+        );
 
         // Get installed agents
         const installedAgentIds = await getInstalledAgentIds();
 
         // Find custom agents (installed but not in bundled registry)
-        const customAgentIds = installedAgentIds.filter((id) => !bundledAgents[id]);
+        const customAgentIds =
+            targetAgentIds.size === 0 ? installedAgentIds.filter((id) => !bundledAgents[id]) : [];
 
         // Check status of all bundled agents
         const agentInfos: AgentInfo[] = [];
