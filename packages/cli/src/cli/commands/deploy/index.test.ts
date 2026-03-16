@@ -9,8 +9,10 @@ const {
     mockDeployWorkspace,
     mockFindDextoProjectRoot,
     mockGetCloudAgent,
+    mockListCloudAgents,
     mockLoadDeployConfig,
     mockLoadWorkspaceDeployLink,
+    mockOpenBrowser,
     mockOutro,
     mockRemoveWorkspaceDeployLink,
     mockSaveWorkspaceDeployLink,
@@ -21,8 +23,10 @@ const {
     mockDeployWorkspace: vi.fn(),
     mockFindDextoProjectRoot: vi.fn(),
     mockGetCloudAgent: vi.fn(),
+    mockListCloudAgents: vi.fn(),
     mockLoadDeployConfig: vi.fn(),
     mockLoadWorkspaceDeployLink: vi.fn(),
+    mockOpenBrowser: vi.fn(),
     mockOutro: vi.fn(),
     mockRemoveWorkspaceDeployLink: vi.fn(),
     mockSaveWorkspaceDeployLink: vi.fn(),
@@ -66,6 +70,7 @@ vi.mock('./client.js', () => ({
     createDeployClient: vi.fn(() => ({
         deployWorkspace: mockDeployWorkspace,
         getCloudAgent: mockGetCloudAgent,
+        listCloudAgents: mockListCloudAgents,
         stopCloudAgent: vi.fn(),
         deleteCloudAgent: mockDeleteCloudAgent,
     })),
@@ -86,6 +91,10 @@ vi.mock('./state.js', () => ({
     loadWorkspaceDeployLink: mockLoadWorkspaceDeployLink,
     saveWorkspaceDeployLink: mockSaveWorkspaceDeployLink,
     removeWorkspaceDeployLink: mockRemoveWorkspaceDeployLink,
+}));
+
+vi.mock('open', () => ({
+    default: mockOpenBrowser,
 }));
 
 vi.mock('./snapshot.js', () => ({
@@ -113,6 +122,7 @@ describe('deploy command', () => {
         });
         mockLoadWorkspaceDeployLink.mockResolvedValue(null);
         mockFindDextoProjectRoot.mockReturnValue(null);
+        mockOpenBrowser.mockResolvedValue(undefined);
         mockDeployWorkspace.mockResolvedValue({
             cloudAgentId: 'cloud-agent-a',
             agentUrl: 'https://sandbox.dexto.ai/api/cloud-agents/cloud-agent-a/agent',
@@ -126,6 +136,22 @@ describe('deploy command', () => {
             agentUrl: 'https://sandbox.dexto.ai/api/cloud-agents/cloud-agent-a/agent',
             state: { status: 'ready' },
         });
+        mockListCloudAgents.mockResolvedValue([
+            {
+                cloudAgentId: 'cloud-agent-a',
+                name: 'Workspace Alpha',
+                agentUrl: 'https://sandbox.dexto.ai/api/cloud-agents/cloud-agent-a/agent',
+                state: { status: 'ready' },
+            },
+            {
+                cloudAgentId: 'cloud-agent-b',
+                name: null,
+                agentUrl: 'https://sandbox.dexto.ai/api/cloud-agents/cloud-agent-b/agent',
+                state: { status: 'stopped' },
+            },
+        ]);
+        mockSaveWorkspaceDeployLink.mockResolvedValue(undefined);
+        mockRemoveWorkspaceDeployLink.mockResolvedValue(undefined);
     });
 
     afterEach(() => {
@@ -206,5 +232,78 @@ describe('deploy command', () => {
         await expect(handleDeployStatusCommand()).resolves.toBeUndefined();
 
         expect(mockLoadWorkspaceDeployLink).toHaveBeenCalledWith(projectRoot);
+    });
+
+    it('lists cloud deployments and highlights the linked workspace deployment', async () => {
+        mockLoadWorkspaceDeployLink.mockResolvedValue({
+            cloudAgentId: 'cloud-agent-a',
+            updatedAt: new Date().toISOString(),
+        });
+
+        const { handleDeployListCommand } = await import('./index.js');
+
+        await expect(handleDeployListCommand()).resolves.toBeUndefined();
+
+        expect(mockListCloudAgents).toHaveBeenCalledTimes(1);
+        expect(mockOutro).toHaveBeenCalledWith(expect.stringContaining('Cloud deployments'));
+        expect(mockOutro).toHaveBeenCalledWith(expect.stringContaining('Linked to this workspace'));
+        expect(mockOutro).toHaveBeenCalledWith(expect.stringContaining('Workspace Alpha'));
+        expect(mockOutro).toHaveBeenCalledWith(expect.stringContaining('cloud-agent-b'));
+    });
+
+    it('opens the dashboard for the linked deployment', async () => {
+        mockLoadWorkspaceDeployLink.mockResolvedValue({
+            cloudAgentId: 'cloud-agent-a',
+            updatedAt: new Date().toISOString(),
+        });
+
+        const { handleDeployOpenCommand } = await import('./index.js');
+
+        await expect(handleDeployOpenCommand()).resolves.toBeUndefined();
+
+        expect(mockOpenBrowser).toHaveBeenCalledWith('https://app.dexto.ai/cloud-agent-a');
+        expect(mockOutro).toHaveBeenCalledWith(
+            expect.stringContaining('Opened dashboard for cloud-agent-a')
+        );
+    });
+
+    it('links the workspace to an existing cloud deployment', async () => {
+        mockLoadWorkspaceDeployLink.mockResolvedValue({
+            cloudAgentId: 'cloud-agent-previous',
+            updatedAt: new Date().toISOString(),
+        });
+        mockGetCloudAgent.mockResolvedValue({
+            cloudAgentId: 'cloud-agent-a',
+            agentUrl: 'https://sandbox.dexto.ai/api/cloud-agents/cloud-agent-a/agent',
+            state: { status: 'ready' },
+        });
+
+        const { handleDeployLinkCommand } = await import('./index.js');
+
+        await expect(handleDeployLinkCommand('cloud-agent-a')).resolves.toBeUndefined();
+
+        expect(mockSaveWorkspaceDeployLink).toHaveBeenCalledWith(fs.realpathSync.native(tempDir), {
+            cloudAgentId: 'cloud-agent-a',
+            agentUrl: 'https://sandbox.dexto.ai/api/cloud-agents/cloud-agent-a/agent',
+        });
+        expect(mockOutro).toHaveBeenCalledWith(
+            expect.stringContaining('Replaced previous link: cloud-agent-previous')
+        );
+    });
+
+    it('unlinks the workspace without deleting the remote deployment', async () => {
+        mockLoadWorkspaceDeployLink.mockResolvedValue({
+            cloudAgentId: 'cloud-agent-a',
+            updatedAt: new Date().toISOString(),
+        });
+
+        const { handleDeployUnlinkCommand } = await import('./index.js');
+
+        await expect(handleDeployUnlinkCommand()).resolves.toBeUndefined();
+
+        expect(mockRemoveWorkspaceDeployLink).toHaveBeenCalledWith(fs.realpathSync.native(tempDir));
+        expect(mockOutro).toHaveBeenCalledWith(
+            expect.stringContaining('The remote deployment was not deleted.')
+        );
     });
 });

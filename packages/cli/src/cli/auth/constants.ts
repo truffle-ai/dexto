@@ -30,7 +30,7 @@ export const DEXTO_API_URL = process.env.DEXTO_API_URL || 'https://api.dexto.ai'
 /**
  * Dexto platform URL for auth/key/account control-plane endpoints.
  */
-export const DEXTO_PLATFORM_URL = process.env.DEXTO_PLATFORM_URL || 'https://app.dexto.ai';
+export const DEXTO_PLATFORM_URL = process.env.DEXTO_PLATFORM_URL || 'https://platform.dexto.ai';
 
 /**
  * Dexto Nova credits purchase URL

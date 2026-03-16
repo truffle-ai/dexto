@@ -15,6 +15,10 @@ export function registerDeployCommand({ program }: DeployCommandRegisterContext)
         `
 Examples:
   $ dexto deploy
+  $ dexto deploy list
+  $ dexto deploy open
+  $ dexto deploy link sbx_123
+  $ dexto deploy unlink
   $ dexto deploy status
   $ dexto deploy stop
   $ dexto deploy delete
@@ -34,6 +38,75 @@ Examples:
             }
         })
     );
+
+    deployCommand
+        .command('list')
+        .description('List cloud deployments for your account')
+        .action(
+            withAnalytics('deploy list', async () => {
+                try {
+                    const { handleDeployListCommand } = await import('./index.js');
+                    await handleDeployListCommand();
+                    safeExit('deploy list', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto deploy list command failed: ${err}`);
+                    safeExit('deploy list', 1, 'error');
+                }
+            })
+        );
+
+    deployCommand
+        .command('open')
+        .description('Open the linked cloud deployment in the dashboard')
+        .action(
+            withAnalytics('deploy open', async () => {
+                try {
+                    const { handleDeployOpenCommand } = await import('./index.js');
+                    await handleDeployOpenCommand();
+                    safeExit('deploy open', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto deploy open command failed: ${err}`);
+                    safeExit('deploy open', 1, 'error');
+                }
+            })
+        );
+
+    deployCommand
+        .command('link')
+        .description('Link this workspace to an existing cloud deployment')
+        .argument('<cloudAgentId>', 'Cloud deployment id to link to this workspace')
+        .action(
+            withAnalytics('deploy link', async (cloudAgentId: string) => {
+                try {
+                    const { handleDeployLinkCommand } = await import('./index.js');
+                    await handleDeployLinkCommand(cloudAgentId);
+                    safeExit('deploy link', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto deploy link command failed: ${err}`);
+                    safeExit('deploy link', 1, 'error');
+                }
+            })
+        );
+
+    deployCommand
+        .command('unlink')
+        .description('Remove the local deployment link for this workspace')
+        .action(
+            withAnalytics('deploy unlink', async () => {
+                try {
+                    const { handleDeployUnlinkCommand } = await import('./index.js');
+                    await handleDeployUnlinkCommand();
+                    safeExit('deploy unlink', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto deploy unlink command failed: ${err}`);
+                    safeExit('deploy unlink', 1, 'error');
+                }
+            })
+        );
 
     deployCommand
         .command('status')
