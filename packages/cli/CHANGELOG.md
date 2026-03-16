@@ -1,5 +1,21 @@
 # dexto
 
+## 1.6.14
+
+### Patch Changes
+
+- 2095786: Add `list` and `open` subcommands to `dexto deploy`. Update the login default host url.
+    - @dexto/core@1.6.14
+    - @dexto/storage@1.6.14
+    - @dexto/agent-config@1.6.14
+    - @dexto/agent-management@1.6.14
+    - @dexto/analytics@1.6.14
+    - @dexto/registry@1.6.14
+    - @dexto/server@1.6.14
+    - @dexto/image-local@1.6.14
+    - @dexto/image-logger-agent@1.6.14
+    - @dexto/tui@1.6.14
+
 ## 1.6.13
 
 ### Patch Changes
