@@ -1,5 +1,17 @@
 # @dexto/agent-management
 
+## 1.6.13
+
+### Patch Changes
+
+- 663ac8e: Added `dexto deploy` for creating cloud workspaces from any local folder.
+- 8ae630a: Adds ChatGPT login via codex so users can reuse their subscriptions.
+- Updated dependencies [8ae630a]
+    - @dexto/core@1.6.13
+    - @dexto/agent-config@1.6.13
+    - @dexto/orchestration@1.6.13
+    - @dexto/tools-builtins@1.6.13
+
 ## 1.6.12
 
 ### Patch Changes

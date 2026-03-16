@@ -1,5 +1,30 @@
 # dexto
 
+## 1.6.13
+
+### Patch Changes
+
+- 663ac8e: Added `dexto deploy` for creating cloud workspaces from any local folder.
+- 8ae630a: Adds ChatGPT login via codex so users can reuse their subscriptions.
+- 158f718: Add first-class CLI lifecycle commands and finalize uninstall naming.
+    - Add `dexto upgrade [version]` for self-upgrade with install-method detection and npm/pnpm/bun -> native migration.
+    - Make `dexto uninstall` the CLI self-uninstall command (remove `uninstall-cli` command exposure).
+    - Keep agent lifecycle under `dexto agents ...` and add `dexto agent ...` alias for singular usage.
+    - Improve update notifications to point to `dexto upgrade` and source latest version from GitHub Releases.
+
+- Updated dependencies [663ac8e]
+- Updated dependencies [8ae630a]
+    - @dexto/agent-management@1.6.13
+    - @dexto/server@1.6.13
+    - @dexto/core@1.6.13
+    - @dexto/tui@1.6.13
+    - @dexto/analytics@1.6.13
+    - @dexto/image-local@1.6.13
+    - @dexto/image-logger-agent@1.6.13
+    - @dexto/agent-config@1.6.13
+    - @dexto/storage@1.6.13
+    - @dexto/registry@1.6.13
+
 ## 1.6.12
 
 ### Patch Changes

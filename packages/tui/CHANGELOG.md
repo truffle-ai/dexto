@@ -1,5 +1,16 @@
 # @dexto/tui
 
+## 1.6.13
+
+### Patch Changes
+
+- 8ae630a: Adds ChatGPT login via codex so users can reuse their subscriptions.
+- Updated dependencies [663ac8e]
+- Updated dependencies [8ae630a]
+    - @dexto/agent-management@1.6.13
+    - @dexto/core@1.6.13
+    - @dexto/registry@1.6.13
+
 ## 1.6.12
 
 ### Patch Changes
