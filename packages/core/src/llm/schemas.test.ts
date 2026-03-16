@@ -282,6 +282,20 @@ describe('LLMConfigSchema', () => {
             expect(result.success).toBe(true);
         });
 
+        it('should accept Codex baseURL for openai-compatible provider', () => {
+            const config: LLMConfig = {
+                provider: 'openai-compatible',
+                model: 'gpt-5.4',
+                baseURL: 'codex://chatgpt',
+            };
+
+            const result = LLMConfigSchema.safeParse(config);
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(result.data.baseURL).toBe('codex://chatgpt');
+            }
+        });
+
         it('should reject baseURL for providers that do not support it', () => {
             const provider = LLMTestHelpers.getProviderNotSupportingBaseURL();
             if (!provider) return; // Skip if all providers support baseURL

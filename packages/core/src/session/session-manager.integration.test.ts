@@ -566,6 +566,45 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
         expect(totalMessages).toBe(3); // 2 openai + 1 anthropic
     });
 
+    test('should preserve untracked ChatGPT usage metadata alongside tracked totals', async () => {
+        const sessionId = 'partial-usage-session';
+        await agent.createSession(sessionId);
+
+        const sessionManager = agent.sessionManager;
+
+        await sessionManager.markUntrackedChatGPTLoginUsage(sessionId);
+        await sessionManager.accumulateTokenUsage(
+            sessionId,
+            {
+                inputTokens: 120,
+                outputTokens: 45,
+                reasoningTokens: 10,
+                cacheReadTokens: 5,
+                cacheWriteTokens: 2,
+                totalTokens: 175,
+            },
+            0.01,
+            {
+                provider: 'openai',
+                model: 'gpt-4',
+            }
+        );
+
+        const metadata = await sessionManager.getSessionMetadata(sessionId);
+
+        expect(metadata?.usageTracking).toEqual({
+            hasUntrackedChatGPTLoginUsage: true,
+        });
+        expect(metadata?.tokenUsage).toEqual({
+            inputTokens: 120,
+            outputTokens: 45,
+            reasoningTokens: 10,
+            cacheReadTokens: 5,
+            cacheWriteTokens: 2,
+            totalTokens: 175,
+        });
+    });
+
     test('should handle optional token fields correctly', async () => {
         const sessionId = 'optional-tokens-session';
         await agent.createSession(sessionId);

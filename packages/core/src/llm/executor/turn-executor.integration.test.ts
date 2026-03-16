@@ -585,6 +585,31 @@ describe('TurnExecutor Integration Tests', () => {
                 })
             );
         });
+
+        it('should treat Codex app-server as tool-capable without probing', async () => {
+            const warningHandler = vi.fn();
+            sessionEventBus.on('llm:unsupported-input', warningHandler);
+
+            const codexExecutor = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 10, baseURL: 'codex://chatgpt' },
+                { provider: 'openai-compatible', model: 'gpt-5.4' },
+                logger,
+                messageQueue
+            );
+
+            await contextManager.addUserMessage([{ type: 'text', text: 'Hello' }]);
+            await codexExecutor.execute({ mcpManager }, true);
+
+            expect(generateText).not.toHaveBeenCalled();
+            expect(streamText).toHaveBeenCalled();
+            expect(warningHandler).not.toHaveBeenCalled();
+        });
     });
 
     describe('Error Handling', () => {

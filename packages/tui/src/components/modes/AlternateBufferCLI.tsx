@@ -424,6 +424,7 @@ export function AlternateBufferCLI({
                         bypassPermissions={ui.bypassPermissions}
                         planModeActive={ui.planModeActive}
                         isShellMode={buffer.text.startsWith('!')}
+                        chatgptRateLimitStatus={ui.chatgptRateLimitStatus}
                     />
                 )}
 

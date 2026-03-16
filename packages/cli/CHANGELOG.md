@@ -1,5 +1,37 @@
 # dexto
 
+## 1.6.12
+
+### Patch Changes
+
+- 3cc360f: Route CLI usage summary (`dexto billing status` and setup usage checks) to platform account API endpoints under `/api/account/*` instead of gateway-owned usage routes.
+    - @dexto/core@1.6.12
+    - @dexto/storage@1.6.12
+    - @dexto/agent-config@1.6.12
+    - @dexto/agent-management@1.6.12
+    - @dexto/analytics@1.6.12
+    - @dexto/registry@1.6.12
+    - @dexto/server@1.6.12
+    - @dexto/image-local@1.6.12
+    - @dexto/image-logger-agent@1.6.12
+    - @dexto/tui@1.6.12
+
+## 1.6.11
+
+### Patch Changes
+
+- a48010a: Move CLI device-auth and API-key control-plane calls from gateway-owned routes to the platform `/api` routes.
+    - @dexto/core@1.6.11
+    - @dexto/storage@1.6.11
+    - @dexto/agent-config@1.6.11
+    - @dexto/agent-management@1.6.11
+    - @dexto/analytics@1.6.11
+    - @dexto/registry@1.6.11
+    - @dexto/server@1.6.11
+    - @dexto/image-local@1.6.11
+    - @dexto/image-logger-agent@1.6.11
+    - @dexto/tui@1.6.11
+
 ## 1.6.10
 
 ### Patch Changes

@@ -12,7 +12,7 @@ Cursor ships with native MCP support, which means you can talk to your Dexto age
 
 ## Prerequisites
 
-- Install the Dexto CLI globally (`pnpm install -g dexto`, `npm install -g dexto`)
+- Install the Dexto CLI (`curl -fsSL https://dexto.ai/install | bash` or Windows PowerShell: `irm https://dexto.ai/install.ps1 | iex`)
 - Run `dexto` at least once so the setup flow can capture your provider credentials. Dexto stores secrets in `~/.dexto/.env`, so you no longer need to pass API keys through environment variables.
 
 ## Configure `.cursor/mcp.json`
@@ -39,7 +39,7 @@ Cursor looks for MCP definitions in `.cursor/mcp.json` within your project root.
 }
 ```
 
-Replace `music-agent` with any of the agents you see in `dexto list-agents`
+Replace `music-agent` with any of the agents you see in `dexto agents list`
 
 ### Expose a custom agent
 

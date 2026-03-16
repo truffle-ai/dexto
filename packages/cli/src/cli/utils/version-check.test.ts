@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { promises as fs } from 'fs';
-import { checkForUpdates, displayUpdateNotification } from './version-check.js';
 
 // Mock fs module
 vi.mock('fs', async () => {
@@ -19,12 +18,7 @@ vi.mock('fs', async () => {
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-// Mock getDextoGlobalPath
-vi.mock('@dexto/agent-management', () => ({
-    getDextoGlobalPath: vi.fn((_type: string, filename?: string) =>
-        filename ? `/mock/.dexto/cache/${filename}` : '/mock/.dexto/cache'
-    ),
-}));
+import { checkForUpdates, displayUpdateNotification } from './version-check.js';
 
 describe('version-check', () => {
     beforeEach(() => {
@@ -46,7 +40,7 @@ describe('version-check', () => {
             expect(mockFetch).not.toHaveBeenCalled();
         });
 
-        it('returns update info when newer version available from npm', async () => {
+        it('returns update info when newer version available from GitHub releases', async () => {
             // No cache - force fetch
             vi.mocked(fs.readFile).mockRejectedValue(new Error('ENOENT'));
             vi.mocked(fs.writeFile).mockResolvedValue();
@@ -54,7 +48,7 @@ describe('version-check', () => {
 
             mockFetch.mockResolvedValue({
                 ok: true,
-                json: () => Promise.resolve({ version: '2.0.0' }),
+                json: () => Promise.resolve({ tag_name: 'dexto@2.0.0' }),
             });
 
             const result = await checkForUpdates('1.0.0');
@@ -62,18 +56,37 @@ describe('version-check', () => {
             expect(result).toEqual({
                 current: '1.0.0',
                 latest: '2.0.0',
-                updateCommand: 'npm i -g dexto',
+                updateCommand: 'dexto upgrade',
             });
         });
 
-        it('returns null when current version matches latest', async () => {
+        it('extracts trailing semver from scoped monorepo release tags', async () => {
             vi.mocked(fs.readFile).mockRejectedValue(new Error('ENOENT'));
             vi.mocked(fs.writeFile).mockResolvedValue();
             vi.mocked(fs.mkdir).mockResolvedValue(undefined);
 
             mockFetch.mockResolvedValue({
                 ok: true,
-                json: () => Promise.resolve({ version: '1.0.0' }),
+                json: () => Promise.resolve({ tag_name: '@dexto/tools-filesystem@2.0.0' }),
+            });
+
+            const result = await checkForUpdates('1.0.0');
+
+            expect(result).toEqual({
+                current: '1.0.0',
+                latest: '2.0.0',
+                updateCommand: 'dexto upgrade',
+            });
+        });
+
+        it('returns null when current version matches latest release', async () => {
+            vi.mocked(fs.readFile).mockRejectedValue(new Error('ENOENT'));
+            vi.mocked(fs.writeFile).mockResolvedValue();
+            vi.mocked(fs.mkdir).mockResolvedValue(undefined);
+
+            mockFetch.mockResolvedValue({
+                ok: true,
+                json: () => Promise.resolve({ tag_name: 'dexto@1.0.0' }),
             });
 
             const result = await checkForUpdates('1.0.0');
@@ -81,14 +94,14 @@ describe('version-check', () => {
             expect(result).toBeNull();
         });
 
-        it('returns null when current version is newer than npm', async () => {
+        it('returns null when current version is newer than latest release', async () => {
             vi.mocked(fs.readFile).mockRejectedValue(new Error('ENOENT'));
             vi.mocked(fs.writeFile).mockResolvedValue();
             vi.mocked(fs.mkdir).mockResolvedValue(undefined);
 
             mockFetch.mockResolvedValue({
                 ok: true,
-                json: () => Promise.resolve({ version: '1.0.0' }),
+                json: () => Promise.resolve({ tag_name: 'dexto@1.0.0' }),
             });
 
             const result = await checkForUpdates('2.0.0');
@@ -110,7 +123,7 @@ describe('version-check', () => {
             expect(result).toEqual({
                 current: '1.0.0',
                 latest: '2.0.0',
-                updateCommand: 'npm i -g dexto',
+                updateCommand: 'dexto upgrade',
             });
             expect(mockFetch).not.toHaveBeenCalled();
         });
@@ -128,7 +141,7 @@ describe('version-check', () => {
 
             mockFetch.mockResolvedValue({
                 ok: true,
-                json: () => Promise.resolve({ version: '2.0.0' }),
+                json: () => Promise.resolve({ tag_name: 'dexto@2.0.0' }),
             });
 
             const result = await checkForUpdates('1.0.0');
@@ -136,7 +149,7 @@ describe('version-check', () => {
             expect(result).toEqual({
                 current: '1.0.0',
                 latest: '2.0.0',
-                updateCommand: 'npm i -g dexto',
+                updateCommand: 'dexto upgrade',
             });
             expect(mockFetch).toHaveBeenCalled();
         });
@@ -163,6 +176,19 @@ describe('version-check', () => {
 
             expect(result).toBeNull();
         });
+
+        it('returns null when tag_name does not contain a semver', async () => {
+            vi.mocked(fs.readFile).mockRejectedValue(new Error('ENOENT'));
+
+            mockFetch.mockResolvedValue({
+                ok: true,
+                json: () => Promise.resolve({ tag_name: 'latest-release' }),
+            });
+
+            const result = await checkForUpdates('1.0.0');
+
+            expect(result).toBeNull();
+        });
     });
 
     describe('semver comparison (via checkForUpdates)', () => {
@@ -175,7 +201,7 @@ describe('version-check', () => {
         it('correctly identifies major version updates', async () => {
             mockFetch.mockResolvedValue({
                 ok: true,
-                json: () => Promise.resolve({ version: '2.0.0' }),
+                json: () => Promise.resolve({ tag_name: 'dexto@2.0.0' }),
             });
 
             const result = await checkForUpdates('1.9.9');
@@ -185,7 +211,7 @@ describe('version-check', () => {
         it('correctly identifies minor version updates', async () => {
             mockFetch.mockResolvedValue({
                 ok: true,
-                json: () => Promise.resolve({ version: '1.2.0' }),
+                json: () => Promise.resolve({ tag_name: 'dexto@1.2.0' }),
             });
 
             const result = await checkForUpdates('1.1.9');
@@ -195,21 +221,31 @@ describe('version-check', () => {
         it('correctly identifies patch version updates', async () => {
             mockFetch.mockResolvedValue({
                 ok: true,
-                json: () => Promise.resolve({ version: '1.0.2' }),
+                json: () => Promise.resolve({ tag_name: 'dexto@1.0.2' }),
             });
 
             const result = await checkForUpdates('1.0.1');
             expect(result?.latest).toBe('1.0.2');
         });
 
-        it('handles versions with v prefix', async () => {
+        it('handles versions with v prefix in release tag', async () => {
             mockFetch.mockResolvedValue({
                 ok: true,
-                json: () => Promise.resolve({ version: 'v2.0.0' }),
+                json: () => Promise.resolve({ tag_name: 'dexto@v2.0.0' }),
             });
 
             const result = await checkForUpdates('v1.0.0');
             expect(result?.latest).toBe('v2.0.0');
+        });
+
+        it('returns null when release payload has no tag_name', async () => {
+            mockFetch.mockResolvedValue({
+                ok: true,
+                json: () => Promise.resolve({}),
+            });
+
+            const result = await checkForUpdates('1.0.0');
+            expect(result).toBeNull();
         });
     });
 
@@ -220,7 +256,7 @@ describe('version-check', () => {
                 displayUpdateNotification({
                     current: '1.0.0',
                     latest: '2.0.0',
-                    updateCommand: 'npm i -g dexto',
+                    updateCommand: 'dexto upgrade',
                 })
             ).not.toThrow();
         });

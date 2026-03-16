@@ -26,7 +26,7 @@ function readVersionFromPackageJson(packageJsonPath: string): string | undefined
 }
 
 function resolveCliVersion(): string {
-    // Regular installs (npm/pnpm): package.json is next to dist/.
+    // Regular npm installs: package.json is next to dist/.
     const scriptDir = path.dirname(fileURLToPath(import.meta.url));
     const localPackageJsonPath = path.resolve(scriptDir, '..', 'package.json');
     const localVersion = readVersionFromPackageJson(localPackageJsonPath);
@@ -102,6 +102,8 @@ import type { MainModeOptions } from './cli/modes/context.js';
 import type { CLIConfigOverrides } from './config/cli-overrides.js';
 import type { CreateAppOptions } from './cli/commands/create-app.js';
 import type { CLISetupOptionsInput } from './cli/commands/setup.js';
+import type { UpgradeCommandOptions } from './cli/commands/upgrade.js';
+import type { UninstallCliCommandOptions } from './cli/commands/uninstall.js';
 
 const program = new Command();
 
@@ -296,7 +298,50 @@ program
 
 registerAgentsCommand({ program });
 
-// 7) `which` SUB-COMMAND
+// 7) `upgrade` SUB-COMMAND
+program
+    .command('upgrade [version]')
+    .description('Upgrade Dexto CLI (auto-migrates npm installs to native)')
+    .option('--dry-run', 'Print commands without executing them')
+    .option('--force', 'Force reinstall during upgrade')
+    .action(
+        withAnalytics(
+            'upgrade',
+            async (version: string | undefined, options: Partial<UpgradeCommandOptions>) => {
+                try {
+                    const { handleUpgradeCommand } = await import('./cli/commands/upgrade.js');
+                    await handleUpgradeCommand(version, options);
+                    safeExit('upgrade', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto upgrade command failed: ${err}`);
+                    safeExit('upgrade', 1, 'error');
+                }
+            }
+        )
+    );
+
+// 8) `uninstall` SUB-COMMAND (CLI self uninstall)
+program
+    .command('uninstall')
+    .description('Uninstall the Dexto CLI binary (does not uninstall agents)')
+    .option('--purge', 'Also remove ~/.dexto completely')
+    .option('--dry-run', 'Print actions without deleting files')
+    .action(
+        withAnalytics('uninstall', async (options: Partial<UninstallCliCommandOptions>) => {
+            try {
+                const { handleUninstallCliCommand } = await import('./cli/commands/uninstall.js');
+                await handleUninstallCliCommand(options);
+                safeExit('uninstall', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto uninstall command failed: ${err}`);
+                safeExit('uninstall', 1, 'error');
+            }
+        })
+    );
+
+// 9) `which` SUB-COMMAND
 program
     .command('which <agent>')
     .description('Show the path to an agent')

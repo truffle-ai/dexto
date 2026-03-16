@@ -8,7 +8,8 @@ This guide will walk you through installing the Dexto CLI and setting up your en
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/en/download) >= 20.0.0
+- No runtime dependency is required for native install.
+- [Node.js](https://nodejs.org/en/download) >= 20.0.0 is only required if you build from source.
 
 **Optional:** An LLM API Key (not required for local models)
 - [Get a Gemini Key](https://aistudio.google.com/apikey) (free option available)
@@ -18,13 +19,49 @@ This guide will walk you through installing the Dexto CLI and setting up your en
 
 ## 1. Install Dexto
 
-Install Dexto globally using npm:
+Install Dexto using the native installer:
 
 ```bash
-npm install -g dexto
+# macOS / Linux / WSL
+curl -fsSL https://dexto.ai/install | bash
+
+# Windows PowerShell
+irm https://dexto.ai/install.ps1 | iex
 ```
 
-This adds the `dexto` command to your system, giving you access to the agent runtime.
+This adds the `dexto` command to your system and writes install metadata to `~/.dexto/install.json`.
+
+### Upgrade
+
+```bash
+# latest
+dexto upgrade
+
+# pinned
+dexto upgrade 1.6.8
+```
+
+### Uninstall CLI
+
+```bash
+# default: remove CLI binary only
+dexto uninstall
+
+# remove ~/.dexto too
+dexto uninstall --purge
+```
+
+### PATH Troubleshooting
+
+If you had an older npm global install, `dexto upgrade` automatically migrates it to native.
+
+If your shell still resolves the wrong binary:
+
+```bash
+which -a dexto
+```
+
+Remove stale entries and run `dexto upgrade` again.
 
 ## 2. Run Setup
 

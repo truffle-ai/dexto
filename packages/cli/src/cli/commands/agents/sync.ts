@@ -1,4 +1,4 @@
-// packages/cli/src/cli/commands/sync-agents.ts
+// packages/cli/src/cli/commands/agents/sync.ts
 
 import { promises as fs } from 'fs';
 import { createHash } from 'crypto';

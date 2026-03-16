@@ -14,7 +14,7 @@ import {
     resolveApiKeyForProvider,
 } from '@dexto/core';
 import { getGlobalPreferencesPath } from '@dexto/agent-management';
-import { handleSyncAgentsCommand } from '../commands/sync-agents.js';
+import { handleSyncAgentsCommand } from '../commands/agents/sync.js';
 
 export interface ValidationResult {
     success: boolean;

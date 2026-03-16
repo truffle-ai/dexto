@@ -1,191 +1,193 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
 
-// Mock the agent-helpers module
-vi.mock('../../utils/agent-helpers.js', () => ({
-    uninstallAgent: vi.fn(),
-    listInstalledAgents: vi.fn(),
+vi.mock('../utils/self-management.js', () => ({
+    detectInstallMethod: vi.fn(),
+    executeManagedCommand: vi.fn(),
+    createLegacyNpmUninstallCommand: vi.fn(),
+    getDefaultNativeBinaryPath: vi.fn(),
+    getDextoHomePath: vi.fn(),
+    pathExists: vi.fn(),
+    removePath: vi.fn(),
+    scheduleDeferredWindowsRemoval: vi.fn(),
 }));
 
-// Mock analytics
-vi.mock('../../analytics/index.js', () => ({
-    capture: vi.fn(),
-}));
+import { handleUninstallCliCommand } from './uninstall.js';
+import {
+    createLegacyNpmUninstallCommand,
+    detectInstallMethod,
+    executeManagedCommand,
+    getDefaultNativeBinaryPath,
+    getDextoHomePath,
+    pathExists,
+    removePath,
+    scheduleDeferredWindowsRemoval,
+} from '../utils/self-management.js';
 
-// Import SUT after mocks
-import { handleUninstallCommand } from './uninstall.js';
-import { uninstallAgent, listInstalledAgents } from '../../utils/agent-helpers.js';
-
-describe('Uninstall Command', () => {
-    let consoleSpy: any;
-    let consoleErrorSpy: any;
+describe('uninstall command', () => {
+    const originalPlatform = process.platform;
 
     beforeEach(() => {
         vi.clearAllMocks();
+        Object.defineProperty(process, 'platform', { value: originalPlatform });
 
-        // Mock console
-        consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-        consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        vi.mocked(pathExists).mockResolvedValue(true);
+        vi.mocked(removePath).mockResolvedValue(undefined);
+        vi.mocked(executeManagedCommand).mockResolvedValue(undefined);
+        vi.mocked(scheduleDeferredWindowsRemoval).mockResolvedValue(undefined);
+        vi.mocked(getDefaultNativeBinaryPath).mockReturnValue('/home/test/.local/bin/dexto');
+        vi.mocked(getDextoHomePath).mockReturnValue('/home/test/.dexto');
     });
 
     afterEach(() => {
-        consoleSpy.mockRestore();
-        consoleErrorSpy.mockRestore();
+        Object.defineProperty(process, 'platform', { value: originalPlatform });
     });
 
-    describe('Command validation', () => {
-        it('rejects when no agents specified and all flag is false', async () => {
-            vi.mocked(listInstalledAgents).mockResolvedValue(['some-agent']);
-
-            await expect(handleUninstallCommand([], {})).rejects.toThrow(/No agents specified/);
+    it('uninstalls npm installs via package-manager command and keeps ~/.dexto by default', async () => {
+        vi.mocked(detectInstallMethod).mockResolvedValue({
+            method: 'npm',
+            source: 'heuristic',
+            metadata: null,
+            installedPath: '/usr/local/bin/dexto',
+            installDir: '/usr/local/bin',
+            allDetectedPaths: ['/usr/local/bin/dexto'],
+            multipleInstallWarning: null,
         });
 
-        it('rejects when no agents are installed', async () => {
-            vi.mocked(listInstalledAgents).mockResolvedValue([]);
-
-            await expect(handleUninstallCommand(['any-agent'], {})).rejects.toThrow(
-                /No agents are currently installed/
-            );
-            expect(uninstallAgent).not.toHaveBeenCalled();
+        vi.mocked(createLegacyNpmUninstallCommand).mockReturnValue({
+            command: 'npm',
+            args: ['uninstall', '-g', 'dexto'],
+            displayCommand: 'npm uninstall -g dexto',
         });
 
-        it('rejects uninstalling agents that are not installed', async () => {
-            vi.mocked(listInstalledAgents).mockResolvedValue(['real-agent']);
+        await expect(handleUninstallCliCommand({})).resolves.not.toThrow();
 
-            await expect(handleUninstallCommand(['fake-agent'], {})).rejects.toThrow(
-                /not installed/
-            );
-        });
+        expect(executeManagedCommand).toHaveBeenCalledWith(
+            {
+                command: 'npm',
+                args: ['uninstall', '-g', 'dexto'],
+                displayCommand: 'npm uninstall -g dexto',
+            },
+            { dryRun: false }
+        );
+        expect(removePath).not.toHaveBeenCalled();
+        expect(createLegacyNpmUninstallCommand).toHaveBeenCalledTimes(1);
     });
 
-    describe('Single agent uninstall', () => {
-        it('successfully uninstalls existing agent', async () => {
-            vi.mocked(listInstalledAgents).mockResolvedValue(['test-agent']);
-            vi.mocked(uninstallAgent).mockResolvedValue(undefined);
-
-            await expect(handleUninstallCommand(['test-agent'], {})).resolves.not.toThrow();
-
-            expect(uninstallAgent).toHaveBeenCalledWith('test-agent');
-            expect(consoleSpy).toHaveBeenCalled();
+    it('removes native binary and keeps ~/.dexto by default', async () => {
+        vi.mocked(detectInstallMethod).mockResolvedValue({
+            method: 'native',
+            source: 'metadata',
+            metadata: null,
+            installedPath: '/home/test/.local/bin/dexto',
+            installDir: '/home/test/.local/bin',
+            allDetectedPaths: ['/home/test/.local/bin/dexto'],
+            multipleInstallWarning: null,
         });
 
-        it('uninstalls agent without force flag', async () => {
-            vi.mocked(listInstalledAgents).mockResolvedValue(['default-agent']);
-            vi.mocked(uninstallAgent).mockResolvedValue(undefined);
+        await expect(handleUninstallCliCommand({})).resolves.not.toThrow();
 
-            await handleUninstallCommand(['default-agent'], {});
-
-            expect(uninstallAgent).toHaveBeenCalledWith('default-agent');
-            expect(uninstallAgent).toHaveBeenCalledTimes(1);
-        });
+        expect(removePath).toHaveBeenCalledTimes(1);
+        expect(removePath).toHaveBeenCalledWith('/home/test/.local/bin/dexto');
+        expect(scheduleDeferredWindowsRemoval).not.toHaveBeenCalled();
     });
 
-    describe('Bulk uninstall', () => {
-        it('uninstalls all agents when --all flag is used', async () => {
-            vi.mocked(listInstalledAgents).mockResolvedValue(['agent1', 'agent2', 'agent3']);
-            vi.mocked(uninstallAgent).mockResolvedValue(undefined);
-
-            await expect(handleUninstallCommand([], { all: true })).resolves.not.toThrow();
-
-            expect(uninstallAgent).toHaveBeenCalledTimes(3);
-            expect(uninstallAgent).toHaveBeenCalledWith('agent1');
-            expect(uninstallAgent).toHaveBeenCalledWith('agent2');
-            expect(uninstallAgent).toHaveBeenCalledWith('agent3');
-            // Multiple agents show summary
-            expect(consoleSpy).toHaveBeenCalledWith(
-                expect.stringContaining('📊 Uninstallation Summary')
-            );
+    it('removes ~/.dexto wholesale when --purge is passed', async () => {
+        vi.mocked(detectInstallMethod).mockResolvedValue({
+            method: 'native',
+            source: 'metadata',
+            metadata: null,
+            installedPath: '/home/test/.local/bin/dexto',
+            installDir: '/home/test/.local/bin',
+            allDetectedPaths: ['/home/test/.local/bin/dexto'],
+            multipleInstallWarning: null,
         });
 
-        it('uninstalls multiple specified agents', async () => {
-            vi.mocked(listInstalledAgents).mockResolvedValue(['agent1', 'agent2', 'agent3']);
-            vi.mocked(uninstallAgent).mockResolvedValue(undefined);
+        await expect(handleUninstallCliCommand({ purge: true })).resolves.not.toThrow();
 
-            await handleUninstallCommand(['agent1', 'agent2'], {});
-
-            expect(uninstallAgent).toHaveBeenCalledTimes(2);
-            expect(uninstallAgent).toHaveBeenCalledWith('agent1');
-            expect(uninstallAgent).toHaveBeenCalledWith('agent2');
-            expect(consoleSpy).toHaveBeenCalledWith(
-                expect.stringContaining('📊 Uninstallation Summary')
-            );
-        });
+        expect(removePath).toHaveBeenCalledWith('/home/test/.local/bin/dexto');
+        expect(removePath).toHaveBeenCalledWith('/home/test/.dexto');
     });
 
-    describe('Error handling', () => {
-        it('continues with other agents when one fails', async () => {
-            vi.mocked(listInstalledAgents).mockResolvedValue(['good-agent', 'bad-agent']);
-            vi.mocked(uninstallAgent).mockImplementation((agent: string) => {
-                if (agent === 'bad-agent') {
-                    throw new Error('Cannot remove protected agent');
-                }
-                return Promise.resolve(undefined);
-            });
-
-            await expect(
-                handleUninstallCommand(['good-agent', 'bad-agent'], {})
-            ).resolves.not.toThrow();
-
-            expect(uninstallAgent).toHaveBeenCalledTimes(2);
-            // Should show summary for multiple agents
-            expect(consoleSpy).toHaveBeenCalledWith(
-                expect.stringContaining('📊 Uninstallation Summary')
-            );
-            expect(consoleErrorSpy).toHaveBeenCalledWith(
-                expect.stringContaining('Failed to uninstall bad-agent')
-            );
+    it('supports dry-run mode without deleting files', async () => {
+        vi.mocked(detectInstallMethod).mockResolvedValue({
+            method: 'native',
+            source: 'metadata',
+            metadata: null,
+            installedPath: '/home/test/.local/bin/dexto',
+            installDir: '/home/test/.local/bin',
+            allDetectedPaths: ['/home/test/.local/bin/dexto'],
+            multipleInstallWarning: null,
         });
 
-        it('throws when single agent uninstall fails', async () => {
-            vi.mocked(listInstalledAgents).mockResolvedValue(['bad-agent']);
-            vi.mocked(uninstallAgent).mockRejectedValue(new Error('Protection error'));
+        await expect(
+            handleUninstallCliCommand({ dryRun: true, purge: true })
+        ).resolves.not.toThrow();
 
-            // Single agent failure should propagate the error directly
-            await expect(handleUninstallCommand(['bad-agent'], {})).rejects.toThrow();
-        });
-
-        it('shows error in summary when all agents fail in bulk operation', async () => {
-            vi.mocked(listInstalledAgents).mockResolvedValue(['agent1', 'agent2']);
-            vi.mocked(uninstallAgent).mockRejectedValue(new Error('Protection error'));
-
-            await expect(handleUninstallCommand(['agent1', 'agent2'], {})).rejects.toThrow(
-                /All uninstallations failed/
-            );
-
-            expect(uninstallAgent).toHaveBeenCalledTimes(2);
-        });
-
-        it('shows partial success when some agents fail in bulk operation', async () => {
-            vi.mocked(listInstalledAgents).mockResolvedValue(['agent1', 'agent2', 'agent3']);
-            vi.mocked(uninstallAgent).mockImplementation((agent: string) => {
-                if (agent === 'agent2') {
-                    throw new Error('Failed to uninstall');
-                }
-                return Promise.resolve(undefined);
-            });
-
-            await expect(
-                handleUninstallCommand(['agent1', 'agent2', 'agent3'], {})
-            ).resolves.not.toThrow();
-
-            expect(uninstallAgent).toHaveBeenCalledTimes(3);
-            expect(consoleSpy).toHaveBeenCalledWith(
-                expect.stringContaining('📊 Uninstallation Summary')
-            );
-            expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('✅ Successfully'));
-            expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('❌ Failed'));
-        });
+        expect(removePath).not.toHaveBeenCalled();
+        expect(scheduleDeferredWindowsRemoval).not.toHaveBeenCalled();
     });
 
-    describe('Force flag handling', () => {
-        it('accepts force flag in options', async () => {
-            vi.mocked(listInstalledAgents).mockResolvedValue(['test-agent']);
-            vi.mocked(uninstallAgent).mockResolvedValue(undefined);
-
-            // Force flag is in the options but doesn't affect uninstallAgent call
-            await handleUninstallCommand(['test-agent'], { force: true });
-
-            // uninstallAgent only takes agentId, no force parameter
-            expect(uninstallAgent).toHaveBeenCalledWith('test-agent');
+    it('still removes ~/.dexto on purge when npm uninstall fails', async () => {
+        vi.mocked(detectInstallMethod).mockResolvedValue({
+            method: 'npm',
+            source: 'heuristic',
+            metadata: null,
+            installedPath: '/usr/local/bin/dexto',
+            installDir: '/usr/local/bin',
+            allDetectedPaths: ['/usr/local/bin/dexto'],
+            multipleInstallWarning: null,
         });
+
+        vi.mocked(createLegacyNpmUninstallCommand).mockReturnValue({
+            command: 'npm',
+            args: ['uninstall', '-g', 'dexto'],
+            displayCommand: 'npm uninstall -g dexto',
+        });
+
+        vi.mocked(executeManagedCommand).mockRejectedValue(new Error('pm uninstall failed'));
+
+        await expect(handleUninstallCliCommand({ purge: true })).rejects.toThrow(
+            'pm uninstall failed'
+        );
+        expect(removePath).toHaveBeenCalledWith('/home/test/.dexto');
+    });
+
+    it('rejects project-local installs', async () => {
+        vi.mocked(detectInstallMethod).mockResolvedValue({
+            method: 'project-local',
+            source: 'heuristic',
+            metadata: null,
+            installedPath: '/repo/node_modules/.bin/dexto',
+            installDir: '/repo/node_modules/.bin',
+            allDetectedPaths: ['/repo/node_modules/.bin/dexto'],
+            multipleInstallWarning: null,
+        });
+
+        await expect(handleUninstallCliCommand({})).rejects.toThrow(/project-local install/i);
+
+        expect(executeManagedCommand).not.toHaveBeenCalled();
+        expect(removePath).not.toHaveBeenCalled();
+    });
+
+    it('defers Windows native binary removal until after exit', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+
+        vi.mocked(detectInstallMethod).mockResolvedValue({
+            method: 'native',
+            source: 'metadata',
+            metadata: null,
+            installedPath: process.execPath,
+            installDir: '/home/test/.dexto/bin',
+            allDetectedPaths: [process.execPath],
+            multipleInstallWarning: null,
+        });
+
+        await expect(handleUninstallCliCommand({ purge: true })).resolves.not.toThrow();
+
+        expect(scheduleDeferredWindowsRemoval).toHaveBeenCalledWith([
+            process.execPath,
+            '/home/test/.dexto',
+        ]);
+        expect(removePath).not.toHaveBeenCalled();
     });
 });

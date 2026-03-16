@@ -98,13 +98,20 @@ The coding agent is just one example of what you can build. Create your own agen
 ### Install
 
 ```bash
-# Install globally via npm
-npm install -g dexto
+# macOS / Linux / WSL (native installer, recommended)
+curl -fsSL https://dexto.ai/install | bash
+
+# Windows PowerShell
+irm https://dexto.ai/install.ps1 | iex
 
 # Or build from source
 git clone https://github.com/truffle-ai/dexto.git
 cd dexto && pnpm install && pnpm install-cli
 ```
+
+Upgrade/uninstall and migration troubleshooting live in docs:
+- Installation guide: https://docs.dexto.ai/docs/getting-started/installation
+- CLI command reference: https://docs.dexto.ai/docs/guides/cli/overview
 
 ### Run
 

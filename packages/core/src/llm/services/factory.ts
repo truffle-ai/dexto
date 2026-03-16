@@ -22,6 +22,11 @@ import type { Logger } from '../../logger/v2/types.js';
 import { requiresApiKey } from '../registry/index.js';
 import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
 import {
+    createCodexLanguageModel,
+    type CodexRateLimitSnapshot,
+} from '../providers/codex-app-server.js';
+import { isCodexBaseURL } from '../providers/codex-base-url.js';
+import {
     ANTHROPIC_BETA_HEADER,
     ANTHROPIC_INTERLEAVED_THINKING_BETA,
 } from '../reasoning/anthropic-betas.js';
@@ -52,6 +57,8 @@ export interface DextoProviderContext {
     sessionId?: string;
     /** Client source for usage attribution (cli, web, sdk) */
     clientSource?: 'cli' | 'web' | 'sdk';
+    /** Optional callback for ChatGPT Login rate-limit status updates from Codex. */
+    onCodexRateLimitStatus?: (snapshot: CodexRateLimitSnapshot) => void;
 }
 
 /**
@@ -89,6 +96,17 @@ export function createVercelModel(
             if (!compatibleBaseURL) {
                 throw LLMError.baseUrlMissing('openai-compatible');
             }
+
+            if (isCodexBaseURL(compatibleBaseURL)) {
+                return createCodexLanguageModel({
+                    modelId: model,
+                    baseURL: compatibleBaseURL,
+                    ...(context?.onCodexRateLimitStatus
+                        ? { onRateLimitStatus: context.onCodexRateLimitStatus }
+                        : {}),
+                });
+            }
+
             // Use the OpenAI-compatible provider so providerOptions can be keyed per-endpoint.
             // This also avoids mixing OpenAI Responses defaults into compatibility endpoints.
             const provider = createOpenAICompatible({
@@ -317,7 +335,16 @@ export function createLLMService(
     logger: Logger,
     compactionStrategy?: import('../../context/compaction/types.js').CompactionStrategy | null
 ): VercelLLMService {
-    const model = createVercelModel(config, { sessionId });
+    const model = createVercelModel(config, {
+        sessionId,
+        onCodexRateLimitStatus: (snapshot) => {
+            sessionEventBus.emit('llm:rate-limit-status', {
+                provider: config.provider,
+                model: config.model,
+                snapshot,
+            });
+        },
+    });
 
     return new VercelLLMService(
         toolManager,

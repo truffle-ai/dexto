@@ -346,45 +346,54 @@ export async function startInkCliRefactored(
                 const modelLabel = `${modelStat.model} (${modelStat.messageCount} msgs)`;
                 process.stdout.write(chalk.gray(`    • ${modelLabel}`) + '\n');
 
-                // Detailed token breakdown per model
-                const tokens = modelStat.tokenUsage;
-                process.stdout.write(
-                    chalk.gray(`      Input tokens:       ${tokens.inputTokens.toLocaleString()}`) +
-                        '\n'
-                );
-                process.stdout.write(
-                    chalk.gray(
-                        `      Output tokens:      ${tokens.outputTokens.toLocaleString()}`
-                    ) + '\n'
-                );
-                process.stdout.write(
-                    chalk.gray(
-                        `      Reasoning tokens:   ${tokens.reasoningTokens.toLocaleString()}`
-                    ) + '\n'
-                );
-                process.stdout.write(
-                    chalk.gray(
-                        `      Cache read tokens:  ${tokens.cacheReadTokens.toLocaleString()}`
-                    ) + '\n'
-                );
-                process.stdout.write(
-                    chalk.gray(
-                        `      Cache write tokens: ${tokens.cacheWriteTokens.toLocaleString()}`
-                    ) + '\n'
-                );
-                process.stdout.write(
-                    chalk.gray(`      Total tokens:       ${tokens.totalTokens.toLocaleString()}`) +
-                        '\n'
-                );
-
-                if (modelStat.estimatedCost !== undefined) {
+                if (exitStats.tokenUsage) {
+                    // Detailed token breakdown per model
+                    const tokens = modelStat.tokenUsage;
                     process.stdout.write(
                         chalk.gray(
-                            `      Cost:               ${formatCost(modelStat.estimatedCost)}`
+                            `      Input tokens:       ${tokens.inputTokens.toLocaleString()}`
                         ) + '\n'
                     );
+                    process.stdout.write(
+                        chalk.gray(
+                            `      Output tokens:      ${tokens.outputTokens.toLocaleString()}`
+                        ) + '\n'
+                    );
+                    process.stdout.write(
+                        chalk.gray(
+                            `      Reasoning tokens:   ${tokens.reasoningTokens.toLocaleString()}`
+                        ) + '\n'
+                    );
+                    process.stdout.write(
+                        chalk.gray(
+                            `      Cache read tokens:  ${tokens.cacheReadTokens.toLocaleString()}`
+                        ) + '\n'
+                    );
+                    process.stdout.write(
+                        chalk.gray(
+                            `      Cache write tokens: ${tokens.cacheWriteTokens.toLocaleString()}`
+                        ) + '\n'
+                    );
+                    process.stdout.write(
+                        chalk.gray(
+                            `      Total tokens:       ${tokens.totalTokens.toLocaleString()}`
+                        ) + '\n'
+                    );
+
+                    if (modelStat.estimatedCost !== undefined) {
+                        process.stdout.write(
+                            chalk.gray(
+                                `      Cost:               ${formatCost(modelStat.estimatedCost)}`
+                            ) + '\n'
+                        );
+                    }
                 }
             }
+        }
+
+        if (exitStats.usageNote) {
+            process.stdout.write(chalk.gray('\n  Usage:') + '\n');
+            process.stdout.write(chalk.gray(`    ${exitStats.usageNote}`) + '\n');
         }
 
         // Token usage - label depends on whether multi-model was shown

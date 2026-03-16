@@ -6,8 +6,18 @@
 import { useEffect, useState } from 'react';
 import path from 'node:path';
 import { Box, Text } from 'ink';
-import { getModelDisplayName, getReasoningProfile, type DextoAgent } from '@dexto/core';
+import {
+    getModelDisplayName,
+    getReasoningProfile,
+    parseCodexBaseURL,
+    type CodexRateLimitSnapshot,
+    type DextoAgent,
+} from '@dexto/core';
 import { getLLMProviderDisplayName } from '../utils/llm-provider-display.js';
+import {
+    getChatGPTRateLimitHint,
+    shouldShowChatGPTRateLimitHint,
+} from '../utils/chatgpt-rate-limit.js';
 
 interface FooterProps {
     agent: DextoAgent;
@@ -20,6 +30,7 @@ interface FooterProps {
     planModeActive?: boolean;
     /** Whether user is in shell command mode (input starts with !) */
     isShellMode?: boolean;
+    chatgptRateLimitStatus?: CodexRateLimitSnapshot | null;
 }
 
 /**
@@ -35,6 +46,7 @@ export function Footer({
     bypassPermissions,
     planModeActive,
     isShellMode,
+    chatgptRateLimitStatus,
 }: FooterProps) {
     const displayPath = cwd ? path.basename(cwd) || cwd : '';
     const displayModelName = getModelDisplayName(modelName);
@@ -46,13 +58,27 @@ export function Footer({
     // Provider is session-scoped because /model can switch LLM per session.
     const llmConfig = sessionId ? agent.getCurrentLLMConfig(sessionId) : null;
     const provider = llmConfig?.provider ?? null;
-    const providerLabel = provider ? getLLMProviderDisplayName(provider) : null;
+    const providerLabel = provider ? getLLMProviderDisplayName(provider, llmConfig?.baseURL) : null;
     const reasoningProfile =
         provider && llmConfig ? getReasoningProfile(provider, llmConfig.model) : null;
     const reasoningVariant =
         llmConfig?.reasoning?.variant ?? reasoningProfile?.defaultVariant ?? undefined;
     const showReasoningVariant =
         reasoningProfile?.capable === true && typeof reasoningVariant === 'string';
+    const isChatGPTLogin =
+        provider === 'openai-compatible' &&
+        parseCodexBaseURL(llmConfig?.baseURL)?.authMode === 'chatgpt';
+    const showChatGPTRateLimitHint =
+        isChatGPTLogin && shouldShowChatGPTRateLimitHint(chatgptRateLimitStatus);
+    const chatGPTRateLimitHint =
+        showChatGPTRateLimitHint && chatgptRateLimitStatus
+            ? getChatGPTRateLimitHint(chatgptRateLimitStatus)
+            : null;
+    const chatGPTRateLimitColor = chatgptRateLimitStatus?.exceeded
+        ? 'redBright'
+        : (chatgptRateLimitStatus?.usedPercent ?? 0) >= 90
+          ? 'yellowBright'
+          : 'yellow';
 
     useEffect(() => {
         if (!sessionId) {
@@ -149,6 +175,12 @@ export function Footer({
             {contextLeft && (
                 <Box>
                     <Text color="gray">{contextLeft.percentLeft}% context left</Text>
+                </Box>
+            )}
+
+            {chatGPTRateLimitHint && (
+                <Box>
+                    <Text color={chatGPTRateLimitColor}>{chatGPTRateLimitHint}</Text>
                 </Box>
             )}
 

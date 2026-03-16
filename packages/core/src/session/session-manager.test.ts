@@ -7,6 +7,7 @@ import { ErrorScope, ErrorType } from '../errors/types.js';
 import { SessionErrorCode } from './error-codes.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 import { createInMemoryStorageManager } from '../test-utils/in-memory-storage.js';
+import type { SessionData } from './session-manager.js';
 
 // Mock dependencies
 vi.mock('./chat-session.js');
@@ -248,6 +249,71 @@ describe('SessionManager', () => {
             expect(mockStorageManager.database.delete).toHaveBeenCalledWith(
                 'session:expired-session'
             );
+        });
+    });
+
+    describe('Session Metadata Updates', () => {
+        beforeEach(async () => {
+            await sessionManager.init();
+        });
+
+        test('serializes untracked ChatGPT markers with concurrent token usage updates', async () => {
+            const sessionKey = 'session:test-session';
+            let storedSessionData: SessionData = {
+                id: 'test-session',
+                createdAt: Date.now(),
+                lastActivity: Date.now(),
+                messageCount: 0,
+            };
+
+            mockStorageManager.database.get.mockImplementation(async (key: string) => {
+                if (key !== sessionKey) {
+                    return null;
+                }
+
+                await new Promise((resolve) => setTimeout(resolve, 0));
+                return JSON.parse(JSON.stringify(storedSessionData));
+            });
+            mockStorageManager.database.set.mockImplementation(
+                async (key: string, value: SessionData) => {
+                    if (key !== sessionKey) {
+                        return;
+                    }
+
+                    await new Promise((resolve) => setTimeout(resolve, 0));
+                    storedSessionData = JSON.parse(JSON.stringify(value));
+                }
+            );
+
+            await Promise.all([
+                sessionManager.markUntrackedChatGPTLoginUsage('test-session'),
+                sessionManager.accumulateTokenUsage(
+                    'test-session',
+                    {
+                        inputTokens: 120,
+                        outputTokens: 45,
+                        totalTokens: 165,
+                    },
+                    0.01,
+                    {
+                        provider: 'openai',
+                        model: 'gpt-5',
+                    }
+                ),
+            ]);
+
+            expect(storedSessionData.usageTracking).toEqual({
+                hasUntrackedChatGPTLoginUsage: true,
+            });
+            expect(storedSessionData.tokenUsage).toEqual({
+                inputTokens: 120,
+                outputTokens: 45,
+                reasoningTokens: 0,
+                cacheReadTokens: 0,
+                cacheWriteTokens: 0,
+                totalTokens: 165,
+            });
+            expect(storedSessionData.estimatedCost).toBeCloseTo(0.01, 10);
         });
     });
 
