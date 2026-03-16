@@ -24,6 +24,16 @@ const CloudAgentSummarySchema = z
     })
     .passthrough();
 
+const CloudAgentListItemSchema = z
+    .object({
+        cloudAgentId: z.string(),
+        name: z.string().nullable().optional(),
+        agentUrl: z.string(),
+        hostUrl: z.string().nullable().optional(),
+        state: CloudAgentStateSchema,
+    })
+    .passthrough();
+
 const DeployResponseSchema = z
     .object({
         success: z.boolean(),
@@ -49,6 +59,19 @@ const StatusResponseSchema = z
                 agentUrl: z.string(),
                 cloudAgent: CloudAgentSummarySchema,
                 stale: z.boolean().optional(),
+            })
+            .passthrough()
+            .optional(),
+    })
+    .passthrough();
+
+const ListResponseSchema = z
+    .object({
+        success: z.boolean(),
+        error: z.string().optional(),
+        data: z
+            .object({
+                cloudAgents: z.array(CloudAgentListItemSchema),
             })
             .passthrough()
             .optional(),
@@ -97,6 +120,13 @@ export interface CloudAgentStatusResult {
     agentUrl: string;
     state: z.output<typeof CloudAgentStateSchema>;
     stale: boolean;
+}
+
+export interface CloudAgentListItemResult {
+    cloudAgentId: string;
+    name: string | null;
+    agentUrl: string;
+    state: z.output<typeof CloudAgentStateSchema>;
 }
 
 export interface CloudAgentStopResult {
@@ -266,6 +296,24 @@ export function createDeployClient() {
                 state: data.cloudAgent.state,
                 stale: data.stale === true,
             };
+        },
+
+        async listCloudAgents(): Promise<CloudAgentListItemResult[]> {
+            const response = await request('/cloud-agents/list', {
+                method: 'GET',
+            });
+            if (!response.ok) {
+                await throwApiError(response);
+            }
+
+            const payload = await parseJsonResponse(response);
+            const data = requireSuccessData(payload, response, ListResponseSchema);
+            return data.cloudAgents.map((cloudAgent) => ({
+                cloudAgentId: cloudAgent.cloudAgentId,
+                name: cloudAgent.name ?? null,
+                agentUrl: cloudAgent.agentUrl,
+                state: cloudAgent.state,
+            }));
         },
 
         async stopCloudAgent(cloudAgentId: string): Promise<CloudAgentStopResult> {
