@@ -213,17 +213,13 @@ export async function handleDeployDeleteCommand(options?: InteractiveOptions): P
     }
 
     if (isInteractive(options)) {
-        const confirmed = await confirmOrExit(
+        await confirmOrExit(
             {
                 message: `Delete cloud deployment ${deployLink.cloudAgentId}?`,
                 initialValue: false,
             },
             'Delete cancelled'
         );
-        if (!confirmed) {
-            p.cancel('Delete cancelled');
-            return;
-        }
     }
 
     const spinner = p.spinner();

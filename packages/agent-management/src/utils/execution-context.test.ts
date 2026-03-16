@@ -196,7 +196,12 @@ describe('Execution Context Detection', () => {
 
     describe('Forced project root override', () => {
         beforeEach(() => {
-            tempDir = createTempDir();
+            tempDir = createTempDirStructure({
+                '.dexto/deploy.json': {
+                    version: 1,
+                    agent: { type: 'cloud-default' },
+                },
+            });
             process.env.DEXTO_PROJECT_ROOT = tempDir;
         });
 
@@ -244,6 +249,13 @@ describe('Execution Context Detection', () => {
         });
 
         it('ignores invalid directories', () => {
+            expect(findDextoProjectRoot('/outside/of/project')).toBeNull();
+            expect(getExecutionContext(tempDir)).toBe('global-cli');
+        });
+
+        it('ignores existing directories without dexto project markers', () => {
+            process.env.DEXTO_PROJECT_ROOT = tempDir;
+
             expect(findDextoProjectRoot('/outside/of/project')).toBeNull();
             expect(getExecutionContext(tempDir)).toBe('global-cli');
         });

@@ -20,7 +20,7 @@ const DeployLinkSchema = z
 const DeployStateSchema = z
     .object({
         version: z.literal(1).default(1),
-        links: z.record(DeployLinkSchema).default({}),
+        links: z.record(z.string(), DeployLinkSchema).default({}),
     })
     .strict();
 

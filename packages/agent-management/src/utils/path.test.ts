@@ -112,7 +112,12 @@ describe('getDextoPath', () => {
 
     describe('with DEXTO_PROJECT_ROOT override', () => {
         beforeEach(() => {
-            tempDir = createTempDir();
+            tempDir = createTempDirStructure({
+                '.dexto/deploy.json': {
+                    version: 1,
+                    agent: { type: 'cloud-default' },
+                },
+            });
             process.env.DEXTO_PROJECT_ROOT = tempDir;
         });
 
