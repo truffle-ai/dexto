@@ -86,4 +86,22 @@ describe('deploy state', () => {
             cloudAgentId: 'cloud-agent-b',
         });
     });
+
+    it('reclaims stale deploy locks before saving', async () => {
+        const { saveWorkspaceDeployLink, loadWorkspaceDeployLink } = await importStateModule();
+        const lockPath = path.join(stateRoot.current, '.dexto', 'deployments', 'links.json.lock');
+        fs.mkdirSync(lockPath, { recursive: true });
+        const staleDate = new Date(Date.now() - 10_000);
+        fs.utimesSync(lockPath, staleDate, staleDate);
+
+        await saveWorkspaceDeployLink('/workspace/project-a', {
+            cloudAgentId: 'cloud-agent-a',
+            agentUrl: 'https://sandbox.dexto.ai/api/cloud-agents/cloud-agent-a/agent',
+        });
+
+        await expect(loadWorkspaceDeployLink('/workspace/project-a')).resolves.toMatchObject({
+            cloudAgentId: 'cloud-agent-a',
+        });
+        expect(fs.existsSync(lockPath)).toBe(false);
+    });
 });

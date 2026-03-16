@@ -8,6 +8,7 @@ const DEPLOY_LINKS_FILENAME = 'links.json';
 const DEPLOY_LOCK_SUFFIX = '.lock';
 const DEPLOY_LOCK_RETRY_MS = 25;
 const DEPLOY_LOCK_TIMEOUT_MS = 5_000;
+const DEPLOY_LOCK_STALE_MS = DEPLOY_LOCK_TIMEOUT_MS;
 
 const DeployLinkSchema = z
     .object({
@@ -66,6 +67,23 @@ async function writeDeployStateAtomic(filePath: string, state: DeployState): Pro
     }
 }
 
+async function reclaimStaleDeployLock(lockPath: string): Promise<boolean> {
+    try {
+        const stat = await fs.stat(lockPath);
+        if (Date.now() - stat.mtimeMs < DEPLOY_LOCK_STALE_MS) {
+            return false;
+        }
+
+        await fs.rm(lockPath, { recursive: true, force: true });
+        return true;
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+            return true;
+        }
+        throw error;
+    }
+}
+
 async function withDeployStateLock<T>(operation: (filePath: string) => Promise<T>): Promise<T> {
     const filePath = getDeployLinksPath();
     const lockPath = getDeployLockPath(filePath);
@@ -79,6 +97,10 @@ async function withDeployStateLock<T>(operation: (filePath: string) => Promise<T
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
                 throw error;
+            }
+
+            if (await reclaimStaleDeployLock(lockPath)) {
+                continue;
             }
 
             if (Date.now() >= deadline) {

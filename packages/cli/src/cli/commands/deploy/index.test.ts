@@ -7,6 +7,8 @@ const {
     mockCreateWorkspaceSnapshot,
     mockDeleteCloudAgent,
     mockDeployWorkspace,
+    mockFindDextoProjectRoot,
+    mockGetCloudAgent,
     mockLoadDeployConfig,
     mockLoadWorkspaceDeployLink,
     mockOutro,
@@ -17,6 +19,8 @@ const {
     mockCreateWorkspaceSnapshot: vi.fn(),
     mockDeleteCloudAgent: vi.fn(),
     mockDeployWorkspace: vi.fn(),
+    mockFindDextoProjectRoot: vi.fn(),
+    mockGetCloudAgent: vi.fn(),
     mockLoadDeployConfig: vi.fn(),
     mockLoadWorkspaceDeployLink: vi.fn(),
     mockOutro: vi.fn(),
@@ -27,6 +31,10 @@ const {
         stop: vi.fn(),
         message: vi.fn(),
     },
+}));
+
+vi.mock('@dexto/agent-management', () => ({
+    findDextoProjectRoot: mockFindDextoProjectRoot,
 }));
 
 vi.mock('@clack/prompts', () => ({
@@ -57,7 +65,7 @@ vi.mock('./config.js', () => ({
 vi.mock('./client.js', () => ({
     createDeployClient: vi.fn(() => ({
         deployWorkspace: mockDeployWorkspace,
-        getCloudAgent: vi.fn(),
+        getCloudAgent: mockGetCloudAgent,
         stopCloudAgent: vi.fn(),
         deleteCloudAgent: mockDeleteCloudAgent,
     })),
@@ -104,6 +112,7 @@ describe('deploy command', () => {
             exclude: [],
         });
         mockLoadWorkspaceDeployLink.mockResolvedValue(null);
+        mockFindDextoProjectRoot.mockReturnValue(null);
         mockDeployWorkspace.mockResolvedValue({
             cloudAgentId: 'cloud-agent-a',
             agentUrl: 'https://sandbox.dexto.ai/api/cloud-agents/cloud-agent-a/agent',
@@ -111,6 +120,11 @@ describe('deploy command', () => {
         });
         mockDeleteCloudAgent.mockResolvedValue({
             cloudAgentId: 'cloud-agent-a',
+        });
+        mockGetCloudAgent.mockResolvedValue({
+            cloudAgentId: 'cloud-agent-a',
+            agentUrl: 'https://sandbox.dexto.ai/api/cloud-agents/cloud-agent-a/agent',
+            state: { status: 'ready' },
         });
     });
 
@@ -174,5 +188,23 @@ describe('deploy command', () => {
                 'Warning: failed to remove local deploy link state (permission denied)'
             )
         );
+    });
+
+    it('uses the resolved project root when DEXTO_PROJECT_ROOT points outside cwd', async () => {
+        const projectRoot = tempDir;
+        const nestedDir = path.join(tempDir, 'nested');
+        fs.mkdirSync(nestedDir, { recursive: true });
+        process.chdir(nestedDir);
+        mockFindDextoProjectRoot.mockReturnValue(projectRoot);
+        mockLoadWorkspaceDeployLink.mockResolvedValue({
+            cloudAgentId: 'cloud-agent-a',
+            updatedAt: new Date().toISOString(),
+        });
+
+        const { handleDeployStatusCommand } = await import('./index.js');
+
+        await expect(handleDeployStatusCommand()).resolves.toBeUndefined();
+
+        expect(mockLoadWorkspaceDeployLink).toHaveBeenCalledWith(projectRoot);
     });
 });

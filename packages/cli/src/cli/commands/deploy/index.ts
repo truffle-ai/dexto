@@ -1,6 +1,7 @@
 import { existsSync } from 'fs';
 import path from 'path';
 import * as p from '@clack/prompts';
+import { findDextoProjectRoot } from '@dexto/agent-management';
 import chalk from 'chalk';
 import { confirmOrExit } from '../../utils/prompt-helpers.js';
 import {
@@ -55,6 +56,10 @@ function getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
 
+function resolveWorkspaceRoot(): string {
+    return findDextoProjectRoot(process.cwd()) ?? process.cwd();
+}
+
 async function resolveDeployConfig(workspaceRoot: string): Promise<DeployConfig> {
     const existingConfig = await loadDeployConfig(workspaceRoot);
     if (existingConfig) {
@@ -97,7 +102,7 @@ export async function handleDeployCommand(options?: InteractiveOptions): Promise
     void options;
     p.intro(chalk.inverse('Deploy Workspace'));
 
-    const workspaceRoot = process.cwd();
+    const workspaceRoot = resolveWorkspaceRoot();
     const deployConfig = await resolveDeployConfig(workspaceRoot);
     ensureWorkspaceAgentExists(workspaceRoot, deployConfig);
 
@@ -171,7 +176,7 @@ export async function handleDeployCommand(options?: InteractiveOptions): Promise
 }
 
 export async function handleDeployStatusCommand(): Promise<void> {
-    const workspaceRoot = process.cwd();
+    const workspaceRoot = resolveWorkspaceRoot();
     const deployLink = await loadWorkspaceDeployLink(workspaceRoot);
     if (!deployLink) {
         throw new Error(
@@ -191,7 +196,7 @@ export async function handleDeployStatusCommand(): Promise<void> {
 }
 
 export async function handleDeployStopCommand(): Promise<void> {
-    const workspaceRoot = process.cwd();
+    const workspaceRoot = resolveWorkspaceRoot();
     const deployLink = await loadWorkspaceDeployLink(workspaceRoot);
     if (!deployLink) {
         throw new Error(
@@ -221,7 +226,7 @@ export async function handleDeployStopCommand(): Promise<void> {
 }
 
 export async function handleDeployDeleteCommand(options?: InteractiveOptions): Promise<void> {
-    const workspaceRoot = process.cwd();
+    const workspaceRoot = resolveWorkspaceRoot();
     const deployLink = await loadWorkspaceDeployLink(workspaceRoot);
     if (!deployLink) {
         throw new Error(
