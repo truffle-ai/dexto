@@ -5,6 +5,7 @@
 
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import type {
+    CodexRateLimitSnapshot,
     ToolDisplayData,
     ContentPart,
     McpConnectionStatus,
@@ -352,6 +353,7 @@ export type OverlayType =
     | 'sounds-selector'
     | 'session-subcommand-selector'
     | 'api-key-input'
+    | 'chatgpt-usage-cap'
     | 'login'
     | 'logout'
     | 'search'
@@ -459,6 +461,8 @@ export interface UIState {
         status: 'running' | 'completed' | 'failed' | 'cancelled';
         description?: string;
     }>; // Snapshot of background tasks
+    /** Best-effort ChatGPT Login usage-cap status for the current session. */
+    chatgptRateLimitStatus: CodexRateLimitSnapshot | null;
     // Plan mode state (Shift+Tab toggle)
     planModeActive: boolean; // True when plan mode indicator is shown
     planModeInitialized: boolean; // True after first message sent in plan mode (prevents re-injection)

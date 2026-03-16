@@ -63,6 +63,27 @@ describe('model-picker-state', () => {
         expect(updated.recents[0]?.model).toBe('model-3');
     });
 
+    it('treats recents with different base URLs as distinct variants', async () => {
+        await recordRecentModel({
+            provider: 'openai-compatible',
+            model: 'gpt-5.4',
+            baseURL: 'codex://chatgpt',
+        });
+        await recordRecentModel({
+            provider: 'openai-compatible',
+            model: 'gpt-5.4',
+            baseURL: 'https://api.example.com/v1',
+        });
+
+        const state = await loadModelPickerState();
+
+        expect(state.recents).toHaveLength(2);
+        expect(state.recents.map((entry) => entry.baseURL)).toEqual([
+            'https://api.example.com/v1',
+            'codex://chatgpt',
+        ]);
+    });
+
     it('toggles favorites', async () => {
         const first = await toggleFavoriteModel({
             provider: 'anthropic',
@@ -79,6 +100,26 @@ describe('model-picker-state', () => {
 
         expect(second.isFavorite).toBe(false);
         expect(second.state.favorites).toHaveLength(0);
+    });
+
+    it('treats favorites with different base URLs as distinct variants', async () => {
+        await toggleFavoriteModel({
+            provider: 'openai-compatible',
+            model: 'gpt-5.4',
+            baseURL: 'codex://chatgpt',
+        });
+        const second = await toggleFavoriteModel({
+            provider: 'openai-compatible',
+            model: 'gpt-5.4',
+            baseURL: 'https://api.example.com/v1',
+        });
+
+        expect(second.isFavorite).toBe(true);
+        expect(second.state.favorites).toHaveLength(2);
+        expect(second.state.favorites.map((entry) => entry.baseURL)).toEqual([
+            'https://api.example.com/v1',
+            'codex://chatgpt',
+        ]);
     });
 
     it('sets favorites with normalization', async () => {
@@ -117,6 +158,38 @@ describe('model-picker-state', () => {
         expect(pruned.favorites).toHaveLength(1);
         expect(pruned.recents[0]?.provider).toBe('openai');
         expect(pruned.favorites[0]?.provider).toBe('openai');
+    });
+
+    it('keeps only allowed baseURL variants when pruning', async () => {
+        await setFavoriteModels({
+            favorites: [
+                {
+                    provider: 'openai-compatible',
+                    model: 'gpt-5.4',
+                    baseURL: 'codex://chatgpt',
+                },
+                {
+                    provider: 'openai-compatible',
+                    model: 'gpt-5.4',
+                    baseURL: 'https://api.example.com/v1',
+                },
+            ],
+        });
+
+        const state = await loadModelPickerState();
+        const pruned = pruneModelPickerState({
+            state,
+            allowedKeys: new Set([
+                toModelPickerKey({
+                    provider: 'openai-compatible',
+                    model: 'gpt-5.4',
+                    baseURL: 'codex://chatgpt',
+                }),
+            ]),
+        });
+
+        expect(pruned.favorites).toHaveLength(1);
+        expect(pruned.favorites[0]?.baseURL).toBe('codex://chatgpt');
     });
 
     it('caps favorites when setting a large list', async () => {

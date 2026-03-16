@@ -12,13 +12,13 @@
 
 import chalk from 'chalk';
 import { spawn } from 'child_process';
-import type { DextoAgent } from '@dexto/core';
+import { parseCodexBaseURL, type DextoAgent } from '@dexto/core';
 import type { CommandDefinition, CommandHandlerResult, CommandContext } from './command-parser.js';
 import { formatForInkCli } from './utils/format-output.js';
 import { CommandOutputHelper } from './utils/command-output.js';
 import type { HelpStyledData, ShortcutsStyledData } from '../state/types.js';
 import { writeToClipboard } from '../utils/clipboardUtils.js';
-import { setExitStats } from './exit-stats.js';
+import { hasMeaningfulTokenUsage, setExitStats } from './exit-stats.js';
 import { triggerExit } from './exit-handler.js';
 
 /**
@@ -59,6 +59,14 @@ function wrapCommandWithRcSource(command: string, shell: string): string {
         return `source "${rcFile}" 2>/dev/null; shopt -s expand_aliases 2>/dev/null; eval '${escapedCommand}'`;
     }
     return `source "${rcFile}" 2>/dev/null; eval '${escapedCommand}'`;
+}
+
+function isChatGPTLoginConfig(agent: DextoAgent, sessionId: string): boolean {
+    const llmConfig = agent.getCurrentLLMConfig(sessionId);
+    return (
+        llmConfig.provider === 'openai-compatible' &&
+        parseCodexBaseURL(llmConfig.baseURL)?.authMode === 'chatgpt'
+    );
 }
 
 async function executeShellCommand(
@@ -214,6 +222,19 @@ export const generalCommands: CommandDefinition[] = [
                     ]);
 
                     if (sessionMetadata) {
+                        const usedChatGPTLogin =
+                            sessionMetadata.usageTracking?.hasUntrackedChatGPTLoginUsage ||
+                            isChatGPTLoginConfig(agent, sessionId);
+                        const hasTrackedTokenUsage = hasMeaningfulTokenUsage(
+                            sessionMetadata.tokenUsage
+                        );
+                        const usageNote =
+                            usedChatGPTLogin && hasTrackedTokenUsage
+                                ? 'Partial totals only. This session used ChatGPT Login and other tracked models; ChatGPT token counts are not available in Dexto.'
+                                : usedChatGPTLogin
+                                  ? 'Tracked via ChatGPT Login. Token counts are not available in Dexto for this session.'
+                                  : undefined;
+
                         // Calculate session duration
                         let durationStr: string | undefined;
                         if (sessionMetadata.createdAt) {
@@ -237,15 +258,17 @@ export const generalCommands: CommandDefinition[] = [
                             ...(sessionId && { sessionId }),
                             ...(durationStr && { duration: durationStr }),
                             messageCount,
-                            ...(sessionMetadata.tokenUsage && {
-                                tokenUsage: sessionMetadata.tokenUsage,
-                            }),
+                            ...(sessionMetadata.tokenUsage &&
+                                hasTrackedTokenUsage && {
+                                    tokenUsage: sessionMetadata.tokenUsage,
+                                }),
                             ...(sessionMetadata.estimatedCost !== undefined && {
                                 estimatedCost: sessionMetadata.estimatedCost,
                             }),
                             ...(sessionMetadata.modelStats && {
                                 modelStats: sessionMetadata.modelStats,
                             }),
+                            ...(usageNote && { usageNote }),
                         });
                     }
                 }

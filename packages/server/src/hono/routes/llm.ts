@@ -129,6 +129,7 @@ const ModelPickerModelRefSchema = z
     .object({
         provider: z.enum(LLM_PROVIDERS).describe('LLM provider'),
         model: z.string().trim().min(1).describe('Model ID'),
+        baseURL: z.string().trim().url().optional().describe('Variant-specific base URL'),
     })
     .strict()
     .describe('Provider/model pair for model picker state operations');
@@ -137,6 +138,7 @@ const ModelPickerEntrySchema = z
     .object({
         provider: z.enum(LLM_PROVIDERS).describe('LLM provider'),
         model: z.string().describe('Model ID'),
+        baseURL: z.string().url().optional().describe('Variant-specific base URL'),
         displayName: z.string().optional().describe('Human-readable model name'),
         supportedFileTypes: z
             .array(z.enum(SUPPORTED_FILE_TYPES))
@@ -646,6 +648,32 @@ export function createLlmRouter(getAgent: GetAgentFn) {
     const buildModelPickerSections = async () => {
         const byKey = new Map<string, z.output<typeof ModelPickerEntrySchema>>();
         const customSection: Array<z.output<typeof ModelPickerEntrySchema>> = [];
+        const hydrateStateEntry = (
+            entry: z.output<typeof ModelPickerModelRefSchema>
+        ): z.output<typeof ModelPickerEntrySchema> => {
+            const providerInfo = LLM_REGISTRY[entry.provider];
+            const modelInfo = providerInfo.models.find((model) => model.name === entry.model);
+            const supportedFileTypes =
+                Array.isArray(modelInfo?.supportedFileTypes) &&
+                modelInfo.supportedFileTypes.length > 0
+                    ? modelInfo.supportedFileTypes
+                    : providerInfo.supportedFileTypes;
+            const source: z.output<typeof ModelPickerEntrySchema>['source'] =
+                entry.provider === 'local'
+                    ? 'local-installed'
+                    : entry.baseURL
+                      ? 'custom'
+                      : 'catalog';
+
+            return {
+                provider: entry.provider,
+                model: entry.model,
+                ...(entry.baseURL ? { baseURL: entry.baseURL } : {}),
+                displayName: modelInfo?.displayName || entry.model,
+                supportedFileTypes,
+                source,
+            };
+        };
 
         for (const provider of LLM_PROVIDERS) {
             if (!isProviderEnabled(provider)) {
@@ -685,6 +713,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
             const entry: z.output<typeof ModelPickerEntrySchema> = {
                 provider,
                 model: customModel.name,
+                ...(customModel.baseURL ? { baseURL: customModel.baseURL } : {}),
                 displayName: customModel.displayName || customModel.name,
                 supportedFileTypes: providerInfo?.supportedFileTypes ?? [],
                 source: 'custom',
@@ -717,6 +746,15 @@ export function createLlmRouter(getAgent: GetAgentFn) {
             .filter((entry): entry is z.output<typeof ModelPickerEntrySchema> => Boolean(entry));
 
         const state = await loadModelPickerState();
+        for (const entry of [...state.recents, ...state.favorites]) {
+            if (!isProviderEnabled(entry.provider)) {
+                continue;
+            }
+            const key = toModelPickerKey(entry);
+            if (!byKey.has(key)) {
+                byKey.set(key, hydrateStateEntry(entry));
+            }
+        }
         const pruned = pruneModelPickerState({
             state,
             allowedKeys: new Set(byKey.keys()),
@@ -928,6 +966,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                 await recordRecentModel({
                     provider: config.provider,
                     model: config.model,
+                    ...(config.baseURL ? { baseURL: config.baseURL } : {}),
                 });
             } catch {
                 // Non-blocking: model switch should still succeed even if recent tracking fails

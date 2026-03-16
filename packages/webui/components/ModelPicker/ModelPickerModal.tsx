@@ -89,6 +89,7 @@ export default function ModelPickerModal() {
     const [pendingSelection, setPendingSelection] = useState<{
         provider: LLMProvider;
         model: ModelInfo;
+        baseURL?: string;
     } | null>(null);
 
     const currentSessionId = useSessionStore((s) => s.currentSessionId);
@@ -291,24 +292,25 @@ export default function ModelPickerModal() {
         () =>
             new Set(
                 (modelPickerState?.favorites ?? []).map((entry) =>
-                    favKey(entry.provider, entry.model)
+                    favKey(entry.provider, entry.model, entry.baseURL)
                 )
             ),
         [modelPickerState?.favorites]
     );
 
     const isFavorite = useCallback(
-        (providerId: LLMProvider, modelName: string) =>
-            favoriteKeySet.has(favKey(providerId, modelName)),
+        (providerId: LLMProvider, modelName: string, modelBaseURL?: string) =>
+            favoriteKeySet.has(favKey(providerId, modelName, modelBaseURL)),
         [favoriteKeySet]
     );
 
     const toggleFavorite = useCallback(
-        async (providerId: LLMProvider, modelName: string) => {
+        async (providerId: LLMProvider, modelName: string, modelBaseURL?: string) => {
             try {
                 await toggleFavoriteModelAsync({
                     provider: providerId,
                     model: modelName,
+                    ...(modelBaseURL ? { baseURL: modelBaseURL } : {}),
                 });
                 setError(null);
             } catch (toggleError) {
@@ -583,7 +585,11 @@ export default function ModelPickerModal() {
                 }
             } else if (!skipApiKeyCheck && provider && !provider.hasApiKey && !customApiKey) {
                 // Other providers - show API key modal if no key configured
-                setPendingSelection({ provider: providerId, model });
+                setPendingSelection({
+                    provider: providerId,
+                    model,
+                    ...(customBaseURL ? { baseURL: customBaseURL } : {}),
+                });
                 setPendingKeyProvider(providerId);
                 setKeyModalOpen(true);
                 return;
@@ -691,9 +697,9 @@ export default function ModelPickerModal() {
         }));
         setKeyModalOpen(false);
         if (pendingSelection) {
-            const { provider: providerId, model } = pendingSelection;
+            const { provider: providerId, model, baseURL: pendingBaseURL } = pendingSelection;
             // Skip API key check since we just saved it
-            onPickModel(providerId, model, undefined, true);
+            onPickModel(providerId, model, pendingBaseURL, true);
             setPendingSelection(null);
         }
     }
@@ -711,6 +717,7 @@ export default function ModelPickerModal() {
     type ModelPickerSectionEntry = {
         provider: LLMProvider;
         model: string;
+        baseURL?: string;
         displayName?: string;
         supportedFileTypes: ModelInfo['supportedFileTypes'];
         source: 'catalog' | 'custom' | 'local-installed';
@@ -720,7 +727,7 @@ export default function ModelPickerModal() {
         const byKey = new Map<string, CustomModel>();
         for (const customModel of customModels) {
             const provider = (customModel.provider ?? 'openai-compatible') as LLMProvider;
-            byKey.set(favKey(provider, customModel.name), customModel);
+            byKey.set(favKey(provider, customModel.name, customModel.baseURL), customModel);
         }
         return byKey;
     }, [customModels]);
@@ -747,8 +754,10 @@ export default function ModelPickerModal() {
 
     const resolveModelInfoFromEntry = useCallback(
         (entry: ModelPickerSectionEntry): ModelInfo => {
-            const key = favKey(entry.provider, entry.model);
-            const providerModel = providerModelsByKey.get(key);
+            const key = favKey(entry.provider, entry.model, entry.baseURL);
+            const providerModel =
+                providerModelsByKey.get(key) ??
+                providerModelsByKey.get(favKey(entry.provider, entry.model));
             if (providerModel) {
                 return providerModel;
             }
@@ -778,7 +787,7 @@ export default function ModelPickerModal() {
 
     const onPickSectionEntry = useCallback(
         (entry: ModelPickerSectionEntry) => {
-            const key = favKey(entry.provider, entry.model);
+            const key = favKey(entry.provider, entry.model, entry.baseURL);
             const customModel = customModelsByKey.get(key);
             if (customModel) {
                 onPickCustomModel(customModel);
@@ -797,7 +806,7 @@ export default function ModelPickerModal() {
                 return;
             }
 
-            onPickModel(entry.provider, resolveModelInfoFromEntry(entry));
+            onPickModel(entry.provider, resolveModelInfoFromEntry(entry), entry.baseURL);
         },
         [
             customModelsByKey,
@@ -954,8 +963,10 @@ export default function ModelPickerModal() {
         return base;
     }, [providers, installedLocalModels]);
 
-    const isCurrentModel = (providerId: string, modelName: string) =>
-        currentLLM?.provider === providerId && currentLLM?.model === modelName;
+    const isCurrentModel = (providerId: string, modelName: string, modelBaseURL?: string) =>
+        currentLLM?.provider === providerId &&
+        currentLLM?.model === modelName &&
+        (modelBaseURL === undefined || (currentLLM.baseURL ?? '') === modelBaseURL);
 
     return (
         <>
@@ -1186,7 +1197,8 @@ export default function ModelPickerModal() {
                                                                 providers[entry.provider];
                                                             const key = favKey(
                                                                 entry.provider,
-                                                                entry.model
+                                                                entry.model,
+                                                                entry.baseURL
                                                             );
                                                             const customModel =
                                                                 customModelsByKey.get(key);
@@ -1205,11 +1217,13 @@ export default function ModelPickerModal() {
                                                                     model={modelInfo}
                                                                     isFavorite={isFavorite(
                                                                         entry.provider,
-                                                                        entry.model
+                                                                        entry.model,
+                                                                        entry.baseURL
                                                                     )}
                                                                     isActive={isCurrentModel(
                                                                         entry.provider,
-                                                                        entry.model
+                                                                        entry.model,
+                                                                        entry.baseURL
                                                                     )}
                                                                     onClick={() =>
                                                                         onPickSectionEntry(entry)
@@ -1217,7 +1231,8 @@ export default function ModelPickerModal() {
                                                                     onToggleFavorite={() => {
                                                                         void toggleFavorite(
                                                                             entry.provider,
-                                                                            entry.model
+                                                                            entry.model,
+                                                                            entry.baseURL
                                                                         );
                                                                     }}
                                                                     onEdit={
@@ -1341,7 +1356,7 @@ export default function ModelPickerModal() {
                                                         'openai-compatible') as LLMProvider;
                                                     return (
                                                         <ModelCard
-                                                            key={`custom|${cm.name}`}
+                                                            key={`custom|${cm.name}|${cm.baseURL ?? ''}`}
                                                             provider={cmProvider}
                                                             providerInfo={providers[cmProvider]}
                                                             model={{
@@ -1358,17 +1373,20 @@ export default function ModelPickerModal() {
                                                             }}
                                                             isFavorite={isFavorite(
                                                                 cmProvider,
-                                                                cm.name
+                                                                cm.name,
+                                                                cm.baseURL
                                                             )}
                                                             isActive={isCurrentModel(
                                                                 cmProvider,
-                                                                cm.name
+                                                                cm.name,
+                                                                cm.baseURL
                                                             )}
                                                             onClick={() => onPickCustomModel(cm)}
                                                             onToggleFavorite={() => {
                                                                 void toggleFavorite(
                                                                     cmProvider,
-                                                                    cm.name
+                                                                    cm.name,
+                                                                    cm.baseURL
                                                                 );
                                                             }}
                                                             onEdit={() => editCustomModel(cm)}

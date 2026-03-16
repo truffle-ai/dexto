@@ -17,14 +17,18 @@ import {
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
-import type { DextoAgent, LLMProvider, ReasoningVariant } from '@dexto/core';
+import type { CodexModelInfo, DextoAgent, LLMProvider, ReasoningVariant } from '@dexto/core';
 import {
+    CodexAppServerClient,
+    createCodexBaseURL,
     listOllamaModels,
     DEFAULT_OLLAMA_URL,
     getLocalModelById,
     getCuratedModelRefsForProviders,
+    getModelDisplayName,
     getOpenRouterModelCacheInfo,
     getReasoningProfile,
+    parseCodexBaseURL,
     refreshOpenRouterModelCache,
 } from '@dexto/core';
 import {
@@ -61,9 +65,137 @@ const MODEL_SELECTOR_TABS: ReadonlyArray<{ id: ModelSelectorTab; label: string }
 
 const PROVIDER_COLLATOR = new Intl.Collator('en', { sensitivity: 'base' });
 const PROVIDER_TOKEN_PATTERN = /[^a-z0-9]/g;
+const CODEX_CHATGPT_BASE_URL = createCodexBaseURL('chatgpt');
+const CHATGPT_CODEX_MODEL_LIST_TIMEOUT_MS = 5_000;
 
 function normalizeProviderToken(value: string): string {
     return value.toLowerCase().replace(PROVIDER_TOKEN_PATTERN, '');
+}
+
+function isChatGPTCodexBaseURL(baseURL?: string): boolean {
+    return parseCodexBaseURL(baseURL)?.authMode === 'chatgpt';
+}
+
+function isChatGPTCodexConfig(provider: LLMProvider, baseURL?: string): boolean {
+    return provider === 'openai-compatible' && isChatGPTCodexBaseURL(baseURL);
+}
+
+function canonicalizeModelBaseURL(baseURL?: string): string | undefined {
+    const parsed = parseCodexBaseURL(baseURL);
+    return parsed ? createCodexBaseURL(parsed.authMode) : baseURL;
+}
+
+function toCanonicalModelPickerKey(input: {
+    provider: LLMProvider;
+    model: string;
+    baseURL?: string | undefined;
+}): string {
+    const baseURL = canonicalizeModelBaseURL(input.baseURL);
+    return toModelPickerKey({
+        provider: input.provider,
+        model: input.model,
+        ...(baseURL ? { baseURL } : {}),
+    });
+}
+
+function createModelIdentity(input: {
+    provider: LLMProvider;
+    name: string;
+    baseURL?: string | undefined;
+}): Pick<ModelOption, 'provider' | 'name' | 'baseURL'> {
+    return {
+        provider: input.provider,
+        name: input.name,
+        ...(input.baseURL ? { baseURL: input.baseURL } : {}),
+    };
+}
+
+async function raceWithTimeout<T>(
+    promise: Promise<T>,
+    options: {
+        timeoutMs: number;
+        errorMessage: string;
+        onTimeout?: () => void;
+    }
+): Promise<T> {
+    return await new Promise<T>((resolve, reject) => {
+        const timer = setTimeout(() => {
+            options.onTimeout?.();
+            reject(new Error(options.errorMessage));
+        }, options.timeoutMs);
+
+        promise.then(
+            (value) => {
+                clearTimeout(timer);
+                resolve(value);
+            },
+            (error) => {
+                clearTimeout(timer);
+                reject(error);
+            }
+        );
+    });
+}
+
+function matchesConfiguredModel(
+    candidate: Pick<ModelOption, 'provider' | 'name' | 'baseURL'>,
+    configured: { provider: LLMProvider; model: string; baseURL?: string }
+): boolean {
+    if (candidate.provider !== configured.provider || candidate.name !== configured.model) {
+        return false;
+    }
+
+    const candidateBaseURL = candidate.baseURL ?? '';
+    const configuredBaseURL = configured.baseURL ?? '';
+    if (candidateBaseURL === configuredBaseURL) {
+        return true;
+    }
+
+    const candidateCodex = parseCodexBaseURL(candidate.baseURL);
+    const configuredCodex = parseCodexBaseURL(configured.baseURL);
+
+    return candidateCodex?.authMode === configuredCodex?.authMode;
+}
+
+async function loadChatGPTCodexModels(agent: DextoAgent): Promise<CodexModelInfo[]> {
+    let client: CodexAppServerClient | null = null;
+
+    try {
+        const createPromise = CodexAppServerClient.create({
+            requestTimeoutMs: CHATGPT_CODEX_MODEL_LIST_TIMEOUT_MS,
+        });
+        client = await raceWithTimeout(createPromise, {
+            timeoutMs: CHATGPT_CODEX_MODEL_LIST_TIMEOUT_MS,
+            errorMessage: `Timed out starting ChatGPT Codex model listing after ${CHATGPT_CODEX_MODEL_LIST_TIMEOUT_MS}ms`,
+            onTimeout: () => {
+                void createPromise
+                    .then((lateClient) => lateClient.close().catch(() => undefined))
+                    .catch(() => undefined);
+            },
+        });
+
+        const account = await raceWithTimeout(client.readAccount(false), {
+            timeoutMs: CHATGPT_CODEX_MODEL_LIST_TIMEOUT_MS,
+            errorMessage: `Timed out reading ChatGPT Codex account state after ${CHATGPT_CODEX_MODEL_LIST_TIMEOUT_MS}ms`,
+        });
+        if (account.account?.type !== 'chatgpt') {
+            return [];
+        }
+
+        return await raceWithTimeout(client.listModels(), {
+            timeoutMs: CHATGPT_CODEX_MODEL_LIST_TIMEOUT_MS,
+            errorMessage: `Timed out listing ChatGPT Codex models after ${CHATGPT_CODEX_MODEL_LIST_TIMEOUT_MS}ms`,
+        });
+    } catch (error) {
+        agent.logger.debug(
+            `ChatGPT Codex model list unavailable: ${error instanceof Error ? error.message : String(error)}`
+        );
+        return [];
+    } finally {
+        if (client) {
+            await client.close().catch(() => undefined);
+        }
+    }
 }
 
 function toReleaseDateLookupKey(provider: LLMProvider, modelName: string): string {
@@ -267,8 +399,12 @@ interface AddCustomOption {
 
 type SelectorItem = ModelOption | AddCustomOption;
 
-function toModelIdentityKey(model: Pick<ModelOption, 'provider' | 'name'>): string {
-    return toModelPickerKey({ provider: model.provider, model: model.name });
+function toModelIdentityKey(model: Pick<ModelOption, 'provider' | 'name' | 'baseURL'>): string {
+    return toCanonicalModelPickerKey({
+        provider: model.provider,
+        model: model.name,
+        ...(model.baseURL ? { baseURL: model.baseURL } : {}),
+    });
 }
 
 function normalizeLineText(value: string): string {
@@ -485,14 +621,21 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     );
                 }
 
-                const [allModels, providers, currentConfig, loadedCustomModels, preferences] =
-                    await Promise.all([
-                        Promise.resolve(agent.getSupportedModels()),
-                        Promise.resolve(agent.getSupportedProviders()),
-                        Promise.resolve(agent.getCurrentLLMConfig()),
-                        loadCustomModels(),
-                        loadGlobalPreferences().catch(() => null),
-                    ]);
+                const [
+                    allModels,
+                    providers,
+                    currentConfig,
+                    loadedCustomModels,
+                    preferences,
+                    codexModels,
+                ] = await Promise.all([
+                    Promise.resolve(agent.getSupportedModels()),
+                    Promise.resolve(agent.getSupportedProviders()),
+                    Promise.resolve(agent.getCurrentLLMConfig()),
+                    loadCustomModels(),
+                    loadGlobalPreferences().catch(() => null),
+                    loadChatGPTCodexModels(agent),
+                ]);
                 const pickerState = await loadModelPickerState().catch(() => null);
 
                 const modelList: ModelOption[] = [];
@@ -501,6 +644,78 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 const defaultBaseURL = preferences?.llm.baseURL;
                 const defaultReasoningVariant = preferences?.llm.reasoning?.variant;
                 const resolveReleaseDate = createReleaseDateResolver({ allModels, providers });
+                const defaultConfig =
+                    defaultProvider && defaultModel
+                        ? {
+                              provider: defaultProvider,
+                              model: defaultModel,
+                              ...(defaultBaseURL ? { baseURL: defaultBaseURL } : {}),
+                          }
+                        : null;
+                const currentModelConfig = {
+                    provider: currentConfig.provider,
+                    model: currentConfig.model,
+                    ...(currentConfig.baseURL ? { baseURL: currentConfig.baseURL } : {}),
+                };
+                const getMatchState = (
+                    candidate: Pick<ModelOption, 'provider' | 'name' | 'baseURL'>
+                ) => ({
+                    isDefault: defaultConfig
+                        ? matchesConfiguredModel(candidate, defaultConfig)
+                        : false,
+                    isCurrent: matchesConfiguredModel(candidate, currentModelConfig),
+                });
+
+                const addChatGPTCodexModel = (input: {
+                    model: string;
+                    displayName?: string;
+                    releaseDate?: string;
+                    isDefault: boolean;
+                    isCurrent: boolean;
+                    reasoningVariant?: ReasoningVariant;
+                }) => {
+                    const existing = modelList.find(
+                        (candidate) =>
+                            candidate.provider === 'openai-compatible' &&
+                            candidate.name === input.model &&
+                            candidate.baseURL === CODEX_CHATGPT_BASE_URL
+                    );
+
+                    if (existing) {
+                        existing.isDefault = existing.isDefault || input.isDefault;
+                        existing.isCurrent = existing.isCurrent || input.isCurrent;
+                        if (existing.displayName === undefined && input.displayName !== undefined) {
+                            existing.displayName = input.displayName;
+                        }
+                        if (existing.releaseDate === undefined && input.releaseDate !== undefined) {
+                            existing.releaseDate = input.releaseDate;
+                        }
+                        if (
+                            existing.reasoningVariant === undefined &&
+                            input.reasoningVariant !== undefined
+                        ) {
+                            existing.reasoningVariant = input.reasoningVariant;
+                        }
+                        return;
+                    }
+
+                    modelList.push({
+                        provider: 'openai-compatible',
+                        name: input.model,
+                        displayName: input.displayName,
+                        maxInputTokens: 128000,
+                        isDefault: input.isDefault,
+                        isCurrent: input.isCurrent,
+                        isCustom: false,
+                        baseURL: CODEX_CHATGPT_BASE_URL,
+                        ...(input.releaseDate !== undefined
+                            ? { releaseDate: input.releaseDate }
+                            : {}),
+                        ...(input.reasoningVariant !== undefined
+                            ? { reasoningVariant: input.reasoningVariant }
+                            : {}),
+                    });
+                };
 
                 // Fetch dynamic models for local providers
                 let ollamaModels: Array<{ name: string; size?: number }> = [];
@@ -523,16 +738,19 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 // Add custom models first
                 for (const custom of loadedCustomModels) {
                     const customProvider: LLMProvider = custom.provider;
+                    const candidate = createModelIdentity({
+                        provider: customProvider,
+                        name: custom.name,
+                        baseURL: custom.baseURL,
+                    });
+                    const { isDefault, isCurrent } = getMatchState(candidate);
                     const modelOption: ModelOption = {
                         provider: customProvider,
                         name: custom.name,
                         displayName: custom.displayName || custom.name,
                         maxInputTokens: custom.maxInputTokens ?? 128000,
-                        isDefault:
-                            customProvider === defaultProvider && custom.name === defaultModel,
-                        isCurrent:
-                            currentConfig.provider === customProvider &&
-                            currentConfig.model === custom.name,
+                        isDefault,
+                        isCurrent,
                         isCustom: true,
                     };
                     if (custom.baseURL) {
@@ -581,28 +799,24 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                         // showing which provider the model originally came from
                         const originalProvider =
                             'originalProvider' in model ? model.originalProvider : undefined;
+                        const candidate = createModelIdentity({
+                            provider,
+                            name: model.name,
+                        });
+                        const { isDefault, isCurrent } = getMatchState(candidate);
 
                         modelList.push({
                             provider,
                             name: model.name,
                             displayName: model.displayName,
                             maxInputTokens: model.maxInputTokens,
-                            isDefault: provider === defaultProvider && model.name === defaultModel,
-                            isCurrent:
-                                provider === currentConfig.provider &&
-                                model.name === currentConfig.model,
+                            isDefault,
+                            isCurrent,
                             isCustom: false,
                             ...(releaseDate !== undefined ? { releaseDate } : {}),
                             ...(model.status !== undefined ? { status: model.status } : {}),
-                            ...(defaultReasoningVariant &&
-                            provider === defaultProvider &&
-                            model.name === defaultModel
+                            ...(defaultReasoningVariant && isDefault
                                 ? { reasoningVariant: defaultReasoningVariant }
-                                : {}),
-                            ...(defaultBaseURL &&
-                            provider === defaultProvider &&
-                            model.name === defaultModel
-                                ? { baseURL: defaultBaseURL }
                                 : {}),
                             // Store original provider for display purposes
                             ...(originalProvider && { originalProvider }),
@@ -610,18 +824,104 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     }
                 }
 
+                // Add ChatGPT-backed Codex models dynamically when available.
+                for (const codexModel of codexModels) {
+                    const candidate = {
+                        provider: 'openai-compatible' as const,
+                        name: codexModel.model,
+                        baseURL: CODEX_CHATGPT_BASE_URL,
+                    };
+                    const isDefault = defaultConfig
+                        ? matchesConfiguredModel(candidate, defaultConfig)
+                        : false;
+                    const releaseDate =
+                        resolveReleaseDate('openai', codexModel.model) ??
+                        resolveReleaseDate('openrouter', codexModel.model);
+
+                    addChatGPTCodexModel({
+                        model: codexModel.model,
+                        displayName: codexModel.displayName,
+                        isDefault,
+                        isCurrent: matchesConfiguredModel(candidate, currentModelConfig),
+                        ...(releaseDate !== undefined ? { releaseDate } : {}),
+                        ...(isDefault && defaultReasoningVariant
+                            ? { reasoningVariant: defaultReasoningVariant }
+                            : {}),
+                    });
+                }
+
+                const addMissingConfiguredCodexModel = (
+                    configured: {
+                        provider: LLMProvider;
+                        model: string;
+                        baseURL?: string;
+                    } | null
+                ) => {
+                    if (
+                        !configured ||
+                        !isChatGPTCodexConfig(configured.provider, configured.baseURL)
+                    ) {
+                        return;
+                    }
+
+                    const releaseDate =
+                        resolveReleaseDate('openai', configured.model) ??
+                        resolveReleaseDate('openrouter', configured.model);
+
+                    addChatGPTCodexModel({
+                        model: configured.model,
+                        displayName: getModelDisplayName(configured.model, 'openai'),
+                        isDefault: defaultConfig
+                            ? matchesConfiguredModel(
+                                  {
+                                      provider: 'openai-compatible',
+                                      name: configured.model,
+                                      baseURL: CODEX_CHATGPT_BASE_URL,
+                                  },
+                                  defaultConfig
+                              )
+                            : false,
+                        isCurrent: matchesConfiguredModel(
+                            {
+                                provider: 'openai-compatible',
+                                name: configured.model,
+                                baseURL: CODEX_CHATGPT_BASE_URL,
+                            },
+                            currentModelConfig
+                        ),
+                        ...(releaseDate !== undefined ? { releaseDate } : {}),
+                        ...(defaultConfig &&
+                        defaultReasoningVariant &&
+                        matchesConfiguredModel(
+                            {
+                                provider: 'openai-compatible',
+                                name: configured.model,
+                                baseURL: CODEX_CHATGPT_BASE_URL,
+                            },
+                            defaultConfig
+                        )
+                            ? { reasoningVariant: defaultReasoningVariant }
+                            : {}),
+                    });
+                };
+
+                addMissingConfiguredCodexModel(defaultConfig);
+                addMissingConfiguredCodexModel(currentModelConfig);
+
                 // Add Ollama models dynamically
                 for (const ollamaModel of ollamaModels) {
+                    const candidate = createModelIdentity({
+                        provider: 'ollama',
+                        name: ollamaModel.name,
+                    });
+                    const { isDefault, isCurrent } = getMatchState(candidate);
                     modelList.push({
                         provider: 'ollama',
                         name: ollamaModel.name,
                         displayName: ollamaModel.name,
                         maxInputTokens: 128000, // Default, actual varies by model
-                        isDefault:
-                            defaultProvider === 'ollama' && defaultModel === ollamaModel.name,
-                        isCurrent:
-                            currentConfig.provider === 'ollama' &&
-                            currentConfig.model === ollamaModel.name,
+                        isDefault,
+                        isCurrent,
                         isCustom: false,
                     });
                 }
@@ -632,16 +932,19 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                     const modelInfo = getLocalModelById(localModel.id);
                     const displayName = modelInfo?.name || localModel.id;
                     const maxInputTokens = modelInfo?.contextLength || 128000;
+                    const candidate = createModelIdentity({
+                        provider: 'local',
+                        name: localModel.id,
+                    });
+                    const { isDefault, isCurrent } = getMatchState(candidate);
 
                     modelList.push({
                         provider: 'local',
                         name: localModel.id,
                         displayName,
                         maxInputTokens,
-                        isDefault: defaultProvider === 'local' && defaultModel === localModel.id,
-                        isCurrent:
-                            currentConfig.provider === 'local' &&
-                            currentConfig.model === localModel.id,
+                        isDefault,
+                        isCurrent,
                         isCustom: false,
                     });
                 }
@@ -658,22 +961,23 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                             model.name,
                             model.releaseDate
                         );
+                        const candidate = createModelIdentity({
+                            provider: 'vertex',
+                            name: model.name,
+                        });
+                        const { isDefault, isCurrent } = getMatchState(candidate);
 
                         modelList.push({
                             provider: 'vertex',
                             name: model.name,
                             displayName: model.displayName,
                             maxInputTokens: model.maxInputTokens,
-                            isDefault: defaultProvider === 'vertex' && defaultModel === model.name,
-                            isCurrent:
-                                currentConfig.provider === 'vertex' &&
-                                currentConfig.model === model.name,
+                            isDefault,
+                            isCurrent,
                             isCustom: false,
                             ...(releaseDate !== undefined ? { releaseDate } : {}),
                             ...(model.status !== undefined ? { status: model.status } : {}),
-                            ...(defaultReasoningVariant &&
-                            defaultProvider === 'vertex' &&
-                            defaultModel === model.name
+                            ...(defaultReasoningVariant && isDefault
                                 ? { reasoningVariant: defaultReasoningVariant }
                                 : {}),
                         });
@@ -780,12 +1084,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
     const favoriteKeySet = useMemo(
         () =>
             new Set(
-                (modelPickerState?.favorites ?? []).map((entry) =>
-                    toModelPickerKey({
-                        provider: entry.provider,
-                        model: entry.model,
-                    })
-                )
+                (modelPickerState?.favorites ?? []).map((entry) => toCanonicalModelPickerKey(entry))
             ),
         [modelPickerState]
     );
@@ -800,7 +1099,15 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
             const name = model.name.toLowerCase().replace(/[\s-]+/g, '');
             const displayName = (model.displayName || '').toLowerCase().replace(/[\s-]+/g, '');
             const provider = model.provider.toLowerCase().replace(/[\s-]+/g, '');
-            return name.includes(query) || displayName.includes(query) || provider.includes(query);
+            const providerDisplay = getLLMProviderDisplayName(model.provider, model.baseURL)
+                .toLowerCase()
+                .replace(/[\s-]+/g, '');
+            return (
+                name.includes(query) ||
+                displayName.includes(query) ||
+                provider.includes(query) ||
+                providerDisplay.includes(query)
+            );
         },
         [searchQuery]
     );
@@ -811,10 +1118,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         const hasSearchQuery = searchQuery.trim().length > 0;
         const allCandidates = [...models].sort(compareModelOptionsForDisplay);
         const modelsByKey = new Map<string, ModelOption>(
-            allCandidates.map((model) => [
-                toModelPickerKey({ provider: model.provider, model: model.name }),
-                model,
-            ])
+            allCandidates.map((model) => [toModelIdentityKey(model), model])
         );
         const toUniqueMatchingModels = (
             candidates: Array<ModelOption | undefined>,
@@ -827,10 +1131,7 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                 if (!candidate || !matchesSearch(candidate)) {
                     continue;
                 }
-                const key = toModelPickerKey({
-                    provider: candidate.provider,
-                    model: candidate.name,
-                });
+                const key = toModelIdentityKey(candidate);
                 if (seen.has(key)) {
                     continue;
                 }
@@ -850,13 +1151,13 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
         const featuredCandidates = getCuratedModelRefsForProviders({
             providers: providersInModels,
             max: FEATURED_SECTION_LIMIT,
-        }).map((ref) => modelsByKey.get(toModelPickerKey(ref)));
+        }).map((ref) => modelsByKey.get(toCanonicalModelPickerKey(ref)));
 
         const recentsFromState = (modelPickerState?.recents ?? []).map((entry) =>
-            modelsByKey.get(toModelPickerKey({ provider: entry.provider, model: entry.model }))
+            modelsByKey.get(toCanonicalModelPickerKey(entry))
         );
         const favoritesFromState = (modelPickerState?.favorites ?? []).map((entry) =>
-            modelsByKey.get(toModelPickerKey({ provider: entry.provider, model: entry.model }))
+            modelsByKey.get(toCanonicalModelPickerKey(entry))
         );
         const customCandidates = allCandidates.filter((model) => model.isCustom);
 
@@ -936,9 +1237,11 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
     const handleToggleFavoriteModel = useCallback(
         async (model: ModelOption) => {
             try {
+                const baseURL = canonicalizeModelBaseURL(model.baseURL);
                 await toggleFavoriteModel({
                     provider: model.provider,
                     model: model.name,
+                    ...(baseURL ? { baseURL } : {}),
                 });
                 const nextState = await loadModelPickerState();
                 setModelPickerState(nextState);
@@ -1550,12 +1853,16 @@ const ModelSelector = forwardRef<ModelSelectorHandle, ModelSelectorProps>(functi
                               const actualIndex = modelStartIndex + scrollOffset + rowIndex;
                               const isSelected = actualIndex === selectedIndex;
 
-                              const providerDisplay = getLLMProviderDisplayName(item.provider);
+                              const providerDisplay = getLLMProviderDisplayName(
+                                  item.provider,
+                                  item.baseURL
+                              );
                               const name = item.displayName || item.name;
                               const isFavorite = favoriteKeySet.has(
-                                  toModelPickerKey({
+                                  toCanonicalModelPickerKey({
                                       provider: item.provider,
                                       model: item.name,
+                                      ...(item.baseURL ? { baseURL: item.baseURL } : {}),
                                   })
                               );
                               const prefix = getRowPrefix({

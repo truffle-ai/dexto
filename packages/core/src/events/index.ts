@@ -3,6 +3,7 @@ import type { LLMProvider, ReasoningVariant } from '../llm/types.js';
 import type { AgentRuntimeSettings } from '../agent/runtime-config.js';
 import type { ApprovalRequest, ApprovalResponse } from '../approval/types.js';
 import type { SanitizedToolResult } from '../context/types.js';
+import type { CodexRateLimitSnapshot } from '../llm/providers/codex-app-server.js';
 import type { WorkspaceContext } from '../workspace/types.js';
 import type { ToolPresentationSnapshotV1 } from '../tools/types.js';
 
@@ -63,6 +64,7 @@ export const SESSION_EVENT_NAMES = [
     'llm:thinking',
     'llm:chunk',
     'llm:response',
+    'llm:rate-limit-status',
     'llm:tool-call',
     'llm:tool-call-partial',
     'llm:tool-result',
@@ -377,6 +379,14 @@ export interface AgentEventMap {
         sessionId: string;
     };
 
+    /** Best-effort provider rate-limit status update for the active session. */
+    'llm:rate-limit-status': {
+        provider?: LLMProvider;
+        model?: string;
+        snapshot: CodexRateLimitSnapshot;
+        sessionId: string;
+    };
+
     /** LLM service requested a tool call */
     'llm:tool-call': {
         toolName: string;
@@ -643,6 +653,13 @@ export interface SessionEventMap {
         estimatedInputTokens?: number;
         /** Finish reason: 'tool-calls' means more steps coming, others indicate completion */
         finishReason?: LLMFinishReason;
+    };
+
+    /** Best-effort provider rate-limit status update for the active session. */
+    'llm:rate-limit-status': {
+        provider?: LLMProvider;
+        model?: string;
+        snapshot: CodexRateLimitSnapshot;
     };
 
     /** LLM service requested a tool call */
