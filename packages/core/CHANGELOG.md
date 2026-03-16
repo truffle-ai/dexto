@@ -1,5 +1,11 @@
 # @dexto/core
 
+## 1.6.13
+
+### Patch Changes
+
+- 8ae630a: Adds ChatGPT login via codex so users can reuse their subscriptions.
+
 ## 1.6.12
 
 ## 1.6.11
