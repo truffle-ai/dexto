@@ -613,6 +613,7 @@ Options:
 
 Commands:
   setup                    Configure global preferences
+  deploy                   Deploy current workspace to cloud
   agents install <agents...>  Install agents from registry
   agents list              List available agents
   session list|history     Manage sessions

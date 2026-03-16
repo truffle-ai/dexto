@@ -3,10 +3,57 @@
 // This will become the primary location once core services accept paths via initialization
 
 import { walkUpDirectories } from './fs-walk.js';
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync, realpathSync, statSync } from 'fs';
 import * as path from 'path';
 
 export type ExecutionContext = 'dexto-source' | 'dexto-project' | 'global-cli';
+
+const FORCED_PROJECT_ROOT_MARKERS = [
+    path.join('.dexto', 'deploy.json'),
+    path.join('.dexto', 'cloud', 'bootstrap.json'),
+    'coding-agent.yml',
+    'coding-agent.yaml',
+    path.join('agents', 'agent-registry.json'),
+    path.join('agents', 'coding-agent.yml'),
+    path.join('agents', 'coding-agent.yaml'),
+    path.join('agents', 'coding-agent', 'coding-agent.yml'),
+    path.join('agents', 'coding-agent', 'coding-agent.yaml'),
+    path.join('src', 'dexto', 'agents', 'coding-agent.yml'),
+    path.join('src', 'dexto', 'agents', 'coding-agent.yaml'),
+] as const;
+
+function hasForcedProjectRootMarker(dirPath: string): boolean {
+    return FORCED_PROJECT_ROOT_MARKERS.some((relativePath) =>
+        existsSync(path.join(dirPath, relativePath))
+    );
+}
+
+function getForcedProjectRoot(): string | null {
+    const value = process.env.DEXTO_PROJECT_ROOT?.trim();
+    if (!value) {
+        return null;
+    }
+
+    try {
+        const resolved = path.resolve(value);
+        if (!statSync(resolved).isDirectory()) {
+            return null;
+        }
+
+        const root = realpathSync(resolved);
+        if (
+            isDextoProjectDirectory(root) ||
+            isDextoSourceDirectory(root) ||
+            hasForcedProjectRootMarker(root)
+        ) {
+            return root;
+        }
+
+        return null;
+    } catch {
+        return null;
+    }
+}
 
 /**
  * Check if directory is the dexto source code itself
@@ -69,6 +116,10 @@ export function findDextoSourceRoot(startPath: string = process.cwd()): string |
  * @returns Dexto project root directory or null if not found
  */
 export function findDextoProjectRoot(startPath: string = process.cwd()): string | null {
+    const forcedProjectRoot = getForcedProjectRoot();
+    if (forcedProjectRoot) {
+        return forcedProjectRoot;
+    }
     return walkUpDirectories(startPath, isDextoProjectDirectory);
 }
 
@@ -78,6 +129,10 @@ export function findDextoProjectRoot(startPath: string = process.cwd()): string 
  * @returns Execution context
  */
 export function getExecutionContext(startPath: string = process.cwd()): ExecutionContext {
+    if (getForcedProjectRoot()) {
+        return 'dexto-project';
+    }
+
     // Check for Dexto source context first (most specific)
     if (findDextoSourceRoot(startPath)) {
         return 'dexto-source';

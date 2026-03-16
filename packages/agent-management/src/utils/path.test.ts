@@ -38,10 +38,16 @@ function createTempDirStructure(structure: Record<string, any>, baseDir?: string
 
 describe('getDextoPath', () => {
     let tempDir: string;
+    const originalProjectRoot = process.env.DEXTO_PROJECT_ROOT;
 
     afterEach(() => {
         if (tempDir) {
             fs.rmSync(tempDir, { recursive: true, force: true });
+        }
+        if (originalProjectRoot === undefined) {
+            delete process.env.DEXTO_PROJECT_ROOT;
+        } else {
+            process.env.DEXTO_PROJECT_ROOT = originalProjectRoot;
         }
     });
 
@@ -101,6 +107,25 @@ describe('getDextoPath', () => {
             } finally {
                 process.chdir(originalCwd);
             }
+        });
+    });
+
+    describe('with DEXTO_PROJECT_ROOT override', () => {
+        beforeEach(() => {
+            tempDir = createTempDirStructure({
+                '.dexto/deploy.json': {
+                    version: 1,
+                    agent: { type: 'cloud-default' },
+                },
+            });
+            process.env.DEXTO_PROJECT_ROOT = tempDir;
+        });
+
+        it('uses the forced project root for workspace-relative paths', () => {
+            const result = getDextoPath('database', 'coding-agent.db', '/outside/of/project');
+            expect(result).toBe(
+                path.join(fs.realpathSync(tempDir), '.dexto', 'database', 'coding-agent.db')
+            );
         });
     });
 });

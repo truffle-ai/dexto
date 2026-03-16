@@ -96,6 +96,7 @@ import { registerMcpCommand } from './cli/commands/mcp/register.js';
 import { registerImageCommand } from './cli/commands/image/register.js';
 import { registerPluginCommand } from './cli/commands/plugin/register.js';
 import { registerAgentsCommand } from './cli/commands/agents/register.js';
+import { registerDeployCommand } from './cli/commands/deploy/register.js';
 import type { BootstrapAgentMode } from './cli/commands/register-context.js';
 import type { MainModeOptions } from './cli/modes/context.js';
 import type { CLIConfigOverrides } from './config/cli-overrides.js';
@@ -215,6 +216,7 @@ program
     );
 
 registerImageCommand({ program });
+registerDeployCommand({ program });
 
 // 4) `init-app` SUB-COMMAND
 program
@@ -723,6 +725,30 @@ program
                             opts.agent,
                             opts.autoInstall !== false
                         );
+
+                        if (opts.interactive !== false) {
+                            const {
+                                getBundledSyncTargetForAgentPath,
+                                shouldPromptForSync,
+                                handleSyncAgentsCommand,
+                            } = await import('./cli/commands/agents/sync.js');
+                            const syncTarget = getBundledSyncTargetForAgentPath(resolvedPath);
+
+                            if (syncTarget && (await shouldPromptForSync(resolvedPath))) {
+                                const shouldSync = await p.confirm({
+                                    message: `Bundled agent updates available for '${syncTarget.agentId}'. Sync now?`,
+                                    initialValue: true,
+                                });
+
+                                if (!p.isCancel(shouldSync) && shouldSync) {
+                                    await handleSyncAgentsCommand({
+                                        force: true,
+                                        quiet: true,
+                                        agentIds: [syncTarget.agentId],
+                                    });
+                                }
+                            }
+                        }
                     }
 
                     // Load raw config and apply CLI overrides

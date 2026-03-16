@@ -174,6 +174,21 @@ dexto
 - `dexto create-app`: Create a new Dexto project structure.
 - `dexto init-app`: Initialize Dexto in an existing TypeScript project.
 
+**Cloud workspace deploys:**
+```bash
+# Deploy the current folder to a cloud sandbox
+dexto deploy
+
+# Check the linked deployment
+dexto deploy status
+
+# Stop or delete it later
+dexto deploy stop
+dexto deploy delete
+```
+
+On first deploy, Dexto creates `.dexto/deploy.json` in the current folder. If the workspace already contains `agents/coding-agent.yml`, Dexto deploys that config. Otherwise it uses the default cloud agent and still uploads the entire workspace.
+
 ### Method 2: Programmatic SDK (`DextoAgent`)
 
 Use the `DextoAgent` class in your TypeScript/JavaScript projects for full programmatic control.
