@@ -12,6 +12,7 @@ import type { LLMProvider } from './types.js';
  */
 export const CURATED_MODEL_IDS_BY_PROVIDER: Partial<Record<LLMProvider, string[]>> = {
     openai: [
+        'gpt-5.3-codex',
         'gpt-5.2',
         'gpt-5.2-chat-latest',
         'gpt-5.2-pro',
@@ -23,12 +24,14 @@ export const CURATED_MODEL_IDS_BY_PROVIDER: Partial<Record<LLMProvider, string[]
         'gpt-4o',
     ],
     anthropic: [
+        'claude-opus-4-6',
         'claude-opus-4-5-20251101',
         'claude-sonnet-4-5-20250929',
         'claude-sonnet-4-20250514',
         'claude-haiku-4-5-20251001',
     ],
     google: [
+        'gemini-3.1-pro-preview',
         'gemini-3-pro-preview',
         'gemini-3-flash-preview',
         'gemini-2.5-pro',
@@ -43,7 +46,7 @@ export const CURATED_MODEL_IDS_BY_PROVIDER: Partial<Record<LLMProvider, string[]
     xai: ['grok-4', 'grok-3', 'grok-3-mini'],
     groq: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'qwen-qwq-32b'],
     cohere: ['command-a-03-2025', 'command-r-plus-08-2024', 'command-r-08-2024'],
-    minimax: ['MiniMax-M2.1', 'MiniMax-M2'],
+    minimax: ['MiniMax-M2.5', 'MiniMax-M2.1', 'MiniMax-M2'],
     zhipuai: ['glm-4.7', 'glm-4.5'],
     'amazon-bedrock': [
         'anthropic.claude-sonnet-4-5-20250929-v1:0',
@@ -61,7 +64,7 @@ export const CURATED_MODEL_IDS_BY_PROVIDER: Partial<Record<LLMProvider, string[]
         'qwen/qwen3-coder:free',
         'deepseek/deepseek-r1-0528:free',
         'z-ai/glm-4.7',
-        'minimax/minimax-m2.1',
+        'minimax/minimax-m2.5',
         'moonshotai/kimi-k2.5',
     ],
 };

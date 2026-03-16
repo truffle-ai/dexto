@@ -7,6 +7,7 @@ import { ErrorScope, ErrorType } from '../errors/types.js';
 import { SessionErrorCode } from './error-codes.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 import { createInMemoryStorageManager } from '../test-utils/in-memory-storage.js';
+import type { SessionData } from './session-manager.js';
 
 // Mock dependencies
 vi.mock('./chat-session.js');
@@ -251,6 +252,71 @@ describe('SessionManager', () => {
         });
     });
 
+    describe('Session Metadata Updates', () => {
+        beforeEach(async () => {
+            await sessionManager.init();
+        });
+
+        test('serializes untracked ChatGPT markers with concurrent token usage updates', async () => {
+            const sessionKey = 'session:test-session';
+            let storedSessionData: SessionData = {
+                id: 'test-session',
+                createdAt: Date.now(),
+                lastActivity: Date.now(),
+                messageCount: 0,
+            };
+
+            mockStorageManager.database.get.mockImplementation(async (key: string) => {
+                if (key !== sessionKey) {
+                    return null;
+                }
+
+                await new Promise((resolve) => setTimeout(resolve, 0));
+                return JSON.parse(JSON.stringify(storedSessionData));
+            });
+            mockStorageManager.database.set.mockImplementation(
+                async (key: string, value: SessionData) => {
+                    if (key !== sessionKey) {
+                        return;
+                    }
+
+                    await new Promise((resolve) => setTimeout(resolve, 0));
+                    storedSessionData = JSON.parse(JSON.stringify(value));
+                }
+            );
+
+            await Promise.all([
+                sessionManager.markUntrackedChatGPTLoginUsage('test-session'),
+                sessionManager.accumulateTokenUsage(
+                    'test-session',
+                    {
+                        inputTokens: 120,
+                        outputTokens: 45,
+                        totalTokens: 165,
+                    },
+                    0.01,
+                    {
+                        provider: 'openai',
+                        model: 'gpt-5',
+                    }
+                ),
+            ]);
+
+            expect(storedSessionData.usageTracking).toEqual({
+                hasUntrackedChatGPTLoginUsage: true,
+            });
+            expect(storedSessionData.tokenUsage).toEqual({
+                inputTokens: 120,
+                outputTokens: 45,
+                reasoningTokens: 0,
+                cacheReadTokens: 0,
+                cacheWriteTokens: 0,
+                totalTokens: 165,
+            });
+            expect(storedSessionData.estimatedCost).toBeCloseTo(0.01, 10);
+        });
+    });
+
     describe('Session Creation and Identity Management', () => {
         beforeEach(async () => {
             await sessionManager.init();
@@ -301,6 +367,155 @@ describe('SessionManager', () => {
 
             expect(session.id).toBe(sessionId);
             expect(mockStorageManager.database.get).toHaveBeenCalledWith(`session:${sessionId}`);
+        });
+    });
+
+    describe('Session Forking', () => {
+        beforeEach(async () => {
+            await sessionManager.init();
+        });
+
+        test('should fork a session with parent metadata lineage and copied history', async () => {
+            const parentSessionId = 'parent-session';
+            const parentSessionData = {
+                id: parentSessionId,
+                createdAt: 1000,
+                lastActivity: 2000,
+                messageCount: 2,
+                metadata: { title: 'Parent title' },
+                workspaceId: 'workspace-1',
+                llmOverride: {
+                    provider: 'openai',
+                    model: 'gpt-5',
+                    maxIterations: 50,
+                    maxInputTokens: 128000,
+                },
+            };
+            const historyBatch = [
+                { id: 'm1', role: 'user', content: 'hello' },
+                { id: 'm2', role: 'assistant', content: 'hi' },
+            ];
+
+            mockStorageManager.database.get.mockImplementation((key: string) => {
+                if (key === `session:${parentSessionId}`) {
+                    return Promise.resolve(parentSessionData);
+                }
+                if (key === 'session:mock-uuid-123') {
+                    return Promise.resolve(undefined);
+                }
+                return Promise.resolve(undefined);
+            });
+            mockStorageManager.database.getRange
+                .mockResolvedValueOnce(historyBatch)
+                .mockResolvedValueOnce([]);
+
+            const mockChildSession = { id: 'mock-uuid-123' } as any;
+            const createSessionSpy = vi
+                .spyOn(sessionManager, 'createSession')
+                .mockResolvedValue(mockChildSession);
+
+            const childSession = await sessionManager.forkSession(parentSessionId);
+
+            expect(childSession).toBe(mockChildSession);
+            expect(mockStorageManager.database.set).toHaveBeenCalledWith(
+                'session:mock-uuid-123',
+                expect.objectContaining({
+                    id: 'mock-uuid-123',
+                    messageCount: 2,
+                    parentSessionId,
+                    workspaceId: 'workspace-1',
+                    llmOverride: parentSessionData.llmOverride,
+                    metadata: { title: 'Fork: Parent title' },
+                })
+            );
+            expect(mockStorageManager.database.append).toHaveBeenNthCalledWith(
+                1,
+                'messages:mock-uuid-123',
+                historyBatch[0]
+            );
+            expect(mockStorageManager.database.append).toHaveBeenNthCalledWith(
+                2,
+                'messages:mock-uuid-123',
+                historyBatch[1]
+            );
+            expect(createSessionSpy).toHaveBeenCalledWith('mock-uuid-123');
+        });
+
+        test('should derive child title from parent session id when parent title is missing', async () => {
+            const parentSessionId = 'parent-session-no-title';
+            const parentSessionData = {
+                id: parentSessionId,
+                createdAt: 1000,
+                lastActivity: 2000,
+                messageCount: 0,
+            };
+
+            mockStorageManager.database.get.mockImplementation((key: string) => {
+                if (key === `session:${parentSessionId}`) {
+                    return Promise.resolve(parentSessionData);
+                }
+                if (key === 'session:mock-uuid-123') {
+                    return Promise.resolve(undefined);
+                }
+                return Promise.resolve(undefined);
+            });
+            mockStorageManager.database.getRange.mockResolvedValueOnce([]);
+
+            const mockChildSession = { id: 'mock-uuid-123' } as any;
+            const createSessionSpy = vi
+                .spyOn(sessionManager, 'createSession')
+                .mockResolvedValue(mockChildSession);
+
+            const childSession = await sessionManager.forkSession(parentSessionId);
+
+            expect(childSession).toBe(mockChildSession);
+            expect(mockStorageManager.database.set).toHaveBeenCalledWith(
+                'session:mock-uuid-123',
+                expect.objectContaining({
+                    metadata: { title: 'Fork: parent-s' },
+                })
+            );
+            expect(createSessionSpy).toHaveBeenCalledWith('mock-uuid-123');
+        });
+
+        test('should throw not found when forking a non-existent parent session', async () => {
+            mockStorageManager.database.get.mockResolvedValue(undefined);
+
+            await expect(sessionManager.forkSession('missing-parent')).rejects.toMatchObject({
+                code: SessionErrorCode.SESSION_NOT_FOUND,
+                scope: ErrorScope.SESSION,
+                type: ErrorType.NOT_FOUND,
+            });
+        });
+
+        test('should enforce max sessions limit when forking', async () => {
+            const parentSessionId = 'parent-session';
+            const parentSessionData = {
+                id: parentSessionId,
+                createdAt: 1000,
+                lastActivity: 2000,
+                messageCount: 0,
+            };
+
+            mockStorageManager.database.get.mockImplementation((key: string) => {
+                if (key === `session:${parentSessionId}`) {
+                    return Promise.resolve(parentSessionData);
+                }
+                return Promise.resolve(undefined);
+            });
+            mockStorageManager.database.list.mockResolvedValue(
+                Array.from({ length: 10 }, (_, i) => `session:existing-${i}`)
+            );
+
+            await expect(sessionManager.forkSession(parentSessionId)).rejects.toMatchObject({
+                code: SessionErrorCode.SESSION_MAX_SESSIONS_EXCEEDED,
+                scope: ErrorScope.SESSION,
+                type: ErrorType.USER,
+            });
+            expect(mockStorageManager.database.set).not.toHaveBeenCalledWith(
+                'session:mock-uuid-123',
+                expect.anything()
+            );
         });
     });
 

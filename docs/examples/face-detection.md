@@ -33,7 +33,7 @@ The Image Editor Agent includes computer vision capabilities powered by OpenCV:
 
 ```bash
 # Install the agent
-dexto install image-editor-agent
+dexto agents install image-editor-agent
 
 # Run it
 dexto --agent image-editor-agent

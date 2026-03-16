@@ -332,6 +332,7 @@ export function StaticCLI({
                         bypassPermissions={ui.bypassPermissions}
                         planModeActive={ui.planModeActive}
                         isShellMode={buffer.text.startsWith('!')}
+                        chatgptRateLimitStatus={ui.chatgptRateLimitStatus}
                     />
                 )}
 

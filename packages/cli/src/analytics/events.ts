@@ -73,7 +73,7 @@ export interface SetupEvent {
     model: string;
     hadApiKeyBefore?: boolean;
     setupMode: 'interactive' | 'non-interactive';
-    setupVariant?: 'quick-start' | 'custom' | 'dexto-nova';
+    setupVariant?: 'quick-start' | 'custom' | 'dexto-nova' | 'codex-chatgpt';
     defaultMode?: string;
     hasBaseURL?: boolean;
     apiKeySkipped?: boolean;

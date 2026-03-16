@@ -1,4 +1,4 @@
-// packages/cli/src/cli/commands/list-agents.ts
+// packages/cli/src/cli/commands/agents/list.ts
 
 import { existsSync } from 'fs';
 import { promises as fs } from 'fs';
@@ -11,7 +11,7 @@ import {
     loadGlobalPreferences,
     loadBundledRegistryAgents,
 } from '@dexto/agent-management';
-import { getProviderDisplayName } from '../utils/provider-setup.js';
+import { getProviderDisplayName } from '../../utils/provider-setup.js';
 
 // Zod schema for list-agents command validation
 const ListAgentsCommandSchema = z
@@ -212,7 +212,9 @@ export async function handleListAgentsCommand(
     } else if (showInstalled) {
         console.log(chalk.rgb(255, 165, 0)('📦 No agents installed yet.'));
         console.log(
-            chalk.gray('   Use `dexto install <agent-name>` to install agents from the registry.\n')
+            chalk.gray(
+                '   Use `dexto agents install <agent-name>` to install agents from the registry.\n'
+            )
         );
     }
 
@@ -275,11 +277,11 @@ export async function handleListAgentsCommand(
 
         if (availableToInstall > 0) {
             console.log(
-                chalk.gray(`   Use \`dexto install <agent-name>\` to install more agents.`)
+                chalk.gray(`   Use \`dexto agents install <agent-name>\` to install more agents.`)
             );
         }
 
-        console.log(chalk.gray(`   Use \`dexto list-agents --verbose\` for detailed information.`));
+        console.log(chalk.gray(`   Use \`dexto agents list --verbose\` for detailed information.`));
         console.log(
             chalk.gray(`   After installing an agent, use \`dexto -a <agent-name>\` to run it.`)
         );

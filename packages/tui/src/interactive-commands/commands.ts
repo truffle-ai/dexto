@@ -26,7 +26,7 @@ import { isDextoAuthEnabled } from '@dexto/agent-management';
 
 // Import modular command definitions
 import { generalCommands, createHelpCommand } from './general-commands.js';
-import { searchCommand, resumeCommand, renameCommand } from './session/index.js';
+import { searchCommand, resumeCommand, renameCommand, forkCommand } from './session/index.js';
 import { exportCommand } from './export/index.js';
 import { modelCommands } from './model/index.js';
 import { mcpCommands } from './mcp/index.js';
@@ -36,7 +36,6 @@ import { toolCommands } from './tool-commands.js';
 import { promptCommands } from './prompt-commands.js';
 import { documentationCommands } from './documentation-commands.js';
 import { loginCommand, logoutCommand } from './auth/index.js';
-import { connectCommand } from './connect/index.js';
 
 /**
  * Complete list of all available CLI commands.
@@ -65,6 +64,7 @@ const baseCommands: CommandDefinition[] = [
     searchCommand, // /search - opens search overlay
     resumeCommand, // /resume - opens session selector overlay
     renameCommand, // /rename <title> - rename current session
+    forkCommand, // /fork - creates a forked session from current session
     exportCommand, // /export - opens export wizard overlay
 
     // Model management
@@ -90,9 +90,6 @@ const baseCommands: CommandDefinition[] = [
 
     // Auth commands (feature-flagged)
     ...(isDextoAuthEnabled() ? [loginCommand, logoutCommand] : []),
-
-    // Provider connect
-    connectCommand,
 ];
 
 // Add help command that can see all commands

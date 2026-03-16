@@ -42299,6 +42299,35 @@ export const MODELS_BY_PROVIDER = {
             },
         },
         {
+            name: 'google/gemini-3.1-pro-preview-customtools',
+            displayName: 'Gemini 3.1 Pro Preview Custom Tools',
+            maxInputTokens: 1048576,
+            supportedFileTypes: ['pdf', 'image', 'audio'],
+            reasoning: true,
+            supportsTemperature: true,
+            supportsToolCall: true,
+            releaseDate: '2026-02-19',
+            modalities: {
+                input: ['text', 'image', 'audio', 'video', 'pdf'],
+                output: ['text'],
+            },
+            interleaved: {
+                field: 'reasoning_details',
+            },
+            supportsInterleaved: true,
+            pricing: {
+                inputPerM: 2,
+                outputPerM: 12,
+                reasoningPerM: 12,
+                contextOver200kPerM: {
+                    inputPerM: 4,
+                    outputPerM: 18,
+                },
+                currency: 'USD',
+                unit: 'per_million_tokens',
+            },
+        },
+        {
             name: 'google/gemma-2-9b-it',
             displayName: 'Gemma 2 9B',
             maxInputTokens: 8192,

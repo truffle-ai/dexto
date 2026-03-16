@@ -19,6 +19,9 @@ import {
     useCustomModels,
     useCreateCustomModel,
     useDeleteCustomModel,
+    useModelPickerState,
+    useToggleFavoriteModel,
+    useSetFavoriteModels,
     useProviderApiKey,
     useSaveApiKey,
     type SwitchLLMPayload,
@@ -38,22 +41,12 @@ import { Alert, AlertDescription } from '../ui/alert';
 import { ApiKeyModal } from '../ApiKeyModal';
 import { useSessionStore } from '@/lib/stores/sessionStore';
 import { useCurrentLLM } from '../hooks/useCurrentLLM';
-import {
-    Bot,
-    ChevronDown,
-    ChevronLeft,
-    ChevronUp,
-    Loader2,
-    Star,
-    Plus,
-    Filter,
-} from 'lucide-react';
+import { Bot, ChevronDown, Loader2, Plus, Filter } from 'lucide-react';
 import { SearchBar } from './SearchBar';
 import { ModelCard } from './ModelCard';
 import {
-    FAVORITES_STORAGE_KEY,
     CUSTOM_MODELS_STORAGE_KEY,
-    DEFAULT_FAVORITES,
+    FAVORITES_STORAGE_KEY,
     ProviderCatalog,
     ModelInfo,
     favKey,
@@ -71,10 +64,9 @@ export default function ModelPickerModal() {
     const [search, setSearch] = useState('');
     const [baseURL, setBaseURL] = useState('');
     const [error, setError] = useState<string | null>(null);
-    const [showAllModels, setShowAllModels] = useState(false);
+    const [activeTab, setActiveTab] = useState<'for-you' | 'all-models'>('for-you');
     // Provider filter - empty array means 'all', can include 'custom' or any LLMProvider
     const [providerFilter, setProviderFilter] = useState<Array<LLMProvider | 'custom'>>([]);
-    const [activeView, setActiveView] = useState<'favorites' | 'all'>('all');
     const [showCustomForm, setShowCustomForm] = useState(false);
 
     // Custom models form state (data comes from API via useCustomModels)
@@ -97,6 +89,7 @@ export default function ModelPickerModal() {
     const [pendingSelection, setPendingSelection] = useState<{
         provider: LLMProvider;
         model: ModelInfo;
+        baseURL?: string;
     } | null>(null);
 
     const currentSessionId = useSessionStore((s) => s.currentSessionId);
@@ -115,7 +108,10 @@ export default function ModelPickerModal() {
         data: catalogData,
         isLoading: loading,
         error: catalogError,
-    } = useLLMCatalog({ enabled: open, scope: showAllModels ? 'all' : 'curated' });
+    } = useLLMCatalog({
+        enabled: open,
+        scope: activeTab === 'all-models' ? 'all' : 'curated',
+    });
 
     // Load dexto auth status (for checking if user can use dexto-nova provider)
     const { data: dextoAuthStatus } = useDextoAuth(open);
@@ -132,6 +128,15 @@ export default function ModelPickerModal() {
     const { mutate: deleteCustomModelMutation } = useDeleteCustomModel();
     const { mutate: deleteInstalledModelMutation } = useDeleteInstalledModel();
     const { mutateAsync: saveApiKey } = useSaveApiKey();
+    const { mutateAsync: toggleFavoriteModelAsync } = useToggleFavoriteModel();
+    const { mutateAsync: setFavoriteModelsAsync } = useSetFavoriteModels();
+
+    const {
+        data: modelPickerState,
+        isLoading: modelPickerStateLoading,
+        error: modelPickerStateError,
+        refetch: refetchModelPickerState,
+    } = useModelPickerState({ enabled: open });
 
     // Fetch provider API key status for the current form provider (for smart storage logic)
     const { data: providerKeyData } = useProviderApiKey(customModelForm.provider as LLMProvider, {
@@ -151,23 +156,73 @@ export default function ModelPickerModal() {
         }
     }, [open, currentLLM]);
 
-    const [favorites, setFavorites] = useState<string[]>([]);
+    const [favoritesMigrationDone, setFavoritesMigrationDone] = useState(false);
 
-    // Load favorites from localStorage (custom models come from API)
+    // Migrate legacy localStorage favorites to shared backend state.
     useEffect(() => {
-        if (open) {
+        if (!open || favoritesMigrationDone || !modelPickerState) return;
+
+        const migrateFavorites = async () => {
             try {
                 const favRaw = localStorage.getItem(FAVORITES_STORAGE_KEY);
-                // Use default favorites for new users (when localStorage key doesn't exist)
-                const loadedFavorites =
-                    favRaw !== null ? (JSON.parse(favRaw) as string[]) : DEFAULT_FAVORITES;
-                setFavorites(loadedFavorites);
-            } catch (err) {
-                console.warn('Failed to load favorites from localStorage:', err);
-                setFavorites([]);
+                if (!favRaw) {
+                    setFavoritesMigrationDone(true);
+                    return;
+                }
+
+                // Backend is already source of truth; drop stale local copy.
+                if (modelPickerState.favorites.length > 0) {
+                    localStorage.removeItem(FAVORITES_STORAGE_KEY);
+                    setFavoritesMigrationDone(true);
+                    return;
+                }
+
+                const parsed = JSON.parse(favRaw) as unknown;
+                const favorites = Array.isArray(parsed)
+                    ? parsed
+                          .map((value) => {
+                              if (typeof value !== 'string') return null;
+                              const [providerRaw, ...modelParts] = value.split('|');
+                              const model = modelParts.join('|').trim();
+                              if (
+                                  !providerRaw ||
+                                  !model ||
+                                  !LLM_PROVIDERS.includes(providerRaw as LLMProvider)
+                              ) {
+                                  return null;
+                              }
+
+                              return {
+                                  provider: providerRaw as LLMProvider,
+                                  model,
+                              };
+                          })
+                          .filter(
+                              (
+                                  value
+                              ): value is {
+                                  provider: LLMProvider;
+                                  model: string;
+                              } => Boolean(value)
+                          )
+                    : [];
+
+                if (favorites.length === 0) {
+                    localStorage.removeItem(FAVORITES_STORAGE_KEY);
+                    setFavoritesMigrationDone(true);
+                    return;
+                }
+
+                await setFavoriteModelsAsync({ favorites });
+                localStorage.removeItem(FAVORITES_STORAGE_KEY);
+                setFavoritesMigrationDone(true);
+            } catch (migrationError) {
+                console.warn('Failed to migrate favorites from localStorage:', migrationError);
             }
-        }
-    }, [open]);
+        };
+
+        void migrateFavorites();
+    }, [open, favoritesMigrationDone, modelPickerState, setFavoriteModelsAsync]);
 
     // Migrate localStorage custom models to API (one-time migration)
     const [migrationDone, setMigrationDone] = useState(false);
@@ -233,14 +288,41 @@ export default function ModelPickerModal() {
         migrateModels();
     }, [open, migrationDone, customModels, createCustomModelAsync]);
 
-    const toggleFavorite = useCallback((providerId: LLMProvider, modelName: string) => {
-        const key = favKey(providerId, modelName);
-        setFavorites((prev) => {
-            const newFavs = prev.includes(key) ? prev.filter((f) => f !== key) : [...prev, key];
-            localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(newFavs));
-            return newFavs;
-        });
-    }, []);
+    const favoriteKeySet = useMemo(
+        () =>
+            new Set(
+                (modelPickerState?.favorites ?? []).map((entry) =>
+                    favKey(entry.provider, entry.model, entry.baseURL)
+                )
+            ),
+        [modelPickerState?.favorites]
+    );
+
+    const isFavorite = useCallback(
+        (providerId: LLMProvider, modelName: string, modelBaseURL?: string) =>
+            favoriteKeySet.has(favKey(providerId, modelName, modelBaseURL)),
+        [favoriteKeySet]
+    );
+
+    const toggleFavorite = useCallback(
+        async (providerId: LLMProvider, modelName: string, modelBaseURL?: string) => {
+            try {
+                await toggleFavoriteModelAsync({
+                    provider: providerId,
+                    model: modelName,
+                    ...(modelBaseURL ? { baseURL: modelBaseURL } : {}),
+                });
+                setError(null);
+            } catch (toggleError) {
+                setError(
+                    toggleError instanceof Error
+                        ? toggleError.message
+                        : 'Failed to update favorites'
+                );
+            }
+        },
+        [toggleFavoriteModelAsync]
+    );
 
     const [isAddingModel, setIsAddingModel] = useState(false);
     const switchLLMMutation = useSwitchLLM();
@@ -472,115 +554,138 @@ export default function ModelPickerModal() {
         [search, providers]
     );
 
-    function onPickModel(
-        providerId: LLMProvider,
-        model: ModelInfo,
-        customBaseURL?: string,
-        skipApiKeyCheck = false,
-        customApiKey?: string
-    ) {
-        const provider = providers[providerId];
-        const effectiveBaseURL = customBaseURL || baseURL;
-        const supportsBaseURL = provider?.supportsBaseURL ?? Boolean(effectiveBaseURL);
+    const onPickModel = useCallback(
+        (
+            providerId: LLMProvider,
+            model: ModelInfo,
+            customBaseURL?: string,
+            skipApiKeyCheck = false,
+            customApiKey?: string
+        ) => {
+            const provider = providers[providerId];
+            const effectiveBaseURL = customBaseURL || baseURL;
+            const supportsBaseURL = provider?.supportsBaseURL ?? Boolean(effectiveBaseURL);
 
-        if (supportsBaseURL && effectiveBaseURL) {
-            const v = validateBaseURL(effectiveBaseURL);
-            if (!v.isValid) {
-                setError(v.error || 'Invalid base URL');
+            if (supportsBaseURL && effectiveBaseURL) {
+                const v = validateBaseURL(effectiveBaseURL);
+                if (!v.isValid) {
+                    setError(v.error || 'Invalid base URL');
+                    return;
+                }
+            }
+
+            // Dexto Nova provider requires OAuth login via CLI, not manual API key entry
+            // Check canUse from auth status API (requires both authentication AND API key)
+            if (!skipApiKeyCheck && providerId === 'dexto-nova') {
+                if (!dextoAuthStatus?.canUse) {
+                    setError(
+                        'Run `dexto login` or `/login` from the CLI to authenticate with Dexto'
+                    );
+                    return;
+                }
+            } else if (!skipApiKeyCheck && provider && !provider.hasApiKey && !customApiKey) {
+                // Other providers - show API key modal if no key configured
+                setPendingSelection({
+                    provider: providerId,
+                    model,
+                    ...(customBaseURL ? { baseURL: customBaseURL } : {}),
+                });
+                setPendingKeyProvider(providerId);
+                setKeyModalOpen(true);
                 return;
             }
-        }
 
-        // Dexto Nova provider requires OAuth login via CLI, not manual API key entry
-        // Check canUse from auth status API (requires both authentication AND API key)
-        if (!skipApiKeyCheck && providerId === 'dexto-nova') {
-            if (!dextoAuthStatus?.canUse) {
-                setError('Run `dexto login` or `/login` from the CLI to authenticate with Dexto');
-                return;
-            }
-        } else if (!skipApiKeyCheck && provider && !provider.hasApiKey && !customApiKey) {
-            // Other providers - show API key modal if no key configured
-            setPendingSelection({ provider: providerId, model });
-            setPendingKeyProvider(providerId);
-            setKeyModalOpen(true);
-            return;
-        }
+            const basePayload: SwitchLLMPayload = {
+                provider: providerId,
+                model: model.name,
+                ...(supportsBaseURL && effectiveBaseURL && { baseURL: effectiveBaseURL }),
+                ...(customApiKey && { apiKey: customApiKey }),
+            };
 
-        const basePayload: SwitchLLMPayload = {
-            provider: providerId,
-            model: model.name,
-            ...(supportsBaseURL && effectiveBaseURL && { baseURL: effectiveBaseURL }),
-            ...(customApiKey && { apiKey: customApiKey }),
-        };
-
-        // Always update global default first (no sessionId), then switch current session if active
-        switchLLMMutation.mutate(basePayload, {
-            onSuccess: async () => {
-                // If there's an active session, also switch it to the new model
-                if (currentSessionId) {
-                    try {
-                        await switchLLMMutation.mutateAsync({
-                            ...basePayload,
-                            sessionId: currentSessionId,
-                        });
-                    } catch (err) {
-                        setError(
-                            err instanceof Error
-                                ? err.message
-                                : 'Failed to switch model for current session'
-                        );
-                        return;
+            // Always update global default first (no sessionId), then switch current session if active
+            switchLLMMutation.mutate(basePayload, {
+                onSuccess: async () => {
+                    // If there's an active session, also switch it to the new model
+                    if (currentSessionId) {
+                        try {
+                            await switchLLMMutation.mutateAsync({
+                                ...basePayload,
+                                sessionId: currentSessionId,
+                            });
+                        } catch (err) {
+                            setError(
+                                err instanceof Error
+                                    ? err.message
+                                    : 'Failed to switch model for current session'
+                            );
+                            return;
+                        }
                     }
-                }
 
-                await refreshCurrentLLM();
+                    await refreshCurrentLLM();
 
-                if (currentLLM) {
-                    analyticsRef.current.trackLLMSwitched({
-                        fromProvider: currentLLM.provider,
-                        fromModel: currentLLM.model,
-                        toProvider: providerId,
-                        toModel: model.name,
-                        sessionId: currentSessionId || undefined,
-                        trigger: 'user_action',
-                    });
-                }
+                    if (currentLLM) {
+                        analyticsRef.current.trackLLMSwitched({
+                            fromProvider: currentLLM.provider,
+                            fromModel: currentLLM.model,
+                            toProvider: providerId,
+                            toModel: model.name,
+                            sessionId: currentSessionId || undefined,
+                            trigger: 'user_action',
+                        });
+                    }
 
-                setOpen(false);
-                setError(null);
-            },
-            onError: (error: Error) => {
-                setError(error.message);
-            },
-        });
-    }
+                    setOpen(false);
+                    setError(null);
+                },
+                onError: (error: Error) => {
+                    setError(error.message);
+                },
+            });
+        },
+        [
+            baseURL,
+            currentLLM,
+            currentSessionId,
+            dextoAuthStatus,
+            providers,
+            refreshCurrentLLM,
+            switchLLMMutation,
+        ]
+    );
 
-    function onPickCustomModel(customModel: CustomModel) {
-        const provider = (customModel.provider ?? 'openai-compatible') as LLMProvider;
-        const modelInfo: ModelInfo = {
-            name: customModel.name,
-            displayName: customModel.displayName || customModel.name,
-            maxInputTokens: customModel.maxInputTokens || 128000,
-            supportedFileTypes: ['pdf', 'image', 'audio'],
-        };
-        // Skip API key check for custom models - user already configured them.
-        // If they didn't add an API key, it's intentional (self-hosted, local, or env var).
-        // Pass the custom model's apiKey for per-model override if present.
-        onPickModel(provider, modelInfo, customModel.baseURL, true, customModel.apiKey);
-    }
+    const onPickCustomModel = useCallback(
+        (customModel: CustomModel) => {
+            const provider = (customModel.provider ?? 'openai-compatible') as LLMProvider;
+            const modelInfo: ModelInfo = {
+                name: customModel.name,
+                displayName: customModel.displayName || customModel.name,
+                maxInputTokens: customModel.maxInputTokens || 128000,
+                supportedFileTypes: ['pdf', 'image', 'audio'],
+            };
+            // Skip API key check for custom models - user already configured them.
+            // If they didn't add an API key, it's intentional (self-hosted, local, or env var).
+            // Pass the custom model's apiKey for per-model override if present.
+            onPickModel(provider, modelInfo, customModel.baseURL, true, customModel.apiKey);
+        },
+        [onPickModel]
+    );
 
-    function onPickInstalledModel(model: LocalModel) {
-        // Installed local models use the model ID as the name
-        // Context length is auto-detected by node-llama-cpp at runtime
-        const modelInfo: ModelInfo = {
-            name: model.id,
-            displayName: model.displayName,
-            maxInputTokens: model.contextLength || 8192,
-            supportedFileTypes: [], // Local models typically don't support file attachments
-        };
-        // Skip API key check - local models don't need API keys
-        onPickModel('local', modelInfo, undefined, true);
-    }
+    const onPickInstalledModel = useCallback(
+        (model: LocalModel) => {
+            // Installed local models use the model ID as the name
+            // Context length is auto-detected by node-llama-cpp at runtime
+            const modelInfo: ModelInfo = {
+                name: model.id,
+                displayName: model.displayName,
+                maxInputTokens: model.contextLength || 8192,
+                supportedFileTypes: [], // Local models typically don't support file attachments
+            };
+            // Skip API key check - local models don't need API keys
+            onPickModel('local', modelInfo, undefined, true);
+        },
+        [onPickModel]
+    );
 
     function onApiKeySaved(meta: { provider: string; envVar: string }) {
         const providerKey = meta.provider as LLMProvider;
@@ -592,9 +697,9 @@ export default function ModelPickerModal() {
         }));
         setKeyModalOpen(false);
         if (pendingSelection) {
-            const { provider: providerId, model } = pendingSelection;
+            const { provider: providerId, model, baseURL: pendingBaseURL } = pendingSelection;
             // Skip API key check since we just saved it
-            onPickModel(providerId, model, undefined, true);
+            onPickModel(providerId, model, pendingBaseURL, true);
             setPendingSelection(null);
         }
     }
@@ -609,47 +714,166 @@ export default function ModelPickerModal() {
         );
     }, []);
 
-    // Build favorites list (includes both catalog models and custom models)
-    const favoriteModels = useMemo(() => {
-        return favorites
-            .map((key) => {
-                const [providerIdRaw, modelName] = key.split('|');
-                const providerId = providerIdRaw as LLMProvider;
-                if (!LLM_PROVIDERS.includes(providerId)) return null;
+    type ModelPickerSectionEntry = {
+        provider: LLMProvider;
+        model: string;
+        baseURL?: string;
+        displayName?: string;
+        supportedFileTypes: ModelInfo['supportedFileTypes'];
+        source: 'catalog' | 'custom' | 'local-installed';
+    };
 
-                // Check if it's a custom model (check by model name match and provider type)
-                const customModel = customModels.find(
-                    (cm: CustomModel) =>
-                        cm.name === modelName && (cm.provider ?? 'openai-compatible') === providerId
-                );
-                if (customModel) {
-                    return {
-                        providerId,
-                        provider: undefined,
-                        model: {
-                            name: customModel.name,
-                            displayName: customModel.displayName || customModel.name,
-                            maxInputTokens: customModel.maxInputTokens || 128000,
-                            supportedFileTypes: ['pdf', 'image', 'audio'] as string[],
-                        },
-                        isCustom: true,
-                        customModel,
-                    };
+    const customModelsByKey = useMemo(() => {
+        const byKey = new Map<string, CustomModel>();
+        for (const customModel of customModels) {
+            const provider = (customModel.provider ?? 'openai-compatible') as LLMProvider;
+            byKey.set(favKey(provider, customModel.name, customModel.baseURL), customModel);
+        }
+        return byKey;
+    }, [customModels]);
+
+    const installedLocalModelsById = useMemo(() => {
+        const byId = new Map<string, LocalModel>();
+        for (const model of installedLocalModels) {
+            byId.set(model.id, model);
+        }
+        return byId;
+    }, [installedLocalModels]);
+
+    const providerModelsByKey = useMemo(() => {
+        const byKey = new Map<string, ModelInfo>();
+        for (const providerId of LLM_PROVIDERS) {
+            const provider = providers[providerId];
+            if (!provider) continue;
+            for (const model of provider.models) {
+                byKey.set(favKey(providerId, model.name), model);
+            }
+        }
+        return byKey;
+    }, [providers]);
+
+    const resolveModelInfoFromEntry = useCallback(
+        (entry: ModelPickerSectionEntry): ModelInfo => {
+            const key = favKey(entry.provider, entry.model, entry.baseURL);
+            const providerModel =
+                providerModelsByKey.get(key) ??
+                providerModelsByKey.get(favKey(entry.provider, entry.model));
+            if (providerModel) {
+                return providerModel;
+            }
+
+            const customModel = customModelsByKey.get(key);
+            if (customModel) {
+                return {
+                    name: customModel.name,
+                    displayName: customModel.displayName || customModel.name,
+                    maxInputTokens: customModel.maxInputTokens || 128000,
+                    supportedFileTypes: ['pdf', 'image', 'audio'],
+                };
+            }
+
+            const installedModel =
+                entry.provider === 'local' ? installedLocalModelsById.get(entry.model) : undefined;
+
+            return {
+                name: entry.model,
+                displayName: entry.displayName || entry.model,
+                maxInputTokens: installedModel?.contextLength || 8192,
+                supportedFileTypes: entry.supportedFileTypes ?? [],
+            };
+        },
+        [customModelsByKey, installedLocalModelsById, providerModelsByKey]
+    );
+
+    const onPickSectionEntry = useCallback(
+        (entry: ModelPickerSectionEntry) => {
+            const key = favKey(entry.provider, entry.model, entry.baseURL);
+            const customModel = customModelsByKey.get(key);
+            if (customModel) {
+                onPickCustomModel(customModel);
+                return;
+            }
+
+            if (entry.provider === 'local') {
+                const localModel = installedLocalModelsById.get(entry.model);
+                if (localModel) {
+                    onPickInstalledModel(localModel);
+                    return;
                 }
 
-                const provider = providers[providerId];
-                const model = provider?.models.find((m: ModelInfo) => m.name === modelName);
-                if (!provider || !model) return null;
-                return { providerId, provider, model, isCustom: false };
-            })
-            .filter(Boolean) as Array<{
-            providerId: LLMProvider;
-            provider?: ProviderCatalog;
-            model: ModelInfo;
-            isCustom: boolean;
-            customModel?: CustomModel;
-        }>;
-    }, [favorites, providers, customModels]);
+                setError(`Local model "${entry.model}" is no longer installed.`);
+                void refetchModelPickerState();
+                return;
+            }
+
+            onPickModel(entry.provider, resolveModelInfoFromEntry(entry), entry.baseURL);
+        },
+        [
+            customModelsByKey,
+            installedLocalModelsById,
+            resolveModelInfoFromEntry,
+            onPickModel,
+            onPickCustomModel,
+            onPickInstalledModel,
+            refetchModelPickerState,
+        ]
+    );
+
+    const modelPickerEntryMatchesSearch = useCallback(
+        (entry: ModelPickerSectionEntry): boolean => {
+            const q = search.trim().toLowerCase();
+            if (!q) return true;
+
+            const providerName = providers[entry.provider]?.name.toLowerCase() ?? '';
+            return (
+                entry.model.toLowerCase().includes(q) ||
+                (entry.displayName?.toLowerCase().includes(q) ?? false) ||
+                entry.provider.toLowerCase().includes(q) ||
+                providerName.includes(q)
+            );
+        },
+        [providers, search]
+    );
+
+    const forYouSections = useMemo(() => {
+        if (!modelPickerState) {
+            return [];
+        }
+
+        const sections = [
+            {
+                id: 'featured',
+                title: 'Featured',
+                entries: modelPickerState.featured,
+            },
+            {
+                id: 'recents',
+                title: 'Recents',
+                entries: modelPickerState.recents,
+            },
+            {
+                id: 'favorites',
+                title: 'Favorites',
+                entries: modelPickerState.favorites,
+            },
+            {
+                id: 'custom',
+                title: 'Custom',
+                entries: modelPickerState.custom,
+            },
+        ];
+
+        return sections
+            .map((section) => ({
+                ...section,
+                entries: section.entries.filter(
+                    (entry) =>
+                        (entry.provider !== 'local' || installedLocalModelsById.has(entry.model)) &&
+                        modelPickerEntryMatchesSearch(entry)
+                ),
+            }))
+            .filter((section) => section.entries.length > 0);
+    }, [installedLocalModelsById, modelPickerEntryMatchesSearch, modelPickerState]);
 
     // All models flat list (filtered by search and provider)
     const allModels = useMemo(() => {
@@ -739,8 +963,10 @@ export default function ModelPickerModal() {
         return base;
     }, [providers, installedLocalModels]);
 
-    const isCurrentModel = (providerId: string, modelName: string) =>
-        currentLLM?.provider === providerId && currentLLM?.model === modelName;
+    const isCurrentModel = (providerId: string, modelName: string, modelBaseURL?: string) =>
+        currentLLM?.provider === providerId &&
+        currentLLM?.model === modelName &&
+        (modelBaseURL === undefined || (currentLLM.baseURL ?? '') === modelBaseURL);
 
     return (
         <>
@@ -809,46 +1035,53 @@ export default function ModelPickerModal() {
                         />
                     ) : (
                         <>
-                            {/* Header - Search + Add Custom Button + Filters */}
+                            {/* Header */}
                             <div className="flex-shrink-0 px-3 pt-3 pb-2 border-b border-border/30 space-y-2">
-                                {(error || catalogError) && (
+                                {(error || catalogError || modelPickerStateError) && (
                                     <Alert variant="destructive" className="py-2">
                                         <AlertDescription className="text-xs">
-                                            {error || catalogError?.message}
+                                            {error ||
+                                                catalogError?.message ||
+                                                modelPickerStateError?.message}
                                         </AlertDescription>
                                     </Alert>
                                 )}
                                 <div className="flex items-center gap-2">
+                                    <div className="inline-flex rounded-lg border border-border/60 bg-muted/30 p-1">
+                                        <button
+                                            onClick={() => setActiveTab('for-you')}
+                                            className={cn(
+                                                'px-3 py-1 text-xs font-medium rounded-md transition-colors',
+                                                activeTab === 'for-you'
+                                                    ? 'bg-background text-foreground shadow-sm'
+                                                    : 'text-muted-foreground hover:text-foreground'
+                                            )}
+                                        >
+                                            For You
+                                        </button>
+                                        <button
+                                            onClick={() => setActiveTab('all-models')}
+                                            className={cn(
+                                                'px-3 py-1 text-xs font-medium rounded-md transition-colors',
+                                                activeTab === 'all-models'
+                                                    ? 'bg-background text-foreground shadow-sm'
+                                                    : 'text-muted-foreground hover:text-foreground'
+                                            )}
+                                        >
+                                            All Models
+                                        </button>
+                                    </div>
                                     <div className="flex-1">
                                         <SearchBar
                                             value={search}
                                             onChange={setSearch}
-                                            placeholder="Search models..."
+                                            placeholder={
+                                                activeTab === 'all-models'
+                                                    ? 'Search all models...'
+                                                    : 'Search your models...'
+                                            }
                                         />
                                     </div>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <button
-                                                onClick={() => setShowAllModels((prev) => !prev)}
-                                                className={cn(
-                                                    'px-2 py-2 rounded-lg transition-colors flex-shrink-0 text-xs font-medium',
-                                                    showAllModels
-                                                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                                                        : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
-                                                )}
-                                            >
-                                                {showAllModels ? 'All' : 'Curated'}
-                                                <span className="sr-only">
-                                                    Toggle full model catalog
-                                                </span>
-                                            </button>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="bottom">
-                                            {showAllModels
-                                                ? 'Showing all models (large list)'
-                                                : 'Showing curated models'}
-                                        </TooltipContent>
-                                    </Tooltip>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
                                             <button
@@ -865,8 +1098,7 @@ export default function ModelPickerModal() {
                                     </Tooltip>
                                 </div>
 
-                                {/* Provider Filter Pills - only in All view */}
-                                {activeView === 'all' && availableProviders.length > 1 && (
+                                {activeTab === 'all-models' && availableProviders.length > 1 && (
                                     <div className="flex items-center gap-1.5 flex-wrap pt-1">
                                         <Filter className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                                         <button
@@ -930,189 +1162,114 @@ export default function ModelPickerModal() {
 
                             {/* Main Content */}
                             <div className="flex-1 min-h-0 overflow-y-auto p-3">
-                                {loading ? (
+                                {loading || (activeTab === 'for-you' && modelPickerStateLoading) ? (
                                     <div className="flex items-center justify-center py-8">
                                         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                                     </div>
-                                ) : activeView === 'favorites' ? (
-                                    /* Favorites List View */
-                                    favoriteModels.length === 0 ? (
+                                ) : activeTab === 'for-you' ? (
+                                    forYouSections.length === 0 ? (
                                         <div className="flex flex-col items-center justify-center py-8 text-center">
-                                            <Star className="h-8 w-8 text-muted-foreground/30 mb-2" />
                                             <p className="text-sm font-medium text-muted-foreground">
-                                                No favorites yet
+                                                No models found
                                             </p>
                                             <p className="text-xs text-muted-foreground/70 mt-1">
-                                                Click &quot;Show all&quot; to browse and add
-                                                favorites
+                                                Try adjusting your search or add a custom model
                                             </p>
                                         </div>
                                     ) : (
-                                        <div className="space-y-1">
-                                            {favoriteModels
-                                                .filter(({ providerId, model }) => {
-                                                    if (!search.trim()) return true;
-                                                    const q = search.trim().toLowerCase();
-                                                    return (
-                                                        model.name.toLowerCase().includes(q) ||
-                                                        (model.displayName
-                                                            ?.toLowerCase()
-                                                            .includes(q) ??
-                                                            false) ||
-                                                        providerId.toLowerCase().includes(q)
-                                                    );
-                                                })
-                                                .map(
-                                                    ({
-                                                        providerId,
-                                                        model,
-                                                        isCustom,
-                                                        customModel,
-                                                    }) => (
-                                                        <div
-                                                            key={favKey(providerId, model.name)}
-                                                            onClick={() =>
-                                                                isCustom && customModel
-                                                                    ? onPickCustomModel(customModel)
-                                                                    : onPickModel(providerId, model)
-                                                            }
-                                                            onKeyDown={(e) => {
-                                                                if (e.target !== e.currentTarget)
-                                                                    return;
-                                                                if (
-                                                                    e.key === 'Enter' ||
-                                                                    e.key === ' '
-                                                                ) {
-                                                                    e.preventDefault();
-                                                                    isCustom && customModel
-                                                                        ? onPickCustomModel(
-                                                                              customModel
-                                                                          )
-                                                                        : onPickModel(
-                                                                              providerId,
-                                                                              model
-                                                                          );
-                                                                }
-                                                            }}
-                                                            role="button"
-                                                            tabIndex={0}
-                                                            className={cn(
-                                                                'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors cursor-pointer',
-                                                                'hover:bg-accent/50',
-                                                                isCurrentModel(
-                                                                    providerId,
-                                                                    model.name
-                                                                )
-                                                                    ? 'bg-primary/10 border border-primary/30'
-                                                                    : 'border border-transparent'
-                                                            )}
-                                                        >
-                                                            <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-muted/60 flex-shrink-0">
-                                                                {hasLogo(providerId) ? (
-                                                                    <img
-                                                                        src={
-                                                                            PROVIDER_LOGOS[
-                                                                                providerId
-                                                                            ]
-                                                                        }
-                                                                        alt=""
-                                                                        width={20}
-                                                                        height={20}
-                                                                        className={cn(
-                                                                            'object-contain',
-                                                                            needsDarkModeInversion(
-                                                                                providerId
-                                                                            ) &&
-                                                                                'dark:invert dark:brightness-0 dark:contrast-200'
-                                                                        )}
-                                                                    />
-                                                                ) : (
-                                                                    <Bot className="h-4 w-4 text-muted-foreground" />
-                                                                )}
-                                                            </div>
-                                                            <div className="flex-1 text-left min-w-0">
-                                                                <div className="text-sm font-medium text-foreground truncate">
-                                                                    {model.displayName ||
-                                                                        model.name}
-                                                                </div>
-                                                                {providerId ===
-                                                                    'openai-compatible' && (
-                                                                    <div className="text-xs text-muted-foreground truncate">
-                                                                        Custom
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                            <div className="flex items-center gap-1 flex-shrink-0">
-                                                                {model.supportedFileTypes?.includes(
-                                                                    'image'
-                                                                ) && (
-                                                                    <span
-                                                                        className="w-5 h-5 rounded bg-emerald-500/20 flex items-center justify-center"
-                                                                        title="Vision"
-                                                                    >
-                                                                        <svg
-                                                                            className="w-3 h-3 text-emerald-400"
-                                                                            fill="none"
-                                                                            viewBox="0 0 24 24"
-                                                                            stroke="currentColor"
-                                                                        >
-                                                                            <path
-                                                                                strokeLinecap="round"
-                                                                                strokeLinejoin="round"
-                                                                                strokeWidth={2}
-                                                                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                                                                            />
-                                                                            <path
-                                                                                strokeLinecap="round"
-                                                                                strokeLinejoin="round"
-                                                                                strokeWidth={2}
-                                                                                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                                                                            />
-                                                                        </svg>
-                                                                    </span>
-                                                                )}
-                                                                {model.supportedFileTypes?.includes(
-                                                                    'pdf'
-                                                                ) && (
-                                                                    <span
-                                                                        className="w-5 h-5 rounded bg-blue-500/20 flex items-center justify-center"
-                                                                        title="PDF"
-                                                                    >
-                                                                        <svg
-                                                                            className="w-3 h-3 text-blue-400"
-                                                                            fill="none"
-                                                                            viewBox="0 0 24 24"
-                                                                            stroke="currentColor"
-                                                                        >
-                                                                            <path
-                                                                                strokeLinecap="round"
-                                                                                strokeLinejoin="round"
-                                                                                strokeWidth={2}
-                                                                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                                                                            />
-                                                                        </svg>
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    toggleFavorite(
-                                                                        providerId,
-                                                                        model.name
-                                                                    );
-                                                                }}
-                                                                className="p-1 rounded hover:bg-yellow-500/20 transition-colors flex-shrink-0"
-                                                            >
-                                                                <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                                                            </button>
-                                                        </div>
-                                                    )
-                                                )}
+                                        <div className="space-y-4">
+                                            {forYouSections.map((section) => (
+                                                <section key={section.id} className="space-y-2">
+                                                    <div className="text-[11px] uppercase tracking-wide font-medium text-muted-foreground px-1">
+                                                        {section.title}
+                                                    </div>
+                                                    <div
+                                                        className="grid gap-2 justify-center"
+                                                        style={{
+                                                            gridTemplateColumns:
+                                                                'repeat(auto-fill, 140px)',
+                                                        }}
+                                                    >
+                                                        {section.entries.map((entry) => {
+                                                            const modelInfo =
+                                                                resolveModelInfoFromEntry(entry);
+                                                            const providerInfo =
+                                                                providers[entry.provider];
+                                                            const key = favKey(
+                                                                entry.provider,
+                                                                entry.model,
+                                                                entry.baseURL
+                                                            );
+                                                            const customModel =
+                                                                customModelsByKey.get(key);
+                                                            const localModel =
+                                                                entry.provider === 'local'
+                                                                    ? installedLocalModelsById.get(
+                                                                          entry.model
+                                                                      )
+                                                                    : undefined;
+
+                                                            return (
+                                                                <ModelCard
+                                                                    key={`${section.id}|${key}`}
+                                                                    provider={entry.provider}
+                                                                    providerInfo={providerInfo}
+                                                                    model={modelInfo}
+                                                                    isFavorite={isFavorite(
+                                                                        entry.provider,
+                                                                        entry.model,
+                                                                        entry.baseURL
+                                                                    )}
+                                                                    isActive={isCurrentModel(
+                                                                        entry.provider,
+                                                                        entry.model,
+                                                                        entry.baseURL
+                                                                    )}
+                                                                    onClick={() =>
+                                                                        onPickSectionEntry(entry)
+                                                                    }
+                                                                    onToggleFavorite={() => {
+                                                                        void toggleFavorite(
+                                                                            entry.provider,
+                                                                            entry.model,
+                                                                            entry.baseURL
+                                                                        );
+                                                                    }}
+                                                                    onEdit={
+                                                                        customModel
+                                                                            ? () =>
+                                                                                  editCustomModel(
+                                                                                      customModel
+                                                                                  )
+                                                                            : undefined
+                                                                    }
+                                                                    onDelete={
+                                                                        customModel
+                                                                            ? () =>
+                                                                                  deleteCustomModel(
+                                                                                      customModel.name
+                                                                                  )
+                                                                            : localModel
+                                                                              ? () =>
+                                                                                    deleteInstalledModel(
+                                                                                        localModel.id
+                                                                                    )
+                                                                              : undefined
+                                                                    }
+                                                                    size="sm"
+                                                                    isCustom={Boolean(customModel)}
+                                                                    isInstalled={Boolean(
+                                                                        localModel
+                                                                    )}
+                                                                />
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </section>
+                                            ))}
                                         </div>
                                     )
                                 ) : (
-                                    /* All Models Card Grid View */
                                     <div>
                                         {allModels.length === 0 &&
                                         filteredCustomModels.length === 0 &&
@@ -1147,8 +1304,9 @@ export default function ModelPickerModal() {
                                                             provider={providerId}
                                                             model={model}
                                                             providerInfo={provider}
-                                                            isFavorite={favorites.includes(
-                                                                favKey(providerId, model.name)
+                                                            isFavorite={isFavorite(
+                                                                providerId,
+                                                                model.name
                                                             )}
                                                             isActive={isCurrentModel(
                                                                 providerId,
@@ -1157,57 +1315,48 @@ export default function ModelPickerModal() {
                                                             onClick={() =>
                                                                 onPickModel(providerId, model)
                                                             }
-                                                            onToggleFavorite={() =>
-                                                                toggleFavorite(
+                                                            onToggleFavorite={() => {
+                                                                void toggleFavorite(
                                                                     providerId,
                                                                     model.name
-                                                                )
-                                                            }
+                                                                );
+                                                            }}
                                                             size="sm"
                                                         />
                                                     )
                                                 )}
                                                 {/* Installed local models (downloaded via CLI) - shown before custom models */}
-                                                {filteredInstalledModels.map(
-                                                    (model: LocalModel) => (
-                                                        <ModelCard
-                                                            key={`local|${model.id}`}
-                                                            provider="local"
-                                                            model={{
-                                                                name: model.id,
-                                                                displayName: model.displayName,
-                                                                maxInputTokens:
-                                                                    model.contextLength || 8192,
-                                                                supportedFileTypes: [],
-                                                            }}
-                                                            isFavorite={favorites.includes(
-                                                                favKey('local', model.id)
-                                                            )}
-                                                            isActive={isCurrentModel(
-                                                                'local',
-                                                                model.id
-                                                            )}
-                                                            onClick={() =>
-                                                                onPickInstalledModel(model)
-                                                            }
-                                                            onToggleFavorite={() =>
-                                                                toggleFavorite('local', model.id)
-                                                            }
-                                                            onDelete={() =>
-                                                                deleteInstalledModel(model.id)
-                                                            }
-                                                            size="sm"
-                                                            isInstalled
-                                                        />
-                                                    )
-                                                )}
+                                                {filteredInstalledModels.map((model) => (
+                                                    <ModelCard
+                                                        key={`local|${model.id}`}
+                                                        provider="local"
+                                                        model={{
+                                                            name: model.id,
+                                                            displayName: model.displayName,
+                                                            maxInputTokens:
+                                                                model.contextLength || 8192,
+                                                            supportedFileTypes: [],
+                                                        }}
+                                                        isFavorite={isFavorite('local', model.id)}
+                                                        isActive={isCurrentModel('local', model.id)}
+                                                        onClick={() => onPickInstalledModel(model)}
+                                                        onToggleFavorite={() => {
+                                                            void toggleFavorite('local', model.id);
+                                                        }}
+                                                        onDelete={() =>
+                                                            deleteInstalledModel(model.id)
+                                                        }
+                                                        size="sm"
+                                                        isInstalled
+                                                    />
+                                                ))}
                                                 {/* Custom models (user-configured) */}
                                                 {filteredCustomModels.map((cm: CustomModel) => {
                                                     const cmProvider = (cm.provider ??
                                                         'openai-compatible') as LLMProvider;
                                                     return (
                                                         <ModelCard
-                                                            key={`custom|${cm.name}`}
+                                                            key={`custom|${cm.name}|${cm.baseURL ?? ''}`}
                                                             provider={cmProvider}
                                                             providerInfo={providers[cmProvider]}
                                                             model={{
@@ -1222,17 +1371,24 @@ export default function ModelPickerModal() {
                                                                     'audio',
                                                                 ],
                                                             }}
-                                                            isFavorite={favorites.includes(
-                                                                favKey(cmProvider, cm.name)
+                                                            isFavorite={isFavorite(
+                                                                cmProvider,
+                                                                cm.name,
+                                                                cm.baseURL
                                                             )}
                                                             isActive={isCurrentModel(
                                                                 cmProvider,
-                                                                cm.name
+                                                                cm.name,
+                                                                cm.baseURL
                                                             )}
                                                             onClick={() => onPickCustomModel(cm)}
-                                                            onToggleFavorite={() =>
-                                                                toggleFavorite(cmProvider, cm.name)
-                                                            }
+                                                            onToggleFavorite={() => {
+                                                                void toggleFavorite(
+                                                                    cmProvider,
+                                                                    cm.name,
+                                                                    cm.baseURL
+                                                                );
+                                                            }}
                                                             onEdit={() => editCustomModel(cm)}
                                                             onDelete={() =>
                                                                 deleteCustomModel(cm.name)
@@ -1246,33 +1402,6 @@ export default function ModelPickerModal() {
                                         )}
                                     </div>
                                 )}
-                            </div>
-
-                            {/* Bottom Navigation Bar */}
-                            <div className="flex-shrink-0 border-t border-border/30 px-3 py-2 flex items-center justify-end">
-                                <button
-                                    onClick={() =>
-                                        setActiveView(
-                                            activeView === 'favorites' ? 'all' : 'favorites'
-                                        )
-                                    }
-                                    className="flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
-                                >
-                                    {activeView === 'favorites' ? (
-                                        <>
-                                            Show all
-                                            <ChevronUp className="h-4 w-4" />
-                                        </>
-                                    ) : (
-                                        <>
-                                            Favorites
-                                            <ChevronLeft className="h-4 w-4 rotate-180" />
-                                        </>
-                                    )}
-                                    {activeView === 'favorites' && favoriteModels.length > 0 && (
-                                        <span className="ml-1 w-2 h-2 rounded-full bg-primary" />
-                                    )}
-                                </button>
                             </div>
                         </>
                     )}

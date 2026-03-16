@@ -14,7 +14,10 @@ import {
     resolveApiKeyForProvider,
 } from '@dexto/core';
 import { getGlobalPreferencesPath } from '@dexto/agent-management';
-import { handleSyncAgentsCommand } from '../commands/sync-agents.js';
+import {
+    getBundledSyncTargetForAgentPath,
+    handleSyncAgentsCommand,
+} from '../commands/agents/sync.js';
 
 export interface ValidationResult {
     success: boolean;
@@ -141,31 +144,41 @@ async function handleOtherErrors(
     errors: string[],
     options?: ValidationOptions
 ): Promise<ValidationResult> {
+    const syncTarget = options?.agentPath
+        ? getBundledSyncTargetForAgentPath(options.agentPath)
+        : null;
+
     console.log(chalk.rgb(255, 165, 0)('\n⚠️  Configuration issues detected:\n'));
     for (const error of errors) {
         console.log(chalk.red(`  • ${error}`));
     }
     console.log('');
 
+    const selectOptions = [
+        ...(syncTarget
+            ? [
+                  {
+                      value: 'sync' as const,
+                      label: 'Sync agent config',
+                      hint: `Update bundled agent '${syncTarget.agentId}' from the registry`,
+                  },
+              ]
+            : []),
+        {
+            value: 'skip' as const,
+            label: 'Continue anyway',
+            hint: 'Try to start despite errors (may fail)',
+        },
+        {
+            value: 'edit' as const,
+            label: 'Edit configuration manually',
+            hint: 'Show file path and instructions',
+        },
+    ];
+
     const action = await p.select({
         message: 'How would you like to proceed?',
-        options: [
-            {
-                value: 'sync' as const,
-                label: 'Sync agent config',
-                hint: 'Update from bundled registry (recommended)',
-            },
-            {
-                value: 'skip' as const,
-                label: 'Continue anyway',
-                hint: 'Try to start despite errors (may fail)',
-            },
-            {
-                value: 'edit' as const,
-                label: 'Edit configuration manually',
-                hint: 'Show file path and instructions',
-            },
-        ],
+        options: selectOptions,
     });
 
     if (p.isCancel(action)) {
@@ -174,9 +187,16 @@ async function handleOtherErrors(
     }
 
     if (action === 'sync') {
+        if (!syncTarget) {
+            return { success: false, errors, skipped: true };
+        }
+
         try {
-            // Run sync-agents to update the agent config
-            await handleSyncAgentsCommand({ force: true, quiet: false });
+            await handleSyncAgentsCommand({
+                force: true,
+                quiet: false,
+                agentIds: [syncTarget.agentId],
+            });
             // Exit after sync - user needs to restart dexto
             p.outro(chalk.gray('Run dexto to start Dexto'));
             process.exit(0);

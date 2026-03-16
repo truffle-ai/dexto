@@ -28,6 +28,7 @@ import type { ContentInput } from '../agent/types.js';
 import { getModelPricing, calculateCost } from '../llm/registry/index.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
 import type { LlmAuthResolver } from '../llm/auth/types.js';
+import { parseCodexBaseURL } from '../llm/providers/codex-base-url.js';
 
 /**
  * Represents an isolated conversation session within a Dexto agent.
@@ -118,6 +119,23 @@ export class ChatSession {
      * Calling cancel() aborts the in-flight LLM request and tool execution checks.
      */
     private currentRunController: AbortController | null = null;
+
+    private isMeaningfulTokenUsage(
+        tokenUsage: SessionEventMap['llm:response']['tokenUsage']
+    ): boolean {
+        if (!tokenUsage) {
+            return false;
+        }
+
+        return (
+            (tokenUsage.inputTokens ?? 0) > 0 ||
+            (tokenUsage.outputTokens ?? 0) > 0 ||
+            (tokenUsage.reasoningTokens ?? 0) > 0 ||
+            (tokenUsage.cacheReadTokens ?? 0) > 0 ||
+            (tokenUsage.cacheWriteTokens ?? 0) > 0 ||
+            (tokenUsage.totalTokens ?? 0) > 0
+        );
+    }
 
     public readonly logger: Logger;
 
@@ -213,6 +231,21 @@ export class ChatSession {
         this.tokenAccumulatorListener = (payload: SessionEventMap['llm:response']) => {
             if (payload.tokenUsage) {
                 const llmConfig = this.services.stateManager.getLLMConfig(this.id);
+                const isChatGPTLogin =
+                    llmConfig.provider === 'openai-compatible' &&
+                    parseCodexBaseURL(llmConfig.baseURL)?.authMode === 'chatgpt';
+                const hasMeaningfulUsage = this.isMeaningfulTokenUsage(payload.tokenUsage);
+
+                if (isChatGPTLogin && !hasMeaningfulUsage) {
+                    this.services.sessionManager
+                        .markUntrackedChatGPTLoginUsage(this.id)
+                        .catch((err) => {
+                            this.logger.warn(
+                                `Failed to mark ChatGPT Login usage as untracked: ${err instanceof Error ? err.message : String(err)}`
+                            );
+                        });
+                    return;
+                }
 
                 // Extract model info from payload (preferred) or fall back to config
                 const modelInfo = {

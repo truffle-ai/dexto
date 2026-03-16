@@ -1,5 +1,60 @@
 # @dexto/tui
 
+## 1.6.13
+
+### Patch Changes
+
+- 8ae630a: Adds ChatGPT login via codex so users can reuse their subscriptions.
+- Updated dependencies [663ac8e]
+- Updated dependencies [8ae630a]
+    - @dexto/agent-management@1.6.13
+    - @dexto/core@1.6.13
+    - @dexto/registry@1.6.13
+
+## 1.6.12
+
+### Patch Changes
+
+- @dexto/core@1.6.12
+- @dexto/agent-management@1.6.12
+- @dexto/registry@1.6.12
+
+## 1.6.11
+
+### Patch Changes
+
+- @dexto/core@1.6.11
+- @dexto/agent-management@1.6.11
+- @dexto/registry@1.6.11
+
+## 1.6.10
+
+### Patch Changes
+
+- @dexto/core@1.6.10
+- @dexto/agent-management@1.6.10
+- @dexto/registry@1.6.10
+
+## 1.6.9
+
+### Patch Changes
+
+- dfbabfc: Improve the `/models` picker with curated **Featured**, cross-session **Recents**, and synced **Favorites** sections across TUI/WebUI.
+
+    Also improves featured-model selection fairness across providers and prevents stale deleted local models from being selectable.
+
+- 1025ea7: Add session forking with visible lineage across core, API, and CLI UX:
+    - Add `forkSession(parentSessionId)` in core and expose `POST /api/sessions/:sessionId/fork`.
+    - Persist child lineage via `parentSessionId` and clone persisted message history.
+    - Generate forked session titles as `Fork: ...` (from parent title or parent ID fallback).
+    - Surface fork lineage in `/resume` and `dexto session list`, and add a new interactive `/fork` command.
+
+- Updated dependencies [dfbabfc]
+- Updated dependencies [1025ea7]
+    - @dexto/agent-management@1.6.9
+    - @dexto/core@1.6.9
+    - @dexto/registry@1.6.9
+
 ## 1.6.8
 
 ### Patch Changes

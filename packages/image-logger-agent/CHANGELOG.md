@@ -1,5 +1,58 @@
 # @dexto/image-logger-agent
 
+## 1.6.13
+
+### Patch Changes
+
+- Updated dependencies [663ac8e]
+- Updated dependencies [8ae630a]
+    - @dexto/agent-management@1.6.13
+    - @dexto/core@1.6.13
+    - @dexto/image-local@1.6.13
+    - @dexto/agent-config@1.6.13
+
+## 1.6.12
+
+### Patch Changes
+
+- @dexto/core@1.6.12
+- @dexto/agent-config@1.6.12
+- @dexto/agent-management@1.6.12
+- @dexto/image-local@1.6.12
+
+## 1.6.11
+
+### Patch Changes
+
+- @dexto/core@1.6.11
+- @dexto/agent-config@1.6.11
+- @dexto/agent-management@1.6.11
+- @dexto/image-local@1.6.11
+
+## 1.6.10
+
+### Patch Changes
+
+- @dexto/core@1.6.10
+- @dexto/agent-config@1.6.10
+- @dexto/agent-management@1.6.10
+- @dexto/image-local@1.6.10
+
+## 1.6.9
+
+### Patch Changes
+
+- dfbabfc: Improve the `/models` picker with curated **Featured**, cross-session **Recents**, and synced **Favorites** sections across TUI/WebUI.
+
+    Also improves featured-model selection fairness across providers and prevents stale deleted local models from being selectable.
+
+- Updated dependencies [dfbabfc]
+- Updated dependencies [1025ea7]
+    - @dexto/agent-management@1.6.9
+    - @dexto/core@1.6.9
+    - @dexto/image-local@1.6.9
+    - @dexto/agent-config@1.6.9
+
 ## 1.6.8
 
 ### Patch Changes

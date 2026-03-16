@@ -11,6 +11,7 @@ import {
     supportsReasoningVariant,
     LLM_PROVIDERS,
     NonEmptyTrimmed,
+    OptionalURL,
     ErrorType,
 } from '@dexto/core';
 import { PreferenceErrorCode } from './error-codes.js';
@@ -32,11 +33,9 @@ export const PreferenceLLMSchema = z
                 'Environment variable reference for API key (optional for local providers like Ollama)'
             ),
 
-        baseURL: z
-            .string()
-            .url('Must be a valid URL (e.g., http://localhost:11434/v1)')
-            .optional()
-            .describe('Custom base URL for providers that support it (openai-compatible, litellm)'),
+        baseURL: OptionalURL.describe(
+            'Custom base URL for providers that support it (openai-compatible, litellm, Codex)'
+        ),
 
         reasoning: z
             .object({

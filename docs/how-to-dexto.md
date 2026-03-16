@@ -10,9 +10,9 @@ This document provides a concise guide for using the Dexto agent runtime, optimi
 Dexto is a lightweight runtime for creating and running AI agents. It translates natural language prompts into actions using configured tools and LLMs. It can be controlled via CLI, a programmatic SDK, or a REST API.
 
 ### Installation
-Install the Dexto CLI globally via npm:
+Install the Dexto CLI via native installer:
 ```bash
-npm install -g dexto
+curl -fsSL https://dexto.ai/install | bash
 ```
 
 ### LLM API Keys
@@ -173,6 +173,21 @@ dexto
 **Project Scaffolding:**
 - `dexto create-app`: Create a new Dexto project structure.
 - `dexto init-app`: Initialize Dexto in an existing TypeScript project.
+
+**Cloud workspace deploys:**
+```bash
+# Deploy the current folder to a cloud sandbox
+dexto deploy
+
+# Check the linked deployment
+dexto deploy status
+
+# Stop or delete it later
+dexto deploy stop
+dexto deploy delete
+```
+
+On first deploy, Dexto creates `.dexto/deploy.json` in the current folder. If the workspace already contains `agents/coding-agent.yml`, Dexto deploys that config. Otherwise it uses the default cloud agent and still uploads the entire workspace.
 
 ### Method 2: Programmatic SDK (`DextoAgent`)
 

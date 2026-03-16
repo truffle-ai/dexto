@@ -16,7 +16,7 @@ Check out our [Configuration guide](../guides/configuring-dexto/overview.md) to 
 
 ## Prerequisites
 
-- Install the Dexto CLI globally (`pnpm install -g dexto`, `npm install -g dexto`)
+- Install the Dexto CLI (`curl -fsSL https://dexto.ai/install | bash` or Windows PowerShell: `irm https://dexto.ai/install.ps1 | iex`)
 - Run `dexto` at least once so the setup flow can capture your provider credentials. Dexto stores secrets in `~/.dexto/.env`, so you no longer need to pass API keys through environment variables.
 
 ## Local MCP Server Guide

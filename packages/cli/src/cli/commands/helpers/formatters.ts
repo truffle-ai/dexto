@@ -23,6 +23,18 @@ export function formatSessionInfo(
     let info = `${prefix} ${name}`;
 
     if (metadata) {
+        const title = typeof metadata.title === 'string' ? metadata.title.trim() : '';
+        const displayTitle = title.length > 0 ? title : 'Untitled';
+        info += chalk.white(` "${displayTitle}"`);
+
+        const parentSessionId =
+            'parentSessionId' in metadata && typeof metadata.parentSessionId === 'string'
+                ? metadata.parentSessionId
+                : undefined;
+        if (parentSessionId) {
+            info += chalk.magenta(` [forked from ${parentSessionId.slice(0, 8)}]`);
+        }
+
         const messages = metadata.messageCount || 0;
         const activity =
             metadata.lastActivity && metadata.lastActivity > 0

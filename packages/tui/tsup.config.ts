@@ -5,13 +5,7 @@ export default defineConfig([
         entry: ['src/**/*.ts', 'src/**/*.tsx'],
         format: ['cjs', 'esm'],
         outDir: 'dist',
-        dts: {
-            entry: 'src/index.ts',
-            compilerOptions: {
-                skipLibCheck: true,
-                composite: false,
-            },
-        },
+        dts: false, // Use tsc for declaration files; tsup DTS is redundant and brittle in workspace builds
         platform: 'node',
         bundle: false,
         clean: true,

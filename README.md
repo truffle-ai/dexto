@@ -98,13 +98,20 @@ The coding agent is just one example of what you can build. Create your own agen
 ### Install
 
 ```bash
-# Install globally via npm
-npm install -g dexto
+# macOS / Linux / WSL (native installer, recommended)
+curl -fsSL https://dexto.ai/install | bash
+
+# Windows PowerShell
+irm https://dexto.ai/install.ps1 | iex
 
 # Or build from source
 git clone https://github.com/truffle-ai/dexto.git
 cd dexto && pnpm install && pnpm install-cli
 ```
+
+Upgrade/uninstall and migration troubleshooting live in docs:
+- Installation guide: https://docs.dexto.ai/docs/getting-started/installation
+- CLI command reference: https://docs.dexto.ai/docs/guides/cli/overview
 
 ### Run
 
@@ -433,10 +440,10 @@ Pre-built agents for common use cases:
 
 ```bash
 # List available agents
-dexto list-agents
+dexto agents list
 
 # Install and run
-dexto install coding-agent podcast-agent
+dexto agents install coding-agent podcast-agent
 dexto --agent coding-agent
 ```
 
@@ -606,8 +613,9 @@ Options:
 
 Commands:
   setup                    Configure global preferences
-  install <agents...>      Install agents from registry
-  list-agents              List available agents
+  deploy                   Deploy current workspace to cloud
+  agents install <agents...>  Install agents from registry
+  agents list              List available agents
   session list|history     Manage sessions
   search <query>           Search conversation history
 ```

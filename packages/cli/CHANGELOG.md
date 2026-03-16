@@ -1,5 +1,123 @@
 # dexto
 
+## 1.6.13
+
+### Patch Changes
+
+- 663ac8e: Added `dexto deploy` for creating cloud workspaces from any local folder.
+- 8ae630a: Adds ChatGPT login via codex so users can reuse their subscriptions.
+- 158f718: Add first-class CLI lifecycle commands and finalize uninstall naming.
+    - Add `dexto upgrade [version]` for self-upgrade with install-method detection and npm/pnpm/bun -> native migration.
+    - Make `dexto uninstall` the CLI self-uninstall command (remove `uninstall-cli` command exposure).
+    - Keep agent lifecycle under `dexto agents ...` and add `dexto agent ...` alias for singular usage.
+    - Improve update notifications to point to `dexto upgrade` and source latest version from GitHub Releases.
+
+- Updated dependencies [663ac8e]
+- Updated dependencies [8ae630a]
+    - @dexto/agent-management@1.6.13
+    - @dexto/server@1.6.13
+    - @dexto/core@1.6.13
+    - @dexto/tui@1.6.13
+    - @dexto/analytics@1.6.13
+    - @dexto/image-local@1.6.13
+    - @dexto/image-logger-agent@1.6.13
+    - @dexto/agent-config@1.6.13
+    - @dexto/storage@1.6.13
+    - @dexto/registry@1.6.13
+
+## 1.6.12
+
+### Patch Changes
+
+- 3cc360f: Route CLI usage summary (`dexto billing status` and setup usage checks) to platform account API endpoints under `/api/account/*` instead of gateway-owned usage routes.
+    - @dexto/core@1.6.12
+    - @dexto/storage@1.6.12
+    - @dexto/agent-config@1.6.12
+    - @dexto/agent-management@1.6.12
+    - @dexto/analytics@1.6.12
+    - @dexto/registry@1.6.12
+    - @dexto/server@1.6.12
+    - @dexto/image-local@1.6.12
+    - @dexto/image-logger-agent@1.6.12
+    - @dexto/tui@1.6.12
+
+## 1.6.11
+
+### Patch Changes
+
+- a48010a: Move CLI device-auth and API-key control-plane calls from gateway-owned routes to the platform `/api` routes.
+    - @dexto/core@1.6.11
+    - @dexto/storage@1.6.11
+    - @dexto/agent-config@1.6.11
+    - @dexto/agent-management@1.6.11
+    - @dexto/analytics@1.6.11
+    - @dexto/registry@1.6.11
+    - @dexto/server@1.6.11
+    - @dexto/image-local@1.6.11
+    - @dexto/image-logger-agent@1.6.11
+    - @dexto/tui@1.6.11
+
+## 1.6.10
+
+### Patch Changes
+
+- b4ef63f: Fix repeated "agent config updates available" prompts for single-file agents
+    - @dexto/core@1.6.10
+    - @dexto/storage@1.6.10
+    - @dexto/agent-config@1.6.10
+    - @dexto/agent-management@1.6.10
+    - @dexto/analytics@1.6.10
+    - @dexto/registry@1.6.10
+    - @dexto/server@1.6.10
+    - @dexto/image-local@1.6.10
+    - @dexto/image-logger-agent@1.6.10
+    - @dexto/tui@1.6.10
+
+## 1.6.9
+
+### Patch Changes
+
+- 23b7775: Refactor the CLI entrypoint into smaller command/mode modules while preserving lazy loading for startup paths.
+    - Split runtime command registration into per-command modules (`run`, `session`, `search`, `auth`, `billing`) with shared registration context.
+    - Extract main mode execution into `cli/modes/*` and dynamically import mode dispatch from `index-main.ts`.
+    - Keep `index-main.ts` focused on orchestration, reducing merge-conflict surface and improving maintainability.
+
+    Local benchmark medians (`/usr/bin/time -l`, with `DEXTO_DISABLE_ANALYTICS=1` and `DEXTO_DISABLE_VERSION_CHECK=1`) versus the pre-refactor baseline:
+    - `dexto --help`: ~3.3% faster, ~1.5% lower RSS
+    - `dexto --version`: comparable speed, ~3.6% lower RSS
+    - `dexto auth status`: comparable speed, ~2.4% lower RSS
+
+- b4e31be: Reduce CLI startup overhead by lazily loading command/runtime modules and deferring analytics/version-check setup until commands execute.
+
+    In local measurements (`/usr/bin/time -l`, with analytics/version checks disabled), this improved startup/resource usage versus the original baseline by approximately:
+    - `dexto --help`: 27.5% faster, 21.8% lower RSS
+    - `dexto --version`: 36.9% faster, 22.8% lower RSS
+    - `dexto session list` (minimal no-MCP agent): 16.2% faster, 17.4% lower RSS
+
+- 6604f90: Improve CLI auth in headless and remote environments by adding device code login, automatic browser-to-device fallback, and interactive `/login` + `/logout` parity updates.
+- cc5e440: Add a new headless `dexto run <prompt>` command for one-off, non-interactive tasks.
+
+    `dexto run` defaults to non-interactive execution (auto-approve + no elicitation), prints a compact run transcript to `stderr` (including tool/MCP lifecycle updates), and writes only the final assistant response to `stdout` for piping and automation.
+
+- 1025ea7: Add session forking with visible lineage across core, API, and CLI UX:
+    - Add `forkSession(parentSessionId)` in core and expose `POST /api/sessions/:sessionId/fork`.
+    - Persist child lineage via `parentSessionId` and clone persisted message history.
+    - Generate forked session titles as `Fork: ...` (from parent title or parent ID fallback).
+    - Surface fork lineage in `/resume` and `dexto session list`, and add a new interactive `/fork` command.
+
+- Updated dependencies [dfbabfc]
+- Updated dependencies [1025ea7]
+    - @dexto/image-logger-agent@1.6.9
+    - @dexto/agent-management@1.6.9
+    - @dexto/server@1.6.9
+    - @dexto/core@1.6.9
+    - @dexto/tui@1.6.9
+    - @dexto/analytics@1.6.9
+    - @dexto/image-local@1.6.9
+    - @dexto/agent-config@1.6.9
+    - @dexto/storage@1.6.9
+    - @dexto/registry@1.6.9
+
 ## 1.6.8
 
 ### Patch Changes

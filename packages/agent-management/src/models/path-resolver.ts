@@ -43,6 +43,14 @@ export function getModelStatePath(): string {
 }
 
 /**
+ * Get the path to the model picker state file.
+ * Stores recents/favorites shared by CLI and WebUI.
+ */
+export function getModelPickerStatePath(): string {
+    return path.join(getModelsDirectory(), 'model-picker-state.json');
+}
+
+/**
  * Get the path to the model download temp directory.
  * Used for in-progress downloads.
  */

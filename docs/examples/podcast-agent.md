@@ -33,7 +33,7 @@ The Podcast Agent uses Google Gemini TTS to create multi-speaker audio content:
 
 ```bash
 # Install the agent
-dexto install podcast-agent
+dexto agents install podcast-agent
 
 # Run it
 dexto --agent podcast-agent

@@ -58,6 +58,7 @@ function createSetters() {
         backgroundTasksRunning: 0,
         backgroundTasksExpanded: false,
         backgroundTasks: [],
+        chatgptRateLimitStatus: null,
         planModeActive: false,
         planModeInitialized: false,
         commandOutput: null,

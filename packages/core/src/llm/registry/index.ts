@@ -455,13 +455,13 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = (() => {
                 },
             },
             {
-                name: 'minimax/minimax-m2.1',
-                displayName: 'Minimax M2.1',
-                maxInputTokens: 196608,
+                name: 'minimax/minimax-m2.5',
+                displayName: 'MiniMax M2.5',
+                maxInputTokens: 204800,
                 supportedFileTypes: [],
                 pricing: {
-                    inputPerM: 0.2,
-                    outputPerM: 0.6,
+                    inputPerM: 0.3,
+                    outputPerM: 1.2,
                     currency: 'USD',
                     unit: 'per_million_tokens',
                 },

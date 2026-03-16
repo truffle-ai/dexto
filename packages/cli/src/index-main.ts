@@ -4,9 +4,8 @@ import { fileURLToPath } from 'url';
 import { Command } from 'commander';
 import * as p from '@clack/prompts';
 import chalk from 'chalk';
-import { initAnalytics, capture, getWebUIAnalyticsConfig } from './analytics/index.js';
 import { withAnalytics, safeExit, ExitSignal } from './analytics/wrapper.js';
-import { createFileSessionLoggerFactory } from './utils/session-logger-factory.js';
+import type { UpdateInfo } from './cli/utils/version-check.js';
 
 function readVersionFromPackageJson(packageJsonPath: string): string | undefined {
     if (!existsSync(packageJsonPath)) {
@@ -27,7 +26,7 @@ function readVersionFromPackageJson(packageJsonPath: string): string | undefined
 }
 
 function resolveCliVersion(): string {
-    // Regular installs (npm/pnpm): package.json is next to dist/.
+    // Regular npm installs: package.json is next to dist/.
     const scriptDir = path.dirname(fileURLToPath(import.meta.url));
     const localPackageJsonPath = path.resolve(scriptDir, '..', 'package.json');
     const localVersion = readVersionFromPackageJson(localPackageJsonPath);
@@ -53,19 +52,6 @@ const cliVersion = resolveCliVersion();
 // Set CLI version for Dexto Gateway usage tracking
 process.env.DEXTO_CLI_VERSION = cliVersion;
 
-// Populate DEXTO_API_KEY for Dexto gateway routing
-// Resolution order in getDextoApiKey():
-//   1. Explicit env var (CI, testing, account override)
-//   2. ~/.dexto/auth/dexto.json from `dexto login`
-import { createDefaultLlmAuthResolver, isDextoAuthEnabled } from '@dexto/agent-management';
-if (isDextoAuthEnabled()) {
-    const { getDextoApiKey } = await import('./cli/auth/index.js');
-    const dextoApiKey = await getDextoApiKey();
-    if (dextoApiKey) {
-        process.env.DEXTO_API_KEY = dextoApiKey;
-    }
-}
-
 import {
     logger,
     getProviderFromModel,
@@ -89,97 +75,84 @@ import {
     type ValidatedAgentConfig,
 } from '@dexto/agent-config';
 import {
+    createDefaultLlmAuthResolver,
     getDextoPackageRoot,
     resolveAgentPath,
     loadAgentConfig,
     globalPreferencesExist,
     loadGlobalPreferences,
     resolveBundledScript,
+    enrichAgentConfig,
+    isDextoAuthEnabled,
 } from '@dexto/agent-management';
-import { startHonoApiServer } from './api/server-hono.js';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
 import { validateAgentConfig } from './cli/utils/config-validation.js';
 import { applyCLIOverrides, applyUserPreferences } from './config/cli-overrides.js';
-import { enrichAgentConfig } from '@dexto/agent-management';
-import { getPort } from './utils/port-utils.js';
-import {
-    createDextoProject,
-    type CreateAppOptions,
-    createImage,
-    getUserInputToInitDextoApp,
-    initDexto,
-    postInitDexto,
-} from './cli/commands/index.js';
-import {
-    handleSetupCommand,
-    type CLISetupOptionsInput,
-    handleInstallCommand,
-    type InstallCommandOptions,
-    handleUninstallCommand,
-    type UninstallCommandOptions,
-    handleImageDoctorCommand,
-    handleImageInstallCommand,
-    handleImageListCommand,
-    handleImageRemoveCommand,
-    handleImageUseCommand,
-    type ImageInstallCommandOptionsInput,
-    handleListAgentsCommand,
-    type ListAgentsCommandOptionsInput,
-    handleWhichCommand,
-    handleSyncAgentsCommand,
-    shouldPromptForSync,
-    type SyncAgentsCommandOptions,
-    handleLoginCommand,
-    handleLogoutCommand,
-    handleStatusCommand,
-    handleBillingStatusCommand,
-    handlePluginListCommand,
-    handlePluginInstallCommand,
-    handlePluginUninstallCommand,
-    handlePluginValidateCommand,
-    // Marketplace handlers
-    handleMarketplaceAddCommand,
-    handleMarketplaceRemoveCommand,
-    handleMarketplaceUpdateCommand,
-    handleMarketplaceListCommand,
-    handleMarketplacePluginsCommand,
-    handleMarketplaceInstallCommand,
-    type PluginListCommandOptionsInput,
-    type PluginInstallCommandOptionsInput,
-    type MarketplaceListCommandOptionsInput,
-    type MarketplaceInstallCommandOptionsInput,
-} from './cli/commands/index.js';
-import {
-    handleSessionListCommand,
-    handleSessionHistoryCommand,
-    handleSessionDeleteCommand,
-    handleSessionSearchCommand,
-} from './cli/commands/session-commands.js';
-import { requiresSetup } from './cli/utils/setup-utils.js';
-import { checkForFileInCurrentDirectory, FileNotFoundError } from './cli/utils/package-mgmt.js';
-import { checkForUpdates, displayUpdateNotification } from './cli/utils/version-check.js';
-import { resolveWebRoot } from './web.js';
-import { initializeMcpServer, createMcpTransport } from '@dexto/server';
-import { createAgentCard } from '@dexto/core';
-import { initializeMcpToolAggregationServer } from './api/mcp/tool-aggregation-handler.js';
-import { CLIConfigOverrides } from './config/cli-overrides.js';
-import { importImageModule } from './cli/utils/image-store.js';
+import { registerRunCommand } from './cli/commands/run/register.js';
+import { registerSessionCommand } from './cli/commands/session/register.js';
+import { registerSearchCommand } from './cli/commands/search/register.js';
+import { registerAuthCommand } from './cli/commands/auth/register.js';
+import { registerBillingCommand } from './cli/commands/billing/register.js';
+import { registerMcpCommand } from './cli/commands/mcp/register.js';
+import { registerImageCommand } from './cli/commands/image/register.js';
+import { registerPluginCommand } from './cli/commands/plugin/register.js';
+import { registerAgentsCommand } from './cli/commands/agents/register.js';
+import { registerDeployCommand } from './cli/commands/deploy/register.js';
+import type { BootstrapAgentMode } from './cli/commands/register-context.js';
+import type { MainModeOptions } from './cli/modes/context.js';
+import type { CLIConfigOverrides } from './config/cli-overrides.js';
+import type { CreateAppOptions } from './cli/commands/create-app.js';
+import type { CLISetupOptionsInput } from './cli/commands/setup.js';
+import type { UpgradeCommandOptions } from './cli/commands/upgrade.js';
+import type { UninstallCliCommandOptions } from './cli/commands/uninstall.js';
 
 const program = new Command();
 
-// Resolve images via the Dexto image store when installed; fall back to host imports (pnpm-safe).
-setImageImporter((specifier) => importImageModule(specifier));
+let imageImporterConfigured = false;
+let dextoApiKeyBootstrapped = false;
+let versionCheckPromise: Promise<UpdateInfo | null> | null = null;
+let llmRegistryAutoUpdateStarted = false;
 
-// Initialize analytics early (no-op if disabled)
-await initAnalytics({ appVersion: cliVersion });
+async function ensureImageImporterConfigured(): Promise<void> {
+    if (imageImporterConfigured) {
+        return;
+    }
+    const { importImageModule } = await import('./cli/utils/image-store.js');
+    setImageImporter((specifier) => importImageModule(specifier));
+    imageImporterConfigured = true;
+}
 
-// Start version check early (non-blocking)
-// We'll check the result later and display notification for interactive modes
-const versionCheckPromise = checkForUpdates(cliVersion);
+async function ensureDextoApiKeyBootstrap(): Promise<void> {
+    if (dextoApiKeyBootstrapped) {
+        return;
+    }
+    if (!isDextoAuthEnabled()) {
+        dextoApiKeyBootstrapped = true;
+        return;
+    }
+    const { getDextoApiKey } = await import('./cli/auth/index.js');
+    const dextoApiKey = await getDextoApiKey();
+    if (dextoApiKey) {
+        process.env.DEXTO_API_KEY = dextoApiKey;
+    }
+    dextoApiKeyBootstrapped = true;
+}
 
-// Start self-updating LLM registry refresh (models.dev + OpenRouter mapping).
-// Uses a cached snapshot on disk and refreshes in the background.
-startLlmRegistryAutoUpdate();
+async function getVersionCheckResult(): Promise<UpdateInfo | null> {
+    if (!versionCheckPromise) {
+        const { checkForUpdates } = await import('./cli/utils/version-check.js');
+        versionCheckPromise = checkForUpdates(cliVersion);
+    }
+    return versionCheckPromise;
+}
+
+function ensureLlmRegistryAutoUpdateStarted(): void {
+    if (llmRegistryAutoUpdateStarted) {
+        return;
+    }
+    startLlmRegistryAutoUpdate();
+    llmRegistryAutoUpdateStarted = true;
+}
 
 // 1) GLOBAL OPTIONS
 program
@@ -230,6 +203,7 @@ program
                 p.intro(chalk.inverse('Create Dexto App'));
 
                 // Create the app project structure (fully self-contained)
+                const { createDextoProject } = await import('./cli/commands/create-app.js');
                 await createDextoProject(name, options);
 
                 p.outro(chalk.greenBright('Dexto app created successfully!'));
@@ -242,159 +216,8 @@ program
         })
     );
 
-// 3) `create-image` SUB-COMMAND (hidden alias for `dexto image create`)
-program
-    .command('create-image [name]', { hidden: true })
-    .description('Alias for `dexto image create`')
-    .action(
-        withAnalytics('create-image', async (name?: string) => {
-            try {
-                p.intro(chalk.inverse('Create Dexto Image'));
-
-                // Create the image project structure
-                const projectPath = await createImage(name);
-
-                p.outro(chalk.greenBright(`Dexto image created successfully at ${projectPath}!`));
-                safeExit('create-image', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto create-image command failed: ${err}`);
-                safeExit('create-image', 1, 'error');
-            }
-        })
-    );
-
-// 3b) `image` SUB-COMMAND
-const imageCommand = program.command('image').description('Manage images');
-
-imageCommand.addHelpText(
-    'after',
-    `
-Examples:
-  $ dexto image create my-image
-  $ dexto image install @dexto/image-local
-  $ dexto image install @myorg/my-image@1.2.3
-  $ dexto image list
-  $ dexto image use @myorg/my-image@1.2.3
-  $ dexto image remove @myorg/my-image@1.2.3
-  $ dexto image doctor
-`
-);
-
-imageCommand
-    .command('create [name]')
-    .description('Create a Dexto image project (scaffold)')
-    .action(
-        withAnalytics('image create', async (name?: string) => {
-            try {
-                p.intro(chalk.inverse('Create Dexto Image'));
-
-                // Create the image project structure
-                const projectPath = await createImage(name);
-
-                p.outro(chalk.greenBright(`Dexto image created successfully at ${projectPath}!`));
-                safeExit('image create', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto image create command failed: ${err}`);
-                safeExit('image create', 1, 'error');
-            }
-        })
-    );
-
-imageCommand
-    .command('install <image>')
-    .description('Install an image into the local Dexto image store')
-    .option('--force', 'Force reinstall if already installed')
-    .option('--no-activate', 'Do not set as the active version')
-    .addHelpText(
-        'after',
-        `
-Examples:
-  $ dexto image install @dexto/image-local
-  $ dexto image install @myorg/my-image@1.2.3
-  $ dexto image install ./my-image-1.0.0.tgz
-`
-    )
-    .action(
-        withAnalytics(
-            'image install',
-            async (image: string, options: Omit<ImageInstallCommandOptionsInput, 'image'>) => {
-                try {
-                    await handleImageInstallCommand({ ...options, image });
-                    safeExit('image install', 0);
-                } catch (err) {
-                    if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto image install command failed: ${err}`);
-                    safeExit('image install', 1, 'error');
-                }
-            }
-        )
-    );
-
-imageCommand
-    .command('list')
-    .description('List installed images')
-    .action(
-        withAnalytics('image list', async () => {
-            try {
-                await handleImageListCommand();
-                safeExit('image list', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto image list command failed: ${err}`);
-                safeExit('image list', 1, 'error');
-            }
-        })
-    );
-
-imageCommand
-    .command('use <image>')
-    .description('Set the active version for an installed image (image@version)')
-    .action(
-        withAnalytics('image use', async (image: string) => {
-            try {
-                await handleImageUseCommand({ image });
-                safeExit('image use', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto image use command failed: ${err}`);
-                safeExit('image use', 1, 'error');
-            }
-        })
-    );
-
-imageCommand
-    .command('remove <image>')
-    .description('Remove an image from the store (image or image@version)')
-    .action(
-        withAnalytics('image remove', async (image: string) => {
-            try {
-                await handleImageRemoveCommand({ image });
-                safeExit('image remove', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto image remove command failed: ${err}`);
-                safeExit('image remove', 1, 'error');
-            }
-        })
-    );
-
-imageCommand
-    .command('doctor')
-    .description('Print image store diagnostics')
-    .action(
-        withAnalytics('image doctor', async () => {
-            try {
-                await handleImageDoctorCommand();
-                safeExit('image doctor', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto image doctor command failed: ${err}`);
-                safeExit('image doctor', 1, 'error');
-            }
-        })
-    );
+registerImageCommand({ program });
+registerDeployCommand({ program });
 
 // 4) `init-app` SUB-COMMAND
 program
@@ -402,6 +225,9 @@ program
     .description('Initialize an existing Typescript app with Dexto')
     .action(
         withAnalytics('init-app', async () => {
+            const { checkForFileInCurrentDirectory, FileNotFoundError } = await import(
+                './cli/utils/package-mgmt.js'
+            );
             try {
                 // pre-condition: check that package.json and tsconfig.json exist in current directory to know that project is valid
                 await checkForFileInCurrentDirectory('package.json');
@@ -409,8 +235,12 @@ program
 
                 // start intro
                 p.intro(chalk.inverse('Dexto Init App'));
+                const { getUserInputToInitDextoApp, initDexto, postInitDexto } = await import(
+                    './cli/commands/init-app.js'
+                );
                 const userInput = await getUserInputToInitDextoApp();
                 try {
+                    const { capture } = await import('./analytics/index.js');
                     capture('dexto_init', {
                         provider: userInput.llmProvider,
                         providedKey: Boolean(userInput.llmApiKey),
@@ -454,6 +284,7 @@ program
     .action(
         withAnalytics('setup', async (options: CLISetupOptionsInput) => {
             try {
+                const { handleSetupCommand } = await import('./cli/commands/setup.js');
                 await handleSetupCommand(options);
                 safeExit('setup', 0);
             } catch (err) {
@@ -466,77 +297,47 @@ program
         })
     );
 
-// 6) `install` SUB-COMMAND
+registerAgentsCommand({ program });
+
+// 7) `upgrade` SUB-COMMAND
 program
-    .command('install [agents...]')
-    .description('Install agents from registry or custom YAML files/directories')
-    .option('--all', 'Install all available agents from registry')
-    .option('--no-inject-preferences', 'Skip injecting global preferences into installed agents')
-    .option('--force', 'Force reinstall even if agent is already installed')
-    .addHelpText(
-        'after',
-        `
-Examples:
-  $ dexto install coding-agent               Install agent from registry
-  $ dexto install agent1 agent2              Install multiple registry agents
-  $ dexto install --all                      Install all available registry agents
-  $ dexto install ./my-agent.yml             Install custom agent from YAML file
-  $ dexto install ./my-agent-dir/            Install custom agent from directory (interactive)`
-    )
+    .command('upgrade [version]')
+    .description('Upgrade Dexto CLI (auto-migrates npm installs to native)')
+    .option('--dry-run', 'Print commands without executing them')
+    .option('--force', 'Force reinstall during upgrade')
     .action(
         withAnalytics(
-            'install',
-            async (agents: string[] = [], options: Partial<InstallCommandOptions>) => {
+            'upgrade',
+            async (version: string | undefined, options: Partial<UpgradeCommandOptions>) => {
                 try {
-                    await handleInstallCommand(agents, options);
-                    safeExit('install', 0);
+                    const { handleUpgradeCommand } = await import('./cli/commands/upgrade.js');
+                    await handleUpgradeCommand(version, options);
+                    safeExit('upgrade', 0);
                 } catch (err) {
                     if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto install command failed: ${err}`);
-                    safeExit('install', 1, 'error');
+                    console.error(`❌ dexto upgrade command failed: ${err}`);
+                    safeExit('upgrade', 1, 'error');
                 }
             }
         )
     );
 
-// 7) `uninstall` SUB-COMMAND
+// 8) `uninstall` SUB-COMMAND (CLI self uninstall)
 program
-    .command('uninstall [agents...]')
-    .description('Uninstall agents from the local installation')
-    .option('--all', 'Uninstall all installed agents')
-    .option('--force', 'Force uninstall even if agent is protected (e.g., coding-agent)')
+    .command('uninstall')
+    .description('Uninstall the Dexto CLI binary (does not uninstall agents)')
+    .option('--purge', 'Also remove ~/.dexto completely')
+    .option('--dry-run', 'Print actions without deleting files')
     .action(
-        withAnalytics(
-            'uninstall',
-            async (agents: string[], options: Partial<UninstallCommandOptions>) => {
-                try {
-                    await handleUninstallCommand(agents, options);
-                    safeExit('uninstall', 0);
-                } catch (err) {
-                    if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto uninstall command failed: ${err}`);
-                    safeExit('uninstall', 1, 'error');
-                }
-            }
-        )
-    );
-
-// 8) `list-agents` SUB-COMMAND
-program
-    .command('list-agents')
-    .description('List available and installed agents')
-    .option('--verbose', 'Show detailed agent information')
-    .option('--installed', 'Show only installed agents')
-    .option('--available', 'Show only available agents')
-    .action(
-        withAnalytics('list-agents', async (options: ListAgentsCommandOptionsInput) => {
+        withAnalytics('uninstall', async (options: Partial<UninstallCliCommandOptions>) => {
             try {
-                await handleListAgentsCommand(options);
-                safeExit('list-agents', 0);
+                const { handleUninstallCliCommand } = await import('./cli/commands/uninstall.js');
+                await handleUninstallCliCommand(options);
+                safeExit('uninstall', 0);
             } catch (err) {
                 if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto list-agents command failed: ${err}`);
-                safeExit('list-agents', 1, 'error');
+                console.error(`❌ dexto uninstall command failed: ${err}`);
+                safeExit('uninstall', 1, 'error');
             }
         })
     );
@@ -548,6 +349,7 @@ program
     .action(
         withAnalytics('which', async (agent: string) => {
             try {
+                const { handleWhichCommand } = await import('./cli/commands/which.js');
                 await handleWhichCommand(agent);
                 safeExit('which', 0);
             } catch (err) {
@@ -558,225 +360,56 @@ program
         })
     );
 
-// 10) `sync-agents` SUB-COMMAND
-program
-    .command('sync-agents')
-    .description('Sync installed agents with bundled versions')
-    .option('--list', 'List agent status without updating')
-    .option('--force', 'Update all agents without prompting')
-    .action(
-        withAnalytics('sync-agents', async (options: Partial<SyncAgentsCommandOptions>) => {
-            try {
-                await handleSyncAgentsCommand(options);
-                safeExit('sync-agents', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto sync-agents command failed: ${err}`);
-                safeExit('sync-agents', 1, 'error');
-            }
-        })
-    );
+registerPluginCommand({ program });
 
-// 11) `plugin` SUB-COMMAND
-const pluginCommand = program.command('plugin').description('Manage plugins');
-
-pluginCommand
-    .command('list')
-    .description('List installed plugins')
-    .option('--verbose', 'Show detailed plugin information')
-    .action(
-        withAnalytics('plugin list', async (options: PluginListCommandOptionsInput) => {
-            try {
-                await handlePluginListCommand(options);
-                safeExit('plugin list', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto plugin list command failed: ${err}`);
-                safeExit('plugin list', 1, 'error');
-            }
-        })
-    );
-
-pluginCommand
-    .command('install')
-    .description('Install a plugin from a local directory')
-    .requiredOption('--path <path>', 'Path to the plugin directory')
-    .option('--scope <scope>', 'Installation scope: user, project, or local', 'user')
-    .option('--force', 'Force overwrite if already installed')
-    .action(
-        withAnalytics('plugin install', async (options: PluginInstallCommandOptionsInput) => {
-            try {
-                await handlePluginInstallCommand(options);
-                safeExit('plugin install', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto plugin install command failed: ${err}`);
-                safeExit('plugin install', 1, 'error');
-            }
-        })
-    );
-
-pluginCommand
-    .command('uninstall <name>')
-    .description('Uninstall a plugin by name')
-    .action(
-        withAnalytics('plugin uninstall', async (name: string) => {
-            try {
-                await handlePluginUninstallCommand({ name });
-                safeExit('plugin uninstall', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto plugin uninstall command failed: ${err}`);
-                safeExit('plugin uninstall', 1, 'error');
-            }
-        })
-    );
-
-pluginCommand
-    .command('validate [path]')
-    .description('Validate a plugin directory structure')
-    .action(
-        withAnalytics('plugin validate', async (path?: string) => {
-            try {
-                await handlePluginValidateCommand({ path: path || '.' });
-                safeExit('plugin validate', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto plugin validate command failed: ${err}`);
-                safeExit('plugin validate', 1, 'error');
-            }
-        })
-    );
-
-// 12) `plugin marketplace` SUB-COMMANDS
-const marketplaceCommand = pluginCommand
-    .command('marketplace')
-    .alias('market')
-    .description('Manage plugin marketplaces');
-
-marketplaceCommand
-    .command('add <source>')
-    .description('Add a marketplace (GitHub: owner/repo, git URL, or local path)')
-    .option('--name <name>', 'Custom name for the marketplace')
-    .action(
-        withAnalytics(
-            'plugin marketplace add',
-            async (source: string, options: { name?: string }) => {
-                try {
-                    await handleMarketplaceAddCommand({ source, name: options.name });
-                    safeExit('plugin marketplace add', 0);
-                } catch (err) {
-                    if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto plugin marketplace add command failed: ${err}`);
-                    safeExit('plugin marketplace add', 1, 'error');
-                }
-            }
-        )
-    );
-
-marketplaceCommand
-    .command('list')
-    .description('List registered marketplaces')
-    .option('--verbose', 'Show detailed marketplace information')
-    .action(
-        withAnalytics(
-            'plugin marketplace list',
-            async (options: MarketplaceListCommandOptionsInput) => {
-                try {
-                    await handleMarketplaceListCommand(options);
-                    safeExit('plugin marketplace list', 0);
-                } catch (err) {
-                    if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto plugin marketplace list command failed: ${err}`);
-                    safeExit('plugin marketplace list', 1, 'error');
-                }
-            }
-        )
-    );
-
-marketplaceCommand
-    .command('remove <name>')
-    .alias('rm')
-    .description('Remove a registered marketplace')
-    .action(
-        withAnalytics('plugin marketplace remove', async (name: string) => {
-            try {
-                await handleMarketplaceRemoveCommand({ name });
-                safeExit('plugin marketplace remove', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto plugin marketplace remove command failed: ${err}`);
-                safeExit('plugin marketplace remove', 1, 'error');
-            }
-        })
-    );
-
-marketplaceCommand
-    .command('update [name]')
-    .description('Update marketplace(s) from remote (git pull)')
-    .action(
-        withAnalytics('plugin marketplace update', async (name?: string) => {
-            try {
-                await handleMarketplaceUpdateCommand({ name });
-                safeExit('plugin marketplace update', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto plugin marketplace update command failed: ${err}`);
-                safeExit('plugin marketplace update', 1, 'error');
-            }
-        })
-    );
-
-marketplaceCommand
-    .command('plugins [marketplace]')
-    .description('List plugins available in marketplaces')
-    .option('--verbose', 'Show plugin descriptions')
-    .action(
-        withAnalytics(
-            'plugin marketplace plugins',
-            async (marketplace?: string, options?: { verbose?: boolean }) => {
-                try {
-                    await handleMarketplacePluginsCommand({
-                        marketplace,
-                        verbose: options?.verbose,
-                    });
-                    safeExit('plugin marketplace plugins', 0);
-                } catch (err) {
-                    if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto plugin marketplace plugins command failed: ${err}`);
-                    safeExit('plugin marketplace plugins', 1, 'error');
-                }
-            }
-        )
-    );
-
-marketplaceCommand
-    .command('install <plugin>')
-    .description('Install a plugin from marketplace (plugin or plugin@marketplace)')
-    .option('--scope <scope>', 'Installation scope: user, project, or local', 'user')
-    .option('--force', 'Force reinstall if already exists')
-    .action(
-        withAnalytics(
-            'plugin marketplace install',
-            async (plugin: string, options: MarketplaceInstallCommandOptionsInput) => {
-                try {
-                    await handleMarketplaceInstallCommand({ ...options, plugin });
-                    safeExit('plugin marketplace install', 0);
-                } catch (err) {
-                    if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto plugin marketplace install command failed: ${err}`);
-                    safeExit('plugin marketplace install', 1, 'error');
-                }
-            }
-        )
-    );
-
-// Helper to bootstrap a minimal agent for non-interactive session/search ops
-async function bootstrapAgentFromGlobalOpts() {
+// Helper to bootstrap a minimal agent for non-interactive commands
+async function bootstrapAgentFromGlobalOpts(options: {
+    mode: BootstrapAgentMode;
+    modelOverride?: string;
+}) {
+    const { mode, modelOverride } = options;
+    const isHeadlessRun = mode === 'headless-run';
+    await ensureDextoApiKeyBootstrap();
+    await ensureImageImporterConfigured();
     const globalOpts = program.opts();
+    const effectiveModel = modelOverride ?? globalOpts.model;
+    let inferredProvider: LLMProvider | undefined;
+    let inferredApiKey: string | undefined;
+
+    // Non-interactive subcommands bypass the main mode action, so replicate
+    // model -> provider/apiKey inference here.
+    if (effectiveModel) {
+        if (effectiveModel.includes('/')) {
+            throw new Error(
+                `Model '${effectiveModel}' looks like an OpenRouter-format ID (provider/model). Please set provider/model explicitly in agent config for this command.`
+            );
+        }
+
+        inferredProvider = getProviderFromModel(effectiveModel);
+        const apiKey = resolveApiKeyForProvider(inferredProvider);
+        if (!apiKey) {
+            const envVar = getPrimaryApiKeyEnvVar(inferredProvider);
+            throw new Error(
+                `Missing API key for provider '${inferredProvider}' - please set $${envVar}`
+            );
+        }
+
+        inferredApiKey = apiKey;
+    }
+
     const resolvedPath = await resolveAgentPath(globalOpts.agent, globalOpts.autoInstall !== false);
     const rawConfig = await loadAgentConfig(resolvedPath);
-    const mergedConfig = applyCLIOverrides(rawConfig, globalOpts);
+    const mergedConfig = applyCLIOverrides(rawConfig, {
+        ...globalOpts,
+        ...(modelOverride ? { model: modelOverride } : {}),
+    });
+    if (effectiveModel) {
+        mergedConfig.llm.model = effectiveModel;
+    }
+    if (inferredProvider && inferredApiKey) {
+        mergedConfig.llm.provider = inferredProvider;
+        mergedConfig.llm.apiKey = inferredApiKey;
+    }
 
     // Load image first to apply defaults and resolve DI services
     // Priority: CLI flag > Agent config > Environment variable > Default
@@ -802,11 +435,23 @@ async function bootstrapAgentFromGlobalOpts() {
 
     // Enrich config with per-agent paths BEFORE validation
     const enrichedConfig = enrichAgentConfig(configWithImageDefaults, resolvedPath, {
-        logLevel: 'info', // CLI uses info-level logging for visibility
+        // Headless run keeps output deterministic and noise-free.
+        // Other non-interactive commands keep visible logs.
+        logLevel: isHeadlessRun ? 'error' : 'info',
     });
 
-    // Override approval config for read-only commands (never run conversations)
-    // This avoids needing to set up unused approval handlers
+    if (isHeadlessRun) {
+        // Force silent transport in headless mode even when agent config defines logger settings.
+        // `dexto run` owns stderr formatting and should be the only writer.
+        enrichedConfig.logger = {
+            level: 'error',
+            transports: [{ type: 'silent' }],
+        };
+    }
+
+    // Override approval config for non-interactive commands.
+    // Headless operations default to auto-approve and disable elicitation to
+    // avoid waiting for interactive approval handlers.
     enrichedConfig.permissions = {
         ...(enrichedConfig.permissions ?? {}),
         mode: 'auto-approve',
@@ -844,363 +489,20 @@ async function bootstrapAgentFromGlobalOpts() {
     return agent;
 }
 
-// Helper to find the most recent session
-async function getMostRecentSessionId(agent: DextoAgent): Promise<string | null> {
-    const sessionIds = await agent.listSessions();
-    if (sessionIds.length === 0) {
-        return null;
-    }
+// 11) Runtime commands (`run`, `session`, `search`, `auth`, `billing`)
+const runtimeCommandContext = {
+    program,
+    cliVersion,
+    bootstrapAgentFromGlobalOpts,
+};
+registerRunCommand(runtimeCommandContext);
+registerSessionCommand(runtimeCommandContext);
+registerSearchCommand(runtimeCommandContext);
+registerAuthCommand(runtimeCommandContext);
+registerBillingCommand(runtimeCommandContext);
+registerMcpCommand({ program });
 
-    // Get metadata for all sessions to find most recent
-    let mostRecentId: string | null = null;
-    let mostRecentActivity = 0;
-
-    for (const sessionId of sessionIds) {
-        const metadata = await agent.getSessionMetadata(sessionId);
-        if (metadata && metadata.lastActivity > mostRecentActivity) {
-            mostRecentActivity = metadata.lastActivity;
-            mostRecentId = sessionId;
-        }
-    }
-
-    return mostRecentId;
-}
-
-// 11) `session` SUB-COMMAND
-const sessionCommand = program.command('session').description('Manage chat sessions');
-
-sessionCommand
-    .command('list')
-    .description('List all sessions')
-    .action(
-        withAnalytics('session list', async () => {
-            try {
-                const agent = await bootstrapAgentFromGlobalOpts();
-
-                await handleSessionListCommand(agent);
-                await agent.stop();
-                safeExit('session list', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto session list command failed: ${err}`);
-                safeExit('session list', 1, 'error');
-            }
-        })
-    );
-
-sessionCommand
-    .command('history')
-    .description('Show session history')
-    .argument('[sessionId]', 'Session ID (defaults to current session)')
-    .action(
-        withAnalytics('session history', async (sessionId: string) => {
-            try {
-                const agent = await bootstrapAgentFromGlobalOpts();
-
-                await handleSessionHistoryCommand(agent, sessionId);
-                await agent.stop();
-                safeExit('session history', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto session history command failed: ${err}`);
-                safeExit('session history', 1, 'error');
-            }
-        })
-    );
-
-sessionCommand
-    .command('delete')
-    .description('Delete a session')
-    .argument('<sessionId>', 'Session ID to delete')
-    .action(
-        withAnalytics('session delete', async (sessionId: string) => {
-            try {
-                const agent = await bootstrapAgentFromGlobalOpts();
-
-                await handleSessionDeleteCommand(agent, sessionId);
-                await agent.stop();
-                safeExit('session delete', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto session delete command failed: ${err}`);
-                safeExit('session delete', 1, 'error');
-            }
-        })
-    );
-
-// 12) `search` SUB-COMMAND
-program
-    .command('search')
-    .description('Search session history')
-    .argument('<query>', 'Search query')
-    .option('--session <sessionId>', 'Search in specific session')
-    .option('--role <role>', 'Filter by role (user, assistant, system, tool)')
-    .option('--limit <number>', 'Limit number of results', '10')
-    .action(
-        withAnalytics(
-            'search',
-            async (query: string, options: { session?: string; role?: string; limit?: string }) => {
-                try {
-                    const agent = await bootstrapAgentFromGlobalOpts();
-
-                    const searchOptions: {
-                        sessionId?: string;
-                        role?: 'user' | 'assistant' | 'system' | 'tool';
-                        limit?: number;
-                    } = {};
-
-                    if (options.session) {
-                        searchOptions.sessionId = options.session;
-                    }
-                    if (options.role) {
-                        const allowed = new Set(['user', 'assistant', 'system', 'tool']);
-                        if (!allowed.has(options.role)) {
-                            console.error(
-                                `❌ Invalid role: ${options.role}. Use one of: user, assistant, system, tool`
-                            );
-                            safeExit('search', 1, 'invalid-role');
-                        }
-                        searchOptions.role = options.role as
-                            | 'user'
-                            | 'assistant'
-                            | 'system'
-                            | 'tool';
-                    }
-                    if (options.limit) {
-                        const parsed = parseInt(options.limit, 10);
-                        if (Number.isNaN(parsed) || parsed <= 0) {
-                            console.error(
-                                `❌ Invalid --limit: ${options.limit}. Use a positive integer (e.g., 10).`
-                            );
-                            safeExit('search', 1, 'invalid-limit');
-                        }
-                        searchOptions.limit = parsed;
-                    }
-
-                    await handleSessionSearchCommand(agent, query, searchOptions);
-                    await agent.stop();
-                    safeExit('search', 0);
-                } catch (err) {
-                    if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto search command failed: ${err}`);
-                    safeExit('search', 1, 'error');
-                }
-            }
-        )
-    );
-
-// 13) `auth` SUB-COMMAND GROUP
-const authCommand = program.command('auth').description('Manage authentication');
-
-authCommand
-    .command('login')
-    .description('Login to Dexto')
-    .option('--api-key <key>', 'Use Dexto API key instead of device-code login')
-    .option('--token <token>', 'Use an existing Supabase access token')
-    .option('--no-interactive', 'Disable interactive prompts')
-    .action(
-        withAnalytics(
-            'auth login',
-            async (options: { apiKey?: string; token?: string; interactive?: boolean }) => {
-                try {
-                    await handleLoginCommand(options);
-                    safeExit('auth login', 0);
-                } catch (err) {
-                    if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto auth login command failed: ${err}`);
-                    safeExit('auth login', 1, 'error');
-                }
-            }
-        )
-    );
-
-authCommand
-    .command('logout')
-    .description('Logout from Dexto')
-    .option('--force', 'Skip confirmation prompt')
-    .option('--no-interactive', 'Disable interactive prompts')
-    .action(
-        withAnalytics(
-            'auth logout',
-            async (options: { force?: boolean; interactive?: boolean }) => {
-                try {
-                    await handleLogoutCommand(options);
-                    safeExit('auth logout', 0);
-                } catch (err) {
-                    if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto auth logout command failed: ${err}`);
-                    safeExit('auth logout', 1, 'error');
-                }
-            }
-        )
-    );
-
-authCommand
-    .command('status')
-    .description('Show authentication status')
-    .action(
-        withAnalytics('auth status', async () => {
-            try {
-                await handleStatusCommand();
-                safeExit('auth status', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto auth status command failed: ${err}`);
-                safeExit('auth status', 1, 'error');
-            }
-        })
-    );
-
-// Also add convenience aliases at root level
-program
-    .command('login')
-    .description('Login to Dexto (alias for `dexto auth login`)')
-    .option('--api-key <key>', 'Use Dexto API key instead of device-code login')
-    .option('--token <token>', 'Use an existing Supabase access token')
-    .option('--no-interactive', 'Disable interactive prompts')
-    .action(
-        withAnalytics(
-            'login',
-            async (options: { apiKey?: string; token?: string; interactive?: boolean }) => {
-                try {
-                    await handleLoginCommand(options);
-                    safeExit('login', 0);
-                } catch (err) {
-                    if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto login command failed: ${err}`);
-                    safeExit('login', 1, 'error');
-                }
-            }
-        )
-    );
-
-program
-    .command('logout')
-    .description('Logout from Dexto (alias for `dexto auth logout`)')
-    .option('--force', 'Skip confirmation prompt')
-    .option('--no-interactive', 'Disable interactive prompts')
-    .action(
-        withAnalytics('logout', async (options: { force?: boolean; interactive?: boolean }) => {
-            try {
-                await handleLogoutCommand(options);
-                safeExit('logout', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto logout command failed: ${err}`);
-                safeExit('logout', 1, 'error');
-            }
-        })
-    );
-
-// 14) `billing` COMMAND
-program
-    .command('billing')
-    .description('Show billing status and credit balance')
-    .option('--buy', 'Open Dexto Nova credits purchase page')
-    .action(
-        withAnalytics('billing', async (options: { buy?: boolean }) => {
-            try {
-                await handleBillingStatusCommand(options);
-                safeExit('billing', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto billing command failed: ${err}`);
-                safeExit('billing', 1, 'error');
-            }
-        })
-    );
-
-// 15) `mcp` SUB-COMMAND
-// For now, this mode simply aggregates and re-expose tools from configured MCP servers (no agent)
-// dexto --mode mcp will be moved to this sub-command in the future
-program
-    .command('mcp')
-    .description(
-        'Start Dexto as an MCP server. Use --group-servers to aggregate and re-expose tools from configured MCP servers. \
-        In the future, this command will expose the agent as an MCP server by default.'
-    )
-    .option('-s, --strict', 'Require all MCP server connections to succeed')
-    .option(
-        '--group-servers',
-        'Aggregate and re-expose tools from configured MCP servers (required for now)'
-    )
-    .option('--name <n>', 'Name for the MCP server', 'dexto-tools')
-    .option('--version <version>', 'Version for the MCP server', '1.0.0')
-    .action(
-        withAnalytics(
-            'mcp',
-            async (options) => {
-                try {
-                    // Validate that --group-servers flag is provided (mandatory for now)
-                    if (!options.groupServers) {
-                        console.error(
-                            '❌ The --group-servers flag is required. This command currently only supports aggregating and re-exposing tools from configured MCP servers.'
-                        );
-                        console.error('Usage: dexto mcp --group-servers');
-                        safeExit('mcp', 1, 'missing-group-servers');
-                    }
-
-                    // Load and resolve config
-                    // Get the global agent option from the main program
-                    const globalOpts = program.opts();
-                    const nameOrPath = globalOpts.agent;
-
-                    const configPath = await resolveAgentPath(
-                        nameOrPath,
-                        globalOpts.autoInstall !== false
-                    );
-                    console.log(`📄 Loading Dexto config from: ${configPath}`);
-                    const config = await loadAgentConfig(configPath);
-
-                    logger.info(`Validating MCP servers...`);
-                    // Validate that MCP servers are configured
-                    if (!config.mcpServers || Object.keys(config.mcpServers).length === 0) {
-                        console.error(
-                            '❌ No MCP servers configured. Please configure mcpServers in your config file.'
-                        );
-                        safeExit('mcp', 1, 'no-mcp-servers');
-                    }
-
-                    const { ServersConfigSchema } = await import('@dexto/core');
-                    const validatedServers = ServersConfigSchema.parse(config.mcpServers);
-                    logger.info(
-                        `Validated MCP servers. Configured servers: ${Object.keys(validatedServers).join(', ')}`
-                    );
-
-                    // Logs are already redirected to file by default to prevent interference with stdio transport
-                    const currentLogPath = logger.getLogFilePath();
-                    logger.info(
-                        `MCP mode using log file: ${currentLogPath || 'default .dexto location'}`
-                    );
-
-                    logger.info(
-                        `Starting MCP tool aggregation server: ${options.name} v${options.version}`
-                    );
-
-                    // Create stdio transport for MCP tool aggregation
-                    const mcpTransport = await createMcpTransport('stdio');
-                    // Initialize tool aggregation server
-                    await initializeMcpToolAggregationServer(
-                        validatedServers,
-                        mcpTransport,
-                        options.name,
-                        options.version,
-                        options.strict
-                    );
-
-                    logger.info('MCP tool aggregation server started successfully');
-                } catch (err) {
-                    if (err instanceof ExitSignal) throw err;
-                    // Write to stderr to avoid interfering with MCP protocol
-                    process.stderr.write(`MCP tool aggregation server startup failed: ${err}\n`);
-                    safeExit('mcp', 1, 'mcp-agg-failed');
-                }
-            },
-            { timeoutMs: 0 }
-        )
-    );
-
-// 16) Main dexto CLI - Interactive/One shot (CLI/HEADLESS) or run in other modes (--mode web/server/mcp)
+// 13) Main dexto CLI - Interactive (CLI) or run in other modes (--mode web/server/mcp)
 program
     // Main customer facing description
     .description(
@@ -1208,7 +510,8 @@ program
             'Basic Usage:\n' +
             '  dexto                    Start web UI (default)\n' +
             '  dexto --mode cli         Start interactive CLI\n' +
-            '  dexto --prompt "query"   Start interactive CLI and run the prompt\n\n' +
+            '  dexto --prompt "query"   Start interactive CLI and run the prompt\n' +
+            '  dexto run "query"        Run one-off headless task\n\n' +
             'Session Management Commands:\n' +
             '  dexto session list              List all sessions\n' +
             '  dexto session history [id]      Show session history\n' +
@@ -1232,6 +535,10 @@ program
         withAnalytics(
             'main',
             async () => {
+                await ensureDextoApiKeyBootstrap();
+                await ensureImageImporterConfigured();
+                ensureLlmRegistryAutoUpdateStarted();
+
                 // ——— ENV CHECK (optional) ———
                 if (!existsSync('.env')) {
                     logger.debug(
@@ -1291,7 +598,7 @@ program
                 if (opts.mode === 'cli' && !process.stdin.isTTY) {
                     console.error('❌ Interactive CLI requires a TTY.');
                     console.error(
-                        '💡 Headless one-shot mode has been removed. Run in an interactive terminal, or use --mode server for automation.'
+                        '💡 For non-interactive runs, use `dexto run "<prompt>"`, or use --mode server for automation.'
                     );
                     safeExit('main', 1, 'no-tty');
                 }
@@ -1390,6 +697,7 @@ program
 
                         // Check setup state and auto-trigger if needed
                         // Skip if --skip-setup flag is set (for MCP mode, automation, etc.)
+                        const { requiresSetup } = await import('./cli/utils/setup-utils.js');
                         if (!opts.skipSetup && (await requiresSetup())) {
                             if (opts.interactive === false) {
                                 console.error(
@@ -1401,6 +709,7 @@ program
                                 safeExit('main', 1, 'setup-required-non-interactive');
                             }
 
+                            const { handleSetupCommand } = await import('./cli/commands/setup.js');
                             await handleSetupCommand({ interactive: true });
 
                             // Reload preferences after setup to get the newly selected default mode
@@ -1423,6 +732,30 @@ program
                             opts.agent,
                             opts.autoInstall !== false
                         );
+
+                        if (opts.interactive !== false) {
+                            const {
+                                getBundledSyncTargetForAgentPath,
+                                shouldPromptForSync,
+                                handleSyncAgentsCommand,
+                            } = await import('./cli/commands/agents/sync.js');
+                            const syncTarget = getBundledSyncTargetForAgentPath(resolvedPath);
+
+                            if (syncTarget && (await shouldPromptForSync(resolvedPath))) {
+                                const shouldSync = await p.confirm({
+                                    message: `Bundled agent updates available for '${syncTarget.agentId}'. Sync now?`,
+                                    initialValue: true,
+                                });
+
+                                if (!p.isCancel(shouldSync) && shouldSync) {
+                                    await handleSyncAgentsCommand({
+                                        force: true,
+                                        quiet: true,
+                                        agentIds: [syncTarget.agentId],
+                                    });
+                                }
+                            }
+                        }
                     }
 
                     // Load raw config and apply CLI overrides
@@ -1695,6 +1028,9 @@ program
                     // Config is already enriched and validated - ready for agent creation
                     // DextoAgent will parse/validate again (parse-twice pattern)
                     // isInteractiveMode is already defined above for validateAgentConfig
+                    const { createFileSessionLoggerFactory } = await import(
+                        './utils/session-logger-factory.js'
+                    );
                     const sessionLoggerFactory = createFileSessionLoggerFactory();
 
                     const mcpAuthProviderFactory =
@@ -1739,375 +1075,27 @@ program
                     safeExit('main', 1, 'config-error');
                 }
 
-                // ——— Dispatch based on --mode ———
-                // TODO: Refactor mode-specific logic into separate handler files
-                // This switch statement has grown large with nested if-else chains for each mode.
-                // Consider breaking down into mode-specific handlers (e.g., cli/modes/cli.ts, cli/modes/web.ts)
-                // to improve maintainability and reduce complexity in this entry point file.
-                // See PR 450 comment: https://github.com/truffle-ai/dexto/pull/450#discussion_r2546242983
-                switch (opts.mode) {
-                    case 'cli': {
-                        // Set up approval handler for interactive CLI if manual mode OR elicitation enabled
-                        const needsHandler =
-                            validatedConfig.permissions.mode === 'manual' ||
-                            validatedConfig.elicitation.enabled;
-
-                        if (needsHandler) {
-                            // CLI uses its own approval handler that works directly with AgentEventBus
-                            // This avoids the indirection of ApprovalCoordinator (designed for HTTP flows)
-                            const { createCLIApprovalHandler } = await import(
-                                './cli/approval/index.js'
-                            );
-                            const handler = createCLIApprovalHandler(agent);
-                            agent.setApprovalHandler(handler);
-
-                            logger.debug('CLI approval handler configured for Ink CLI');
-                        }
-
-                        // Start the agent now that approval handler is configured
-                        await agent.start();
-
-                        // Session management - CLI uses explicit sessionId like WebUI
-                        // NOTE: Migrated from defaultSession pattern which will be deprecated in core
-                        // We now pass sessionId explicitly to all agent methods (agent.run, agent.switchLLM, etc.)
-
-                        // Check if API key is configured before trying to create session
-                        // Session creation triggers LLM service init which requires API key
-                        const llmConfig = agent.getCurrentLLMConfig();
-                        const { requiresApiKey } = await import('@dexto/core');
-                        if (requiresApiKey(llmConfig.provider) && !llmConfig.apiKey?.trim()) {
-                            // Offer interactive API key setup instead of just exiting
-                            const { interactiveApiKeySetup } = await import(
-                                './cli/utils/api-key-setup.js'
-                            );
-
-                            console.log(
-                                chalk.yellow(
-                                    `\n⚠️  API key required for provider '${llmConfig.provider}'\n`
-                                )
-                            );
-
-                            const setupResult = await interactiveApiKeySetup(llmConfig.provider, {
-                                exitOnCancel: false,
-                                model: llmConfig.model,
-                            });
-
-                            if (setupResult.cancelled) {
-                                await agent.stop().catch(() => {});
-                                safeExit('main', 0, 'api-key-setup-cancelled');
-                            }
-
-                            if (setupResult.skipped) {
-                                // User chose to skip - exit with instructions
-                                await agent.stop().catch(() => {});
-                                safeExit('main', 0, 'api-key-pending');
-                            }
-
-                            if (setupResult.success && setupResult.apiKey) {
-                                // API key was entered and saved - reload config and continue
-                                // Update the agent's LLM config with the new API key
-                                await agent.switchLLM({
-                                    provider: llmConfig.provider,
-                                    model: llmConfig.model,
-                                    apiKey: setupResult.apiKey,
-                                });
-                                logger.info('API key configured successfully, continuing...');
-                            }
-                        }
-
-                        // Resolve the initial session
-                        let cliSessionId: string;
-                        if (opts.resume) {
-                            const existing = await agent.getSession(opts.resume);
-                            if (!existing) {
-                                console.error(`❌ Session '${opts.resume}' not found`);
-                                console.error(
-                                    '💡 Use `dexto session list` to see available sessions'
-                                );
-                                safeExit('main', 1, 'resume-failed');
-                            }
-                            cliSessionId = opts.resume;
-                        } else if (opts.continue) {
-                            const mostRecentSessionId = await getMostRecentSessionId(agent);
-                            if (mostRecentSessionId) {
-                                cliSessionId = mostRecentSessionId;
-                            } else {
-                                const session = await agent.createSession();
-                                cliSessionId = session.id;
-                            }
-                        } else {
-                            const session = await agent.createSession();
-                            cliSessionId = session.id;
-                        }
-
-                        // Check for updates (will be shown in Ink header)
-                        const cliUpdateInfo = await versionCheckPromise;
-
-                        // Check if installed agents differ from bundled and prompt to sync
-                        const needsSync = await shouldPromptForSync();
-                        if (needsSync) {
-                            const shouldSync = await p.confirm({
-                                message: 'Agent config updates available. Sync now?',
-                                initialValue: true,
-                            });
-
-                            if (!p.isCancel(shouldSync) && shouldSync) {
-                                await handleSyncAgentsCommand({ force: true, quiet: true });
-                            }
-                        }
-
-                        // Interactive mode - use Ink CLI with session support
-                        // Suppress console output before starting Ink UI
-                        const originalConsole = {
-                            log: console.log,
-                            error: console.error,
-                            warn: console.warn,
-                            info: console.info,
-                        };
-                        const noOp = () => {};
-                        console.log = noOp;
-                        console.error = noOp;
-                        console.warn = noOp;
-                        console.info = noOp;
-
-                        let inkError: unknown = undefined;
-                        try {
-                            const [
-                                { startInkCliRefactored, setTuiRuntimeServices },
-                                { registerGracefulShutdown },
-                                { applyLayeredEnvironmentLoading },
-                                {
-                                    getProviderDisplayName,
-                                    isValidApiKeyFormat,
-                                    getProviderInstructions,
-                                },
-                                {
-                                    performDeviceCodeLogin,
-                                    persistOAuthLoginResult,
-                                    ensureDextoApiKeyForAuthToken,
-                                    loadAuth,
-                                    storeAuth,
-                                    removeAuth,
-                                    removeDextoApiKeyFromEnv,
-                                },
-                                { isUsingDextoCredits },
-                                { canUseDextoProvider },
-                            ] = await Promise.all([
-                                import('@dexto/tui'),
-                                import('./utils/graceful-shutdown.js'),
-                                import('./utils/env.js'),
-                                import('./cli/utils/provider-setup.js'),
-                                import('./cli/auth/index.js'),
-                                import('./config/effective-llm.js'),
-                                import('./cli/utils/dexto-setup.js'),
-                            ]);
-
-                            setTuiRuntimeServices({
-                                registerGracefulShutdown,
-                                capture: (event, properties) => {
-                                    capture(event as never, properties as never);
-                                },
-                                applyLayeredEnvironmentLoading,
-                                getProviderDisplayName,
-                                isValidApiKeyFormat,
-                                getProviderInstructions,
-                                performDeviceCodeLogin,
-                                persistOAuthLoginResult,
-                                ensureDextoApiKeyForAuthToken,
-                                loadAuth,
-                                storeAuth,
-                                removeAuth,
-                                removeDextoApiKeyFromEnv,
-                                isUsingDextoCredits,
-                                canUseDextoProvider,
-                            });
-
-                            await startInkCliRefactored(agent, cliSessionId, {
-                                updateInfo: cliUpdateInfo ?? undefined,
-                                configFilePath: resolvedPath,
-                                ...(initialPrompt && { initialPrompt }),
-                                bypassPermissions: opts.bypassPermissions,
-                            });
-                        } catch (error) {
-                            inkError = error;
-                        } finally {
-                            // Restore console methods so any errors are visible
-                            console.log = originalConsole.log;
-                            console.error = originalConsole.error;
-                            console.warn = originalConsole.warn;
-                            console.info = originalConsole.info;
-                        }
-
-                        // Stop the agent after Ink CLI exits
-                        try {
-                            await agent.stop();
-                        } catch {
-                            // Ignore shutdown errors
-                        }
-
-                        // Handle any errors from Ink CLI
-                        if (inkError) {
-                            if (inkError instanceof ExitSignal) throw inkError;
-                            const errorMessage =
-                                inkError instanceof Error ? inkError.message : String(inkError);
-                            console.error(`❌ Ink CLI failed: ${errorMessage}`);
-                            if (inkError instanceof Error && inkError.stack) {
-                                console.error(inkError.stack);
-                            }
-                            safeExit('main', 1, 'ink-cli-error');
-                        }
-
-                        safeExit('main', 0);
-                    }
-                    // falls through - safeExit returns never, but eslint doesn't know that
-
-                    case 'web': {
-                        // Default to 3000 for web mode
-                        const defaultPort = opts.port ? parseInt(opts.port, 10) : 3000;
-                        const port = getPort(process.env.PORT, defaultPort, 'PORT');
-                        const serverUrl = process.env.DEXTO_URL ?? `http://localhost:${port}`;
-
-                        // Resolve webRoot path (embedded WebUI dist folder)
-                        const webRoot = resolveWebRoot();
-                        if (!webRoot) {
-                            console.warn(chalk.yellow('⚠️  WebUI not found in this build.'));
-                            console.info('For production: Run "pnpm build:all" to embed the WebUI');
-                            console.info('For development: Run "pnpm dev" for hot reload');
-                        }
-
-                        // Build WebUI runtime config (analytics, etc.) for injection into index.html
-                        const webUIConfig = webRoot
-                            ? { analytics: await getWebUIAnalyticsConfig() }
-                            : undefined;
-
-                        // Start single Hono server serving both API and WebUI
-                        await startHonoApiServer(
-                            agent,
-                            port,
-                            agent.config.agentCard || {},
-                            derivedAgentId,
-                            resolvedPath,
-                            webRoot,
-                            webUIConfig
-                        );
-
-                        console.log(chalk.green(`✅ Server running at ${serverUrl}`));
-
-                        // Show update notification if available
-                        const webUpdateInfo = await versionCheckPromise;
-                        if (webUpdateInfo) {
-                            displayUpdateNotification(webUpdateInfo);
-                        }
-
-                        // Open WebUI in browser if webRoot is available
-                        if (webRoot) {
-                            try {
-                                const { default: open } = await import('open');
-                                await open(serverUrl, { wait: false });
-                                console.log(
-                                    chalk.green(`🌐 Opened WebUI in browser: ${serverUrl}`)
-                                );
-                            } catch (_error) {
-                                console.log(chalk.yellow(`💡 WebUI is available at: ${serverUrl}`));
-                            }
-                        }
-
-                        break;
-                    }
-
-                    // Start server with REST APIs and SSE on port 3001
-                    // This also enables dexto to be used as a remote mcp server at localhost:3001/mcp
-                    case 'server': {
-                        // Start server with REST APIs and SSE only
-                        const agentCard = agent.config.agentCard ?? {};
-                        // Default to 3001 for server mode
-                        const defaultPort = opts.port ? parseInt(opts.port, 10) : 3001;
-                        const apiPort = getPort(process.env.PORT, defaultPort, 'PORT');
-                        const apiUrl = process.env.DEXTO_URL ?? `http://localhost:${apiPort}`;
-
-                        console.log('🌐 Starting server (REST APIs + SSE)...');
-                        await startHonoApiServer(
-                            agent,
-                            apiPort,
-                            agentCard,
-                            derivedAgentId,
-                            resolvedPath
-                        );
-                        console.log(`✅ Server running at ${apiUrl}`);
-                        console.log('Available endpoints:');
-                        console.log('  POST /api/message - Send async message');
-                        console.log('  POST /api/message-sync - Send sync message');
-                        console.log('  POST /api/reset - Reset conversation');
-                        console.log('  GET  /api/mcp/servers - List MCP servers');
-                        console.log('  SSE support available for real-time events');
-
-                        // Show update notification if available
-                        const serverUpdateInfo = await versionCheckPromise;
-                        if (serverUpdateInfo) {
-                            displayUpdateNotification(serverUpdateInfo);
-                        }
-                        break;
-                    }
-
-                    // TODO: Remove if server mode is stable and supports mcp
-                    // Starts dexto as a local mcp server
-                    // Use `dexto --mode mcp` to start dexto as a local mcp server
-                    // Use `dexto --mode server` to start dexto as a remote server
-                    case 'mcp': {
-                        // Start stdio mcp server only
-                        const agentCardConfig = agent.config.agentCard || {
-                            name: 'dexto',
-                            version: '1.0.0',
-                        };
-
-                        try {
-                            // Logs are already redirected to file by default to prevent interference with stdio transport
-                            const agentCardData = createAgentCard(
-                                {
-                                    defaultName: agentCardConfig.name ?? 'dexto',
-                                    defaultVersion: agentCardConfig.version ?? '1.0.0',
-                                    defaultBaseUrl: 'stdio://local-dexto',
-                                },
-                                agentCardConfig // preserve overrides from agent file
-                            );
-                            // Use stdio transport in mcp mode
-                            const mcpTransport = await createMcpTransport('stdio');
-                            await initializeMcpServer(agent, agentCardData, mcpTransport);
-                        } catch (err) {
-                            // Write to stderr instead of stdout to avoid interfering with MCP protocol
-                            process.stderr.write(`MCP server startup failed: ${err}\n`);
-                            safeExit('main', 1, 'mcp-startup-failed');
-                        }
-                        break;
-                    }
-
-                    default:
-                        if (opts.mode === 'discord' || opts.mode === 'telegram') {
-                            console.error(
-                                `❌ Error: '${opts.mode}' mode has been moved to examples`
-                            );
-                            console.error('');
-                            console.error(
-                                `The ${opts.mode} bot is now a standalone example that you can customize.`
-                            );
-                            console.error('');
-                            console.error(`📖 See: examples/${opts.mode}-bot/README.md`);
-                            console.error('');
-                            console.error(`To run it:`);
-                            console.error(`  cd examples/${opts.mode}-bot`);
-                            console.error(`  pnpm install`);
-                            console.error(`  pnpm start`);
-                        } else {
-                            console.error(
-                                `❌ Unknown mode '${opts.mode}'. Use web, cli, server, or mcp.`
-                            );
-                        }
-                        safeExit('main', 1, 'unknown-mode');
-                }
+                const { dispatchMainMode } = await import('./cli/modes/dispatch.js');
+                const mainModeOpts: MainModeOptions = {
+                    mode: opts.mode,
+                    port: opts.port,
+                    resume: opts.resume,
+                    continue: opts.continue,
+                    bypassPermissions: opts.bypassPermissions,
+                };
+                await dispatchMainMode({
+                    agent,
+                    opts: mainModeOpts,
+                    validatedConfig,
+                    resolvedPath,
+                    derivedAgentId,
+                    initialPrompt,
+                    getVersionCheckResult,
+                });
             },
             { timeoutMs: 0 }
         )
     );
 
-// 17) PARSE & EXECUTE
+// 14) PARSE & EXECUTE
 program.parseAsync(process.argv);

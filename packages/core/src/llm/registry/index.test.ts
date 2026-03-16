@@ -836,7 +836,7 @@ describe('getAllModelsForProvider', () => {
         expect(dextoNativeModels.length).toBeGreaterThan(0);
         const dextoNativeModelNames = dextoNativeModels.map((m) => m.name);
         expect(dextoNativeModelNames).toContain('z-ai/glm-4.7');
-        expect(dextoNativeModelNames).toContain('minimax/minimax-m2.1');
+        expect(dextoNativeModelNames).toContain('minimax/minimax-m2.5');
     });
 
     it('uses cached OpenRouter catalog for openrouter provider when available', () => {
@@ -1060,7 +1060,7 @@ describe('Gateway provider integration with lookup functions', () => {
     describe('getModelDisplayName', () => {
         it('handles OpenRouter format models', () => {
             const result = getModelDisplayName('anthropic/claude-haiku-4.5', 'dexto-nova');
-            expect(result).toBe('Claude Haiku 4.5');
+            expect(result).toBe('Claude 4.5 Haiku');
         });
     });
 });

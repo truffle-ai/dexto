@@ -77,9 +77,15 @@ import McpCustomWizard, {
 import CustomModelWizard, {
     type CustomModelWizardHandle,
 } from '../components/overlays/CustomModelWizard.js';
+import ChatGPTUsageCapOverlay, {
+    type ChatGPTUsageCapOverlayHandle,
+} from '../components/overlays/ChatGPTUsageCapOverlay.js';
+import { getLLMProviderDisplayName } from '../utils/llm-provider-display.js';
+import { resolveChatGPTFallbackModel } from '../utils/chatgpt-rate-limit.js';
 import {
     getProviderKeyStatus,
     loadGlobalPreferences,
+    recordRecentModel,
     updateGlobalPreferences,
     type CustomModel,
     type ListedPlugin,
@@ -259,6 +265,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
         const mcpCustomWizardRef = useRef<McpCustomWizardHandle>(null);
         const customModelWizardRef = useRef<CustomModelWizardHandle>(null);
         const sessionSubcommandSelectorRef = useRef<SessionSubcommandSelectorHandle>(null);
+        const chatGPTUsageCapRef = useRef<ChatGPTUsageCapOverlayHandle>(null);
         const apiKeyInputRef = useRef<ApiKeyInputHandle>(null);
         const loginOverlayRef = useRef<LoginOverlayHandle>(null);
         const logoutOverlayRef = useRef<LogoutOverlayHandle>(null);
@@ -359,6 +366,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                 sessionSubcommandSelectorRef.current?.handleInput(inputStr, key) ??
                                 false
                             );
+                        case 'chatgpt-usage-cap':
+                            return chatGPTUsageCapRef.current?.handleInput(inputStr, key) ?? false;
                         case 'api-key-input':
                             return apiKeyInputRef.current?.handleInput(inputStr, key) ?? false;
                         case 'login':
@@ -520,6 +529,28 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             return null;
         };
 
+        const persistRecentModel = useCallback(
+            async (provider: LLMProvider, model: string, baseURL?: string) => {
+                try {
+                    await recordRecentModel({
+                        provider,
+                        model,
+                        ...(baseURL ? { baseURL } : {}),
+                    });
+                } catch (error) {
+                    const modelKey = baseURL
+                        ? `${provider}/${model} (${baseURL})`
+                        : `${provider}/${model}`;
+                    agent.logger.debug(
+                        `Failed to persist recent model (${modelKey}): ${
+                            error instanceof Error ? error.message : String(error)
+                        }`
+                    );
+                }
+            },
+            [agent]
+        );
+
         // Handle model selection (session-only)
         const handleModelSelect = useCallback(
             async (
@@ -529,6 +560,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 baseURL?: string,
                 reasoningVariant?: ReasoningVariant
             ) => {
+                const providerLabel = getLLMProviderDisplayName(provider, baseURL);
+
                 // Session-only switch (default is set via explicit action)
 
                 // Pre-check: Dexto Nova provider requires OAuth login AND API key
@@ -575,7 +608,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('system'),
                             role: 'system',
-                            content: `🔄 Switching to ${displayName || model} (${provider})...`,
+                            content: `🔄 Switching to ${displayName || model} (${providerLabel})...`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -589,6 +622,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         },
                         session.id || undefined
                     );
+                    await persistRecentModel(provider as LLMProvider, model, baseURL);
 
                     // Update session state with display name (fallback to model ID)
                     setSession((prev) => ({ ...prev, modelName: displayName || model }));
@@ -598,7 +632,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('system'),
                             role: 'system',
-                            content: `✅ Successfully switched to ${displayName || model} (${provider})`,
+                            content: `✅ Successfully switched to ${displayName || model} (${providerLabel})`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -606,6 +640,10 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     // Check if error is due to missing API key
                     const missingProvider = isApiKeyMissingError(error);
                     if (missingProvider) {
+                        const missingProviderLabel = getLLMProviderDisplayName(
+                            missingProvider,
+                            missingProvider === provider ? baseURL : undefined
+                        );
                         // Store pending model switch and show API key input
                         // Use missingProvider (from error) as the authoritative source
                         setUi((prev) => ({
@@ -624,7 +662,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             {
                                 id: generateMessageId('system'),
                                 role: 'system',
-                                content: `🔑 API key required for ${provider}`,
+                                content: `🔑 API key required for ${missingProviderLabel}`,
                                 timestamp: new Date(),
                             },
                         ]);
@@ -642,7 +680,16 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     ]);
                 }
             },
-            [setUi, setInput, setMessages, setSession, agent, session.id, buffer]
+            [
+                setUi,
+                setInput,
+                setMessages,
+                setSession,
+                agent,
+                session.id,
+                buffer,
+                persistRecentModel,
+            ]
         );
 
         const handleSetDefaultModel = useCallback(
@@ -653,6 +700,8 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 baseURL?: string,
                 reasoningVariant?: ReasoningVariant
             ) => {
+                const providerLabel = getLLMProviderDisplayName(provider, baseURL);
+
                 try {
                     let providerEnvVar: string | undefined;
                     try {
@@ -725,6 +774,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             },
                             session.id || undefined
                         );
+                        await persistRecentModel(provider, model, baseURL);
                         setSession((prev) => ({ ...prev, modelName: displayName || model }));
 
                         setMessages((prev) => [
@@ -732,13 +782,17 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             {
                                 id: generateMessageId('system'),
                                 role: 'system',
-                                content: `✅ Default model set to ${displayName || model} (${provider})`,
+                                content: `✅ Default model set to ${displayName || model} (${providerLabel})`,
                                 timestamp: new Date(),
                             },
                         ]);
                     } catch (error) {
                         const missingProvider = isApiKeyMissingError(error);
                         if (missingProvider) {
+                            const missingProviderLabel = getLLMProviderDisplayName(
+                                missingProvider,
+                                missingProvider === provider ? baseURL : undefined
+                            );
                             setUi((prev) => ({
                                 ...prev,
                                 activeOverlay: 'api-key-input',
@@ -755,7 +809,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                                 {
                                     id: generateMessageId('system'),
                                     role: 'system',
-                                    content: `🔑 API key required for ${provider}`,
+                                    content: `🔑 API key required for ${missingProviderLabel}`,
                                     timestamp: new Date(),
                                 },
                             ]);
@@ -777,7 +831,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     ]);
                 }
             },
-            [agent, setMessages, setSession, setUi, session.id]
+            [agent, setMessages, setSession, setUi, session.id, persistRecentModel]
         );
 
         // State for editing custom model
@@ -842,6 +896,61 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             [setUi, setInput, setMessages, buffer, editingModel, handleModelSelect]
         );
 
+        const handleChatGPTUsageCapClose = useCallback(() => {
+            setUi((prev) => ({
+                ...prev,
+                activeOverlay: 'none',
+            }));
+        }, [setUi]);
+
+        const handleChatGPTUsageCapConfirm = useCallback(async () => {
+            const currentLLMConfig = session.id
+                ? agent.getCurrentLLMConfig(session.id)
+                : agent.getCurrentLLMConfig();
+            const fallbackTarget = resolveChatGPTFallbackModel(currentLLMConfig.model);
+            const providerKeyStatus = getProviderKeyStatus(fallbackTarget.provider);
+            const reasoningVariant = fallbackTarget.usedDefaultFallback
+                ? undefined
+                : currentLLMConfig.reasoning?.variant;
+
+            if (providerKeyStatus.hasApiKey) {
+                setUi((prev) => ({
+                    ...prev,
+                    activeOverlay: 'none',
+                }));
+
+                await handleModelSelect(
+                    fallbackTarget.provider,
+                    fallbackTarget.model,
+                    fallbackTarget.displayName,
+                    undefined,
+                    reasoningVariant
+                );
+                return;
+            }
+
+            setUi((prev) => ({
+                ...prev,
+                activeOverlay: 'api-key-input',
+                pendingModelSwitch: {
+                    provider: fallbackTarget.provider,
+                    model: fallbackTarget.model,
+                    displayName: fallbackTarget.displayName,
+                    ...(reasoningVariant !== undefined ? { reasoningVariant } : {}),
+                },
+            }));
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: generateMessageId('system'),
+                    role: 'system',
+                    content:
+                        '🔑 ChatGPT Login hit its usage cap. Add an OpenAI API key to continue with the API provider.',
+                    timestamp: new Date(),
+                },
+            ]);
+        }, [agent, handleModelSelect, session.id, setMessages, setUi]);
+
         // Handle API key saved - retry the model switch
         const handleApiKeySaved = useCallback(
             async (meta: { provider: LLMProvider; envVar: string }) => {
@@ -875,12 +984,16 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                 // Retry the model switch
                 try {
                     const pendingDisplayName = pending.displayName || pending.model;
+                    const pendingProviderLabel = getLLMProviderDisplayName(
+                        pending.provider,
+                        pending.baseURL
+                    );
                     setMessages((prev) => [
                         ...prev,
                         {
                             id: generateMessageId('system'),
                             role: 'system',
-                            content: `🔄 Retrying switch to ${pendingDisplayName} (${pending.provider})...`,
+                            content: `🔄 Retrying switch to ${pendingDisplayName} (${pendingProviderLabel})...`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -898,6 +1011,11 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         },
                         session.id || undefined
                     );
+                    await persistRecentModel(
+                        pending.provider as LLMProvider,
+                        pending.model,
+                        pending.baseURL
+                    );
 
                     // Update session state with display name (fallback to model ID)
                     setSession((prev) => ({ ...prev, modelName: pendingDisplayName }));
@@ -907,7 +1025,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                         {
                             id: generateMessageId('system'),
                             role: 'system',
-                            content: `✅ Successfully switched to ${pendingDisplayName} (${pending.provider})`,
+                            content: `✅ Successfully switched to ${pendingDisplayName} (${pendingProviderLabel})`,
                             timestamp: new Date(),
                         },
                     ]);
@@ -923,7 +1041,15 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                     ]);
                 }
             },
-            [ui.pendingModelSwitch, setUi, setMessages, setSession, agent, session.id]
+            [
+                ui.pendingModelSwitch,
+                setUi,
+                setMessages,
+                setSession,
+                agent,
+                session.id,
+                persistRecentModel,
+            ]
         );
 
         // Handle API key input close (without saving)
@@ -2533,6 +2659,12 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             setUi((prev) => ({ ...prev, activeOverlay: 'none' }));
         }, [setUi]);
 
+        const currentLLMConfig = session.id
+            ? agent.getCurrentLLMConfig(session.id)
+            : agent.getCurrentLLMConfig();
+        const chatGPTFallbackTarget = resolveChatGPTFallbackModel(currentLLMConfig.model);
+        const chatGPTFallbackKeyStatus = getProviderKeyStatus(chatGPTFallbackTarget.provider);
+
         const hideCliChrome = shouldHideCliChrome(ui.activeOverlay, approval);
 
         const overlayContent = (
@@ -2854,6 +2986,23 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
                             isVisible={true}
                             onSelect={handleSessionSubcommandSelect}
                             onClose={handleClose}
+                        />
+                    </Box>
+                )}
+
+                {/* ChatGPT usage-cap recovery */}
+                {ui.activeOverlay === 'chatgpt-usage-cap' && (
+                    <Box marginTop={1}>
+                        <ChatGPTUsageCapOverlay
+                            ref={chatGPTUsageCapRef}
+                            isVisible={true}
+                            currentModelDisplayName={session.modelName}
+                            fallbackModelDisplayName={chatGPTFallbackTarget.displayName}
+                            usedDefaultFallback={chatGPTFallbackTarget.usedDefaultFallback}
+                            apiKeyConfigured={chatGPTFallbackKeyStatus.hasApiKey}
+                            status={ui.chatgptRateLimitStatus}
+                            onConfirm={handleChatGPTUsageCapConfirm}
+                            onClose={handleChatGPTUsageCapClose}
                         />
                     </Box>
                 )}

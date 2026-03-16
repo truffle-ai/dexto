@@ -32,6 +32,7 @@ export const queryKeys = {
             ['llm', 'current', sessionId ?? null] as const,
         catalog: ['llm', 'catalog'] as const,
         customModels: ['llm', 'customModels'] as const,
+        modelPickerState: ['llm', 'modelPickerState'] as const,
     },
 
     // Session-related queries

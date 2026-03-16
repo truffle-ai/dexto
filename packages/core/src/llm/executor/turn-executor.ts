@@ -40,6 +40,7 @@ import { LLMErrorCode } from '../error-codes.js';
 import { toError } from '../../utils/error-conversion.js';
 import type { CompactionStrategy } from '../../context/compaction/types.js';
 import type { ModelLimits } from '../../context/compaction/overflow.js';
+import { isCodexBaseURL } from '../providers/codex-base-url.js';
 
 /**
  * Static cache for tool support validation.
@@ -528,7 +529,9 @@ export class TurnExecutor {
      * Validates if the current model supports tools.
      * Uses a static cache to avoid repeated validation calls.
      *
-     * For local providers (Ollama, local) and custom baseURL endpoints, makes a test call to verify tool support.
+     * For local providers (Ollama, local) and most custom baseURL endpoints, makes a test call
+     * to verify tool support. Codex app-server uses a custom provider path for tool calling,
+     * so it is treated as tool-capable without HTTP probing.
      * Known cloud providers without baseURL are assumed to support tools.
      */
     private async validateToolSupport(): Promise<boolean> {
@@ -537,6 +540,14 @@ export class TurnExecutor {
         // Check cache first
         if (toolSupportCache.has(modelKey)) {
             return toolSupportCache.get(modelKey)!;
+        }
+
+        if (isCodexBaseURL(this.config.baseURL)) {
+            this.logger.debug(
+                `Skipping tool validation for ${modelKey} - Codex app-server integration manages tool support internally`
+            );
+            toolSupportCache.set(modelKey, true);
+            return true;
         }
 
         // Local providers need validation regardless of baseURL (models have varying support)

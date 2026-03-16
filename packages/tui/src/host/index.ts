@@ -1,4 +1,5 @@
-import type { DextoAgent, LLMProvider } from '@dexto/core';
+type TuiAgentHandle = object;
+type TuiProviderId = string;
 
 export interface TuiAuthConfig {
     token?: string | undefined;
@@ -47,13 +48,16 @@ export interface TuiPersistedLoginResult {
 }
 
 export interface TuiRuntimeServices {
-    registerGracefulShutdown?: (getAgent: () => DextoAgent, options: { inkMode: boolean }) => void;
+    registerGracefulShutdown?: (
+        getAgent: () => TuiAgentHandle,
+        options: { inkMode: boolean }
+    ) => void;
     capture?: (event: string, properties?: Record<string, unknown>) => void;
     applyLayeredEnvironmentLoading?: () => Promise<void>;
-    getProviderDisplayName?: (provider: LLMProvider | string) => string;
-    isValidApiKeyFormat?: (apiKey: string, provider: LLMProvider) => boolean;
+    getProviderDisplayName?: (provider: TuiProviderId) => string;
+    isValidApiKeyFormat?: (apiKey: string, provider: TuiProviderId) => boolean;
     getProviderInstructions?: (
-        provider: LLMProvider
+        provider: TuiProviderId
     ) => { title: string; content: string; url?: string | undefined } | null;
     performDeviceCodeLogin?: (options?: {
         signal?: AbortSignal | undefined;
@@ -96,7 +100,7 @@ function missingHostMethod(methodName: string): Error {
 }
 
 export function registerGracefulShutdown(
-    getAgent: () => DextoAgent,
+    getAgent: () => TuiAgentHandle,
     options: { inkMode: boolean }
 ): void {
     runtimeServices.registerGracefulShutdown?.(getAgent, options);
@@ -112,15 +116,15 @@ export async function applyLayeredEnvironmentLoading(): Promise<void> {
     }
 }
 
-export function getProviderDisplayName(provider: LLMProvider | string): string {
+export function getProviderDisplayName(provider: TuiProviderId): string {
     return runtimeServices.getProviderDisplayName?.(provider) ?? String(provider);
 }
 
-export function isValidApiKeyFormat(apiKey: string, provider: LLMProvider): boolean {
+export function isValidApiKeyFormat(apiKey: string, provider: TuiProviderId): boolean {
     return runtimeServices.isValidApiKeyFormat?.(apiKey, provider) ?? apiKey.trim().length > 0;
 }
 
-export function getProviderInstructions(provider: LLMProvider): {
+export function getProviderInstructions(provider: TuiProviderId): {
     title: string;
     content: string;
     url?: string | undefined;

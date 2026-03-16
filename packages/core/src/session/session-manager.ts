@@ -35,6 +35,10 @@ function defaultSessionLoggerFactory(options: {
  */
 export type SessionTokenUsage = Required<TokenUsage>;
 
+export interface SessionUsageTracking {
+    hasUntrackedChatGPTLoginUsage?: boolean;
+}
+
 /**
  * Per-model statistics for tracking usage across multiple models within a session.
  */
@@ -57,6 +61,8 @@ export interface SessionMetadata {
     estimatedCost?: number;
     modelStats?: ModelStatistics[];
     workspaceId?: string;
+    parentSessionId?: string;
+    usageTracking?: SessionUsageTracking;
 }
 
 export interface SessionManagerConfig {
@@ -79,6 +85,8 @@ export interface SessionData {
     estimatedCost?: number;
     modelStats?: ModelStatistics[];
     workspaceId?: string;
+    parentSessionId?: string;
+    usageTracking?: SessionUsageTracking;
     /** Persisted LLM config override for this session */
     llmOverride?: PersistedLLMConfig;
 }
@@ -111,6 +119,10 @@ export class SessionManager {
     // Per-session mutex for token usage updates to prevent lost updates from concurrent calls
     private readonly tokenUsageLocks = new Map<string, Promise<void>>();
     private logger: Logger;
+    private static readonly FORK_HISTORY_BATCH_SIZE = 500;
+    private static readonly FORK_ID_GENERATION_MAX_ATTEMPTS = 5;
+    private static readonly FORK_TITLE_PREFIX = 'Fork: ';
+    private static readonly FORK_PARENT_ID_PREVIEW_LENGTH = 8;
 
     private readonly sessionLoggerFactory: SessionLoggerFactory;
 
@@ -250,6 +262,152 @@ export class SessionManager {
         } finally {
             // Always clean up the pending creation tracker
             this.pendingCreations.delete(id);
+        }
+    }
+
+    /**
+     * Fork an existing session by cloning its persisted history into a new child session.
+     *
+     * The child session:
+     * - Always gets a generated session ID
+     * - Stores lineage via parentSessionId
+     * - Uses a fork-prefixed title derived from parent title (or parent ID)
+     * - Copies messageCount/workspaceId/llmOverride from parent metadata
+     * - Starts fresh token/cost/modelStats accounting
+     */
+    public async forkSession(parentSessionId: string): Promise<ChatSession> {
+        await this.ensureInitialized();
+
+        const database = this.services.storageManager.getDatabase();
+        const cache = this.services.storageManager.getCache();
+        const parentSessionKey = `session:${parentSessionId}`;
+        const parentMessagesKey = `messages:${parentSessionId}`;
+
+        const parentSessionData = await database.get<SessionData>(parentSessionKey);
+        if (!parentSessionData) {
+            throw SessionError.notFound(parentSessionId);
+        }
+
+        const activeSessionKeys = await database.list('session:');
+        if (activeSessionKeys.length >= this.maxSessions) {
+            throw SessionError.maxSessionsExceeded(activeSessionKeys.length, this.maxSessions);
+        }
+
+        const childSessionId = await this.generateForkSessionId();
+        const childSessionKey = `session:${childSessionId}`;
+        const childMessagesKey = `messages:${childSessionId}`;
+        const now = Date.now();
+
+        const childTitle = this.buildForkTitle(parentSessionData, parentSessionId);
+        const childSessionData: SessionData = {
+            id: childSessionId,
+            createdAt: now,
+            lastActivity: now,
+            messageCount: parentSessionData.messageCount,
+            parentSessionId,
+            metadata: {
+                title: childTitle,
+            },
+            ...(parentSessionData.workspaceId !== undefined && {
+                workspaceId: parentSessionData.workspaceId,
+            }),
+            ...(parentSessionData.llmOverride !== undefined && {
+                llmOverride: parentSessionData.llmOverride,
+            }),
+        };
+
+        try {
+            await database.set(childSessionKey, childSessionData);
+            await this.copySessionHistory(parentMessagesKey, childMessagesKey);
+
+            const childSession = await this.createSession(childSessionId);
+            this.logger.info(`Forked session '${parentSessionId}' into child '${childSessionId}'`);
+            return childSession;
+        } catch (error) {
+            // Best-effort rollback for partially created fork state.
+            await Promise.allSettled([
+                database.delete(childSessionKey),
+                database.delete(childMessagesKey),
+                cache.delete(childSessionKey),
+            ]);
+
+            const inMemorySession = this.sessions.get(childSessionId);
+            if (inMemorySession) {
+                try {
+                    await inMemorySession.cleanup();
+                } catch {
+                    // Ignore cleanup errors during rollback.
+                }
+                this.sessions.delete(childSessionId);
+            }
+
+            throw error;
+        }
+    }
+
+    private buildForkTitle(parentSessionData: SessionData, parentSessionId: string): string {
+        const rawParentTitle = parentSessionData.metadata?.title;
+        const parentTitle = typeof rawParentTitle === 'string' ? rawParentTitle.trim() : '';
+        const prefix = SessionManager.FORK_TITLE_PREFIX;
+
+        const baseTitle =
+            parentTitle.length > 0
+                ? parentTitle.startsWith(prefix)
+                    ? parentTitle.slice(prefix.length).trim() || parentTitle
+                    : parentTitle
+                : parentSessionId.slice(0, SessionManager.FORK_PARENT_ID_PREVIEW_LENGTH);
+
+        return `${prefix}${baseTitle}`;
+    }
+
+    private async generateForkSessionId(): Promise<string> {
+        const database = this.services.storageManager.getDatabase();
+
+        for (let attempt = 0; attempt < SessionManager.FORK_ID_GENERATION_MAX_ATTEMPTS; attempt++) {
+            const candidateId = randomUUID();
+            if (this.sessions.has(candidateId) || this.pendingCreations.has(candidateId)) {
+                continue;
+            }
+
+            const existing = await database.get<SessionData>(`session:${candidateId}`);
+            if (!existing) {
+                return candidateId;
+            }
+        }
+
+        throw SessionError.initializationFailed(
+            'fork',
+            'failed to generate unique child session ID'
+        );
+    }
+
+    private async copySessionHistory(
+        parentMessagesKey: string,
+        childMessagesKey: string
+    ): Promise<void> {
+        const database = this.services.storageManager.getDatabase();
+        let offset = 0;
+
+        while (true) {
+            const batch = await database.getRange<unknown>(
+                parentMessagesKey,
+                offset,
+                SessionManager.FORK_HISTORY_BATCH_SIZE
+            );
+
+            if (batch.length === 0) {
+                return;
+            }
+
+            for (const message of batch) {
+                await database.append(childMessagesKey, message);
+            }
+
+            offset += batch.length;
+
+            if (batch.length < SessionManager.FORK_HISTORY_BATCH_SIZE) {
+                return;
+            }
         }
     }
 
@@ -575,7 +733,48 @@ export class SessionManager {
             }),
             ...(sessionData.modelStats && { modelStats: sessionData.modelStats }),
             ...(sessionData.workspaceId && { workspaceId: sessionData.workspaceId }),
+            ...(sessionData.parentSessionId !== undefined && {
+                parentSessionId: sessionData.parentSessionId,
+            }),
+            ...(sessionData.usageTracking && { usageTracking: sessionData.usageTracking }),
         };
+    }
+
+    public async markUntrackedChatGPTLoginUsage(sessionId: string): Promise<void> {
+        await this.ensureInitialized();
+
+        const sessionKey = `session:${sessionId}`;
+        const previousLock = this.tokenUsageLocks.get(sessionKey) ?? Promise.resolve();
+
+        const currentLock = previousLock.then(async () => {
+            const sessionData = await this.services.storageManager
+                .getDatabase()
+                .get<SessionData>(sessionKey);
+
+            if (!sessionData || sessionData.usageTracking?.hasUntrackedChatGPTLoginUsage) {
+                return;
+            }
+
+            sessionData.usageTracking = {
+                ...(sessionData.usageTracking ?? {}),
+                hasUntrackedChatGPTLoginUsage: true,
+            };
+
+            await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
+            await this.services.storageManager
+                .getCache()
+                .set(sessionKey, sessionData, this.sessionTTL / 1000);
+        });
+
+        this.tokenUsageLocks.set(sessionKey, currentLock);
+
+        try {
+            await currentLock;
+        } finally {
+            if (this.tokenUsageLocks.get(sessionKey) === currentLock) {
+                this.tokenUsageLocks.delete(sessionKey);
+            }
+        }
     }
 
     /**

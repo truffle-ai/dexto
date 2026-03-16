@@ -72,7 +72,7 @@ case "$CHECK_TYPE" in
     run_check "pnpm test" "Tests" "$OUTPUT_LINES"
     ;;
   lint)
-    run_check "pnpm run lint" "Lint" "$OUTPUT_LINES"
+    run_check "pnpm run lint -- --max-warnings=0" "Lint" "$OUTPUT_LINES"
     ;;
   typecheck)
     run_check "pnpm run typecheck" "Typecheck" "$OUTPUT_LINES"
@@ -84,7 +84,7 @@ case "$CHECK_TYPE" in
     run_check "pnpm run build" "Build" "$OUTPUT_LINES"
     run_check "pnpm run sync-openapi-docs:check" "OpenAPI Docs" "$OUTPUT_LINES"
     run_check "pnpm test" "Tests" "$OUTPUT_LINES"
-    run_check "pnpm run lint" "Lint" "$OUTPUT_LINES"
+    run_check "pnpm run lint -- --max-warnings=0" "Lint" "$OUTPUT_LINES"
     run_check "pnpm run typecheck" "Typecheck" "$OUTPUT_LINES"
     echo ""
     echo "All quality checks passed! ✨"

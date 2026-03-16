@@ -2,7 +2,17 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import { tmpdir } from 'os';
+import { stripVTControlCharacters } from 'node:util';
 import { handleSetupCommand, type CLISetupOptionsInput } from './setup.js';
+
+const { mockCodexAppServerCreate, mockOpen } = vi.hoisted(() => ({
+    mockCodexAppServerCreate: vi.fn(),
+    mockOpen: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('open', () => ({
+    default: mockOpen,
+}));
 
 // Mock only external dependencies that can't be tested directly
 vi.mock('@dexto/core', async () => {
@@ -15,6 +25,43 @@ vi.mock('@dexto/core', async () => {
         }),
         resolveApiKeyForProvider: vi.fn(),
         requiresApiKey: vi.fn(() => true), // Most providers need API keys
+        createCodexBaseURL: vi.fn((mode: string = 'chatgpt') => `codex://${mode}`),
+        isCodexBaseURL: vi.fn(
+            (value: unknown) => typeof value === 'string' && value.startsWith('codex://')
+        ),
+        parseCodexBaseURL: vi.fn((value: unknown) => {
+            if (value === 'codex://chatgpt') {
+                return { authMode: 'chatgpt' };
+            }
+            if (value === 'codex://apikey') {
+                return { authMode: 'apikey' };
+            }
+            if (value === 'codex://auto' || value === 'codex://') {
+                return { authMode: 'auto' };
+            }
+            return null;
+        }),
+        getCodexProviderDisplayName: vi.fn((mode: string = 'auto') => {
+            if (mode === 'chatgpt') {
+                return 'ChatGPT Login';
+            }
+            if (mode === 'apikey') {
+                return 'ChatGPT Login (API key)';
+            }
+            return 'ChatGPT Login';
+        }),
+        getCodexAuthModeLabel: vi.fn((mode: string) => {
+            if (mode === 'chatgpt') {
+                return 'ChatGPT';
+            }
+            if (mode === 'apikey') {
+                return 'API key';
+            }
+            return 'Auto';
+        }),
+        CodexAppServerClient: {
+            create: mockCodexAppServerCreate,
+        },
     };
 });
 
@@ -70,6 +117,7 @@ vi.mock('../utils/provider-setup.js', () => ({
     getProviderInfo: vi.fn(() => ({ apiKeyUrl: 'https://example.com' })),
     providerRequiresBaseURL: vi.fn(() => false),
     getDefaultModel: vi.fn(() => 'test-model'),
+    validateApiKeyFormat: vi.fn(() => ({ valid: true })),
 }));
 
 vi.mock('../utils/setup-utils.js', () => ({
@@ -94,6 +142,7 @@ describe('Setup Command', () => {
     let tempDir: string;
     let mockCreateInitialPreferences: any;
     let mockSaveGlobalPreferences: any;
+    let mockLoadGlobalPreferences: any;
     let mockInteractiveApiKeySetup: any;
     let mockHasApiKeyConfigured: any;
     let mockSelectProvider: any;
@@ -123,6 +172,7 @@ describe('Setup Command', () => {
 
         mockCreateInitialPreferences = vi.mocked(prefLoader.createInitialPreferences);
         mockSaveGlobalPreferences = vi.mocked(prefLoader.saveGlobalPreferences);
+        mockLoadGlobalPreferences = vi.mocked(prefLoader.loadGlobalPreferences);
         mockGlobalPreferencesExist = vi.mocked(prefLoader.globalPreferencesExist);
         mockInteractiveApiKeySetup = vi.mocked(apiKeySetup.interactiveApiKeySetup);
         mockHasApiKeyConfigured = vi.mocked(apiKeySetup.hasApiKeyConfigured);
@@ -151,6 +201,12 @@ describe('Setup Command', () => {
                 if (options.apiKeyVar) {
                     llmConfig.apiKey = `$${options.apiKeyVar}`;
                 }
+                if (options.baseURL) {
+                    llmConfig.baseURL = options.baseURL;
+                }
+                if (options.reasoning) {
+                    llmConfig.reasoning = options.reasoning;
+                }
                 return {
                     llm: llmConfig,
                     defaults: {
@@ -167,6 +223,7 @@ describe('Setup Command', () => {
             };
         });
         mockSaveGlobalPreferences.mockResolvedValue(undefined);
+        mockLoadGlobalPreferences.mockResolvedValue(null);
         mockGlobalPreferencesExist.mockReturnValue(true);
         mockInteractiveApiKeySetup.mockResolvedValue({ success: true });
         mockHasApiKeyConfigured.mockReturnValue(true); // Default: API key exists
@@ -175,6 +232,9 @@ describe('Setup Command', () => {
         mockRequiresSetup.mockResolvedValue(true); // Default: setup is required
         mockPrompts.isCancel.mockReturnValue(false);
         mockPrompts.select.mockResolvedValue('exit'); // Default: exit settings menu
+        mockCodexAppServerCreate.mockReset();
+        mockOpen.mockReset();
+        mockOpen.mockResolvedValue(undefined);
 
         // Mock console to prevent test output noise
         consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -264,6 +324,77 @@ describe('Setup Command', () => {
     });
 
     describe('Interactive setup', () => {
+        it('configures ChatGPT Login with ChatGPT auth', async () => {
+            const codexClient = {
+                readAccount: vi.fn(),
+                startLogin: vi.fn(),
+                waitForLoginCompleted: vi.fn(),
+                listModels: vi.fn(),
+                logout: vi.fn(),
+                close: vi.fn().mockResolvedValue(undefined),
+            };
+
+            codexClient.readAccount
+                .mockResolvedValueOnce({ account: null, requiresOpenaiAuth: true })
+                .mockResolvedValueOnce({
+                    account: {
+                        type: 'chatgpt',
+                        email: 'dev@example.com',
+                        planType: 'plus',
+                    },
+                    requiresOpenaiAuth: false,
+                });
+            codexClient.startLogin.mockResolvedValue({
+                type: 'chatgpt',
+                loginId: 'login-1',
+                authUrl: 'https://chatgpt.example/login',
+            });
+            codexClient.waitForLoginCompleted.mockResolvedValue({
+                loginId: 'login-1',
+                success: true,
+                error: null,
+            });
+            codexClient.listModels.mockResolvedValue([
+                {
+                    id: 'model-1',
+                    model: 'gpt-4o-mini',
+                    displayName: 'GPT-4o Mini',
+                    description: 'Fast',
+                    hidden: false,
+                    isDefault: true,
+                    supportedReasoningEfforts: [],
+                    defaultReasoningEffort: 'medium',
+                },
+            ]);
+            mockCodexAppServerCreate.mockResolvedValue(codexClient);
+
+            mockPrompts.select
+                .mockResolvedValueOnce('openai-codex')
+                .mockResolvedValueOnce('gpt-4o-mini')
+                .mockResolvedValueOnce('cli');
+
+            await handleSetupCommand({ interactive: true });
+
+            expect(mockCodexAppServerCreate).toHaveBeenCalled();
+            expect(codexClient.startLogin).toHaveBeenCalledWith({ type: 'chatgpt' });
+            expect(codexClient.waitForLoginCompleted).toHaveBeenCalledWith('login-1', {
+                timeoutMs: 5 * 60 * 1000,
+            });
+            expect(mockOpen).toHaveBeenCalledWith('https://chatgpt.example/login');
+            expect(mockCreateInitialPreferences).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    provider: 'openai-compatible',
+                    model: 'gpt-4o-mini',
+                    baseURL: 'codex://chatgpt',
+                    defaultMode: 'cli',
+                    setupCompleted: true,
+                    apiKeyPending: false,
+                })
+            );
+            expect(mockSaveGlobalPreferences).toHaveBeenCalled();
+            expect(codexClient.close).toHaveBeenCalled();
+        });
+
         it('shows setup type selection when interactive without provider', async () => {
             // User selects 'custom' setup, then provider selection happens
             // Wizard uses selectProvider for provider selection
@@ -677,6 +808,40 @@ describe('Setup Command', () => {
         });
 
         describe('Interactive re-setup (Settings Menu)', () => {
+            it('shows Codex-specific labels for a saved ChatGPT-backed config', async () => {
+                mockLoadGlobalPreferences.mockResolvedValue({
+                    llm: {
+                        provider: 'openai-compatible',
+                        model: 'gpt-4o-mini',
+                        baseURL: 'codex://chatgpt',
+                    },
+                    defaults: {
+                        defaultMode: 'cli',
+                    },
+                    setup: { completed: true },
+                });
+                mockPrompts.select.mockResolvedValueOnce('exit');
+
+                await handleSetupCommand({ interactive: true });
+
+                const stripAnsi = (value: unknown) =>
+                    typeof value === 'string' ? stripVTControlCharacters(value) : String(value);
+                const [noteText] = mockPrompts.note.mock.calls[0] ?? [];
+                expect(stripAnsi(noteText)).toContain('Provider: ChatGPT Login');
+                expect(stripAnsi(noteText)).toContain('Authentication: ChatGPT');
+
+                const [settingsSelect] = mockPrompts.select.mock.calls[0] ?? [];
+                expect(settingsSelect.options).toEqual(
+                    expect.arrayContaining([
+                        expect.objectContaining({
+                            value: 'auth',
+                            label: 'Manage ChatGPT login',
+                            hint: 'Verify or reconnect your ChatGPT login for Codex',
+                        }),
+                    ])
+                );
+            });
+
             it('shows settings menu when setup is already complete', async () => {
                 // User selects 'exit' from settings menu
                 mockPrompts.select.mockResolvedValueOnce('exit');
