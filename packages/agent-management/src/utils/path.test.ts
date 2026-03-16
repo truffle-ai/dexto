@@ -118,7 +118,9 @@ describe('getDextoPath', () => {
 
         it('uses the forced project root for workspace-relative paths', () => {
             const result = getDextoPath('database', 'coding-agent.db', '/outside/of/project');
-            expect(result).toBe(path.join(tempDir, '.dexto', 'database', 'coding-agent.db'));
+            expect(result).toBe(
+                path.join(fs.realpathSync(tempDir), '.dexto', 'database', 'coding-agent.db')
+            );
         });
     });
 });

@@ -103,7 +103,18 @@ export async function loadDeployConfig(workspaceRoot: string): Promise<DeployCon
     }
 
     const raw = await fs.readFile(configPath, 'utf8');
-    return parseDeployConfig(JSON.parse(raw));
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(raw);
+    } catch (error) {
+        throw new Error(
+            `Failed to parse deploy config at ${configPath}: ${
+                error instanceof Error ? error.message : 'Invalid JSON'
+            }`
+        );
+    }
+
+    return parseDeployConfig(parsed);
 }
 
 export async function saveDeployConfig(

@@ -100,8 +100,6 @@ export async function handleDeployCommand(options?: InteractiveOptions): Promise
     const deployLink = await loadWorkspaceDeployLink(workspaceRoot);
     const spinner = p.spinner();
     const client = createDeployClient();
-
-    spinner.start('Packaging workspace snapshot...');
     const workspaceSnapshotInput = isWorkspaceDeployAgent(deployConfig.agent)
         ? {
               workspaceRoot,
@@ -112,11 +110,13 @@ export async function handleDeployCommand(options?: InteractiveOptions): Promise
               workspaceRoot,
               exclude: deployConfig.exclude,
           };
-    const snapshot = await createWorkspaceSnapshot({
-        ...workspaceSnapshotInput,
-    });
+    let snapshot: Awaited<ReturnType<typeof createWorkspaceSnapshot>> | null = null;
 
     try {
+        spinner.start('Packaging workspace snapshot...');
+        snapshot = await createWorkspaceSnapshot({
+            ...workspaceSnapshotInput,
+        });
         spinner.message('Uploading workspace and provisioning sandbox...');
         const deployed = await client.deployWorkspace({
             agent: deployConfig.agent,
@@ -147,7 +147,9 @@ export async function handleDeployCommand(options?: InteractiveOptions): Promise
         spinner.stop(chalk.red('✗ Deploy failed'));
         throw error;
     } finally {
-        await snapshot.cleanup();
+        if (snapshot) {
+            await snapshot.cleanup();
+        }
     }
 }
 

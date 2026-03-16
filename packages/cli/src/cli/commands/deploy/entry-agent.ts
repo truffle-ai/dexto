@@ -2,7 +2,12 @@ import { existsSync } from 'fs';
 import path from 'path';
 import { normalizeWorkspaceRelativePath } from './config.js';
 
-const PRIMARY_WORKSPACE_AGENT_PATHS = [path.join('agents', 'coding-agent.yml')] as const;
+const PRIMARY_WORKSPACE_AGENT_PATHS = [
+    path.join('agents', 'coding-agent', 'coding-agent.yml'),
+    path.join('agents', 'coding-agent', 'coding-agent.yaml'),
+    path.join('agents', 'coding-agent.yml'),
+    path.join('agents', 'coding-agent.yaml'),
+] as const;
 
 export function isAgentYamlPath(filePath: string): boolean {
     return /\.(ya?ml)$/i.test(filePath);

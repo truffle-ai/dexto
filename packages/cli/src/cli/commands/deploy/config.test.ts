@@ -73,12 +73,13 @@ describe('deploy config', () => {
         tempDir = createTempDir();
         writeWorkspaceFiles(tempDir, {
             'coding-agent.yml': 'agentCard:\n  name: Root Agent\n',
+            'agents/coding-agent/coding-agent.yml': 'agentCard:\n  name: Nested Agent\n',
             'agents/coding-agent.yml': 'agentCard:\n  name: Agent\n',
             'src/dexto/agents/coding-agent.yml': 'agentCard:\n  name: Src Agent\n',
         });
 
         const candidate = await discoverPrimaryWorkspaceAgent(tempDir);
-        expect(candidate).toBe('agents/coding-agent.yml');
+        expect(candidate).toBe('agents/coding-agent/coding-agent.yml');
     });
 
     it('returns null when no primary workspace agent exists under agents', async () => {
@@ -91,6 +92,17 @@ describe('deploy config', () => {
 
         const candidate = await discoverPrimaryWorkspaceAgent(tempDir);
         expect(candidate).toBeNull();
+    });
+
+    it('wraps malformed deploy json errors with the config path', async () => {
+        tempDir = createTempDir();
+        writeWorkspaceFiles(tempDir, {
+            '.dexto/deploy.json': '{"version":1,"agent":',
+        });
+
+        await expect(loadDeployConfig(tempDir)).rejects.toThrow(
+            `Failed to parse deploy config at ${path.join(tempDir, '.dexto', 'deploy.json')}`
+        );
     });
 
     it('rejects paths that escape the workspace', () => {

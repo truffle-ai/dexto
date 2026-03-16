@@ -210,4 +210,42 @@ describe('Execution Context Detection', () => {
             expect(result ? fs.realpathSync(result) : null).toBe(fs.realpathSync(tempDir));
         });
     });
+
+    describe('Forced project root override inside dexto source', () => {
+        beforeEach(() => {
+            tempDir = createTempDirStructure({
+                'package.json': {
+                    name: 'dexto-monorepo',
+                    version: '1.0.0',
+                },
+                'packages/webui/package.json': {
+                    name: '@dexto/webui',
+                    dependencies: { '@dexto/core': 'workspace:*' },
+                },
+            });
+            process.env.DEXTO_PROJECT_ROOT = tempDir;
+        });
+
+        it('takes precedence over dexto-source detection', () => {
+            const result = getExecutionContext(path.join(tempDir, 'packages', 'webui'));
+            expect(result).toBe('dexto-project');
+        });
+    });
+
+    describe('Invalid forced project root override', () => {
+        beforeEach(() => {
+            tempDir = createTempDirStructure({
+                'package.json': {
+                    name: 'regular-project',
+                    dependencies: { express: '^4.0.0' },
+                },
+            });
+            process.env.DEXTO_PROJECT_ROOT = path.join(tempDir, 'missing-directory');
+        });
+
+        it('ignores invalid directories', () => {
+            expect(findDextoProjectRoot('/outside/of/project')).toBeNull();
+            expect(getExecutionContext(tempDir)).toBe('global-cli');
+        });
+    });
 });

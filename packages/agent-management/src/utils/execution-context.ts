@@ -3,7 +3,7 @@
 // This will become the primary location once core services accept paths via initialization
 
 import { walkUpDirectories } from './fs-walk.js';
-import { readFileSync } from 'fs';
+import { readFileSync, realpathSync, statSync } from 'fs';
 import * as path from 'path';
 
 export type ExecutionContext = 'dexto-source' | 'dexto-project' | 'global-cli';
@@ -13,7 +13,13 @@ function getForcedProjectRoot(): string | null {
     if (!value) {
         return null;
     }
-    return path.resolve(value);
+
+    try {
+        const resolved = path.resolve(value);
+        return statSync(resolved).isDirectory() ? realpathSync(resolved) : null;
+    } catch {
+        return null;
+    }
 }
 
 /**
@@ -90,13 +96,13 @@ export function findDextoProjectRoot(startPath: string = process.cwd()): string 
  * @returns Execution context
  */
 export function getExecutionContext(startPath: string = process.cwd()): ExecutionContext {
+    if (getForcedProjectRoot()) {
+        return 'dexto-project';
+    }
+
     // Check for Dexto source context first (most specific)
     if (findDextoSourceRoot(startPath)) {
         return 'dexto-source';
-    }
-
-    if (getForcedProjectRoot()) {
-        return 'dexto-project';
     }
 
     // Check for Dexto project context
