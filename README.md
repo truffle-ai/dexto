@@ -615,17 +615,6 @@ Commands:
 
 Full reference: `dexto --help`
 
-Cloud workspace deploys:
-
-```bash
-dexto deploy
-dexto deploy status
-dexto deploy stop
-dexto deploy delete
-```
-
-First run creates `.dexto/deploy.json` in the current folder, uploads the workspace, and prints a dashboard link for the deployment.
-
 </details>
 
 ---
