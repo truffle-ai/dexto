@@ -282,61 +282,6 @@ export async function handleDeployOpenCommand(): Promise<void> {
     }
 }
 
-export async function handleDeployLinkCommand(cloudAgentId: string): Promise<void> {
-    const normalizedCloudAgentId = cloudAgentId.trim();
-    if (normalizedCloudAgentId.length === 0) {
-        throw new Error('Cloud deployment id must not be empty.');
-    }
-
-    const workspaceRoot = resolveWorkspaceRoot();
-    const existingLink = await loadWorkspaceDeployLink(workspaceRoot);
-    const spinner = p.spinner();
-    spinner.start(`Linking workspace to ${normalizedCloudAgentId}...`);
-
-    try {
-        const client = createDeployClient();
-        const status = await client.getCloudAgent(normalizedCloudAgentId);
-        await saveWorkspaceDeployLink(workspaceRoot, {
-            cloudAgentId: status.cloudAgentId,
-            agentUrl: status.agentUrl,
-        });
-
-        spinner.stop(chalk.green('✓ Workspace linked'));
-        p.outro(
-            [
-                formatCloudAgentSummary({
-                    cloudAgentId: status.cloudAgentId,
-                    status: status.state.status,
-                    agentUrl: status.agentUrl,
-                }),
-                ...(existingLink && existingLink.cloudAgentId !== status.cloudAgentId
-                    ? ['', `Replaced previous link: ${existingLink.cloudAgentId}`]
-                    : []),
-            ].join('\n')
-        );
-    } catch (error) {
-        spinner.stop(chalk.red('✗ Link failed'));
-        throw error;
-    }
-}
-
-export async function handleDeployUnlinkCommand(): Promise<void> {
-    const workspaceRoot = resolveWorkspaceRoot();
-    const deployLink = await loadWorkspaceDeployLink(workspaceRoot);
-    if (!deployLink) {
-        p.outro('This workspace is not linked to a cloud deployment.');
-        return;
-    }
-
-    await removeWorkspaceDeployLink(workspaceRoot);
-    p.outro(
-        [
-            `Unlinked this workspace from ${deployLink.cloudAgentId}`,
-            'The remote deployment was not deleted.',
-        ].join('\n')
-    );
-}
-
 export async function handleDeployStatusCommand(): Promise<void> {
     const workspaceRoot = resolveWorkspaceRoot();
     const deployLink = await loadWorkspaceDeployLink(workspaceRoot);

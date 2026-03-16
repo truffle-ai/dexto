@@ -266,44 +266,4 @@ describe('deploy command', () => {
             expect.stringContaining('Opened dashboard for cloud-agent-a')
         );
     });
-
-    it('links the workspace to an existing cloud deployment', async () => {
-        mockLoadWorkspaceDeployLink.mockResolvedValue({
-            cloudAgentId: 'cloud-agent-previous',
-            updatedAt: new Date().toISOString(),
-        });
-        mockGetCloudAgent.mockResolvedValue({
-            cloudAgentId: 'cloud-agent-a',
-            agentUrl: 'https://sandbox.dexto.ai/api/cloud-agents/cloud-agent-a/agent',
-            state: { status: 'ready' },
-        });
-
-        const { handleDeployLinkCommand } = await import('./index.js');
-
-        await expect(handleDeployLinkCommand('cloud-agent-a')).resolves.toBeUndefined();
-
-        expect(mockSaveWorkspaceDeployLink).toHaveBeenCalledWith(fs.realpathSync.native(tempDir), {
-            cloudAgentId: 'cloud-agent-a',
-            agentUrl: 'https://sandbox.dexto.ai/api/cloud-agents/cloud-agent-a/agent',
-        });
-        expect(mockOutro).toHaveBeenCalledWith(
-            expect.stringContaining('Replaced previous link: cloud-agent-previous')
-        );
-    });
-
-    it('unlinks the workspace without deleting the remote deployment', async () => {
-        mockLoadWorkspaceDeployLink.mockResolvedValue({
-            cloudAgentId: 'cloud-agent-a',
-            updatedAt: new Date().toISOString(),
-        });
-
-        const { handleDeployUnlinkCommand } = await import('./index.js');
-
-        await expect(handleDeployUnlinkCommand()).resolves.toBeUndefined();
-
-        expect(mockRemoveWorkspaceDeployLink).toHaveBeenCalledWith(fs.realpathSync.native(tempDir));
-        expect(mockOutro).toHaveBeenCalledWith(
-            expect.stringContaining('The remote deployment was not deleted.')
-        );
-    });
 });

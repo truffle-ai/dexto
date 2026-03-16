@@ -17,8 +17,6 @@ Examples:
   $ dexto deploy
   $ dexto deploy list
   $ dexto deploy open
-  $ dexto deploy link sbx_123
-  $ dexto deploy unlink
   $ dexto deploy status
   $ dexto deploy stop
   $ dexto deploy delete
@@ -69,41 +67,6 @@ Examples:
                     if (err instanceof ExitSignal) throw err;
                     console.error(`❌ dexto deploy open command failed: ${err}`);
                     safeExit('deploy open', 1, 'error');
-                }
-            })
-        );
-
-    deployCommand
-        .command('link')
-        .description('Link this workspace to an existing cloud deployment')
-        .argument('<cloudAgentId>', 'Cloud deployment id to link to this workspace')
-        .action(
-            withAnalytics('deploy link', async (cloudAgentId: string) => {
-                try {
-                    const { handleDeployLinkCommand } = await import('./index.js');
-                    await handleDeployLinkCommand(cloudAgentId);
-                    safeExit('deploy link', 0);
-                } catch (err) {
-                    if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto deploy link command failed: ${err}`);
-                    safeExit('deploy link', 1, 'error');
-                }
-            })
-        );
-
-    deployCommand
-        .command('unlink')
-        .description('Remove the local deployment link for this workspace')
-        .action(
-            withAnalytics('deploy unlink', async () => {
-                try {
-                    const { handleDeployUnlinkCommand } = await import('./index.js');
-                    await handleDeployUnlinkCommand();
-                    safeExit('deploy unlink', 0);
-                } catch (err) {
-                    if (err instanceof ExitSignal) throw err;
-                    console.error(`❌ dexto deploy unlink command failed: ${err}`);
-                    safeExit('deploy unlink', 1, 'error');
                 }
             })
         );
