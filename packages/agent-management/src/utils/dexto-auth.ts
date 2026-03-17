@@ -7,7 +7,7 @@
 
 import { existsSync, promises as fs } from 'fs';
 import { z } from 'zod';
-import { getDextoGlobalPath } from '@dexto/core';
+import { getDextoGlobalPath } from './path.js';
 
 const AUTH_CONFIG_FILE = 'auth.json';
 

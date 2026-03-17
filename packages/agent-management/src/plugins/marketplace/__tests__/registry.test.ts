@@ -4,7 +4,6 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
-import * as os from 'os';
 
 // Mock fs module
 vi.mock('fs', async () => {
@@ -18,14 +17,9 @@ vi.mock('fs', async () => {
     };
 });
 
-// Mock os module
-vi.mock('os', async () => {
-    const actual = await vi.importActual<typeof import('os')>('os');
-    return {
-        ...actual,
-        homedir: vi.fn(() => '/home/testuser'),
-    };
-});
+vi.mock('../../../utils/path.js', () => ({
+    getDextoGlobalPath: vi.fn((type: string) => `/home/testuser/.dexto/${type}`),
+}));
 
 import {
     DEFAULT_MARKETPLACES,
@@ -44,6 +38,7 @@ import {
     isDefaultMarketplace,
 } from '../registry.js';
 import type { KnownMarketplacesFile, MarketplaceEntry } from '../types.js';
+import { getDextoGlobalPath } from '../../../utils/path.js';
 
 describe('Marketplace Registry', () => {
     const mockHomedir = '/home/testuser';
@@ -53,7 +48,9 @@ describe('Marketplace Registry', () => {
         vi.mocked(fs.readFileSync).mockReset();
         vi.mocked(fs.writeFileSync).mockReset();
         vi.mocked(fs.mkdirSync).mockReset();
-        vi.mocked(os.homedir).mockReturnValue(mockHomedir);
+        vi.mocked(getDextoGlobalPath).mockImplementation(
+            (type: string) => `${mockHomedir}/.dexto/${type}`
+        );
     });
 
     afterEach(() => {

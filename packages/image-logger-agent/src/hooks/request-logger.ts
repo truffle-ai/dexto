@@ -8,8 +8,8 @@ import type {
     HookExecutionContext,
 } from '@dexto/core';
 import { promises as fs } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { getDextoGlobalPath } from '@dexto/agent-management';
 
 export type RequestLoggerHookConfig = {
     logDir?: string | undefined;
@@ -26,7 +26,7 @@ export class RequestLoggerHook implements Hook {
 
     async initialize(config: Record<string, unknown>): Promise<void> {
         const typed = config as RequestLoggerHookConfig;
-        const logDir = typed.logDir || join(homedir(), '.dexto', 'logs');
+        const logDir = typed.logDir || getDextoGlobalPath('logs');
         const logFileName = typed.logFileName || 'request-logger.log';
         this.logFilePath = join(logDir, logFileName);
 

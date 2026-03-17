@@ -6,10 +6,10 @@
 
 import * as path from 'path';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { homedir } from 'os';
 import { KnownMarketplacesFileSchema } from './schemas.js';
 import { MarketplaceError } from './errors.js';
 import type { KnownMarketplacesFile, MarketplaceEntry, MarketplaceSource } from './types.js';
+import { getDextoGlobalPath } from '../../utils/path.js';
 
 /**
  * Default marketplace configuration
@@ -32,21 +32,21 @@ export const DEFAULT_MARKETPLACES: Array<{
  * Get the path to known_marketplaces.json
  */
 export function getMarketplacesRegistryPath(): string {
-    return path.join(homedir(), '.dexto', 'plugins', 'known_marketplaces.json');
+    return getDextoGlobalPath(path.join('plugins', 'known_marketplaces.json'));
 }
 
 /**
  * Get the directory where marketplaces are cloned
  */
 export function getMarketplacesDir(): string {
-    return path.join(homedir(), '.dexto', 'plugins', 'marketplaces');
+    return getDextoGlobalPath(path.join('plugins', 'marketplaces'));
 }
 
 /**
  * Get the marketplace cache directory (for versioned plugin copies)
  */
 export function getMarketplaceCacheDir(): string {
-    return path.join(homedir(), '.dexto', 'plugins', 'cache');
+    return getDextoGlobalPath(path.join('plugins', 'cache'));
 }
 
 /**

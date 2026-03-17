@@ -5,7 +5,7 @@
  * Uses platform-specific commands with fallback to terminal bell.
  *
  * Sound files should be placed in the Dexto sounds directory (typically ~/.dexto/sounds/).
- * In dexto source + DEXTO_DEV_MODE=true, this uses <repo>/.dexto/sounds/ for isolated dev.
+ * In dexto source context, this resolves to <repo>/.dexto/sounds/ for isolated development.
  */
 
 import { existsSync } from 'fs';

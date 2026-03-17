@@ -4,7 +4,8 @@
 import chalk from 'chalk';
 import { existsSync, promises as fs } from 'fs';
 import { z } from 'zod';
-import { getDextoGlobalPath, logger } from '@dexto/core';
+import { logger } from '@dexto/core';
+import { getDextoGlobalPath } from '@dexto/agent-management';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './constants.js';
 
 const AUTH_CONFIG_FILE = 'auth.json';
