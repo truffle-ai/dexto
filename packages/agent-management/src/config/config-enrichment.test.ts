@@ -20,7 +20,7 @@ vi.mock('../plugins/index.js', () => ({
 // Import after mock is set up
 import { enrichAgentConfig } from './config-enrichment.js';
 import { discoverAgentInstructionFile, discoverCommandPrompts } from './discover-prompts.js';
-import { discoverStandaloneSkills } from '../plugins/index.js';
+import { discoverClaudeCodePlugins, discoverStandaloneSkills } from '../plugins/index.js';
 
 // TODO: Add more comprehensive tests for config-enrichment:
 // - Test path resolution for per-agent logs, database, blobs
@@ -32,6 +32,8 @@ describe('enrichAgentConfig', () => {
         vi.mocked(discoverCommandPrompts).mockReturnValue([]);
         vi.mocked(discoverAgentInstructionFile).mockReset();
         vi.mocked(discoverAgentInstructionFile).mockReturnValue(null);
+        vi.mocked(discoverClaudeCodePlugins).mockReset();
+        vi.mocked(discoverClaudeCodePlugins).mockReturnValue([]);
         vi.mocked(discoverStandaloneSkills).mockReset();
         vi.mocked(discoverStandaloneSkills).mockReturnValue([]);
     });
@@ -93,6 +95,7 @@ describe('enrichAgentConfig', () => {
                 workspaceRoot: '/workspace/project',
             });
 
+            expect(discoverClaudeCodePlugins).toHaveBeenCalledWith('/workspace/project', []);
             expect(discoverStandaloneSkills).toHaveBeenCalledWith('/workspace/project');
             expect(discoverAgentInstructionFile).toHaveBeenCalledWith('/workspace/project');
             expect(discoverCommandPrompts).toHaveBeenCalledWith('/workspace/project');
@@ -111,6 +114,10 @@ describe('enrichAgentConfig', () => {
             enrichAgentConfig(baseConfig, '/tmp/standalone/review-agent/review-agent.yml');
 
             expect(discoverCommandPrompts).toHaveBeenCalledWith('/tmp/standalone/review-agent');
+            expect(discoverClaudeCodePlugins).toHaveBeenCalledWith(
+                '/tmp/standalone/review-agent',
+                []
+            );
             expect(discoverStandaloneSkills).toHaveBeenCalledWith('/tmp/standalone/review-agent');
             expect(discoverAgentInstructionFile).toHaveBeenCalledWith(
                 '/tmp/standalone/review-agent'

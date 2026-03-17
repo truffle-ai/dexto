@@ -264,7 +264,7 @@ export function enrichAgentConfig(
             }
         }
 
-        const discoveredPlugins = discoverClaudeCodePlugins(undefined, bundledPlugins);
+        const discoveredPlugins = discoverClaudeCodePlugins(workspaceRoot, bundledPlugins);
         for (const plugin of discoveredPlugins) {
             const loaded = loadClaudeCodePlugin(plugin);
 
