@@ -78,6 +78,7 @@ import {
     getDextoPackageRoot,
     resolveAgentPath,
     loadAgentConfig,
+    findDextoProjectRoot,
     globalPreferencesExist,
     loadGlobalPreferences,
     resolveBundledScript,
@@ -399,6 +400,7 @@ async function bootstrapAgentFromGlobalOpts(options: {
     }
 
     const resolvedPath = await resolveAgentPath(globalOpts.agent, globalOpts.autoInstall !== false);
+    const workspaceRoot = findDextoProjectRoot(process.cwd()) ?? process.cwd();
     const rawConfig = await loadAgentConfig(resolvedPath);
     const mergedConfig = applyCLIOverrides(rawConfig, {
         ...globalOpts,
@@ -439,6 +441,7 @@ async function bootstrapAgentFromGlobalOpts(options: {
         // Headless run keeps output deterministic and noise-free.
         // Other non-interactive commands keep visible logs.
         logLevel: isHeadlessRun ? 'error' : 'info',
+        workspaceRoot,
     });
 
     if (isHeadlessRun) {
@@ -910,12 +913,14 @@ program
                     // Enrichment adds filesystem paths to storage (schema has in-memory defaults)
                     // Interactive CLI mode: only log to file (console would interfere with chat UI)
                     const isInteractiveCli = opts.mode === 'cli';
+                    const workspaceRoot = findDextoProjectRoot(process.cwd()) ?? process.cwd();
                     const enrichedConfig = enrichAgentConfig(
                         configWithImageDefaults,
                         resolvedPath,
                         {
                             isInteractiveCli,
                             logLevel: 'info', // CLI uses info-level logging for visibility
+                            workspaceRoot,
                         }
                     );
 
