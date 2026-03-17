@@ -1,5 +1,11 @@
 # @dexto/core
 
+## 1.6.15
+
+### Patch Changes
+
+- 6a490b0: Added `dexto init` commands for scaffolding AGENTS.md, agents/ and skills/.
+
 ## 1.6.14
 
 ## 1.6.13

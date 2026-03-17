@@ -1,5 +1,22 @@
 # dexto
 
+## 1.6.15
+
+### Patch Changes
+
+- 6a490b0: Added `dexto init` commands for scaffolding AGENTS.md, agents/ and skills/.
+- Updated dependencies [6a490b0]
+    - @dexto/agent-management@1.6.15
+    - @dexto/core@1.6.15
+    - @dexto/analytics@1.6.15
+    - @dexto/image-local@1.6.15
+    - @dexto/image-logger-agent@1.6.15
+    - @dexto/server@1.6.15
+    - @dexto/tui@1.6.15
+    - @dexto/agent-config@1.6.15
+    - @dexto/storage@1.6.15
+    - @dexto/registry@1.6.15
+
 ## 1.6.14
 
 ### Patch Changes
