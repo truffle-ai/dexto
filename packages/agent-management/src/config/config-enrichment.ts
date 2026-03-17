@@ -155,8 +155,8 @@ export function enrichAgentConfig(
 
     // Generate per-agent paths
     // Note: file logging is session-scoped (see core SessionManager) so we don't set a per-agent log file here.
-    const dbPath = getDextoPath('database', `${agentId}.db`);
-    const blobPath = getDextoPath('blobs', agentId);
+    const dbPath = getDextoPath('database', `${agentId}.db`, workspaceRoot);
+    const blobPath = getDextoPath('blobs', agentId, workspaceRoot);
 
     // Create enriched config (shallow copy with deep updates)
     const enriched: AgentConfig = {

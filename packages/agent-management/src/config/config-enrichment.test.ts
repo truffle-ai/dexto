@@ -1,3 +1,6 @@
+import { promises as fs } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { AgentConfig } from '@dexto/agent-config';
 
@@ -110,6 +113,53 @@ describe('enrichAgentConfig', () => {
             expect(discoverAgentInstructionFile).toHaveBeenCalledWith(
                 '/tmp/standalone/review-agent'
             );
+        });
+
+        it('uses the resolved workspace root for storage defaults too', async () => {
+            const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'dexto-enrichment-'));
+            const workspaceRoot = path.join(tempDir, 'workspace');
+            const outsideDir = path.join(tempDir, 'outside');
+            const originalCwd = process.cwd();
+
+            try {
+                await fs.mkdir(path.join(workspaceRoot, 'agents'), { recursive: true });
+                await fs.mkdir(outsideDir, { recursive: true });
+                await fs.writeFile(
+                    path.join(workspaceRoot, 'agents', 'registry.json'),
+                    JSON.stringify({ agents: [] }, null, 2),
+                    'utf8'
+                );
+                process.chdir(outsideDir);
+
+                const baseConfig: AgentConfig = {
+                    llm: {
+                        provider: 'openai',
+                        model: 'gpt-5',
+                        apiKey: 'test-key',
+                    },
+                    systemPrompt: 'You are a helpful assistant.',
+                };
+
+                const enriched = enrichAgentConfig(
+                    baseConfig,
+                    path.join(workspaceRoot, 'agents', 'review-agent', 'review-agent.yml'),
+                    {
+                        workspaceRoot,
+                    }
+                );
+
+                expect(enriched.storage?.database).toEqual({
+                    type: 'sqlite',
+                    path: path.join(workspaceRoot, '.dexto', 'database', 'review-agent.db'),
+                });
+                expect(enriched.storage?.blob).toEqual({
+                    type: 'local',
+                    storePath: path.join(workspaceRoot, '.dexto', 'blobs', 'review-agent'),
+                });
+            } finally {
+                process.chdir(originalCwd);
+                await fs.rm(tempDir, { recursive: true, force: true });
+            }
         });
 
         it('should allow disabling instruction file discovery', () => {

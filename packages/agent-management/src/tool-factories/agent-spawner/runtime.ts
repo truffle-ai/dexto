@@ -240,6 +240,7 @@ export class AgentSpawnerRuntime implements TaskForker {
     private async resolveWorkspaceRegistryAgentConfig(agentId: string): Promise<{
         configPath: string | null;
         blocked: boolean;
+        blockedReason?: string | undefined;
         registryFound: boolean;
         allowGlobalAgents: boolean;
     }> {
@@ -265,6 +266,7 @@ export class AgentSpawnerRuntime implements TaskForker {
                     return {
                         configPath: null,
                         blocked: true,
+                        blockedReason: `Workspace agent '${agentId}' cannot spawn itself.`,
                         registryFound: true,
                         allowGlobalAgents,
                     };
@@ -274,14 +276,45 @@ export class AgentSpawnerRuntime implements TaskForker {
                     return {
                         configPath: null,
                         blocked: true,
+                        blockedReason: `Workspace agent '${agentId}' is linked to a different parent and is not available to '${this.parentAgent.config.agentId ?? this.parentId}'.`,
                         registryFound: true,
                         allowGlobalAgents,
                     };
                 }
 
-                const configPath = await resolveProjectRegistryAgentPath(projectRoot, agentId);
-                if (configPath) {
-                    return { configPath, blocked: false, registryFound: true, allowGlobalAgents };
+                try {
+                    const configPath = await resolveProjectRegistryAgentPath(projectRoot, agentId);
+                    if (configPath) {
+                        return {
+                            configPath,
+                            blocked: false,
+                            registryFound: true,
+                            allowGlobalAgents,
+                        };
+                    }
+
+                    return {
+                        configPath: null,
+                        blocked: true,
+                        blockedReason: `Workspace agent '${agentId}' is declared in ${loaded.registryPath} but its config path could not be resolved.`,
+                        registryFound: true,
+                        allowGlobalAgents,
+                    };
+                } catch (error) {
+                    const blockedReason =
+                        error instanceof Error
+                            ? error.message
+                            : `Workspace agent '${agentId}' could not be resolved from ${loaded.registryPath}.`;
+                    this.logger.warn(
+                        `Failed to resolve workspace registry agent '${agentId}' from ${projectRoot}: ${blockedReason}`
+                    );
+                    return {
+                        configPath: null,
+                        blocked: true,
+                        blockedReason,
+                        registryFound: true,
+                        allowGlobalAgents,
+                    };
                 }
             } catch (error) {
                 this.logger.warn(
@@ -995,7 +1028,8 @@ export class AgentSpawnerRuntime implements TaskForker {
                 workspaceRegistryResolution.allowGlobalAgents;
             if (workspaceRegistryResolution.blocked) {
                 throw new Error(
-                    `Workspace agent '${agentId}' is linked to a different parent and is not available to '${this.parentAgent.config.agentId ?? this.parentId}'.`
+                    workspaceRegistryResolution.blockedReason ??
+                        `Workspace agent '${agentId}' is linked to a different parent and is not available to '${this.parentAgent.config.agentId ?? this.parentId}'.`
                 );
             }
 
