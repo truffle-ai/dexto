@@ -24,7 +24,7 @@ import { selectOrExit, textOrExit } from '../utils/prompt-helpers.js';
 const AGENTS_FILENAME = 'AGENTS.md';
 const WORKSPACE_DIRECTORIES = ['agents', 'skills'] as const;
 const DEFAULT_AGENT_PROVIDER: LLMProvider = 'openai';
-const DEFAULT_AGENT_MODEL = 'gpt-5.4-codex';
+const DEFAULT_AGENT_MODEL = 'gpt-5.3-codex';
 const DEFAULT_AGENT_VERSION = '0.1.0';
 
 const DEFAULT_AGENTS_MD = `<!-- dexto-workspace -->

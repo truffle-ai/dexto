@@ -149,7 +149,7 @@ describe('init command', () => {
         expect(configContent.image).toBe('@dexto/image-local');
         expect(configContent.llm).toEqual({
             provider: 'openai',
-            model: 'gpt-5.4-codex',
+            model: 'gpt-5.3-codex',
             apiKey: '$OPENAI_API_KEY',
         });
     });
@@ -179,7 +179,7 @@ describe('init command', () => {
         };
         expect(configContent.llm).toEqual({
             provider: 'openai',
-            model: 'gpt-5.4-codex',
+            model: 'gpt-5.3-codex',
             apiKey: '$OPENAI_API_KEY',
         });
         expect(configContent.llm.baseURL).toBeUndefined();
