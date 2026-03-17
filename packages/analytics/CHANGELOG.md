@@ -1,5 +1,13 @@
 # @dexto/analytics
 
+## 1.6.15
+
+### Patch Changes
+
+- Updated dependencies [6a490b0]
+    - @dexto/agent-management@1.6.15
+    - @dexto/core@1.6.15
+
 ## 1.6.14
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@dexto/client-sdk",
-  "version": "1.6.14",
+  "version": "1.6.15",
   "private": false,
   "type": "module",
   "main": "./dist/index.cjs",
