@@ -95,6 +95,7 @@ describe('enrichAgentConfig', () => {
 
             expect(discoverStandaloneSkills).toHaveBeenCalledWith('/workspace/project');
             expect(discoverAgentInstructionFile).toHaveBeenCalledWith('/workspace/project');
+            expect(discoverCommandPrompts).toHaveBeenCalledWith('/workspace/project');
         });
 
         it('falls back to the selected config directory when no project root is found', () => {
@@ -109,10 +110,39 @@ describe('enrichAgentConfig', () => {
 
             enrichAgentConfig(baseConfig, '/tmp/standalone/review-agent/review-agent.yml');
 
+            expect(discoverCommandPrompts).toHaveBeenCalledWith('/tmp/standalone/review-agent');
             expect(discoverStandaloneSkills).toHaveBeenCalledWith('/tmp/standalone/review-agent');
             expect(discoverAgentInstructionFile).toHaveBeenCalledWith(
                 '/tmp/standalone/review-agent'
             );
+        });
+
+        it('loads discovered command prompts from the resolved workspace root', () => {
+            const workspaceRoot = '/workspace/project';
+            const workspacePrompt = path.join(workspaceRoot, 'commands', 'review.md');
+            vi.mocked(discoverCommandPrompts).mockReturnValue([
+                { type: 'file', file: workspacePrompt },
+            ]);
+
+            const baseConfig: AgentConfig = {
+                llm: {
+                    provider: 'openai',
+                    model: 'gpt-5',
+                    apiKey: 'test-key',
+                },
+                systemPrompt: 'You are a helpful assistant.',
+            };
+
+            const enriched = enrichAgentConfig(
+                baseConfig,
+                '/tmp/elsewhere/review-agent/review-agent.yml',
+                {
+                    workspaceRoot,
+                }
+            );
+
+            expect(discoverCommandPrompts).toHaveBeenCalledWith(workspaceRoot);
+            expect(enriched.prompts).toEqual([{ type: 'file', file: workspacePrompt }]);
         });
 
         it('uses the resolved workspace root for storage defaults too', async () => {

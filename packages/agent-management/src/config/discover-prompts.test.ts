@@ -271,6 +271,29 @@ describe('discoverCommandPrompts', () => {
                 file: '/test/project/.dexto/commands/test.md',
             });
         });
+
+        it('should discover commands from a provided workspace root instead of process.cwd()', () => {
+            vi.mocked(getExecutionContext).mockReturnValue('global-cli');
+            vi.mocked(fs.existsSync).mockImplementation(
+                (p) => p === '/test/workspace/.dexto/commands'
+            );
+            vi.mocked(fs.readdirSync).mockImplementation((dir) => {
+                if (dir === '/test/workspace/.dexto/commands') {
+                    return [createDirent('review.md', true)] as any;
+                }
+                return [];
+            });
+            process.cwd = vi.fn(() => '/some/other/place');
+
+            const result = discoverCommandPrompts('/test/workspace');
+
+            expect(result).toEqual([
+                {
+                    type: 'file',
+                    file: '/test/workspace/.dexto/commands/review.md',
+                },
+            ]);
+        });
     });
 
     describe('discovery from local .claude/commands/', () => {

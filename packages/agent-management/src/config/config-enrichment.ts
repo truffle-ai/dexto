@@ -229,7 +229,7 @@ export function enrichAgentConfig(
     // in the future, per-agent backup paths can be generated here.
 
     // Discover and merge command prompts from commands/ directories
-    const discoveredPrompts = discoverCommandPrompts();
+    const discoveredPrompts = discoverCommandPrompts(workspaceRoot);
     if (discoveredPrompts.length > 0) {
         // Merge discovered prompts with existing config prompts
         // Config prompts take precedence - deduplicate by file path to avoid

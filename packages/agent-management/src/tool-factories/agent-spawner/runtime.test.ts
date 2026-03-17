@@ -266,6 +266,9 @@ describe('AgentSpawnerRuntime workspace inheritance', () => {
             ),
             'utf8'
         );
+        // allowGlobalAgents is omitted here, so the workspace registry defaults it to false.
+        // getAvailableAgents should therefore ignore the mocked global registry inventory and
+        // only surface workspace agents declared in registry.json.
         process.chdir(workspaceRoot);
 
         const parentAgent = {
