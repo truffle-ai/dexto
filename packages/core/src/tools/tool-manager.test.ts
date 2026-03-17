@@ -153,6 +153,57 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
         });
     });
 
+    describe('Contributor Context', () => {
+        it('includes session context when a session id is provided', async () => {
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [],
+                mockLogger
+            );
+
+            const context = await toolManager.buildContributorContext({
+                sessionId: 'session-123',
+            });
+
+            expect(context.session).toEqual({ id: 'session-123' });
+        });
+
+        it('preserves session context when contributor overrides add environment data', async () => {
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [],
+                mockLogger
+            );
+
+            toolManager.setContributorContextFactory(() => ({
+                environment: {
+                    cwd: '/workspace',
+                    platform: 'linux',
+                },
+            }));
+
+            const context = await toolManager.buildContributorContext({
+                sessionId: 'session-456',
+            });
+
+            expect(context.session).toEqual({ id: 'session-456' });
+            expect(context.environment).toEqual({
+                cwd: '/workspace',
+                platform: 'linux',
+            });
+        });
+    });
+
     describe('Tool Name Parsing Logic', () => {
         it('should extract actual tool name from MCP prefix', () => {
             const prefixedName = 'mcp--file_read';

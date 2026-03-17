@@ -1886,7 +1886,7 @@ export class DextoAgent {
 
         // Get full context estimate BEFORE compaction (includes system prompt, tools, messages)
         // This uses the same calculation as /context command for consistency
-        const contributorContext = await this.toolManager.buildContributorContext();
+        const contributorContext = await this.toolManager.buildContributorContext({ sessionId });
         const tools = await llmService.getEnabledTools();
         const beforeEstimate = await contextManager.getContextTokenEstimate(
             contributorContext,
@@ -2027,7 +2027,7 @@ export class DextoAgent {
         const contextManager = session.getContextManager();
 
         // Get token estimate using ContextManager's method (single source of truth)
-        const contributorContext = await this.toolManager.buildContributorContext();
+        const contributorContext = await this.toolManager.buildContributorContext({ sessionId });
         const llmService = session.getLLMService();
         const tools = await llmService.getEnabledTools();
 

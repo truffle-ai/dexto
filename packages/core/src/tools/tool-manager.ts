@@ -1034,11 +1034,18 @@ export class ToolManager {
         this.contributorContextFactory = factory ?? undefined;
     }
 
-    async buildContributorContext(): Promise<DynamicContributorContext> {
+    async buildContributorContext(options?: {
+        sessionId?: string | null;
+    }): Promise<DynamicContributorContext> {
         const baseWorkspace = this.currentWorkspace ?? null;
+        const sessionId =
+            typeof options?.sessionId === 'string' && options.sessionId.length > 0
+                ? options.sessionId
+                : undefined;
         const baseContext: DynamicContributorContext = {
             mcpManager: this.mcpManager,
             workspace: baseWorkspace,
+            ...(sessionId !== undefined ? { session: { id: sessionId } } : {}),
         };
 
         if (!this.contributorContextFactory) {
@@ -1053,11 +1060,14 @@ export class ToolManager {
                 overrides.environment !== undefined
                     ? overrides.environment
                     : baseContext.environment;
+            const session =
+                overrides.session !== undefined ? overrides.session : baseContext.session;
             const mcpManager = overrides.mcpManager ?? baseContext.mcpManager;
             return {
                 mcpManager,
                 workspace,
                 ...(environment !== undefined ? { environment } : {}),
+                ...(session !== undefined ? { session } : {}),
             };
         } catch (error) {
             this.logger.warn(

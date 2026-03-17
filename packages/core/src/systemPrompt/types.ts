@@ -8,11 +8,16 @@ export type EnvironmentContext = {
     isGitRepo?: boolean;
 };
 
+export type SessionContext = {
+    id: string;
+};
+
 // Context passed to dynamic contributors
 export interface DynamicContributorContext {
     mcpManager: MCPManager;
     workspace?: WorkspaceContext | null;
     environment?: EnvironmentContext;
+    session?: SessionContext | null;
 }
 
 export type DynamicContributorContextOverrides = Partial<DynamicContributorContext>;
