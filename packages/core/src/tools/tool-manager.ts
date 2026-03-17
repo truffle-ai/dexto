@@ -249,6 +249,7 @@ export class ToolManager {
                 'workspace:changed',
                 (payload) => {
                     this.currentWorkspace = payload.workspace ?? undefined;
+                    this.invalidateCache();
                 },
                 { signal: this.workspaceListenerAbort.signal }
             );
@@ -268,7 +269,11 @@ export class ToolManager {
         }
 
         try {
+            const previousWorkspacePath = this.currentWorkspace?.path;
             this.currentWorkspace = await this.workspaceManager.getWorkspace();
+            if (previousWorkspacePath !== this.currentWorkspace?.path) {
+                this.invalidateCache();
+            }
         } catch (error) {
             this.logger.debug(
                 `Failed to refresh workspace context: ${error instanceof Error ? error.message : String(error)}`
@@ -1194,9 +1199,27 @@ export class ToolManager {
 
         // Add local tools
         for (const [toolName, tool] of this.agentTools) {
+            let description = tool.description || 'No description provided';
+            if (tool.getDescription) {
+                try {
+                    const dynamicDescription = await tool.getDescription(
+                        this.buildToolExecutionContext({})
+                    );
+                    if (dynamicDescription.trim()) {
+                        description = dynamicDescription;
+                    }
+                } catch (error) {
+                    this.logger.warn(
+                        `Failed to build dynamic description for '${toolName}': ${
+                            error instanceof Error ? error.message : String(error)
+                        }`
+                    );
+                }
+            }
+
             allTools[toolName] = {
                 name: toolName,
-                description: tool.description || 'No description provided',
+                description,
                 parameters: wrapToolParametersSchema(
                     convertZodSchemaToJsonSchema(tool.inputSchema, this.logger)
                 ),

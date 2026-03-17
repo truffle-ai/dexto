@@ -80,12 +80,20 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
             }
         };
 
+        const updateWorkspaceRootHint = (
+            runtime: AgentSpawnerRuntime,
+            context: ToolExecutionContext
+        ) => {
+            runtime.setWorkspaceRootHint(context.workspace?.path);
+        };
+
         const ensureToolsInitialized = (
             context: ToolExecutionContext
         ): InitializedAgentSpawnerTools => {
             const { agent, logger, toolServices } = requireAgentContext(context);
 
             if (state && state.agent === agent && !state.abortController.signal.aborted) {
+                updateWorkspaceRootHint(state.runtime, context);
                 attachTaskForker({ toolServices, taskForker: state.runtime, logger });
                 return state.tools;
             }
@@ -106,6 +114,7 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
 
             // Create the runtime bridge that spawns/executes sub-agents.
             const spawnerRuntime = new AgentSpawnerRuntime(agent, config, logger);
+            updateWorkspaceRootHint(spawnerRuntime, context);
             attachTaskForker({ toolServices, taskForker: spawnerRuntime, logger });
 
             const taskSessions = new Map<string, string>();
@@ -299,6 +308,8 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
             {
                 id: 'spawn_agent',
                 description: 'Spawn a sub-agent to handle a task and return its result.',
+                getDescription: (context: ToolExecutionContext) =>
+                    ensureToolsInitialized(context).spawnAgent.description,
                 inputSchema: SpawnAgentInputSchema,
                 execute: (input, context) =>
                     ensureToolsInitialized(context).spawnAgent.execute(input, context),

@@ -1105,6 +1105,41 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
     });
 
     describe('Cache Management Logic', () => {
+        it('uses dynamic tool descriptions when provided', async () => {
+            const getDescription = vi.fn().mockReturnValue('Dynamic description');
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    {
+                        id: 'dynamic_tool',
+                        description: 'Static description',
+                        getDescription,
+                        inputSchema: z.object({}).strict(),
+                        execute: vi.fn(),
+                    },
+                ] as any,
+                mockLogger
+            );
+
+            toolManager.setToolExecutionContextFactory((baseContext) => ({
+                ...baseContext,
+                agent: {} as any,
+                services: {} as any,
+            }));
+
+            const tools = await toolManager.getAllTools();
+
+            expect(tools['dynamic_tool']?.description).toBe('Dynamic description');
+            expect(getDescription).toHaveBeenCalledTimes(1);
+        });
+
         it('should cache tool discovery results', async () => {
             const tools = {
                 test_tool: { name: 'test_tool', description: 'Test', parameters: {} },
@@ -1154,6 +1189,63 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             await toolManager.refresh();
 
             // Second call should fetch again
+            await toolManager.getAllTools();
+
+            expect(mockMcpManager.getAllTools).toHaveBeenCalledTimes(2);
+        });
+
+        it('invalidates cache when the workspace changes', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+            let workspaceChangedListener:
+                | ((payload: {
+                      workspace: {
+                          id: string;
+                          path: string;
+                          createdAt: number;
+                          lastActiveAt: number;
+                      } | null;
+                  }) => void)
+                | undefined;
+            mockAgentEventBus.on = vi.fn((eventName, listener) => {
+                if (eventName === 'workspace:changed') {
+                    workspaceChangedListener = listener as typeof workspaceChangedListener;
+                }
+                return mockAgentEventBus;
+            }) as any;
+
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [],
+                mockLogger
+            );
+
+            toolManager.setWorkspaceManager({
+                getWorkspace: vi.fn().mockResolvedValue({
+                    id: 'workspace-1',
+                    path: '/tmp/workspace-one',
+                    createdAt: 1,
+                    lastActiveAt: 1,
+                }),
+            } as any);
+
+            await toolManager.getAllTools();
+
+            expect(workspaceChangedListener).toBeTypeOf('function');
+
+            workspaceChangedListener?.({
+                workspace: {
+                    id: 'workspace-2',
+                    path: '/tmp/workspace-two',
+                    createdAt: 2,
+                    lastActiveAt: 2,
+                },
+            });
+
             await toolManager.getAllTools();
 
             expect(mockMcpManager.getAllTools).toHaveBeenCalledTimes(2);

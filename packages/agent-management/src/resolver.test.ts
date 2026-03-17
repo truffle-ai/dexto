@@ -383,7 +383,7 @@ describe('Agent Resolver', () => {
             mockFindDextoProjectRoot.mockReturnValue(tempDir);
         });
 
-        it('uses project registry coding-agent entry when present', async () => {
+        it('uses primaryAgent from the project registry when present', async () => {
             const registryPath = path.join(tempDir, 'agents', 'registry.json');
             const projectDefault = path.join(tempDir, 'agents', 'custom-primary', 'main.yml');
             await fs.mkdir(path.dirname(registryPath), { recursive: true });
@@ -392,12 +392,37 @@ describe('Agent Resolver', () => {
             await fs.writeFile(
                 registryPath,
                 JSON.stringify({
+                    primaryAgent: 'review-agent',
                     agents: [
                         {
-                            id: 'coding-agent',
-                            name: 'Coding Agent',
+                            id: 'review-agent',
+                            name: 'Review Agent',
                             description: 'Primary workspace agent',
                             configPath: './custom-primary/main.yml',
+                        },
+                    ],
+                })
+            );
+
+            const result = await resolveAgentPath();
+            expect(result).toBe(projectDefault);
+        });
+
+        it('uses the single registry agent when no primaryAgent is set', async () => {
+            const registryPath = path.join(tempDir, 'agents', 'registry.json');
+            const projectDefault = path.join(tempDir, 'agents', 'review-agent', 'review-agent.yml');
+            await fs.mkdir(path.dirname(registryPath), { recursive: true });
+            await fs.mkdir(path.dirname(projectDefault), { recursive: true });
+            await fs.writeFile(projectDefault, 'test: config');
+            await fs.writeFile(
+                registryPath,
+                JSON.stringify({
+                    agents: [
+                        {
+                            id: 'review-agent',
+                            name: 'Review Agent',
+                            description: 'Primary workspace agent',
+                            configPath: './review-agent/review-agent.yml',
                         },
                     ],
                 })
@@ -438,6 +463,20 @@ describe('Agent Resolver', () => {
 
             const result = await resolveAgentPath();
             expect(result).toBe(projectDefault);
+        });
+
+        it('throws when primaryAgent points to a missing registry entry', async () => {
+            const registryPath = path.join(tempDir, 'agents', 'registry.json');
+            await fs.mkdir(path.dirname(registryPath), { recursive: true });
+            await fs.writeFile(
+                registryPath,
+                JSON.stringify({
+                    primaryAgent: 'review-agent',
+                    agents: [],
+                })
+            );
+
+            await expect(resolveAgentPath()).rejects.toThrow("Invalid primaryAgent 'review-agent'");
         });
 
         it('uses project-local src/dexto/agents/coding-agent.yml when exists', async () => {

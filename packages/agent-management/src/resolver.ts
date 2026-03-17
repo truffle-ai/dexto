@@ -14,6 +14,7 @@ import { ConfigError } from './config/index.js';
 import { RegistryError } from './registry/errors.js';
 import { AgentManager } from './AgentManager.js';
 import { installBundledAgent } from './installation.js';
+import { resolveDefaultProjectRegistryAgentPath } from './project-registry.js';
 
 /**
  * Entry in the installed agents registry (registry.json)
@@ -32,46 +33,6 @@ interface InstalledAgentEntry {
  */
 interface InstalledRegistry {
     agents: InstalledAgentEntry[];
-}
-
-async function resolveProjectRegistryAgentPath(
-    projectRoot: string,
-    agentId: string
-): Promise<string | null> {
-    const candidateRegistryPaths = [
-        path.join(projectRoot, 'agents', 'registry.json'),
-        path.join(projectRoot, 'agents', 'agent-registry.json'),
-    ];
-
-    for (const registryPath of candidateRegistryPaths) {
-        try {
-            await fs.access(registryPath);
-            const registryContent = await fs.readFile(registryPath, 'utf-8');
-            const registry = JSON.parse(registryContent) as InstalledRegistry;
-            if (!Array.isArray(registry.agents)) {
-                logger.debug(`Project agent registry has invalid agents array: ${registryPath}`);
-                continue;
-            }
-
-            const entry = registry.agents.find((agent) => agent.id === agentId);
-            if (!entry) {
-                continue;
-            }
-
-            const configPath = path.resolve(path.dirname(registryPath), entry.configPath);
-            await fs.access(configPath);
-            return configPath;
-        } catch (error) {
-            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-                continue;
-            }
-            logger.debug(
-                `Unable to resolve project registry agent '${agentId}' from ${registryPath}: ${error instanceof Error ? error.message : String(error)}`
-            );
-        }
-    }
-
-    return null;
 }
 
 /**
@@ -250,13 +211,19 @@ async function resolveDefaultAgentForDextoProject(autoInstall: boolean = true): 
         throw ConfigError.unknownContext('dexto-project: project root not found');
     }
 
-    // 1. Prefer project registry entry for coding-agent
-    const projectRegistryAgentPath = await resolveProjectRegistryAgentPath(
-        projectRoot,
-        'coding-agent'
-    );
-    if (projectRegistryAgentPath) {
-        return projectRegistryAgentPath;
+    // 1. Prefer explicit or inferred project registry default
+    try {
+        const projectRegistryAgentPath = await resolveDefaultProjectRegistryAgentPath(projectRoot);
+        if (projectRegistryAgentPath) {
+            return projectRegistryAgentPath;
+        }
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const primaryAgentMatch = message.match(/Primary agent '([^']+)'/);
+        if (primaryAgentMatch?.[1]) {
+            throw ConfigError.invalidProjectPrimary(projectRoot, primaryAgentMatch[1], message);
+        }
+        throw error;
     }
 
     // 2. Try project-local coding-agent.yml conventions

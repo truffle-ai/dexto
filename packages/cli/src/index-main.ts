@@ -97,6 +97,7 @@ import { registerImageCommand } from './cli/commands/image/register.js';
 import { registerPluginCommand } from './cli/commands/plugin/register.js';
 import { registerAgentsCommand } from './cli/commands/agents/register.js';
 import { registerDeployCommand } from './cli/commands/deploy/register.js';
+import { registerInitCommand } from './cli/commands/init.js';
 import type { BootstrapAgentMode } from './cli/commands/register-context.js';
 import type { MainModeOptions } from './cli/modes/context.js';
 import type { CLIConfigOverrides } from './config/cli-overrides.js';
@@ -217,23 +218,7 @@ program
 
 registerImageCommand({ program });
 registerDeployCommand({ program });
-
-program
-    .command('init')
-    .description('Initialize the current folder as a Dexto workspace')
-    .action(
-        withAnalytics('init', async () => {
-            try {
-                const { handleInitCommand } = await import('./cli/commands/init.js');
-                await handleInitCommand();
-                safeExit('init', 0);
-            } catch (err) {
-                if (err instanceof ExitSignal) throw err;
-                console.error(`❌ dexto init command failed: ${err}`);
-                safeExit('init', 1, 'error');
-            }
-        })
-    );
+registerInitCommand({ program });
 
 // 4) `init-app` SUB-COMMAND
 program
