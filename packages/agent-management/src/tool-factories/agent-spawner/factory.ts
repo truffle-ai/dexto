@@ -308,8 +308,13 @@ export const agentSpawnerToolsFactory: ToolFactory<AgentSpawnerConfig> = {
             {
                 id: 'spawn_agent',
                 description: 'Spawn a sub-agent to handle a task and return its result.',
-                getDescription: (context: ToolExecutionContext) =>
-                    ensureToolsInitialized(context).spawnAgent.description,
+                getDescription: async (context: ToolExecutionContext) => {
+                    const tool = ensureToolsInitialized(context).spawnAgent;
+                    if (tool.getDescription) {
+                        return await tool.getDescription(context);
+                    }
+                    return tool.description;
+                },
                 inputSchema: SpawnAgentInputSchema,
                 execute: (input, context) =>
                     ensureToolsInitialized(context).spawnAgent.execute(input, context),

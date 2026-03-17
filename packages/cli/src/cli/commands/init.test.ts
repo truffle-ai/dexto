@@ -259,6 +259,22 @@ describe('init command', () => {
         expect(result.primaryAgent).toEqual({ id: 'helper-agent', status: 'set' });
     });
 
+    it('rejects invalid existing registries before adding new agents', async () => {
+        await createWorkspaceScaffold(tempDir);
+        await fs.writeFile(
+            path.join(tempDir, 'agents', 'registry.json'),
+            JSON.stringify({
+                primaryAgent: 'missing-agent',
+                agents: [],
+            }),
+            'utf8'
+        );
+
+        await expect(createWorkspaceAgentScaffold('helper-agent', {}, tempDir)).rejects.toThrow(
+            "Primary agent 'missing-agent' not found"
+        );
+    });
+
     it('creates a sub-agent scaffold and marks it in the registry', async () => {
         const result = await createWorkspaceAgentScaffold(
             'explore-agent',

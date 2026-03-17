@@ -17,6 +17,7 @@ vi.mock('../plugins/index.js', () => ({
 // Import after mock is set up
 import { enrichAgentConfig } from './config-enrichment.js';
 import { discoverAgentInstructionFile, discoverCommandPrompts } from './discover-prompts.js';
+import { discoverStandaloneSkills } from '../plugins/index.js';
 
 // TODO: Add more comprehensive tests for config-enrichment:
 // - Test path resolution for per-agent logs, database, blobs
@@ -28,6 +29,8 @@ describe('enrichAgentConfig', () => {
         vi.mocked(discoverCommandPrompts).mockReturnValue([]);
         vi.mocked(discoverAgentInstructionFile).mockReset();
         vi.mocked(discoverAgentInstructionFile).mockReturnValue(null);
+        vi.mocked(discoverStandaloneSkills).mockReset();
+        vi.mocked(discoverStandaloneSkills).mockReturnValue([]);
     });
 
     describe('logger defaults', () => {
@@ -73,6 +76,24 @@ describe('enrichAgentConfig', () => {
     });
 
     describe('prompt deduplication', () => {
+        it('uses the explicit workspaceRoot for workspace-scoped discovery', () => {
+            const baseConfig: AgentConfig = {
+                llm: {
+                    provider: 'openai',
+                    model: 'gpt-5',
+                    apiKey: 'test-key',
+                },
+                systemPrompt: 'You are a helpful assistant.',
+            };
+
+            enrichAgentConfig(baseConfig, '/tmp/elsewhere/agent.yml', {
+                workspaceRoot: '/workspace/project',
+            });
+
+            expect(discoverStandaloneSkills).toHaveBeenCalledWith('/workspace/project');
+            expect(discoverAgentInstructionFile).toHaveBeenCalledWith('/workspace/project');
+        });
+
         it('should allow disabling instruction file discovery', () => {
             vi.mocked(discoverAgentInstructionFile).mockReturnValue('/test/AGENTS.md');
 

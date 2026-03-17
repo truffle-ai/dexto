@@ -6,11 +6,6 @@ export { createDextoProject, type CreateAppOptions } from './create-app.js';
 export { createImage } from './create-image.js';
 
 export {
-    createWorkspaceScaffold,
-    createWorkspaceAgentScaffold,
-    createWorkspaceSkillScaffold,
-    linkWorkspaceSubagentToPrimaryAgent,
-    setWorkspacePrimaryAgent,
     handleInitCommand,
     handleInitAgentCommand,
     handleInitPrimaryCommand,

@@ -195,9 +195,10 @@ describe('Execution Context Detection', () => {
     });
 
     describe('Workspace markers without package.json', () => {
-        it('treats AGENTS.md as a dexto-project marker', () => {
+        it('treats AGENTS.md plus authored workspace directories as a dexto-project marker', () => {
             tempDir = createTempDirStructure({
                 'AGENTS.md': '# Workspace instructions',
+                'skills/.gitkeep': '',
             });
             const nestedDir = path.join(tempDir, 'nested');
             fs.mkdirSync(nestedDir, { recursive: true });
@@ -206,26 +207,26 @@ describe('Execution Context Detection', () => {
             expect(findDextoProjectRoot(nestedDir)).toBe(tempDir);
         });
 
-        it('treats skills/*/SKILL.md as a dexto-project marker', () => {
+        it('does not treat skills/*/SKILL.md alone as a dexto-project marker', () => {
             tempDir = createTempDirStructure({
                 'skills/release-check/SKILL.md': '# Release Check',
             });
             const srcDir = path.join(tempDir, 'src');
             fs.mkdirSync(srcDir, { recursive: true });
 
-            expect(getExecutionContext(tempDir)).toBe('dexto-project');
-            expect(findDextoProjectRoot(srcDir)).toBe(tempDir);
+            expect(getExecutionContext(tempDir)).toBe('global-cli');
+            expect(findDextoProjectRoot(srcDir)).toBeNull();
         });
 
-        it('treats agents/<id>/<id>.yml as a dexto-project marker', () => {
+        it('does not treat arbitrary agents/<id>/<id>.yml as a dexto-project marker', () => {
             tempDir = createTempDirStructure({
                 'agents/reviewer/reviewer.yml': 'agentCard:\n  name: Reviewer\n',
             });
             const nestedDir = path.join(tempDir, 'nested');
             fs.mkdirSync(nestedDir, { recursive: true });
 
-            expect(getExecutionContext(tempDir)).toBe('dexto-project');
-            expect(findDextoProjectRoot(nestedDir)).toBe(tempDir);
+            expect(getExecutionContext(tempDir)).toBe('global-cli');
+            expect(findDextoProjectRoot(nestedDir)).toBeNull();
         });
 
         it('treats agents/registry.json as a dexto-project marker', () => {
@@ -246,6 +247,15 @@ describe('Execution Context Detection', () => {
 
             expect(getExecutionContext(tempDir)).toBe('dexto-project');
             expect(findDextoProjectRoot(nestedDir)).toBe(tempDir);
+        });
+
+        it('does not treat AGENTS.md alone as a dexto-project marker', () => {
+            tempDir = createTempDirStructure({
+                'AGENTS.md': '# Generic agent instructions',
+            });
+
+            expect(getExecutionContext(tempDir)).toBe('global-cli');
+            expect(findDextoProjectRoot(tempDir)).toBeNull();
         });
     });
 

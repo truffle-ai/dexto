@@ -1165,6 +1165,47 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(mockMcpManager.getAllTools).toHaveBeenCalledTimes(1);
         });
 
+        it('refreshes dynamic local tool descriptions even when the tool cache is warm', async () => {
+            const getDescription = vi
+                .fn()
+                .mockResolvedValueOnce('Workspace agents: review-agent')
+                .mockResolvedValueOnce('Workspace agents: explore-agent');
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    {
+                        id: 'spawn_agent',
+                        description: 'Static description',
+                        getDescription,
+                        inputSchema: z.object({}).strict(),
+                        execute: vi.fn(),
+                    },
+                ] as any,
+                mockLogger
+            );
+
+            toolManager.setToolExecutionContextFactory((baseContext) => ({
+                ...baseContext,
+                agent: {} as any,
+                services: {} as any,
+            }));
+
+            const firstDescription = (await toolManager.getAllTools())['spawn_agent']?.description;
+            const secondDescription = (await toolManager.getAllTools())['spawn_agent']?.description;
+
+            expect(firstDescription).toBe('Workspace agents: review-agent');
+            expect(secondDescription).toBe('Workspace agents: explore-agent');
+            expect(mockMcpManager.getAllTools).toHaveBeenCalledTimes(1);
+            expect(getDescription).toHaveBeenCalledTimes(2);
+        });
+
         it('should invalidate cache on refresh', async () => {
             const tools = {
                 test_tool: { name: 'test_tool', description: 'Test', parameters: {} },

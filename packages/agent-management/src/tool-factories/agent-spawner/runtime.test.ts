@@ -292,12 +292,75 @@ describe('AgentSpawnerRuntime workspace inheritance', () => {
 
         const runtime = new AgentSpawnerRuntime(parentAgent, config, createMockLogger());
 
-        expect(runtime.getAvailableAgents()).toEqual([
+        await expect(runtime.getAvailableAgents()).resolves.toEqual([
             expect.objectContaining({
                 id: 'review-agent',
                 name: 'Review Agent',
                 description: 'Reviews changes',
                 type: 'custom',
+            }),
+        ]);
+    });
+
+    it('uses the parent workspace for available agents even when cwd is elsewhere', async () => {
+        const workspaceRoot = path.join(tempDir, 'workspace');
+        await fs.mkdir(path.join(workspaceRoot, 'agents'), { recursive: true });
+        await fs.writeFile(
+            path.join(workspaceRoot, 'agents', 'registry.json'),
+            JSON.stringify(
+                {
+                    agents: [
+                        {
+                            id: 'explore-agent',
+                            name: 'Explore Agent',
+                            description: 'Workspace sub-agent',
+                            configPath: './explore-agent/explore-agent.yml',
+                            parentAgentId: 'review-agent',
+                            tags: ['subagent'],
+                        },
+                        {
+                            id: 'review-agent',
+                            name: 'Review Agent',
+                            description: 'Workspace review agent',
+                            configPath: './review-agent/review-agent.yml',
+                        },
+                    ],
+                },
+                null,
+                2
+            ),
+            'utf8'
+        );
+        process.chdir(tempDir);
+
+        const parentAgent = {
+            config: {
+                agentId: 'review-agent',
+                mcpServers: {},
+            },
+            getCurrentLLMConfig: () => ({
+                provider: 'openai',
+                model: 'gpt-4o-mini',
+            }),
+            getWorkspace: vi.fn(async () => ({
+                id: 'workspace-1',
+                path: workspaceRoot,
+                name: 'Workspace',
+                createdAt: Date.now(),
+                lastActiveAt: Date.now(),
+            })),
+            services: {
+                approvalManager: {},
+            },
+            emit: vi.fn(),
+        } as unknown as DextoAgent;
+
+        const runtime = new AgentSpawnerRuntime(parentAgent, config, createMockLogger());
+
+        await expect(runtime.getAvailableAgents()).resolves.toEqual([
+            expect.objectContaining({
+                id: 'explore-agent',
+                name: 'Explore Agent',
             }),
         ]);
     });
@@ -369,7 +432,7 @@ describe('AgentSpawnerRuntime workspace inheritance', () => {
         const runtime = new AgentSpawnerRuntime(parentAgent, config, createMockLogger());
         runtime.setWorkspaceRootHint(workspaceRoot);
 
-        expect(runtime.getAvailableAgents()).toEqual([
+        await expect(runtime.getAvailableAgents()).resolves.toEqual([
             expect.objectContaining({
                 id: 'explore-agent',
                 name: 'Explore Agent',
@@ -553,7 +616,7 @@ describe('AgentSpawnerRuntime workspace inheritance', () => {
             createMockLogger()
         );
 
-        expect(runtime.getAvailableAgents()).toEqual([
+        await expect(runtime.getAvailableAgents()).resolves.toEqual([
             expect.objectContaining({
                 id: 'explore-agent',
                 name: 'Explore Agent',
@@ -628,7 +691,7 @@ describe('AgentSpawnerRuntime workspace inheritance', () => {
 
         const runtime = new AgentSpawnerRuntime(parentAgent, config, createMockLogger());
 
-        expect(runtime.getAvailableAgents()).toEqual(
+        await expect(runtime.getAvailableAgents()).resolves.toEqual(
             expect.arrayContaining([
                 expect.objectContaining({ id: 'explore-agent' }),
                 expect.objectContaining({ id: 'global-agent' }),
@@ -782,6 +845,6 @@ describe('AgentSpawnerRuntime workspace inheritance', () => {
 
         const runtime = new AgentSpawnerRuntime(parentAgent, config, createMockLogger());
 
-        expect(runtime.getAvailableAgents()).toEqual([]);
+        await expect(runtime.getAvailableAgents()).resolves.toEqual([]);
     });
 });

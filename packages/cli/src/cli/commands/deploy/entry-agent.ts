@@ -1,11 +1,11 @@
+import {
+    findProjectRegistryPath,
+    getDefaultProjectRegistryEntry,
+    readProjectRegistry,
+} from '@dexto/agent-management';
 import { existsSync, promises as fs } from 'fs';
 import path from 'path';
 import { normalizeWorkspaceRelativePath } from './config.js';
-
-const PROJECT_REGISTRY_RELATIVE_PATHS = [
-    path.join('agents', 'registry.json'),
-    path.join('agents', 'agent-registry.json'),
-] as const;
 
 const PRIMARY_WORKSPACE_AGENT_PATHS = [
     path.join('agents', 'coding-agent', 'coding-agent.yml'),
@@ -14,88 +14,69 @@ const PRIMARY_WORKSPACE_AGENT_PATHS = [
     path.join('agents', 'coding-agent.yaml'),
 ] as const;
 
-type WorkspaceProjectRegistryEntry = {
-    id: string;
-    configPath: string;
-};
-
-type WorkspaceProjectRegistry = {
-    primaryAgent?: string | undefined;
-    agents: WorkspaceProjectRegistryEntry[];
-};
-
-function isWorkspaceProjectRegistryEntry(value: unknown): value is WorkspaceProjectRegistryEntry {
-    if (!value || typeof value !== 'object') {
-        return false;
-    }
-
-    const entry = value as Record<string, unknown>;
-    return typeof entry.id === 'string' && typeof entry.configPath === 'string';
-}
-
 async function loadWorkspaceProjectRegistry(
     workspaceRoot: string
-): Promise<{ registryPath: string; registry: WorkspaceProjectRegistry } | null> {
-    for (const relativePath of PROJECT_REGISTRY_RELATIVE_PATHS) {
-        const registryPath = path.join(workspaceRoot, relativePath);
-        try {
-            const content = await fs.readFile(registryPath, 'utf8');
-            const parsed = JSON.parse(content) as Record<string, unknown>;
-            if (
-                !parsed ||
-                typeof parsed !== 'object' ||
-                !Array.isArray(parsed.agents) ||
-                !parsed.agents.every(isWorkspaceProjectRegistryEntry)
-            ) {
-                throw new Error(
-                    `Workspace registry at ${registryPath} must define an 'agents' array with valid entries.`
-                );
-            }
-
-            if (parsed.primaryAgent !== undefined && typeof parsed.primaryAgent !== 'string') {
-                throw new Error(
-                    `Workspace registry at ${registryPath} must define primaryAgent as a string when present.`
-                );
-            }
-
-            return {
-                registryPath,
-                registry: {
-                    primaryAgent:
-                        typeof parsed.primaryAgent === 'string' ? parsed.primaryAgent : undefined,
-                    agents: parsed.agents,
-                },
-            };
-        } catch (error) {
-            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-                continue;
-            }
-            throw error;
-        }
+): Promise<{ registryPath: string; defaultConfigPath: string } | null> {
+    const registryPath = await findProjectRegistryPath(workspaceRoot);
+    if (!registryPath) {
+        return null;
     }
 
-    return null;
+    const registry = await readProjectRegistry(registryPath);
+    const defaultEntry = getDefaultProjectRegistryEntry(registry, registryPath);
+    if (!defaultEntry) {
+        return null;
+    }
+
+    return {
+        registryPath,
+        defaultConfigPath: await resolveWorkspaceRegistryConfigPath(
+            workspaceRoot,
+            registryPath,
+            defaultEntry.configPath,
+            defaultEntry.id
+        ),
+    };
 }
 
-function getDefaultWorkspaceRegistryEntry(
-    registry: WorkspaceProjectRegistry,
-    registryPath: string
-): WorkspaceProjectRegistryEntry | null {
-    if (registry.primaryAgent) {
-        const primaryEntry = registry.agents.find((agent) => agent.id === registry.primaryAgent);
-        if (!primaryEntry) {
+async function resolveWorkspaceRegistryConfigPath(
+    workspaceRoot: string,
+    registryPath: string,
+    configPath: string,
+    agentId: string
+): Promise<string> {
+    const normalizedPath = normalizeWorkspaceRelativePath(configPath);
+    const absolutePath = path.resolve(path.dirname(registryPath), normalizedPath);
+    const relativeToWorkspace = path.relative(workspaceRoot, absolutePath);
+    if (
+        relativeToWorkspace.startsWith('..') ||
+        path.isAbsolute(relativeToWorkspace) ||
+        relativeToWorkspace === ''
+    ) {
+        throw new Error(
+            `Agent '${agentId}' in ${registryPath} has invalid configPath '${configPath}': path must stay inside the workspace root.`
+        );
+    }
+
+    let stat;
+    try {
+        stat = await fs.stat(absolutePath);
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
             throw new Error(
-                `Primary agent '${registry.primaryAgent}' not found in ${registryPath}.`
+                `Agent '${agentId}' in ${registryPath} has invalid configPath '${configPath}': file does not exist.`
             );
         }
-        return primaryEntry;
+        throw error;
     }
 
-    if (registry.agents.length === 1) {
-        return registry.agents[0] ?? null;
+    if (!stat.isFile()) {
+        throw new Error(
+            `Agent '${agentId}' in ${registryPath} has invalid configPath '${configPath}': path must point to a file.`
+        );
     }
 
-    return null;
+    return absolutePath;
 }
 
 export function isAgentYamlPath(filePath: string): boolean {
@@ -105,33 +86,19 @@ export function isAgentYamlPath(filePath: string): boolean {
 export async function discoverPrimaryWorkspaceAgent(workspaceRoot: string): Promise<string | null> {
     const loadedRegistry = await loadWorkspaceProjectRegistry(workspaceRoot);
     if (loadedRegistry) {
-        const defaultEntry = getDefaultWorkspaceRegistryEntry(
-            loadedRegistry.registry,
-            loadedRegistry.registryPath
+        return normalizeWorkspaceRelativePath(
+            path.relative(workspaceRoot, loadedRegistry.defaultConfigPath).replace(/\\/g, '/')
         );
-        if (defaultEntry) {
-            const normalizedPath = normalizeWorkspaceRelativePath(defaultEntry.configPath);
-            const absolutePath = path.resolve(
-                path.dirname(loadedRegistry.registryPath),
-                normalizedPath
-            );
-            if (!existsSync(absolutePath)) {
-                throw new Error(
-                    `Primary workspace agent '${normalizedPath}' does not exist relative to ${path.relative(
-                        workspaceRoot,
-                        loadedRegistry.registryPath
-                    )}.`
-                );
-            }
-            return normalizeWorkspaceRelativePath(
-                path.relative(workspaceRoot, absolutePath).replace(/\\/g, '/')
-            );
-        }
     }
 
     for (const relativePath of PRIMARY_WORKSPACE_AGENT_PATHS) {
         const absolutePath = path.join(workspaceRoot, relativePath);
         if (!existsSync(absolutePath)) {
+            continue;
+        }
+
+        const stat = await fs.stat(absolutePath);
+        if (!stat.isFile()) {
             continue;
         }
 

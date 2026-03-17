@@ -154,7 +154,29 @@ describe('deploy config', () => {
         });
 
         await expect(discoverPrimaryWorkspaceAgent(tempDir)).rejects.toThrow(
-            "Primary workspace agent 'review-agent/review-agent.yml' does not exist"
+            `Agent 'review-agent' in ${path.join(tempDir, 'agents', 'registry.json')} has invalid configPath './review-agent/review-agent.yml': file does not exist.`
+        );
+    });
+
+    it('rejects registry configPath values that point to directories', async () => {
+        tempDir = createTempDir();
+        writeWorkspaceFiles(tempDir, {
+            'agents/registry.json': JSON.stringify({
+                primaryAgent: 'review-agent',
+                agents: [
+                    {
+                        id: 'review-agent',
+                        name: 'Review Agent',
+                        description: 'Primary workspace agent',
+                        configPath: './review-agent',
+                    },
+                ],
+            }),
+            'agents/review-agent/.gitkeep': '',
+        });
+
+        await expect(discoverPrimaryWorkspaceAgent(tempDir)).rejects.toThrow(
+            `Agent 'review-agent' in ${path.join(tempDir, 'agents', 'registry.json')} has invalid configPath './review-agent': path must point to a file.`
         );
     });
 

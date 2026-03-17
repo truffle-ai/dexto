@@ -2,10 +2,16 @@ import * as p from '@clack/prompts';
 import type { AgentConfig } from '@dexto/agent-config';
 import {
     deriveDisplayName,
+    findProjectRegistryPath as findSharedProjectRegistryPath,
     getPrimaryApiKeyEnvVar,
+    getProjectRegistryPath as getCanonicalProjectRegistryPath,
     globalPreferencesExist,
     loadGlobalPreferences,
+    ProjectRegistrySchema,
+    readProjectRegistry as readSharedProjectRegistry,
     PROVIDER_API_KEY_MAP,
+    type ProjectRegistry as WorkspaceProjectRegistry,
+    type ProjectRegistryEntry as WorkspaceProjectRegistryEntry,
     writeConfigFile,
 } from '@dexto/agent-management';
 import { getDefaultModelForProvider, type LLMProvider } from '@dexto/core';
@@ -18,11 +24,6 @@ import { selectOrExit, textOrExit } from '../utils/prompt-helpers.js';
 
 const AGENTS_FILENAME = 'AGENTS.md';
 const WORKSPACE_DIRECTORIES = ['agents', 'skills'] as const;
-const CANONICAL_PROJECT_REGISTRY_FILENAME = path.join('agents', 'registry.json');
-const PROJECT_REGISTRY_FILENAMES = [
-    path.join('agents', 'registry.json'),
-    path.join('agents', 'agent-registry.json'),
-] as const;
 const DEFAULT_AGENT_PROVIDER: LLMProvider = 'openai';
 const DEFAULT_AGENT_MODEL = getDefaultModelForProvider(DEFAULT_AGENT_PROVIDER) ?? 'gpt-5-mini';
 const DEFAULT_AGENT_VERSION = '0.1.0';
@@ -80,22 +81,6 @@ export interface InitCommandRegisterContext {
     program: Command;
 }
 
-type WorkspaceProjectRegistryEntry = {
-    id: string;
-    name: string;
-    description: string;
-    configPath: string;
-    author?: string | undefined;
-    tags?: string[] | undefined;
-    parentAgentId?: string | undefined;
-};
-
-type WorkspaceProjectRegistry = {
-    primaryAgent?: string | undefined;
-    allowGlobalAgents: boolean;
-    agents: WorkspaceProjectRegistryEntry[];
-};
-
 type InitAgentCommandOptions = {
     subagent?: boolean;
     primary?: boolean;
@@ -109,103 +94,6 @@ type InitialAgentLlmConfig = {
 };
 
 const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-
-function getProjectRegistryPath(workspaceRoot: string): string {
-    return path.join(workspaceRoot, CANONICAL_PROJECT_REGISTRY_FILENAME);
-}
-
-function isStringArray(value: unknown): value is string[] {
-    return Array.isArray(value) && value.every((item) => typeof item === 'string');
-}
-
-function isWorkspaceProjectRegistryEntry(value: unknown): value is WorkspaceProjectRegistryEntry {
-    if (!value || typeof value !== 'object') {
-        return false;
-    }
-
-    const entry = value as Record<string, unknown>;
-    return (
-        typeof entry.id === 'string' &&
-        typeof entry.name === 'string' &&
-        typeof entry.description === 'string' &&
-        typeof entry.configPath === 'string' &&
-        (entry.author === undefined || typeof entry.author === 'string') &&
-        (entry.tags === undefined || isStringArray(entry.tags)) &&
-        (entry.parentAgentId === undefined || typeof entry.parentAgentId === 'string')
-    );
-}
-
-function parseWorkspaceProjectRegistry(
-    content: string,
-    registryPath: string
-): WorkspaceProjectRegistry {
-    let parsed: unknown;
-
-    try {
-        parsed = JSON.parse(content);
-    } catch (error) {
-        throw new Error(
-            `Failed to parse workspace registry at ${registryPath}: ${error instanceof Error ? error.message : String(error)}`
-        );
-    }
-
-    if (!parsed || typeof parsed !== 'object') {
-        throw new Error(`Workspace registry at ${registryPath} must be an object.`);
-    }
-
-    const registry = parsed as Record<string, unknown>;
-    if (registry.primaryAgent !== undefined && typeof registry.primaryAgent !== 'string') {
-        throw new Error(
-            `Workspace registry at ${registryPath} must define primaryAgent as a string when present.`
-        );
-    }
-    if (
-        registry.allowGlobalAgents !== undefined &&
-        typeof registry.allowGlobalAgents !== 'boolean'
-    ) {
-        throw new Error(
-            `Workspace registry at ${registryPath} must define allowGlobalAgents as a boolean when present.`
-        );
-    }
-
-    if (
-        !Array.isArray(registry.agents) ||
-        !registry.agents.every(isWorkspaceProjectRegistryEntry)
-    ) {
-        throw new Error(
-            `Workspace registry at ${registryPath} must define an 'agents' array with valid entries.`
-        );
-    }
-
-    return {
-        primaryAgent: typeof registry.primaryAgent === 'string' ? registry.primaryAgent : undefined,
-        allowGlobalAgents:
-            typeof registry.allowGlobalAgents === 'boolean' ? registry.allowGlobalAgents : false,
-        agents: registry.agents,
-    };
-}
-
-async function findProjectRegistryPath(workspaceRoot: string): Promise<string | null> {
-    for (const relativePath of PROJECT_REGISTRY_FILENAMES) {
-        const registryPath = path.join(workspaceRoot, relativePath);
-        try {
-            await fs.access(registryPath);
-            return registryPath;
-        } catch (error) {
-            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-                continue;
-            }
-            throw error;
-        }
-    }
-
-    return null;
-}
-
-async function readProjectRegistry(registryPath: string): Promise<WorkspaceProjectRegistry> {
-    const content = await fs.readFile(registryPath, 'utf-8');
-    return parseWorkspaceProjectRegistry(content, registryPath);
-}
 
 function getEffectiveWorkspacePrimaryAgentId(registry: WorkspaceProjectRegistry): string | null {
     if (registry.primaryAgent) {
@@ -529,10 +417,10 @@ async function loadWorkspaceProjectRegistry(workspaceRoot: string): Promise<{
     registry: WorkspaceProjectRegistry;
     status: Exclude<RegistryUpdateStatus, 'updated'>;
 }> {
-    const existingPath = await findProjectRegistryPath(workspaceRoot);
+    const existingPath = await findSharedProjectRegistryPath(workspaceRoot);
     if (!existingPath) {
         return {
-            path: getProjectRegistryPath(workspaceRoot),
+            path: getCanonicalProjectRegistryPath(workspaceRoot),
             registry: { allowGlobalAgents: false, agents: [] },
             status: 'created',
         };
@@ -540,7 +428,7 @@ async function loadWorkspaceProjectRegistry(workspaceRoot: string): Promise<{
 
     return {
         path: existingPath,
-        registry: await readProjectRegistry(existingPath),
+        registry: await readSharedProjectRegistry(existingPath),
         status: 'existing',
     };
 }
@@ -550,7 +438,8 @@ async function saveWorkspaceProjectRegistry(
     registry: WorkspaceProjectRegistry
 ): Promise<void> {
     await fs.mkdir(path.dirname(registryPath), { recursive: true });
-    await fs.writeFile(registryPath, `${JSON.stringify(registry, null, 2)}\n`, 'utf8');
+    const validatedRegistry = ProjectRegistrySchema.parse(registry);
+    await fs.writeFile(registryPath, `${JSON.stringify(validatedRegistry, null, 2)}\n`, 'utf8');
 }
 
 export async function createWorkspaceScaffold(

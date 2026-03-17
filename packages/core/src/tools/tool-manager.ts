@@ -527,6 +527,38 @@ export class ToolManager {
         this.toolsCache = {};
     }
 
+    private async refreshDynamicToolDescriptions(): Promise<void> {
+        if (!this.cacheValid) {
+            return;
+        }
+
+        for (const [toolName, tool] of this.agentTools) {
+            if (!tool.getDescription) {
+                continue;
+            }
+
+            const cachedTool = this.toolsCache[toolName];
+            if (!cachedTool) {
+                continue;
+            }
+
+            try {
+                const dynamicDescription = await tool.getDescription(
+                    this.buildToolExecutionContext({})
+                );
+                if (dynamicDescription.trim()) {
+                    cachedTool.description = dynamicDescription;
+                }
+            } catch (error) {
+                this.logger.warn(
+                    `Failed to refresh dynamic description for '${toolName}': ${
+                        error instanceof Error ? error.message : String(error)
+                    }`
+                );
+            }
+        }
+    }
+
     /**
      * Set up listeners for MCP notifications to invalidate cache on changes
      */
@@ -1255,6 +1287,7 @@ export class ToolManager {
      */
     async getAllTools(): Promise<ToolSet> {
         if (this.cacheValid) {
+            await this.refreshDynamicToolDescriptions();
             return this.toolsCache;
         }
 

@@ -188,6 +188,20 @@ describe('discoverAgentInstructionFile', () => {
 
         expect(result).toBe('/test/workspace/AGENTS.md');
     });
+
+    it('resolves relative search directories to absolute paths', () => {
+        process.cwd = vi.fn(() => '/test/project');
+        vi.mocked(fs.readdirSync).mockImplementation((dir) => {
+            if (dir === '/test/project/workspace') {
+                return ['AGENTS.md'] as any;
+            }
+            return [] as any;
+        });
+
+        const result = discoverAgentInstructionFile('./workspace');
+
+        expect(result).toBe('/test/project/workspace/AGENTS.md');
+    });
 });
 
 describe('discoverCommandPrompts', () => {

@@ -51,11 +51,16 @@ export {
     loadProjectRegistry,
     loadProjectRegistrySync,
     getDefaultProjectRegistryEntry,
+    resolveProjectRegistryEntryConfigPath,
+    resolveProjectRegistryEntryConfigPathSync,
     resolveProjectRegistryEntry,
     resolveProjectRegistryAgentPath,
     resolveDefaultProjectRegistryAgentPath,
+    ProjectRegistryError,
+    isProjectRegistryError,
     type ProjectRegistryEntry,
     type ProjectRegistry,
+    type ProjectRegistryErrorCode,
 } from './project-registry.js';
 
 // Installation utilities

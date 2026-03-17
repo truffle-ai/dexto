@@ -476,7 +476,11 @@ describe('Agent Resolver', () => {
                 })
             );
 
-            await expect(resolveAgentPath()).rejects.toThrow("Invalid primaryAgent 'review-agent'");
+            await expect(resolveAgentPath()).rejects.toMatchObject({
+                code: ConfigErrorCode.INVALID_PROJECT_PRIMARY,
+                scope: ErrorScope.CONFIG,
+                type: ErrorType.USER,
+            });
         });
 
         it('uses project-local src/dexto/agents/coding-agent.yml when exists', async () => {

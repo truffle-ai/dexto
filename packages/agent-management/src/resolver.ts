@@ -14,7 +14,10 @@ import { ConfigError } from './config/index.js';
 import { RegistryError } from './registry/errors.js';
 import { AgentManager } from './AgentManager.js';
 import { installBundledAgent } from './installation.js';
-import { resolveDefaultProjectRegistryAgentPath } from './project-registry.js';
+import {
+    isProjectRegistryError,
+    resolveDefaultProjectRegistryAgentPath,
+} from './project-registry.js';
 
 /**
  * Entry in the installed agents registry (registry.json)
@@ -218,10 +221,12 @@ async function resolveDefaultAgentForDextoProject(autoInstall: boolean = true): 
             return projectRegistryAgentPath;
         }
     } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        const primaryAgentMatch = message.match(/Primary agent '([^']+)'/);
-        if (primaryAgentMatch?.[1]) {
-            throw ConfigError.invalidProjectPrimary(projectRoot, primaryAgentMatch[1], message);
+        if (isProjectRegistryError(error) && error.code === 'PROJECT_REGISTRY_INVALID_PRIMARY') {
+            throw ConfigError.invalidProjectPrimary(
+                error.registryPath,
+                error.agentId ?? '',
+                error.message
+            );
         }
         throw error;
     }

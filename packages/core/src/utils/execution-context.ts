@@ -3,7 +3,7 @@
 // Remove from core once all services accept paths via initialization options
 
 import { walkUpDirectories } from './fs-walk.js';
-import { existsSync, readFileSync, readdirSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
 import * as path from 'path';
 
 export type ExecutionContext = 'dexto-source' | 'dexto-project' | 'global-cli';
@@ -31,55 +31,38 @@ function hasCaseInsensitiveRootFile(dirPath: string, filename: string): boolean 
     }
 }
 
-function hasWorkspaceSkillsDirectory(dirPath: string): boolean {
-    const skillsDir = path.join(dirPath, 'skills');
-    if (!existsSync(skillsDir)) {
-        return false;
-    }
-
+function hasWorkspaceAuthoringDirectory(dirPath: string, name: 'agents' | 'skills'): boolean {
     try {
-        return readdirSync(skillsDir, { withFileTypes: true }).some(
-            (entry) =>
-                entry.isDirectory() && existsSync(path.join(skillsDir, entry.name, 'SKILL.md'))
-        );
+        return statSync(path.join(dirPath, name)).isDirectory();
     } catch {
         return false;
     }
 }
 
-function hasWorkspaceAgentsDirectory(dirPath: string): boolean {
-    const agentsDir = path.join(dirPath, 'agents');
-    if (!existsSync(agentsDir)) {
-        return false;
-    }
+function hasWorkspaceScaffoldMarker(dirPath: string): boolean {
+    return (
+        hasCaseInsensitiveRootFile(dirPath, 'agents.md') &&
+        (hasWorkspaceAuthoringDirectory(dirPath, 'agents') ||
+            hasWorkspaceAuthoringDirectory(dirPath, 'skills'))
+    );
+}
 
+function readPackageName(dirPath: string): string | null {
     try {
-        return readdirSync(agentsDir, { withFileTypes: true }).some((entry) => {
-            if (entry.isFile()) {
-                return /\.(ya?ml)$/i.test(entry.name);
-            }
-
-            if (!entry.isDirectory()) {
-                return false;
-            }
-
-            const agentDir = path.join(agentsDir, entry.name);
-            return (
-                existsSync(path.join(agentDir, `${entry.name}.yml`)) ||
-                existsSync(path.join(agentDir, `${entry.name}.yaml`))
-            );
-        });
+        const pkg = JSON.parse(readFileSync(path.join(dirPath, 'package.json'), 'utf-8'));
+        return typeof pkg.name === 'string' ? pkg.name : null;
     } catch {
-        return false;
+        return null;
     }
+}
+
+function isInternalDextoPackage(dirPath: string): boolean {
+    const packageName = readPackageName(dirPath);
+    return packageName === 'dexto' || packageName?.startsWith('@dexto/') === true;
 }
 
 function hasProjectRootMarker(dirPath: string): boolean {
-    if (hasCaseInsensitiveRootFile(dirPath, 'agents.md')) {
-        return true;
-    }
-
-    if (hasWorkspaceAgentsDirectory(dirPath) || hasWorkspaceSkillsDirectory(dirPath)) {
+    if (hasWorkspaceScaffoldMarker(dirPath)) {
         return true;
     }
 
@@ -94,15 +77,7 @@ function hasProjectRootMarker(dirPath: string): boolean {
  * @returns True if directory contains the dexto source monorepo (top-level).
  */
 function isDextoSourceDirectory(dirPath: string): boolean {
-    const packageJsonPath = path.join(dirPath, 'package.json');
-
-    try {
-        const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-        // Monorepo root must be named 'dexto-monorepo'. No other names are treated as source root.
-        return pkg.name === 'dexto-monorepo';
-    } catch {
-        return false;
-    }
+    return readPackageName(dirPath) === 'dexto-monorepo';
 }
 
 /**
@@ -115,21 +90,16 @@ function isDextoProjectDirectory(dirPath: string): boolean {
         return false;
     }
 
+    if (isInternalDextoPackage(dirPath)) {
+        return false;
+    }
+
     if (hasProjectRootMarker(dirPath)) {
         return true;
     }
 
-    const packageJsonPath = path.join(dirPath, 'package.json');
-
     try {
-        const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-
-        // Not internal dexto packages themselves
-        if (pkg.name === 'dexto' || pkg.name === '@dexto/core' || pkg.name === '@dexto/webui') {
-            return false;
-        }
-
-        // Check if has dexto or @dexto/core as dependency
+        const pkg = JSON.parse(readFileSync(path.join(dirPath, 'package.json'), 'utf-8'));
         const allDeps = {
             ...(pkg.dependencies ?? {}),
             ...(pkg.devDependencies ?? {}),

@@ -31,11 +31,7 @@ import * as path from 'path';
 import { type AgentSpawnerConfig } from './schemas.js';
 import type { SpawnAgentOutput } from './types.js';
 import { resolveSubAgentLLM } from './llm-resolution.js';
-import {
-    loadProjectRegistry,
-    loadProjectRegistrySync,
-    resolveProjectRegistryAgentPath,
-} from '../../project-registry.js';
+import { loadProjectRegistry, resolveProjectRegistryAgentPath } from '../../project-registry.js';
 import { findDextoProjectRoot } from '../../utils/execution-context.js';
 
 const REASONING_VARIANT_FALLBACK_ORDER = [
@@ -167,29 +163,40 @@ export class AgentSpawnerRuntime implements TaskForker {
         this.workspaceRootHint = trimmed ? trimmed : undefined;
     }
 
-    private getProjectRootCandidates(): string[] {
+    private async getProjectRootCandidates(): Promise<string[]> {
         const candidates = new Set<string>();
 
         if (this.workspaceRootHint) {
             candidates.add(this.workspaceRootHint);
         }
 
-        const detectedProjectRoot = findDextoProjectRoot();
+        try {
+            const workspace = await this.parentAgent.getWorkspace();
+            if (workspace?.path) {
+                candidates.add(workspace.path);
+            }
+        } catch (error) {
+            this.logger.warn(
+                `Failed to read parent workspace while resolving workspace agents: ${error instanceof Error ? error.message : String(error)}`
+            );
+        }
+
+        const detectedProjectRoot = findDextoProjectRoot(this.workspaceRootHint ?? process.cwd());
         if (detectedProjectRoot) {
             candidates.add(detectedProjectRoot);
         }
 
-        return [...candidates];
+        return Array.from(candidates);
     }
 
-    private getWorkspaceAvailableAgentsResult(): {
+    private async getWorkspaceAvailableAgentsResult(): Promise<{
         agents: Record<string, AgentRegistryEntry>;
         registryFound: boolean;
         allowGlobalAgents: boolean;
-    } {
-        for (const projectRoot of this.getProjectRootCandidates()) {
+    }> {
+        for (const projectRoot of await this.getProjectRootCandidates()) {
             try {
-                const loaded = loadProjectRegistrySync(projectRoot);
+                const loaded = await loadProjectRegistry(projectRoot);
                 if (!loaded) {
                     continue;
                 }
@@ -234,26 +241,10 @@ export class AgentSpawnerRuntime implements TaskForker {
         registryFound: boolean;
         allowGlobalAgents: boolean;
     }> {
-        const projectRoots = new Set<string>();
         let registryFound = false;
         let allowGlobalAgents = false;
 
-        for (const candidate of this.getProjectRootCandidates()) {
-            projectRoots.add(candidate);
-        }
-
-        try {
-            const workspace = await this.parentAgent.getWorkspace();
-            if (workspace?.path) {
-                projectRoots.add(workspace.path);
-            }
-        } catch (error) {
-            this.logger.warn(
-                `Failed to read parent workspace while resolving sub-agent '${agentId}': ${error instanceof Error ? error.message : String(error)}`
-            );
-        }
-
-        for (const projectRoot of projectRoots) {
+        for (const projectRoot of await this.getProjectRootCandidates()) {
             try {
                 const loaded = await loadProjectRegistry(projectRoot);
                 if (!loaded) {
@@ -1099,8 +1090,8 @@ export class AgentSpawnerRuntime implements TaskForker {
      * Get information about available agents for tool description.
      * Returns agent metadata from registry, filtered by allowedAgents if configured.
      */
-    getAvailableAgents(): AgentRegistryEntry[] {
-        const workspaceAgents = this.getWorkspaceAvailableAgentsResult();
+    async getAvailableAgents(): Promise<AgentRegistryEntry[]> {
+        const workspaceAgents = await this.getWorkspaceAvailableAgentsResult();
         const canUseGlobalAgents =
             !workspaceAgents.registryFound || workspaceAgents.allowGlobalAgents;
         let scopedAgents: Record<string, AgentRegistryEntry> = { ...workspaceAgents.agents };

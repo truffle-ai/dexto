@@ -172,7 +172,7 @@ const AGENT_INSTRUCTION_FILES = ['agents.md', 'claude.md', 'gemini.md'] as const
  * @returns The absolute path to the first found instruction file, or null if none found
  */
 export function discoverAgentInstructionFile(searchDir: string = process.cwd()): string | null {
-    const cwd = searchDir;
+    const cwd = path.resolve(searchDir);
 
     // Read directory once for case-insensitive matching
     let dirEntries: string[];

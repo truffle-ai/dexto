@@ -99,9 +99,10 @@ describe('getDextoPath', () => {
     });
 
     describe('workspace markers without package.json', () => {
-        it('uses project-local paths for AGENTS.md workspaces', () => {
+        it('uses project-local paths for AGENTS.md workspaces with authored directories', () => {
             tempDir = createTempDirStructure({
-                'AGENTS.md': '# Workspace instructions',
+                'AGENTS.md': '# Dexto Workspace',
+                'skills/.gitkeep': '',
             });
 
             const result = getDextoPath('logs', 'workspace.log', tempDir);
@@ -109,7 +110,7 @@ describe('getDextoPath', () => {
             expect(result).toBe(path.join(tempDir, '.dexto', 'logs', 'workspace.log'));
         });
 
-        it('uses project-local paths for skills/ workspaces', () => {
+        it('falls back to global paths for skills/ alone', () => {
             tempDir = createTempDirStructure({
                 'skills/release-check/SKILL.md': '# Release Check',
             });
@@ -118,10 +119,10 @@ describe('getDextoPath', () => {
 
             const result = getDextoPath('logs', 'workspace.log', nestedDir);
 
-            expect(result).toBe(path.join(tempDir, '.dexto', 'logs', 'workspace.log'));
+            expect(result).toBe(path.join(homedir(), '.dexto', 'logs', 'workspace.log'));
         });
 
-        it('uses project-local paths for agents/ workspaces', () => {
+        it('falls back to global paths for arbitrary agents/ YAML without an explicit registry', () => {
             tempDir = createTempDirStructure({
                 'agents/reviewer/reviewer.yml': 'agentCard:\n  name: Reviewer\n',
             });
@@ -129,6 +130,25 @@ describe('getDextoPath', () => {
             fs.mkdirSync(nestedDir, { recursive: true });
 
             const result = getDextoPath('logs', 'workspace.log', nestedDir);
+
+            expect(result).toBe(path.join(homedir(), '.dexto', 'logs', 'workspace.log'));
+        });
+
+        it('uses project-local paths for agents/registry.json workspaces', () => {
+            tempDir = createTempDirStructure({
+                'agents/registry.json': JSON.stringify({
+                    agents: [
+                        {
+                            id: 'review-agent',
+                            name: 'Review Agent',
+                            description: 'Primary workspace agent',
+                            configPath: './review-agent/review-agent.yml',
+                        },
+                    ],
+                }),
+            });
+
+            const result = getDextoPath('logs', 'workspace.log', tempDir);
 
             expect(result).toBe(path.join(tempDir, '.dexto', 'logs', 'workspace.log'));
         });
