@@ -159,7 +159,7 @@ function scanCommandsDirectory(dir: string): string[] {
 const AGENT_INSTRUCTION_FILES = ['agents.md', 'claude.md', 'gemini.md'] as const;
 
 /**
- * Discovers agent instruction files from the current working directory.
+ * Discovers agent instruction files from the provided directory.
  *
  * Looks for files in this order of priority (case-insensitive):
  * 1. AGENTS.md (or agents.md, Agents.md, etc.)
@@ -168,10 +168,11 @@ const AGENT_INSTRUCTION_FILES = ['agents.md', 'claude.md', 'gemini.md'] as const
  *
  * Only the first found file is returned (we don't want multiple instruction files).
  *
+ * @param searchDir Directory to search (defaults to process.cwd())
  * @returns The absolute path to the first found instruction file, or null if none found
  */
-export function discoverAgentInstructionFile(): string | null {
-    const cwd = process.cwd();
+export function discoverAgentInstructionFile(searchDir: string = process.cwd()): string | null {
+    const cwd = searchDir;
 
     // Read directory once for case-insensitive matching
     let dirEntries: string[];

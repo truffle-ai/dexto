@@ -3,10 +3,90 @@
 // Remove from core once all services accept paths via initialization options
 
 import { walkUpDirectories } from './fs-walk.js';
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync, readdirSync } from 'fs';
 import * as path from 'path';
 
 export type ExecutionContext = 'dexto-source' | 'dexto-project' | 'global-cli';
+
+const DIRECT_PROJECT_ROOT_MARKERS = [
+    path.join('.dexto', 'deploy.json'),
+    path.join('.dexto', 'cloud', 'bootstrap.json'),
+    'coding-agent.yml',
+    'coding-agent.yaml',
+    path.join('agents', 'registry.json'),
+    path.join('agents', 'agent-registry.json'),
+    path.join('agents', 'coding-agent.yml'),
+    path.join('agents', 'coding-agent.yaml'),
+    path.join('agents', 'coding-agent', 'coding-agent.yml'),
+    path.join('agents', 'coding-agent', 'coding-agent.yaml'),
+    path.join('src', 'dexto', 'agents', 'coding-agent.yml'),
+    path.join('src', 'dexto', 'agents', 'coding-agent.yaml'),
+] as const;
+
+function hasCaseInsensitiveRootFile(dirPath: string, filename: string): boolean {
+    try {
+        return readdirSync(dirPath).some((entry) => entry.toLowerCase() === filename.toLowerCase());
+    } catch {
+        return false;
+    }
+}
+
+function hasWorkspaceSkillsDirectory(dirPath: string): boolean {
+    const skillsDir = path.join(dirPath, 'skills');
+    if (!existsSync(skillsDir)) {
+        return false;
+    }
+
+    try {
+        return readdirSync(skillsDir, { withFileTypes: true }).some(
+            (entry) =>
+                entry.isDirectory() && existsSync(path.join(skillsDir, entry.name, 'SKILL.md'))
+        );
+    } catch {
+        return false;
+    }
+}
+
+function hasWorkspaceAgentsDirectory(dirPath: string): boolean {
+    const agentsDir = path.join(dirPath, 'agents');
+    if (!existsSync(agentsDir)) {
+        return false;
+    }
+
+    try {
+        return readdirSync(agentsDir, { withFileTypes: true }).some((entry) => {
+            if (entry.isFile()) {
+                return /\.(ya?ml)$/i.test(entry.name);
+            }
+
+            if (!entry.isDirectory()) {
+                return false;
+            }
+
+            const agentDir = path.join(agentsDir, entry.name);
+            return (
+                existsSync(path.join(agentDir, `${entry.name}.yml`)) ||
+                existsSync(path.join(agentDir, `${entry.name}.yaml`))
+            );
+        });
+    } catch {
+        return false;
+    }
+}
+
+function hasProjectRootMarker(dirPath: string): boolean {
+    if (hasCaseInsensitiveRootFile(dirPath, 'agents.md')) {
+        return true;
+    }
+
+    if (hasWorkspaceAgentsDirectory(dirPath) || hasWorkspaceSkillsDirectory(dirPath)) {
+        return true;
+    }
+
+    return DIRECT_PROJECT_ROOT_MARKERS.some((relativePath) =>
+        existsSync(path.join(dirPath, relativePath))
+    );
+}
 
 /**
  * Check if directory is the dexto source code itself
@@ -31,6 +111,14 @@ function isDextoSourceDirectory(dirPath: string): boolean {
  * @returns True if directory has dexto as dependency but is not dexto source
  */
 function isDextoProjectDirectory(dirPath: string): boolean {
+    if (isDextoSourceDirectory(dirPath)) {
+        return false;
+    }
+
+    if (hasProjectRootMarker(dirPath)) {
+        return true;
+    }
+
     const packageJsonPath = path.join(dirPath, 'package.json');
 
     try {

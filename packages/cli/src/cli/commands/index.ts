@@ -5,6 +5,7 @@ export { createDextoProject, type CreateAppOptions } from './create-app.js';
 
 export { createImage } from './create-image.js';
 
+export { createWorkspaceScaffold, handleInitCommand } from './init.js';
 export { getUserInputToInitDextoApp, initDexto, postInitDexto } from './init-app.js';
 
 export { handleSetupCommand, type CLISetupOptions, type CLISetupOptionsInput } from './setup.js';

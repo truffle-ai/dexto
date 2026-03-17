@@ -175,6 +175,19 @@ describe('discoverAgentInstructionFile', () => {
             expect(result).toBe('/test/project/CLAUDE.MD');
         });
     });
+
+    it('should search a provided workspace root instead of process.cwd()', () => {
+        vi.mocked(fs.readdirSync).mockImplementation((dir) => {
+            if (dir === '/test/workspace') {
+                return ['AGENTS.md'] as any;
+            }
+            return [] as any;
+        });
+
+        const result = discoverAgentInstructionFile('/test/workspace');
+
+        expect(result).toBe('/test/workspace/AGENTS.md');
+    });
 });
 
 describe('discoverCommandPrompts', () => {

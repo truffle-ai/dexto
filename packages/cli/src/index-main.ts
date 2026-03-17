@@ -218,6 +218,23 @@ program
 registerImageCommand({ program });
 registerDeployCommand({ program });
 
+program
+    .command('init')
+    .description('Initialize the current folder as a Dexto workspace')
+    .action(
+        withAnalytics('init', async () => {
+            try {
+                const { handleInitCommand } = await import('./cli/commands/init.js');
+                await handleInitCommand();
+                safeExit('init', 0);
+            } catch (err) {
+                if (err instanceof ExitSignal) throw err;
+                console.error(`❌ dexto init command failed: ${err}`);
+                safeExit('init', 1, 'error');
+            }
+        })
+    );
+
 // 4) `init-app` SUB-COMMAND
 program
     .command('init-app')

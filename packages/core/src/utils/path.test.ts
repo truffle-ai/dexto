@@ -97,6 +97,42 @@ describe('getDextoPath', () => {
             }
         });
     });
+
+    describe('workspace markers without package.json', () => {
+        it('uses project-local paths for AGENTS.md workspaces', () => {
+            tempDir = createTempDirStructure({
+                'AGENTS.md': '# Workspace instructions',
+            });
+
+            const result = getDextoPath('logs', 'workspace.log', tempDir);
+
+            expect(result).toBe(path.join(tempDir, '.dexto', 'logs', 'workspace.log'));
+        });
+
+        it('uses project-local paths for skills/ workspaces', () => {
+            tempDir = createTempDirStructure({
+                'skills/release-check/SKILL.md': '# Release Check',
+            });
+            const nestedDir = path.join(tempDir, 'nested');
+            fs.mkdirSync(nestedDir, { recursive: true });
+
+            const result = getDextoPath('logs', 'workspace.log', nestedDir);
+
+            expect(result).toBe(path.join(tempDir, '.dexto', 'logs', 'workspace.log'));
+        });
+
+        it('uses project-local paths for agents/ workspaces', () => {
+            tempDir = createTempDirStructure({
+                'agents/reviewer/reviewer.yml': 'agentCard:\n  name: Reviewer\n',
+            });
+            const nestedDir = path.join(tempDir, 'nested');
+            fs.mkdirSync(nestedDir, { recursive: true });
+
+            const result = getDextoPath('logs', 'workspace.log', nestedDir);
+
+            expect(result).toBe(path.join(tempDir, '.dexto', 'logs', 'workspace.log'));
+        });
+    });
 });
 
 describe('getDextoGlobalPath', () => {
