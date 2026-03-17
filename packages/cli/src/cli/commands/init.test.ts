@@ -51,9 +51,12 @@ import {
     handleInitCommand,
     handleInitPrimaryCommand,
     handleInitSkillCommand,
+    handleInitStatusCommand,
+    inspectWorkspaceStatus,
     linkWorkspaceSubagentToPrimaryAgent,
     setWorkspacePrimaryAgent,
 } from './init.js';
+import { saveDeployConfig, createWorkspaceDeployConfig } from './deploy/config.js';
 
 describe('init command', () => {
     let tempDir: string;
@@ -494,5 +497,58 @@ describe('init command', () => {
         expect(mockOutro).toHaveBeenCalledWith(
             expect.stringContaining("Skill 'code-review' already initialized.")
         );
+    });
+
+    it('inspects the current workspace status with registry, skills, and deploy preview', async () => {
+        await createWorkspaceAgentScaffold('review-agent', {}, tempDir);
+        await createWorkspaceAgentScaffold('explore-agent', { subagent: true }, tempDir);
+        await linkWorkspaceSubagentToPrimaryAgent('explore-agent', tempDir);
+        await createWorkspaceSkillScaffold('code-review', tempDir);
+        await saveDeployConfig(
+            tempDir,
+            createWorkspaceDeployConfig('agents/review-agent/review-agent.yml')
+        );
+
+        const result = await inspectWorkspaceStatus(tempDir);
+
+        expect(result.workspaceRoot).toBe(tempDir);
+        expect(result.agentsFilePresent).toBe(true);
+        expect(result.agentsDirectoryPresent).toBe(true);
+        expect(result.skillsDirectoryPresent).toBe(true);
+        expect(result.registryPath).toBe(path.join(tempDir, 'agents', 'registry.json'));
+        expect(result.primaryAgentId).toBe('review-agent');
+        expect(result.allowGlobalAgents).toBe(false);
+        expect(result.agents).toEqual([
+            {
+                id: 'explore-agent',
+                isPrimary: false,
+                isSubagent: true,
+                parentAgentId: 'review-agent',
+            },
+            {
+                id: 'review-agent',
+                isPrimary: true,
+                isSubagent: false,
+                parentAgentId: null,
+            },
+        ]);
+        expect(result.skills).toEqual(['code-review']);
+        expect(result.deployConfigPath).toBe(path.join(tempDir, '.dexto', 'deploy.json'));
+        expect(result.effectiveDeploySummary).toContain(
+            'workspace agent (agents/review-agent/review-agent.yml)'
+        );
+    });
+
+    it('prints the current workspace status', async () => {
+        await createWorkspaceScaffold(tempDir);
+        await createWorkspaceSkillScaffold('code-review', tempDir);
+
+        await handleInitStatusCommand(tempDir);
+
+        expect(mockIntro).toHaveBeenCalledWith(expect.stringContaining('Dexto Init Status'));
+        expect(mockOutro).toHaveBeenCalledWith(
+            expect.stringContaining('default cloud agent if you run `dexto deploy`')
+        );
+        expect(mockOutro).toHaveBeenCalledWith(expect.stringContaining('Skills:\n- code-review'));
     });
 });

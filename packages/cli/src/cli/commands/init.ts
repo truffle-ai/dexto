@@ -20,6 +20,8 @@ import type { Command } from 'commander';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { ExitSignal, safeExit, withAnalytics } from '../../analytics/wrapper.js';
+import { getDeployConfigPath, isWorkspaceDeployAgent, loadDeployConfig } from './deploy/config.js';
+import { discoverPrimaryWorkspaceAgent } from './deploy/entry-agent.js';
 import { selectOrExit, textOrExit } from '../utils/prompt-helpers.js';
 
 const AGENTS_FILENAME = 'AGENTS.md';
@@ -77,6 +79,25 @@ export interface WorkspaceSubagentLinkResult {
     subagentId: string;
     parentAgentId: string | null;
     status: 'set' | 'existing' | 'no-primary';
+}
+
+export interface WorkspaceStatusResult {
+    workspaceRoot: string;
+    agentsFilePresent: boolean;
+    agentsDirectoryPresent: boolean;
+    skillsDirectoryPresent: boolean;
+    registryPath: string | null;
+    primaryAgentId: string | null;
+    allowGlobalAgents: boolean | null;
+    agents: Array<{
+        id: string;
+        isPrimary: boolean;
+        isSubagent: boolean;
+        parentAgentId: string | null;
+    }>;
+    skills: string[];
+    deployConfigPath: string | null;
+    effectiveDeploySummary: string;
 }
 
 export interface InitCommandRegisterContext {
@@ -775,6 +796,142 @@ function formatSkillPaths(result: WorkspaceSkillScaffoldResult): string[] {
     return createdPaths;
 }
 
+async function listWorkspaceSkillIds(workspaceRoot: string): Promise<string[]> {
+    const skillsRoot = path.join(workspaceRoot, 'skills');
+
+    try {
+        const entries = await fs.readdir(skillsRoot, { withFileTypes: true });
+        const skillIds: string[] = [];
+
+        for (const entry of entries) {
+            if (!entry.isDirectory()) {
+                continue;
+            }
+
+            const skillFilePath = path.join(skillsRoot, entry.name, 'SKILL.md');
+            try {
+                const stat = await fs.stat(skillFilePath);
+                if (stat.isFile()) {
+                    skillIds.push(entry.name);
+                }
+            } catch (error) {
+                if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                    continue;
+                }
+                throw error;
+            }
+        }
+
+        return skillIds.sort((left, right) => left.localeCompare(right));
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+            return [];
+        }
+        throw error;
+    }
+}
+
+function describeEffectiveDeployAgent(input: {
+    deployConfigPath: string | null;
+    deployConfig: Awaited<ReturnType<typeof loadDeployConfig>>;
+    implicitWorkspaceAgent: string | null;
+}): string {
+    if (input.deployConfig) {
+        const configuredAgent = isWorkspaceDeployAgent(input.deployConfig.agent)
+            ? `workspace agent (${input.deployConfig.agent.path})`
+            : 'default cloud agent';
+        return `${configuredAgent} via ${input.deployConfigPath ?? '.dexto/deploy.json'}`;
+    }
+
+    if (input.implicitWorkspaceAgent) {
+        return `workspace agent (${input.implicitWorkspaceAgent}) if you run \`dexto deploy\``;
+    }
+
+    return 'default cloud agent if you run `dexto deploy`';
+}
+
+export async function inspectWorkspaceStatus(
+    workspaceRoot: string = process.cwd()
+): Promise<WorkspaceStatusResult> {
+    const root = path.resolve(workspaceRoot);
+    await ensureWorkspaceRoot(root);
+
+    const agentsFilePresent =
+        (await getExistingEntryType(path.join(root, AGENTS_FILENAME))) === 'file';
+    const agentsDirectoryPresent =
+        (await getExistingEntryType(path.join(root, 'agents'))) === 'directory';
+    const skillsDirectoryPresent =
+        (await getExistingEntryType(path.join(root, 'skills'))) === 'directory';
+
+    const registryPath = await findSharedProjectRegistryPath(root);
+    const registry = registryPath ? await readSharedProjectRegistry(registryPath) : null;
+    const primaryAgentId = registry ? getEffectiveWorkspacePrimaryAgentId(registry) : null;
+    const agents =
+        registry?.agents
+            .map((entry) => ({
+                id: entry.id,
+                isPrimary: primaryAgentId === entry.id,
+                isSubagent: isSubagentEntry(entry),
+                parentAgentId: entry.parentAgentId ?? null,
+            }))
+            .sort((left, right) => left.id.localeCompare(right.id)) ?? [];
+    const skills = await listWorkspaceSkillIds(root);
+
+    const deployConfigPath = getDeployConfigPath(root);
+    const deployConfig = await loadDeployConfig(root);
+    const implicitWorkspaceAgent = await discoverPrimaryWorkspaceAgent(root);
+
+    return {
+        workspaceRoot: root,
+        agentsFilePresent,
+        agentsDirectoryPresent,
+        skillsDirectoryPresent,
+        registryPath,
+        primaryAgentId,
+        allowGlobalAgents: registry ? registry.allowGlobalAgents : null,
+        agents,
+        skills,
+        deployConfigPath: deployConfig ? deployConfigPath : null,
+        effectiveDeploySummary: describeEffectiveDeployAgent({
+            deployConfigPath: deployConfig ? deployConfigPath : null,
+            deployConfig,
+            implicitWorkspaceAgent,
+        }),
+    };
+}
+
+function formatWorkspaceStatus(result: WorkspaceStatusResult): string {
+    return [
+        `Workspace: ${result.workspaceRoot}`,
+        `AGENTS.md: ${result.agentsFilePresent ? 'present' : 'missing'}`,
+        `agents/: ${result.agentsDirectoryPresent ? 'present' : 'missing'}`,
+        `skills/: ${result.skillsDirectoryPresent ? 'present' : 'missing'}`,
+        `Registry: ${result.registryPath ? path.relative(result.workspaceRoot, result.registryPath) : 'none'}`,
+        `Primary agent: ${result.primaryAgentId ?? 'none (global default used locally)'}`,
+        `Allow global agents: ${
+            result.allowGlobalAgents === null
+                ? 'n/a (no workspace registry)'
+                : String(result.allowGlobalAgents)
+        }`,
+        `Deploy: ${result.effectiveDeploySummary}`,
+        '',
+        'Agents:',
+        ...(result.agents.length > 0
+            ? result.agents.map((agent) => {
+                  const details = [
+                      agent.isPrimary ? 'primary' : null,
+                      agent.isSubagent ? 'subagent' : null,
+                      agent.parentAgentId ? `parent: ${agent.parentAgentId}` : null,
+                  ].filter(Boolean);
+                  return `- ${agent.id}${details.length > 0 ? ` (${details.join(', ')})` : ''}`;
+              })
+            : ['- none']),
+        '',
+        'Skills:',
+        ...(result.skills.length > 0 ? result.skills.map((skillId) => `- ${skillId}`) : ['- none']),
+    ].join('\n');
+}
+
 async function resolvePrimaryAgentSelection(
     agentIdInput: string | undefined,
     workspaceRoot: string
@@ -924,6 +1081,14 @@ export async function handleInitPrimaryCommand(
     p.outro(chalk.green(`Primary agent set to '${agentId}'.`));
 }
 
+export async function handleInitStatusCommand(
+    workspaceRoot: string = process.cwd()
+): Promise<void> {
+    p.intro(chalk.inverse('Dexto Init Status'));
+    const result = await inspectWorkspaceStatus(workspaceRoot);
+    p.outro(formatWorkspaceStatus(result));
+}
+
 export function registerInitCommand({ program }: InitCommandRegisterContext): void {
     const initCommand = program
         .command('init')
@@ -938,6 +1103,7 @@ Examples:
   $ dexto init agent explore-agent --subagent
   $ dexto init primary review-agent
   $ dexto init skill code-review
+  $ dexto init status
 `
     );
 
@@ -1003,6 +1169,22 @@ Examples:
                     if (err instanceof ExitSignal) throw err;
                     console.error(`❌ dexto init skill command failed: ${err}`);
                     safeExit('init skill', 1, 'error');
+                }
+            })
+        );
+
+    initCommand
+        .command('status')
+        .description('Show the current workspace configuration and deploy preview')
+        .action(
+            withAnalytics('init status', async () => {
+                try {
+                    await handleInitStatusCommand();
+                    safeExit('init status', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto init status command failed: ${err}`);
+                    safeExit('init status', 1, 'error');
                 }
             })
         );
