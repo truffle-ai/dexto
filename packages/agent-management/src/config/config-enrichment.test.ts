@@ -94,6 +94,24 @@ describe('enrichAgentConfig', () => {
             expect(discoverAgentInstructionFile).toHaveBeenCalledWith('/workspace/project');
         });
 
+        it('falls back to the selected config directory when no project root is found', () => {
+            const baseConfig: AgentConfig = {
+                llm: {
+                    provider: 'openai',
+                    model: 'gpt-5',
+                    apiKey: 'test-key',
+                },
+                systemPrompt: 'You are a helpful assistant.',
+            };
+
+            enrichAgentConfig(baseConfig, '/tmp/standalone/review-agent/review-agent.yml');
+
+            expect(discoverStandaloneSkills).toHaveBeenCalledWith('/tmp/standalone/review-agent');
+            expect(discoverAgentInstructionFile).toHaveBeenCalledWith(
+                '/tmp/standalone/review-agent'
+            );
+        });
+
         it('should allow disabling instruction file discovery', () => {
             vi.mocked(discoverAgentInstructionFile).mockReturnValue('/test/AGENTS.md');
 

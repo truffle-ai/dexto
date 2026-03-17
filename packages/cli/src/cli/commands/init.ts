@@ -28,7 +28,9 @@ const DEFAULT_AGENT_PROVIDER: LLMProvider = 'openai';
 const DEFAULT_AGENT_MODEL = getDefaultModelForProvider(DEFAULT_AGENT_PROVIDER) ?? 'gpt-5-mini';
 const DEFAULT_AGENT_VERSION = '0.1.0';
 
-const DEFAULT_AGENTS_MD = `# Dexto Workspace
+const DEFAULT_AGENTS_MD = `<!-- dexto-workspace -->
+
+# Dexto Workspace
 
 This workspace can define project-specific agents and skills.
 
@@ -95,13 +97,22 @@ type InitialAgentLlmConfig = {
 
 const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+function isSubagentEntry(entry: WorkspaceProjectRegistryEntry): boolean {
+    return (entry.tags?.includes('subagent') ?? false) || Boolean(entry.parentAgentId);
+}
+
+function isPrimaryCandidate(entry: WorkspaceProjectRegistryEntry): boolean {
+    return !isSubagentEntry(entry);
+}
+
 function getEffectiveWorkspacePrimaryAgentId(registry: WorkspaceProjectRegistry): string | null {
     if (registry.primaryAgent) {
         return registry.primaryAgent;
     }
 
-    if (registry.agents.length === 1) {
-        return registry.agents[0]?.id ?? null;
+    const candidates = registry.agents.filter(isPrimaryCandidate);
+    if (candidates.length === 1) {
+        return candidates[0]?.id ?? null;
     }
 
     return null;
@@ -289,6 +300,15 @@ function buildRegistryEntry(
         description,
         configPath: `./${agentId}/${agentId}.yml`,
         ...(options.subagent ? { tags: ['subagent'] } : {}),
+    };
+}
+
+function addSubagentTag(entry: WorkspaceProjectRegistryEntry): WorkspaceProjectRegistryEntry {
+    const tags = new Set(entry.tags ?? []);
+    tags.add('subagent');
+    return {
+        ...entry,
+        tags: Array.from(tags).sort(),
     };
 }
 
@@ -489,12 +509,18 @@ export async function createWorkspaceAgentScaffold(
     const agentDirPath = path.join(workspace.root, 'agents', agentId);
     const agentConfigPath = path.join(agentDirPath, `${agentId}.yml`);
 
-    await ensureDirectory(agentDirPath);
-
     const registryState = await loadWorkspaceProjectRegistry(workspace.root);
     const existingEntry = registryState.registry.agents.find((entry) => entry.id === agentId);
     const expectedRegistryEntry = buildRegistryEntry(agentId, options);
     const currentPrimaryAgentId = getEffectiveWorkspacePrimaryAgentId(registryState.registry);
+
+    if (existingEntry && existingEntry.configPath !== expectedRegistryEntry.configPath) {
+        throw new Error(
+            `Agent '${agentId}' already exists in ${registryState.path} with configPath '${existingEntry.configPath}'.`
+        );
+    }
+
+    await ensureDirectory(agentDirPath);
 
     let agentConfigStatus: ScaffoldEntryStatus;
     const agentConfigEntryType = await getExistingEntryType(agentConfigPath);
@@ -511,31 +537,44 @@ export async function createWorkspaceAgentScaffold(
     }
 
     if (existingEntry) {
-        if (existingEntry.configPath !== expectedRegistryEntry.configPath) {
-            throw new Error(
-                `Agent '${agentId}' already exists in ${registryState.path} with configPath '${existingEntry.configPath}'.`
+        let registryUpdated = false;
+
+        if (options.subagent && !isSubagentEntry(existingEntry)) {
+            if (currentPrimaryAgentId === agentId) {
+                throw new Error(
+                    `Agent '${agentId}' is currently the workspace primary agent. Set another primary agent before converting it to a subagent.`
+                );
+            }
+
+            registryState.registry.agents = registryState.registry.agents.map((entry) =>
+                entry.id === agentId ? addSubagentTag(entry) : entry
             );
+            registryUpdated = true;
         }
 
         let primaryAgentStatus: 'set' | 'unchanged' = 'unchanged';
-        if (
-            !options.subagent &&
-            options.primary &&
-            registryState.registry.primaryAgent !== agentId
-        ) {
+        if (options.primary && registryState.registry.primaryAgent !== agentId) {
+            const updatedEntry = getWorkspaceAgentEntry(registryState.registry, agentId);
+            if (!updatedEntry || !isPrimaryCandidate(updatedEntry)) {
+                throw new Error(
+                    `Agent '${agentId}' is marked as a subagent and cannot be selected as the workspace primary agent.`
+                );
+            }
+
             registryState.registry.primaryAgent = agentId;
-            await saveWorkspaceProjectRegistry(registryState.path, registryState.registry);
             primaryAgentStatus = 'set';
+            registryUpdated = true;
+        }
+
+        if (registryUpdated) {
+            await saveWorkspaceProjectRegistry(registryState.path, registryState.registry);
         }
 
         return {
             workspace,
             registry: {
                 path: registryState.path,
-                status:
-                    primaryAgentStatus === 'set' && registryState.status === 'existing'
-                        ? 'updated'
-                        : registryState.status,
+                status: registryUpdated ? 'updated' : registryState.status,
             },
             agentConfig: { path: agentConfigPath, status: agentConfigStatus },
             primaryAgent: {
@@ -547,12 +586,12 @@ export async function createWorkspaceAgentScaffold(
 
     registryState.registry.agents.push(expectedRegistryEntry);
     registryState.registry.agents.sort((left, right) => left.id.localeCompare(right.id));
+    const primaryCandidatesAfterAdd = registryState.registry.agents.filter(isPrimaryCandidate);
 
     let primaryAgentStatus: 'set' | 'unchanged' = 'unchanged';
     if (
         !options.subagent &&
-        (options.primary ||
-            (!currentPrimaryAgentId && registryState.registry.agents.length === 1)) &&
+        (options.primary || (!currentPrimaryAgentId && primaryCandidatesAfterAdd.length === 1)) &&
         registryState.registry.primaryAgent !== agentId
     ) {
         registryState.registry.primaryAgent = agentId;
@@ -614,6 +653,12 @@ export async function setWorkspacePrimaryAgent(
         );
     }
 
+    if (!isPrimaryCandidate(existingEntry)) {
+        throw new Error(
+            `Agent '${agentId}' is marked as a subagent and cannot be selected as the workspace primary agent.`
+        );
+    }
+
     if (registryState.registry.primaryAgent === agentId) {
         return {
             workspace,
@@ -661,7 +706,8 @@ export async function linkWorkspaceSubagentToPrimaryAgent(
         };
     }
 
-    if (subagentEntry.parentAgentId === primaryAgentId) {
+    const needsSubagentTag = !isSubagentEntry(subagentEntry);
+    if (subagentEntry.parentAgentId === primaryAgentId && !needsSubagentTag) {
         return {
             workspace,
             registry: { path: registryState.path, status: 'existing' },
@@ -672,7 +718,9 @@ export async function linkWorkspaceSubagentToPrimaryAgent(
     }
 
     registryState.registry.agents = registryState.registry.agents.map((entry) =>
-        entry.id === subagentId ? { ...entry, parentAgentId: primaryAgentId } : entry
+        entry.id === subagentId
+            ? { ...addSubagentTag(entry), parentAgentId: primaryAgentId }
+            : entry
     );
     await saveWorkspaceProjectRegistry(registryState.path, registryState.registry);
 
@@ -737,28 +785,32 @@ async function resolvePrimaryAgentSelection(
 
     const workspace = await createWorkspaceScaffold(workspaceRoot);
     const registryState = await loadWorkspaceProjectRegistry(workspace.root);
+    const primaryCandidates = registryState.registry.agents.filter(isPrimaryCandidate);
 
-    if (registryState.registry.agents.length === 0) {
-        throw new Error('No workspace agents found. Run `dexto init agent` first.');
+    if (primaryCandidates.length === 0) {
+        throw new Error('No primary-capable workspace agents found. Run `dexto init agent` first.');
     }
 
-    if (registryState.registry.agents.length === 1) {
-        return registryState.registry.agents[0]?.id ?? '';
+    if (primaryCandidates.length === 1) {
+        return primaryCandidates[0]?.id ?? '';
     }
+
+    const currentPrimaryAgentId = getEffectiveWorkspacePrimaryAgentId(registryState.registry);
+    const initialValue = primaryCandidates.some((entry) => entry.id === currentPrimaryAgentId)
+        ? currentPrimaryAgentId
+        : undefined;
 
     return await selectOrExit<string>(
         {
             message: 'Which agent should be the workspace primary?',
-            initialValue: getEffectiveWorkspacePrimaryAgentId(registryState.registry) ?? undefined,
-            options: registryState.registry.agents.map((entry) => ({
+            initialValue,
+            options: primaryCandidates.map((entry) => ({
                 value: entry.id,
                 label: `${entry.name} (${entry.id})`,
                 hint:
                     registryState.registry.primaryAgent === entry.id
                         ? 'Current primary'
-                        : entry.tags?.includes('subagent')
-                          ? 'Marked as a subagent'
-                          : entry.description,
+                        : entry.description,
             })),
         },
         'Primary agent selection cancelled'

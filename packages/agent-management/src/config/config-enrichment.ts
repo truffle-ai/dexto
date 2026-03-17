@@ -107,10 +107,13 @@ function resolveEnrichmentWorkspaceRoot(
     }
 
     if (configPath) {
-        const configProjectRoot = findDextoProjectRoot(path.dirname(path.resolve(configPath)));
+        const resolvedConfigDir = path.dirname(path.resolve(configPath));
+        const configProjectRoot = findDextoProjectRoot(resolvedConfigDir);
         if (configProjectRoot) {
             return configProjectRoot;
         }
+
+        return resolvedConfigDir;
     }
 
     return findDextoProjectRoot() ?? process.cwd();

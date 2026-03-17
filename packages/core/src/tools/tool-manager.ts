@@ -239,9 +239,8 @@ export class ToolManager {
     /**
      * Set workspace manager for tool execution context propagation.
      */
-    setWorkspaceManager(workspaceManager: WorkspaceManager): void {
+    async setWorkspaceManager(workspaceManager: WorkspaceManager): Promise<void> {
         this.workspaceManager = workspaceManager;
-        void this.refreshWorkspace();
 
         if (!this.workspaceListenerAttached) {
             this.workspaceListenerAttached = true;
@@ -260,6 +259,7 @@ export class ToolManager {
             });
         }
 
+        await this.refreshWorkspace();
         this.logger.debug('WorkspaceManager reference configured for ToolManager');
     }
 
@@ -543,12 +543,13 @@ export class ToolManager {
             }
 
             try {
+                const fallbackDescription = tool.description.trim() ? tool.description : '';
                 const dynamicDescription = await tool.getDescription(
                     this.buildToolExecutionContext({})
                 );
-                if (dynamicDescription.trim()) {
-                    cachedTool.description = dynamicDescription;
-                }
+                cachedTool.description = dynamicDescription.trim()
+                    ? dynamicDescription
+                    : fallbackDescription;
             } catch (error) {
                 this.logger.warn(
                     `Failed to refresh dynamic description for '${toolName}': ${

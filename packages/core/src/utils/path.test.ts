@@ -110,6 +110,17 @@ describe('getDextoPath', () => {
             expect(result).toBe(path.join(tempDir, '.dexto', 'logs', 'workspace.log'));
         });
 
+        it('falls back to global paths for generic AGENTS.md plus authored directories', () => {
+            tempDir = createTempDirStructure({
+                'AGENTS.md': '# Generic instructions',
+                'skills/.gitkeep': '',
+            });
+
+            const result = getDextoPath('logs', 'workspace.log', tempDir);
+
+            expect(result).toBe(path.join(homedir(), '.dexto', 'logs', 'workspace.log'));
+        });
+
         it('falls back to global paths for skills/ alone', () => {
             tempDir = createTempDirStructure({
                 'skills/release-check/SKILL.md': '# Release Check',

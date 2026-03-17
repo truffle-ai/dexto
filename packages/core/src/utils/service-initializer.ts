@@ -224,7 +224,7 @@ export async function createAgentServices(
             [],
             logger
         );
-    toolManager.setWorkspaceManager(workspaceManager);
+    await toolManager.setWorkspaceManager(workspaceManager);
     // NOTE: local tools + ToolExecutionContext are wired in DextoAgent.start()
 
     const mcpServerCount = Object.keys(config.mcpServers).length;

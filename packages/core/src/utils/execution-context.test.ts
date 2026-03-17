@@ -50,6 +50,16 @@ describe('core execution context detection', () => {
         expect(findDextoProjectRoot(workspaceRoot)).toBeNull();
     });
 
+    it('does not treat generic AGENTS.md plus authored directories as a dexto-project marker', () => {
+        const workspaceRoot = createTempDirStructure({
+            'AGENTS.md': '# Generic instructions',
+            'skills/.gitkeep': '',
+        });
+
+        expect(getExecutionContext(workspaceRoot)).toBe('global-cli');
+        expect(findDextoProjectRoot(workspaceRoot)).toBeNull();
+    });
+
     it('does not treat arbitrary agent YAML under agents/ as a dexto-project marker', () => {
         const workspaceRoot = createTempDirStructure({
             'agents/reviewer/reviewer.yml': 'agentCard:\n  name: Reviewer\n',

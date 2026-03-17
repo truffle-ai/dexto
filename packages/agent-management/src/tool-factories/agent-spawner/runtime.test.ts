@@ -847,4 +847,136 @@ describe('AgentSpawnerRuntime workspace inheritance', () => {
 
         await expect(runtime.getAvailableAgents()).resolves.toEqual([]);
     });
+
+    it('does not let allowedAgents bypass workspace parent scoping', async () => {
+        const workspaceRoot = path.join(tempDir, 'workspace');
+        await fs.mkdir(path.join(workspaceRoot, 'agents'), { recursive: true });
+        await fs.writeFile(
+            path.join(workspaceRoot, 'agents', 'registry.json'),
+            JSON.stringify(
+                {
+                    agents: [
+                        {
+                            id: 'explore-agent',
+                            name: 'Explore Agent',
+                            description: 'Workspace sub-agent',
+                            configPath: './explore-agent/explore-agent.yml',
+                            parentAgentId: 'review-agent',
+                            tags: ['subagent'],
+                        },
+                    ],
+                },
+                null,
+                2
+            ),
+            'utf8'
+        );
+        process.chdir(workspaceRoot);
+
+        const parentAgent = {
+            config: {
+                agentId: 'coding-agent',
+                mcpServers: {},
+            },
+            getCurrentLLMConfig: () => ({
+                provider: 'openai',
+                model: 'gpt-4o-mini',
+            }),
+            getWorkspace: vi.fn(async () => ({
+                id: 'workspace-1',
+                path: workspaceRoot,
+                name: 'Workspace',
+                createdAt: Date.now(),
+                lastActiveAt: Date.now(),
+            })),
+            services: {
+                approvalManager: {},
+            },
+            emit: vi.fn(),
+        } as unknown as DextoAgent;
+
+        const runtime = new AgentSpawnerRuntime(
+            parentAgent,
+            AgentSpawnerConfigSchema.parse({
+                ...config,
+                allowedAgents: ['explore-agent'],
+            }),
+            createMockLogger()
+        );
+
+        await expect(runtime.getAvailableAgents()).resolves.toEqual([]);
+        await expect(
+            runtime.spawnAndExecute({
+                task: 'delegate workspace subagent',
+                instructions: 'delegate workspace subagent',
+                agentId: 'explore-agent',
+                autoApprove: true,
+            })
+        ).resolves.toMatchObject({
+            success: false,
+            error: expect.stringContaining('is linked to a different parent'),
+        });
+    });
+
+    it('uses the parent workspace root for available agents when cwd differs', async () => {
+        const workspaceRoot = path.join(tempDir, 'workspace');
+        const outsideDir = path.join(tempDir, 'outside');
+        await fs.mkdir(path.join(workspaceRoot, 'agents'), { recursive: true });
+        await fs.mkdir(outsideDir, { recursive: true });
+        await fs.writeFile(
+            path.join(workspaceRoot, 'agents', 'registry.json'),
+            JSON.stringify(
+                {
+                    agents: [
+                        {
+                            id: 'explore-agent',
+                            name: 'Explore Agent',
+                            description: 'Workspace sub-agent',
+                            configPath: './explore-agent/explore-agent.yml',
+                            parentAgentId: 'review-agent',
+                            tags: ['subagent'],
+                        },
+                        {
+                            id: 'review-agent',
+                            name: 'Review Agent',
+                            description: 'Workspace review agent',
+                            configPath: './review-agent/review-agent.yml',
+                        },
+                    ],
+                },
+                null,
+                2
+            ),
+            'utf8'
+        );
+        process.chdir(outsideDir);
+
+        const parentAgent = {
+            config: {
+                agentId: 'review-agent',
+                mcpServers: {},
+            },
+            getCurrentLLMConfig: () => ({
+                provider: 'openai',
+                model: 'gpt-4o-mini',
+            }),
+            getWorkspace: vi.fn(async () => ({
+                id: 'workspace-1',
+                path: workspaceRoot,
+                name: 'Workspace',
+                createdAt: Date.now(),
+                lastActiveAt: Date.now(),
+            })),
+            services: {
+                approvalManager: {},
+            },
+            emit: vi.fn(),
+        } as unknown as DextoAgent;
+
+        const runtime = new AgentSpawnerRuntime(parentAgent, config, createMockLogger());
+
+        await expect(runtime.getAvailableAgents()).resolves.toEqual([
+            expect.objectContaining({ id: 'explore-agent' }),
+        ]);
+    });
 });

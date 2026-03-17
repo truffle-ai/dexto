@@ -195,9 +195,9 @@ describe('Execution Context Detection', () => {
     });
 
     describe('Workspace markers without package.json', () => {
-        it('treats AGENTS.md plus authored workspace directories as a dexto-project marker', () => {
+        it('treats Dexto workspace AGENTS.md plus authored workspace directories as a dexto-project marker', () => {
             tempDir = createTempDirStructure({
-                'AGENTS.md': '# Workspace instructions',
+                'AGENTS.md': '# Dexto Workspace\n',
                 'skills/.gitkeep': '',
             });
             const nestedDir = path.join(tempDir, 'nested');
@@ -252,6 +252,16 @@ describe('Execution Context Detection', () => {
         it('does not treat AGENTS.md alone as a dexto-project marker', () => {
             tempDir = createTempDirStructure({
                 'AGENTS.md': '# Generic agent instructions',
+            });
+
+            expect(getExecutionContext(tempDir)).toBe('global-cli');
+            expect(findDextoProjectRoot(tempDir)).toBeNull();
+        });
+
+        it('does not treat generic AGENTS.md plus authored directories as a dexto-project marker', () => {
+            tempDir = createTempDirStructure({
+                'AGENTS.md': '# Generic agent instructions',
+                'skills/.gitkeep': '',
             });
 
             expect(getExecutionContext(tempDir)).toBe('global-cli');

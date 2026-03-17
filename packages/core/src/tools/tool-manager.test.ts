@@ -1206,6 +1206,45 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             expect(getDescription).toHaveBeenCalledTimes(2);
         });
 
+        it('falls back to the static description when a dynamic description becomes blank', async () => {
+            const getDescription = vi
+                .fn()
+                .mockResolvedValueOnce('Workspace agents: review-agent')
+                .mockResolvedValueOnce('   ');
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    {
+                        id: 'spawn_agent',
+                        description: 'Static description',
+                        getDescription,
+                        inputSchema: z.object({}).strict(),
+                        execute: vi.fn(),
+                    },
+                ] as any,
+                mockLogger
+            );
+
+            toolManager.setToolExecutionContextFactory((baseContext) => ({
+                ...baseContext,
+                agent: {} as any,
+                services: {} as any,
+            }));
+
+            const firstDescription = (await toolManager.getAllTools())['spawn_agent']?.description;
+            const secondDescription = (await toolManager.getAllTools())['spawn_agent']?.description;
+
+            expect(firstDescription).toBe('Workspace agents: review-agent');
+            expect(secondDescription).toBe('Static description');
+        });
+
         it('should invalidate cache on refresh', async () => {
             const tools = {
                 test_tool: { name: 'test_tool', description: 'Test', parameters: {} },
@@ -1265,7 +1304,7 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 mockLogger
             );
 
-            toolManager.setWorkspaceManager({
+            await toolManager.setWorkspaceManager({
                 getWorkspace: vi.fn().mockResolvedValue({
                     id: 'workspace-1',
                     path: '/tmp/workspace-one',

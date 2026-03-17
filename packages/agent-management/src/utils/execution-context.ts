@@ -23,11 +23,14 @@ const DIRECT_PROJECT_ROOT_MARKERS = [
     path.join('src', 'dexto', 'agents', 'coding-agent.yaml'),
 ] as const;
 
-function hasCaseInsensitiveRootFile(dirPath: string, filename: string): boolean {
+function getCaseInsensitiveRootFilename(dirPath: string, filename: string): string | null {
     try {
-        return readdirSync(dirPath).some((entry) => entry.toLowerCase() === filename.toLowerCase());
+        return (
+            readdirSync(dirPath).find((entry) => entry.toLowerCase() === filename.toLowerCase()) ??
+            null
+        );
     } catch {
-        return false;
+        return null;
     }
 }
 
@@ -39,9 +42,23 @@ function hasWorkspaceAuthoringDirectory(dirPath: string, name: 'agents' | 'skill
     }
 }
 
+function hasDextoWorkspaceAgentsFile(dirPath: string): boolean {
+    const agentsFilename = getCaseInsensitiveRootFilename(dirPath, 'agents.md');
+    if (!agentsFilename) {
+        return false;
+    }
+
+    try {
+        const content = readFileSync(path.join(dirPath, agentsFilename), 'utf-8').toLowerCase();
+        return content.includes('dexto workspace') || content.includes('dexto-workspace');
+    } catch {
+        return false;
+    }
+}
+
 function hasWorkspaceScaffoldMarker(dirPath: string): boolean {
     return (
-        hasCaseInsensitiveRootFile(dirPath, 'agents.md') &&
+        hasDextoWorkspaceAgentsFile(dirPath) &&
         (hasWorkspaceAuthoringDirectory(dirPath, 'agents') ||
             hasWorkspaceAuthoringDirectory(dirPath, 'skills'))
     );

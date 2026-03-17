@@ -168,10 +168,10 @@ const AGENT_INSTRUCTION_FILES = ['agents.md', 'claude.md', 'gemini.md'] as const
  *
  * Only the first found file is returned (we don't want multiple instruction files).
  *
- * @param searchDir Directory to search (defaults to process.cwd())
+ * @param searchDir Directory to search
  * @returns The absolute path to the first found instruction file, or null if none found
  */
-export function discoverAgentInstructionFile(searchDir: string = process.cwd()): string | null {
+export function discoverAgentInstructionFile(searchDir: string): string | null {
     const cwd = path.resolve(searchDir);
 
     // Read directory once for case-insensitive matching

@@ -147,10 +147,6 @@ export class AgentSpawnerRuntime implements TaskForker {
     private isWorkspaceEntryAvailableToCurrentParent(entry: {
         parentAgentId?: string | undefined;
     }): boolean {
-        if (this.config.allowedAgents && this.config.allowedAgents.length > 0) {
-            return true;
-        }
-
         if (!entry.parentAgentId) {
             return true;
         }
@@ -165,15 +161,16 @@ export class AgentSpawnerRuntime implements TaskForker {
 
     private async getProjectRootCandidates(): Promise<string[]> {
         const candidates = new Set<string>();
+        const seedPaths: string[] = [];
 
         if (this.workspaceRootHint) {
-            candidates.add(this.workspaceRootHint);
+            seedPaths.push(this.workspaceRootHint);
         }
 
         try {
             const workspace = await this.parentAgent.getWorkspace();
             if (workspace?.path) {
-                candidates.add(workspace.path);
+                seedPaths.push(workspace.path);
             }
         } catch (error) {
             this.logger.warn(
@@ -181,9 +178,14 @@ export class AgentSpawnerRuntime implements TaskForker {
             );
         }
 
-        const detectedProjectRoot = findDextoProjectRoot(this.workspaceRootHint ?? process.cwd());
-        if (detectedProjectRoot) {
-            candidates.add(detectedProjectRoot);
+        seedPaths.push(process.cwd());
+
+        for (const seedPath of seedPaths) {
+            candidates.add(seedPath);
+            const detectedProjectRoot = findDextoProjectRoot(seedPath);
+            if (detectedProjectRoot) {
+                candidates.add(detectedProjectRoot);
+            }
         }
 
         return Array.from(candidates);
@@ -992,7 +994,7 @@ export class AgentSpawnerRuntime implements TaskForker {
                 !workspaceRegistryResolution.registryFound ||
                 workspaceRegistryResolution.allowGlobalAgents;
             if (workspaceRegistryResolution.blocked) {
-                this.logger.warn(
+                throw new Error(
                     `Workspace agent '${agentId}' is linked to a different parent and is not available to '${this.parentAgent.config.agentId ?? this.parentId}'.`
                 );
             }

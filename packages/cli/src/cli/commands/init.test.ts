@@ -230,6 +230,20 @@ describe('init command', () => {
         expect(registryContent.primaryAgent).toBe('review-agent');
     });
 
+    it('does not infer a subagent as the workspace primary agent', async () => {
+        await createWorkspaceAgentScaffold('explore-agent', { subagent: true }, tempDir);
+        const result = await createWorkspaceAgentScaffold('review-agent', {}, tempDir);
+
+        const registryContent = JSON.parse(
+            await fs.readFile(path.join(tempDir, 'agents', 'registry.json'), 'utf8')
+        ) as {
+            primaryAgent?: string;
+        };
+
+        expect(registryContent.primaryAgent).toBe('review-agent');
+        expect(result.primaryAgent).toEqual({ id: 'review-agent', status: 'set' });
+    });
+
     it('does not replace an existing primary agent unless requested', async () => {
         await createWorkspaceAgentScaffold('review-agent', {}, tempDir);
 
@@ -273,6 +287,36 @@ describe('init command', () => {
         await expect(createWorkspaceAgentScaffold('helper-agent', {}, tempDir)).rejects.toThrow(
             "Primary agent 'missing-agent' not found"
         );
+    });
+
+    it('fails before creating files when the registry already maps an agent id to another path', async () => {
+        await createWorkspaceScaffold(tempDir);
+        await fs.writeFile(
+            path.join(tempDir, 'agents', 'registry.json'),
+            JSON.stringify(
+                {
+                    agents: [
+                        {
+                            id: 'helper-agent',
+                            name: 'Helper Agent',
+                            description: 'Existing helper agent',
+                            configPath: './somewhere-else/helper-agent.yml',
+                        },
+                    ],
+                },
+                null,
+                2
+            ),
+            'utf8'
+        );
+
+        await expect(createWorkspaceAgentScaffold('helper-agent', {}, tempDir)).rejects.toThrow(
+            "Agent 'helper-agent' already exists"
+        );
+
+        await expect(
+            fs.access(path.join(tempDir, 'agents', 'helper-agent', 'helper-agent.yml'))
+        ).rejects.toThrow();
     });
 
     it('creates a sub-agent scaffold and marks it in the registry', async () => {
@@ -324,6 +368,37 @@ describe('init command', () => {
         expect(
             registryContent.agents.find((entry) => entry.id === 'explore-agent')?.parentAgentId
         ).toBe('review-agent');
+    });
+
+    it('converts an existing non-primary agent into a subagent when requested', async () => {
+        await createWorkspaceAgentScaffold('review-agent', {}, tempDir);
+        await createWorkspaceAgentScaffold('explore-agent', {}, tempDir);
+        const result = await createWorkspaceAgentScaffold(
+            'explore-agent',
+            { subagent: true },
+            tempDir
+        );
+
+        expect(result.registry.status).toBe('updated');
+
+        const registryContent = JSON.parse(
+            await fs.readFile(path.join(tempDir, 'agents', 'registry.json'), 'utf8')
+        ) as {
+            agents: Array<{ id: string; tags?: string[] }>;
+        };
+
+        expect(registryContent.agents.find((entry) => entry.id === 'explore-agent')).toMatchObject({
+            tags: ['subagent'],
+        });
+    });
+
+    it('rejects promoting a subagent to primary', async () => {
+        await createWorkspaceAgentScaffold('review-agent', {}, tempDir);
+        await createWorkspaceAgentScaffold('explore-agent', { subagent: true }, tempDir);
+
+        await expect(setWorkspacePrimaryAgent('explore-agent', tempDir)).rejects.toThrow(
+            "Agent 'explore-agent' is marked as a subagent"
+        );
     });
 
     it('creates a skill scaffold under skills/<id>/SKILL.md', async () => {
