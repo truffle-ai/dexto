@@ -14,6 +14,10 @@ import { ConfigError } from './config/index.js';
 import { RegistryError } from './registry/errors.js';
 import { AgentManager } from './AgentManager.js';
 import { installBundledAgent } from './installation.js';
+import {
+    isProjectRegistryError,
+    resolveDefaultProjectRegistryAgentPath,
+} from './project-registry.js';
 
 /**
  * Entry in the installed agents registry (registry.json)
@@ -210,11 +214,33 @@ async function resolveDefaultAgentForDextoProject(autoInstall: boolean = true): 
         throw ConfigError.unknownContext('dexto-project: project root not found');
     }
 
-    // 1. Try project-local coding-agent.yml first
+    // 1. Prefer explicit or inferred project registry default
+    try {
+        const projectRegistryAgentPath = await resolveDefaultProjectRegistryAgentPath(projectRoot);
+        if (projectRegistryAgentPath) {
+            return projectRegistryAgentPath;
+        }
+    } catch (error) {
+        if (isProjectRegistryError(error) && error.code === 'PROJECT_REGISTRY_INVALID_PRIMARY') {
+            throw ConfigError.invalidProjectPrimary(
+                error.registryPath,
+                error.agentId ?? '',
+                error.message
+            );
+        }
+        throw error;
+    }
+
+    // 2. Try project-local coding-agent.yml conventions
     const candidatePaths = [
+        path.join(projectRoot, 'agents', 'coding-agent', 'coding-agent.yml'),
+        path.join(projectRoot, 'agents', 'coding-agent', 'coding-agent.yaml'),
         path.join(projectRoot, 'coding-agent.yml'),
+        path.join(projectRoot, 'coding-agent.yaml'),
         path.join(projectRoot, 'agents', 'coding-agent.yml'),
+        path.join(projectRoot, 'agents', 'coding-agent.yaml'),
         path.join(projectRoot, 'src', 'dexto', 'agents', 'coding-agent.yml'),
+        path.join(projectRoot, 'src', 'dexto', 'agents', 'coding-agent.yaml'),
     ];
 
     for (const p of candidatePaths) {
@@ -225,9 +251,9 @@ async function resolveDefaultAgentForDextoProject(autoInstall: boolean = true): 
             // continue
         }
     }
-    logger.debug(`No project-local coding-agent.yml found in ${projectRoot}`);
+    logger.debug(`No project-local coding-agent found in ${projectRoot}`);
 
-    // 2. Use preferences default agent name - REQUIRED if no project default
+    // 3. Use preferences default agent name - REQUIRED if no project default
     if (!globalPreferencesExist()) {
         throw ConfigError.noProjectDefault(projectRoot);
     }

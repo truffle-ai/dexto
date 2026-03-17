@@ -31,6 +31,8 @@ import * as path from 'path';
 import { type AgentSpawnerConfig } from './schemas.js';
 import type { SpawnAgentOutput } from './types.js';
 import { resolveSubAgentLLM } from './llm-resolution.js';
+import { loadProjectRegistry, resolveProjectRegistryAgentPath } from '../../project-registry.js';
+import { findDextoProjectRoot } from '../../utils/execution-context.js';
 
 const REASONING_VARIANT_FALLBACK_ORDER = [
     'disabled',
@@ -50,6 +52,7 @@ export class AgentSpawnerRuntime implements TaskForker {
     private parentAgent: DextoAgent;
     private config: AgentSpawnerConfig;
     private logger: Logger;
+    private workspaceRootHint: string | undefined;
 
     private selectLowestReasoningVariant(
         provider: AgentConfig['llm']['provider'],
@@ -139,6 +142,188 @@ export class AgentSpawnerRuntime implements TaskForker {
             source: agentId,
             type: 'custom',
         };
+    }
+
+    private isWorkspaceEntryAvailableToCurrentParent(entry: {
+        parentAgentId?: string | undefined;
+    }): boolean {
+        if (!entry.parentAgentId) {
+            return true;
+        }
+
+        return entry.parentAgentId === this.parentAgent.config.agentId;
+    }
+
+    setWorkspaceRootHint(workspaceRootHint?: string): void {
+        const trimmed = workspaceRootHint?.trim();
+        this.workspaceRootHint = trimmed ? trimmed : undefined;
+    }
+
+    private async getProjectRootCandidates(): Promise<string[]> {
+        const candidates = new Set<string>();
+        const seedPaths: string[] = [];
+
+        if (this.workspaceRootHint) {
+            seedPaths.push(this.workspaceRootHint);
+        }
+
+        try {
+            const workspace = await this.parentAgent.getWorkspace();
+            if (workspace?.path) {
+                seedPaths.push(workspace.path);
+            }
+        } catch (error) {
+            this.logger.warn(
+                `Failed to read parent workspace while resolving workspace agents: ${error instanceof Error ? error.message : String(error)}`
+            );
+        }
+
+        seedPaths.push(process.cwd());
+
+        for (const seedPath of seedPaths) {
+            candidates.add(seedPath);
+            const detectedProjectRoot = findDextoProjectRoot(seedPath);
+            if (detectedProjectRoot) {
+                candidates.add(detectedProjectRoot);
+            }
+        }
+
+        return Array.from(candidates);
+    }
+
+    private async getWorkspaceAvailableAgentsResult(): Promise<{
+        agents: Record<string, AgentRegistryEntry>;
+        registryFound: boolean;
+        allowGlobalAgents: boolean;
+    }> {
+        for (const projectRoot of await this.getProjectRootCandidates()) {
+            try {
+                const loaded = await loadProjectRegistry(projectRoot);
+                if (!loaded) {
+                    continue;
+                }
+
+                return {
+                    registryFound: true,
+                    allowGlobalAgents: loaded.registry.allowGlobalAgents,
+                    agents: Object.fromEntries(
+                        loaded.registry.agents
+                            .filter(
+                                (entry) =>
+                                    entry.id !== this.parentAgent.config.agentId &&
+                                    this.isWorkspaceEntryAvailableToCurrentParent(entry)
+                            )
+                            .map((entry) => [
+                                entry.id,
+                                {
+                                    id: entry.id,
+                                    name: entry.name,
+                                    description: entry.description,
+                                    author: entry.author ?? 'workspace',
+                                    tags: entry.tags ?? [],
+                                    source: entry.configPath,
+                                    type: 'custom' as const,
+                                },
+                            ])
+                    ),
+                };
+            } catch (error) {
+                this.logger.warn(
+                    `Failed to load workspace registry agents from ${projectRoot}: ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
+        }
+
+        return { agents: {}, registryFound: false, allowGlobalAgents: false };
+    }
+
+    private async resolveWorkspaceRegistryAgentConfig(agentId: string): Promise<{
+        configPath: string | null;
+        blocked: boolean;
+        blockedReason?: string | undefined;
+        registryFound: boolean;
+        allowGlobalAgents: boolean;
+    }> {
+        let registryFound = false;
+        let allowGlobalAgents = false;
+
+        for (const projectRoot of await this.getProjectRootCandidates()) {
+            try {
+                const loaded = await loadProjectRegistry(projectRoot);
+                if (!loaded) {
+                    continue;
+                }
+
+                registryFound = true;
+                allowGlobalAgents = loaded.registry.allowGlobalAgents;
+
+                const entry = loaded.registry.agents.find((candidate) => candidate.id === agentId);
+                if (!entry) {
+                    continue;
+                }
+
+                if (entry.id === this.parentAgent.config.agentId) {
+                    return {
+                        configPath: null,
+                        blocked: true,
+                        blockedReason: `Workspace agent '${agentId}' cannot spawn itself.`,
+                        registryFound: true,
+                        allowGlobalAgents,
+                    };
+                }
+
+                if (!this.isWorkspaceEntryAvailableToCurrentParent(entry)) {
+                    return {
+                        configPath: null,
+                        blocked: true,
+                        blockedReason: `Workspace agent '${agentId}' is linked to a different parent and is not available to '${this.parentAgent.config.agentId ?? this.parentId}'.`,
+                        registryFound: true,
+                        allowGlobalAgents,
+                    };
+                }
+
+                try {
+                    const configPath = await resolveProjectRegistryAgentPath(projectRoot, agentId);
+                    if (configPath) {
+                        return {
+                            configPath,
+                            blocked: false,
+                            registryFound: true,
+                            allowGlobalAgents,
+                        };
+                    }
+
+                    return {
+                        configPath: null,
+                        blocked: true,
+                        blockedReason: `Workspace agent '${agentId}' is declared in ${loaded.registryPath} but its config path could not be resolved.`,
+                        registryFound: true,
+                        allowGlobalAgents,
+                    };
+                } catch (error) {
+                    const blockedReason =
+                        error instanceof Error
+                            ? error.message
+                            : `Workspace agent '${agentId}' could not be resolved from ${loaded.registryPath}.`;
+                    this.logger.warn(
+                        `Failed to resolve workspace registry agent '${agentId}' from ${projectRoot}: ${blockedReason}`
+                    );
+                    return {
+                        configPath: null,
+                        blocked: true,
+                        blockedReason,
+                        registryFound: true,
+                        allowGlobalAgents,
+                    };
+                }
+            } catch (error) {
+                this.logger.warn(
+                    `Failed to resolve workspace registry agent '${agentId}' from ${projectRoot}: ${error instanceof Error ? error.message : String(error)}`
+                );
+            }
+        }
+
+        return { configPath: null, blocked: false, registryFound, allowGlobalAgents };
     }
 
     constructor(parentAgent: DextoAgent, config: AgentSpawnerConfig, logger: Logger) {
@@ -835,16 +1020,31 @@ export class AgentSpawnerRuntime implements TaskForker {
         // If agentId is provided, resolve from registry
         if (agentId) {
             let configPath: string | null = null;
-            try {
-                const registry = getAgentRegistry();
+            const workspaceRegistryResolution =
+                await this.resolveWorkspaceRegistryAgentConfig(agentId);
+            configPath = workspaceRegistryResolution.configPath;
+            const canUseGlobalAgents =
+                !workspaceRegistryResolution.registryFound ||
+                workspaceRegistryResolution.allowGlobalAgents;
+            if (workspaceRegistryResolution.blocked) {
+                throw new Error(
+                    workspaceRegistryResolution.blockedReason ??
+                        `Workspace agent '${agentId}' is linked to a different parent and is not available to '${this.parentAgent.config.agentId ?? this.parentId}'.`
+                );
+            }
 
-                if (!registry.hasAgent(agentId)) {
-                    this.logger.warn(
-                        `Agent '${agentId}' not found in registry. Trying bundled config paths.`
-                    );
-                } else {
-                    // resolveAgent handles installation if needed
-                    configPath = await registry.resolveAgent(agentId);
+            try {
+                if (!configPath && !workspaceRegistryResolution.blocked && canUseGlobalAgents) {
+                    const registry = getAgentRegistry();
+
+                    if (!registry.hasAgent(agentId)) {
+                        this.logger.warn(
+                            `Agent '${agentId}' not found in installed registry. Trying bundled config paths.`
+                        );
+                    } else {
+                        // resolveAgent handles installation if needed
+                        configPath = await registry.resolveAgent(agentId);
+                    }
                 }
             } catch (error) {
                 this.logger.warn(
@@ -852,7 +1052,7 @@ export class AgentSpawnerRuntime implements TaskForker {
                 );
             }
 
-            if (!configPath) {
+            if (!configPath && !workspaceRegistryResolution.blocked && canUseGlobalAgents) {
                 configPath = this.resolveBundledAgentConfig(agentId);
             }
 
@@ -926,33 +1126,41 @@ export class AgentSpawnerRuntime implements TaskForker {
      * Get information about available agents for tool description.
      * Returns agent metadata from registry, filtered by allowedAgents if configured.
      */
-    getAvailableAgents(): AgentRegistryEntry[] {
-        let allAgents: Record<string, AgentRegistryEntry>;
-        try {
-            const registry = getAgentRegistry();
-            allAgents = registry.getAvailableAgents();
-        } catch (error) {
-            this.logger.warn(
-                `Failed to load agent registry for spawn_agent description: ${error instanceof Error ? error.message : String(error)}`
-            );
-            if (this.config.allowedAgents && this.config.allowedAgents.length > 0) {
-                return this.config.allowedAgents.map((id) => this.createFallbackRegistryEntry(id));
+    async getAvailableAgents(): Promise<AgentRegistryEntry[]> {
+        const workspaceAgents = await this.getWorkspaceAvailableAgentsResult();
+        const canUseGlobalAgents =
+            !workspaceAgents.registryFound || workspaceAgents.allowGlobalAgents;
+        let scopedAgents: Record<string, AgentRegistryEntry> = { ...workspaceAgents.agents };
+
+        if (canUseGlobalAgents) {
+            try {
+                const registry = getAgentRegistry();
+                scopedAgents = {
+                    ...registry.getAvailableAgents(),
+                    ...workspaceAgents.agents,
+                };
+            } catch (error) {
+                this.logger.warn(
+                    `Failed to load agent registry for spawn_agent description: ${error instanceof Error ? error.message : String(error)}`
+                );
             }
-            return [];
         }
 
-        // If allowedAgents is configured, filter to only those
-        if (this.config.allowedAgents && this.config.allowedAgents.length > 0) {
-            const result: AgentRegistryEntry[] = [];
-            for (const id of this.config.allowedAgents) {
-                const agent = allAgents[id];
-                result.push(agent ?? this.createFallbackRegistryEntry(id));
-            }
-            return result;
+        if (!this.config.allowedAgents || this.config.allowedAgents.length === 0) {
+            return Object.values(scopedAgents);
         }
 
-        // Otherwise return all registry agents
-        return Object.values(allAgents);
+        const result: AgentRegistryEntry[] = [];
+        for (const id of this.config.allowedAgents) {
+            const agent = scopedAgents[id];
+            if (agent) {
+                result.push(agent);
+            } else if (canUseGlobalAgents) {
+                result.push(this.createFallbackRegistryEntry(id));
+            }
+        }
+
+        return result;
     }
 
     /**

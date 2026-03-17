@@ -69,29 +69,115 @@ describe('deploy config', () => {
         expect(loaded?.exclude).toEqual(['.git']);
     });
 
-    it('discovers the primary workspace agent from agents only', async () => {
+    it('discovers the registry primary workspace agent', async () => {
         tempDir = createTempDir();
         writeWorkspaceFiles(tempDir, {
-            'coding-agent.yml': 'agentCard:\n  name: Root Agent\n',
-            'agents/coding-agent/coding-agent.yml': 'agentCard:\n  name: Nested Agent\n',
-            'agents/coding-agent.yml': 'agentCard:\n  name: Agent\n',
-            'src/dexto/agents/coding-agent.yml': 'agentCard:\n  name: Src Agent\n',
+            'agents/registry.json': JSON.stringify({
+                primaryAgent: 'review-agent',
+                agents: [
+                    {
+                        id: 'review-agent',
+                        name: 'Review Agent',
+                        description: 'Primary workspace agent',
+                        configPath: './review-agent/review-agent.yml',
+                    },
+                ],
+            }),
+            'agents/review-agent/review-agent.yml': 'agentCard:\n  name: Review Agent\n',
         });
 
         const candidate = await discoverPrimaryWorkspaceAgent(tempDir);
-        expect(candidate).toBe('agents/coding-agent/coding-agent.yml');
+        expect(candidate).toBe('agents/review-agent/review-agent.yml');
     });
 
-    it('returns null when no primary workspace agent exists under agents', async () => {
+    it('infers the only registry agent when no primaryAgent is set', async () => {
         tempDir = createTempDir();
         writeWorkspaceFiles(tempDir, {
-            'coding-agent.yml': 'agentCard:\n  name: Root Agent\n',
-            'agents/reviewer/reviewer.yml': 'agentCard:\n  name: Reviewer\n',
-            'src/dexto/agents/coding-agent.yml': 'agentCard:\n  name: Src Agent\n',
+            'agents/registry.json': JSON.stringify({
+                agents: [
+                    {
+                        id: 'review-agent',
+                        name: 'Review Agent',
+                        description: 'Primary workspace agent',
+                        configPath: './review-agent/review-agent.yml',
+                    },
+                ],
+            }),
+            'agents/review-agent/review-agent.yml': 'agentCard:\n  name: Review Agent\n',
+        });
+
+        const candidate = await discoverPrimaryWorkspaceAgent(tempDir);
+        expect(candidate).toBe('agents/review-agent/review-agent.yml');
+    });
+
+    it('returns null when no registry default or compatibility agent exists', async () => {
+        tempDir = createTempDir();
+        writeWorkspaceFiles(tempDir, {
+            'agents/registry.json': JSON.stringify({
+                agents: [
+                    {
+                        id: 'review-agent',
+                        name: 'Review Agent',
+                        description: 'Reviews changes',
+                        configPath: './review-agent/review-agent.yml',
+                    },
+                    {
+                        id: 'explore-agent',
+                        name: 'Explore Agent',
+                        description: 'Explores the workspace',
+                        configPath: './explore-agent/explore-agent.yml',
+                    },
+                ],
+            }),
+            'agents/review-agent/review-agent.yml': 'agentCard:\n  name: Review Agent\n',
+            'agents/explore-agent/explore-agent.yml': 'agentCard:\n  name: Explore Agent\n',
         });
 
         const candidate = await discoverPrimaryWorkspaceAgent(tempDir);
         expect(candidate).toBeNull();
+    });
+
+    it('throws when registry primaryAgent points to a missing workspace agent', async () => {
+        tempDir = createTempDir();
+        writeWorkspaceFiles(tempDir, {
+            'agents/registry.json': JSON.stringify({
+                primaryAgent: 'review-agent',
+                agents: [
+                    {
+                        id: 'review-agent',
+                        name: 'Review Agent',
+                        description: 'Primary workspace agent',
+                        configPath: './review-agent/review-agent.yml',
+                    },
+                ],
+            }),
+        });
+
+        await expect(discoverPrimaryWorkspaceAgent(tempDir)).rejects.toThrow(
+            `Agent 'review-agent' in ${path.join(tempDir, 'agents', 'registry.json')} has invalid configPath './review-agent/review-agent.yml': file does not exist.`
+        );
+    });
+
+    it('rejects registry configPath values that point to directories', async () => {
+        tempDir = createTempDir();
+        writeWorkspaceFiles(tempDir, {
+            'agents/registry.json': JSON.stringify({
+                primaryAgent: 'review-agent',
+                agents: [
+                    {
+                        id: 'review-agent',
+                        name: 'Review Agent',
+                        description: 'Primary workspace agent',
+                        configPath: './review-agent',
+                    },
+                ],
+            }),
+            'agents/review-agent/.gitkeep': '',
+        });
+
+        await expect(discoverPrimaryWorkspaceAgent(tempDir)).rejects.toThrow(
+            `Agent 'review-agent' in ${path.join(tempDir, 'agents', 'registry.json')} has invalid configPath './review-agent': path must point to a file.`
+        );
     });
 
     it('wraps malformed deploy json errors with the config path', async () => {

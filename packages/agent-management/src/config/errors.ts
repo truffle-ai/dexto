@@ -58,9 +58,20 @@ export class ConfigError {
             ConfigErrorCode.NO_PROJECT_DEFAULT,
             ErrorScope.CONFIG,
             ErrorType.USER,
-            `No project coding-agent.yml found and no global preferences configured.\nEither create coding-agent.yml in your project root (${projectPath}) or run \`dexto setup\` to configure preferences.`,
+            `No project agent found and no global preferences configured.\nSet a primaryAgent in a workspace registry under agents/, create a single workspace agent under agents/, or run \`dexto setup\` to configure preferences.`,
             { projectPath },
             'Run `dexto setup` or create a project-specific agent config'
+        );
+    }
+
+    static invalidProjectPrimary(registryPath: string, primaryAgent: string, reason?: string) {
+        return new DextoRuntimeError(
+            ConfigErrorCode.INVALID_PROJECT_PRIMARY,
+            ErrorScope.CONFIG,
+            ErrorType.USER,
+            `Invalid primaryAgent '${primaryAgent}' in ${registryPath}${reason ? `: ${reason}` : ''}`,
+            { registryPath, primaryAgent, reason },
+            'Update the workspace registry so primaryAgent points to a valid workspace agent config'
         );
     }
 

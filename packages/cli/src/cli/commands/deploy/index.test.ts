@@ -9,6 +9,7 @@ const {
     mockDeployWorkspace,
     mockFindDextoProjectRoot,
     mockGetCloudAgent,
+    mockLoadAgentConfig,
     mockListCloudAgents,
     mockLoadDeployConfig,
     mockLoadWorkspaceDeployLink,
@@ -17,12 +18,14 @@ const {
     mockRemoveWorkspaceDeployLink,
     mockSaveWorkspaceDeployLink,
     mockSpinner,
+    mockValidateAgentConfig,
 } = vi.hoisted(() => ({
     mockCreateWorkspaceSnapshot: vi.fn(),
     mockDeleteCloudAgent: vi.fn(),
     mockDeployWorkspace: vi.fn(),
     mockFindDextoProjectRoot: vi.fn(),
     mockGetCloudAgent: vi.fn(),
+    mockLoadAgentConfig: vi.fn(),
     mockListCloudAgents: vi.fn(),
     mockLoadDeployConfig: vi.fn(),
     mockLoadWorkspaceDeployLink: vi.fn(),
@@ -35,10 +38,12 @@ const {
         stop: vi.fn(),
         message: vi.fn(),
     },
+    mockValidateAgentConfig: vi.fn(),
 }));
 
 vi.mock('@dexto/agent-management', () => ({
     findDextoProjectRoot: mockFindDextoProjectRoot,
+    loadAgentConfig: mockLoadAgentConfig,
 }));
 
 vi.mock('@clack/prompts', () => ({
@@ -101,6 +106,10 @@ vi.mock('./snapshot.js', () => ({
     createWorkspaceSnapshot: mockCreateWorkspaceSnapshot,
 }));
 
+vi.mock('../../utils/config-validation.js', () => ({
+    validateAgentConfig: mockValidateAgentConfig,
+}));
+
 function createTempDir(): string {
     return fs.mkdtempSync(path.join(tmpdir(), 'dexto-deploy-index-'));
 }
@@ -123,6 +132,9 @@ describe('deploy command', () => {
         mockLoadWorkspaceDeployLink.mockResolvedValue(null);
         mockFindDextoProjectRoot.mockReturnValue(null);
         mockOpenBrowser.mockResolvedValue(undefined);
+        mockLoadAgentConfig.mockResolvedValue({
+            llm: { provider: 'openai', model: 'gpt-5.3-codex', apiKey: '$OPENAI_API_KEY' },
+        });
         mockDeployWorkspace.mockResolvedValue({
             cloudAgentId: 'cloud-agent-a',
             agentUrl: 'https://sandbox.dexto.ai/api/cloud-agents/cloud-agent-a/agent',
@@ -152,6 +164,13 @@ describe('deploy command', () => {
         ]);
         mockSaveWorkspaceDeployLink.mockResolvedValue(undefined);
         mockRemoveWorkspaceDeployLink.mockResolvedValue(undefined);
+        mockValidateAgentConfig.mockResolvedValue({
+            success: true,
+            config: {
+                llm: { provider: 'openai', model: 'gpt-5.3-codex', apiKey: '$OPENAI_API_KEY' },
+            },
+            warnings: [],
+        });
     });
 
     afterEach(() => {
@@ -193,6 +212,53 @@ describe('deploy command', () => {
             expect.stringContaining('Run `dexto deploy` again in this workspace to re-link.')
         );
         expect(cleanup).toHaveBeenCalled();
+    });
+
+    it('validates workspace agents before uploading the workspace snapshot', async () => {
+        mockLoadDeployConfig.mockResolvedValue({
+            version: 1,
+            agent: { type: 'workspace', path: 'agents/review-agent/review-agent.yml' },
+            exclude: [],
+        });
+        const cleanup = vi.fn().mockResolvedValue(undefined);
+        mockCreateWorkspaceSnapshot.mockResolvedValue({
+            archivePath: '/tmp/workspace.tgz',
+            cleanup,
+        });
+        const { resolveWorkspaceDeployAgentPath } = await import('./config.js');
+        vi.mocked(resolveWorkspaceDeployAgentPath).mockReturnValue(
+            path.join(tempDir, 'agents', 'review-agent', 'review-agent.yml')
+        );
+        fs.mkdirSync(path.join(tempDir, 'agents', 'review-agent'), { recursive: true });
+        fs.writeFileSync(
+            path.join(tempDir, 'agents', 'review-agent', 'review-agent.yml'),
+            'llm: {}'
+        );
+        mockValidateAgentConfig.mockResolvedValueOnce({
+            success: false,
+            errors: ['llm.model: unsupported model'],
+        });
+
+        const { handleDeployCommand } = await import('./index.js');
+
+        await expect(handleDeployCommand()).rejects.toThrow(
+            'Workspace agent validation failed for agents/review-agent/review-agent.yml'
+        );
+
+        expect(mockLoadAgentConfig).toHaveBeenCalledWith(
+            path.join(tempDir, 'agents', 'review-agent', 'review-agent.yml')
+        );
+        expect(mockValidateAgentConfig).toHaveBeenCalledWith(
+            expect.any(Object),
+            false,
+            expect.objectContaining({
+                agentPath: 'agents/review-agent/review-agent.yml',
+                credentialPolicy: 'error',
+            })
+        );
+        expect(mockCreateWorkspaceSnapshot).not.toHaveBeenCalled();
+        expect(mockDeployWorkspace).not.toHaveBeenCalled();
+        expect(cleanup).not.toHaveBeenCalled();
     });
 
     it('warns when delete succeeds but local link state cannot be removed', async () => {

@@ -1,10 +1,11 @@
 /**
  * Standalone Skill Discovery
  *
- * Discovers standalone skills from ~/.agents/skills/ and ~/.dexto/skills/ directories.
+ * Discovers standalone skills from project-local and user-local skill directories.
  * These are different from plugin skills - they're just directories containing a SKILL.md file.
  *
  * Structure:
+ * skills/
  * ~/.agents/skills/
  * ~/.dexto/skills/
  * └── skill-name/
@@ -35,10 +36,11 @@ export interface DiscoveredSkill {
  * Discovers standalone skills from standard locations.
  *
  * Search Locations:
- * 1. <cwd>/.agents/skills/*   (project)
- * 2. <cwd>/.dexto/skills/*    (project)
- * 3. ~/.agents/skills/*       (user)
- * 4. ~/.dexto/skills/*        (user)
+ * 1. <projectRoot>/skills/*          (project)
+ * 2. <projectRoot>/.agents/skills/*  (project)
+ * 3. <projectRoot>/.dexto/skills/*   (project)
+ * 4. ~/.agents/skills/*              (user)
+ * 5. ~/.dexto/skills/*               (user)
  *
  * @param projectPath Optional project path (defaults to cwd)
  * @returns Array of discovered skills
@@ -93,14 +95,16 @@ export function discoverStandaloneSkills(projectPath?: string): DiscoveredSkill[
     };
 
     // === Project skills ===
-    // 1. Agents project skills: <cwd>/.agents/skills/
+    // 1. Top-level project skills: <projectRoot>/skills/
+    scanSkillsDir(path.join(cwd, 'skills'), 'project');
+    // 2. Agents project skills: <projectRoot>/.agents/skills/
     scanSkillsDir(path.join(cwd, '.agents', 'skills'), 'project');
-    // 2. Dexto project skills: <cwd>/.dexto/skills/
+    // 3. Dexto project skills: <projectRoot>/.dexto/skills/
     scanSkillsDir(path.join(cwd, '.dexto', 'skills'), 'project');
 
     // === User skills ===
-    // 3. Agents user skills: ~/.agents/skills/
-    // 4. Dexto user skills: ~/.dexto/skills/
+    // 4. Agents user skills: ~/.agents/skills/
+    // 5. Dexto user skills: ~/.dexto/skills/
     if (homeDir) {
         scanSkillsDir(path.join(homeDir, '.agents', 'skills'), 'user');
         scanSkillsDir(path.join(homeDir, '.dexto', 'skills'), 'user');
@@ -120,6 +124,7 @@ export function getSkillSearchPaths(): string[] {
     const cwd = process.cwd();
 
     return [
+        path.join(cwd, 'skills'),
         path.join(cwd, '.agents', 'skills'),
         path.join(cwd, '.dexto', 'skills'),
         homeDir ? path.join(homeDir, '.agents', 'skills') : '',

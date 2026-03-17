@@ -383,23 +383,113 @@ describe('Agent Resolver', () => {
             mockFindDextoProjectRoot.mockReturnValue(tempDir);
         });
 
+        it('uses primaryAgent from the project registry when present', async () => {
+            const registryPath = path.join(tempDir, 'agents', 'registry.json');
+            const projectDefault = path.join(tempDir, 'agents', 'custom-primary', 'main.yml');
+            await fs.mkdir(path.dirname(registryPath), { recursive: true });
+            await fs.mkdir(path.dirname(projectDefault), { recursive: true });
+            await fs.writeFile(projectDefault, 'test: config');
+            await fs.writeFile(
+                registryPath,
+                JSON.stringify({
+                    primaryAgent: 'review-agent',
+                    agents: [
+                        {
+                            id: 'review-agent',
+                            name: 'Review Agent',
+                            description: 'Primary workspace agent',
+                            configPath: './custom-primary/main.yml',
+                        },
+                    ],
+                })
+            );
+
+            const result = await resolveAgentPath();
+            expect(result).toBe(projectDefault);
+        });
+
+        it('uses the single registry agent when no primaryAgent is set', async () => {
+            const registryPath = path.join(tempDir, 'agents', 'registry.json');
+            const projectDefault = path.join(tempDir, 'agents', 'review-agent', 'review-agent.yml');
+            await fs.mkdir(path.dirname(registryPath), { recursive: true });
+            await fs.mkdir(path.dirname(projectDefault), { recursive: true });
+            await fs.writeFile(projectDefault, 'test: config');
+            await fs.writeFile(
+                registryPath,
+                JSON.stringify({
+                    agents: [
+                        {
+                            id: 'review-agent',
+                            name: 'Review Agent',
+                            description: 'Primary workspace agent',
+                            configPath: './review-agent/review-agent.yml',
+                        },
+                    ],
+                })
+            );
+
+            const result = await resolveAgentPath();
+            expect(result).toBe(projectDefault);
+        });
+
+        it('supports legacy project agent-registry.json as fallback', async () => {
+            const registryPath = path.join(tempDir, 'agents', 'agent-registry.json');
+            const projectDefault = path.join(tempDir, 'agents', 'legacy-primary', 'main.yml');
+            await fs.mkdir(path.dirname(registryPath), { recursive: true });
+            await fs.mkdir(path.dirname(projectDefault), { recursive: true });
+            await fs.writeFile(projectDefault, 'test: config');
+            await fs.writeFile(
+                registryPath,
+                JSON.stringify({
+                    agents: [
+                        {
+                            id: 'coding-agent',
+                            name: 'Coding Agent',
+                            description: 'Primary workspace agent',
+                            configPath: './legacy-primary/main.yml',
+                        },
+                    ],
+                })
+            );
+
+            const result = await resolveAgentPath();
+            expect(result).toBe(projectDefault);
+        });
+
+        it('uses project-local agents/coding-agent/coding-agent.yml when exists', async () => {
+            const projectDefault = path.join(tempDir, 'agents', 'coding-agent', 'coding-agent.yml');
+            await fs.mkdir(path.dirname(projectDefault), { recursive: true });
+            await fs.writeFile(projectDefault, 'test: config');
+
+            const result = await resolveAgentPath();
+            expect(result).toBe(projectDefault);
+        });
+
+        it('throws when primaryAgent points to a missing registry entry', async () => {
+            const registryPath = path.join(tempDir, 'agents', 'registry.json');
+            await fs.mkdir(path.dirname(registryPath), { recursive: true });
+            await fs.writeFile(
+                registryPath,
+                JSON.stringify({
+                    primaryAgent: 'review-agent',
+                    agents: [],
+                })
+            );
+
+            await expect(resolveAgentPath()).rejects.toMatchObject({
+                code: ConfigErrorCode.INVALID_PROJECT_PRIMARY,
+                scope: ErrorScope.CONFIG,
+                type: ErrorType.USER,
+            });
+        });
+
         it('uses project-local src/dexto/agents/coding-agent.yml when exists', async () => {
             const projectDefault = path.join(tempDir, 'src', 'dexto', 'agents', 'coding-agent.yml');
             await fs.mkdir(path.join(tempDir, 'src', 'dexto', 'agents'), { recursive: true });
             await fs.writeFile(projectDefault, 'test: config');
 
-            // Mock fs.access to succeed for the project default file
-            const mockAccess = vi.spyOn(fs, 'access').mockImplementation(async (filePath) => {
-                if (filePath === projectDefault) {
-                    return Promise.resolve();
-                }
-                throw new Error('File not found');
-            });
-
             const result = await resolveAgentPath();
             expect(result).toBe(projectDefault);
-
-            mockAccess.mockRestore();
         });
 
         it('falls back to preferences when no project default', async () => {

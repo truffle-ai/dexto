@@ -1,3 +1,6 @@
+import { promises as fs } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { AgentConfig } from '@dexto/agent-config';
 
@@ -17,6 +20,7 @@ vi.mock('../plugins/index.js', () => ({
 // Import after mock is set up
 import { enrichAgentConfig } from './config-enrichment.js';
 import { discoverAgentInstructionFile, discoverCommandPrompts } from './discover-prompts.js';
+import { discoverClaudeCodePlugins, discoverStandaloneSkills } from '../plugins/index.js';
 
 // TODO: Add more comprehensive tests for config-enrichment:
 // - Test path resolution for per-agent logs, database, blobs
@@ -28,6 +32,10 @@ describe('enrichAgentConfig', () => {
         vi.mocked(discoverCommandPrompts).mockReturnValue([]);
         vi.mocked(discoverAgentInstructionFile).mockReset();
         vi.mocked(discoverAgentInstructionFile).mockReturnValue(null);
+        vi.mocked(discoverClaudeCodePlugins).mockReset();
+        vi.mocked(discoverClaudeCodePlugins).mockReturnValue([]);
+        vi.mocked(discoverStandaloneSkills).mockReset();
+        vi.mocked(discoverStandaloneSkills).mockReturnValue([]);
     });
 
     describe('logger defaults', () => {
@@ -73,6 +81,124 @@ describe('enrichAgentConfig', () => {
     });
 
     describe('prompt deduplication', () => {
+        it('uses the explicit workspaceRoot for workspace-scoped discovery', () => {
+            const baseConfig: AgentConfig = {
+                llm: {
+                    provider: 'openai',
+                    model: 'gpt-5',
+                    apiKey: 'test-key',
+                },
+                systemPrompt: 'You are a helpful assistant.',
+            };
+
+            enrichAgentConfig(baseConfig, '/tmp/elsewhere/agent.yml', {
+                workspaceRoot: '/workspace/project',
+            });
+
+            expect(discoverClaudeCodePlugins).toHaveBeenCalledWith('/workspace/project', []);
+            expect(discoverStandaloneSkills).toHaveBeenCalledWith('/workspace/project');
+            expect(discoverAgentInstructionFile).toHaveBeenCalledWith('/workspace/project');
+            expect(discoverCommandPrompts).toHaveBeenCalledWith('/workspace/project');
+        });
+
+        it('falls back to the selected config directory when no project root is found', () => {
+            const baseConfig: AgentConfig = {
+                llm: {
+                    provider: 'openai',
+                    model: 'gpt-5',
+                    apiKey: 'test-key',
+                },
+                systemPrompt: 'You are a helpful assistant.',
+            };
+
+            enrichAgentConfig(baseConfig, '/tmp/standalone/review-agent/review-agent.yml');
+
+            expect(discoverCommandPrompts).toHaveBeenCalledWith('/tmp/standalone/review-agent');
+            expect(discoverClaudeCodePlugins).toHaveBeenCalledWith(
+                '/tmp/standalone/review-agent',
+                []
+            );
+            expect(discoverStandaloneSkills).toHaveBeenCalledWith('/tmp/standalone/review-agent');
+            expect(discoverAgentInstructionFile).toHaveBeenCalledWith(
+                '/tmp/standalone/review-agent'
+            );
+        });
+
+        it('loads discovered command prompts from the resolved workspace root', () => {
+            const workspaceRoot = '/workspace/project';
+            const workspacePrompt = path.join(workspaceRoot, 'commands', 'review.md');
+            vi.mocked(discoverCommandPrompts).mockReturnValue([
+                { type: 'file', file: workspacePrompt },
+            ]);
+
+            const baseConfig: AgentConfig = {
+                llm: {
+                    provider: 'openai',
+                    model: 'gpt-5',
+                    apiKey: 'test-key',
+                },
+                systemPrompt: 'You are a helpful assistant.',
+            };
+
+            const enriched = enrichAgentConfig(
+                baseConfig,
+                '/tmp/elsewhere/review-agent/review-agent.yml',
+                {
+                    workspaceRoot,
+                }
+            );
+
+            expect(discoverCommandPrompts).toHaveBeenCalledWith(workspaceRoot);
+            expect(enriched.prompts).toEqual([{ type: 'file', file: workspacePrompt }]);
+        });
+
+        it('uses the resolved workspace root for storage defaults too', async () => {
+            const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'dexto-enrichment-'));
+            const workspaceRoot = path.join(tempDir, 'workspace');
+            const outsideDir = path.join(tempDir, 'outside');
+            const originalCwd = process.cwd();
+
+            try {
+                await fs.mkdir(path.join(workspaceRoot, 'agents'), { recursive: true });
+                await fs.mkdir(outsideDir, { recursive: true });
+                await fs.writeFile(
+                    path.join(workspaceRoot, 'agents', 'registry.json'),
+                    JSON.stringify({ agents: [] }, null, 2),
+                    'utf8'
+                );
+                process.chdir(outsideDir);
+
+                const baseConfig: AgentConfig = {
+                    llm: {
+                        provider: 'openai',
+                        model: 'gpt-5',
+                        apiKey: 'test-key',
+                    },
+                    systemPrompt: 'You are a helpful assistant.',
+                };
+
+                const enriched = enrichAgentConfig(
+                    baseConfig,
+                    path.join(workspaceRoot, 'agents', 'review-agent', 'review-agent.yml'),
+                    {
+                        workspaceRoot,
+                    }
+                );
+
+                expect(enriched.storage?.database).toEqual({
+                    type: 'sqlite',
+                    path: path.join(workspaceRoot, '.dexto', 'database', 'review-agent.db'),
+                });
+                expect(enriched.storage?.blob).toEqual({
+                    type: 'local',
+                    storePath: path.join(workspaceRoot, '.dexto', 'blobs', 'review-agent'),
+                });
+            } finally {
+                process.chdir(originalCwd);
+                await fs.rm(tempDir, { recursive: true, force: true });
+            }
+        });
+
         it('should allow disabling instruction file discovery', () => {
             vi.mocked(discoverAgentInstructionFile).mockReturnValue('/test/AGENTS.md');
 

@@ -212,7 +212,9 @@ export class VercelLLMService {
             const executor = this.createTurnExecutor(options?.signal);
 
             // Execute with streaming enabled
-            const contributorContext = await this.toolManager.buildContributorContext();
+            const contributorContext = await this.toolManager.buildContributorContext({
+                sessionId: this.sessionId,
+            });
             const result = await executor.execute(contributorContext, true);
 
             return {

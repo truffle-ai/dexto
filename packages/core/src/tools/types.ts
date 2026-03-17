@@ -241,6 +241,12 @@ export interface Tool<TSchema extends ZodTypeAny = ZodTypeAny> {
     /** Human-readable description of what the tool does */
     description: string;
 
+    /**
+     * Optional dynamic description for LLM tool discovery.
+     * Use when the tool description depends on runtime context such as the active workspace.
+     */
+    getDescription?: ((context: ToolExecutionContext) => Promise<string> | string) | undefined;
+
     /** Zod schema defining the input parameters */
     inputSchema: TSchema;
 

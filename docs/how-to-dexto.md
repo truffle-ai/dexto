@@ -31,8 +31,8 @@ export GOOGLE_GENERATIVE_AI_API_KEY="your_key"
 export COHERE_API_KEY="your_key"
 ```
 
-### Agent Configuration (`coding-agent.yml`)
-Agent behavior is defined in a YAML file (default: `agents/coding-agent/coding-agent.yml`). This file specifies the LLM, tools (via MCP servers), and system prompt.
+### Agent Configuration
+Agent behavior is defined in YAML files. For workspace-authored agents, the common layout is `agents/<agent-id>/<agent-id>.yml`, with `agents/registry.json` selecting the primary workspace agent.
 
 **Example `agent.yml`:**
 ```yaml
@@ -172,6 +172,12 @@ dexto
 
 **Project Scaffolding:**
 - `dexto create-app`: Create a new Dexto project structure.
+- `dexto init`: Initialize the current folder as a Dexto workspace (`AGENTS.md`, `agents/`, `skills/`).
+- `dexto init agent [id]`: Create a workspace agent scaffold and add it to `agents/registry.json` (interactive if `id` is omitted).
+- `dexto init agent <id> --subagent`: Create a subagent and link it to the current primary agent when one exists.
+- `dexto init primary [id]`: Set the workspace primary agent.
+- `dexto init skill <id>`: Create `skills/<id>/SKILL.md`.
+- `dexto init status`: Show the current workspace config, primary agent, skills, and deploy preview.
 - `dexto init-app`: Initialize Dexto in an existing TypeScript project.
 
 **Cloud workspace deploys:**
@@ -193,7 +199,7 @@ dexto deploy stop
 dexto deploy delete
 ```
 
-On first deploy, Dexto creates `.dexto/deploy.json` in the current folder. If the workspace already contains `agents/coding-agent.yml`, Dexto deploys that config. Otherwise it uses the default cloud agent and still uploads the entire workspace.
+On first deploy, Dexto creates `.dexto/deploy.json` in the current folder. If the workspace defines a primary agent in `agents/registry.json`, Dexto deploys that config. Otherwise it uses the default cloud agent and still uploads the entire workspace.
 
 ### Method 2: Programmatic SDK (`DextoAgent`)
 

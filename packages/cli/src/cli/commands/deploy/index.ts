@@ -1,10 +1,11 @@
 import { existsSync } from 'fs';
 import path from 'path';
 import * as p from '@clack/prompts';
-import { findDextoProjectRoot } from '@dexto/agent-management';
+import { findDextoProjectRoot, loadAgentConfig } from '@dexto/agent-management';
 import chalk from 'chalk';
 import open from 'open';
 import { confirmOrExit } from '../../utils/prompt-helpers.js';
+import { validateAgentConfig } from '../../utils/config-validation.js';
 import {
     createCloudDefaultDeployConfig,
     createWorkspaceDeployConfig,
@@ -131,13 +132,33 @@ function ensureWorkspaceAgentExists(workspaceRoot: string, config: DeployConfig)
     return entryAgentPath;
 }
 
+async function validateWorkspaceAgent(
+    entryAgentPath: string,
+    workspaceAgentPath: string
+): Promise<void> {
+    const config = await loadAgentConfig(entryAgentPath);
+    const validation = await validateAgentConfig(config, false, {
+        agentPath: workspaceAgentPath,
+        credentialPolicy: 'error',
+    });
+
+    if (!validation.success) {
+        throw new Error(
+            `Workspace agent validation failed for ${workspaceAgentPath}. Fix the issues above before deploying.`
+        );
+    }
+}
+
 export async function handleDeployCommand(options?: InteractiveOptions): Promise<void> {
     void options;
     p.intro(chalk.inverse('Deploy Workspace'));
 
     const workspaceRoot = resolveWorkspaceRoot();
     const deployConfig = await resolveDeployConfig(workspaceRoot);
-    ensureWorkspaceAgentExists(workspaceRoot, deployConfig);
+    const entryAgentPath = ensureWorkspaceAgentExists(workspaceRoot, deployConfig);
+    if (entryAgentPath && isWorkspaceDeployAgent(deployConfig.agent)) {
+        await validateWorkspaceAgent(entryAgentPath, deployConfig.agent.path);
+    }
 
     const deployLink = await loadWorkspaceDeployLink(workspaceRoot);
     const spinner = p.spinner();
