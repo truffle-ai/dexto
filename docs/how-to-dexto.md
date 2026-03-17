@@ -185,6 +185,12 @@ dexto
 # Deploy the current folder to a cloud sandbox
 dexto deploy
 
+# List your cloud deployments
+dexto deploy list
+
+# Open the linked deployment in the dashboard
+dexto deploy open
+
 # Check the linked deployment
 dexto deploy status
 

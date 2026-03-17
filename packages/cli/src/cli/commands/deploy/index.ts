@@ -3,6 +3,7 @@ import path from 'path';
 import * as p from '@clack/prompts';
 import { findDextoProjectRoot } from '@dexto/agent-management';
 import chalk from 'chalk';
+import open from 'open';
 import { confirmOrExit } from '../../utils/prompt-helpers.js';
 import {
     createCloudDefaultDeployConfig,
@@ -14,7 +15,7 @@ import {
     saveDeployConfig,
     type DeployConfig,
 } from './config.js';
-import { createDeployClient } from './client.js';
+import { createDeployClient, type CloudAgentListItemResult } from './client.js';
 import { discoverPrimaryWorkspaceAgent, isAgentYamlPath } from './entry-agent.js';
 import { getCloudAgentDashboardUrl } from './links.js';
 import {
@@ -54,6 +55,38 @@ function formatCloudAgentSummary(input: {
 
 function getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
+}
+
+function formatCloudAgentStatus(status: string): string {
+    switch (status) {
+        case 'ready':
+            return chalk.green(status);
+        case 'stopped':
+            return chalk.yellow(status);
+        case 'failed':
+        case 'deleted':
+            return chalk.red(status);
+        default:
+            return chalk.cyan(status);
+    }
+}
+
+function formatCloudAgentListItem(
+    cloudAgent: CloudAgentListItemResult,
+    linkedToWorkspace: boolean
+): string {
+    const prefix = linkedToWorkspace ? chalk.green('→') : ' ';
+    const trimmedName = cloudAgent.name?.trim();
+    const heading =
+        trimmedName && trimmedName !== cloudAgent.cloudAgentId
+            ? `${chalk.cyan(trimmedName)} ${chalk.gray(`(${cloudAgent.cloudAgentId})`)}`
+            : chalk.cyan(cloudAgent.cloudAgentId);
+    const status = `${chalk.gray('[')}${formatCloudAgentStatus(cloudAgent.state.status)}${chalk.gray(']')}`;
+    const lines = [`${prefix} ${heading} ${status}`];
+    if (linkedToWorkspace) {
+        lines.push(`  ${chalk.green('Linked to this workspace')}`);
+    }
+    return lines.join('\n');
 }
 
 function resolveWorkspaceRoot(): string {
@@ -172,6 +205,80 @@ export async function handleDeployCommand(options?: InteractiveOptions): Promise
         if (snapshot) {
             await snapshot.cleanup();
         }
+    }
+}
+
+export async function handleDeployListCommand(): Promise<void> {
+    const workspaceRoot = resolveWorkspaceRoot();
+    const deployLink = await loadWorkspaceDeployLink(workspaceRoot);
+    const client = createDeployClient();
+    const cloudAgents = await client.listCloudAgents();
+
+    if (cloudAgents.length === 0) {
+        p.outro(
+            'No cloud deployments found.\nRun `dexto deploy` from this workspace to create one.'
+        );
+        return;
+    }
+
+    const linkedCloudAgentId = deployLink?.cloudAgentId ?? null;
+    const sortedCloudAgents = [...cloudAgents].sort((left, right) => {
+        if (left.cloudAgentId === linkedCloudAgentId && right.cloudAgentId !== linkedCloudAgentId) {
+            return -1;
+        }
+        if (right.cloudAgentId === linkedCloudAgentId && left.cloudAgentId !== linkedCloudAgentId) {
+            return 1;
+        }
+        return 0;
+    });
+    const linkedVisible =
+        linkedCloudAgentId !== null &&
+        sortedCloudAgents.some((cloudAgent) => cloudAgent.cloudAgentId === linkedCloudAgentId);
+
+    const lines = [
+        'Cloud deployments',
+        '',
+        ...sortedCloudAgents.flatMap((cloudAgent, index) => {
+            const entry = formatCloudAgentListItem(
+                cloudAgent,
+                cloudAgent.cloudAgentId === linkedCloudAgentId
+            );
+            return index === 0 ? [entry] : ['', entry];
+        }),
+    ];
+
+    if (linkedCloudAgentId && !linkedVisible) {
+        lines.push(
+            '',
+            chalk.yellow(
+                `This workspace is linked to ${linkedCloudAgentId}, but that deployment was not returned by the cloud API.`
+            )
+        );
+    }
+
+    p.outro(lines.join('\n'));
+}
+
+export async function handleDeployOpenCommand(): Promise<void> {
+    const workspaceRoot = resolveWorkspaceRoot();
+    const deployLink = await loadWorkspaceDeployLink(workspaceRoot);
+    if (!deployLink) {
+        throw new Error(
+            'This workspace is not linked to a cloud deployment yet. Run `dexto deploy` first.'
+        );
+    }
+
+    const dashboardUrl = getCloudAgentDashboardUrl(deployLink.cloudAgentId);
+    try {
+        await open(dashboardUrl);
+        p.outro(`Opened dashboard for ${deployLink.cloudAgentId}\n${dashboardUrl}`);
+    } catch (error) {
+        p.outro(
+            [
+                `Unable to open the dashboard automatically (${getErrorMessage(error)})`,
+                dashboardUrl,
+            ].join('\n')
+        );
     }
 }
 

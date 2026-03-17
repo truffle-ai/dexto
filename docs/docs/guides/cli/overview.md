@@ -164,6 +164,12 @@ Deploy the current folder to a cloud sandbox and keep it linked to that deployme
 # First deploy from any folder
 dexto deploy
 
+# List cloud deployments on your account
+dexto deploy list
+
+# Open the linked deployment in the dashboard
+dexto deploy open
+
 # Inspect the linked deployment
 dexto deploy status
 
@@ -212,7 +218,8 @@ Workspace agent:
 
 **Notes:**
 - `dexto deploy` deploys the whole workspace, not just git-tracked files
-- `dexto deploy status`, `stop`, and `delete` work from the linked workspace folder
+- `dexto deploy status`, `open`, `stop`, and `delete` work from the linked workspace folder
+- `dexto deploy list` shows account deployments and highlights the one linked to the current folder
 - Dashboard links are printed after deploy and status so you can inspect the cloud workspace directly
 
 ### `agents install` - Install Agents
@@ -574,9 +581,15 @@ git diff | dexto -p "generate a conventional commit message for these changes"
 # Deploy any folder with the managed cloud agent
 dexto deploy
 
+# List your cloud deployments
+dexto deploy list
+
 # Deploy a repo that already defines a workspace primary agent
 cd my-project
 dexto deploy
+
+# Open the linked deployment in the dashboard
+dexto deploy open
 
 # Check the linked deployment later
 dexto deploy status

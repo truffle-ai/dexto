@@ -1,5 +1,7 @@
 # @dexto/core
 
+## 1.6.14
+
 ## 1.6.13
 
 ### Patch Changes
