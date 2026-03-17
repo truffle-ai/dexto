@@ -4,18 +4,8 @@ import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const {
-    mockGlobalPreferencesExist,
-    mockIntro,
-    mockLoadGlobalPreferences,
-    mockNote,
-    mockOutro,
-    mockSelectOrExit,
-    mockTextOrExit,
-} = vi.hoisted(() => ({
-    mockGlobalPreferencesExist: vi.fn(),
+const { mockIntro, mockNote, mockOutro, mockSelectOrExit, mockTextOrExit } = vi.hoisted(() => ({
     mockIntro: vi.fn(),
-    mockLoadGlobalPreferences: vi.fn(),
     mockNote: vi.fn(),
     mockOutro: vi.fn(),
     mockSelectOrExit: vi.fn(),
@@ -38,8 +28,6 @@ vi.mock('@dexto/agent-management', async () => {
         await vi.importActual<typeof import('@dexto/agent-management')>('@dexto/agent-management');
     return {
         ...actual,
-        globalPreferencesExist: mockGlobalPreferencesExist,
-        loadGlobalPreferences: mockLoadGlobalPreferences,
     };
 });
 
@@ -64,8 +52,6 @@ describe('init command', () => {
     beforeEach(async () => {
         vi.clearAllMocks();
         tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'dexto-init-workspace-'));
-        mockGlobalPreferencesExist.mockReturnValue(false);
-        mockLoadGlobalPreferences.mockRejectedValue(new Error('preferences unavailable'));
         mockSelectOrExit.mockReset();
         mockTextOrExit.mockReset();
     });
@@ -163,7 +149,7 @@ describe('init command', () => {
         expect(configContent.image).toBe('@dexto/image-local');
         expect(configContent.llm).toEqual({
             provider: 'openai',
-            model: 'gpt-5-mini',
+            model: 'gpt-5.4-codex',
             apiKey: '$OPENAI_API_KEY',
         });
     });
@@ -180,31 +166,7 @@ describe('init command', () => {
         expect(registryContent.allowGlobalAgents).toBe(false);
     });
 
-    it('uses global preferences when scaffolding an agent config', async () => {
-        mockGlobalPreferencesExist.mockReturnValue(true);
-        mockLoadGlobalPreferences.mockResolvedValue({
-            llm: {
-                provider: 'anthropic',
-                model: 'claude-sonnet-4-5-20250929',
-                apiKey: '$ANTHROPIC_API_KEY',
-                baseURLPending: false,
-            },
-            defaults: {
-                defaultAgent: 'coding-agent',
-                defaultMode: 'web',
-            },
-            setup: {
-                completed: true,
-                baseURLPending: false,
-            },
-            sounds: {
-                enabled: false,
-                onStartup: false,
-                onApprovalRequired: false,
-                onTaskComplete: false,
-            },
-        });
-
+    it('does not inherit global preferences when scaffolding an agent config', async () => {
         await createWorkspaceAgentScaffold('review-agent', {}, tempDir);
 
         const configContent = parseYaml(
@@ -213,13 +175,14 @@ describe('init command', () => {
                 'utf8'
             )
         ) as {
-            llm: { provider: string; model: string; apiKey: string };
+            llm: { provider: string; model: string; apiKey: string; baseURL?: string };
         };
         expect(configContent.llm).toEqual({
-            provider: 'anthropic',
-            model: 'claude-sonnet-4-5-20250929',
-            apiKey: '$ANTHROPIC_API_KEY',
+            provider: 'openai',
+            model: 'gpt-5.4-codex',
+            apiKey: '$OPENAI_API_KEY',
         });
+        expect(configContent.llm.baseURL).toBeUndefined();
     });
 
     it('sets the first non-subagent as the workspace primary agent', async () => {

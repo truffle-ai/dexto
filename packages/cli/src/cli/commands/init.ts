@@ -5,16 +5,13 @@ import {
     findProjectRegistryPath as findSharedProjectRegistryPath,
     getPrimaryApiKeyEnvVar,
     getProjectRegistryPath as getCanonicalProjectRegistryPath,
-    globalPreferencesExist,
-    loadGlobalPreferences,
     ProjectRegistrySchema,
     readProjectRegistry as readSharedProjectRegistry,
-    PROVIDER_API_KEY_MAP,
     type ProjectRegistry as WorkspaceProjectRegistry,
     type ProjectRegistryEntry as WorkspaceProjectRegistryEntry,
     writeConfigFile,
 } from '@dexto/agent-management';
-import { getDefaultModelForProvider, type LLMProvider } from '@dexto/core';
+import type { LLMProvider } from '@dexto/core';
 import chalk from 'chalk';
 import type { Command } from 'commander';
 import { promises as fs } from 'node:fs';
@@ -27,7 +24,7 @@ import { selectOrExit, textOrExit } from '../utils/prompt-helpers.js';
 const AGENTS_FILENAME = 'AGENTS.md';
 const WORKSPACE_DIRECTORIES = ['agents', 'skills'] as const;
 const DEFAULT_AGENT_PROVIDER: LLMProvider = 'openai';
-const DEFAULT_AGENT_MODEL = getDefaultModelForProvider(DEFAULT_AGENT_PROVIDER) ?? 'gpt-5-mini';
+const DEFAULT_AGENT_MODEL = 'gpt-5.4-codex';
 const DEFAULT_AGENT_VERSION = '0.1.0';
 
 const DEFAULT_AGENTS_MD = `<!-- dexto-workspace -->
@@ -112,8 +109,7 @@ type InitAgentCommandOptions = {
 type InitialAgentLlmConfig = {
     provider: LLMProvider;
     model: string;
-    apiKey?: string | undefined;
-    baseURL?: string | undefined;
+    apiKey: string;
 };
 
 const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -216,31 +212,6 @@ async function ensureFile(filePath: string, content: string): Promise<ScaffoldEn
 }
 
 async function loadInitialAgentLlmConfig(): Promise<InitialAgentLlmConfig> {
-    if (globalPreferencesExist()) {
-        try {
-            const preferences = await loadGlobalPreferences();
-            const provider = preferences.llm.provider;
-            const config: InitialAgentLlmConfig = {
-                provider,
-                model: preferences.llm.model,
-            };
-
-            if (preferences.llm.apiKey) {
-                config.apiKey = preferences.llm.apiKey;
-            } else if ((PROVIDER_API_KEY_MAP[provider] ?? []).length > 0) {
-                config.apiKey = `$${getPrimaryApiKeyEnvVar(provider)}`;
-            }
-
-            if (preferences.llm.baseURL) {
-                config.baseURL = preferences.llm.baseURL;
-            }
-
-            return config;
-        } catch {
-            // Fall back to default starter config when preferences can't be loaded.
-        }
-    }
-
     return {
         provider: DEFAULT_AGENT_PROVIDER,
         model: DEFAULT_AGENT_MODEL,
@@ -271,8 +242,7 @@ async function buildAgentConfig(
     const llm: AgentConfig['llm'] = {
         provider: llmConfig.provider,
         model: llmConfig.model,
-        ...(llmConfig.apiKey ? { apiKey: llmConfig.apiKey } : {}),
-        ...(llmConfig.baseURL ? { baseURL: llmConfig.baseURL } : {}),
+        apiKey: llmConfig.apiKey,
     };
 
     return {
