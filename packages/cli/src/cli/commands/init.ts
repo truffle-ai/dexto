@@ -734,10 +734,11 @@ async function editSystemPromptInEditor(
     }
 }
 
-async function promptForAgentName(): Promise<AgentWizardIdentity> {
+async function promptForAgentName(initialValue?: string): Promise<AgentWizardIdentity> {
     const rawName = await textOrExit(
         {
             message: 'Agent name',
+            ...(initialValue ? { initialValue } : {}),
             placeholder: 'Review Agent',
             validate(value) {
                 try {
@@ -752,6 +753,26 @@ async function promptForAgentName(): Promise<AgentWizardIdentity> {
     );
 
     return buildInteractiveAgentIdentity(rawName);
+}
+
+async function promptForAvailableAgentName(workspaceRoot: string): Promise<AgentWizardIdentity> {
+    const resolvedWorkspaceRoot = path.resolve(workspaceRoot);
+    let initialValue: string | undefined;
+
+    while (true) {
+        const identity = await promptForAgentName(initialValue);
+        const registryState = await loadWorkspaceProjectRegistry(resolvedWorkspaceRoot);
+        const existingEntry = getWorkspaceAgentEntry(registryState.registry, identity.agentId);
+
+        if (!existingEntry) {
+            return identity;
+        }
+
+        p.log.warn(
+            `Agent '${identity.agentId}' already exists in ${path.relative(resolvedWorkspaceRoot, registryState.path)}. Choose a different name or run \`dexto init agent ${identity.agentId}\` to update the existing agent.`
+        );
+        initialValue = identity.displayName;
+    }
 }
 
 async function promptForCustomSystemPrompt(
@@ -787,10 +808,48 @@ async function promptForCustomSystemPrompt(
     }
 }
 
+async function promptForReviewedCustomSystemPrompt(
+    displayName: string,
+    options: InitAgentCommandOptions,
+    initialPrompt?: string
+): Promise<string> {
+    let customPrompt = initialPrompt ?? '';
+
+    while (true) {
+        customPrompt = await promptForCustomSystemPrompt(displayName, options, customPrompt);
+        renderPromptPreview(customPrompt);
+
+        const confirmed = await confirmOrExit(
+            {
+                message: 'Use this system prompt?',
+                initialValue: true,
+            },
+            'Agent initialization cancelled'
+        );
+
+        if (confirmed) {
+            return customPrompt;
+        }
+    }
+}
+
 async function promptForAgentSystemPrompt(
     displayName: string,
     options: InitAgentCommandOptions
 ): Promise<AgentWizardPromptResult> {
+    const effectiveLLM = await getEffectiveLLMConfig();
+    if (!effectiveLLM) {
+        p.log.info(
+            'No active LLM configuration found. Opening the prompt editor instead. Run `dexto setup` to enable automatic prompt generation.'
+        );
+
+        return {
+            mode: 'custom',
+            systemPrompt: await promptForReviewedCustomSystemPrompt(displayName, options),
+            description: null,
+        };
+    }
+
     const promptMode = await selectOrExit<AgentPromptMode>(
         {
             message: 'How do you want to create the system prompt?',
@@ -812,28 +871,11 @@ async function promptForAgentSystemPrompt(
     );
 
     if (promptMode === 'custom') {
-        let customPrompt = '';
-
-        while (true) {
-            customPrompt = await promptForCustomSystemPrompt(displayName, options, customPrompt);
-            renderPromptPreview(customPrompt);
-
-            const confirmed = await confirmOrExit(
-                {
-                    message: 'Use this system prompt?',
-                    initialValue: true,
-                },
-                'Agent initialization cancelled'
-            );
-
-            if (confirmed) {
-                return {
-                    mode: 'custom',
-                    systemPrompt: customPrompt,
-                    description: null,
-                };
-            }
-        }
+        return {
+            mode: 'custom',
+            systemPrompt: await promptForReviewedCustomSystemPrompt(displayName, options),
+            description: null,
+        };
     }
 
     let roleDescription = await textOrExit(
@@ -1089,7 +1131,7 @@ async function resolveInitAgentInput(
     }
 
     const resolvedOptions = await resolveInteractiveAgentRoleOptions(options, workspaceRoot);
-    const identity = await promptForAgentName();
+    const identity = await promptForAvailableAgentName(workspaceRoot);
     const promptResult = await promptForAgentSystemPrompt(identity.displayName, resolvedOptions);
     const bundleIds = await promptForAgentToolBundles();
     const roleSummary = await describePlannedAgentRole(resolvedOptions, workspaceRoot);

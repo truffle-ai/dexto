@@ -842,6 +842,109 @@ describe('init command', () => {
         );
     });
 
+    it('falls back to the custom prompt flow when no active llm is configured', async () => {
+        mockGetEffectiveLLMConfig.mockResolvedValue(null);
+        mockSpawn.mockImplementation(() => {
+            const child = new EventEmitter();
+            process.nextTick(() => child.emit('error', new Error('editor unavailable')));
+            return child as unknown as ReturnType<typeof mockSpawn>;
+        });
+        mockTextOrExit
+            .mockResolvedValueOnce('Review Agent')
+            .mockResolvedValueOnce(
+                'You are Review Agent.\\n\\nReview changes carefully and surface concrete risks.'
+            );
+        mockSelectOrExit.mockResolvedValueOnce('primary');
+        mockMultiselectOrExit.mockResolvedValue(['workspace']);
+        mockConfirmOrExit.mockResolvedValue(true);
+
+        await handleInitAgentCommand(undefined, {}, tempDir);
+
+        const configContent = parseYaml(
+            await fs.readFile(
+                path.join(tempDir, 'agents', 'review-agent', 'review-agent.yml'),
+                'utf8'
+            )
+        ) as {
+            systemPrompt: {
+                contributors: Array<{ id: string; type: string; content?: string }>;
+            };
+        };
+
+        expect(mockSelectOrExit).toHaveBeenCalledTimes(1);
+        expect(mockCreateDextoAgentFromConfig).not.toHaveBeenCalled();
+        expect(mockLogInfo).toHaveBeenCalledWith(
+            expect.stringContaining('No active LLM configuration found')
+        );
+        expect(mockLogWarn).toHaveBeenCalledWith(
+            expect.stringContaining('Could not open an editor cleanly')
+        );
+        expect(configContent.systemPrompt.contributors).toContainEqual(
+            expect.objectContaining({
+                id: 'primary',
+                type: 'static',
+                content:
+                    'You are Review Agent.\n\nReview changes carefully and surface concrete risks.',
+            })
+        );
+    });
+
+    it('re-prompts for a new agent name before generating a prompt when the id already exists', async () => {
+        const mockGeneratorAgent = {
+            start: vi.fn().mockResolvedValue(undefined),
+            createSession: vi.fn().mockResolvedValue({ id: 'prompt-generation-session' }),
+            generate: vi.fn().mockResolvedValue({
+                content: JSON.stringify({
+                    systemPrompt:
+                        'You are Review Agent Two.\n\nReview changes carefully and surface concrete risks.',
+                }),
+                reasoning: undefined,
+                usage: {
+                    inputTokens: 10,
+                    outputTokens: 10,
+                    totalTokens: 20,
+                },
+                toolCalls: [],
+                sessionId: 'prompt-generation-session',
+            }),
+            stop: vi.fn().mockResolvedValue(undefined),
+        };
+        mockCreateDextoAgentFromConfig.mockResolvedValue(mockGeneratorAgent);
+        await createWorkspaceAgentScaffold('review-agent', {}, tempDir);
+
+        mockTextOrExit
+            .mockResolvedValueOnce('Review Agent')
+            .mockResolvedValueOnce('Review Agent Two')
+            .mockResolvedValueOnce('Reviews code changes after checking for duplicate ids.');
+        mockSelectOrExit
+            .mockResolvedValueOnce('agent')
+            .mockResolvedValueOnce('generate')
+            .mockResolvedValueOnce('continue');
+        mockMultiselectOrExit.mockResolvedValue(['workspace']);
+        mockConfirmOrExit.mockResolvedValue(true);
+
+        await handleInitAgentCommand(undefined, {}, tempDir);
+
+        const registryContent = JSON.parse(
+            await fs.readFile(path.join(tempDir, 'agents', 'registry.json'), 'utf8')
+        ) as {
+            agents: Array<{ id: string }>;
+        };
+
+        expect(mockTextOrExit).toHaveBeenCalledTimes(3);
+        expect(mockLogWarn).toHaveBeenCalledWith(
+            expect.stringContaining("Agent 'review-agent' already exists")
+        );
+        expect(mockGeneratorAgent.generate).toHaveBeenCalledWith(
+            expect.stringContaining('Agent name: Review Agent Two'),
+            'prompt-generation-session'
+        );
+        expect(registryContent.agents.map((entry) => entry.id)).toEqual([
+            'review-agent',
+            'review-agent-two',
+        ]);
+    });
+
     it('auto-links a new subagent to the workspace primary agent', async () => {
         await createWorkspaceAgentScaffold('review-agent', {}, tempDir);
 
