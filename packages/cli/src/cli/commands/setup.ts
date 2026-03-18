@@ -1,5 +1,7 @@
 // packages/cli/src/cli/commands/setup.ts
 
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 import chalk from 'chalk';
 import { z } from 'zod';
 import open from 'open';
@@ -35,6 +37,7 @@ import {
     saveCustomModel,
     deleteCustomModel,
     globalPreferencesExist,
+    getDextoGlobalPath,
     type CustomModel,
     type CreatePreferencesOptions,
 } from '@dexto/agent-management';
@@ -52,6 +55,7 @@ import {
     hasSelectedModel,
     getModelFromResult,
 } from '../utils/local-model-setup.js';
+import { executeCommand } from '../utils/self-management.js';
 import { requiresSetup } from '../utils/setup-utils.js';
 import { canUseDextoProvider } from '../utils/dexto-setup.js';
 import { handleAutoLogin } from './auth/login.js';
@@ -119,6 +123,14 @@ const REASONING_VARIANT_HINTS: Readonly<Record<string, string>> = {
     high: 'Thorough reasoning',
     max: 'Maximum reasoning within provider limits',
     xhigh: 'Extra high reasoning',
+};
+
+const OPENAI_CODEX_PACKAGE = '@openai/codex';
+const DEXTO_DEPS_PACKAGE_JSON = {
+    name: 'dexto-deps',
+    version: '1.0.0',
+    private: true,
+    description: 'Managed dependencies for Dexto',
 };
 
 function toReasoningVariantLabel(variant: string, defaultVariant: string | undefined): string {
@@ -580,6 +592,137 @@ function isCodexConfigured(provider: LLMProvider | undefined, baseURL?: string):
     return provider === 'openai-compatible' && isCodexBaseURL(baseURL);
 }
 
+async function ensureDextoDepsPackageJson(): Promise<string> {
+    const depsDir = getDextoGlobalPath('deps');
+    await fs.mkdir(depsDir, { recursive: true });
+
+    const packageJsonPath = path.join(depsDir, 'package.json');
+    try {
+        await fs.access(packageJsonPath);
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+            throw error;
+        }
+
+        await fs.writeFile(
+            packageJsonPath,
+            JSON.stringify(DEXTO_DEPS_PACKAGE_JSON, null, 2),
+            'utf-8'
+        );
+    }
+
+    return depsDir;
+}
+
+function isMissingCodexCliError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+        return false;
+    }
+
+    const code = (error as NodeJS.ErrnoException).code;
+    return (
+        error.message.includes('Codex CLI not found on PATH') ||
+        error.message.includes('spawn codex ENOENT') ||
+        (code === 'ENOENT' && error.message.includes('spawn'))
+    );
+}
+
+function getCodexSetupErrorMessage(error: unknown): string {
+    if (isMissingCodexCliError(error)) {
+        return 'Codex CLI not found on PATH. Install Codex to use ChatGPT Login in Dexto.';
+    }
+
+    return error instanceof Error ? error.message : String(error);
+}
+
+type CodexInstaller = {
+    command: string;
+    args: string[];
+    label: string;
+};
+
+async function resolveCodexInstaller(): Promise<CodexInstaller | null> {
+    const candidates: CodexInstaller[] = [
+        {
+            command: 'npm',
+            args: ['install', OPENAI_CODEX_PACKAGE, '--no-audit', '--no-fund'],
+            label: 'npm',
+        },
+        {
+            command: 'pnpm',
+            args: ['add', OPENAI_CODEX_PACKAGE],
+            label: 'pnpm',
+        },
+        {
+            command: 'bun',
+            args: ['add', OPENAI_CODEX_PACKAGE],
+            label: 'bun',
+        },
+    ];
+
+    for (const candidate of candidates) {
+        const probe = await executeCommand(candidate.command, ['--version']);
+        if (probe.code === 0) {
+            return candidate;
+        }
+    }
+
+    return null;
+}
+
+function getCodexInstallerFailureMessage(
+    installer: CodexInstaller,
+    result: { stdout: string; stderr: string }
+): string {
+    const details = `${result.stderr}\n${result.stdout}`
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+    const lastLine = details.at(-1);
+
+    return lastLine
+        ? `Failed to install the OpenAI Codex CLI via ${installer.label}: ${lastLine}`
+        : `Failed to install the OpenAI Codex CLI via ${installer.label}.`;
+}
+
+async function installManagedCodexCli(): Promise<void> {
+    const depsDir = await ensureDextoDepsPackageJson();
+    const installer = await resolveCodexInstaller();
+    if (!installer) {
+        throw new Error(
+            'Could not find npm, pnpm, or bun to install the OpenAI Codex CLI automatically.'
+        );
+    }
+
+    const result = await executeCommand(installer.command, installer.args, { cwd: depsDir });
+    if (result.code !== 0) {
+        throw new Error(getCodexInstallerFailureMessage(installer, result));
+    }
+}
+
+async function createCodexClientForSetup(): Promise<CodexAppServerClient> {
+    try {
+        return await CodexAppServerClient.create();
+    } catch (error) {
+        if (!isMissingCodexCliError(error)) {
+            throw error;
+        }
+
+        const spinner = p.spinner();
+        spinner.start('Installing OpenAI Codex CLI...');
+
+        try {
+            await installManagedCodexCli();
+            spinner.stop('OpenAI Codex CLI installed');
+        } catch (installError) {
+            spinner.stop('OpenAI Codex CLI installation failed');
+            throw installError;
+        }
+
+        return await CodexAppServerClient.create();
+    }
+}
+
 async function ensureCodexChatGPTLogin(client: CodexAppServerClient): Promise<CodexAccountState> {
     const spinner = p.spinner();
     spinner.start('Starting ChatGPT login with Codex...');
@@ -698,7 +841,7 @@ async function handleCodexProviderSetup(
     let client: CodexAppServerClient | null = null;
 
     try {
-        client = await CodexAppServerClient.create();
+        client = await createCodexClientForSetup();
         const account = await ensureCodexChatGPTSession(client);
         if (!account || account.account?.type !== 'chatgpt') {
             return abort('Setup cancelled');
@@ -783,7 +926,7 @@ async function handleCodexProviderSetup(
         });
         return true;
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage = getCodexSetupErrorMessage(error);
         p.log.error(`ChatGPT Login setup failed: ${errorMessage}`);
         return abort('Setup cancelled', 1);
     } finally {
@@ -810,7 +953,7 @@ async function handleCodexChatGPTLoginRefresh(
     let client: CodexAppServerClient | null = null;
 
     try {
-        client = await CodexAppServerClient.create();
+        client = await createCodexClientForSetup();
         const account = await ensureCodexChatGPTSession(client);
         if (!account || account.account?.type !== 'chatgpt') {
             return abort('ChatGPT login cancelled');
@@ -821,7 +964,7 @@ async function handleCodexChatGPTLoginRefresh(
         );
         return true;
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage = getCodexSetupErrorMessage(error);
         p.log.error(`ChatGPT Login failed: ${errorMessage}`);
         return abort('ChatGPT login cancelled', 1);
     } finally {
