@@ -44,6 +44,21 @@ export function createEmptyAssistantUsageSummary(): AssistantUsageSummary {
     };
 }
 
+function hasUnpricedTokenUsage(usage: TokenUsage | undefined): boolean {
+    if (!usage) {
+        return false;
+    }
+
+    return (
+        (usage.inputTokens ?? 0) > 0 ||
+        (usage.outputTokens ?? 0) > 0 ||
+        (usage.reasoningTokens ?? 0) > 0 ||
+        (usage.cacheReadTokens ?? 0) > 0 ||
+        (usage.cacheWriteTokens ?? 0) > 0 ||
+        (usage.totalTokens ?? 0) > 0
+    );
+}
+
 export function accumulateTokenUsage(
     target: CumulativeTokenUsage,
     usage: TokenUsage | undefined
@@ -82,7 +97,12 @@ export function summarizeAssistantUsage(
             summary.estimatedCost += message.estimatedCost;
         }
 
-        if (message.pricingStatus === 'unpriced') {
+        if (
+            message.pricingStatus === 'unpriced' ||
+            (hasUnpricedTokenUsage(message.tokenUsage) &&
+                message.estimatedCost === undefined &&
+                message.pricingStatus === undefined)
+        ) {
             summary.hasUnpricedResponses = true;
         }
 

@@ -50,7 +50,7 @@ describe('summarizeAssistantUsage', () => {
                 totalTokens: 32,
             },
             estimatedCost: 0.015,
-            hasUnpricedResponses: false,
+            hasUnpricedResponses: true,
             modelStats: [
                 {
                     provider: 'openai',
@@ -127,7 +127,7 @@ describe('summarizeAssistantUsage', () => {
                 totalTokens: 30,
             },
             estimatedCost: 0.004,
-            hasUnpricedResponses: false,
+            hasUnpricedResponses: true,
             modelStats: [
                 {
                     provider: 'openai-compatible',
@@ -176,16 +176,28 @@ describe('summarizeAssistantUsage', () => {
                 provider: 'openrouter',
                 model: 'unknown-model',
             },
+            {
+                id: 'assistant-missing-pricing',
+                role: 'assistant',
+                content: [{ type: 'text', text: 'missing pricing metadata' }],
+                tokenUsage: {
+                    inputTokens: 5,
+                    outputTokens: 2,
+                    totalTokens: 7,
+                },
+                provider: 'openai-compatible',
+                model: 'custom-model',
+            },
         ];
 
         expect(summarizeAssistantUsage(messages)).toEqual({
             tokenUsage: {
-                inputTokens: 16,
-                outputTokens: 7,
+                inputTokens: 21,
+                outputTokens: 9,
                 reasoningTokens: 0,
                 cacheReadTokens: 0,
                 cacheWriteTokens: 0,
-                totalTokens: 23,
+                totalTokens: 30,
             },
             estimatedCost: 0.003,
             hasUnpricedResponses: true,
@@ -215,6 +227,20 @@ describe('summarizeAssistantUsage', () => {
                         cacheReadTokens: 0,
                         cacheWriteTokens: 0,
                         totalTokens: 9,
+                    },
+                    estimatedCost: 0,
+                },
+                {
+                    provider: 'openai-compatible',
+                    model: 'custom-model',
+                    messageCount: 1,
+                    tokenUsage: {
+                        inputTokens: 5,
+                        outputTokens: 2,
+                        reasoningTokens: 0,
+                        cacheReadTokens: 0,
+                        cacheWriteTokens: 0,
+                        totalTokens: 7,
                     },
                     estimatedCost: 0,
                 },
