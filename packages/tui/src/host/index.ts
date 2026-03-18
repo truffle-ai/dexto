@@ -1,4 +1,9 @@
-import type { DextoAgent, LLMProvider } from '@dexto/core';
+import type { LLMProvider } from '@dexto/core';
+import type { TuiAgentBackend } from '../agent-backend.js';
+
+export interface TuiShutdownHandle {
+    stop?: (() => Promise<void>) | undefined;
+}
 
 export interface TuiAuthConfig {
     token?: string | undefined;
@@ -47,7 +52,10 @@ export interface TuiPersistedLoginResult {
 }
 
 export interface TuiRuntimeServices {
-    registerGracefulShutdown?: (getAgent: () => DextoAgent, options: { inkMode: boolean }) => void;
+    registerGracefulShutdown?: (
+        getAgent: () => TuiShutdownHandle,
+        options: { inkMode: boolean }
+    ) => void;
     capture?: (event: string, properties?: Record<string, unknown>) => void;
     applyLayeredEnvironmentLoading?: () => Promise<void>;
     getProviderDisplayName?: (provider: LLMProvider | string) => string;
@@ -96,7 +104,7 @@ function missingHostMethod(methodName: string): Error {
 }
 
 export function registerGracefulShutdown(
-    getAgent: () => DextoAgent,
+    getAgent: () => TuiAgentBackend,
     options: { inkMode: boolean }
 ): void {
     runtimeServices.registerGracefulShutdown?.(getAgent, options);

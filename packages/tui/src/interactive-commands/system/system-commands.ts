@@ -12,7 +12,7 @@
  * - /reasoning - Configure reasoning display and budget tokens
  * - /sounds - Configure sound notifications (interactive)
  */
-import type { DextoAgent, LogLevel } from '@dexto/core';
+import type { LogLevel } from '@dexto/core';
 import {
     overlayOnlyHandler,
     type CommandDefinition,
@@ -22,6 +22,7 @@ import {
 import { formatForInkCli } from '../utils/format-output.js';
 import { CommandOutputHelper } from '../utils/command-output.js';
 import type { ConfigStyledData, LogConfigStyledData, StatsStyledData } from '../../state/types.js';
+import type { TuiAgentBackend } from '../../agent-backend.js';
 
 const validLevels = [
     'error',
@@ -45,7 +46,7 @@ export const systemCommands: CommandDefinition[] = [
         aliases: [],
         handler: async (
             args: string[],
-            agent: DextoAgent,
+            agent: TuiAgentBackend,
             ctx: CommandContext
         ): Promise<CommandHandlerResult> => {
             try {
@@ -104,7 +105,7 @@ export const systemCommands: CommandDefinition[] = [
         category: 'System',
         handler: async (
             _args: string[],
-            agent: DextoAgent,
+            agent: TuiAgentBackend,
             ctx: CommandContext
         ): Promise<CommandHandlerResult> => {
             try {
@@ -158,7 +159,7 @@ export const systemCommands: CommandDefinition[] = [
         category: 'System',
         handler: async (
             _args: string[],
-            agent: DextoAgent,
+            agent: TuiAgentBackend,
             ctx: CommandContext
         ): Promise<CommandHandlerResult> => {
             try {
@@ -237,7 +238,7 @@ export const systemCommands: CommandDefinition[] = [
         category: 'System',
         handler: async (
             _args: string[],
-            _agent: DextoAgent,
+            _agent: TuiAgentBackend,
             _ctx: CommandContext
         ): Promise<boolean | string> => {
             // Overlay is handled via commandOverlays.ts mapping

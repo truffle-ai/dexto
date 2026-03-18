@@ -11,10 +11,10 @@ import { Box, Text } from 'ink';
 import path from 'path';
 import type { Key } from '../hooks/useInputOrchestrator.js';
 import type { ResourceMetadata } from '@dexto/core';
-import type { DextoAgent } from '@dexto/core';
 import { centerTruncatePath } from '../utils/messageFormatting.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { getMaxVisibleItemsForTerminalRows } from '../utils/overlaySizing.js';
+import { supportsResources, type TuiAgentBackend } from '../agent-backend.js';
 
 export interface ResourceAutocompleteHandle {
     handleInput: (input: string, key: Key) => boolean;
@@ -26,7 +26,7 @@ interface ResourceAutocompleteProps {
     onSelectResource: (resource: ResourceMetadata) => void;
     onLoadIntoInput?: (text: string) => void; // New prop for Tab key
     onClose: () => void;
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
 }
 
 /**
@@ -170,6 +170,13 @@ const ResourceAutocompleteInner = forwardRef<ResourceAutocompleteHandle, Resourc
 
             const fetchResources = async () => {
                 try {
+                    if (!supportsResources(agent)) {
+                        if (!cancelled) {
+                            setResources([]);
+                            setIsLoading(false);
+                        }
+                        return;
+                    }
                     const resourceSet = await agent.listResources();
                     const resourceList: ResourceMetadata[] = Object.values(resourceSet);
                     if (!cancelled) {

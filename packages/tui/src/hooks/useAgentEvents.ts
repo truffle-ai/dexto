@@ -25,7 +25,6 @@ import { setMaxListeners } from 'events';
 import {
     getModelDisplayName,
     parseCodexBaseURL,
-    type DextoAgent,
     type QueuedMessage,
     type ContentPart,
 } from '@dexto/core';
@@ -33,9 +32,10 @@ import type { Message, UIState, SessionState, InputState } from '../state/types.
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import { generateMessageId } from '../utils/idGenerator.js';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
+import type { TuiAgentBackend } from '../agent-backend.js';
 
 interface UseAgentEventsProps {
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
     setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
     setPendingMessages: React.Dispatch<React.SetStateAction<Message[]>>;
     setUi: React.Dispatch<React.SetStateAction<UIState>>;

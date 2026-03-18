@@ -16,11 +16,11 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import type { DextoAgent } from '@dexto/core';
+import type { TuiAgentBackend } from '../agent-backend.js';
 
 export interface TokenCounterOptions {
     /** DextoAgent instance for event bus access */
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
     /** Whether counting is active (should only run during processing) */
     isActive: boolean;
 }

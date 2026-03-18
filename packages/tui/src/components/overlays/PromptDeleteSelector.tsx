@@ -13,8 +13,9 @@ import React, {
 } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import type { DextoAgent, PromptInfo } from '@dexto/core';
+import type { PromptInfo } from '@dexto/core';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
+import type { TuiAgentBackend } from '../../agent-backend.js';
 
 export interface DeletablePrompt {
     prompt: PromptInfo;
@@ -26,7 +27,7 @@ interface PromptDeleteSelectorProps {
     isVisible: boolean;
     onDelete: (prompt: DeletablePrompt) => void;
     onClose: () => void;
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
 }
 
 export interface PromptDeleteSelectorHandle {

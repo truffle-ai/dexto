@@ -7,7 +7,7 @@ type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 const ApprovalBodySchema = z
     .object({
         status: z
-            .enum([ApprovalStatus.APPROVED, ApprovalStatus.DENIED])
+            .enum([ApprovalStatus.APPROVED, ApprovalStatus.DENIED, ApprovalStatus.CANCELLED])
             .describe('The user decision'),
         formData: z
             .record(z.unknown())
@@ -17,6 +17,19 @@ const ApprovalBodySchema = z
             .boolean()
             .optional()
             .describe('Whether to remember this choice for future requests'),
+        rememberPattern: z
+            .string()
+            .optional()
+            .describe('Optional approval pattern to remember for future requests'),
+        rememberDirectory: z
+            .boolean()
+            .optional()
+            .describe('Whether to remember the approved directory for future requests'),
+        reason: z
+            .nativeEnum(DenialReason)
+            .optional()
+            .describe('Optional structured denial or cancellation reason'),
+        message: z.string().optional().describe('Optional freeform denial or cancellation message'),
     })
     .describe('Request body for submitting an approval decision');
 
@@ -25,7 +38,7 @@ const ApprovalResponseSchema = z
         ok: z.boolean().describe('Whether the approval was successfully processed'),
         approvalId: z.string().describe('The ID of the processed approval'),
         status: z
-            .enum([ApprovalStatus.APPROVED, ApprovalStatus.DENIED])
+            .enum([ApprovalStatus.APPROVED, ApprovalStatus.DENIED, ApprovalStatus.CANCELLED])
             .describe('The final status'),
     })
     .describe('Response after processing approval');
@@ -138,7 +151,7 @@ export function createApprovalsRouter(
 
             // For now, return basic approval info
             // Full metadata would require storing approval requests in the coordinator
-            const approvals = pendingIds.map((approvalId) => ({
+            const approvals = pendingIds.map((approvalId: string) => ({
                 approvalId,
                 type: 'tool_confirmation', // Default type
                 sessionId,
@@ -154,7 +167,15 @@ export function createApprovalsRouter(
         .openapi(submitApprovalRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             const { approvalId } = ctx.req.valid('param');
-            const { status, formData, rememberChoice } = ctx.req.valid('json');
+            const {
+                status,
+                formData,
+                rememberChoice,
+                rememberPattern,
+                rememberDirectory,
+                reason,
+                message,
+            } = ctx.req.valid('json');
 
             agent.logger.info(`Received approval decision for ${approvalId}: ${status}`);
 
@@ -179,6 +200,12 @@ export function createApprovalsRouter(
                     if (rememberChoice !== undefined) {
                         data.rememberChoice = rememberChoice;
                     }
+                    if (rememberPattern !== undefined) {
+                        data.rememberPattern = rememberPattern;
+                    }
+                    if (rememberDirectory !== undefined) {
+                        data.rememberDirectory = rememberDirectory;
+                    }
                 }
 
                 // Construct response payload
@@ -190,10 +217,15 @@ export function createApprovalsRouter(
                     sessionId, // Attach sessionId for SSE routing to correct client streams
                     ...(status === ApprovalStatus.DENIED
                         ? {
-                              reason: DenialReason.USER_DENIED,
-                              message: 'User denied the request via API',
+                              reason: reason ?? DenialReason.USER_DENIED,
+                              message: message ?? 'User denied the request via API',
                           }
-                        : {}),
+                        : status === ApprovalStatus.CANCELLED
+                          ? {
+                                reason: reason ?? DenialReason.USER_CANCELLED,
+                                message: message ?? 'User cancelled the request via API',
+                            }
+                          : {}),
                     ...(Object.keys(data).length > 0 ? { data } : {}),
                 };
 

@@ -6,6 +6,7 @@
  */
 
 import type { OverlayType } from '../state/types.js';
+import { isCommandSupported, type TuiAgentBackend } from '../agent-backend.js';
 
 /**
  * Commands that ALWAYS show an overlay when invoked.
@@ -50,7 +51,15 @@ const NO_ARGS_OVERLAY: Record<string, OverlayType> = {
  * @param args - Arguments passed to the command
  * @returns Overlay type to show, or null to execute command handler
  */
-export function getCommandOverlay(command: string, args: string[]): OverlayType | null {
+export function getCommandOverlay(
+    command: string,
+    args: string[],
+    agent?: TuiAgentBackend
+): OverlayType | null {
+    if (agent && !isCommandSupported(agent, command)) {
+        return null;
+    }
+
     // Commands that always show overlay
     const alwaysOverlay = ALWAYS_OVERLAY[command];
     if (alwaysOverlay) return alwaysOverlay;

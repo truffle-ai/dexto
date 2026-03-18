@@ -15767,7 +15767,8 @@
                     "type": "string",
                     "enum": [
                       "approved",
-                      "denied"
+                      "denied",
+                      "cancelled"
                     ],
                     "description": "The user decision"
                   },
@@ -15781,6 +15782,31 @@
                   "rememberChoice": {
                     "type": "boolean",
                     "description": "Whether to remember this choice for future requests"
+                  },
+                  "rememberPattern": {
+                    "type": "string",
+                    "description": "Optional approval pattern to remember for future requests"
+                  },
+                  "rememberDirectory": {
+                    "type": "boolean",
+                    "description": "Whether to remember the approved directory for future requests"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "user_denied",
+                      "system_denied",
+                      "timeout",
+                      "user_cancelled",
+                      "system_cancelled",
+                      "validation_failed",
+                      "elicitation_disabled"
+                    ],
+                    "description": "Optional structured denial or cancellation reason"
+                  },
+                  "message": {
+                    "type": "string",
+                    "description": "Optional freeform denial or cancellation message"
                   }
                 },
                 "required": [
@@ -15811,7 +15837,8 @@
                       "type": "string",
                       "enum": [
                         "approved",
-                        "denied"
+                        "denied",
+                        "cancelled"
                       ],
                       "description": "The final status"
                     }
