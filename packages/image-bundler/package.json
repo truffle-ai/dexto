@@ -23,7 +23,7 @@
         "@dexto/agent-config": "workspace:*",
         "@dexto/core": "workspace:*",
         "commander": "^12.0.0",
-        "esbuild": "^0.26.0",
+        "esbuild": "^0.27.0",
         "picocolors": "^1.0.0"
     },
     "devDependencies": {
