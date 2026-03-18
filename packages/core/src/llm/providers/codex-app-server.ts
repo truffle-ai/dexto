@@ -117,6 +117,10 @@ type CodexClientInfo = {
     version: string;
 };
 
+type MissingCodexCliError = NodeJS.ErrnoException & {
+    isMissingCodexError?: boolean;
+};
+
 export interface CodexAppServerClientOptions {
     command?: string;
     cwd?: string;
@@ -217,17 +221,24 @@ function normalizeError(error: unknown): Error {
 }
 
 function isMissingCodexCliError(error: Error): boolean {
-    const code = (error as NodeJS.ErrnoException).code;
+    const missingCodexError = error as MissingCodexCliError;
+    if (missingCodexError.isMissingCodexError === true) {
+        return true;
+    }
+
+    const code = missingCodexError.code;
     return (
         error.message.includes('Codex CLI not found on PATH') ||
-        error.message.includes('spawn codex ENOENT') ||
-        (code === 'ENOENT' && error.message.includes('spawn'))
+        (code === 'ENOENT' &&
+            (error.message.includes('spawn codex ENOENT') ||
+                error.message.includes("Codex CLI command '")))
     );
 }
 
 function normalizeCodexStartupError(error: unknown, command: string): Error {
     const normalized = normalizeError(error);
-    if (!isMissingCodexCliError(normalized)) {
+    const errno = normalized as NodeJS.ErrnoException;
+    if (errno.code !== 'ENOENT' || !normalized.message.includes(`spawn ${command} ENOENT`)) {
         return normalized;
     }
 
@@ -235,19 +246,24 @@ function normalizeCodexStartupError(error: unknown, command: string): Error {
         command === 'codex'
             ? 'Codex CLI not found on PATH. Install Codex to use ChatGPT Login in Dexto.'
             : `Codex CLI command '${command}' not found on PATH. Install Codex to use ChatGPT Login in Dexto.`;
-    const startupError = new Error(message) as NodeJS.ErrnoException;
+    const startupError = new Error(message) as MissingCodexCliError;
     startupError.code = 'ENOENT';
+    startupError.isMissingCodexError = true;
     return startupError;
 }
 
 function getManagedCodexCommand(): string | null {
-    const candidate = path.join(
-        getDextoGlobalPath('deps'),
-        'node_modules',
-        '.bin',
-        MANAGED_CODEX_BINARY
-    );
-    return fs.existsSync(candidate) ? candidate : null;
+    try {
+        const candidate = path.join(
+            getDextoGlobalPath('deps'),
+            'node_modules',
+            '.bin',
+            MANAGED_CODEX_BINARY
+        );
+        return fs.existsSync(candidate) ? candidate : null;
+    } catch {
+        return null;
+    }
 }
 
 function parseCodexAccount(value: unknown): CodexAccount | null {
