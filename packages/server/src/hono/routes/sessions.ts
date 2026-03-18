@@ -320,6 +320,35 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
         },
     });
 
+    const clearContextRoute = createRoute({
+        method: 'post',
+        path: '/sessions/{sessionId}/clear-context',
+        summary: 'Clear Session Context',
+        description:
+            'Clears the model context window for a session while preserving conversation history for review.',
+        tags: ['sessions'],
+        request: {
+            params: z.object({ sessionId: z.string().describe('Session identifier') }),
+        },
+        responses: {
+            200: {
+                description: 'Session context cleared successfully',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                status: z
+                                    .literal('context cleared')
+                                    .describe('Context clear status'),
+                                sessionId: z.string().describe('Session ID'),
+                            })
+                            .strict(),
+                    },
+                },
+            },
+        },
+    });
+
     const patchRoute = createRoute({
         method: 'patch',
         path: '/sessions/{sessionId}',
@@ -529,6 +558,12 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                 },
                 200
             );
+        })
+        .openapi(clearContextRoute, async (ctx) => {
+            const agent = await getAgent(ctx);
+            const { sessionId } = ctx.req.valid('param');
+            await agent.clearContext(sessionId);
+            return ctx.json({ status: 'context cleared', sessionId });
         })
         .openapi(patchRoute, async (ctx) => {
             const agent = await getAgent(ctx);

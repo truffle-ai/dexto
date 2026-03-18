@@ -185,6 +185,9 @@ importers:
       '@dexto/analytics':
         specifier: workspace:*
         version: link:../analytics
+      '@dexto/client-sdk':
+        specifier: workspace:*
+        version: link:../client-sdk
       '@dexto/core':
         specifier: workspace:*
         version: link:../core

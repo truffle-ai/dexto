@@ -14,8 +14,9 @@ import React, {
 } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import type { DextoAgent, McpServerStatus, McpConnectionStatus } from '@dexto/core';
+import type { McpServerStatus, McpConnectionStatus } from '@dexto/core';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
+import type { TuiAgentBackend } from '../../agent-backend.js';
 
 export type McpServerListAction =
     | { type: 'select-server'; server: McpServerStatus }
@@ -25,7 +26,7 @@ interface McpServerListProps {
     isVisible: boolean;
     onAction: (action: McpServerListAction) => void;
     onClose: () => void;
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
 }
 
 export interface McpServerListHandle {

@@ -18,9 +18,9 @@ import React, {
 } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import type { DextoAgent } from '@dexto/core';
 import { getModelDisplayName, getReasoningProfile } from '@dexto/core';
 import { getLLMProviderDisplayName } from '../../utils/llm-provider-display.js';
+import type { TuiAgentBackend } from '../../agent-backend.js';
 
 export interface ReasoningOverlayHandle {
     handleInput: (input: string, key: Key) => boolean;
@@ -28,7 +28,7 @@ export interface ReasoningOverlayHandle {
 
 interface ReasoningOverlayProps {
     isVisible: boolean;
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
     sessionId: string | null;
     showReasoning: boolean;
     onToggleShowReasoning: () => void;

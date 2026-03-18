@@ -6,14 +6,14 @@
 import type React from 'react';
 import { useEffect, useRef } from 'react';
 import { useInput, useApp } from 'ink';
-import type { DextoAgent } from '@dexto/core';
 import type { CLIAction } from '../state/actions.js';
 import type { CLIState } from '../state/types.js';
+import type { TuiAgentBackend } from '../agent-backend.js';
 
 interface UseKeyboardShortcutsProps {
     state: CLIState;
     dispatch: React.Dispatch<CLIAction>;
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
 }
 
 /** Time window for double Ctrl+C to exit (in milliseconds) */

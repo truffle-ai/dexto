@@ -8,8 +8,8 @@
  * - /tools - Interactive tool browser
  */
 
-import type { DextoAgent } from '@dexto/core';
 import type { CommandDefinition, CommandContext } from './command-parser.js';
+import type { TuiAgentBackend } from '../agent-backend.js';
 
 /**
  * Tool management commands
@@ -22,7 +22,7 @@ export const toolCommands: CommandDefinition[] = [
         category: 'Tool Management',
         handler: async (
             _args: string[],
-            _agent: DextoAgent,
+            _agent: TuiAgentBackend,
             _ctx: CommandContext
         ): Promise<boolean | string> => {
             // Overlay is handled via commandOverlays.ts mapping

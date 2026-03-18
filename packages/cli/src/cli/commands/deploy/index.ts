@@ -25,6 +25,7 @@ import {
     saveWorkspaceDeployLink,
 } from './state.js';
 import { createWorkspaceSnapshot } from './snapshot.js';
+import { startCloudChatCli } from '../../cloud-chat.js';
 
 interface InteractiveOptions {
     interactive?: boolean;
@@ -88,6 +89,89 @@ function formatCloudAgentListItem(
         lines.push(`  ${chalk.green('Linked to this workspace')}`);
     }
     return lines.join('\n');
+}
+
+function formatCloudAgentSelectionLabel(cloudAgent: CloudAgentListItemResult): string {
+    const trimmedName = cloudAgent.name?.trim();
+    const heading =
+        trimmedName && trimmedName !== cloudAgent.cloudAgentId
+            ? `${trimmedName} (${cloudAgent.cloudAgentId})`
+            : cloudAgent.cloudAgentId;
+    return `${heading} ${chalk.gray('[')}${formatCloudAgentStatus(cloudAgent.state.status)}${chalk.gray(']')}`;
+}
+
+function sortCloudAgentsForChat(
+    cloudAgents: CloudAgentListItemResult[],
+    linkedCloudAgentId: string | null
+): CloudAgentListItemResult[] {
+    return cloudAgents.slice().sort((left, right) => {
+        const leftIsLinked =
+            linkedCloudAgentId !== null && left.cloudAgentId === linkedCloudAgentId;
+        const rightIsLinked =
+            linkedCloudAgentId !== null && right.cloudAgentId === linkedCloudAgentId;
+        if (leftIsLinked !== rightIsLinked) {
+            return leftIsLinked ? -1 : 1;
+        }
+
+        const leftReady = left.state.status === 'ready';
+        const rightReady = right.state.status === 'ready';
+        if (leftReady !== rightReady) {
+            return leftReady ? -1 : 1;
+        }
+
+        const leftName = (left.name?.trim() || left.cloudAgentId).toLowerCase();
+        const rightName = (right.name?.trim() || right.cloudAgentId).toLowerCase();
+        return leftName.localeCompare(rightName);
+    });
+}
+
+async function selectCloudAgentForChat(workspaceRoot: string): Promise<string> {
+    const deployLink = await loadWorkspaceDeployLink(workspaceRoot);
+    const spinner = p.spinner();
+    spinner.start('Loading cloud agents...');
+
+    const client = createDeployClient();
+    let cloudAgents: CloudAgentListItemResult[];
+    try {
+        cloudAgents = await client.listCloudAgents();
+    } catch (error) {
+        spinner.stop(chalk.red('✗ Failed to load cloud agents'));
+        throw error;
+    }
+
+    spinner.stop(chalk.green('✓ Cloud agents loaded'));
+
+    if (cloudAgents.length === 0) {
+        throw new Error(
+            'No cloud agents available yet. Run `dexto deploy` first, or pass a cloud agent ID explicitly.'
+        );
+    }
+
+    const linkedCloudAgentId = deployLink?.cloudAgentId ?? null;
+    const sortedCloudAgents = sortCloudAgentsForChat(cloudAgents, linkedCloudAgentId);
+    const selected = await p.select({
+        message: 'Choose a cloud agent to chat with',
+        options: sortedCloudAgents.map((cloudAgent) => {
+            const isLinked =
+                linkedCloudAgentId !== null && cloudAgent.cloudAgentId === linkedCloudAgentId;
+            const hintParts = [cloudAgent.agentUrl];
+            if (isLinked) {
+                hintParts.unshift('Linked to this workspace');
+            }
+            return {
+                value: cloudAgent.cloudAgentId,
+                label: formatCloudAgentSelectionLabel(cloudAgent),
+                hint: hintParts.join(' • '),
+            };
+        }),
+    });
+
+    if (p.isCancel(selected)) {
+        p.cancel('Cloud chat cancelled');
+        process.exit(0);
+    }
+
+    return selected;
 }
 
 function resolveWorkspaceRoot(): string {
@@ -396,4 +480,13 @@ export async function handleDeployDeleteCommand(options?: InteractiveOptions): P
         spinner.stop(chalk.red('✗ Delete failed'));
         throw error;
     }
+}
+
+export async function handleDeployChatCommand(cloudAgentId?: string): Promise<void> {
+    const workspaceRoot = resolveWorkspaceRoot();
+    const selectedCloudAgentId = cloudAgentId ?? (await selectCloudAgentForChat(workspaceRoot));
+    await startCloudChatCli({
+        cloudAgentId: selectedCloudAgentId,
+        workspaceRoot,
+    });
 }

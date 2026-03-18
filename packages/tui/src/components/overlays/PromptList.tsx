@@ -15,8 +15,9 @@ import React, {
 } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import type { DextoAgent, PromptInfo } from '@dexto/core';
+import type { PromptInfo } from '@dexto/core';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
+import type { TuiAgentBackend } from '../../agent-backend.js';
 
 export type PromptListAction =
     | { type: 'select-prompt'; prompt: PromptInfo }
@@ -28,7 +29,7 @@ interface PromptListProps {
     onAction: (action: PromptListAction) => void;
     onLoadIntoInput: (text: string) => void;
     onClose: () => void;
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
 }
 
 export interface PromptListHandle {

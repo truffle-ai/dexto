@@ -17,6 +17,7 @@
     { "path": "../agent-config" },
     { "path": "../agent-management" },
     { "path": "../analytics" },
+    { "path": "../client-sdk" },
     { "path": "../core" },
     { "path": "../image-local" },
     { "path": "../image-logger-agent" },

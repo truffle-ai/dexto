@@ -1,7 +1,9 @@
 import { promises as fs } from 'fs';
 import path from 'path';
+import { createMessageStream } from '@dexto/client-sdk';
+import type { StreamingEvent } from '@dexto/core';
 import { z } from 'zod';
-import { getAuthToken, getDextoApiKey } from '../../auth/service.js';
+import { getAuthToken, getDextoApiKey, loadAuth } from '../../auth/service.js';
 import type { DeployAgent } from './config.js';
 
 const SANDBOX_URL_ENV_VAR = 'DEXTO_SANDBOX_URL';
@@ -109,6 +111,86 @@ const DeleteResponseSchema = z
     })
     .passthrough();
 
+const CloudChatContentPartSchema = z
+    .discriminatedUnion('type', [
+        z
+            .object({
+                type: z.literal('text'),
+                text: z.string(),
+            })
+            .strict(),
+        z
+            .object({
+                type: z.literal('image'),
+                image: z.string(),
+                mimeType: z.string().optional(),
+            })
+            .strict(),
+        z
+            .object({
+                type: z.literal('file'),
+                data: z.string(),
+                mimeType: z.string(),
+                filename: z.string().optional(),
+            })
+            .strict(),
+    ])
+    .describe('Cloud chat content part');
+
+const CloudChatSessionSchema = z
+    .object({
+        id: z.string(),
+        createdAt: z.number().nullable().optional(),
+        lastActivity: z.number().nullable().optional(),
+        messageCount: z.number().int().nonnegative().optional(),
+        title: z.string().nullable().optional(),
+        workspaceId: z.string().nullable().optional(),
+        parentSessionId: z.string().nullable().optional(),
+    })
+    .passthrough();
+
+const CloudChatSessionListResponseSchema = z
+    .object({
+        sessions: z.array(CloudChatSessionSchema),
+    })
+    .passthrough();
+
+const CloudChatSessionResponseSchema = z
+    .object({
+        session: CloudChatSessionSchema,
+    })
+    .passthrough();
+
+const CloudChatHistoryMessageSchema = z
+    .object({
+        role: z.enum(['user', 'assistant', 'system', 'tool']),
+        content: z.array(CloudChatContentPartSchema),
+        timestamp: z.number().optional(),
+        name: z.string().optional(),
+        toolCallId: z.string().optional(),
+        success: z.boolean().optional(),
+        reasoning: z.string().optional(),
+        model: z.string().optional(),
+        provider: z.string().optional(),
+        displayData: z.unknown().optional(),
+        presentationSnapshot: z.unknown().optional(),
+    })
+    .passthrough();
+
+const CloudChatHistoryResponseSchema = z
+    .object({
+        history: z.array(CloudChatHistoryMessageSchema),
+        isBusy: z.boolean().optional(),
+        stale: z.boolean().optional(),
+    })
+    .passthrough();
+
+const CloudChatApprovalsResponseSchema = z
+    .object({
+        approvals: z.array(z.unknown()).default([]),
+    })
+    .passthrough();
+
 export interface DeployCloudAgentResult {
     cloudAgentId: string;
     agentUrl: string;
@@ -142,6 +224,58 @@ export interface CloudAgentDeleteResult {
     agentUrl: string;
 }
 
+export interface CloudChatSessionResult {
+    id: string;
+    createdAt: number | null;
+    lastActivity: number | null;
+    messageCount: number;
+    title: string | null;
+    workspaceId: string | null;
+    parentSessionId: string | null;
+}
+
+export interface CloudChatHistoryMessageResult {
+    role: 'user' | 'assistant' | 'system' | 'tool';
+    content: z.output<typeof CloudChatContentPartSchema>[];
+    timestamp?: number;
+    name?: string;
+    toolCallId?: string;
+    success?: boolean;
+    reasoning?: string;
+    model?: string;
+    provider?: string;
+}
+
+export interface CloudChatHistoryResult {
+    history: CloudChatHistoryMessageResult[];
+    isBusy: boolean;
+    stale: boolean;
+}
+
+export interface CloudChatApprovalDecision {
+    status: 'approved' | 'denied' | 'cancelled';
+    formData?: Record<string, unknown>;
+    rememberChoice?: boolean;
+    rememberPattern?: string;
+    rememberDirectory?: boolean;
+    reason?: string;
+    message?: string;
+}
+
+function normalizeCloudChatSession(
+    session: z.output<typeof CloudChatSessionSchema>
+): CloudChatSessionResult {
+    return {
+        id: session.id,
+        createdAt: session.createdAt ?? null,
+        lastActivity: session.lastActivity ?? null,
+        messageCount: session.messageCount ?? 0,
+        title: session.title ?? null,
+        workspaceId: session.workspaceId ?? null,
+        parentSessionId: session.parentSessionId ?? null,
+    };
+}
+
 class SandboxApiError extends Error {
     readonly status: number;
 
@@ -168,14 +302,20 @@ export function resolveSandboxBaseUrl(): string {
 }
 
 async function resolveAccessToken(): Promise<string> {
-    const dextoApiKey = await getDextoApiKey();
-    if (dextoApiKey && dextoApiKey.trim().length > 0) {
-        return dextoApiKey.trim();
+    const auth = await loadAuth();
+    const storedDextoApiKey = auth?.dextoApiKey?.trim();
+    if (storedDextoApiKey && storedDextoApiKey.length > 0) {
+        return storedDextoApiKey;
     }
 
     const authToken = await getAuthToken();
     if (authToken && authToken.trim().length > 0) {
         return authToken.trim();
+    }
+
+    const dextoApiKey = await getDextoApiKey();
+    if (dextoApiKey && dextoApiKey.trim().length > 0) {
+        return dextoApiKey.trim();
     }
 
     throw new Error('Authentication required. Run `dexto login` before using `dexto deploy`.');
@@ -356,6 +496,251 @@ export function createDeployClient() {
                 cloudAgentId: data.cloudAgentId,
                 agentUrl: data.agentUrl,
             };
+        },
+
+        async listCloudAgentSessions(cloudAgentId: string): Promise<CloudChatSessionResult[]> {
+            const response = await request(
+                `/cloud-agents/${encodeURIComponent(cloudAgentId)}/agent/sessions`,
+                {
+                    method: 'GET',
+                }
+            );
+            if (!response.ok) {
+                await throwApiError(response);
+            }
+
+            const payload = CloudChatSessionListResponseSchema.parse(await response.json());
+            return payload.sessions.map(normalizeCloudChatSession);
+        },
+
+        async createCloudAgentSession(
+            cloudAgentId: string,
+            input?: { sessionId?: string }
+        ): Promise<CloudChatSessionResult> {
+            const response = await request(
+                `/cloud-agents/${encodeURIComponent(cloudAgentId)}/agent/sessions`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(input ?? {}),
+                }
+            );
+            if (!response.ok) {
+                await throwApiError(response);
+            }
+
+            const payload = CloudChatSessionResponseSchema.parse(await response.json());
+            return normalizeCloudChatSession(payload.session);
+        },
+
+        async getCloudAgentSessionHistory(
+            cloudAgentId: string,
+            sessionId: string
+        ): Promise<CloudChatHistoryResult> {
+            const response = await request(
+                `/cloud-agents/${encodeURIComponent(cloudAgentId)}/agent/sessions/${encodeURIComponent(sessionId)}/history`,
+                {
+                    method: 'GET',
+                }
+            );
+            if (!response.ok) {
+                await throwApiError(response);
+            }
+
+            const payload = CloudChatHistoryResponseSchema.parse(await response.json());
+            return {
+                history: payload.history.map((entry) => ({
+                    role: entry.role,
+                    content: entry.content,
+                    ...(entry.timestamp !== undefined ? { timestamp: entry.timestamp } : {}),
+                    ...(entry.name !== undefined ? { name: entry.name } : {}),
+                    ...(entry.toolCallId !== undefined ? { toolCallId: entry.toolCallId } : {}),
+                    ...(entry.success !== undefined ? { success: entry.success } : {}),
+                    ...(entry.reasoning !== undefined ? { reasoning: entry.reasoning } : {}),
+                    ...(entry.model !== undefined ? { model: entry.model } : {}),
+                    ...(entry.provider !== undefined ? { provider: entry.provider } : {}),
+                })),
+                isBusy: payload.isBusy ?? false,
+                stale: payload.stale === true,
+            };
+        },
+
+        async resetCloudAgentSession(cloudAgentId: string, sessionId: string): Promise<void> {
+            const response = await request(
+                `/cloud-agents/${encodeURIComponent(cloudAgentId)}/agent/sessions/${encodeURIComponent(sessionId)}/reset`,
+                {
+                    method: 'POST',
+                }
+            );
+            if (!response.ok) {
+                await throwApiError(response);
+            }
+        },
+
+        async clearCloudAgentSessionContext(
+            cloudAgentId: string,
+            sessionId: string
+        ): Promise<void> {
+            const response = await request(
+                `/cloud-agents/${encodeURIComponent(cloudAgentId)}/agent/sessions/${encodeURIComponent(sessionId)}/clear-context`,
+                {
+                    method: 'POST',
+                }
+            );
+            if (!response.ok) {
+                await throwApiError(response);
+            }
+        },
+
+        async deleteCloudAgentSession(cloudAgentId: string, sessionId: string): Promise<void> {
+            const response = await request(
+                `/cloud-agents/${encodeURIComponent(cloudAgentId)}/agent/sessions/${encodeURIComponent(sessionId)}`,
+                {
+                    method: 'DELETE',
+                }
+            );
+            if (!response.ok) {
+                await throwApiError(response);
+            }
+        },
+
+        async generateCloudAgentSessionTitle(
+            cloudAgentId: string,
+            sessionId: string
+        ): Promise<{ title: string | null; sessionId: string } | null> {
+            const response = await request(
+                `/cloud-agents/${encodeURIComponent(cloudAgentId)}/agent/sessions/${encodeURIComponent(sessionId)}/generate-title`,
+                {
+                    method: 'POST',
+                }
+            );
+            if (!response.ok) {
+                await throwApiError(response);
+            }
+
+            const payload = z
+                .object({
+                    title: z.string().nullable().optional(),
+                    sessionId: z.string().optional(),
+                })
+                .passthrough()
+                .parse(await response.json());
+
+            return {
+                title: payload.title ?? null,
+                sessionId: payload.sessionId ?? sessionId,
+            };
+        },
+
+        async cancelCloudAgentSessionRun(cloudAgentId: string, sessionId: string): Promise<void> {
+            const response = await request(
+                `/cloud-agents/${encodeURIComponent(cloudAgentId)}/agent/sessions/${encodeURIComponent(sessionId)}/cancel`,
+                {
+                    method: 'POST',
+                }
+            );
+            if (!response.ok) {
+                await throwApiError(response);
+            }
+        },
+
+        async listCloudAgentApprovals(cloudAgentId: string, sessionId: string): Promise<unknown[]> {
+            const response = await request(
+                `/cloud-agents/${encodeURIComponent(cloudAgentId)}/agent/approvals?sessionId=${encodeURIComponent(sessionId)}`,
+                {
+                    method: 'GET',
+                }
+            );
+            if (!response.ok) {
+                await throwApiError(response);
+            }
+
+            const payload = CloudChatApprovalsResponseSchema.parse(await response.json());
+            return payload.approvals;
+        },
+
+        async submitCloudAgentApproval(
+            cloudAgentId: string,
+            approvalId: string,
+            decision: CloudChatApprovalDecision
+        ): Promise<void> {
+            const response = await request(
+                `/cloud-agents/${encodeURIComponent(cloudAgentId)}/agent/approvals/${encodeURIComponent(approvalId)}`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        status: decision.status,
+                        ...(decision.formData !== undefined ? { formData: decision.formData } : {}),
+                        ...(decision.rememberChoice !== undefined
+                            ? { rememberChoice: decision.rememberChoice }
+                            : {}),
+                        ...(decision.rememberPattern !== undefined
+                            ? { rememberPattern: decision.rememberPattern }
+                            : {}),
+                        ...(decision.rememberDirectory !== undefined
+                            ? { rememberDirectory: decision.rememberDirectory }
+                            : {}),
+                        ...(decision.reason !== undefined ? { reason: decision.reason } : {}),
+                        ...(decision.message !== undefined ? { message: decision.message } : {}),
+                    }),
+                }
+            );
+            if (!response.ok) {
+                await throwApiError(response);
+            }
+        },
+
+        async streamCloudAgentMessage(
+            cloudAgentId: string,
+            input: {
+                sessionId: string;
+                content: string;
+                signal?: AbortSignal;
+            }
+        ): Promise<AsyncIterableIterator<StreamingEvent>> {
+            const responsePromise = request(
+                `/cloud-agents/${encodeURIComponent(cloudAgentId)}/agent/message-stream`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'text/event-stream',
+                    },
+                    body: JSON.stringify({
+                        sessionId: input.sessionId,
+                        content: input.content,
+                    }),
+                    ...(input.signal ? { signal: input.signal } : {}),
+                }
+            );
+
+            const response = await responsePromise;
+            if (
+                response.status === 202 &&
+                response.headers.get('content-type')?.includes('application/json')
+            ) {
+                const busyPayload = await response.json().catch(() => null);
+                const parsed = z
+                    .object({
+                        hint: z.string().optional(),
+                    })
+                    .passthrough()
+                    .safeParse(busyPayload);
+                throw new Error(
+                    parsed.success
+                        ? (parsed.data.hint ?? 'Cloud session is busy')
+                        : 'Cloud session is busy'
+                );
+            }
+
+            return createMessageStream(Promise.resolve(response), {
+                ...(input.signal ? { signal: input.signal } : {}),
+            });
         },
     };
 }
