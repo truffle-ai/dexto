@@ -31,6 +31,80 @@ const ApprovalBodySchema = z
             .describe('Optional structured denial or cancellation reason'),
         message: z.string().optional().describe('Optional freeform denial or cancellation message'),
     })
+    .strict()
+    .superRefine((value, refinementCtx) => {
+        const addFieldIssue = (path: string, message: string) => {
+            refinementCtx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: [path],
+                message,
+            });
+        };
+
+        if (value.status === ApprovalStatus.APPROVED) {
+            if (value.reason !== undefined) {
+                addFieldIssue(
+                    'reason',
+                    'reason is only allowed when status is denied or cancelled'
+                );
+            }
+            if (value.message !== undefined) {
+                addFieldIssue(
+                    'message',
+                    'message is only allowed when status is denied or cancelled'
+                );
+            }
+            return;
+        }
+
+        if (value.formData !== undefined) {
+            addFieldIssue('formData', 'formData is only allowed when status is approved');
+        }
+        if (value.rememberChoice !== undefined) {
+            addFieldIssue(
+                'rememberChoice',
+                'rememberChoice is only allowed when status is approved'
+            );
+        }
+        if (value.rememberPattern !== undefined) {
+            addFieldIssue(
+                'rememberPattern',
+                'rememberPattern is only allowed when status is approved'
+            );
+        }
+        if (value.rememberDirectory !== undefined) {
+            addFieldIssue(
+                'rememberDirectory',
+                'rememberDirectory is only allowed when status is approved'
+            );
+        }
+
+        if (value.reason === undefined) {
+            return;
+        }
+
+        if (value.status === ApprovalStatus.DENIED) {
+            const invalidReasons = new Set<DenialReason>([
+                DenialReason.USER_CANCELLED,
+                DenialReason.SYSTEM_CANCELLED,
+                DenialReason.TIMEOUT,
+            ]);
+            if (invalidReasons.has(value.reason)) {
+                addFieldIssue('reason', 'reason must describe a denial when status is denied');
+            }
+            return;
+        }
+
+        const invalidReasons = new Set<DenialReason>([
+            DenialReason.USER_DENIED,
+            DenialReason.SYSTEM_DENIED,
+            DenialReason.VALIDATION_FAILED,
+            DenialReason.ELICITATION_DISABLED,
+        ]);
+        if (invalidReasons.has(value.reason)) {
+            addFieldIssue('reason', 'reason must describe a cancellation when status is cancelled');
+        }
+    })
     .describe('Request body for submitting an approval decision');
 
 const ApprovalResponseSchema = z

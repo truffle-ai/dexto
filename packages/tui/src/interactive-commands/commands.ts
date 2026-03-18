@@ -147,27 +147,25 @@ export async function executeCommand(
     // Command not found in static commands - check if it's a dynamic prompt command
     // Dynamic commands use displayName (e.g., "quick-start" instead of "config:quick-start")
     try {
-        if (!supportsPrompts(agent)) {
-            return `⚠️  Command /${command} is not available for this chat target.`;
-        }
+        if (supportsPrompts(agent)) {
+            // Import prompt command creation dynamically to avoid circular dependencies
+            const { getDynamicPromptCommands } = await import('./prompt-commands.js');
+            const dynamicCommands = await getDynamicPromptCommands(agent);
+            // Commands are registered by displayName, so search by command name directly
+            const promptCmd = dynamicCommands.find((c) => c.name === command);
 
-        // Import prompt command creation dynamically to avoid circular dependencies
-        const { getDynamicPromptCommands } = await import('./prompt-commands.js');
-        const dynamicCommands = await getDynamicPromptCommands(agent);
-        // Commands are registered by displayName, so search by command name directly
-        const promptCmd = dynamicCommands.find((c) => c.name === command);
-
-        if (promptCmd) {
-            try {
-                const result = await promptCmd.handler(args, agent, ctx);
-                // Return the result directly - can be string, boolean, StyledOutput, or SendMessageMarker
-                return result;
-            } catch (error) {
-                const errorMsg = `❌ Error executing prompt /${command}:\n${error instanceof Error ? error.message : String(error)}`;
-                agent.logger.error(
-                    `Error executing prompt /${command}: ${error instanceof Error ? error.message : String(error)}`
-                );
-                return errorMsg;
+            if (promptCmd) {
+                try {
+                    const result = await promptCmd.handler(args, agent, ctx);
+                    // Return the result directly - can be string, boolean, StyledOutput, or SendMessageMarker
+                    return result;
+                } catch (error) {
+                    const errorMsg = `❌ Error executing prompt /${command}:\n${error instanceof Error ? error.message : String(error)}`;
+                    agent.logger.error(
+                        `Error executing prompt /${command}: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                    return errorMsg;
+                }
             }
         }
     } catch (error) {

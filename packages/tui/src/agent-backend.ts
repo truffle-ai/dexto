@@ -148,6 +148,24 @@ const DEFAULT_CAPABILITIES: Required<Omit<TuiAgentCapabilities, 'supportedComman
     startupInfo: true,
 };
 
+const COMMAND_CAPABILITY_GATES: ReadonlyArray<{
+    capability: keyof Omit<TuiAgentCapabilities, 'supportedCommands'>;
+    commands: readonly string[];
+}> = [
+    {
+        capability: 'prompts',
+        commands: ['prompts', 'sysprompt'],
+    },
+    {
+        capability: 'reasoningCycle',
+        commands: ['reasoning'],
+    },
+    {
+        capability: 'contextStats',
+        commands: ['context', 'ctx', 'tokens'],
+    },
+];
+
 function normalizeCommandName(command: string): string {
     return command.trim().toLowerCase();
 }
@@ -169,10 +187,8 @@ export function isCommandSupported(
     command: string,
     definition?: Pick<CommandDefinition, 'name' | 'aliases'>
 ): boolean {
-    const supportedCommands = getTuiCapabilities(agent).supportedCommands;
-    if (!supportedCommands) {
-        return true;
-    }
+    const capabilities = getTuiCapabilities(agent);
+    const supportedCommands = capabilities.supportedCommands;
 
     const candidates = new Set<string>([normalizeCommandName(command)]);
     if (definition?.name) {
@@ -180,6 +196,19 @@ export function isCommandSupported(
     }
     for (const alias of definition?.aliases ?? []) {
         candidates.add(normalizeCommandName(alias));
+    }
+
+    for (const gate of COMMAND_CAPABILITY_GATES) {
+        if (
+            capabilities[gate.capability] === false &&
+            gate.commands.some((candidate) => candidates.has(candidate))
+        ) {
+            return false;
+        }
+    }
+
+    if (!supportedCommands) {
+        return true;
     }
 
     return Array.from(candidates).some((candidate) => supportedCommands.includes(candidate));

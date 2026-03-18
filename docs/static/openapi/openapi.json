@@ -15812,6 +15812,7 @@
                 "required": [
                   "status"
                 ],
+                "additionalProperties": false,
                 "description": "Request body for submitting an approval decision"
               }
             }

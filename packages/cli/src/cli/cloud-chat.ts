@@ -446,21 +446,32 @@ function createCloudAgentBackend(client: DeployClient, cloudAgentId: string): Cl
                     typeof approval.approvalId === 'string' &&
                     typeof approval.status === 'string'
                 ) {
-                    void client.submitCloudAgentApproval(cloudAgentId, approval.approvalId, {
-                        status: approval.status,
-                        ...(approval.data !== undefined ? { formData: approval.data } : {}),
-                        ...(approvalData.rememberChoice !== undefined
-                            ? { rememberChoice: approvalData.rememberChoice }
-                            : {}),
-                        ...(approvalData.rememberPattern !== undefined
-                            ? { rememberPattern: approvalData.rememberPattern }
-                            : {}),
-                        ...(approvalData.rememberDirectory !== undefined
-                            ? { rememberDirectory: approvalData.rememberDirectory }
-                            : {}),
-                        ...(approval.reason !== undefined ? { reason: approval.reason } : {}),
-                        ...(approval.message !== undefined ? { message: approval.message } : {}),
-                    });
+                    void client
+                        .submitCloudAgentApproval(cloudAgentId, approval.approvalId, {
+                            status: approval.status,
+                            ...(approval.data !== undefined ? { formData: approval.data } : {}),
+                            ...(approvalData.rememberChoice !== undefined
+                                ? { rememberChoice: approvalData.rememberChoice }
+                                : {}),
+                            ...(approvalData.rememberPattern !== undefined
+                                ? { rememberPattern: approvalData.rememberPattern }
+                                : {}),
+                            ...(approvalData.rememberDirectory !== undefined
+                                ? { rememberDirectory: approvalData.rememberDirectory }
+                                : {}),
+                            ...(approval.reason !== undefined ? { reason: approval.reason } : {}),
+                            ...(approval.message !== undefined
+                                ? { message: approval.message }
+                                : {}),
+                        })
+                        .catch((error: unknown) => {
+                            backendLogger.error('Failed to submit cloud approval response', {
+                                cloudAgentId,
+                                approvalId: approval.approvalId,
+                                status: approval.status,
+                                error: getErrorMessage(error),
+                            });
+                        });
                 }
             }
 
@@ -684,11 +695,16 @@ function createCloudAgentBackend(client: DeployClient, cloudAgentId: string): Cl
 
         clearMessageQueue: (async (sessionId) => {
             if (typeof sessionId === 'string') {
+                const clearedCount = (queueBySession.get(sessionId) ?? []).length;
                 queueBySession.delete(sessionId);
-                return 0;
+                return clearedCount;
             }
+            const clearedCount = Array.from(queueBySession.values()).reduce(
+                (total, queuedMessages) => total + queuedMessages.length,
+                0
+            );
             queueBySession.clear();
-            return 0;
+            return clearedCount;
         }) as CloudChatBackend['clearMessageQueue'],
 
         cancel: (async (sessionId) => {

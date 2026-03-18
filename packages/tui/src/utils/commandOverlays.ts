@@ -54,9 +54,9 @@ const NO_ARGS_OVERLAY: Record<string, OverlayType> = {
 export function getCommandOverlay(
     command: string,
     args: string[],
-    agent?: TuiAgentBackend
+    agent: TuiAgentBackend
 ): OverlayType | null {
-    if (agent && !isCommandSupported(agent, command)) {
+    if (!isCommandSupported(agent, command)) {
         return null;
     }
 
