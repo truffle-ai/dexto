@@ -1,9 +1,14 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { SessionMetadata as CoreSessionMetadata } from '@dexto/core';
+import {
+    getConfiguredUsageScopeId,
+    type SessionMetadata as CoreSessionMetadata,
+} from '@dexto/core';
 import {
     SessionMetadataSchema,
     InternalMessageSchema,
+    ScopedUsageSummarySchema,
     StandardErrorEnvelopeSchema,
+    UsageSummarySchema,
 } from '../schemas/responses.js';
 import type { GetAgentFn } from '../index.js';
 
@@ -31,6 +36,12 @@ function mapSessionMetadata(
         lastActivity: metadata?.lastActivity ?? defaults?.lastActivity ?? null,
         messageCount: metadata?.messageCount ?? defaults?.messageCount ?? 0,
         title: metadata?.title ?? defaults?.title ?? null,
+        ...(metadata?.tokenUsage && { tokenUsage: metadata.tokenUsage }),
+        ...(metadata?.estimatedCost !== undefined && {
+            estimatedCost: metadata.estimatedCost,
+        }),
+        ...(metadata?.modelStats && { modelStats: metadata.modelStats }),
+        ...(metadata?.usageTracking && { usageTracking: metadata.usageTracking }),
         workspaceId: metadata?.workspaceId ?? defaults?.workspaceId ?? null,
         parentSessionId: metadata?.parentSessionId ?? defaults?.parentSessionId ?? null,
     };
@@ -299,6 +310,18 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                                         .describe(
                                             'Whether the session is currently processing a message'
                                         ),
+                                    usageSummary: UsageSummarySchema.describe(
+                                        'Exact usage summary derived from assistant message history'
+                                    ),
+                                    activeUsageScopeId: z
+                                        .string()
+                                        .nullable()
+                                        .describe(
+                                            'Current runtime usage scope identifier, if configured'
+                                        ),
+                                    activeUsageScope: ScopedUsageSummarySchema.nullable().describe(
+                                        'Usage summary for the current runtime scope, if configured'
+                                    ),
                                 }).describe('Session metadata with processing status'),
                             })
                             .strict(),
@@ -549,11 +572,22 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             // Return session metadata with processing status
             const metadata = await agent.getSessionMetadata(sessionId);
             const isBusy = await agent.isSessionBusy(sessionId);
+            const usageSummary = await agent.getSessionUsageSummary(sessionId);
+            const activeUsageScopeId = getConfiguredUsageScopeId() ?? null;
+            const activeUsageScope = activeUsageScopeId
+                ? {
+                      scopeId: activeUsageScopeId,
+                      ...(await agent.getSessionUsageSummary(sessionId, activeUsageScopeId)),
+                  }
+                : null;
             return ctx.json(
                 {
                     session: {
                         ...mapSessionMetadata(sessionId, metadata),
                         isBusy,
+                        usageSummary,
+                        activeUsageScopeId,
+                        activeUsageScope,
                     },
                 },
                 200

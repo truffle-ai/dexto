@@ -20,6 +20,9 @@ export const LLM_PROVIDERS = [
 ] as const;
 export type LLMProvider = (typeof LLM_PROVIDERS)[number];
 
+export const LLM_PRICING_STATUSES = ['estimated', 'unpriced'] as const;
+export type LLMPricingStatus = (typeof LLM_PRICING_STATUSES)[number];
+
 export const SUPPORTED_FILE_TYPES = ['pdf', 'image', 'audio'] as const;
 export type SupportedFileType = (typeof SUPPORTED_FILE_TYPES)[number];
 

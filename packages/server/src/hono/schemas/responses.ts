@@ -28,7 +28,11 @@
  */
 
 import { z } from 'zod';
-import { LLMConfigBaseSchema as CoreLLMConfigBaseSchema, LLM_PROVIDERS } from '@dexto/core';
+import {
+    LLM_PRICING_STATUSES,
+    LLMConfigBaseSchema as CoreLLMConfigBaseSchema,
+    LLM_PROVIDERS,
+} from '@dexto/core';
 
 // TODO: Implement shared error response schemas for OpenAPI documentation.
 // Currently, 404 and other error responses lack body schemas because @hono/zod-openapi
@@ -148,10 +152,26 @@ export const TokenUsageSchema = z
             .nonnegative()
             .optional()
             .describe('Number of reasoning tokens'),
+        cacheReadTokens: z
+            .number()
+            .int()
+            .nonnegative()
+            .optional()
+            .describe('Number of cache read tokens'),
+        cacheWriteTokens: z
+            .number()
+            .int()
+            .nonnegative()
+            .optional()
+            .describe('Number of cache write tokens'),
         totalTokens: z.number().int().nonnegative().optional().describe('Total tokens used'),
     })
     .strict()
     .describe('Token usage accounting');
+
+export const PricingStatusSchema = z
+    .enum(LLM_PRICING_STATUSES)
+    .describe('Whether pricing was resolved for this response');
 
 export const InternalMessageSchema = z
     .object({
@@ -165,6 +185,18 @@ export const InternalMessageSchema = z
             .describe('Message content (string, null, or array of parts)'),
         reasoning: z.string().optional().describe('Optional model reasoning text'),
         tokenUsage: TokenUsageSchema.optional().describe('Optional token usage accounting'),
+        estimatedCost: z
+            .number()
+            .nonnegative()
+            .optional()
+            .describe('Estimated cost in USD for this response'),
+        pricingStatus: PricingStatusSchema.optional().describe(
+            'Whether pricing was resolved for this response'
+        ),
+        usageScopeId: z
+            .string()
+            .optional()
+            .describe('Optional usage scope identifier for runtime-scoped metering'),
         model: z.string().optional().describe('Model identifier for assistant messages'),
         provider: z
             .enum(LLM_PROVIDERS)
@@ -232,17 +264,19 @@ export { ResourceConfigSchema } from '@dexto/core';
 
 // --- Session Schemas ---
 
-export const SessionTokenUsageSchema = z
+export const SessionTokenUsageSchema = TokenUsageSchema.required().describe(
+    'Session-level token usage (all fields required for cumulative totals)'
+);
+
+export const SessionUsageTrackingSchema = z
     .object({
-        inputTokens: z.number().int().nonnegative().describe('Number of input tokens'),
-        outputTokens: z.number().int().nonnegative().describe('Number of output tokens'),
-        reasoningTokens: z.number().int().nonnegative().describe('Number of reasoning tokens'),
-        cacheReadTokens: z.number().int().nonnegative().describe('Number of cache read tokens'),
-        cacheWriteTokens: z.number().int().nonnegative().describe('Number of cache write tokens'),
-        totalTokens: z.number().int().nonnegative().describe('Total tokens used'),
+        hasUntrackedChatGPTLoginUsage: z
+            .boolean()
+            .optional()
+            .describe('Whether this session includes known untracked ChatGPT Login usage'),
     })
     .strict()
-    .describe('Session-level token usage (all fields required for cumulative totals)');
+    .describe('Usage tracking caveats for a session');
 
 export const ModelStatisticsSchema = z
     .object({
@@ -260,6 +294,53 @@ export const ModelStatisticsSchema = z
     })
     .strict()
     .describe('Per-model statistics within a session');
+
+export const UsageSummarySchema = z
+    .object({
+        tokenUsage: SessionTokenUsageSchema.describe(
+            'Aggregate token usage for the selected scope'
+        ),
+        estimatedCost: z
+            .number()
+            .nonnegative()
+            .describe('Total estimated cost in USD for the selected scope'),
+        hasUnpricedResponses: z
+            .boolean()
+            .describe(
+                'Whether any response in the selected scope has usage but no resolved pricing'
+            ),
+        modelStats: z
+            .array(
+                z
+                    .object({
+                        provider: z.string().describe('LLM provider identifier'),
+                        model: z.string().describe('Model identifier'),
+                        messageCount: z
+                            .number()
+                            .int()
+                            .nonnegative()
+                            .describe('Number of responses using this model in the selected scope'),
+                        tokenUsage: SessionTokenUsageSchema.describe(
+                            'Token usage for this model in the selected scope'
+                        ),
+                        estimatedCost: z
+                            .number()
+                            .nonnegative()
+                            .describe('Estimated cost in USD for this model in the selected scope'),
+                    })
+                    .strict()
+            )
+            .optional()
+            .describe('Per-model usage statistics within the selected scope'),
+    })
+    .strict()
+    .describe('Usage summary for a session or session scope');
+
+export const ScopedUsageSummarySchema = UsageSummarySchema.extend({
+    scopeId: z.string().describe('Usage scope identifier'),
+})
+    .strict()
+    .describe('Usage summary for a specific scope within a session');
 
 export const SessionMetadataSchema = z
     .object({
@@ -294,6 +375,9 @@ export const SessionMetadataSchema = z
             .array(ModelStatisticsSchema)
             .optional()
             .describe('Per-model usage statistics (for multi-model sessions)'),
+        usageTracking: SessionUsageTrackingSchema.optional().describe(
+            'Known caveats or gaps in usage tracking for this session'
+        ),
         workspaceId: z.string().optional().nullable().describe('Associated workspace ID, if any'),
         parentSessionId: z
             .string()
@@ -306,6 +390,7 @@ export const SessionMetadataSchema = z
 
 export type SessionTokenUsage = z.output<typeof SessionTokenUsageSchema>;
 export type ModelStatistics = z.output<typeof ModelStatisticsSchema>;
+export type SessionUsageTracking = z.output<typeof SessionUsageTrackingSchema>;
 export type SessionMetadata = z.output<typeof SessionMetadataSchema>;
 
 // --- Workspace Schemas ---

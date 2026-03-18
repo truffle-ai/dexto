@@ -914,6 +914,7 @@ export class SessionManager {
         target.reasoningTokens += usage.reasoningTokens ?? 0;
         target.cacheReadTokens += usage.cacheReadTokens ?? 0;
         target.cacheWriteTokens += usage.cacheWriteTokens ?? 0;
+        // TODO(token-usage): Use a shared totalTokens resolver instead of raw `?? 0`.
         target.totalTokens += usage.totalTokens ?? 0;
     }
 

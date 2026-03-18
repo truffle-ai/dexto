@@ -19,4 +19,6 @@ export interface LLMTokenUsage {
     outputTokens: number;
     reasoningTokens?: number;
     totalTokens: number;
+    cacheReadTokens?: number;
+    cacheWriteTokens?: number;
 }

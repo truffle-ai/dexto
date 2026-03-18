@@ -9,7 +9,9 @@ import type { SanitizedToolResult } from '../../context/types.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import type { ToolPresentationSnapshotV1 } from '../../tools/types.js';
-import type { LLMProvider, ReasoningVariant, TokenUsage } from '../types.js';
+import { getConfiguredUsageScopeId } from '../usage-scope.js';
+import { getUsagePricingMetadata } from '../usage-metadata.js';
+import type { LLMProvider, LLMPricingStatus, ReasoningVariant, TokenUsage } from '../types.js';
 
 type UsageLike = {
     inputTokens?: number | undefined;
@@ -73,6 +75,7 @@ export class StreamProcessor {
     private accumulatedText: string = '';
     private logger: Logger;
     private hasStepUsage = false;
+    private readonly usageScopeId = getConfiguredUsageScopeId();
     /**
      * Track pending tool calls (added to context but no result yet).
      * On cancel/abort, we add synthetic "cancelled" results to maintain tool_use/tool_result pairing.
@@ -350,6 +353,7 @@ export class StreamProcessor {
                                 outputTokens:
                                     (this.actualTokens.outputTokens ?? 0) +
                                     (stepUsage.outputTokens ?? 0),
+                                // TODO(token-usage): Use a shared totalTokens resolver instead of raw `?? 0`.
                                 totalTokens:
                                     (this.actualTokens.totalTokens ?? 0) +
                                     (stepUsage.totalTokens ?? 0),
@@ -426,6 +430,12 @@ export class StreamProcessor {
 
                         this.actualTokens = usage;
 
+                        const pricingMetadata = getUsagePricingMetadata({
+                            provider: this.config.provider,
+                            model: this.config.model,
+                            tokenUsage: usage,
+                        });
+
                         // Log LLM response metadata. Avoid logging full content at info level.
                         this.logger.info('LLM response complete', {
                             finishReason: event.finishReason,
@@ -438,20 +448,7 @@ export class StreamProcessor {
                             model: this.config.model,
                         });
 
-                        // Finalize assistant message with usage in reasoning
-                        if (this.assistantMessageId) {
-                            await this.contextManager.updateAssistantMessage(
-                                this.assistantMessageId,
-                                {
-                                    tokenUsage: usage,
-                                    // Persist reasoning text and metadata for round-tripping
-                                    ...(this.reasoningText && { reasoning: this.reasoningText }),
-                                    ...(this.reasoningMetadata && {
-                                        reasoningMetadata: this.reasoningMetadata,
-                                    }),
-                                }
-                            );
-                        }
+                        await this.persistAssistantResponseMetadata(usage, pricingMetadata);
 
                         // Skip empty responses when tools are being called
                         // The meaningful response will come after tool execution completes
@@ -460,6 +457,7 @@ export class StreamProcessor {
                             this.emitLLMResponse({
                                 tokenUsage: usage,
                                 finishReason: this.finishReason,
+                                ...pricingMetadata,
                             });
                         }
                         break;
@@ -531,7 +529,7 @@ export class StreamProcessor {
                         break;
                     }
 
-                    case 'abort':
+                    case 'abort': {
                         // Vercel SDK emits 'abort' when the stream is cancelled
                         this.logger.debug('Stream aborted, emitting partial response');
                         this.finishReason = 'cancelled';
@@ -539,9 +537,20 @@ export class StreamProcessor {
                         // Persist cancelled results for any pending tool calls
                         await this.persistCancelledToolResults();
 
+                        const abortPricingMetadata = getUsagePricingMetadata({
+                            provider: this.config.provider,
+                            model: this.config.model,
+                            tokenUsage: this.actualTokens,
+                        });
+                        await this.persistAssistantResponseMetadata(
+                            this.actualTokens,
+                            abortPricingMetadata
+                        );
+
                         this.emitLLMResponse({
                             tokenUsage: this.actualTokens,
                             finishReason: 'cancelled',
+                            ...abortPricingMetadata,
                         });
 
                         // Return immediately - stream will close after abort event
@@ -550,6 +559,7 @@ export class StreamProcessor {
                             finishReason: 'cancelled',
                             usage: this.actualTokens,
                         };
+                    }
                 }
             }
         } catch (error) {
@@ -566,9 +576,20 @@ export class StreamProcessor {
                 // Persist cancelled results for any pending tool calls
                 await this.persistCancelledToolResults();
 
+                const abortPricingMetadata = getUsagePricingMetadata({
+                    provider: this.config.provider,
+                    model: this.config.model,
+                    tokenUsage: this.actualTokens,
+                });
+                await this.persistAssistantResponseMetadata(
+                    this.actualTokens,
+                    abortPricingMetadata
+                );
+
                 this.emitLLMResponse({
                     tokenUsage: this.actualTokens,
                     finishReason: 'cancelled',
+                    ...abortPricingMetadata,
                 });
 
                 // Don't throw - cancellation is intentional, not an error
@@ -691,6 +712,8 @@ export class StreamProcessor {
     private emitLLMResponse(config: {
         tokenUsage: TokenUsage;
         finishReason: LLMFinishReason;
+        estimatedCost?: number;
+        pricingStatus?: LLMPricingStatus;
     }): void {
         this.eventBus.emit('llm:response', {
             content: this.accumulatedText,
@@ -699,10 +722,42 @@ export class StreamProcessor {
             model: this.config.model,
             ...this.getReasoningResponseFields(),
             tokenUsage: config.tokenUsage,
+            ...(this.assistantMessageId && { messageId: this.assistantMessageId }),
+            ...(this.usageScopeId && { usageScopeId: this.usageScopeId }),
+            ...(config.estimatedCost !== undefined && {
+                estimatedCost: config.estimatedCost,
+            }),
+            ...(config.pricingStatus && { pricingStatus: config.pricingStatus }),
             ...(this.config.estimatedInputTokens !== undefined && {
                 estimatedInputTokens: this.config.estimatedInputTokens,
             }),
             finishReason: config.finishReason,
+        });
+    }
+
+    private async persistAssistantResponseMetadata(
+        tokenUsage: TokenUsage,
+        pricingMetadata: ReturnType<typeof getUsagePricingMetadata>
+    ): Promise<void> {
+        if (!this.assistantMessageId) {
+            return;
+        }
+
+        await this.contextManager.updateAssistantMessage(this.assistantMessageId, {
+            tokenUsage,
+            ...(pricingMetadata.estimatedCost !== undefined && {
+                estimatedCost: pricingMetadata.estimatedCost,
+            }),
+            ...(pricingMetadata.pricingStatus && {
+                pricingStatus: pricingMetadata.pricingStatus,
+            }),
+            ...(this.usageScopeId && {
+                usageScopeId: this.usageScopeId,
+            }),
+            ...(this.reasoningText && { reasoning: this.reasoningText }),
+            ...(this.reasoningMetadata && {
+                reasoningMetadata: this.reasoningMetadata,
+            }),
         });
     }
 

@@ -748,6 +748,9 @@ export class ContextManager<TMessage = unknown> {
         metadata?: {
             tokenUsage?: AssistantMessage['tokenUsage'];
             reasoning?: string;
+            estimatedCost?: AssistantMessage['estimatedCost'];
+            pricingStatus?: AssistantMessage['pricingStatus'];
+            usageScopeId?: AssistantMessage['usageScopeId'];
         }
     ): Promise<void> {
         // Validate that either content or toolCalls is provided
@@ -765,6 +768,11 @@ export class ContextManager<TMessage = unknown> {
             ...(toolCalls && toolCalls.length > 0 && { toolCalls }),
             ...(metadata?.tokenUsage && { tokenUsage: metadata.tokenUsage }),
             ...(metadata?.reasoning && { reasoning: metadata.reasoning }),
+            ...(metadata?.estimatedCost !== undefined && {
+                estimatedCost: metadata.estimatedCost,
+            }),
+            ...(metadata?.pricingStatus && { pricingStatus: metadata.pricingStatus }),
+            ...(metadata?.usageScopeId && { usageScopeId: metadata.usageScopeId }),
         });
     }
 
