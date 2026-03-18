@@ -13,7 +13,6 @@ export interface CumulativeTokenUsage {
 export interface AssistantUsageSummary {
     tokenUsage: CumulativeTokenUsage;
     estimatedCost: number;
-    unpricedResponseCount: number;
     modelStats?: AssistantUsageModelStatistics[];
 }
 
@@ -40,7 +39,6 @@ export function createEmptyAssistantUsageSummary(): AssistantUsageSummary {
     return {
         tokenUsage: createEmptyCumulativeTokenUsage(),
         estimatedCost: 0,
-        unpricedResponseCount: 0,
     };
 }
 
@@ -80,10 +78,6 @@ export function summarizeAssistantUsage(
 
         if (message.estimatedCost !== undefined) {
             summary.estimatedCost += message.estimatedCost;
-        }
-
-        if (message.pricingStatus === 'unpriced') {
-            summary.unpricedResponseCount += 1;
         }
 
         if (!message.provider || !message.model) {

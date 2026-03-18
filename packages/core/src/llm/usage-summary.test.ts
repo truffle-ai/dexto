@@ -3,7 +3,7 @@ import type { InternalMessage } from '../context/types.js';
 import { summarizeAssistantUsage } from './usage-summary.js';
 
 describe('summarizeAssistantUsage', () => {
-    test('aggregates assistant usage totals and unpriced responses', () => {
+    test('aggregates assistant usage totals', () => {
         const messages: InternalMessage[] = [
             {
                 role: 'user',
@@ -35,7 +35,6 @@ describe('summarizeAssistantUsage', () => {
                     outputTokens: 4,
                     totalTokens: 11,
                 },
-                pricingStatus: 'unpriced',
                 provider: 'openai',
                 model: 'gpt-5',
             },
@@ -51,7 +50,6 @@ describe('summarizeAssistantUsage', () => {
                 totalTokens: 32,
             },
             estimatedCost: 0.015,
-            unpricedResponseCount: 1,
             modelStats: [
                 {
                     provider: 'openai',
@@ -104,7 +102,7 @@ describe('summarizeAssistantUsage', () => {
                 usageScopeId: 'cloud-agent-1',
             },
             {
-                id: 'assistant-cloud-unpriced',
+                id: 'assistant-cloud-2',
                 role: 'assistant',
                 content: [{ type: 'text', text: 'cloud response 2' }],
                 tokenUsage: {
@@ -112,7 +110,6 @@ describe('summarizeAssistantUsage', () => {
                     outputTokens: 3,
                     totalTokens: 11,
                 },
-                pricingStatus: 'unpriced',
                 provider: 'openai-compatible',
                 model: 'gpt-5.2-codex',
                 usageScopeId: 'cloud-agent-1',
@@ -129,7 +126,6 @@ describe('summarizeAssistantUsage', () => {
                 totalTokens: 30,
             },
             estimatedCost: 0.004,
-            unpricedResponseCount: 1,
             modelStats: [
                 {
                     provider: 'openai-compatible',

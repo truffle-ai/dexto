@@ -386,7 +386,6 @@ describe('Hono API Integration Tests', () => {
                             totalTokens: 25,
                         },
                         estimatedCost: 0.005,
-                        unpricedResponseCount: 1,
                     })
                     .mockResolvedValueOnce({
                         tokenUsage: {
@@ -398,7 +397,6 @@ describe('Hono API Integration Tests', () => {
                             totalTokens: 17,
                         },
                         estimatedCost: 0.003,
-                        unpricedResponseCount: 0,
                     });
 
                 try {
@@ -423,7 +421,6 @@ describe('Hono API Integration Tests', () => {
                                     totalTokens: 25,
                                 },
                                 estimatedCost: 0.005,
-                                unpricedResponseCount: 1,
                             },
                             activeUsageScope: {
                                 scopeId: 'cloud-agent-1',
@@ -436,7 +433,6 @@ describe('Hono API Integration Tests', () => {
                                     totalTokens: 17,
                                 },
                                 estimatedCost: 0.003,
-                                unpricedResponseCount: 0,
                             },
                         },
                     });
