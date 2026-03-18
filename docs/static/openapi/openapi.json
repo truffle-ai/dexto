@@ -10050,6 +10050,57 @@
         }
       }
     },
+    "/api/sessions/{sessionId}/clear-context": {
+      "post": {
+        "summary": "Clear Session Context",
+        "description": "Clears the model context window for a session while preserving conversation history for review.",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Session identifier"
+            },
+            "required": true,
+            "description": "Session identifier",
+            "name": "sessionId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session context cleared successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "context cleared"
+                      ],
+                      "description": "Context clear status"
+                    },
+                    "sessionId": {
+                      "type": "string",
+                      "description": "Session ID"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "sessionId"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sessions/{sessionId}/generate-title": {
       "post": {
         "summary": "Generate Session Title",

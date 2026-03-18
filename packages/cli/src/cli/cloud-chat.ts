@@ -29,6 +29,7 @@ type CloudSession = Awaited<ReturnType<DeployClient['listCloudAgentSessions']>>[
 type CloudHistoryEntry = Awaited<
     ReturnType<DeployClient['getCloudAgentSessionHistory']>
 >['history'][number];
+type CloudApprovalDecision = Parameters<DeployClient['submitCloudAgentApproval']>[2];
 
 interface LLMConfig {
     provider: KnownProvider;
@@ -247,6 +248,40 @@ function emitStreamingEvent(eventBus: AgentEventBus, event: StreamingEvent): voi
     (eventBus.emit as (eventName: keyof AgentEventMap, payload: unknown) => void)(name, payload);
 }
 
+export function buildCloudApprovalDecision(
+    approval: AgentEventMap['approval:response']
+): CloudApprovalDecision | null {
+    if (typeof approval.approvalId !== 'string' || typeof approval.status !== 'string') {
+        return null;
+    }
+
+    const approvalData =
+        typeof approval.data === 'object' && approval.data !== null
+            ? (approval.data as {
+                  rememberChoice?: boolean;
+                  rememberPattern?: string;
+                  rememberDirectory?: boolean;
+                  formData?: Record<string, unknown>;
+              })
+            : undefined;
+
+    return {
+        status: approval.status,
+        ...(approvalData?.formData !== undefined ? { formData: approvalData.formData } : {}),
+        ...(approvalData?.rememberChoice !== undefined
+            ? { rememberChoice: approvalData.rememberChoice }
+            : {}),
+        ...(approvalData?.rememberPattern !== undefined
+            ? { rememberPattern: approvalData.rememberPattern }
+            : {}),
+        ...(approvalData?.rememberDirectory !== undefined
+            ? { rememberDirectory: approvalData.rememberDirectory }
+            : {}),
+        ...(approval.reason !== undefined ? { reason: approval.reason } : {}),
+        ...(approval.message !== undefined ? { message: approval.message } : {}),
+    };
+}
+
 async function resolveCloudAgentId(options: StartCloudChatCliOptions): Promise<string> {
     const explicitCloudAgentId = options.cloudAgentId?.trim();
     if (explicitCloudAgentId) {
@@ -289,7 +324,10 @@ async function resolveInitialSessionId(
     return null;
 }
 
-function createCloudAgentBackend(client: DeployClient, cloudAgentId: string): CloudChatBackend {
+export function createCloudAgentBackend(
+    client: DeployClient,
+    cloudAgentId: string
+): CloudChatBackend {
     const eventBus = new AgentEventBus();
     const sessionMetadataCache = new Map<string, SessionMetadata>();
     const sessionTitleCache = new Map<string, string | undefined>();
@@ -433,37 +471,11 @@ function createCloudAgentBackend(client: DeployClient, cloudAgentId: string): Cl
             const payload = args[0] as AgentEventMap[typeof eventName];
             if (eventName === 'approval:response') {
                 const approval = payload as AgentEventMap['approval:response'];
-                const approvalData =
-                    typeof approval.data === 'object' && approval.data !== null
-                        ? (approval.data as {
-                              rememberChoice?: boolean;
-                              rememberPattern?: string;
-                              rememberDirectory?: boolean;
-                          })
-                        : {};
+                const decision = buildCloudApprovalDecision(approval);
 
-                if (
-                    typeof approval.approvalId === 'string' &&
-                    typeof approval.status === 'string'
-                ) {
+                if (decision) {
                     void client
-                        .submitCloudAgentApproval(cloudAgentId, approval.approvalId, {
-                            status: approval.status,
-                            ...(approval.data !== undefined ? { formData: approval.data } : {}),
-                            ...(approvalData.rememberChoice !== undefined
-                                ? { rememberChoice: approvalData.rememberChoice }
-                                : {}),
-                            ...(approvalData.rememberPattern !== undefined
-                                ? { rememberPattern: approvalData.rememberPattern }
-                                : {}),
-                            ...(approvalData.rememberDirectory !== undefined
-                                ? { rememberDirectory: approvalData.rememberDirectory }
-                                : {}),
-                            ...(approval.reason !== undefined ? { reason: approval.reason } : {}),
-                            ...(approval.message !== undefined
-                                ? { message: approval.message }
-                                : {}),
-                        })
+                        .submitCloudAgentApproval(cloudAgentId, approval.approvalId, decision)
                         .catch((error: unknown) => {
                             backendLogger.error('Failed to submit cloud approval response', {
                                 cloudAgentId,
@@ -653,9 +665,8 @@ function createCloudAgentBackend(client: DeployClient, cloudAgentId: string): Cl
         }) as CloudChatBackend['getContextStats'],
 
         clearContext: (async (sessionId) => {
-            await client.resetCloudAgentSession(cloudAgentId, sessionId);
+            await client.clearCloudAgentSessionContext(cloudAgentId, sessionId);
             queueBySession.delete(sessionId);
-            eventBus.emit('session:reset', { sessionId });
             eventBus.emit('context:cleared', { sessionId });
         }) as CloudChatBackend['clearContext'],
 

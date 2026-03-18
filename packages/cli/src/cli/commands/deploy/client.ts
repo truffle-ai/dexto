@@ -579,6 +579,21 @@ export function createDeployClient() {
             }
         },
 
+        async clearCloudAgentSessionContext(
+            cloudAgentId: string,
+            sessionId: string
+        ): Promise<void> {
+            const response = await request(
+                `/cloud-agents/${encodeURIComponent(cloudAgentId)}/agent/sessions/${encodeURIComponent(sessionId)}/clear-context`,
+                {
+                    method: 'POST',
+                }
+            );
+            if (!response.ok) {
+                await throwApiError(response);
+            }
+        },
+
         async deleteCloudAgentSession(cloudAgentId: string, sessionId: string): Promise<void> {
             const response = await request(
                 `/cloud-agents/${encodeURIComponent(cloudAgentId)}/agent/sessions/${encodeURIComponent(sessionId)}`,
