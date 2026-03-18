@@ -1268,6 +1268,64 @@ describe('StreamProcessor', () => {
             expect(result.text).toBe('Hello');
             expect(result.finishReason).toBe('cancelled');
         });
+
+        test('persists assistant usage metadata before emitting cancelled response', async () => {
+            const mocks = createMocks();
+
+            const abortingStream = {
+                fullStream: (async function* () {
+                    yield { type: 'text-delta', text: 'Hello' };
+                    yield {
+                        type: 'finish-step',
+                        usage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
+                    };
+                    yield { type: 'abort' };
+                })(),
+            };
+
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.resourceManager,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+
+            await processor.process(() => abortingStream as never);
+
+            expect(mocks.contextManager.updateAssistantMessage).toHaveBeenCalledWith(
+                'msg-1',
+                expect.objectContaining({
+                    tokenUsage: {
+                        inputTokens: 12,
+                        outputTokens: 4,
+                        totalTokens: 16,
+                        cacheReadTokens: 0,
+                        cacheWriteTokens: 0,
+                    },
+                    estimatedCost: expect.any(Number),
+                    pricingStatus: 'estimated',
+                })
+            );
+
+            const responseEvent = mocks.emittedEvents.find((e) => e.name === 'llm:response');
+            expect(responseEvent?.payload).toMatchObject({
+                finishReason: 'cancelled',
+                pricingStatus: 'estimated',
+                tokenUsage: {
+                    inputTokens: 12,
+                    outputTokens: 4,
+                    totalTokens: 16,
+                    cacheReadTokens: 0,
+                    cacheWriteTokens: 0,
+                },
+            });
+            expect(
+                (responseEvent?.payload as { estimatedCost?: number } | undefined)?.estimatedCost
+            ).toBeGreaterThan(0);
+        });
     });
 
     describe('Edge Cases', () => {
