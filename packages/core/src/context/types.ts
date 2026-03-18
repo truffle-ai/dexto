@@ -1,4 +1,4 @@
-import type { LLMProvider, TokenUsage } from '../llm/types.js';
+import type { LLMProvider, LLMPricingStatus, TokenUsage } from '../llm/types.js';
 import type { ToolDisplayData } from '../tools/display-types.js';
 import type { ToolPresentationSnapshotV1 } from '../tools/types.js';
 
@@ -245,6 +245,15 @@ export interface AssistantMessage extends MessageBase {
 
     /** Token usage accounting for this response */
     tokenUsage?: TokenUsage;
+
+    /** Estimated cost in USD for this response, when model pricing is known */
+    estimatedCost?: number;
+
+    /** Whether response pricing was resolved or unavailable */
+    pricingStatus?: LLMPricingStatus;
+
+    /** Optional usage scope identifier for grouping response usage across runtimes */
+    usageScopeId?: string;
 
     /** Model identifier that generated this response */
     model?: string;

@@ -3,7 +3,7 @@ import { streamSSE } from 'hono/streaming';
 import type { ContentInput } from '@dexto/core';
 import { LLM_PROVIDERS } from '@dexto/core';
 import type { ApprovalCoordinator } from '../../approval/approval-coordinator.js';
-import { TokenUsageSchema } from '../schemas/responses.js';
+import { PricingStatusSchema, TokenUsageSchema } from '../schemas/responses.js';
 import type { GetAgentFn } from '../index.js';
 
 // ContentPart schemas matching @dexto/core types
@@ -122,6 +122,25 @@ export function createMessagesRouter(
                                 sessionId: z.string().describe('Session ID used for this message'),
                                 tokenUsage:
                                     TokenUsageSchema.optional().describe('Token usage statistics'),
+                                messageId: z
+                                    .string()
+                                    .uuid()
+                                    .optional()
+                                    .describe('Assistant message ID for this response'),
+                                usageScopeId: z
+                                    .string()
+                                    .optional()
+                                    .describe(
+                                        'Optional usage scope identifier for runtime-scoped metering'
+                                    ),
+                                estimatedCost: z
+                                    .number()
+                                    .nonnegative()
+                                    .optional()
+                                    .describe('Estimated cost in USD for this response'),
+                                pricingStatus: PricingStatusSchema.optional().describe(
+                                    'Whether pricing was resolved for this response'
+                                ),
                                 reasoning: z
                                     .string()
                                     .optional()
@@ -173,7 +192,7 @@ export function createMessagesRouter(
         path: '/message-stream',
         summary: 'Stream message response',
         description:
-            'Sends a message and streams the response via Server-Sent Events (SSE). Returns SSE stream directly in response. Events include llm:thinking, llm:chunk, llm:tool-call, llm:tool-result, llm:response, and llm:error. If the session is busy processing another message, returns 202 with queue information.',
+            'Sends a message and streams the response via Server-Sent Events (SSE). Returns SSE stream directly in response. Events include llm:thinking, llm:chunk, llm:tool-call, llm:tool-result, llm:response, and llm:error. Final llm:response events include token usage, assistant message ID, and pricing metadata when available. If the session is busy processing another message, returns 202 with queue information.',
         tags: ['messages'],
         request: {
             body: {
@@ -207,7 +226,8 @@ export function createMessagesRouter(
                         schema: z
                             .string()
                             .describe(
-                                'Server-Sent Events stream. Events: llm:thinking (start), llm:chunk (text fragments), llm:tool-call (tool execution), llm:tool-result (tool output), llm:response (final), llm:error (errors)'
+                                'Server-Sent Events stream. Events: llm:thinking (start), llm:chunk (text fragments), llm:tool-call (tool execution), llm:tool-result (tool output), llm:response (final), llm:error (errors)' +
+                                    '. Final llm:response payloads include token usage, assistant message ID, and pricing metadata when available.'
                             ),
                     },
                 },
@@ -261,16 +281,17 @@ export function createMessagesRouter(
 
             const result = await agent.generate(content as ContentInput, sessionId);
 
-            // Get the session's current LLM config to include model/provider info
-            const llmConfig = agent.stateManager.getLLMConfig(sessionId);
-
             return ctx.json({
                 response: result.content,
                 sessionId: result.sessionId,
                 tokenUsage: result.usage,
+                messageId: result.messageId,
+                usageScopeId: result.usageScopeId,
+                estimatedCost: result.estimatedCost,
+                pricingStatus: result.pricingStatus,
                 reasoning: result.reasoning,
-                model: llmConfig.model,
-                provider: llmConfig.provider,
+                model: result.model,
+                provider: result.provider,
             });
         })
         .openapi(resetRoute, async (ctx) => {

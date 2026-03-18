@@ -9,7 +9,9 @@ import type { SanitizedToolResult } from '../../context/types.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import type { ToolPresentationSnapshotV1 } from '../../tools/types.js';
-import type { LLMProvider, ReasoningVariant, TokenUsage } from '../types.js';
+import { getConfiguredUsageScopeId } from '../usage-scope.js';
+import { getUsagePricingMetadata } from '../usage-metadata.js';
+import type { LLMProvider, LLMPricingStatus, ReasoningVariant, TokenUsage } from '../types.js';
 
 type UsageLike = {
     inputTokens?: number | undefined;
@@ -73,6 +75,7 @@ export class StreamProcessor {
     private accumulatedText: string = '';
     private logger: Logger;
     private hasStepUsage = false;
+    private readonly usageScopeId = getConfiguredUsageScopeId();
     /**
      * Track pending tool calls (added to context but no result yet).
      * On cancel/abort, we add synthetic "cancelled" results to maintain tool_use/tool_result pairing.
@@ -426,6 +429,12 @@ export class StreamProcessor {
 
                         this.actualTokens = usage;
 
+                        const pricingMetadata = getUsagePricingMetadata({
+                            provider: this.config.provider,
+                            model: this.config.model,
+                            tokenUsage: usage,
+                        });
+
                         // Log LLM response metadata. Avoid logging full content at info level.
                         this.logger.info('LLM response complete', {
                             finishReason: event.finishReason,
@@ -444,6 +453,15 @@ export class StreamProcessor {
                                 this.assistantMessageId,
                                 {
                                     tokenUsage: usage,
+                                    ...(pricingMetadata.estimatedCost !== undefined && {
+                                        estimatedCost: pricingMetadata.estimatedCost,
+                                    }),
+                                    ...(pricingMetadata.pricingStatus && {
+                                        pricingStatus: pricingMetadata.pricingStatus,
+                                    }),
+                                    ...(this.usageScopeId && {
+                                        usageScopeId: this.usageScopeId,
+                                    }),
                                     // Persist reasoning text and metadata for round-tripping
                                     ...(this.reasoningText && { reasoning: this.reasoningText }),
                                     ...(this.reasoningMetadata && {
@@ -460,6 +478,7 @@ export class StreamProcessor {
                             this.emitLLMResponse({
                                 tokenUsage: usage,
                                 finishReason: this.finishReason,
+                                ...pricingMetadata,
                             });
                         }
                         break;
@@ -691,6 +710,8 @@ export class StreamProcessor {
     private emitLLMResponse(config: {
         tokenUsage: TokenUsage;
         finishReason: LLMFinishReason;
+        estimatedCost?: number;
+        pricingStatus?: LLMPricingStatus;
     }): void {
         this.eventBus.emit('llm:response', {
             content: this.accumulatedText,
@@ -699,6 +720,12 @@ export class StreamProcessor {
             model: this.config.model,
             ...this.getReasoningResponseFields(),
             tokenUsage: config.tokenUsage,
+            ...(this.assistantMessageId && { messageId: this.assistantMessageId }),
+            ...(this.usageScopeId && { usageScopeId: this.usageScopeId }),
+            ...(config.estimatedCost !== undefined && {
+                estimatedCost: config.estimatedCost,
+            }),
+            ...(config.pricingStatus && { pricingStatus: config.pricingStatus }),
             ...(this.config.estimatedInputTokens !== undefined && {
                 estimatedInputTokens: this.config.estimatedInputTokens,
             }),

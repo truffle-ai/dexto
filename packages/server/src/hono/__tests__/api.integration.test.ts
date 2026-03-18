@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { TextDecoder } from 'node:util';
 import type { StreamingEvent } from '@dexto/core';
 import {
@@ -247,6 +247,95 @@ describe('Hono API Integration Tests', () => {
             );
         });
 
+        it('GET /api/sessions/:id passes through usage metadata from core', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+
+            const sessionId = 'test-session-usage';
+            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', { sessionId });
+
+            const agent = testServer.agent;
+            const originalGetSessionMetadata = agent.getSessionMetadata.bind(agent);
+            const getSessionMetadataSpy = vi
+                .spyOn(agent, 'getSessionMetadata')
+                .mockImplementation(async (requestedSessionId) => {
+                    if (requestedSessionId !== sessionId) {
+                        return originalGetSessionMetadata(requestedSessionId);
+                    }
+
+                    return {
+                        createdAt: 1000,
+                        lastActivity: 2000,
+                        messageCount: 3,
+                        title: 'Usage session',
+                        tokenUsage: {
+                            inputTokens: 100,
+                            outputTokens: 50,
+                            reasoningTokens: 10,
+                            cacheReadTokens: 25,
+                            cacheWriteTokens: 5,
+                            totalTokens: 190,
+                        },
+                        estimatedCost: 0.0123,
+                        modelStats: [
+                            {
+                                provider: 'openai',
+                                model: 'gpt-4o-mini',
+                                messageCount: 2,
+                                tokenUsage: {
+                                    inputTokens: 100,
+                                    outputTokens: 50,
+                                    reasoningTokens: 10,
+                                    cacheReadTokens: 25,
+                                    cacheWriteTokens: 5,
+                                    totalTokens: 190,
+                                },
+                                estimatedCost: 0.0123,
+                                firstUsedAt: 1000,
+                                lastUsedAt: 2000,
+                            },
+                        ],
+                        usageTracking: {
+                            hasUntrackedChatGPTLoginUsage: true,
+                        },
+                    };
+                });
+
+            try {
+                const res = await httpRequest(
+                    testServer.baseUrl,
+                    'GET',
+                    `/api/sessions/${sessionId}`
+                );
+
+                expect(res.status).toBe(200);
+                expect((res.body as { session: unknown }).session).toMatchObject({
+                    id: sessionId,
+                    tokenUsage: {
+                        inputTokens: 100,
+                        outputTokens: 50,
+                        reasoningTokens: 10,
+                        cacheReadTokens: 25,
+                        cacheWriteTokens: 5,
+                        totalTokens: 190,
+                    },
+                    estimatedCost: 0.0123,
+                    modelStats: [
+                        {
+                            provider: 'openai',
+                            model: 'gpt-4o-mini',
+                            messageCount: 2,
+                            estimatedCost: 0.0123,
+                        },
+                    ],
+                    usageTracking: {
+                        hasUntrackedChatGPTLoginUsage: true,
+                    },
+                });
+            } finally {
+                getSessionMetadataSpy.mockRestore();
+            }
+        });
+
         it('GET /api/sessions/:id returns 404 for non-existent session', async () => {
             if (!testServer) throw new Error('Test server not initialized');
             const res = await httpRequest(
@@ -272,6 +361,101 @@ describe('Hono API Integration Tests', () => {
             expect(res.status).toBe(200);
             expect(res.body).toHaveProperty('session');
             expect((res.body as { session: { id: string } }).session.id).toBe('test-session-load');
+        });
+
+        it('GET /api/sessions/:id/load returns exact usage summary for the active usage scope', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+
+            const previousUsageScopeId = process.env.DEXTO_USAGE_SCOPE_ID;
+            process.env.DEXTO_USAGE_SCOPE_ID = 'cloud-agent-1';
+
+            try {
+                await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                    sessionId: 'test-session-load-scoped',
+                });
+
+                const usageSpy = vi
+                    .spyOn(testServer.agent, 'getSessionUsageSummary')
+                    .mockResolvedValueOnce({
+                        tokenUsage: {
+                            inputTokens: 15,
+                            outputTokens: 7,
+                            reasoningTokens: 2,
+                            cacheReadTokens: 1,
+                            cacheWriteTokens: 0,
+                            totalTokens: 25,
+                        },
+                        estimatedCost: 0.005,
+                        unpricedResponseCount: 1,
+                    })
+                    .mockResolvedValueOnce({
+                        tokenUsage: {
+                            inputTokens: 11,
+                            outputTokens: 5,
+                            reasoningTokens: 0,
+                            cacheReadTokens: 1,
+                            cacheWriteTokens: 0,
+                            totalTokens: 17,
+                        },
+                        estimatedCost: 0.003,
+                        unpricedResponseCount: 0,
+                    });
+
+                try {
+                    const res = await httpRequest(
+                        testServer.baseUrl,
+                        'GET',
+                        '/api/sessions/test-session-load-scoped/load'
+                    );
+
+                    expect(res.status).toBe(200);
+                    expect(res.body).toMatchObject({
+                        session: {
+                            id: 'test-session-load-scoped',
+                            activeUsageScopeId: 'cloud-agent-1',
+                            usageSummary: {
+                                tokenUsage: {
+                                    inputTokens: 15,
+                                    outputTokens: 7,
+                                    reasoningTokens: 2,
+                                    cacheReadTokens: 1,
+                                    cacheWriteTokens: 0,
+                                    totalTokens: 25,
+                                },
+                                estimatedCost: 0.005,
+                                unpricedResponseCount: 1,
+                            },
+                            activeUsageScope: {
+                                scopeId: 'cloud-agent-1',
+                                tokenUsage: {
+                                    inputTokens: 11,
+                                    outputTokens: 5,
+                                    reasoningTokens: 0,
+                                    cacheReadTokens: 1,
+                                    cacheWriteTokens: 0,
+                                    totalTokens: 17,
+                                },
+                                estimatedCost: 0.003,
+                                unpricedResponseCount: 0,
+                            },
+                        },
+                    });
+                    expect(usageSpy).toHaveBeenNthCalledWith(1, 'test-session-load-scoped');
+                    expect(usageSpy).toHaveBeenNthCalledWith(
+                        2,
+                        'test-session-load-scoped',
+                        'cloud-agent-1'
+                    );
+                } finally {
+                    usageSpy.mockRestore();
+                }
+            } finally {
+                if (previousUsageScopeId === undefined) {
+                    delete process.env.DEXTO_USAGE_SCOPE_ID;
+                } else {
+                    process.env.DEXTO_USAGE_SCOPE_ID = previousUsageScopeId;
+                }
+            }
         });
 
         it('GET /api/sessions/:id/history returns session history', async () => {
@@ -642,6 +826,62 @@ describe('Hono API Integration Tests', () => {
             expect(res.status).toBeGreaterThanOrEqual(400);
         });
 
+        it('POST /api/message-sync returns canonical response usage metadata', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+
+            const agent = testServer.agent;
+            const generateSpy = vi.spyOn(agent, 'generate').mockResolvedValue({
+                content: 'Hello world',
+                reasoning: 'Let me think',
+                usage: {
+                    inputTokens: 100,
+                    outputTokens: 50,
+                    reasoningTokens: 10,
+                    cacheReadTokens: 25,
+                    cacheWriteTokens: 5,
+                    totalTokens: 190,
+                },
+                toolCalls: [],
+                sessionId: 'sync-session',
+                messageId: '4a2d8f95-7d84-4898-9d0e-77d2496d6b8d',
+                usageScopeId: 'cloud-agent-1',
+                provider: 'openai',
+                model: 'gpt-4o-mini',
+                estimatedCost: 0.0123,
+                pricingStatus: 'estimated',
+            });
+
+            try {
+                const res = await httpRequest(testServer.baseUrl, 'POST', '/api/message-sync', {
+                    sessionId: 'sync-session',
+                    content: 'Say hello',
+                });
+
+                expect(res.status).toBe(200);
+                expect(res.body).toMatchObject({
+                    response: 'Hello world',
+                    sessionId: 'sync-session',
+                    messageId: '4a2d8f95-7d84-4898-9d0e-77d2496d6b8d',
+                    usageScopeId: 'cloud-agent-1',
+                    estimatedCost: 0.0123,
+                    pricingStatus: 'estimated',
+                    reasoning: 'Let me think',
+                    provider: 'openai',
+                    model: 'gpt-4o-mini',
+                    tokenUsage: {
+                        inputTokens: 100,
+                        outputTokens: 50,
+                        reasoningTokens: 10,
+                        cacheReadTokens: 25,
+                        cacheWriteTokens: 5,
+                        totalTokens: 190,
+                    },
+                });
+            } finally {
+                generateSpy.mockRestore();
+            }
+        });
+
         it('POST /api/reset resets conversation', async () => {
             if (!testServer) throw new Error('Test server not initialized');
             // Create session first
@@ -679,6 +919,10 @@ describe('Hono API Integration Tests', () => {
                     content: 'hello',
                     tokenUsage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
                     sessionId,
+                    messageId: '4a2d8f95-7d84-4898-9d0e-77d2496d6b8d',
+                    usageScopeId: 'cloud-agent-1',
+                    estimatedCost: 0.0001,
+                    pricingStatus: 'estimated',
                     provider: 'openai',
                     model: 'test-model',
                 },
@@ -732,6 +976,10 @@ describe('Hono API Integration Tests', () => {
 
                 expect(received).toContain('event: llm:thinking');
                 expect(received).toContain('event: llm:response');
+                expect(received).toContain('"messageId":"4a2d8f95-7d84-4898-9d0e-77d2496d6b8d"');
+                expect(received).toContain('"usageScopeId":"cloud-agent-1"');
+                expect(received).toContain('"estimatedCost":0.0001');
+                expect(received).toContain('"pricingStatus":"estimated"');
             } finally {
                 agent.stream = originalStream;
             }
