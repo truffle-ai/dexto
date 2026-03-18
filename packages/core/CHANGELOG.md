@@ -1,5 +1,11 @@
 # @dexto/core
 
+## 1.6.16
+
+### Patch Changes
+
+- 11acdc1: Add codex dependency resolution for ChatGPT login.
+
 ## 1.6.15
 
 ### Patch Changes
