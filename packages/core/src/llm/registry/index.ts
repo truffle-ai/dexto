@@ -95,6 +95,15 @@ export interface ModelPricing {
     unit?: 'per_million_tokens';
 }
 
+export interface TokenUsageCostBreakdown {
+    inputUsd: number;
+    outputUsd: number;
+    reasoningUsd: number;
+    cacheReadUsd: number;
+    cacheWriteUsd: number;
+    totalUsd: number;
+}
+
 export type ModelModality = 'text' | 'audio' | 'image' | 'video' | 'pdf';
 
 export interface ModelModalities {
@@ -1328,13 +1337,27 @@ export function isReasoningCapableModel(model: string, provider?: LLMProvider): 
  * @returns Cost in USD.
  */
 export function calculateCost(usage: TokenUsage, pricing: ModelPricing): number {
-    const inputCost = ((usage.inputTokens ?? 0) * pricing.inputPerM) / 1_000_000;
-    const outputCost = ((usage.outputTokens ?? 0) * pricing.outputPerM) / 1_000_000;
-    const cacheReadCost = ((usage.cacheReadTokens ?? 0) * (pricing.cacheReadPerM ?? 0)) / 1_000_000;
-    const cacheWriteCost =
-        ((usage.cacheWriteTokens ?? 0) * (pricing.cacheWritePerM ?? 0)) / 1_000_000;
-    // Charge reasoning tokens at output rate
-    const reasoningCost = ((usage.reasoningTokens ?? 0) * pricing.outputPerM) / 1_000_000;
+    return calculateCostBreakdown(usage, pricing).totalUsd;
+}
 
-    return inputCost + outputCost + cacheReadCost + cacheWriteCost + reasoningCost;
+export function calculateCostBreakdown(
+    usage: TokenUsage,
+    pricing: ModelPricing
+): TokenUsageCostBreakdown {
+    const inputUsd = ((usage.inputTokens ?? 0) * pricing.inputPerM) / 1_000_000;
+    const outputUsd = ((usage.outputTokens ?? 0) * pricing.outputPerM) / 1_000_000;
+    const cacheReadUsd = ((usage.cacheReadTokens ?? 0) * (pricing.cacheReadPerM ?? 0)) / 1_000_000;
+    const cacheWriteUsd =
+        ((usage.cacheWriteTokens ?? 0) * (pricing.cacheWritePerM ?? 0)) / 1_000_000;
+    const reasoningUsd =
+        ((usage.reasoningTokens ?? 0) * (pricing.reasoningPerM ?? pricing.outputPerM)) / 1_000_000;
+
+    return {
+        inputUsd,
+        outputUsd,
+        reasoningUsd,
+        cacheReadUsd,
+        cacheWriteUsd,
+        totalUsd: inputUsd + outputUsd + cacheReadUsd + cacheWriteUsd + reasoningUsd,
+    };
 }

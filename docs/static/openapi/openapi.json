@@ -10107,11 +10107,6 @@
                               "minimum": 0,
                               "description": "Total estimated cost in USD for the selected scope"
                             },
-                            "unpricedResponseCount": {
-                              "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of responses in the selected scope without resolved pricing"
-                            },
                             "modelStats": {
                               "type": "array",
                               "items": {
@@ -10189,8 +10184,7 @@
                           },
                           "required": [
                             "tokenUsage",
-                            "estimatedCost",
-                            "unpricedResponseCount"
+                            "estimatedCost"
                           ],
                           "additionalProperties": false,
                           "description": "Exact usage summary derived from assistant message history"
@@ -10247,11 +10241,6 @@
                               "type": "number",
                               "minimum": 0,
                               "description": "Total estimated cost in USD for the selected scope"
-                            },
-                            "unpricedResponseCount": {
-                              "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of responses in the selected scope without resolved pricing"
                             },
                             "modelStats": {
                               "type": "array",
@@ -10335,7 +10324,6 @@
                           "required": [
                             "tokenUsage",
                             "estimatedCost",
-                            "unpricedResponseCount",
                             "scopeId"
                           ],
                           "additionalProperties": false,
