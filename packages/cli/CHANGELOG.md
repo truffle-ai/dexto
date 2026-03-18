@@ -1,5 +1,23 @@
 # dexto
 
+## 1.6.16
+
+### Patch Changes
+
+- 11acdc1: Add codex dependency resolution for ChatGPT login.
+- 70c42a6: Add interactive agent creation wizard with multi-step prompts for agent name, system prompt (generated or custom), tool-bundle selection, and editor integration.
+- Updated dependencies [11acdc1]
+    - @dexto/core@1.6.16
+    - @dexto/agent-config@1.6.16
+    - @dexto/agent-management@1.6.16
+    - @dexto/analytics@1.6.16
+    - @dexto/image-local@1.6.16
+    - @dexto/image-logger-agent@1.6.16
+    - @dexto/server@1.6.16
+    - @dexto/storage@1.6.16
+    - @dexto/tui@1.6.16
+    - @dexto/registry@1.6.16
+
 ## 1.6.15
 
 ### Patch Changes
