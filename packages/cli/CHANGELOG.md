@@ -1,5 +1,25 @@
 # dexto
 
+## 1.6.17
+
+### Patch Changes
+
+- 2b4603a: Add direct cloud-agent chat support to the CLI, including agent selection, shared Ink UI support through a backend adapter layer, and cloud session,
+  streaming, approval, and cancel flows. Also align cloud behavior with the local CLI for command availability, approval handling, and context clearing.
+- Updated dependencies [2b4603a]
+- Updated dependencies [302d1c3]
+    - @dexto/server@1.6.17
+    - @dexto/tui@1.6.17
+    - @dexto/core@1.6.17
+    - @dexto/client-sdk@1.6.17
+    - @dexto/agent-config@1.6.17
+    - @dexto/agent-management@1.6.17
+    - @dexto/analytics@1.6.17
+    - @dexto/image-local@1.6.17
+    - @dexto/image-logger-agent@1.6.17
+    - @dexto/storage@1.6.17
+    - @dexto/registry@1.6.17
+
 ## 1.6.16
 
 ### Patch Changes
