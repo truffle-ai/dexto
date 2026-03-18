@@ -1344,6 +1344,9 @@ export function calculateCostBreakdown(
     usage: TokenUsage,
     pricing: ModelPricing
 ): TokenUsageCostBreakdown {
+    // TODO(llm-pricing): Normalize provider-specific reasoning token semantics before this
+    // helper runs. OpenAI reports reasoning tokens separately, while some providers may
+    // include them in output tokens. This function assumes the buckets are already additive.
     // Pricing assumes tokenUsage buckets are already additive. Provider-specific normalization
     // (for example whether reasoning tokens are separate from or included in output tokens)
     // must happen before usage reaches this helper.

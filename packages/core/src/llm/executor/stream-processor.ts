@@ -353,6 +353,7 @@ export class StreamProcessor {
                                 outputTokens:
                                     (this.actualTokens.outputTokens ?? 0) +
                                     (stepUsage.outputTokens ?? 0),
+                                // TODO(token-usage): Use a shared totalTokens resolver instead of raw `?? 0`.
                                 totalTokens:
                                     (this.actualTokens.totalTokens ?? 0) +
                                     (stepUsage.totalTokens ?? 0),

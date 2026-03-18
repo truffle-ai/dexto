@@ -37,6 +37,9 @@ export function getUsagePricingMetadata(config: {
         return { pricingStatus: 'unpriced' };
     }
 
+    // TODO(llm-pricing): Handle totalTokens-only usage without reporting a false zero-cost
+    // estimate. calculateCost() prices detailed token buckets only, so this path should
+    // eventually distinguish "insufficient token detail" from a real zero-cost estimate.
     return {
         estimatedCost: calculateCost(tokenUsage, pricing),
         pricingStatus: 'estimated',
