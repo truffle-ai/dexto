@@ -1,6 +1,7 @@
 import * as p from '@clack/prompts';
-import type { AgentConfig } from '@dexto/agent-config';
+import type { AgentConfig, ToolFactoryEntry } from '@dexto/agent-config';
 import {
+    createDextoAgentFromConfig,
     deriveDisplayName,
     findProjectRegistryPath as findSharedProjectRegistryPath,
     getPrimaryApiKeyEnvVar,
@@ -14,18 +15,27 @@ import {
 import type { LLMProvider } from '@dexto/core';
 import chalk from 'chalk';
 import type { Command } from 'commander';
+import { spawn } from 'node:child_process';
 import { promises as fs } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import { z } from 'zod';
 import { ExitSignal, safeExit, withAnalytics } from '../../analytics/wrapper.js';
+import { getEffectiveLLMConfig } from '../../config/effective-llm.js';
 import { getDeployConfigPath, isWorkspaceDeployAgent, loadDeployConfig } from './deploy/config.js';
 import { discoverPrimaryWorkspaceAgent } from './deploy/entry-agent.js';
-import { selectOrExit, textOrExit } from '../utils/prompt-helpers.js';
+import {
+    confirmOrExit,
+    multiselectOrExit,
+    selectOrExit,
+    textOrExit,
+} from '../utils/prompt-helpers.js';
+import { ensureImageImporterConfigured } from '../utils/image-importer.js';
 
 const AGENTS_FILENAME = 'AGENTS.md';
 const WORKSPACE_DIRECTORIES = ['agents', 'skills'] as const;
 const DEFAULT_AGENT_PROVIDER: LLMProvider = 'openai';
 const DEFAULT_AGENT_MODEL = 'gpt-5.3-codex';
-const DEFAULT_AGENT_VERSION = '0.1.0';
 
 const DEFAULT_AGENTS_MD = `<!-- dexto-workspace -->
 
@@ -104,6 +114,11 @@ export interface InitCommandRegisterContext {
 type InitAgentCommandOptions = {
     subagent?: boolean;
     primary?: boolean;
+    displayName?: string;
+    description?: string;
+    systemPrompt?: string;
+    greeting?: string;
+    tools?: ToolFactoryEntry[];
 };
 
 type InitialAgentLlmConfig = {
@@ -112,7 +127,135 @@ type InitialAgentLlmConfig = {
     apiKey: string;
 };
 
+type AgentPromptMode = 'generate' | 'custom';
+type AgentToolBundleId = 'workspace' | 'research' | 'planning' | 'memory' | 'automation';
+
+type AgentWizardIdentity = {
+    agentId: string;
+    displayName: string;
+};
+
+type AgentWizardPromptResult = {
+    mode: AgentPromptMode;
+    systemPrompt: string;
+    description: string | null;
+};
+
+type ResolvedInitAgentInput = {
+    agentId: string;
+    options: InitAgentCommandOptions;
+};
+
+type AgentToolBundleDefinition = {
+    id: AgentToolBundleId;
+    label: string;
+    hint: string;
+    entries: ToolFactoryEntry[];
+};
+
+const CORE_AGENT_TOOL_ENTRIES: ToolFactoryEntry[] = [
+    {
+        type: 'builtin-tools',
+        enabledTools: ['ask_user', 'invoke_skill', 'sleep'],
+    },
+];
+
+const ALWAYS_ENABLED_AGENT_TOOL_ENTRIES: ToolFactoryEntry[] = [
+    { type: 'creator-tools' },
+    { type: 'agent-spawner' },
+];
+
+const AGENT_TOOL_BUNDLES: AgentToolBundleDefinition[] = [
+    {
+        id: 'workspace',
+        label: 'Filesystem & Terminal',
+        hint: 'Read files and run commands in the workspace',
+        entries: [{ type: 'filesystem-tools' }, { type: 'process-tools' }],
+    },
+    {
+        id: 'research',
+        label: 'Research and web',
+        hint: 'Search the web, fetch URLs, and gather outside context',
+        entries: [
+            {
+                type: 'builtin-tools',
+                enabledTools: ['code_search', 'http_request', 'web_search'],
+            },
+        ],
+    },
+    {
+        id: 'planning',
+        label: 'Planning and tasks',
+        hint: 'Track todos and keep structured plans',
+        entries: [{ type: 'todo-tools' }, { type: 'plan-tools' }],
+    },
+    {
+        id: 'memory',
+        label: 'Memory and history',
+        hint: 'Search conversation history, logs, and stored memories',
+        entries: [{ type: 'lifecycle-tools' }],
+    },
+    {
+        id: 'automation',
+        label: 'Automation',
+        hint: 'Schedule recurring jobs and proactive work',
+        entries: [{ type: 'scheduler-tools' }],
+    },
+];
+
+const DEFAULT_AGENT_TOOL_BUNDLE_IDS: AgentToolBundleId[] = ['workspace', 'planning'];
 const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const PROMPT_GENERATOR_AGENT_ID = 'init-agent-prompt-generator';
+
+const GeneratedSystemPromptPayloadSchema = z
+    .object({
+        systemPrompt: z.string().trim().min(1),
+    })
+    .strict();
+
+const AGENT_PROMPT_GENERATOR_SYSTEM_PROMPT = [
+    'You design production-grade system prompts for Dexto agents.',
+    'Your output will be written directly into agent YAML.',
+    '',
+    'Return only valid JSON with this exact shape:',
+    '{"systemPrompt":"..."}',
+    '',
+    'Prompt requirements:',
+    '- Start with "You are <agent name>..."',
+    '- Turn the role description into a strong, practical operating prompt',
+    '- Keep it general enough to work across different workspaces',
+    '- Focus on responsibilities, operating principles, communication style, and constraints',
+    '- Instruct the agent to understand the current workspace and context before acting',
+    '- Tell the agent to surface risks, assumptions, and follow-up work when relevant',
+    '- Mention tools abstractly instead of naming specific tool ids unless explicitly requested',
+    '- If the agent is a subagent, include delegation guidance for working on behalf of a parent agent',
+    '- Do not include markdown code fences or extra wrapper text',
+].join('\n');
+
+function buildInteractiveAgentIdentity(nameInput: string): AgentWizardIdentity {
+    const trimmed = nameInput.trim();
+    if (!trimmed) {
+        throw new Error('Agent name is required.');
+    }
+
+    const agentId = trimmed
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+
+    if (!agentId) {
+        throw new Error('Agent name must include letters or numbers.');
+    }
+
+    return {
+        agentId: normalizeScaffoldId(agentId, 'agent'),
+        displayName: /[\sA-Z]/.test(trimmed) ? trimmed : deriveDisplayName(agentId),
+    };
+}
+
+function getAgentDisplayName(agentId: string, options: InitAgentCommandOptions): string {
+    return options.displayName?.trim() || deriveDisplayName(agentId);
+}
 
 function isSubagentEntry(entry: WorkspaceProjectRegistryEntry): boolean {
     return (entry.tags?.includes('subagent') ?? false) || Boolean(entry.parentAgentId);
@@ -220,6 +363,10 @@ async function loadInitialAgentLlmConfig(): Promise<InitialAgentLlmConfig> {
 }
 
 function buildAgentDescription(agentId: string, options: InitAgentCommandOptions): string {
+    if (options.description?.trim()) {
+        return options.description.trim();
+    }
+
     if (options.subagent) {
         return `Workspace sub-agent '${agentId}' for delegated tasks.`;
     }
@@ -231,129 +378,583 @@ function buildAgentDescription(agentId: string, options: InitAgentCommandOptions
     return `Workspace agent '${agentId}' for this project.`;
 }
 
-async function buildAgentConfig(
-    agentId: string,
+function buildDefaultGeneratedPrompt(
+    displayName: string,
     options: InitAgentCommandOptions
-): Promise<AgentConfig> {
-    const llmConfig = await loadInitialAgentLlmConfig();
-    const displayName = deriveDisplayName(agentId);
-    const description = buildAgentDescription(agentId, options);
+): string {
+    const roleLabel = options.subagent ? 'specialized workspace subagent' : 'workspace agent';
 
-    const llm: AgentConfig['llm'] = {
-        provider: llmConfig.provider,
-        model: llmConfig.model,
-        apiKey: llmConfig.apiKey,
-    };
-
-    return {
-        image: '@dexto/image-local',
-        agentId,
-        agentCard: {
-            name: displayName,
-            description,
-            url: `https://example.com/agents/${agentId}`,
-            version: DEFAULT_AGENT_VERSION,
-        },
-        systemPrompt: options.subagent
+    return [
+        `You are ${displayName}, a ${roleLabel}.`,
+        '',
+        'Your role and focus:',
+        '- Replace this section with the responsibilities you want this agent to own.',
+        '',
+        'Operating principles:',
+        '- Read the relevant files and current state before taking action.',
+        '- Keep responses concrete, direct, and grounded in the workspace.',
+        '- Make the smallest correct change that moves the task forward.',
+        '- Call out assumptions, risks, and follow-up work clearly.',
+        ...(options.subagent
             ? [
-                  `You are ${displayName}, a specialized sub-agent for this workspace.`,
                   '',
-                  'Complete delegated tasks efficiently and concisely.',
-                  'Read the relevant files before responding.',
-                  'Return a clear result to the parent agent with concrete findings or next steps.',
-              ].join('\n')
-            : [
-                  `You are ${displayName}, the workspace agent for this project.`,
-                  '',
-                  'Help the user understand, edit, run, and deploy the files in this workspace.',
-                  'Read relevant files before making changes.',
-                  'Keep changes focused and explain what changed.',
-              ].join('\n'),
-        greeting: options.subagent
-            ? `Ready to help as ${displayName}.`
-            : 'Ready to work in this workspace.',
-        llm,
-        permissions: {
-            mode: 'manual',
-            allowedToolsStorage: 'storage',
-        },
+                  'Delegation guidance:',
+                  '- Complete delegated work efficiently and return a crisp result to the parent agent.',
+              ]
+            : []),
+    ].join('\n');
+}
+
+function buildScaffoldSystemPrompt(displayName: string, options: InitAgentCommandOptions): string {
+    if (options.subagent) {
+        return [
+            `You are ${displayName}, a specialized sub-agent for this workspace.`,
+            '',
+            'Complete delegated tasks efficiently and concisely.',
+            'Read the relevant files before responding.',
+            'Return a clear result to the parent agent with concrete findings or next steps.',
+        ].join('\n');
+    }
+
+    return [
+        `You are ${displayName}, the workspace agent for this project.`,
+        '',
+        'Help the user understand, edit, run, and deploy the files in this workspace.',
+        'Read relevant files before making changes.',
+        'Keep changes focused and explain what changed.',
+    ].join('\n');
+}
+
+function buildSystemPromptConfig(systemPrompt: string): AgentConfig['systemPrompt'] {
+    return {
+        contributors: [
+            {
+                id: 'primary',
+                type: 'static',
+                priority: 0,
+                content: systemPrompt,
+            },
+            {
+                id: 'date',
+                type: 'dynamic',
+                priority: 10,
+                source: 'date',
+            },
+            {
+                id: 'env',
+                type: 'dynamic',
+                priority: 15,
+                source: 'env',
+            },
+        ],
     };
 }
 
-function buildRegistryEntry(
-    agentId: string,
+function extractJsonObjectFromResponse(content: string): string {
+    const trimmed = content.trim();
+
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        return trimmed;
+    }
+
+    const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (fencedMatch?.[1]) {
+        return fencedMatch[1].trim();
+    }
+
+    const firstBrace = trimmed.indexOf('{');
+    const lastBrace = trimmed.lastIndexOf('}');
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+        return trimmed.slice(firstBrace, lastBrace + 1);
+    }
+
+    throw new Error('Prompt generator did not return valid JSON.');
+}
+
+function parseGeneratedSystemPromptResponse(content: string): string {
+    const parsed = JSON.parse(extractJsonObjectFromResponse(content)) as unknown;
+    return GeneratedSystemPromptPayloadSchema.parse(parsed).systemPrompt;
+}
+
+function buildPromptGenerationRequest(
+    displayName: string,
+    roleDescription: string,
     options: InitAgentCommandOptions
-): WorkspaceProjectRegistryEntry {
-    const description = buildAgentDescription(agentId, options);
-    return {
-        id: agentId,
-        name: deriveDisplayName(agentId),
-        description,
-        configPath: `./${agentId}/${agentId}.yml`,
-        ...(options.subagent ? { tags: ['subagent'] } : {}),
-    };
+): string {
+    return [
+        'Generate a Dexto system prompt from this brief.',
+        '',
+        `Agent name: ${displayName}`,
+        `Agent type: ${options.subagent ? 'workspace subagent' : 'workspace agent'}`,
+        `Role description: ${normalizeInteractiveDescription(roleDescription)}`,
+        '',
+        'Additional guidance:',
+        '- Make the prompt concrete and opinionated, not generic filler',
+        '- Prefer short sections and useful bullet points over long prose',
+        '- Assume tool access may vary by workspace, so keep tool guidance capability-based',
+        '- Avoid references to specific repositories, companies, or file names',
+        '',
+        'Return JSON only.',
+    ].join('\n');
 }
 
-function addSubagentTag(entry: WorkspaceProjectRegistryEntry): WorkspaceProjectRegistryEntry {
-    const tags = new Set(entry.tags ?? []);
-    tags.add('subagent');
-    return {
-        ...entry,
-        tags: Array.from(tags).sort(),
-    };
-}
+async function generateAgentSystemPromptFromDescription(
+    displayName: string,
+    roleDescription: string,
+    options: InitAgentCommandOptions
+): Promise<string> {
+    await ensureImageImporterConfigured();
+    const effectiveLLM = await getEffectiveLLMConfig();
+    if (!effectiveLLM) {
+        throw new Error(
+            'No active LLM configuration is available for prompt generation. Configure one with `dexto setup` first.'
+        );
+    }
 
-function validateInitAgentOptions(options: InitAgentCommandOptions): void {
-    if (options.primary && options.subagent) {
-        throw new Error('A sub-agent cannot also be the primary workspace agent.');
+    const spinner = p.spinner();
+    spinner.start('Generating system prompt...');
+
+    const generatorAgent = await createDextoAgentFromConfig({
+        agentIdOverride: PROMPT_GENERATOR_AGENT_ID,
+        enrichOptions: {
+            isInteractiveCli: false,
+            skipPluginDiscovery: true,
+        },
+        config: {
+            image: '@dexto/image-local',
+            systemPrompt: buildSystemPromptConfig(AGENT_PROMPT_GENERATOR_SYSTEM_PROMPT),
+            llm: {
+                provider: effectiveLLM.provider,
+                model: effectiveLLM.model,
+                ...(effectiveLLM.apiKey ? { apiKey: effectiveLLM.apiKey } : {}),
+                ...(effectiveLLM.baseURL ? { baseURL: effectiveLLM.baseURL } : {}),
+            },
+            storage: {
+                cache: { type: 'in-memory' },
+                database: { type: 'in-memory' },
+                blob: { type: 'in-memory' },
+            },
+            permissions: {
+                mode: 'auto-deny',
+                allowedToolsStorage: 'memory',
+            },
+            elicitation: {
+                enabled: false,
+            },
+            tools: [],
+        },
+    });
+
+    try {
+        await generatorAgent.start();
+        const session = await generatorAgent.createSession(PROMPT_GENERATOR_AGENT_ID);
+        const response = await generatorAgent.generate(
+            buildPromptGenerationRequest(displayName, roleDescription, options),
+            session.id
+        );
+        const systemPrompt = parseGeneratedSystemPromptResponse(response.content);
+        spinner.stop(chalk.green('Generated system prompt'));
+        return systemPrompt;
+    } catch (error) {
+        spinner.stop(chalk.red('Failed to generate system prompt'));
+        throw new Error(
+            `Could not generate a system prompt automatically: ${error instanceof Error ? error.message : String(error)}`
+        );
+    } finally {
+        await generatorAgent.stop().catch(() => undefined);
     }
 }
 
-async function promptForAgentId(kind: 'primary' | 'agent' | 'subagent'): Promise<string> {
-    const placeholder =
-        kind === 'subagent'
-            ? 'explore-agent'
-            : kind === 'primary'
-              ? 'review-agent'
-              : 'helper-agent';
+function encodePromptForTextInput(systemPrompt: string): string {
+    return systemPrompt.replace(/\n/g, '\\n');
+}
 
-    return await textOrExit(
+function decodePromptFromTextInput(systemPrompt: string): string {
+    return systemPrompt.replace(/\\n/g, '\n').trim();
+}
+
+function normalizeInteractiveDescription(description: string): string {
+    const trimmed = description.trim().replace(/\s+/g, ' ');
+    if (!trimmed) {
+        return trimmed;
+    }
+
+    return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+function cloneToolEntry(entry: ToolFactoryEntry): ToolFactoryEntry {
+    const maybeEnabledTools = (entry as { enabledTools?: unknown }).enabledTools;
+
+    return {
+        ...entry,
+        ...(Array.isArray(maybeEnabledTools)
+            ? {
+                  enabledTools: maybeEnabledTools.filter(
+                      (tool): tool is string => typeof tool === 'string'
+                  ),
+              }
+            : {}),
+    };
+}
+
+function mergeToolEntries(entries: ToolFactoryEntry[]): ToolFactoryEntry[] {
+    const merged = new Map<string, ToolFactoryEntry>();
+
+    for (const entry of entries) {
+        const existing = merged.get(entry.type);
+        if (!existing) {
+            merged.set(entry.type, cloneToolEntry(entry));
+            continue;
+        }
+
+        const existingEnabledTools = (existing as { enabledTools?: unknown }).enabledTools;
+        const nextEnabledTools = (entry as { enabledTools?: unknown }).enabledTools;
+
+        if (Array.isArray(existingEnabledTools) && Array.isArray(nextEnabledTools)) {
+            merged.set(entry.type, {
+                ...existing,
+                enabledTools: Array.from(
+                    new Set([
+                        ...existingEnabledTools.filter(
+                            (tool): tool is string => typeof tool === 'string'
+                        ),
+                        ...nextEnabledTools.filter(
+                            (tool): tool is string => typeof tool === 'string'
+                        ),
+                    ])
+                ),
+            });
+            continue;
+        }
+
+        if (!Array.isArray(existingEnabledTools) && Array.isArray(nextEnabledTools)) {
+            continue;
+        }
+
+        if (Array.isArray(existingEnabledTools) && !Array.isArray(nextEnabledTools)) {
+            merged.set(entry.type, cloneToolEntry(entry));
+            continue;
+        }
+
+        merged.set(entry.type, cloneToolEntry(entry));
+    }
+
+    return Array.from(merged.values());
+}
+
+function buildToolConfigFromBundleIds(bundleIds: AgentToolBundleId[]): ToolFactoryEntry[] {
+    const selectedBundleEntries = bundleIds.flatMap((bundleId) => {
+        const bundle = AGENT_TOOL_BUNDLES.find((entry) => entry.id === bundleId);
+        return bundle?.entries ?? [];
+    });
+
+    return mergeToolEntries([
+        ...CORE_AGENT_TOOL_ENTRIES,
+        ...ALWAYS_ENABLED_AGENT_TOOL_ENTRIES,
+        ...selectedBundleEntries,
+    ]);
+}
+
+function formatBundleSelection(bundleIds: AgentToolBundleId[]): string {
+    if (bundleIds.length === 0) {
+        return 'Core utilities only';
+    }
+
+    return bundleIds
+        .map(
+            (bundleId) =>
+                AGENT_TOOL_BUNDLES.find((bundle) => bundle.id === bundleId)?.label ?? bundleId
+        )
+        .join(', ');
+}
+
+function renderPromptPreview(systemPrompt: string): void {
+    console.log(`\n${chalk.cyan.bold('System Prompt Preview')}`);
+    console.log(chalk.dim('Review the full prompt before continuing.\n'));
+    console.log(systemPrompt);
+    console.log();
+}
+
+function getPreferredEditorCommand(): string {
+    const envEditor = process.env.VISUAL?.trim() || process.env.EDITOR?.trim();
+    if (envEditor) {
+        return envEditor;
+    }
+
+    return process.platform === 'win32' ? 'notepad' : 'vi';
+}
+
+async function openFileInEditor(editorCommand: string, filePath: string): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+        const child = spawn(editorCommand, [filePath], {
+            stdio: 'inherit',
+            shell: true,
+        });
+
+        child.once('error', reject);
+        child.once('exit', (code) => {
+            if (code === 0) {
+                resolve();
+                return;
+            }
+
+            reject(new Error(`Editor exited with code ${code ?? 'unknown'}.`));
+        });
+    });
+}
+
+async function editSystemPromptInEditor(
+    displayName: string,
+    options: InitAgentCommandOptions,
+    initialPrompt?: string
+): Promise<string> {
+    const editorCommand = getPreferredEditorCommand();
+    const initialContent = initialPrompt ?? buildDefaultGeneratedPrompt(displayName, options);
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'dexto-agent-prompt-'));
+    const promptPath = path.join(tempDir, 'system-prompt.md');
+
+    try {
+        await fs.writeFile(promptPath, `${initialContent}\n`, 'utf8');
+        p.log.info(
+            `Opening ${chalk.cyan(editorCommand)} for prompt editing. Save and close the editor to continue.`
+        );
+
+        while (true) {
+            await openFileInEditor(editorCommand, promptPath);
+            const editedPrompt = (await fs.readFile(promptPath, 'utf8')).trim();
+
+            if (editedPrompt) {
+                return editedPrompt;
+            }
+
+            p.log.warn('System prompt was empty. Reopening the editor.');
+        }
+    } finally {
+        await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+}
+
+async function promptForAgentName(): Promise<AgentWizardIdentity> {
+    const rawName = await textOrExit(
         {
-            message: 'Agent id',
-            placeholder,
+            message: 'Agent name',
+            placeholder: 'Review Agent',
             validate(value) {
                 try {
-                    normalizeScaffoldId(value, 'agent');
+                    buildInteractiveAgentIdentity(value);
                     return undefined;
                 } catch (error) {
-                    return error instanceof Error ? error.message : 'Invalid agent id';
+                    return error instanceof Error ? error.message : 'Invalid agent name';
                 }
             },
         },
         'Agent initialization cancelled'
     );
+
+    return buildInteractiveAgentIdentity(rawName);
 }
 
-async function resolveInitAgentInput(
-    agentIdInput: string | undefined,
+async function promptForCustomSystemPrompt(
+    displayName: string,
     options: InitAgentCommandOptions,
-    workspaceRoot: string
-): Promise<{ agentId: string; options: InitAgentCommandOptions }> {
-    validateInitAgentOptions(options);
+    initialPrompt?: string
+): Promise<string> {
+    try {
+        return await editSystemPromptInEditor(displayName, options, initialPrompt);
+    } catch (error) {
+        p.log.warn(
+            `Could not open an editor cleanly. Falling back to inline prompt editing. ${error instanceof Error ? error.message : String(error)}`
+        );
 
-    if (agentIdInput) {
-        return {
-            agentId: normalizeScaffoldId(agentIdInput, 'agent'),
-            options,
-        };
+        const rawPrompt = await textOrExit(
+            {
+                message: 'System prompt (use \\n for line breaks)',
+                initialValue: encodePromptForTextInput(
+                    initialPrompt ?? buildDefaultGeneratedPrompt(displayName, options)
+                ),
+                placeholder: encodePromptForTextInput(
+                    buildDefaultGeneratedPrompt(displayName, options)
+                ),
+                validate(value) {
+                    const decoded = decodePromptFromTextInput(value);
+                    return decoded ? undefined : 'System prompt is required';
+                },
+            },
+            'Agent initialization cancelled'
+        );
+
+        return decodePromptFromTextInput(rawPrompt);
+    }
+}
+
+async function promptForAgentSystemPrompt(
+    displayName: string,
+    options: InitAgentCommandOptions
+): Promise<AgentWizardPromptResult> {
+    const promptMode = await selectOrExit<AgentPromptMode>(
+        {
+            message: 'How do you want to create the system prompt?',
+            initialValue: 'generate',
+            options: [
+                {
+                    value: 'generate',
+                    label: 'Generate from description',
+                    hint: 'Start from a short role description and review the full prompt',
+                },
+                {
+                    value: 'custom',
+                    label: 'Write custom prompt',
+                    hint: 'Enter your own prompt text directly',
+                },
+            ],
+        },
+        'Agent initialization cancelled'
+    );
+
+    if (promptMode === 'custom') {
+        let customPrompt = '';
+
+        while (true) {
+            customPrompt = await promptForCustomSystemPrompt(displayName, options, customPrompt);
+            renderPromptPreview(customPrompt);
+
+            const confirmed = await confirmOrExit(
+                {
+                    message: 'Use this system prompt?',
+                    initialValue: true,
+                },
+                'Agent initialization cancelled'
+            );
+
+            if (confirmed) {
+                return {
+                    mode: 'custom',
+                    systemPrompt: customPrompt,
+                    description: null,
+                };
+            }
+        }
     }
 
+    let roleDescription = await textOrExit(
+        {
+            message: 'Describe this agent’s role',
+            placeholder: 'Reviews code changes, finds risks, and suggests focused fixes.',
+            validate(value) {
+                return value.trim() ? undefined : 'Role description is required';
+            },
+        },
+        'Agent initialization cancelled'
+    );
+
+    let systemPrompt = await generateAgentSystemPromptFromDescription(
+        displayName,
+        roleDescription,
+        options
+    );
+
+    while (true) {
+        renderPromptPreview(systemPrompt);
+
+        const action = await selectOrExit<'continue' | 'edit' | 'regenerate'>(
+            {
+                message: 'What do you want to do with this prompt?',
+                initialValue: 'continue',
+                options: [
+                    {
+                        value: 'continue',
+                        label: 'Continue',
+                        hint: 'Use this prompt as-is',
+                    },
+                    {
+                        value: 'edit',
+                        label: 'Edit prompt',
+                        hint: 'Make direct changes to the generated prompt',
+                    },
+                    {
+                        value: 'regenerate',
+                        label: 'Regenerate',
+                        hint: 'Update the role description and rebuild the prompt',
+                    },
+                ],
+            },
+            'Agent initialization cancelled'
+        );
+
+        if (action === 'continue') {
+            return {
+                mode: 'generate',
+                systemPrompt,
+                description: normalizeInteractiveDescription(roleDescription),
+            };
+        }
+
+        if (action === 'edit') {
+            systemPrompt = await promptForCustomSystemPrompt(displayName, options, systemPrompt);
+            continue;
+        }
+
+        roleDescription = await textOrExit(
+            {
+                message: 'Describe this agent’s role',
+                initialValue: roleDescription,
+                validate(value) {
+                    return value.trim() ? undefined : 'Role description is required';
+                },
+            },
+            'Agent initialization cancelled'
+        );
+        systemPrompt = await generateAgentSystemPromptFromDescription(
+            displayName,
+            roleDescription,
+            options
+        );
+    }
+}
+
+async function promptForAgentToolBundles(): Promise<AgentToolBundleId[]> {
+    return await multiselectOrExit<AgentToolBundleId>(
+        {
+            message: 'Select tool bundles (agent creation is enabled by default)',
+            initialValues: DEFAULT_AGENT_TOOL_BUNDLE_IDS,
+            options: AGENT_TOOL_BUNDLES.map((bundle) => ({
+                value: bundle.id,
+                label: bundle.label,
+                hint: bundle.hint,
+            })),
+        },
+        'Agent initialization cancelled'
+    );
+}
+
+async function describePlannedAgentRole(
+    options: InitAgentCommandOptions,
+    workspaceRoot: string
+): Promise<string> {
+    const registryState = await loadWorkspaceProjectRegistry(path.resolve(workspaceRoot));
+    const currentPrimaryAgentId = getEffectiveWorkspacePrimaryAgentId(registryState.registry);
+
+    if (options.subagent) {
+        return currentPrimaryAgentId
+            ? `Subagent (will link to ${currentPrimaryAgentId})`
+            : 'Subagent (no primary agent available yet)';
+    }
+
+    if (options.primary) {
+        return currentPrimaryAgentId
+            ? `Primary agent (replaces ${currentPrimaryAgentId})`
+            : 'Primary agent';
+    }
+
+    return currentPrimaryAgentId ? 'Additional agent' : 'Primary agent (first workspace agent)';
+}
+
+async function resolveInteractiveAgentRoleOptions(
+    options: InitAgentCommandOptions,
+    workspaceRoot: string
+): Promise<InitAgentCommandOptions> {
     if (options.subagent || options.primary) {
-        const kind = options.subagent ? 'subagent' : 'primary';
-        return {
-            agentId: normalizeScaffoldId(await promptForAgentId(kind), 'agent'),
-            options,
-        };
+        return options;
     }
 
     const registryState = await loadWorkspaceProjectRegistry(path.resolve(workspaceRoot));
@@ -386,12 +987,151 @@ async function resolveInitAgentInput(
         'Agent initialization cancelled'
     );
 
-    const resolvedOptions: InitAgentCommandOptions =
-        kind === 'primary' ? { primary: true } : kind === 'subagent' ? { subagent: true } : {};
+    return {
+        ...options,
+        ...(kind === 'primary' ? { primary: true } : {}),
+        ...(kind === 'subagent' ? { subagent: true } : {}),
+    };
+}
+
+async function buildAgentConfig(
+    agentId: string,
+    options: InitAgentCommandOptions
+): Promise<AgentConfig> {
+    const llmConfig = await loadInitialAgentLlmConfig();
+    const displayName = getAgentDisplayName(agentId, options);
+    const systemPrompt = options.systemPrompt ?? buildScaffoldSystemPrompt(displayName, options);
+    const usesAskUser =
+        options.tools === undefined ||
+        options.tools.some((entry) => {
+            if (entry.type !== 'builtin-tools' || entry.enabled === false) {
+                return false;
+            }
+
+            const maybeEnabledTools = (entry as { enabledTools?: unknown }).enabledTools;
+            return (
+                !Array.isArray(maybeEnabledTools) ||
+                maybeEnabledTools.some((tool) => tool === 'ask_user')
+            );
+        });
+
+    const llm: AgentConfig['llm'] = {
+        provider: llmConfig.provider,
+        model: llmConfig.model,
+        apiKey: llmConfig.apiKey,
+    };
 
     return {
-        agentId: normalizeScaffoldId(await promptForAgentId(kind), 'agent'),
-        options: resolvedOptions,
+        image: '@dexto/image-local',
+        systemPrompt: buildSystemPromptConfig(systemPrompt),
+        greeting:
+            options.greeting ??
+            (options.subagent
+                ? `Ready to help as ${displayName}.`
+                : 'Ready to work in this workspace.'),
+        llm,
+        ...(options.tools ? { tools: options.tools } : {}),
+        permissions: {
+            mode: 'manual',
+            allowedToolsStorage: 'storage',
+        },
+        ...(usesAskUser
+            ? {
+                  elicitation: {
+                      enabled: true,
+                  },
+              }
+            : {}),
+    };
+}
+
+function buildRegistryEntry(
+    agentId: string,
+    options: InitAgentCommandOptions
+): WorkspaceProjectRegistryEntry {
+    const description = buildAgentDescription(agentId, options);
+    return {
+        id: agentId,
+        name: getAgentDisplayName(agentId, options),
+        description,
+        configPath: `./${agentId}/${agentId}.yml`,
+        ...(options.subagent ? { tags: ['subagent'] } : {}),
+    };
+}
+
+function addSubagentTag(entry: WorkspaceProjectRegistryEntry): WorkspaceProjectRegistryEntry {
+    const tags = new Set(entry.tags ?? []);
+    tags.add('subagent');
+    return {
+        ...entry,
+        tags: Array.from(tags).sort(),
+    };
+}
+
+function validateInitAgentOptions(options: InitAgentCommandOptions): void {
+    if (options.primary && options.subagent) {
+        throw new Error('A sub-agent cannot also be the primary workspace agent.');
+    }
+}
+
+async function resolveInitAgentInput(
+    agentIdInput: string | undefined,
+    options: InitAgentCommandOptions,
+    workspaceRoot: string
+): Promise<ResolvedInitAgentInput | null> {
+    validateInitAgentOptions(options);
+
+    if (agentIdInput) {
+        return {
+            agentId: normalizeScaffoldId(agentIdInput, 'agent'),
+            options,
+        };
+    }
+
+    const resolvedOptions = await resolveInteractiveAgentRoleOptions(options, workspaceRoot);
+    const identity = await promptForAgentName();
+    const promptResult = await promptForAgentSystemPrompt(identity.displayName, resolvedOptions);
+    const bundleIds = await promptForAgentToolBundles();
+    const roleSummary = await describePlannedAgentRole(resolvedOptions, workspaceRoot);
+    const selectedTools = buildToolConfigFromBundleIds(bundleIds);
+
+    p.note(
+        [
+            `${chalk.cyan('Name:')} ${chalk.bold(identity.displayName)}`,
+            `${chalk.cyan('Id:')} ${chalk.dim(identity.agentId)}`,
+            `${chalk.cyan('Workspace role:')} ${roleSummary}`,
+            `${chalk.cyan('System prompt:')} ${promptResult.mode === 'generate' ? 'Generated from description' : 'Custom'}`,
+            `${chalk.cyan('Tool bundles:')} ${formatBundleSelection(bundleIds)}`,
+            `${chalk.cyan('Core utilities:')} ask_user, invoke_skill, sleep`,
+            `${chalk.cyan('Agent creation:')} enabled by default`,
+        ].join('\n'),
+        'Agent Summary'
+    );
+
+    const confirmed = await confirmOrExit(
+        {
+            message: 'Create this agent?',
+            initialValue: true,
+        },
+        'Agent initialization cancelled'
+    );
+
+    if (!confirmed) {
+        return null;
+    }
+
+    return {
+        agentId: identity.agentId,
+        options: {
+            ...resolvedOptions,
+            displayName: identity.displayName,
+            description:
+                promptResult.description ??
+                buildAgentDescription(identity.agentId, resolvedOptions),
+            systemPrompt: promptResult.systemPrompt,
+            greeting: `Ready to help as ${identity.displayName}.`,
+            tools: selectedTools,
+        },
     };
 }
 
@@ -967,6 +1707,11 @@ export async function handleInitAgentCommand(
     p.intro(chalk.inverse('Dexto Init Agent'));
 
     const resolved = await resolveInitAgentInput(agentIdInput, options, workspaceRoot);
+    if (!resolved) {
+        p.outro(chalk.yellow('Agent initialization cancelled.'));
+        return;
+    }
+
     const result = await createWorkspaceAgentScaffold(
         resolved.agentId,
         resolved.options,

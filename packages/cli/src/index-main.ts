@@ -69,7 +69,6 @@ import {
     AgentConfigSchema,
     loadImage,
     resolveServicesFromConfig,
-    setImageImporter,
     toDextoAgentOptions,
     type DextoImage,
     type ValidatedAgentConfig,
@@ -106,22 +105,13 @@ import type { CreateAppOptions } from './cli/commands/create-app.js';
 import type { CLISetupOptionsInput } from './cli/commands/setup.js';
 import type { UpgradeCommandOptions } from './cli/commands/upgrade.js';
 import type { UninstallCliCommandOptions } from './cli/commands/uninstall.js';
+import { ensureImageImporterConfigured } from './cli/utils/image-importer.js';
 
 const program = new Command();
 
-let imageImporterConfigured = false;
 let dextoApiKeyBootstrapped = false;
 let versionCheckPromise: Promise<UpdateInfo | null> | null = null;
 let llmRegistryAutoUpdateStarted = false;
-
-async function ensureImageImporterConfigured(): Promise<void> {
-    if (imageImporterConfigured) {
-        return;
-    }
-    const { importImageModule } = await import('./cli/utils/image-store.js');
-    setImageImporter((specifier) => importImageModule(specifier));
-    imageImporterConfigured = true;
-}
 
 async function ensureDextoApiKeyBootstrap(): Promise<void> {
     if (dextoApiKeyBootstrapped) {

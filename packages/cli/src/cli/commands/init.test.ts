@@ -1,14 +1,39 @@
-import { promises as fs } from 'node:fs';
+import { EventEmitter } from 'node:events';
+import { promises as fs, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockIntro, mockNote, mockOutro, mockSelectOrExit, mockTextOrExit } = vi.hoisted(() => ({
+const {
+    mockConfirmOrExit,
+    mockCreateDextoAgentFromConfig,
+    mockGetEffectiveLLMConfig,
+    mockIntro,
+    mockLogInfo,
+    mockLogWarn,
+    mockMultiselectOrExit,
+    mockNote,
+    mockOutro,
+    mockSelectOrExit,
+    mockSpawn,
+    mockSpinnerStart,
+    mockSpinnerStop,
+    mockTextOrExit,
+} = vi.hoisted(() => ({
+    mockConfirmOrExit: vi.fn(),
+    mockCreateDextoAgentFromConfig: vi.fn(),
+    mockGetEffectiveLLMConfig: vi.fn(),
     mockIntro: vi.fn(),
+    mockLogInfo: vi.fn(),
+    mockLogWarn: vi.fn(),
+    mockMultiselectOrExit: vi.fn(),
     mockNote: vi.fn(),
     mockOutro: vi.fn(),
     mockSelectOrExit: vi.fn(),
+    mockSpawn: vi.fn(),
+    mockSpinnerStart: vi.fn(),
+    mockSpinnerStop: vi.fn(),
     mockTextOrExit: vi.fn(),
 }));
 
@@ -16,9 +41,27 @@ vi.mock('@clack/prompts', () => ({
     intro: mockIntro,
     note: mockNote,
     outro: mockOutro,
+    spinner: () => ({
+        start: mockSpinnerStart,
+        stop: mockSpinnerStop,
+    }),
+    log: {
+        info: mockLogInfo,
+        warn: mockLogWarn,
+    },
 }));
 
+vi.mock('node:child_process', async () => {
+    const actual = await vi.importActual<typeof import('node:child_process')>('node:child_process');
+    return {
+        ...actual,
+        spawn: mockSpawn,
+    };
+});
+
 vi.mock('../utils/prompt-helpers.js', () => ({
+    confirmOrExit: mockConfirmOrExit,
+    multiselectOrExit: mockMultiselectOrExit,
     selectOrExit: mockSelectOrExit,
     textOrExit: mockTextOrExit,
 }));
@@ -28,8 +71,13 @@ vi.mock('@dexto/agent-management', async () => {
         await vi.importActual<typeof import('@dexto/agent-management')>('@dexto/agent-management');
     return {
         ...actual,
+        createDextoAgentFromConfig: mockCreateDextoAgentFromConfig,
     };
 });
+
+vi.mock('../../config/effective-llm.js', () => ({
+    getEffectiveLLMConfig: mockGetEffectiveLLMConfig,
+}));
 
 import {
     createWorkspaceAgentScaffold,
@@ -52,8 +100,22 @@ describe('init command', () => {
     beforeEach(async () => {
         vi.clearAllMocks();
         tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'dexto-init-workspace-'));
+        mockConfirmOrExit.mockReset();
+        mockCreateDextoAgentFromConfig.mockReset();
+        mockGetEffectiveLLMConfig.mockReset();
+        mockLogInfo.mockReset();
+        mockMultiselectOrExit.mockReset();
         mockSelectOrExit.mockReset();
+        mockSpawn.mockReset();
+        mockSpinnerStart.mockReset();
+        mockSpinnerStop.mockReset();
         mockTextOrExit.mockReset();
+        mockGetEffectiveLLMConfig.mockResolvedValue({
+            provider: 'openai',
+            model: 'gpt-5-mini',
+            apiKey: '$OPENAI_API_KEY',
+            source: 'preferences',
+        });
     });
 
     afterEach(async () => {
@@ -141,17 +203,41 @@ describe('init command', () => {
                 'utf8'
             )
         ) as {
-            agentId: string;
             image: string;
             llm: { provider: string; model: string; apiKey: string };
+            systemPrompt: {
+                contributors: Array<{
+                    id: string;
+                    type: string;
+                    source?: string;
+                    content?: string;
+                }>;
+            };
+            elicitation?: { enabled?: boolean };
         };
-        expect(configContent.agentId).toBe('coding-agent');
         expect(configContent.image).toBe('@dexto/image-local');
         expect(configContent.llm).toEqual({
             provider: 'openai',
             model: 'gpt-5.3-codex',
             apiKey: '$OPENAI_API_KEY',
         });
+        expect(configContent.systemPrompt.contributors).toEqual([
+            expect.objectContaining({
+                id: 'primary',
+                type: 'static',
+            }),
+            expect.objectContaining({
+                id: 'date',
+                type: 'dynamic',
+                source: 'date',
+            }),
+            expect.objectContaining({
+                id: 'env',
+                type: 'dynamic',
+                source: 'env',
+            }),
+        ]);
+        expect(configContent.elicitation).toEqual({ enabled: true });
     });
 
     it('writes allowGlobalAgents as false in new workspace registries', async () => {
@@ -183,6 +269,77 @@ describe('init command', () => {
             apiKey: '$OPENAI_API_KEY',
         });
         expect(configContent.llm.baseURL).toBeUndefined();
+    });
+
+    it('writes interactive customizations into the scaffolded agent config', async () => {
+        await createWorkspaceAgentScaffold(
+            'product-strategist',
+            {
+                displayName: 'Product Strategist',
+                description: 'Shapes product direction for this workspace.',
+                systemPrompt:
+                    'You are Product Strategist.\n\nDrive product decisions with clarity.',
+                greeting: 'Ready to shape the roadmap.',
+                tools: [
+                    {
+                        type: 'builtin-tools',
+                        enabledTools: ['ask_user', 'invoke_skill'],
+                    },
+                    {
+                        type: 'plan-tools',
+                    },
+                ],
+            },
+            tempDir
+        );
+
+        const registryContent = JSON.parse(
+            await fs.readFile(path.join(tempDir, 'agents', 'registry.json'), 'utf8')
+        ) as {
+            agents: Array<{ id: string; name: string; description: string }>;
+        };
+        expect(registryContent.agents[0]).toMatchObject({
+            id: 'product-strategist',
+            name: 'Product Strategist',
+            description: 'Shapes product direction for this workspace.',
+        });
+
+        const configContent = parseYaml(
+            await fs.readFile(
+                path.join(tempDir, 'agents', 'product-strategist', 'product-strategist.yml'),
+                'utf8'
+            )
+        ) as {
+            systemPrompt: {
+                contributors: Array<{ id: string; type: string; content?: string }>;
+            };
+            greeting: string;
+            tools: Array<{ type: string; enabledTools?: string[] }>;
+            elicitation?: { enabled?: boolean };
+            agentCard?: unknown;
+            agentId?: unknown;
+        };
+
+        expect(configContent.agentCard).toBeUndefined();
+        expect(configContent.agentId).toBeUndefined();
+        expect(configContent.systemPrompt.contributors).toContainEqual(
+            expect.objectContaining({
+                id: 'primary',
+                type: 'static',
+                content: 'You are Product Strategist.\n\nDrive product decisions with clarity.',
+            })
+        );
+        expect(configContent.greeting).toBe('Ready to shape the roadmap.');
+        expect(configContent.tools).toEqual([
+            {
+                type: 'builtin-tools',
+                enabledTools: ['ask_user', 'invoke_skill'],
+            },
+            {
+                type: 'plan-tools',
+            },
+        ]);
+        expect(configContent.elicitation).toEqual({ enabled: true });
     });
 
     it('sets the first non-subagent as the workspace primary agent', async () => {
@@ -405,9 +562,36 @@ describe('init command', () => {
         );
     });
 
-    it('prompts for agent kind and id when no id is provided', async () => {
-        mockSelectOrExit.mockResolvedValue('primary');
-        mockTextOrExit.mockResolvedValue('review-agent');
+    it('runs the interactive agent wizard when no id is provided', async () => {
+        const mockGeneratorAgent = {
+            start: vi.fn().mockResolvedValue(undefined),
+            createSession: vi.fn().mockResolvedValue({ id: 'prompt-generation-session' }),
+            generate: vi.fn().mockResolvedValue({
+                content: JSON.stringify({
+                    systemPrompt:
+                        'You are Review Agent.\n\nReview changes carefully and surface concrete risks.',
+                }),
+                reasoning: undefined,
+                usage: {
+                    inputTokens: 10,
+                    outputTokens: 10,
+                    totalTokens: 20,
+                },
+                toolCalls: [],
+                sessionId: 'prompt-generation-session',
+            }),
+            stop: vi.fn().mockResolvedValue(undefined),
+        };
+        mockCreateDextoAgentFromConfig.mockResolvedValue(mockGeneratorAgent);
+        mockTextOrExit
+            .mockResolvedValueOnce('Review Agent')
+            .mockResolvedValueOnce('Reviews code changes and highlights implementation risks.');
+        mockSelectOrExit
+            .mockResolvedValueOnce('primary')
+            .mockResolvedValueOnce('generate')
+            .mockResolvedValueOnce('continue');
+        mockMultiselectOrExit.mockResolvedValue(['workspace', 'planning']);
+        mockConfirmOrExit.mockResolvedValue(true);
 
         await handleInitAgentCommand(undefined, {}, tempDir);
 
@@ -417,10 +601,245 @@ describe('init command', () => {
             primaryAgent?: string;
             agents: Array<{ id: string }>;
         };
-        expect(mockSelectOrExit).toHaveBeenCalledTimes(1);
-        expect(mockTextOrExit).toHaveBeenCalledTimes(1);
+        expect(mockTextOrExit).toHaveBeenCalledTimes(2);
+        expect(mockSelectOrExit).toHaveBeenCalledTimes(3);
+        expect(mockMultiselectOrExit).toHaveBeenCalledTimes(1);
+        expect(mockConfirmOrExit).toHaveBeenCalledTimes(1);
         expect(registryContent.primaryAgent).toBe('review-agent');
         expect(registryContent.agents[0]?.id).toBe('review-agent');
+
+        const configContent = parseYaml(
+            await fs.readFile(
+                path.join(tempDir, 'agents', 'review-agent', 'review-agent.yml'),
+                'utf8'
+            )
+        ) as {
+            systemPrompt: {
+                contributors: Array<{
+                    id: string;
+                    type: string;
+                    content?: string;
+                    source?: string;
+                }>;
+            };
+            elicitation?: { enabled?: boolean };
+            tools: Array<{ type: string; enabledTools?: string[] }>;
+            agentCard?: unknown;
+            agentId?: unknown;
+        };
+
+        expect(configContent.agentCard).toBeUndefined();
+        expect(configContent.agentId).toBeUndefined();
+        expect(configContent.systemPrompt.contributors).toEqual([
+            {
+                id: 'primary',
+                type: 'static',
+                priority: 0,
+                content:
+                    'You are Review Agent.\n\nReview changes carefully and surface concrete risks.',
+            },
+            {
+                id: 'date',
+                type: 'dynamic',
+                priority: 10,
+                source: 'date',
+            },
+            {
+                id: 'env',
+                type: 'dynamic',
+                priority: 15,
+                source: 'env',
+            },
+        ]);
+        expect(configContent.elicitation).toEqual({ enabled: true });
+        expect(configContent.tools).toEqual([
+            {
+                type: 'builtin-tools',
+                enabledTools: ['ask_user', 'invoke_skill', 'sleep'],
+            },
+            {
+                type: 'creator-tools',
+            },
+            {
+                type: 'agent-spawner',
+            },
+            {
+                type: 'filesystem-tools',
+            },
+            {
+                type: 'process-tools',
+            },
+            {
+                type: 'todo-tools',
+            },
+            {
+                type: 'plan-tools',
+            },
+        ]);
+        expect(mockCreateDextoAgentFromConfig).toHaveBeenCalledWith(
+            expect.objectContaining({
+                agentIdOverride: 'init-agent-prompt-generator',
+                config: expect.objectContaining({
+                    llm: {
+                        provider: 'openai',
+                        model: 'gpt-5-mini',
+                        apiKey: '$OPENAI_API_KEY',
+                    },
+                    tools: [],
+                }),
+            })
+        );
+        expect(mockGeneratorAgent.start).toHaveBeenCalledTimes(1);
+        expect(mockGeneratorAgent.generate).toHaveBeenCalledWith(
+            expect.stringContaining(
+                'Role description: Reviews code changes and highlights implementation risks.'
+            ),
+            'prompt-generation-session'
+        );
+        expect(mockGeneratorAgent.stop).toHaveBeenCalledTimes(1);
+        expect(mockNote).not.toHaveBeenCalledWith(expect.any(String), 'System Prompt Preview');
+        expect(mockNote).toHaveBeenCalledWith(
+            expect.stringContaining('Filesystem & Terminal, Planning and tasks'),
+            'Agent Summary'
+        );
+        expect(mockNote).toHaveBeenCalledWith(
+            expect.stringContaining('enabled by default'),
+            'Agent Summary'
+        );
+    });
+
+    it('can create a subagent through the interactive agent wizard', async () => {
+        const mockGeneratorAgent = {
+            start: vi.fn().mockResolvedValue(undefined),
+            createSession: vi.fn().mockResolvedValue({ id: 'prompt-generation-session' }),
+            generate: vi.fn().mockResolvedValue({
+                content: JSON.stringify({
+                    systemPrompt:
+                        'You are Explore Agent.\n\nWork as a delegated specialist and return crisp findings.',
+                }),
+                reasoning: undefined,
+                usage: {
+                    inputTokens: 12,
+                    outputTokens: 12,
+                    totalTokens: 24,
+                },
+                toolCalls: [],
+                sessionId: 'prompt-generation-session',
+            }),
+            stop: vi.fn().mockResolvedValue(undefined),
+        };
+        mockCreateDextoAgentFromConfig.mockResolvedValue(mockGeneratorAgent);
+
+        await createWorkspaceAgentScaffold('review-agent', {}, tempDir);
+
+        mockTextOrExit
+            .mockResolvedValueOnce('Explore Agent')
+            .mockResolvedValueOnce(
+                'Investigates code paths and reports findings back to the parent agent.'
+            );
+        mockSelectOrExit
+            .mockResolvedValueOnce('subagent')
+            .mockResolvedValueOnce('generate')
+            .mockResolvedValueOnce('continue');
+        mockMultiselectOrExit.mockResolvedValue(['workspace']);
+        mockConfirmOrExit.mockResolvedValue(true);
+
+        await handleInitAgentCommand(undefined, {}, tempDir);
+
+        const registryContent = JSON.parse(
+            await fs.readFile(path.join(tempDir, 'agents', 'registry.json'), 'utf8')
+        ) as {
+            primaryAgent?: string;
+            agents: Array<{ id: string; tags?: string[]; parentAgentId?: string }>;
+        };
+
+        expect(registryContent.primaryAgent).toBe('review-agent');
+        expect(registryContent.agents.find((entry) => entry.id === 'explore-agent')).toMatchObject({
+            tags: ['subagent'],
+            parentAgentId: 'review-agent',
+        });
+        expect(mockGeneratorAgent.generate).toHaveBeenCalledWith(
+            expect.stringContaining('Agent type: workspace subagent'),
+            'prompt-generation-session'
+        );
+        expect(mockNote).toHaveBeenCalledWith(
+            expect.stringContaining('Subagent (will link to review-agent)'),
+            'Agent Summary'
+        );
+        expect(mockNote).toHaveBeenCalledWith(
+            expect.stringContaining('enabled by default'),
+            'Agent Summary'
+        );
+    });
+
+    it('uses the external editor flow when editing a generated prompt', async () => {
+        const mockGeneratorAgent = {
+            start: vi.fn().mockResolvedValue(undefined),
+            createSession: vi.fn().mockResolvedValue({ id: 'prompt-generation-session' }),
+            generate: vi.fn().mockResolvedValue({
+                content: JSON.stringify({
+                    systemPrompt:
+                        'You are Review Agent.\n\nReview changes carefully and surface concrete risks.',
+                }),
+                reasoning: undefined,
+                usage: {
+                    inputTokens: 10,
+                    outputTokens: 10,
+                    totalTokens: 20,
+                },
+                toolCalls: [],
+                sessionId: 'prompt-generation-session',
+            }),
+            stop: vi.fn().mockResolvedValue(undefined),
+        };
+        mockCreateDextoAgentFromConfig.mockResolvedValue(mockGeneratorAgent);
+        mockSpawn.mockImplementation((_command: string, args?: readonly string[]) => {
+            const promptPath = args?.[0];
+            if (promptPath) {
+                writeFileSync(
+                    promptPath,
+                    'You are Review Agent.\n\nEdited in a real editor view.',
+                    'utf8'
+                );
+            }
+
+            const child = new EventEmitter();
+            process.nextTick(() => child.emit('exit', 0));
+            return child as unknown as ReturnType<typeof mockSpawn>;
+        });
+        mockTextOrExit
+            .mockResolvedValueOnce('Review Agent')
+            .mockResolvedValueOnce('Reviews code changes and highlights implementation risks.');
+        mockSelectOrExit
+            .mockResolvedValueOnce('primary')
+            .mockResolvedValueOnce('generate')
+            .mockResolvedValueOnce('edit')
+            .mockResolvedValueOnce('continue');
+        mockMultiselectOrExit.mockResolvedValue(['workspace']);
+        mockConfirmOrExit.mockResolvedValue(true);
+
+        await handleInitAgentCommand(undefined, {}, tempDir);
+
+        const configContent = parseYaml(
+            await fs.readFile(
+                path.join(tempDir, 'agents', 'review-agent', 'review-agent.yml'),
+                'utf8'
+            )
+        ) as {
+            systemPrompt: {
+                contributors: Array<{ id: string; type: string; content?: string }>;
+            };
+        };
+
+        expect(mockSpawn).toHaveBeenCalledTimes(1);
+        expect(mockLogInfo).toHaveBeenCalledWith(expect.stringContaining('Opening'));
+        expect(configContent.systemPrompt.contributors).toContainEqual(
+            expect.objectContaining({
+                id: 'primary',
+                type: 'static',
+                content: 'You are Review Agent.\n\nEdited in a real editor view.',
+            })
+        );
     });
 
     it('auto-links a new subagent to the workspace primary agent', async () => {
