@@ -372,6 +372,8 @@ export interface AgentEventMap {
             cacheReadTokens?: number;
             cacheWriteTokens?: number;
         };
+        /** Stable assistant message id for idempotency/billing */
+        messageId?: string;
         /** Estimated input tokens before LLM call (for analytics/calibration) */
         estimatedInputTokens?: number;
         /** Finish reason: 'tool-calls' means more steps coming, others indicate completion */

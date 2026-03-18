@@ -699,6 +699,7 @@ export class StreamProcessor {
             model: this.config.model,
             ...this.getReasoningResponseFields(),
             tokenUsage: config.tokenUsage,
+            ...(this.assistantMessageId && { messageId: this.assistantMessageId }),
             ...(this.config.estimatedInputTokens !== undefined && {
                 estimatedInputTokens: this.config.estimatedInputTokens,
             }),

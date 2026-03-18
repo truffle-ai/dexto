@@ -4,6 +4,7 @@ import {
     SessionMetadataSchema,
     InternalMessageSchema,
     StandardErrorEnvelopeSchema,
+    UsageSummarySchema,
 } from '../schemas/responses.js';
 import type { GetAgentFn } from '../index.js';
 
@@ -190,6 +191,76 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                                     ),
                             })
                             .strict(),
+                    },
+                },
+            },
+        },
+    });
+
+    const usageRoute = createRoute({
+        method: 'get',
+        path: '/sessions/{sessionId}/usage',
+        summary: 'Get Session Usage',
+        description: 'Returns aggregated token usage for a session',
+        tags: ['sessions'],
+        request: { params: z.object({ sessionId: z.string().describe('Session identifier') }) },
+        responses: {
+            200: {
+                description: 'Aggregated usage for session',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                sessionId: z.string().describe('Session identifier'),
+                                usage: UsageSummarySchema,
+                            })
+                            .strict(),
+                    },
+                },
+            },
+            404: {
+                description: 'Session not found',
+                content: {
+                    'application/json': {
+                        schema: z.object({ error: z.string().describe('Error message') }).strict(),
+                    },
+                },
+            },
+        },
+    });
+
+    const messageUsageRoute = createRoute({
+        method: 'get',
+        path: '/sessions/{sessionId}/messages/{messageId}/usage',
+        summary: 'Get Message Usage',
+        description: 'Returns token usage for a specific assistant message',
+        tags: ['sessions'],
+        request: {
+            params: z.object({
+                sessionId: z.string().describe('Session identifier'),
+                messageId: z.string().describe('Assistant message identifier'),
+            }),
+        },
+        responses: {
+            200: {
+                description: 'Usage for assistant message',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                sessionId: z.string().describe('Session identifier'),
+                                messageId: z.string().describe('Assistant message identifier'),
+                                usage: UsageSummarySchema,
+                            })
+                            .strict(),
+                    },
+                },
+            },
+            404: {
+                description: 'Session or message not found',
+                content: {
+                    'application/json': {
+                        schema: z.object({ error: z.string().describe('Error message') }).strict(),
                     },
                 },
             },
@@ -460,6 +531,57 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             return ctx.json({
                 history: history as z.output<typeof InternalMessageSchema>[],
                 isBusy,
+            });
+        })
+        .openapi(usageRoute, async (ctx) => {
+            const agent = await getAgent(ctx);
+            const { sessionId } = ctx.req.param();
+            const metadata = await agent.getSessionMetadata(sessionId);
+            if (!metadata) {
+                return ctx.json({ error: `Session not found: ${sessionId}` }, 404);
+            }
+
+            const usage = metadata.tokenUsage ?? {
+                inputTokens: 0,
+                outputTokens: 0,
+                totalTokens: 0,
+                reasoningTokens: 0,
+                cacheReadTokens: 0,
+                cacheWriteTokens: 0,
+            };
+
+            return ctx.json({
+                sessionId,
+                usage: {
+                    promptTokens: usage.inputTokens ?? 0,
+                    completionTokens: usage.outputTokens ?? 0,
+                    totalTokens: usage.totalTokens ??
+                        (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
+                },
+            });
+        })
+        .openapi(messageUsageRoute, async (ctx) => {
+            const agent = await getAgent(ctx);
+            const { sessionId, messageId } = ctx.req.param();
+            const history = await agent.getSessionHistory(sessionId);
+            const message = history.find((item) => item.id === messageId);
+            if (!message || message.role !== 'assistant' || !message.tokenUsage) {
+                return ctx.json(
+                    { error: `Message usage not found for ${messageId}` },
+                    404
+                );
+            }
+
+            const usage = message.tokenUsage;
+            return ctx.json({
+                sessionId,
+                messageId,
+                usage: {
+                    promptTokens: usage.inputTokens ?? 0,
+                    completionTokens: usage.outputTokens ?? 0,
+                    totalTokens: usage.totalTokens ??
+                        (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
+                },
             });
         })
         .openapi(deleteRoute, async (ctx) => {
