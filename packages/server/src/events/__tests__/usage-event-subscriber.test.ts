@@ -190,4 +190,84 @@ describe('UsageEventSubscriber', () => {
             'usage-outbox:usage:cloud-agent-1:msg-1',
         ]);
     });
+
+    it('rejects invalid delivery options that would stall flushing', () => {
+        expect(
+            () =>
+                new UsageEventSubscriber({
+                    database,
+                    targetUrl: 'https://example.com/api/cloud-agents/sbx_test/usage/events:batch',
+                    authToken: 'dxt_test',
+                    batchSize: 0,
+                })
+        ).toThrowError('UsageEventSubscriber batchSize must be a positive integer. Received: 0');
+
+        expect(
+            () =>
+                new UsageEventSubscriber({
+                    database,
+                    targetUrl: 'https://example.com/api/cloud-agents/sbx_test/usage/events:batch',
+                    authToken: 'dxt_test',
+                    flushIntervalMs: 0,
+                })
+        ).toThrowError(
+            'UsageEventSubscriber flushIntervalMs must be a positive integer. Received: 0'
+        );
+
+        expect(
+            () =>
+                new UsageEventSubscriber({
+                    database,
+                    targetUrl: 'https://example.com/api/cloud-agents/sbx_test/usage/events:batch',
+                    authToken: 'dxt_test',
+                    requestTimeoutMs: 0,
+                })
+        ).toThrowError(
+            'UsageEventSubscriber requestTimeoutMs must be a positive integer. Received: 0'
+        );
+    });
+
+    it('aborts in-flight delivery requests during cleanup', async () => {
+        let capturedSignal: AbortSignal | undefined;
+        mockFetch.mockImplementation((_url, init) => {
+            capturedSignal = init?.signal;
+
+            return new Promise<Response>((_resolve, reject) => {
+                capturedSignal?.addEventListener(
+                    'abort',
+                    () => {
+                        reject(new Error('aborted'));
+                    },
+                    { once: true }
+                );
+            });
+        });
+
+        subscriber.subscribe(agentEventBus);
+
+        agentEventBus.emit('llm:response', {
+            sessionId: 'session-1',
+            content: 'Hello',
+            messageId: 'msg-1',
+            usageScopeId: 'cloud-agent-1',
+            tokenUsage: {
+                inputTokens: 10,
+                outputTokens: 5,
+                totalTokens: 15,
+            },
+        });
+
+        await vi.waitFor(() => {
+            expect(capturedSignal).toBeDefined();
+        });
+
+        subscriber.cleanup();
+
+        expect(capturedSignal?.aborted).toBe(true);
+        await vi.waitFor(async () => {
+            expect(await database.list('usage-outbox:')).toEqual([
+                'usage-outbox:usage:cloud-agent-1:msg-1',
+            ]);
+        });
+    });
 });

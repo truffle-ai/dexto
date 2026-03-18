@@ -10107,6 +10107,10 @@
                               "minimum": 0,
                               "description": "Total estimated cost in USD for the selected scope"
                             },
+                            "hasUnpricedResponses": {
+                              "type": "boolean",
+                              "description": "Whether any response in the selected scope has usage but no resolved pricing"
+                            },
                             "modelStats": {
                               "type": "array",
                               "items": {
@@ -10184,7 +10188,8 @@
                           },
                           "required": [
                             "tokenUsage",
-                            "estimatedCost"
+                            "estimatedCost",
+                            "hasUnpricedResponses"
                           ],
                           "additionalProperties": false,
                           "description": "Exact usage summary derived from assistant message history"
@@ -10241,6 +10246,10 @@
                               "type": "number",
                               "minimum": 0,
                               "description": "Total estimated cost in USD for the selected scope"
+                            },
+                            "hasUnpricedResponses": {
+                              "type": "boolean",
+                              "description": "Whether any response in the selected scope has usage but no resolved pricing"
                             },
                             "modelStats": {
                               "type": "array",
@@ -10324,6 +10333,7 @@
                           "required": [
                             "tokenUsage",
                             "estimatedCost",
+                            "hasUnpricedResponses",
                             "scopeId"
                           ],
                           "additionalProperties": false,

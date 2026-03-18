@@ -50,6 +50,7 @@ describe('summarizeAssistantUsage', () => {
                 totalTokens: 32,
             },
             estimatedCost: 0.015,
+            hasUnpricedResponses: false,
             modelStats: [
                 {
                     provider: 'openai',
@@ -126,6 +127,7 @@ describe('summarizeAssistantUsage', () => {
                 totalTokens: 30,
             },
             estimatedCost: 0.004,
+            hasUnpricedResponses: false,
             modelStats: [
                 {
                     provider: 'openai-compatible',
@@ -140,6 +142,81 @@ describe('summarizeAssistantUsage', () => {
                         totalTokens: 30,
                     },
                     estimatedCost: 0.004,
+                },
+            ],
+        });
+    });
+
+    test('marks summaries with unpriced responses as partial', () => {
+        const messages: InternalMessage[] = [
+            {
+                id: 'assistant-priced',
+                role: 'assistant',
+                content: [{ type: 'text', text: 'priced response' }],
+                tokenUsage: {
+                    inputTokens: 10,
+                    outputTokens: 4,
+                    totalTokens: 14,
+                },
+                estimatedCost: 0.003,
+                pricingStatus: 'estimated',
+                provider: 'openai',
+                model: 'gpt-4o-mini',
+            },
+            {
+                id: 'assistant-unpriced',
+                role: 'assistant',
+                content: [{ type: 'text', text: 'unpriced response' }],
+                tokenUsage: {
+                    inputTokens: 6,
+                    outputTokens: 3,
+                    totalTokens: 9,
+                },
+                pricingStatus: 'unpriced',
+                provider: 'openrouter',
+                model: 'unknown-model',
+            },
+        ];
+
+        expect(summarizeAssistantUsage(messages)).toEqual({
+            tokenUsage: {
+                inputTokens: 16,
+                outputTokens: 7,
+                reasoningTokens: 0,
+                cacheReadTokens: 0,
+                cacheWriteTokens: 0,
+                totalTokens: 23,
+            },
+            estimatedCost: 0.003,
+            hasUnpricedResponses: true,
+            modelStats: [
+                {
+                    provider: 'openai',
+                    model: 'gpt-4o-mini',
+                    messageCount: 1,
+                    tokenUsage: {
+                        inputTokens: 10,
+                        outputTokens: 4,
+                        reasoningTokens: 0,
+                        cacheReadTokens: 0,
+                        cacheWriteTokens: 0,
+                        totalTokens: 14,
+                    },
+                    estimatedCost: 0.003,
+                },
+                {
+                    provider: 'openrouter',
+                    model: 'unknown-model',
+                    messageCount: 1,
+                    tokenUsage: {
+                        inputTokens: 6,
+                        outputTokens: 3,
+                        reasoningTokens: 0,
+                        cacheReadTokens: 0,
+                        cacheWriteTokens: 0,
+                        totalTokens: 9,
+                    },
+                    estimatedCost: 0,
                 },
             ],
         });

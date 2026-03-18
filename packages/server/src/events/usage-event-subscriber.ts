@@ -24,6 +24,16 @@ const DEFAULT_DELIVERY_OPTIONS: Required<UsageEventDeliveryOptions> = {
     requestTimeoutMs: 10000,
 };
 
+function requirePositiveIntegerOption(name: string, value: number): number {
+    if (!Number.isInteger(value) || value <= 0) {
+        throw new RangeError(
+            `UsageEventSubscriber ${name} must be a positive integer. Received: ${value}`
+        );
+    }
+
+    return value;
+}
+
 interface UsageEventSubscriberConfig extends UsageEventDeliveryOptions {
     database: Database;
     targetUrl: string;
@@ -52,9 +62,11 @@ export class UsageEventSubscriber implements EventSubscriber {
     private readonly runId: string | undefined;
     private readonly deliveryOptions: Required<UsageEventDeliveryOptions>;
     private abortController?: AbortController;
+    private inFlightDeliveryAbortController?: AbortController;
     private flushInterval?: ReturnType<typeof setInterval>;
     private flushPromise: Promise<void> | null = null;
     private flushRequestedWhileRunning = false;
+    private isCleaningUp = false;
 
     constructor(config: UsageEventSubscriberConfig) {
         this.database = config.database;
@@ -62,15 +74,28 @@ export class UsageEventSubscriber implements EventSubscriber {
         this.authToken = config.authToken;
         this.runtimeId = config.runtimeId;
         this.runId = config.runId;
+        const flushIntervalMs = requirePositiveIntegerOption(
+            'flushIntervalMs',
+            config.flushIntervalMs ?? DEFAULT_DELIVERY_OPTIONS.flushIntervalMs
+        );
+        const batchSize = requirePositiveIntegerOption(
+            'batchSize',
+            config.batchSize ?? DEFAULT_DELIVERY_OPTIONS.batchSize
+        );
+        const requestTimeoutMs = requirePositiveIntegerOption(
+            'requestTimeoutMs',
+            config.requestTimeoutMs ?? DEFAULT_DELIVERY_OPTIONS.requestTimeoutMs
+        );
         this.deliveryOptions = {
             fetchFn: config.fetchFn ?? DEFAULT_DELIVERY_OPTIONS.fetchFn,
-            flushIntervalMs: config.flushIntervalMs ?? DEFAULT_DELIVERY_OPTIONS.flushIntervalMs,
-            batchSize: config.batchSize ?? DEFAULT_DELIVERY_OPTIONS.batchSize,
-            requestTimeoutMs: config.requestTimeoutMs ?? DEFAULT_DELIVERY_OPTIONS.requestTimeoutMs,
+            flushIntervalMs,
+            batchSize,
+            requestTimeoutMs,
         };
     }
 
     subscribe(eventBus: AgentEventBus): void {
+        this.isCleaningUp = false;
         this.abortController?.abort();
         if (this.flushInterval) {
             clearInterval(this.flushInterval);
@@ -97,6 +122,8 @@ export class UsageEventSubscriber implements EventSubscriber {
     }
 
     cleanup(): void {
+        this.isCleaningUp = true;
+
         if (this.abortController) {
             this.abortController.abort();
             delete this.abortController;
@@ -105,6 +132,11 @@ export class UsageEventSubscriber implements EventSubscriber {
         if (this.flushInterval) {
             clearInterval(this.flushInterval);
             delete this.flushInterval;
+        }
+
+        if (this.inFlightDeliveryAbortController) {
+            this.inFlightDeliveryAbortController.abort();
+            delete this.inFlightDeliveryAbortController;
         }
     }
 
@@ -191,6 +223,10 @@ export class UsageEventSubscriber implements EventSubscriber {
     }
 
     private async flushPending(): Promise<void> {
+        if (this.isCleaningUp) {
+            return this.flushPromise ?? Promise.resolve();
+        }
+
         if (this.flushPromise) {
             this.flushRequestedWhileRunning = true;
             return this.flushPromise;
@@ -209,6 +245,10 @@ export class UsageEventSubscriber implements EventSubscriber {
     }
 
     private async doFlushPending(): Promise<void> {
+        if (this.isCleaningUp) {
+            return;
+        }
+
         const pendingRecords = await this.listPendingRecords();
         if (pendingRecords.length === 0) {
             return;
@@ -219,6 +259,10 @@ export class UsageEventSubscriber implements EventSubscriber {
             index < pendingRecords.length;
             index += this.deliveryOptions.batchSize
         ) {
+            if (this.isCleaningUp) {
+                return;
+            }
+
             const batchRecords = pendingRecords.slice(
                 index,
                 index + this.deliveryOptions.batchSize
@@ -228,6 +272,7 @@ export class UsageEventSubscriber implements EventSubscriber {
             };
 
             const abortController = new AbortController();
+            this.inFlightDeliveryAbortController = abortController;
             const timeout = setTimeout(() => {
                 abortController.abort();
             }, this.deliveryOptions.requestTimeoutMs);
@@ -250,8 +295,16 @@ export class UsageEventSubscriber implements EventSubscriber {
                     return;
                 }
 
+                if (this.isCleaningUp) {
+                    return;
+                }
+
                 await Promise.all(batchRecords.map((record) => this.database.delete(record.key)));
             } catch (error) {
+                if (this.isCleaningUp && abortController.signal.aborted) {
+                    return;
+                }
+
                 logger.warn(
                     `Usage event delivery failed: ${
                         error instanceof Error ? error.message : String(error)
@@ -260,6 +313,9 @@ export class UsageEventSubscriber implements EventSubscriber {
                 return;
             } finally {
                 clearTimeout(timeout);
+                if (this.inFlightDeliveryAbortController === abortController) {
+                    delete this.inFlightDeliveryAbortController;
+                }
             }
         }
     }

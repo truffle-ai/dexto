@@ -304,6 +304,11 @@ export const UsageSummarySchema = z
             .number()
             .nonnegative()
             .describe('Total estimated cost in USD for the selected scope'),
+        hasUnpricedResponses: z
+            .boolean()
+            .describe(
+                'Whether any response in the selected scope has usage but no resolved pricing'
+            ),
         modelStats: z
             .array(
                 z

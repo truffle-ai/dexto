@@ -1344,6 +1344,9 @@ export function calculateCostBreakdown(
     usage: TokenUsage,
     pricing: ModelPricing
 ): TokenUsageCostBreakdown {
+    // Pricing assumes tokenUsage buckets are already additive. Provider-specific normalization
+    // (for example whether reasoning tokens are separate from or included in output tokens)
+    // must happen before usage reaches this helper.
     const inputUsd = ((usage.inputTokens ?? 0) * pricing.inputPerM) / 1_000_000;
     const outputUsd = ((usage.outputTokens ?? 0) * pricing.outputPerM) / 1_000_000;
     const cacheReadUsd = ((usage.cacheReadTokens ?? 0) * (pricing.cacheReadPerM ?? 0)) / 1_000_000;
