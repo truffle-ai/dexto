@@ -1,5 +1,11 @@
 # @dexto/core
 
+## 1.6.17
+
+### Patch Changes
+
+- 302d1c3: Improve LLM usage delivery safety and summary completeness.
+
 ## 1.6.16
 
 ### Patch Changes
