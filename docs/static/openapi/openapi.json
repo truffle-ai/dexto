@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Dexto API",
-    "version": "1.6.14",
+    "version": "1.6.17",
     "description": "OpenAPI spec for the Dexto REST API server"
   },
   "servers": [
@@ -9172,6 +9172,16 @@
                                     "minimum": 0,
                                     "description": "Number of reasoning tokens"
                                   },
+                                  "cacheReadTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache read tokens"
+                                  },
+                                  "cacheWriteTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache write tokens"
+                                  },
                                   "totalTokens": {
                                     "type": "integer",
                                     "minimum": 0,
@@ -9180,6 +9190,23 @@
                                 },
                                 "additionalProperties": false,
                                 "description": "Optional token usage accounting"
+                              },
+                              "estimatedCost": {
+                                "type": "number",
+                                "minimum": 0,
+                                "description": "Estimated cost in USD for this response"
+                              },
+                              "pricingStatus": {
+                                "type": "string",
+                                "enum": [
+                                  "estimated",
+                                  "unpriced"
+                                ],
+                                "description": "Whether pricing was resolved for this response"
+                              },
+                              "usageScopeId": {
+                                "type": "string",
+                                "description": "Optional usage scope identifier for runtime-scoped metering"
                               },
                               "model": {
                                 "type": "string",
@@ -9516,6 +9543,16 @@
                                     "minimum": 0,
                                     "description": "Number of reasoning tokens"
                                   },
+                                  "cacheReadTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache read tokens"
+                                  },
+                                  "cacheWriteTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache write tokens"
+                                  },
                                   "totalTokens": {
                                     "type": "integer",
                                     "minimum": 0,
@@ -9524,6 +9561,23 @@
                                 },
                                 "additionalProperties": false,
                                 "description": "Optional token usage accounting"
+                              },
+                              "estimatedCost": {
+                                "type": "number",
+                                "minimum": 0,
+                                "description": "Estimated cost in USD for this response"
+                              },
+                              "pricingStatus": {
+                                "type": "string",
+                                "enum": [
+                                  "estimated",
+                                  "unpriced"
+                                ],
+                                "description": "Whether pricing was resolved for this response"
+                              },
+                              "usageScopeId": {
+                                "type": "string",
+                                "description": "Optional usage scope identifier for runtime-scoped metering"
                               },
                               "model": {
                                 "type": "string",
@@ -10120,6 +10174,16 @@
                                     "minimum": 0,
                                     "description": "Number of reasoning tokens"
                                   },
+                                  "cacheReadTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache read tokens"
+                                  },
+                                  "cacheWriteTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache write tokens"
+                                  },
                                   "totalTokens": {
                                     "type": "integer",
                                     "minimum": 0,
@@ -10128,6 +10192,23 @@
                                 },
                                 "additionalProperties": false,
                                 "description": "Optional token usage accounting"
+                              },
+                              "estimatedCost": {
+                                "type": "number",
+                                "minimum": 0,
+                                "description": "Estimated cost in USD for this response"
+                              },
+                              "pricingStatus": {
+                                "type": "string",
+                                "enum": [
+                                  "estimated",
+                                  "unpriced"
+                                ],
+                                "description": "Whether pricing was resolved for this response"
+                              },
+                              "usageScopeId": {
+                                "type": "string",
+                                "description": "Optional usage scope identifier for runtime-scoped metering"
                               },
                               "model": {
                                 "type": "string",
@@ -10464,6 +10545,16 @@
                                     "minimum": 0,
                                     "description": "Number of reasoning tokens"
                                   },
+                                  "cacheReadTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache read tokens"
+                                  },
+                                  "cacheWriteTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache write tokens"
+                                  },
                                   "totalTokens": {
                                     "type": "integer",
                                     "minimum": 0,
@@ -10472,6 +10563,23 @@
                                 },
                                 "additionalProperties": false,
                                 "description": "Optional token usage accounting"
+                              },
+                              "estimatedCost": {
+                                "type": "number",
+                                "minimum": 0,
+                                "description": "Estimated cost in USD for this response"
+                              },
+                              "pricingStatus": {
+                                "type": "string",
+                                "enum": [
+                                  "estimated",
+                                  "unpriced"
+                                ],
+                                "description": "Whether pricing was resolved for this response"
+                              },
+                              "usageScopeId": {
+                                "type": "string",
+                                "description": "Optional usage scope identifier for runtime-scoped metering"
                               },
                               "model": {
                                 "type": "string",
