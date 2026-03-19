@@ -91,50 +91,32 @@ export class SessionCompactionError {
         );
     }
 
-    static missingSummaryMarker(strategy: string) {
-        return new DextoRuntimeError(
-            SessionErrorCode.SESSION_COMPACTION_INVALID_OUTPUT,
-            ErrorScope.SESSION,
-            ErrorType.SYSTEM,
-            `Compaction strategy '${strategy}' must mark its summary message with metadata.isSummary or metadata.isSessionSummary`,
-            {
-                strategy,
-            }
-        );
-    }
-
-    static invalidOriginalMessageCount(
+    static invalidPreserveFromWorkingIndex(
         strategy: string,
-        originalMessageCount: unknown,
-        historyLength: number
+        preserveFromWorkingIndex: unknown,
+        workingHistoryLength: number
     ) {
         return new DextoRuntimeError(
             SessionErrorCode.SESSION_COMPACTION_INVALID_OUTPUT,
             ErrorScope.SESSION,
             ErrorType.SYSTEM,
-            `Compaction strategy '${strategy}' must provide a valid metadata.originalMessageCount within the current history bounds`,
+            `Compaction strategy '${strategy}' must provide a valid preserveFromWorkingIndex within the current working history bounds`,
             {
                 strategy,
-                originalMessageCount,
-                historyLength,
+                preserveFromWorkingIndex,
+                workingHistoryLength,
             }
         );
     }
 
-    static staleSummaryBoundary(
-        strategy: string,
-        originalMessageCount: number,
-        latestSummaryIndex: number
-    ) {
+    static preservedMessageMissingId(strategy: string) {
         return new DextoRuntimeError(
             SessionErrorCode.SESSION_COMPACTION_INVALID_OUTPUT,
             ErrorScope.SESSION,
             ErrorType.SYSTEM,
-            `Compaction strategy '${strategy}' must advance metadata.originalMessageCount beyond the latest existing summary boundary for session-level compaction`,
+            `Compaction strategy '${strategy}' produced continuation messages without stable IDs, so the preserved working-memory boundary could not be materialized`,
             {
                 strategy,
-                originalMessageCount,
-                latestSummaryIndex,
             }
         );
     }

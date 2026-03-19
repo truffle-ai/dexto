@@ -29,17 +29,16 @@ const testCompactionStrategy: CompactionStrategy = {
         contextWindow: modelContextWindow,
     }),
     shouldCompact: () => false,
-    compact: async () => [
-        {
-            role: 'assistant',
-            content: [{ type: 'text', text: 'Compacted summary' }],
-            timestamp: Date.now(),
-            metadata: {
-                isSummary: true,
-                originalMessageCount: 2,
+    compact: async () => ({
+        summaryMessages: [
+            {
+                role: 'assistant',
+                content: [{ type: 'text', text: 'Compacted summary' }],
+                timestamp: Date.now(),
             },
-        },
-    ],
+        ],
+        preserveFromWorkingIndex: 2,
+    }),
 };
 
 const testSettings: AgentRuntimeSettings = {
@@ -405,24 +404,19 @@ describe('DextoAgent session compaction integration', () => {
 
         const multiSummaryStrategy: CompactionStrategy = {
             ...testCompactionStrategy,
-            compact: async () => [
-                {
-                    role: 'assistant',
-                    content: [{ type: 'text', text: 'Summary one' }],
-                    metadata: {
-                        isSummary: true,
-                        originalMessageCount: 2,
+            compact: async () => ({
+                summaryMessages: [
+                    {
+                        role: 'assistant',
+                        content: [{ type: 'text', text: 'Summary one' }],
                     },
-                },
-                {
-                    role: 'assistant',
-                    content: [{ type: 'text', text: 'Summary two' }],
-                    metadata: {
-                        isSummary: true,
-                        originalMessageCount: 2,
+                    {
+                        role: 'assistant',
+                        content: [{ type: 'text', text: 'Summary two' }],
                     },
-                },
-            ],
+                ],
+                preserveFromWorkingIndex: 2,
+            }),
         };
 
         const getCompactionStrategySpy = vi
@@ -444,30 +438,31 @@ describe('DextoAgent session compaction integration', () => {
         getCompactionStrategySpy.mockRestore();
     });
 
-    it('rejects repeated compaction artifacts that do not advance past the latest summary boundary', async () => {
-        const sessionId = 'compact-stale-boundary-invalid';
+    it('rejects preserveFromWorkingIndex values outside the working-history bounds', async () => {
+        const sessionId = 'compact-working-boundary-invalid';
         await addSeedHistory(agent, sessionId);
-
-        await agent.compactSession({
-            sessionId,
-            mode: 'continue-in-place',
-            trigger: 'manual',
-        });
 
         const session = await agent.getSession(sessionId);
         if (!session) {
             throw new Error(`Expected session '${sessionId}' to exist`);
         }
 
-        const contextManager = session.getContextManager();
-        await contextManager.addMessage({
-            role: 'user',
-            content: [{ type: 'text', text: 'follow-up request' }],
-        });
-        await contextManager.addMessage({
-            role: 'assistant',
-            content: [{ type: 'text', text: 'follow-up response' }],
-        });
+        const invalidBoundaryStrategy: CompactionStrategy = {
+            ...testCompactionStrategy,
+            compact: async () => ({
+                summaryMessages: [
+                    {
+                        role: 'assistant',
+                        content: [{ type: 'text', text: 'Bad summary' }],
+                    },
+                ],
+                preserveFromWorkingIndex: 999,
+            }),
+        };
+
+        const getCompactionStrategySpy = vi
+            .spyOn(session.getLLMService(), 'getCompactionStrategy')
+            .mockReturnValue(invalidBoundaryStrategy);
 
         await expect(
             agent.compactSession({
@@ -476,11 +471,13 @@ describe('DextoAgent session compaction integration', () => {
                 trigger: 'scheduled',
             })
         ).rejects.toThrow(
-            'must advance metadata.originalMessageCount beyond the latest existing summary boundary'
+            'must provide a valid preserveFromWorkingIndex within the current working history bounds'
         );
 
         const history = await agent.getSessionHistory(sessionId);
-        expect(history).toHaveLength(7);
-        expect(history.filter((message) => message.metadata?.isSummary === true)).toHaveLength(1);
+        expect(history).toHaveLength(4);
+        expect(history.filter((message) => message.metadata?.isSummary === true)).toHaveLength(0);
+
+        getCompactionStrategySpy.mockRestore();
     });
 });

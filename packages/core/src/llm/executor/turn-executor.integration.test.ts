@@ -818,17 +818,16 @@ describe('TurnExecutor Integration Tests', () => {
                     contextWindow,
                 }),
                 shouldCompact: (inputTokens: number) => inputTokens > 120,
-                compact: async () => [
-                    {
-                        role: 'assistant',
-                        content: [{ type: 'text', text: 'Overflow compacted summary' }],
-                        timestamp: Date.now(),
-                        metadata: {
-                            isSummary: true,
-                            originalMessageCount: 2,
+                compact: async () => ({
+                    summaryMessages: [
+                        {
+                            role: 'assistant',
+                            content: [{ type: 'text', text: 'Overflow compacted summary' }],
+                            timestamp: Date.now(),
                         },
-                    },
-                ],
+                    ],
+                    preserveFromWorkingIndex: 2,
+                }),
             };
 
             const savedCompactions: SessionCompactionRecord[] = [];
@@ -944,17 +943,16 @@ describe('TurnExecutor Integration Tests', () => {
                     contextWindow,
                 }),
                 shouldCompact: (inputTokens: number) => inputTokens > 120,
-                compact: async () => [
-                    {
-                        role: 'assistant',
-                        content: [{ type: 'text', text: 'Overflow compacted summary' }],
-                        timestamp: Date.now(),
-                        metadata: {
-                            isSummary: true,
-                            originalMessageCount: 2,
+                compact: async () => ({
+                    summaryMessages: [
+                        {
+                            role: 'assistant',
+                            content: [{ type: 'text', text: 'Overflow compacted summary' }],
+                            timestamp: Date.now(),
                         },
-                    },
-                ],
+                    ],
+                    preserveFromWorkingIndex: 2,
+                }),
             };
 
             const sessionCompactionPersistence: SessionCompactionPersistence = {

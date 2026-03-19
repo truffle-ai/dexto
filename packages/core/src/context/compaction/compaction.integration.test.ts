@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ContextManager } from '../manager.js';
 import { filterCompacted } from '../utils.js';
 import { ReactiveOverflowCompactionStrategy } from './strategies/reactive-overflow-compaction.js';
+import { buildCompactionWindow } from './window.js';
 import { VercelMessageFormatter } from '../../llm/formatters/vercel.js';
 import { SystemPromptManager } from '../../systemPrompt/manager.js';
 import { SystemPromptConfigSchema } from '../../systemPrompt/schemas.js';
@@ -152,17 +153,28 @@ describe('Context Compaction Integration Tests', () => {
      */
     async function runCompaction(): Promise<InternalMessage | null> {
         const history = await contextManager.getHistory();
-        const summaryMessages = await compactionStrategy.compact(history, {
+        const compactionWindow = buildCompactionWindow(history);
+        const result = await compactionStrategy.compact(compactionWindow, {
             sessionId,
             model: createMockModel(),
             logger,
         });
 
-        if (summaryMessages.length === 0) {
+        if (!result || result.summaryMessages.length === 0) {
             return null;
         }
 
-        const summary = summaryMessages[0]!;
+        const preservedMessageIds = compactionWindow.workingHistory
+            .slice(result.preserveFromWorkingIndex)
+            .flatMap((message) => (message.id ? [message.id] : []));
+        const summary = {
+            ...result.summaryMessages[0]!,
+            metadata: {
+                ...(result.summaryMessages[0]!.metadata ?? {}),
+                isSummary: true,
+                preservedMessageIds,
+            },
+        };
         await contextManager.addMessage(summary);
         return summary;
     }
@@ -283,32 +295,33 @@ describe('Context Compaction Integration Tests', () => {
             expect(nonSummaryMessages.length).toBeLessThan(15);
         });
 
-        it('should correctly calculate originalMessageCount for each compaction', async () => {
+        it('should preserve the continuation window across repeated compactions', async () => {
             // === FIRST COMPACTION ===
             await addMessages(10);
             const summary1 = await runCompaction();
             expect(summary1).not.toBeNull();
 
-            // First compaction: originalMessageCount should be the number of summarized messages
-            const originalCount1 = summary1?.metadata?.originalMessageCount;
-            expect(typeof originalCount1).toBe('number');
-            expect(originalCount1).toBeLessThan(20); // Less than total, some were preserved
+            const preservedIds1 = summary1?.metadata?.preservedMessageIds;
+            expect(Array.isArray(preservedIds1)).toBe(true);
+            if (!Array.isArray(preservedIds1)) {
+                throw new Error('Expected preservedMessageIds to be an array');
+            }
+            expect(preservedIds1.length).toBeGreaterThan(0);
 
             // === SECOND COMPACTION ===
             await addMessages(10);
-            const historyBefore2 = await contextManager.getHistory();
-            const summary1Index = historyBefore2.findIndex((m) => m === summary1);
-
             const summary2 = await runCompaction();
             expect(summary2).not.toBeNull();
 
-            // Second compaction: originalMessageCount should be ABSOLUTE
-            // It should be > summary1Index (pointing past the first summary)
-            const originalCount2 = summary2?.metadata?.originalMessageCount;
-            expect(typeof originalCount2).toBe('number');
-            expect(originalCount2).toBeGreaterThan(summary1Index);
+            const preservedIds2 = summary2?.metadata?.preservedMessageIds;
+            expect(Array.isArray(preservedIds2)).toBe(true);
+            if (!Array.isArray(preservedIds2)) {
+                throw new Error('Expected preservedMessageIds to be an array');
+            }
+            expect(preservedIds2.length).toBeGreaterThan(0);
+            expect(preservedIds2).not.toContain(summary1?.id);
 
-            // Verify filterCompacted works with this absolute count
+            // Verify filterCompacted works with the preserved ID window
             const historyAfter2 = await contextManager.getHistory();
             const filtered2 = filterCompacted(historyAfter2);
 

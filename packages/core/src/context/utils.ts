@@ -14,6 +14,7 @@ import { validateModelFileSupport } from '../llm/registry/index.js';
 import { LLMContext } from '../llm/types.js';
 import { safeStringify } from '../utils/safe-stringify.js';
 import { getFileMediaKind, getResourceKind } from './media-helpers.js';
+import { buildCompactionWindow } from './compaction/window.js';
 
 // Tunable heuristics and shared constants
 const MIN_BASE64_HEURISTIC_LENGTH = 512; // Below this length, treat as regular text
@@ -1960,50 +1961,7 @@ export function toTextForToolMessage(content: InternalMessage['content']): strin
  * @returns Filtered history starting from the most recent summary (or full history if no summary)
  */
 export function filterCompacted(history: readonly InternalMessage[]): InternalMessage[] {
-    // Find the most recent summary message (search backwards for efficiency)
-    // Check for both old isSummary marker and new isSessionSummary marker
-    let summaryIndex = -1;
-    for (let i = history.length - 1; i >= 0; i--) {
-        const msg = history[i];
-        if (msg?.metadata?.isSummary === true || msg?.metadata?.isSessionSummary === true) {
-            summaryIndex = i;
-            break;
-        }
-    }
-
-    // If no summary found, return full history (slice returns mutable copy)
-    if (summaryIndex === -1) {
-        return history.slice();
-    }
-
-    // Get the summary message (we know it exists since we found the index)
-    const summaryMessage = history[summaryIndex]!;
-
-    // Get the count of messages that were summarized (stored in metadata)
-    // The preserved messages are between the summarized portion and the summary
-    // Clamp to valid range: 0 <= originalMessageCount <= summaryIndex
-    // For legacy summaries without metadata, default to summaryIndex (no preserved messages)
-    const rawCount = summaryMessage.metadata?.originalMessageCount;
-    const originalMessageCount =
-        typeof rawCount === 'number' && rawCount >= 0 && rawCount <= summaryIndex
-            ? rawCount
-            : summaryIndex;
-
-    // Layout after compaction:
-    // [summarized..., preserved..., summary, afterSummary...]
-    //  ^-- indices 0 to (originalMessageCount-1)
-    //              ^-- indices originalMessageCount to (summaryIndex-1)
-    //                          ^-- index summaryIndex
-    //                                   ^-- indices (summaryIndex+1) onwards
-
-    // Get preserved messages (messages between summarized portion and summary)
-    const preservedMessages = history.slice(originalMessageCount, summaryIndex);
-
-    // Get any messages added after the summary (rare but possible)
-    const messagesAfterSummary = history.slice(summaryIndex + 1);
-
-    // Return: summary + preserved + afterSummary
-    return [summaryMessage, ...preservedMessages, ...messagesAfterSummary];
+    return buildCompactionWindow(history).activeHistory.slice();
 }
 
 /**

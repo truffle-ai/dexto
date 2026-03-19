@@ -9312,6 +9312,13 @@
                                     "type": "integer",
                                     "minimum": 0,
                                     "description": "How many original messages were summarized by this boundary"
+                                  },
+                                  "preservedMessageIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "description": "Stable message IDs preserved in the continuation window when this summary supersedes older working memory"
                                   }
                                 },
                                 "additionalProperties": {
@@ -9683,6 +9690,13 @@
                                     "type": "integer",
                                     "minimum": 0,
                                     "description": "How many original messages were summarized by this boundary"
+                                  },
+                                  "preservedMessageIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "description": "Stable message IDs preserved in the continuation window when this summary supersedes older working memory"
                                   }
                                 },
                                 "additionalProperties": {
@@ -10314,6 +10328,13 @@
                                     "type": "integer",
                                     "minimum": 0,
                                     "description": "How many original messages were summarized by this boundary"
+                                  },
+                                  "preservedMessageIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "description": "Stable message IDs preserved in the continuation window when this summary supersedes older working memory"
                                   }
                                 },
                                 "additionalProperties": {
@@ -10685,6 +10706,13 @@
                                     "type": "integer",
                                     "minimum": 0,
                                     "description": "How many original messages were summarized by this boundary"
+                                  },
+                                  "preservedMessageIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "description": "Stable message IDs preserved in the continuation window when this summary supersedes older working memory"
                                   }
                                 },
                                 "additionalProperties": {
@@ -11723,6 +11751,13 @@
                                 "type": "integer",
                                 "minimum": 0,
                                 "description": "How many original messages were summarized by this boundary"
+                              },
+                              "preservedMessageIds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "description": "Stable message IDs preserved in the continuation window when this summary supersedes older working memory"
                               }
                             },
                             "additionalProperties": {
@@ -12916,6 +12951,13 @@
                                     "type": "integer",
                                     "minimum": 0,
                                     "description": "How many original messages were summarized by this boundary"
+                                  },
+                                  "preservedMessageIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "description": "Stable message IDs preserved in the continuation window when this summary supersedes older working memory"
                                   }
                                 },
                                 "additionalProperties": {
@@ -13387,6 +13429,13 @@
                                         "type": "integer",
                                         "minimum": 0,
                                         "description": "How many original messages were summarized by this boundary"
+                                      },
+                                      "preservedMessageIds": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        },
+                                        "description": "Stable message IDs preserved in the continuation window when this summary supersedes older working memory"
                                       }
                                     },
                                     "additionalProperties": {

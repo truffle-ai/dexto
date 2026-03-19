@@ -3,7 +3,13 @@ import type { InternalMessage, ToolCall } from '../../types.js';
 import { isAssistantMessage, isToolMessage } from '../../types.js';
 import type { Logger } from '../../../logger/v2/types.js';
 import { isOverflow, type ModelLimits } from '../overflow.js';
-import type { CompactionRuntimeContext, CompactionSettings, CompactionStrategy } from '../types.js';
+import type {
+    CompactionResult,
+    CompactionRuntimeContext,
+    CompactionSettings,
+    CompactionStrategy,
+    CompactionWindow,
+} from '../types.js';
 
 /**
  * Configuration options for ReactiveOverflowCompactionStrategy.
@@ -78,18 +84,14 @@ Conversation to summarize:
  * Key behaviors:
  * - Triggers on overflow (after actual tokens exceed context limit)
  * - Uses LLM to generate intelligent summary of older messages
- * - Returns summary message to ADD to history (not replace)
- * - Read-time filtering via filterCompacted() excludes pre-summary messages
+ * - Returns a structured summary + working-history boundary
+ * - Core materializes that boundary into the session's continuation window
  *
  * This strategy is designed to work with TurnExecutor's main loop:
  * 1. After each step, check if overflow occurred
- * 2. If yes, generate summary and ADD it to history
- * 3. filterCompacted() in getFormattedMessages() excludes old messages
+ * 2. If yes, generate a replacement summary over the oldest working-memory prefix
+ * 3. Core materializes the preserved working-memory tail for the next continuation
  * 4. Continue with fresh context (summary + recent messages)
- *
- * NOTE: This does NOT replace history. The summary message is ADDED,
- * and filterCompacted() handles excluding old messages at read-time.
- * This preserves full history for audit/recovery purposes.
  */
 export class ReactiveOverflowCompactionStrategy implements CompactionStrategy {
     readonly name = 'reactive-overflow';
@@ -130,136 +132,56 @@ export class ReactiveOverflowCompactionStrategy implements CompactionStrategy {
     }
 
     async compact(
-        history: readonly InternalMessage[],
+        window: CompactionWindow,
         context: CompactionRuntimeContext
-    ): Promise<InternalMessage[]> {
+    ): Promise<CompactionResult | null> {
         if (!this.settings.enabled) {
-            return [];
+            return null;
         }
 
         const { model, logger } = context;
+        const workingHistory = window.workingHistory;
+        const freshHistory = window.freshHistory;
 
         // Don't compact if history is too short
-        if (history.length <= 2) {
+        if (workingHistory.length <= 2) {
             logger.debug(
                 'ReactiveOverflowCompactionStrategy: History too short, skipping compaction'
             );
-            return [];
+            return null;
         }
 
-        // Check if there's already a summary in history
-        // If so, we need to work with messages AFTER the summary only
-        // Use reverse search to find the MOST RECENT summary (important for re-compaction)
-        let existingSummaryIndex = -1;
-        for (let i = history.length - 1; i >= 0; i--) {
-            const msg = history[i];
-            if (msg?.metadata?.isSummary === true || msg?.metadata?.isSessionSummary === true) {
-                existingSummaryIndex = i;
-                break;
-            }
-        }
-
-        if (existingSummaryIndex !== -1) {
-            // There's already a summary - only consider messages AFTER it
-            const messagesAfterSummary = history.slice(existingSummaryIndex + 1);
-
-            // If there are very few messages after the summary, skip compaction
-            // (nothing meaningful to re-summarize)
-            if (messagesAfterSummary.length <= 4) {
-                logger.debug(
-                    `ReactiveOverflowCompactionStrategy: Only ${messagesAfterSummary.length} messages after existing summary, skipping re-compaction`
-                );
-                return [];
-            }
-
-            logger.info(
-                `ReactiveOverflowCompactionStrategy: Found existing summary at index ${existingSummaryIndex}, ` +
-                    `working with ${messagesAfterSummary.length} messages after it`
+        if (window.latestSummary && freshHistory.length <= 4) {
+            logger.debug(
+                `ReactiveOverflowCompactionStrategy: Only ${freshHistory.length} fresh message(s) after latest summary, skipping re-compaction`
             );
-
-            // Re-run compaction on the subset after the summary
-            // This prevents cascading summaries of summaries
-            return this.compactSubset(
-                messagesAfterSummary,
-                history,
-                existingSummaryIndex,
-                model,
-                logger
-            );
+            return null;
         }
 
-        // Split history into messages to summarize and messages to keep
-        const { toSummarize, toKeep } = this.splitHistory(history);
+        // Split working history into messages to summarize and messages to keep
+        const { toSummarize, toKeep } = this.splitHistory(workingHistory);
 
         // If nothing to summarize, return empty (no summary needed)
         if (toSummarize.length === 0) {
             logger.debug('ReactiveOverflowCompactionStrategy: No messages to summarize');
-            return [];
+            return null;
         }
 
         // Find the most recent user message to understand current task
-        const currentTaskMessage = this.findCurrentTaskMessage(history);
+        const currentTaskMessage = this.findCurrentTaskMessage(window.activeHistory);
+
+        const summaryInput = window.latestSummary
+            ? [window.latestSummary.message, ...toSummarize]
+            : [...toSummarize];
 
         logger.info(
-            `ReactiveOverflowCompactionStrategy: Summarizing ${toSummarize.length} messages, keeping ${toKeep.length}`
+            `ReactiveOverflowCompactionStrategy: Summarizing ${summaryInput.length} message(s) of context, keeping ${toKeep.length} working message(s)`
         );
 
-        // Generate LLM summary of old messages with current task context
-        const summary = await this.generateSummary(toSummarize, currentTaskMessage, model, logger);
-
-        // Create summary message (will be ADDED to history, not replace)
-        // originalMessageCount tells filterCompacted() how many messages were summarized
-        const summaryMessage: InternalMessage = {
-            role: 'assistant',
-            content: [{ type: 'text', text: summary }],
-            timestamp: Date.now(),
-            metadata: {
-                isSummary: true,
-                summarizedAt: Date.now(),
-                originalMessageCount: toSummarize.length,
-                originalFirstTimestamp: toSummarize[0]?.timestamp,
-                originalLastTimestamp: toSummarize[toSummarize.length - 1]?.timestamp,
-            },
-        };
-
-        // Return just the summary message - caller adds it to history
-        // filterCompacted() will handle excluding old messages at read-time
-        return [summaryMessage];
-    }
-
-    /**
-     * Handle re-compaction when there's already a summary in history.
-     * Only summarizes messages AFTER the existing summary, preventing
-     * cascading summaries of summaries.
-     */
-    private async compactSubset(
-        messagesAfterSummary: readonly InternalMessage[],
-        fullHistory: readonly InternalMessage[],
-        existingSummaryIndex: number,
-        model: LanguageModel,
-        logger: Logger
-    ): Promise<InternalMessage[]> {
-        // Split the subset into messages to summarize and keep
-        const { toSummarize, toKeep } = this.splitHistory(messagesAfterSummary);
-
-        if (toSummarize.length === 0) {
-            logger.debug('ReactiveOverflowCompactionStrategy: No messages to summarize in subset');
-            return [];
-        }
-
-        // Get current task from the full history
-        const currentTaskMessage = this.findCurrentTaskMessage(fullHistory);
-
-        logger.info(
-            `ReactiveOverflowCompactionStrategy (re-compact): Summarizing ${toSummarize.length} messages after existing summary, keeping ${toKeep.length}`
-        );
-
-        // Generate summary
-        const summary = await this.generateSummary(toSummarize, currentTaskMessage, model, logger);
-
-        // Create summary message
-        // originalMessageCount must be an ABSOLUTE index for filterCompacted() to work correctly.
-        const absoluteOriginalMessageCount = existingSummaryIndex + 1 + toSummarize.length;
+        // Generate LLM summary of old messages with current task context.
+        // When a prior summary exists, it becomes part of the new summary input so
+        // the resulting replacement summary fully supersedes it.
+        const summary = await this.generateSummary(summaryInput, currentTaskMessage, model, logger);
 
         const summaryMessage: InternalMessage = {
             role: 'assistant',
@@ -268,14 +190,16 @@ export class ReactiveOverflowCompactionStrategy implements CompactionStrategy {
             metadata: {
                 isSummary: true,
                 summarizedAt: Date.now(),
-                originalMessageCount: absoluteOriginalMessageCount,
-                isRecompaction: true,
-                originalFirstTimestamp: toSummarize[0]?.timestamp,
-                originalLastTimestamp: toSummarize[toSummarize.length - 1]?.timestamp,
+                ...(window.latestSummary ? { isRecompaction: true } : {}),
+                originalFirstTimestamp: summaryInput[0]?.timestamp,
+                originalLastTimestamp: summaryInput[summaryInput.length - 1]?.timestamp,
             },
         };
 
-        return [summaryMessage];
+        return {
+            summaryMessages: [summaryMessage],
+            preserveFromWorkingIndex: toSummarize.length,
+        };
     }
 
     /**

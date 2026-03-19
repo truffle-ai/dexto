@@ -7,6 +7,7 @@ import type { AgentEventBus, SessionEventBus } from '../events/index.js';
 import type { DynamicContributorContext } from '../systemPrompt/types.js';
 import type { ToolSet } from '../tools/types.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
+import { buildCompactionWindow } from '../context/compaction/window.js';
 import type {
     SessionCompactionMode,
     SessionCompactionRecord,
@@ -113,6 +114,7 @@ export async function runSessionCompaction(
     input: RunSessionCompactionInput
 ): Promise<SessionCompactionRecord | null> {
     const history = await input.contextManager.getHistory();
+    const compactionWindow = buildCompactionWindow(history);
 
     const beforeEstimate = await input.contextManager.getContextTokenEstimate(
         input.contributorContext,
@@ -125,13 +127,13 @@ export async function runSessionCompaction(
         estimatedTokens: originalTokens,
     });
 
-    const rawSummaryMessages = await input.compactionStrategy.compact(history, {
+    const compactionResult = await input.compactionStrategy.compact(compactionWindow, {
         sessionId: input.sessionId,
         model: input.languageModel,
         logger: input.logger,
     });
 
-    if (rawSummaryMessages.length === 0) {
+    if (!compactionResult || compactionResult.summaryMessages.length === 0) {
         input.logger.debug(
             `Compaction skipped for session ${input.sessionId} - nothing to compact`
         );
@@ -146,15 +148,28 @@ export async function runSessionCompaction(
         return null;
     }
 
-    const summaryMessages = rawSummaryMessages.map(normalizeCompactionMessage);
-    const originalMessageCount = resolveSummaryBoundary(
-        summaryMessages,
-        history,
+    const preserveFromWorkingIndex = resolveWorkingBoundary(
+        compactionResult,
+        compactionWindow.workingHistory.length,
         input.compactionStrategy.name
+    );
+    const preservedWorkingMessages = compactionWindow.workingHistory
+        .slice(preserveFromWorkingIndex)
+        .map(normalizeCompactionMessage);
+    const preservedMessageIds = resolvePreservedMessageIds(
+        preservedWorkingMessages,
+        input.compactionStrategy.name
+    );
+    const summaryMessages = compactionResult.summaryMessages.map((summaryMessage) =>
+        normalizeSummaryMessage(
+            summaryMessage,
+            preservedMessageIds,
+            !!compactionWindow.latestSummary
+        )
     );
     const continuationMessages = [
         ...summaryMessages.map(cloneCompactionMessage),
-        ...history.slice(originalMessageCount).map(normalizeCompactionMessage),
+        ...preservedWorkingMessages.map(cloneCompactionMessage),
     ];
 
     const systemPrompt = await input.contextManager.getSystemPrompt(input.contributorContext);
@@ -271,6 +286,27 @@ function normalizeCompactionMessage(message: InternalMessage): InternalMessage {
     if (!normalized.timestamp) {
         normalized.timestamp = Date.now();
     }
+    return normalized;
+}
+
+function normalizeSummaryMessage(
+    message: InternalMessage,
+    preservedMessageIds: readonly string[],
+    isRecompaction: boolean
+): InternalMessage {
+    const normalized = normalizeCompactionMessage(message);
+    normalized.metadata = {
+        ...(normalized.metadata ?? {}),
+        isSummary: normalized.metadata?.isSummary ?? true,
+        preservedMessageIds: [...preservedMessageIds],
+        ...(isRecompaction && normalized.metadata?.isRecompaction !== true
+            ? { isRecompaction: true }
+            : {}),
+    };
+    if (normalized.metadata) {
+        delete normalized.metadata.originalMessageCount;
+    }
+
     return normalized;
 }
 
@@ -423,59 +459,51 @@ function cloneBinaryPayload(
     return value.slice(0);
 }
 
-function resolveSummaryBoundary(
-    summaryMessages: readonly InternalMessage[],
-    history: readonly InternalMessage[],
+function resolveWorkingBoundary(
+    result: {
+        summaryMessages: readonly InternalMessage[];
+        preserveFromWorkingIndex: number;
+    },
+    workingHistoryLength: number,
     strategyName: string
 ): number {
-    const historyLength = history.length;
-    if (summaryMessages.length !== 1) {
-        throw SessionCompactionError.invalidSummaryCount(strategyName, summaryMessages.length);
-    }
-
-    const [summaryMessage] = summaryMessages;
-    if (
-        summaryMessage?.metadata?.isSummary !== true &&
-        summaryMessage?.metadata?.isSessionSummary !== true
-    ) {
-        throw SessionCompactionError.missingSummaryMarker(strategyName);
-    }
-
-    const rawOriginalMessageCount = summaryMessage.metadata?.originalMessageCount;
-    if (
-        typeof rawOriginalMessageCount !== 'number' ||
-        !Number.isInteger(rawOriginalMessageCount) ||
-        rawOriginalMessageCount < 0 ||
-        rawOriginalMessageCount > historyLength
-    ) {
-        throw SessionCompactionError.invalidOriginalMessageCount(
+    if (result.summaryMessages.length !== 1) {
+        throw SessionCompactionError.invalidSummaryCount(
             strategyName,
-            rawOriginalMessageCount,
-            historyLength
+            result.summaryMessages.length
         );
     }
 
-    const latestSummaryIndex = findLatestSummaryIndex(history);
-    if (latestSummaryIndex !== -1 && rawOriginalMessageCount <= latestSummaryIndex) {
-        throw SessionCompactionError.staleSummaryBoundary(
+    const preserveFromWorkingIndex = result.preserveFromWorkingIndex;
+    if (
+        typeof preserveFromWorkingIndex !== 'number' ||
+        !Number.isInteger(preserveFromWorkingIndex) ||
+        preserveFromWorkingIndex < 0 ||
+        preserveFromWorkingIndex > workingHistoryLength
+    ) {
+        throw SessionCompactionError.invalidPreserveFromWorkingIndex(
             strategyName,
-            rawOriginalMessageCount,
-            latestSummaryIndex
+            preserveFromWorkingIndex,
+            workingHistoryLength
         );
     }
 
-    return rawOriginalMessageCount;
+    return preserveFromWorkingIndex;
 }
 
-function findLatestSummaryIndex(history: readonly InternalMessage[]): number {
-    for (let i = history.length - 1; i >= 0; i--) {
-        const message = history[i];
-        if (message?.metadata?.isSummary === true || message?.metadata?.isSessionSummary === true) {
-            return i;
+function resolvePreservedMessageIds(
+    preservedMessages: readonly InternalMessage[],
+    strategyName: string
+): string[] {
+    const preservedMessageIds: string[] = [];
+    for (const message of preservedMessages) {
+        if (!message.id) {
+            throw SessionCompactionError.preservedMessageMissingId(strategyName);
         }
+        preservedMessageIds.push(message.id);
     }
 
-    return -1;
+    return preservedMessageIds;
 }
 
 function toCompactionReason(trigger: SessionCompactionTrigger): 'overflow' | 'manual' {

@@ -1571,6 +1571,36 @@ describe('filterCompacted', () => {
         expect(result[1]?.content).toBe('Recent message');
         expect(result[2]?.content).toBe('Recent response');
     });
+
+    it('should prefer preservedMessageIds when reconstructing a repeated compaction window', () => {
+        const messages = [
+            { role: 'user', content: 'Very old', id: 'u1' },
+            { role: 'assistant', content: 'Very old response', id: 'a1' },
+            { role: 'user', content: 'Preserved question', id: 'u2' },
+            { role: 'assistant', content: 'Preserved answer', id: 'a2' },
+            {
+                role: 'assistant',
+                content: 'Old summary',
+                id: 's1',
+                metadata: { isSummary: true, preservedMessageIds: ['u2', 'a2'] },
+            },
+            { role: 'user', content: 'Fresh question', id: 'u3' },
+            { role: 'assistant', content: 'Fresh answer', id: 'a3' },
+            {
+                role: 'assistant',
+                content: 'Replacement summary',
+                id: 's2',
+                metadata: { isSummary: true, preservedMessageIds: ['u3', 'a3'] },
+            },
+        ] as unknown as InternalMessage[];
+
+        const result = filterCompacted(messages);
+
+        expect(result).toHaveLength(3);
+        expect(result[0]?.content).toBe('Replacement summary');
+        expect(result[1]?.content).toBe('Fresh question');
+        expect(result[2]?.content).toBe('Fresh answer');
+    });
 });
 
 describe('sanitizeToolResultToContentWithBlobs', () => {

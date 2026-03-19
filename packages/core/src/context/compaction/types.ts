@@ -24,6 +24,62 @@ export interface CompactionRuntimeContext {
     logger: Logger;
 }
 
+export interface CompactionSummaryBoundary {
+    message: InternalMessage;
+    storedIndex: number;
+}
+
+export interface CompactionWindow {
+    /**
+     * Full stored session transcript as persisted today.
+     * This may still contain older summary markers for audit/tracing purposes.
+     */
+    storedHistory: readonly InternalMessage[];
+    /**
+     * Logical history currently visible to the model.
+     * When a prior summary exists, this is `[latestSummary, ...workingHistory]`.
+     */
+    activeHistory: readonly InternalMessage[];
+    /**
+     * Working-memory messages carried forward from the latest summary boundary.
+     * These were preserved during the previous compaction run and are still
+     * visible in the current continuation window.
+     */
+    preservedHistory: readonly InternalMessage[];
+    /**
+     * Newly accumulated messages after the latest summary boundary.
+     * For an uncompacted session, this is the full stored history.
+     */
+    freshHistory: readonly InternalMessage[];
+    /**
+     * Chronological working-memory messages that remain unsummarized.
+     * This intentionally excludes the latest summary marker so strategies can
+     * compact the logical working set without reasoning about stored transcript
+     * offsets or prior summary placement.
+     */
+    workingHistory: readonly InternalMessage[];
+    /**
+     * Latest visible summary marker, if one exists.
+     * Strategies can use this as already-compacted context when producing a
+     * replacement summary for the next working-memory window.
+     */
+    latestSummary?: CompactionSummaryBoundary;
+}
+
+export interface CompactionResult {
+    /**
+     * Summary/carry-forward messages produced by the strategy.
+     * Session-level compaction currently requires exactly one summary message.
+     */
+    summaryMessages: InternalMessage[];
+    /**
+     * Index into `workingHistory` where preserved working-memory messages begin.
+     * Messages before this index are compacted into `summaryMessages`; messages
+     * from this index onward stay in the continuation window unchanged.
+     */
+    preserveFromWorkingIndex: number;
+}
+
 /**
  * Compaction strategy.
  *
@@ -48,33 +104,18 @@ export type CompactionStrategy = {
     shouldCompact(inputTokens: number, modelLimits: ModelLimits): boolean;
 
     /**
-     * Compacts the provided message history.
+     * Compacts the provided working-memory window.
      *
-     * The returned summary messages MUST include specific metadata fields for
-     * `filterCompacted()` to correctly exclude pre-summary messages at read-time:
+     * Strategies operate on an explicit logical window instead of inferring
+     * boundaries from raw stored transcript indexes. Core later materializes the
+     * returned boundary into whatever persistence/filtering metadata is needed.
      *
-     * Required metadata:
-     * - `isSummary: true` - Marks the message as a compaction summary
-     * - `originalMessageCount: number` - Count of messages that were summarized
-     *   (used by filterCompacted to determine which messages to exclude)
-     *
-     * Optional metadata:
-     * - `isRecompaction: true` - Set when re-compacting after a previous summary
-     * - `isSessionSummary: true` - Alternative to isSummary for session-level summaries
-     *
-     * The `history` provided here is the stored session transcript, including any
-     * prior compaction summary markers that are still persisted in history.
-     *
-     * For repeated compaction runs, `metadata.originalMessageCount` must remain
-     * absolute against this stored transcript so read-time filtering can resolve
-     * the latest boundary correctly.
-     *
-     * @param history The current stored conversation history.
+     * @param window The current compaction window for this session.
      * @param context Per-session runtime context (model/logger/sessionId)
-     * @returns Summary messages to add to history. Empty array if nothing to compact.
+     * @returns Structured compaction result, or null when nothing should be compacted.
      */
     compact(
-        history: readonly InternalMessage[],
+        window: CompactionWindow,
         context: CompactionRuntimeContext
-    ): Promise<InternalMessage[]>;
+    ): Promise<CompactionResult | null>;
 };

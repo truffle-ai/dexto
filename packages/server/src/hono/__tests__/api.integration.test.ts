@@ -21,17 +21,16 @@ const testCompactionStrategy: CompactionStrategy = {
         contextWindow: modelContextWindow,
     }),
     shouldCompact: () => false,
-    compact: async () => [
-        {
-            role: 'assistant',
-            content: [{ type: 'text', text: 'Compacted summary' }],
-            timestamp: Date.now(),
-            metadata: {
-                isSummary: true,
-                originalMessageCount: 2,
+    compact: async () => ({
+        summaryMessages: [
+            {
+                role: 'assistant',
+                content: [{ type: 'text', text: 'Compacted summary' }],
+                timestamp: Date.now(),
             },
-        },
-    ],
+        ],
+        preserveFromWorkingIndex: 2,
+    }),
 };
 
 describe('Hono API Integration Tests', () => {
@@ -644,7 +643,7 @@ describe('Hono API Integration Tests', () => {
                         summaryMessages: Array<{
                             metadata?: {
                                 isSummary?: boolean;
-                                originalMessageCount?: number;
+                                preservedMessageIds?: string[];
                             };
                         }>;
                         continuationMessages: unknown[];
@@ -656,7 +655,7 @@ describe('Hono API Integration Tests', () => {
             expect(compaction?.sourceSessionId).toBe(sessionId);
             expect(compaction?.targetSessionId).toBeTruthy();
             expect(compaction?.summaryMessages[0]?.metadata?.isSummary).toBe(true);
-            expect(compaction?.summaryMessages[0]?.metadata?.originalMessageCount).toBe(2);
+            expect(compaction?.summaryMessages[0]?.metadata?.preservedMessageIds).toHaveLength(2);
             expect(compaction?.continuationMessages.length).toBeGreaterThan(0);
 
             const getCompactionRes = await httpRequest(
@@ -835,22 +834,21 @@ describe('Hono API Integration Tests', () => {
                     contextWindow: modelContextWindow,
                 }),
                 shouldCompact: () => false,
-                compact: async () => [
-                    {
-                        role: 'assistant',
-                        content: [
-                            {
-                                type: 'image',
-                                image: Buffer.from('summary-image-bytes'),
-                                mimeType: 'image/png',
-                            },
-                        ],
-                        metadata: {
-                            isSummary: true,
-                            originalMessageCount: 2,
+                compact: async () => ({
+                    summaryMessages: [
+                        {
+                            role: 'assistant',
+                            content: [
+                                {
+                                    type: 'image',
+                                    image: Buffer.from('summary-image-bytes'),
+                                    mimeType: 'image/png',
+                                },
+                            ],
                         },
-                    },
-                ],
+                    ],
+                    preserveFromWorkingIndex: 2,
+                }),
             };
 
             const multimodalAgent = await createTestAgent(undefined, {

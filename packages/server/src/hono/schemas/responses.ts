@@ -189,6 +189,12 @@ export const InternalMessageMetadataSchema = z
             .nonnegative()
             .optional()
             .describe('How many original messages were summarized by this boundary'),
+        preservedMessageIds: z
+            .array(z.string())
+            .optional()
+            .describe(
+                'Stable message IDs preserved in the continuation window when this summary supersedes older working memory'
+            ),
     })
     .catchall(z.unknown())
     .describe(
