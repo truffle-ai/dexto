@@ -153,6 +153,32 @@ export const TokenUsageSchema = z
     .strict()
     .describe('Token usage accounting');
 
+export const InternalMessageMetadataSchema = z
+    .object({
+        isSummary: z
+            .boolean()
+            .optional()
+            .describe('Whether this message marks a compaction summary boundary'),
+        isSessionSummary: z
+            .boolean()
+            .optional()
+            .describe('Whether this message marks a session-level summary boundary'),
+        isRecompaction: z
+            .boolean()
+            .optional()
+            .describe('Whether this summary was produced from already-compacted history'),
+        originalMessageCount: z
+            .number()
+            .int()
+            .nonnegative()
+            .optional()
+            .describe('How many original messages were summarized by this boundary'),
+    })
+    .catchall(z.unknown())
+    .describe(
+        'Optional message metadata. Known compaction fields are documented explicitly, and additional metadata keys may also be present.'
+    );
+
 export const InternalMessageSchema = z
     .object({
         id: z.string().uuid().optional().describe('Unique message identifier (UUID)'),
@@ -177,6 +203,7 @@ export const InternalMessageSchema = z
             .boolean()
             .optional()
             .describe('Whether tool execution succeeded (present for role=tool messages)'),
+        metadata: InternalMessageMetadataSchema.optional().describe('Optional message metadata'),
     })
     .strict()
     .describe('Internal message representation');
@@ -307,6 +334,59 @@ export const SessionMetadataSchema = z
 export type SessionTokenUsage = z.output<typeof SessionTokenUsageSchema>;
 export type ModelStatistics = z.output<typeof ModelStatisticsSchema>;
 export type SessionMetadata = z.output<typeof SessionMetadataSchema>;
+
+export const SessionCompactionModeSchema = z
+    .enum(['artifact-only', 'continue-in-place', 'continue-in-child'])
+    .describe('How the compaction artifact should be applied');
+
+export const SessionCompactionTriggerSchema = z
+    .enum(['manual', 'api', 'scheduled', 'overflow'])
+    .describe('Why the compaction was triggered');
+
+export const SessionCompactionSchema = z
+    .object({
+        id: z.string().describe('Unique compaction artifact identifier'),
+        sourceSessionId: z.string().describe('Source session identifier'),
+        targetSessionId: z
+            .string()
+            .optional()
+            .nullable()
+            .describe('Target child session when continuation was applied into a new session'),
+        createdAt: z.number().int().positive().describe('Creation timestamp (Unix ms)'),
+        strategy: z.string().describe('Compaction strategy name used to produce the artifact'),
+        mode: SessionCompactionModeSchema,
+        trigger: SessionCompactionTriggerSchema,
+        originalTokens: z
+            .number()
+            .int()
+            .nonnegative()
+            .describe('Estimated tokens before compaction'),
+        compactedTokens: z
+            .number()
+            .int()
+            .nonnegative()
+            .describe('Estimated tokens after compaction'),
+        originalMessages: z
+            .number()
+            .int()
+            .nonnegative()
+            .describe('Prepared message count before compaction'),
+        compactedMessages: z
+            .number()
+            .int()
+            .nonnegative()
+            .describe('Prepared message count after compaction'),
+        summaryMessages: z
+            .array(InternalMessageSchema)
+            .describe('Generated summary messages returned by the compaction strategy'),
+        continuationMessages: z
+            .array(InternalMessageSchema)
+            .describe('Messages that can seed a continued session after compaction'),
+    })
+    .strict()
+    .describe('Persisted session compaction artifact');
+
+export type SessionCompaction = z.output<typeof SessionCompactionSchema>;
 
 // --- Workspace Schemas ---
 

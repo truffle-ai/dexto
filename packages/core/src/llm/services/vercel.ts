@@ -21,6 +21,7 @@ import type { ResourceManager } from '../../resources/index.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { LLMErrorCode } from '../error-codes.js';
 import type { ContentInput } from '../../agent/types.js';
+import type { SessionCompactionPersistence } from '../../session/compaction-service.js';
 
 /**
  * Vercel AI SDK implementation of LLMService
@@ -54,6 +55,7 @@ export class VercelLLMService {
         | import('../../context/compaction/types.js').CompactionStrategy
         | null;
     private modelLimits?: ModelLimits;
+    private sessionCompactionPersistence: SessionCompactionPersistence | undefined;
 
     /**
      * Helper to extract model ID from LanguageModel union type (string | LanguageModelV2)
@@ -72,7 +74,8 @@ export class VercelLLMService {
         sessionId: string,
         resourceManager: ResourceManager,
         logger: Logger,
-        compactionStrategy?: import('../../context/compaction/types.js').CompactionStrategy | null
+        compactionStrategy?: import('../../context/compaction/types.js').CompactionStrategy | null,
+        sessionCompactionPersistence?: SessionCompactionPersistence
     ) {
         this.logger = logger.createChild(DextoLogComponent.LLM);
         this.model = model;
@@ -82,6 +85,7 @@ export class VercelLLMService {
         this.sessionId = sessionId;
         this.resourceManager = resourceManager;
         this.compactionStrategy = compactionStrategy ?? null;
+        this.sessionCompactionPersistence = sessionCompactionPersistence;
 
         // Create session-level message queue for mid-task user messages
         this.messageQueue = new MessageQueueService(this.sessionEventBus, this.logger);
@@ -145,7 +149,8 @@ export class VercelLLMService {
             this.messageQueue,
             this.modelLimits,
             externalSignal,
-            this.compactionStrategy
+            this.compactionStrategy,
+            this.sessionCompactionPersistence
         );
     }
 

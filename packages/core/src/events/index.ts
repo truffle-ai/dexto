@@ -480,6 +480,9 @@ export interface AgentEventMap {
         compactedMessages: number;
         strategy: string;
         reason: 'overflow' | 'manual';
+        compactionId?: string;
+        mode?: 'artifact-only' | 'continue-in-place' | 'continue-in-child';
+        targetSessionId?: string;
         sessionId: string;
     };
 
@@ -747,6 +750,9 @@ export interface SessionEventMap {
         compactedMessages: number;
         strategy: string;
         reason: 'overflow' | 'manual';
+        compactionId?: string;
+        mode?: 'artifact-only' | 'continue-in-place' | 'continue-in-child';
+        targetSessionId?: string;
     };
 
     /** Old tool outputs were pruned (marked with compactedAt) to save tokens */

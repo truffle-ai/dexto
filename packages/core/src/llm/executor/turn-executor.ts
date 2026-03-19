@@ -41,6 +41,11 @@ import { toError } from '../../utils/error-conversion.js';
 import type { CompactionStrategy } from '../../context/compaction/types.js';
 import type { ModelLimits } from '../../context/compaction/overflow.js';
 import { isCodexBaseURL } from '../providers/codex-base-url.js';
+import {
+    createSessionCompactionEventSink,
+    runSessionCompaction,
+    type SessionCompactionPersistence,
+} from '../../session/compaction-service.js';
 
 /**
  * Static cache for tool support validation.
@@ -107,7 +112,8 @@ export class TurnExecutor {
         private messageQueue: MessageQueueService,
         private modelLimits?: ModelLimits,
         private externalSignal?: AbortSignal,
-        compactionStrategy: CompactionStrategy | null = null
+        compactionStrategy: CompactionStrategy | null = null,
+        private sessionCompactionPersistence?: SessionCompactionPersistence
     ) {
         this.logger = logger.createChild(DextoLogComponent.EXECUTOR);
         // Initial controller - will be replaced per-step in execute()
@@ -1037,13 +1043,13 @@ export class TurnExecutor {
     }
 
     /**
-     * Compact context by generating a summary and adding it to the same session.
+     * Compact context through the shared session-compaction pipeline.
      *
-     * The summary message is added to the conversation history with `isSummary: true` metadata.
-     * When the context is loaded via getFormattedMessagesForLLM(), filterCompacted() will
-     * exclude all messages before the summary, effectively compacting the context.
+     * Overflow compaction still applies in place, but now uses the same artifact
+     * persistence, continuation calculation, and event payload shape as the public
+     * session compaction API.
      *
-     * @param originalTokens The estimated input token count that triggered overflow
+     * @param originalTokens The estimated or actual input token count that triggered overflow
      * @param contributorContext Context for system prompt contributors (needed for accurate token estimation)
      * @param tools Tool definitions (needed for accurate token estimation)
      * @returns true if compaction occurred, false if skipped
@@ -1051,9 +1057,15 @@ export class TurnExecutor {
     private async compactContext(
         originalTokens: number,
         contributorContext: DynamicContributorContext,
-        tools: Record<string, { name?: string; description?: string; parameters?: unknown }>
+        tools: ToolSet
     ): Promise<boolean> {
         if (!this.compactionStrategy) {
+            return false;
+        }
+        if (!this.sessionCompactionPersistence) {
+            this.logger.warn(
+                `Compaction skipped for session ${this.sessionId} - no session compaction persistence configured`
+            );
             return false;
         }
 
@@ -1061,79 +1073,22 @@ export class TurnExecutor {
             `Context overflow detected (${originalTokens} tokens), checking if compression is possible`
         );
 
-        const history = await this.contextManager.getHistory();
-        const { filterCompacted } = await import('../../context/utils.js');
-        const originalFiltered = filterCompacted(history);
-        const originalMessages = originalFiltered.length;
-
-        // Pre-check if history is long enough for compaction (need at least 4 messages for meaningful summary)
-        if (history.length < 4) {
-            this.logger.debug('Compaction skipped: history too short to summarize');
-            return false;
-        }
-
-        // Emit event BEFORE the LLM summarization call so UI shows indicator during compaction
-        this.eventBus.emit('context:compacting', {
-            estimatedTokens: originalTokens,
-        });
-
-        // Generate summary message(s) - this makes an LLM call
-        const summaryMessages = await this.compactionStrategy.compact(history, {
+        const compaction = await runSessionCompaction({
             sessionId: this.sessionId,
-            model: this.model,
+            mode: 'continue-in-place',
+            trigger: 'overflow',
+            languageModel: this.model,
             logger: this.logger,
-        });
-
-        if (summaryMessages.length === 0) {
-            // Compaction returned empty - nothing to summarize (e.g., already compacted)
-            // Still emit context:compacted to clear the UI's compacting state
-            this.logger.debug(
-                'Compaction skipped: strategy returned no summary (likely already compacted or nothing to summarize)'
-            );
-            this.eventBus.emit('context:compacted', {
-                originalTokens,
-                compactedTokens: originalTokens, // No change
-                originalMessages,
-                compactedMessages: originalMessages, // No change
-                strategy: this.compactionStrategy.name,
-                reason: 'overflow',
-            });
-            return false;
-        }
-
-        // Add summary to history - filterCompacted() will exclude pre-summary messages at read-time
-        for (const summary of summaryMessages) {
-            await this.contextManager.addMessage(summary);
-        }
-
-        // Reset actual token tracking since context has fundamentally changed
-        // The formula (lastInput + lastOutput + newEstimate) is no longer valid after compaction
-        this.contextManager.resetActualTokenTracking();
-
-        // Get accurate token estimate after compaction using the same method as /context command
-        // This ensures consistency between what we report and what /context shows
-        const afterEstimate = await this.contextManager.getContextTokenEstimate(
+            contextManager: this.contextManager,
+            compactionStrategy: this.compactionStrategy,
             contributorContext,
-            tools
-        );
-        const compactedTokens = afterEstimate.estimated;
-        const compactedMessages = afterEstimate.stats.filteredMessageCount;
-
-        this.eventBus.emit('context:compacted', {
-            originalTokens,
-            compactedTokens,
-            originalMessages,
-            compactedMessages,
-            strategy: this.compactionStrategy.name,
-            reason: 'overflow',
+            tools,
+            persistence: this.sessionCompactionPersistence,
+            eventSink: createSessionCompactionEventSink(this.eventBus),
+            originalTokensOverride: originalTokens,
         });
 
-        this.logger.info(
-            `Compaction complete: ${originalTokens} → ~${compactedTokens} tokens ` +
-                `(${originalMessages} → ${compactedMessages} messages after filtering)`
-        );
-
-        return true;
+        return compaction !== null;
     }
 
     /**

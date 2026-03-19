@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { TextDecoder } from 'node:util';
 import type { StreamingEvent } from '@dexto/core';
+import type { CompactionStrategy } from '@dexto/core';
 import {
     createTestAgent,
     startTestServer,
@@ -10,11 +11,36 @@ import {
     validators,
 } from './test-fixtures.js';
 
+const testCompactionStrategy: CompactionStrategy = {
+    name: 'test-api-compaction',
+    getSettings: () => ({
+        enabled: true,
+        thresholdPercent: 0.9,
+    }),
+    getModelLimits: (modelContextWindow: number) => ({
+        contextWindow: modelContextWindow,
+    }),
+    shouldCompact: () => false,
+    compact: async () => [
+        {
+            role: 'assistant',
+            content: [{ type: 'text', text: 'Compacted summary' }],
+            timestamp: Date.now(),
+            metadata: {
+                isSummary: true,
+                originalMessageCount: 2,
+            },
+        },
+    ],
+};
+
 describe('Hono API Integration Tests', () => {
     let testServer: TestServer | undefined;
 
     beforeAll(async () => {
-        const agent = await createTestAgent();
+        const agent = await createTestAgent(undefined, {
+            compaction: testCompactionStrategy,
+        });
         testServer = await startTestServer(agent);
     }, 30000); // 30 second timeout for server startup
 
@@ -379,6 +405,183 @@ describe('Hono API Integration Tests', () => {
                 testServer.baseUrl,
                 'POST',
                 '/api/sessions/non-existent-parent/fork'
+            );
+            expect(res.status).toBe(404);
+        });
+
+        it('POST /api/sessions/:id/compact can seed a continuation child session', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = 'test-session-compact-child';
+
+            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId,
+            });
+
+            const session = await testServer.agent.getSession(sessionId);
+            if (!session) {
+                throw new Error(`Expected session '${sessionId}' to exist`);
+            }
+
+            const contextManager = session.getContextManager();
+            await contextManager.addMessage({
+                role: 'user',
+                content: [{ type: 'text', text: 'old request' }],
+            });
+            await contextManager.addMessage({
+                role: 'assistant',
+                content: [{ type: 'text', text: 'old response' }],
+            });
+            await contextManager.addMessage({
+                role: 'user',
+                content: [{ type: 'text', text: 'keep request' }],
+            });
+            await contextManager.addMessage({
+                role: 'assistant',
+                content: [{ type: 'text', text: 'keep response' }],
+            });
+
+            const compactRes = await httpRequest(
+                testServer.baseUrl,
+                'POST',
+                `/api/sessions/${sessionId}/compact`,
+                {
+                    mode: 'continue-in-child',
+                }
+            );
+
+            expect(compactRes.status).toBe(200);
+            const compaction = (
+                compactRes.body as {
+                    compaction: {
+                        id: string;
+                        mode: string;
+                        sourceSessionId: string;
+                        targetSessionId: string | null;
+                        summaryMessages: Array<{
+                            metadata?: {
+                                isSummary?: boolean;
+                                originalMessageCount?: number;
+                            };
+                        }>;
+                        continuationMessages: unknown[];
+                    } | null;
+                }
+            ).compaction;
+            expect(compaction).not.toBeNull();
+            expect(compaction?.mode).toBe('continue-in-child');
+            expect(compaction?.sourceSessionId).toBe(sessionId);
+            expect(compaction?.targetSessionId).toBeTruthy();
+            expect(compaction?.summaryMessages[0]?.metadata?.isSummary).toBe(true);
+            expect(compaction?.summaryMessages[0]?.metadata?.originalMessageCount).toBe(2);
+            expect(compaction?.continuationMessages.length).toBeGreaterThan(0);
+
+            const getCompactionRes = await httpRequest(
+                testServer.baseUrl,
+                'GET',
+                `/api/sessions/compactions/${compaction!.id}`
+            );
+            expect(getCompactionRes.status).toBe(200);
+            expect(
+                (
+                    getCompactionRes.body as {
+                        compaction: { id: string; targetSessionId: string | null };
+                    }
+                ).compaction.id
+            ).toBe(compaction?.id);
+
+            const childSessionId = compaction?.targetSessionId;
+            if (!childSessionId) {
+                throw new Error('Expected continuation child session ID');
+            }
+
+            const childDetailsRes = await httpRequest(
+                testServer.baseUrl,
+                'GET',
+                `/api/sessions/${childSessionId}`
+            );
+            expect(childDetailsRes.status).toBe(200);
+            expect(
+                (
+                    childDetailsRes.body as {
+                        session: { parentSessionId: string | null };
+                    }
+                ).session.parentSessionId
+            ).toBe(sessionId);
+        });
+
+        it('POST /api/sessions/:id/compact rejects invalid request bodies without compacting the session', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = 'test-session-compact-invalid-body';
+            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId,
+            });
+
+            const session = await testServer.agent.getSession(sessionId);
+            if (!session) {
+                throw new Error(`Expected session '${sessionId}' to exist`);
+            }
+
+            const contextManager = session.getContextManager();
+            await contextManager.addMessage({
+                role: 'user',
+                content: [{ type: 'text', text: 'old request' }],
+            });
+            await contextManager.addMessage({
+                role: 'assistant',
+                content: [{ type: 'text', text: 'old response' }],
+            });
+            await contextManager.addMessage({
+                role: 'user',
+                content: [{ type: 'text', text: 'keep request' }],
+            });
+            await contextManager.addMessage({
+                role: 'assistant',
+                content: [{ type: 'text', text: 'keep response' }],
+            });
+
+            const compactRes = await httpRequest(
+                testServer.baseUrl,
+                'POST',
+                `/api/sessions/${sessionId}/compact`,
+                {
+                    mode: 'bogus',
+                }
+            );
+
+            expect(compactRes.status).toBeGreaterThanOrEqual(400);
+
+            const history = await testServer.agent.getSessionHistory(sessionId);
+            expect(history).toHaveLength(4);
+            expect(history.some((message) => message.metadata?.isSummary === true)).toBe(false);
+        });
+
+        it('POST /api/sessions/:id/compact rejects malformed JSON bodies', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = 'test-session-compact-malformed-json';
+            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId,
+            });
+
+            const response = await fetch(
+                `${testServer.baseUrl}/api/sessions/${sessionId}/compact`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: '{"mode":"continue-in-child"',
+                }
+            );
+
+            expect(response.status).toBe(400);
+        });
+
+        it('GET /api/sessions/compactions/:id returns 404 when artifact is missing', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const res = await httpRequest(
+                testServer.baseUrl,
+                'GET',
+                '/api/sessions/compactions/missing-compaction'
             );
             expect(res.status).toBe(404);
         });

@@ -1,7 +1,12 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { SessionMetadata as CoreSessionMetadata } from '@dexto/core';
+import type {
+    SessionMetadata as CoreSessionMetadata,
+    SessionCompactionRecord as CoreSessionCompactionRecord,
+} from '@dexto/core';
 import {
     SessionMetadataSchema,
+    SessionCompactionModeSchema,
+    SessionCompactionSchema,
     InternalMessageSchema,
     StandardErrorEnvelopeSchema,
 } from '../schemas/responses.js';
@@ -12,6 +17,19 @@ const CreateSessionSchema = z
         sessionId: z.string().optional().describe('A custom ID for the new session'),
     })
     .describe('Request body for creating a new session');
+
+const CompactSessionSchema = z
+    .object({
+        mode: SessionCompactionModeSchema.optional().describe(
+            'Whether to persist the artifact only, update the current session in place, or seed a new child session'
+        ),
+        childTitle: z
+            .string()
+            .optional()
+            .describe('Optional title for a continuation child session'),
+    })
+    .strict()
+    .describe('Request body for compacting a session');
 
 function mapSessionMetadata(
     sessionId: string,
@@ -33,6 +51,22 @@ function mapSessionMetadata(
         title: metadata?.title ?? defaults?.title ?? null,
         workspaceId: metadata?.workspaceId ?? defaults?.workspaceId ?? null,
         parentSessionId: metadata?.parentSessionId ?? defaults?.parentSessionId ?? null,
+    };
+}
+
+function mapSessionCompaction(
+    compaction: CoreSessionCompactionRecord
+): z.output<typeof SessionCompactionSchema> {
+    // TODO: Improve type alignment between core and server schemas.
+    // Core's InternalMessage uses richer binary unions, but JSON responses
+    // serialize those values to strings at the API boundary.
+    return {
+        ...compaction,
+        targetSessionId: compaction.targetSessionId ?? null,
+        summaryMessages: compaction.summaryMessages as z.output<typeof InternalMessageSchema>[],
+        continuationMessages: compaction.continuationMessages as z.output<
+            typeof InternalMessageSchema
+        >[],
     };
 }
 
@@ -161,6 +195,89 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                         schema: StandardErrorEnvelopeSchema,
                     },
                 },
+            },
+        },
+    });
+
+    const compactRoute = createRoute({
+        method: 'post',
+        path: '/sessions/{sessionId}/compact',
+        summary: 'Compact Session',
+        description:
+            'Generates a persisted compaction artifact for a session and can optionally apply it in place or seed a new child session.',
+        tags: ['sessions'],
+        request: {
+            params: z.object({
+                sessionId: z.string().describe('Source session identifier'),
+            }),
+            body: {
+                content: {
+                    'application/json': {
+                        schema: CompactSessionSchema,
+                    },
+                },
+                required: false,
+            },
+        },
+        responses: {
+            200: {
+                description:
+                    'Compaction result. Returns null when the session was too short or nothing needed compaction.',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                compaction: SessionCompactionSchema.nullable(),
+                            })
+                            .strict(),
+                    },
+                },
+            },
+            400: {
+                description: 'Invalid compaction request',
+                content: {
+                    'application/json': {
+                        schema: StandardErrorEnvelopeSchema,
+                    },
+                },
+            },
+            404: {
+                description: 'Source session not found',
+                content: {
+                    'application/json': {
+                        schema: StandardErrorEnvelopeSchema,
+                    },
+                },
+            },
+        },
+    });
+
+    const getCompactionRoute = createRoute({
+        method: 'get',
+        path: '/sessions/compactions/{compactionId}',
+        summary: 'Get Session Compaction',
+        description: 'Retrieves a previously persisted session compaction artifact.',
+        tags: ['sessions'],
+        request: {
+            params: z.object({
+                compactionId: z.string().describe('Compaction artifact identifier'),
+            }),
+        },
+        responses: {
+            200: {
+                description: 'Persisted session compaction artifact',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                compaction: SessionCompactionSchema,
+                            })
+                            .strict(),
+                    },
+                },
+            },
+            404: {
+                description: 'Compaction artifact not found',
             },
         },
     });
@@ -434,6 +551,38 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                 },
                 201
             );
+        })
+        .openapi(compactRoute, async (ctx) => {
+            const agent = await getAgent(ctx);
+            const { sessionId } = ctx.req.valid('param');
+            const body: z.input<typeof CompactSessionSchema> | undefined =
+                ctx.req.raw.body === null ? undefined : ctx.req.valid('json');
+
+            const compaction = await agent.compactSession({
+                sessionId,
+                trigger: 'api',
+                ...(body?.mode !== undefined && { mode: body.mode }),
+                ...(body?.childTitle !== undefined && { childTitle: body.childTitle }),
+            });
+
+            return ctx.json(
+                {
+                    compaction: compaction ? mapSessionCompaction(compaction) : null,
+                },
+                200
+            );
+        })
+        .openapi(getCompactionRoute, async (ctx) => {
+            const agent = await getAgent(ctx);
+            const { compactionId } = ctx.req.valid('param');
+            const compaction = await agent.getSessionCompaction(compactionId);
+            if (!compaction) {
+                return ctx.json({ error: 'Compaction not found' }, 404);
+            }
+
+            return ctx.json({
+                compaction: mapSessionCompaction(compaction),
+            });
         })
         .openapi(getRoute, async (ctx) => {
             const agent = await getAgent(ctx);
