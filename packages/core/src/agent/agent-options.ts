@@ -56,6 +56,12 @@ export interface DextoAgentOptions {
      */
     toolkitLoader?: ToolkitLoader | undefined;
 
+    /**
+     * Available toolkit factory types from the resolved image.
+     * Used for discovery (e.g., creator-tools cataloging non-loaded toolkits).
+     */
+    availableToolkitTypes?: string[] | undefined;
+
     /** Concrete hooks installed for the agent (DI-first). */
     hooks?: Hook[] | undefined;
 

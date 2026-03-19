@@ -29,6 +29,7 @@ export function toDextoAgentOptions(options: ToDextoAgentOptionsInput): DextoAge
         storage: services.storage,
         tools: services.tools,
         toolkitLoader: services.toolkitLoader,
+        availableToolkitTypes: services.availableToolkitTypes,
         hooks: services.hooks,
         compaction: services.compaction,
         ...(overrides ? { overrides } : {}),

@@ -20,6 +20,7 @@ import {
 } from './schemas.js';
 import { getDextoGlobalPath } from '../../utils/path.js';
 import { z } from 'zod';
+import { serverRegistry } from '@dexto/registry';
 
 /**
  * Creator tools handle SKILL.md lifecycle with guardrails beyond raw file writes:
@@ -112,6 +113,30 @@ const ToolCatalogInputSchema = z
     })
     .strict();
 
+const McpRegistryCatalogInputSchema = z
+    .object({
+        query: z
+            .string()
+            .optional()
+            .describe('Optional search term to filter MCP servers by name, description, or tags'),
+        category: z.string().optional().describe('Optional MCP server category filter'),
+        tags: z.array(z.string().min(1)).optional().describe('Optional MCP server tag filters'),
+        official: z.boolean().optional().describe('Filter by official MCP servers'),
+        installed: z.boolean().optional().describe('Filter by installed MCP servers'),
+        limit: z
+            .number()
+            .int()
+            .min(1)
+            .max(500)
+            .optional()
+            .describe('Maximum number of MCP servers to return (defaults to all).'),
+        includeConfig: z
+            .boolean()
+            .optional()
+            .describe('Include MCP server config details (defaults to false).'),
+    })
+    .strict();
+
 type SkillSearchEntry = {
     id: string;
     name: string;
@@ -126,6 +151,17 @@ type ToolCatalogEntry = {
     id: string;
     description?: string;
     source: 'local' | 'mcp';
+};
+
+type McpRegistryCatalogEntry = {
+    id: string;
+    name: string;
+    description: string;
+    category: string;
+    tags: string[];
+    isOfficial: boolean;
+    isInstalled: boolean;
+    config?: unknown;
 };
 
 function normalizeSkillQuery(value: string): string {
@@ -565,7 +601,7 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
         const toolCatalogTool = defineTool({
             id: 'tool_catalog',
             description:
-                'List available tools and configured toolkits for the current agent (from the loaded image/config).',
+                'List available tools and toolkit factory types for the current agent (runtime tools + image toolkits).',
             inputSchema: ToolCatalogInputSchema,
             execute: async (input, context) => {
                 const agent = context.agent;
@@ -606,10 +642,54 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                     count: limited.length,
                     total: tools.length,
                     tools: limited,
+                    toolkitsAvailable: [...agent.getAvailableToolkitTypes()].sort(),
                     _hint:
                         limited.length > 0
-                            ? 'Use tool ids in allowed-tools. Use toolkits from the agent config or image defaults.'
+                            ? 'Use tool ids in allowed-tools. Use toolkitsAvailable entries in skill frontmatter toolkits.'
                             : 'No tools matched the query.',
+                };
+            },
+        });
+
+        const mcpRegistryCatalogTool = defineTool({
+            id: 'mcp_registry_catalog',
+            description:
+                'Discover MCP server presets (including non-connected entries) from the MCP registry.',
+            inputSchema: McpRegistryCatalogInputSchema,
+            execute: async (input) => {
+                const entries = await serverRegistry.getEntries({
+                    ...(input.category !== undefined && { category: input.category }),
+                    ...(input.tags !== undefined && { tags: input.tags }),
+                    ...(input.query !== undefined && { search: input.query }),
+                    ...(input.installed !== undefined && { installed: input.installed }),
+                    ...(input.official !== undefined && { official: input.official }),
+                });
+
+                const includeConfig = input.includeConfig === true;
+                let servers: McpRegistryCatalogEntry[] = entries.map((entry) => ({
+                    id: entry.id,
+                    name: entry.name,
+                    description: entry.description,
+                    category: entry.category,
+                    tags: [...entry.tags],
+                    isOfficial: entry.isOfficial,
+                    isInstalled: entry.isInstalled,
+                    ...(includeConfig ? { config: entry.config } : {}),
+                }));
+
+                servers.sort((a, b) => a.name.localeCompare(b.name));
+                const limited =
+                    typeof input.limit === 'number' ? servers.slice(0, input.limit) : servers;
+
+                return {
+                    query: input.query?.trim(),
+                    count: limited.length,
+                    total: servers.length,
+                    servers: limited,
+                    _hint:
+                        limited.length > 0
+                            ? 'Use server ids to configure MCP-aware skills. Runtime invocation can connect servers as needed.'
+                            : 'No MCP registry servers matched the query.',
                 };
             },
         });
@@ -620,6 +700,7 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
             skill_search: () => skillSearchTool,
             skill_list: () => skillListTool,
             tool_catalog: () => toolCatalogTool,
+            mcp_registry_catalog: () => mcpRegistryCatalogTool,
         };
 
         return enabledTools.map((toolName) => toolCreators[toolName]());

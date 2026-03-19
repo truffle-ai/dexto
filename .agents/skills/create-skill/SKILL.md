@@ -2,7 +2,7 @@
 name: "create-skill"
 description: "Create a new standalone skill (SKILL.md) using creator-tools, including toolkits and allowed tools."
 toolkits: ["creator-tools"]
-allowed-tools: ["skill_create", "skill_update", "skill_search", "skill_list", "tool_catalog", "invoke_skill"]
+allowed-tools: ["skill_create", "skill_update", "skill_search", "skill_list", "tool_catalog", "mcp_registry_catalog", "invoke_skill"]
 ---
 
 # Create Skill
@@ -43,18 +43,24 @@ You help the user create a new standalone skill using the `skill_create` tool. B
 
 If the user asks which toolkits can be referenced:
 
-1. Use `tool_catalog` to list available tool ids for this agent.
-2. If the user needs toolkit info, check the agent image defaults and tools list. For the coding agent, inspect `packages/image-local/src/index.ts` and `agents/coding-agent/coding-agent.yml`.
-3. If needed, list available tool factories in `packages/agent-management/src/tool-factories`.
+1. Use `tool_catalog` and read `toolkitsAvailable` to enumerate toolkit factory types that can be referenced in skill frontmatter.
+2. Use `tool_catalog` `tools` output to show currently runtime-available tool ids for this agent.
+3. If the user needs deeper implementation details, check the agent image defaults and tools list. For the coding agent, inspect `packages/image-local/src/index.ts` and `agents/coding-agent/coding-agent.yml`.
 
-## Listing Tools
+## Listing Tools and MCP Servers
 
 If the user asks which tools can be allowed in `allowedTools`:
 
-1. Use `tool_catalog` to list available tool ids (includes MCP tools with `mcp--` prefix).
-2. If needed, check the active agent config to see enabled tool factories. In this repo, the coding agent config is `agents/coding-agent/coding-agent.yml`.
-3. If needed, list tool IDs directly from code using a ripgrep search, for example: `rg -n "id: '" packages/tools-* packages/tools-builtins`.
-4. If you cannot confidently enumerate tool IDs, ask the user which tools they want to allow instead of guessing.
+1. Use `tool_catalog` to list available tool ids (includes currently loaded MCP tools with `mcp--` prefix).
+2. Use `tool_catalog` `toolkitsAvailable` to suggest toolkits that can be loaded at invoke time even when tools are not currently loaded.
+3. If needed, check the active agent config to see enabled tool factories. In this repo, the coding agent config is `agents/coding-agent/coding-agent.yml`.
+4. If needed, list tool IDs directly from code using a ripgrep search, for example: `rg -n "id: '" packages/tools-* packages/tools-builtins`.
+5. If you cannot confidently enumerate tool IDs, ask the user which tools they want to allow instead of guessing.
+
+If the user asks which MCP servers can be used for a skill:
+
+1. Use `mcp_registry_catalog` to discover MCP server presets (including non-connected ones).
+2. Explain that registry entries can be referenced by id for skill design, while runtime invocation may still require credentials/config to connect successfully.
 
 ## Notes
 
