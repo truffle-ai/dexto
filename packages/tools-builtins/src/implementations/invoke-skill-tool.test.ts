@@ -7,11 +7,10 @@ function createPromptInfo(): PromptInfo {
         name: 'echo-custom-mcp',
         displayName: 'echo-custom-mcp',
         commandName: 'echo-custom-mcp',
-        source: {
-            type: 'file',
-            file: '/tmp/skills/echo-custom-mcp/SKILL.md',
-        },
+        source: 'config',
         metadata: {
+            type: 'file',
+            filePath: '/tmp/skills/echo-custom-mcp/SKILL.md',
             mcpServers: {
                 skill_echo_demo: {
                     type: 'stdio',
@@ -20,7 +19,7 @@ function createPromptInfo(): PromptInfo {
                 },
             },
         },
-    } as unknown as PromptInfo;
+    };
 }
 
 describe('invoke_skill tool', () => {
@@ -87,6 +86,53 @@ describe('invoke_skill tool', () => {
         expect(result).toMatchObject({
             skill: 'config:echo-custom-mcp',
             content: 'Use the bundled echo MCP tool.',
+        });
+    });
+
+    it('does not connect bundled MCP servers when fork execution is unavailable', async () => {
+        const promptInfo = createPromptInfo();
+        const promptManager = {
+            listAutoInvocablePrompts: vi
+                .fn()
+                .mockResolvedValue({ 'config:echo-custom-mcp': promptInfo }),
+            getPromptDefinition: vi.fn().mockResolvedValue({
+                name: 'echo-custom-mcp',
+                context: 'fork',
+            }),
+            getPrompt: vi.fn(),
+        };
+
+        const addMcpServer = vi.fn();
+        const enableMcpServer = vi.fn();
+        const getMcpServerStatus = vi.fn();
+
+        const tool = createInvokeSkillTool();
+        const result = await tool.execute(
+            {
+                skill: 'echo-custom-mcp',
+            },
+            {
+                logger: {
+                    warn: vi.fn(),
+                },
+                services: {
+                    prompts: promptManager,
+                },
+                agent: {
+                    addMcpServer,
+                    getMcpServerStatus,
+                    enableMcpServer,
+                },
+            } as unknown as ToolExecutionContext
+        );
+
+        expect(addMcpServer).not.toHaveBeenCalled();
+        expect(enableMcpServer).not.toHaveBeenCalled();
+        expect(getMcpServerStatus).not.toHaveBeenCalled();
+        expect(promptManager.getPrompt).not.toHaveBeenCalled();
+        expect(result).toEqual({
+            error: "Skill 'echo-custom-mcp' requires fork execution (context: fork), but agent spawning is not available.",
+            skill: 'config:echo-custom-mcp',
         });
     });
 });

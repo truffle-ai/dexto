@@ -117,12 +117,20 @@ export function createInvokeSkillTool(): Tool<typeof InvokeSkillInputSchema> {
                 }
             }
 
+            const promptDef = await promptManager.getPromptDefinition(skillKey);
+            const taskForker = context.services?.taskForker;
+
+            if (promptDef?.context === 'fork' && !taskForker) {
+                return {
+                    error: `Skill '${skill}' requires fork execution (context: fork), but agent spawning is not available.`,
+                    skill: skillKey,
+                };
+            }
+
             const skillMcpError = await ensureSkillMcpServersConnected(skill, matchedInfo, context);
             if (skillMcpError) {
                 return skillMcpError;
             }
-
-            const promptDef = await promptManager.getPromptDefinition(skillKey);
 
             if (
                 promptDef?.context !== 'fork' &&
@@ -149,8 +157,8 @@ export function createInvokeSkillTool(): Tool<typeof InvokeSkillInputSchema> {
             const content = flattened.text;
 
             if (promptDef?.context === 'fork') {
-                const taskForker = context.services?.taskForker;
-                if (!taskForker) {
+                const activeTaskForker = taskForker;
+                if (!activeTaskForker) {
                     return {
                         error: `Skill '${skill}' requires fork execution (context: fork), but agent spawning is not available.`,
                         skill: skillKey,
@@ -176,7 +184,7 @@ export function createInvokeSkillTool(): Tool<typeof InvokeSkillInputSchema> {
                     forkOptions.sessionId = context.sessionId;
                 }
 
-                const result = await taskForker.fork(forkOptions);
+                const result = await activeTaskForker.fork(forkOptions);
 
                 if (result.success) {
                     return result.response ?? 'Task completed successfully.';
