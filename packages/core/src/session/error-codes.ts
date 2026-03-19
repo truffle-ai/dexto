@@ -13,4 +13,7 @@ export enum SessionErrorCode {
 
     // Session operations
     SESSION_RESET_FAILED = 'session_reset_failed',
+
+    // Session compaction
+    SESSION_COMPACTION_INVALID_OUTPUT = 'session_compaction_invalid_output',
 }

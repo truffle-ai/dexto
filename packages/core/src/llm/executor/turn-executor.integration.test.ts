@@ -837,6 +837,7 @@ describe('TurnExecutor Integration Tests', () => {
                     id: 'unused-child-session',
                 })),
                 deleteSession: vi.fn(async () => undefined),
+                deleteSessionCompaction: vi.fn(async () => undefined),
                 saveSessionCompaction: vi.fn(async (compaction) => {
                     savedCompactions.push(compaction);
                 }),
@@ -961,6 +962,7 @@ describe('TurnExecutor Integration Tests', () => {
                     id: 'unused-child-session',
                 })),
                 deleteSession: vi.fn(async () => undefined),
+                deleteSessionCompaction: vi.fn(async () => undefined),
                 saveSessionCompaction: vi.fn(async () => {
                     throw new Error('persist failed');
                 }),

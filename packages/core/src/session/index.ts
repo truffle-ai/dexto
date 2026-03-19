@@ -10,7 +10,7 @@ export {
     type SessionCompactionTrigger,
 } from './compaction.js';
 export { SessionErrorCode } from './error-codes.js';
-export { SessionError } from './errors.js';
+export { SessionError, SessionCompactionError } from './errors.js';
 export { MessageQueueService } from './message-queue.js';
 export type { UserMessageInput } from './message-queue.js';
 export type { QueuedMessage, CoalescedMessage } from './types.js';

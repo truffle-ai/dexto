@@ -256,6 +256,21 @@ describe('DextoAgent session compaction integration', () => {
         ).rejects.toThrow('childTitle is only supported when mode is "continue-in-child"');
     });
 
+    it('rejects non-string childTitle values for direct SDK consumers', async () => {
+        const sessionId = 'compact-child-title-type-invalid';
+        await addSeedHistory(agent, sessionId);
+
+        await expect(
+            Reflect.apply(agent.compactSession, agent, [
+                {
+                    sessionId,
+                    mode: 'continue-in-child',
+                    childTitle: 123,
+                },
+            ])
+        ).rejects.toThrow('childTitle must be a string when provided');
+    });
+
     it('does not mutate the source session when artifact persistence fails in continue-in-place mode', async () => {
         const sessionId = 'compact-in-place-save-failure';
         await addSeedHistory(agent, sessionId);
@@ -277,6 +292,63 @@ describe('DextoAgent session compaction integration', () => {
         expect(filterCompacted(history)).toHaveLength(4);
 
         saveSpy.mockRestore();
+    });
+
+    it('rolls back the persisted artifact when in-place compaction apply fails', async () => {
+        const sessionId = 'compact-in-place-apply-failure';
+        await addSeedHistory(agent, sessionId);
+
+        const session = await agent.getSession(sessionId);
+        if (!session) {
+            throw new Error(`Expected session '${sessionId}' to exist`);
+        }
+
+        const contextManager = session.getContextManager();
+        const originalAddMessage = contextManager.addMessage.bind(contextManager);
+        const addMessageSpy = vi
+            .spyOn(contextManager, 'addMessage')
+            .mockImplementation(async (message) => {
+                if (
+                    message.metadata?.isSummary === true ||
+                    message.metadata?.isSessionSummary === true
+                ) {
+                    throw new Error('apply failed');
+                }
+
+                await originalAddMessage(message);
+            });
+
+        const originalSaveSessionCompaction = agent.sessionManager.saveSessionCompaction.bind(
+            agent.sessionManager
+        );
+        let persistedCompactionId: string | undefined;
+        const saveSpy = vi
+            .spyOn(agent.sessionManager, 'saveSessionCompaction')
+            .mockImplementation(async (compaction) => {
+                persistedCompactionId = compaction.id;
+                await originalSaveSessionCompaction(compaction);
+            });
+
+        await expect(
+            agent.compactSession({
+                sessionId,
+                mode: 'continue-in-place',
+                trigger: 'manual',
+            })
+        ).rejects.toThrow('apply failed');
+
+        if (!persistedCompactionId) {
+            throw new Error('Expected compaction artifact to be persisted before apply failure');
+        }
+
+        expect(await agent.getSessionCompaction(persistedCompactionId)).toBeUndefined();
+
+        const history = await agent.getSessionHistory(sessionId);
+        expect(history).toHaveLength(4);
+        expect(filterCompacted(history)).toHaveLength(4);
+
+        saveSpy.mockRestore();
+        addMessageSpy.mockRestore();
     });
 
     it('rolls back the child session when artifact persistence fails in continue-in-child mode', async () => {
@@ -370,5 +442,45 @@ describe('DextoAgent session compaction integration', () => {
         expect(history.some((message) => message.metadata?.isSummary === true)).toBe(false);
 
         getCompactionStrategySpy.mockRestore();
+    });
+
+    it('rejects repeated compaction artifacts that do not advance past the latest summary boundary', async () => {
+        const sessionId = 'compact-stale-boundary-invalid';
+        await addSeedHistory(agent, sessionId);
+
+        await agent.compactSession({
+            sessionId,
+            mode: 'continue-in-place',
+            trigger: 'manual',
+        });
+
+        const session = await agent.getSession(sessionId);
+        if (!session) {
+            throw new Error(`Expected session '${sessionId}' to exist`);
+        }
+
+        const contextManager = session.getContextManager();
+        await contextManager.addMessage({
+            role: 'user',
+            content: [{ type: 'text', text: 'follow-up request' }],
+        });
+        await contextManager.addMessage({
+            role: 'assistant',
+            content: [{ type: 'text', text: 'follow-up response' }],
+        });
+
+        await expect(
+            agent.compactSession({
+                sessionId,
+                mode: 'artifact-only',
+                trigger: 'scheduled',
+            })
+        ).rejects.toThrow(
+            'must advance metadata.originalMessageCount beyond the latest existing summary boundary'
+        );
+
+        const history = await agent.getSessionHistory(sessionId);
+        expect(history).toHaveLength(7);
+        expect(history.filter((message) => message.metadata?.isSummary === true)).toHaveLength(1);
     });
 });

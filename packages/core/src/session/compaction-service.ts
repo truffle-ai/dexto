@@ -7,13 +7,12 @@ import type { AgentEventBus, SessionEventBus } from '../events/index.js';
 import type { DynamicContributorContext } from '../systemPrompt/types.js';
 import type { ToolSet } from '../tools/types.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
-import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
-import { ErrorType } from '../errors/types.js';
 import type {
     SessionCompactionMode,
     SessionCompactionRecord,
     SessionCompactionTrigger,
 } from './compaction.js';
+import { SessionCompactionError } from './errors.js';
 
 interface SessionCompactionContextManager {
     getHistory(): Promise<readonly InternalMessage[]>;
@@ -42,6 +41,7 @@ export interface SessionCompactionPersistence {
         id: string;
     }>;
     deleteSession(sessionId: string): Promise<void>;
+    deleteSessionCompaction(compactionId: string): Promise<void>;
     saveSessionCompaction(compaction: SessionCompactionRecord): Promise<void>;
 }
 
@@ -149,7 +149,7 @@ export async function runSessionCompaction(
     const summaryMessages = rawSummaryMessages.map(normalizeCompactionMessage);
     const originalMessageCount = resolveSummaryBoundary(
         summaryMessages,
-        history.length,
+        history,
         input.compactionStrategy.name
     );
     const continuationMessages = [
@@ -215,9 +215,28 @@ export async function runSessionCompaction(
     }
 
     if (input.mode === 'continue-in-place') {
-        for (const summary of summaryMessages) {
-            await input.contextManager.addMessage(cloneCompactionMessage(summary));
+        try {
+            for (const summary of summaryMessages) {
+                await input.contextManager.addMessage(cloneCompactionMessage(summary));
+            }
+        } catch (error) {
+            try {
+                await input.persistence.deleteSessionCompaction(compaction.id);
+                input.logger.warn(
+                    `Rolled back compaction artifact ${compaction.id} after in-place compaction apply failure`
+                );
+            } catch (rollbackError) {
+                input.logger.error(
+                    `Failed to roll back compaction artifact ${compaction.id} after in-place compaction apply failure: ${
+                        rollbackError instanceof Error
+                            ? rollbackError.message
+                            : String(rollbackError)
+                    }`
+                );
+            }
+            throw error;
         }
+
         // The formula (lastInput + lastOutput + newEstimate) is no longer valid after compaction.
         input.contextManager.resetActualTokenTracking();
     }
@@ -406,20 +425,12 @@ function cloneBinaryPayload(
 
 function resolveSummaryBoundary(
     summaryMessages: readonly InternalMessage[],
-    historyLength: number,
+    history: readonly InternalMessage[],
     strategyName: string
 ): number {
+    const historyLength = history.length;
     if (summaryMessages.length !== 1) {
-        throw new DextoRuntimeError(
-            'invalid_compaction_output',
-            'system',
-            ErrorType.SYSTEM,
-            `Compaction strategy '${strategyName}' must return exactly one summary message for session-level compaction`,
-            {
-                strategy: strategyName,
-                summaryMessageCount: summaryMessages.length,
-            }
-        );
+        throw SessionCompactionError.invalidSummaryCount(strategyName, summaryMessages.length);
     }
 
     const [summaryMessage] = summaryMessages;
@@ -427,15 +438,7 @@ function resolveSummaryBoundary(
         summaryMessage?.metadata?.isSummary !== true &&
         summaryMessage?.metadata?.isSessionSummary !== true
     ) {
-        throw new DextoRuntimeError(
-            'invalid_compaction_output',
-            'system',
-            ErrorType.SYSTEM,
-            `Compaction strategy '${strategyName}' must mark its summary message with metadata.isSummary or metadata.isSessionSummary`,
-            {
-                strategy: strategyName,
-            }
-        );
+        throw SessionCompactionError.missingSummaryMarker(strategyName);
     }
 
     const rawOriginalMessageCount = summaryMessage.metadata?.originalMessageCount;
@@ -445,20 +448,34 @@ function resolveSummaryBoundary(
         rawOriginalMessageCount < 0 ||
         rawOriginalMessageCount > historyLength
     ) {
-        throw new DextoRuntimeError(
-            'invalid_compaction_output',
-            'system',
-            ErrorType.SYSTEM,
-            `Compaction strategy '${strategyName}' must provide a valid metadata.originalMessageCount within the current history bounds`,
-            {
-                strategy: strategyName,
-                originalMessageCount: rawOriginalMessageCount,
-                historyLength,
-            }
+        throw SessionCompactionError.invalidOriginalMessageCount(
+            strategyName,
+            rawOriginalMessageCount,
+            historyLength
+        );
+    }
+
+    const latestSummaryIndex = findLatestSummaryIndex(history);
+    if (latestSummaryIndex !== -1 && rawOriginalMessageCount <= latestSummaryIndex) {
+        throw SessionCompactionError.staleSummaryBoundary(
+            strategyName,
+            rawOriginalMessageCount,
+            latestSummaryIndex
         );
     }
 
     return rawOriginalMessageCount;
+}
+
+function findLatestSummaryIndex(history: readonly InternalMessage[]): number {
+    for (let i = history.length - 1; i >= 0; i--) {
+        const message = history[i];
+        if (message?.metadata?.isSummary === true || message?.metadata?.isSessionSummary === true) {
+            return i;
+        }
+    }
+
+    return -1;
 }
 
 function toCompactionReason(trigger: SessionCompactionTrigger): 'overflow' | 'manual' {

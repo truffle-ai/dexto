@@ -345,6 +345,12 @@ export class SessionManager {
         await this.services.storageManager.getDatabase().set(key, compaction);
     }
 
+    public async deleteSessionCompaction(compactionId: string): Promise<void> {
+        await this.ensureInitialized();
+        const key = `${SessionManager.SESSION_COMPACTION_KEY_PREFIX}${compactionId}`;
+        await this.services.storageManager.getDatabase().delete(key);
+    }
+
     public async getSessionCompaction(
         compactionId: string
     ): Promise<SessionCompactionRecord | undefined> {

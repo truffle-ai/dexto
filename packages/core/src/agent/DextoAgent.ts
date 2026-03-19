@@ -1918,6 +1918,10 @@ export class DextoAgent {
             );
         }
 
+        if (input.childTitle !== undefined && typeof input.childTitle !== 'string') {
+            throw AgentError.apiValidationError('childTitle must be a string when provided');
+        }
+
         if (input.childTitle !== undefined && mode !== 'continue-in-child') {
             throw AgentError.apiValidationError(
                 'childTitle is only supported when mode is "continue-in-child"'

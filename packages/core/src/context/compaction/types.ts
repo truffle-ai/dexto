@@ -62,7 +62,14 @@ export type CompactionStrategy = {
      * - `isRecompaction: true` - Set when re-compacting after a previous summary
      * - `isSessionSummary: true` - Alternative to isSummary for session-level summaries
      *
-     * @param history The current conversation history.
+     * The `history` provided here is the stored session transcript, including any
+     * prior compaction summary markers that are still persisted in history.
+     *
+     * For repeated compaction runs, `metadata.originalMessageCount` must remain
+     * absolute against this stored transcript so read-time filtering can resolve
+     * the latest boundary correctly.
+     *
+     * @param history The current stored conversation history.
      * @param context Per-session runtime context (model/logger/sessionId)
      * @returns Summary messages to add to history. Empty array if nothing to compact.
      */

@@ -73,3 +73,69 @@ export class SessionError {
         );
     }
 }
+
+/**
+ * Session compaction error factory for invalid strategy output and lifecycle invariants.
+ */
+export class SessionCompactionError {
+    static invalidSummaryCount(strategy: string, summaryMessageCount: number) {
+        return new DextoRuntimeError(
+            SessionErrorCode.SESSION_COMPACTION_INVALID_OUTPUT,
+            ErrorScope.SESSION,
+            ErrorType.SYSTEM,
+            `Compaction strategy '${strategy}' must return exactly one summary message for session-level compaction`,
+            {
+                strategy,
+                summaryMessageCount,
+            }
+        );
+    }
+
+    static missingSummaryMarker(strategy: string) {
+        return new DextoRuntimeError(
+            SessionErrorCode.SESSION_COMPACTION_INVALID_OUTPUT,
+            ErrorScope.SESSION,
+            ErrorType.SYSTEM,
+            `Compaction strategy '${strategy}' must mark its summary message with metadata.isSummary or metadata.isSessionSummary`,
+            {
+                strategy,
+            }
+        );
+    }
+
+    static invalidOriginalMessageCount(
+        strategy: string,
+        originalMessageCount: unknown,
+        historyLength: number
+    ) {
+        return new DextoRuntimeError(
+            SessionErrorCode.SESSION_COMPACTION_INVALID_OUTPUT,
+            ErrorScope.SESSION,
+            ErrorType.SYSTEM,
+            `Compaction strategy '${strategy}' must provide a valid metadata.originalMessageCount within the current history bounds`,
+            {
+                strategy,
+                originalMessageCount,
+                historyLength,
+            }
+        );
+    }
+
+    static staleSummaryBoundary(
+        strategy: string,
+        originalMessageCount: number,
+        latestSummaryIndex: number
+    ) {
+        return new DextoRuntimeError(
+            SessionErrorCode.SESSION_COMPACTION_INVALID_OUTPUT,
+            ErrorScope.SESSION,
+            ErrorType.SYSTEM,
+            `Compaction strategy '${strategy}' must advance metadata.originalMessageCount beyond the latest existing summary boundary for session-level compaction`,
+            {
+                strategy,
+                originalMessageCount,
+                latestSummaryIndex,
+            }
+        );
+    }
+}
