@@ -153,11 +153,10 @@ export async function runSessionCompaction(
         compactionWindow.workingHistory.length,
         input.compactionStrategy.name
     );
-    const preservedWorkingMessages = compactionWindow.workingHistory
-        .slice(preserveFromWorkingIndex)
-        .map(normalizeCompactionMessage);
+    const preservedSourceMessages = compactionWindow.workingHistory.slice(preserveFromWorkingIndex);
+    const preservedWorkingMessages = preservedSourceMessages.map(normalizeCompactionMessage);
     const preservedMessageIds = resolvePreservedMessageIds(
-        preservedWorkingMessages,
+        input.mode === 'continue-in-place' ? preservedSourceMessages : preservedWorkingMessages,
         input.compactionStrategy.name
     );
     const summaryMessages = compactionResult.summaryMessages.map((summaryMessage) =>

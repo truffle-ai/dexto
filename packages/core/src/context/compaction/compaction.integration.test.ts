@@ -166,7 +166,12 @@ describe('Context Compaction Integration Tests', () => {
 
         const preservedMessageIds = compactionWindow.workingHistory
             .slice(result.preserveFromWorkingIndex)
-            .flatMap((message) => (message.id ? [message.id] : []));
+            .map((message) => {
+                if (!message.id) {
+                    throw new Error('Expected preserved working message to have a stable id');
+                }
+                return message.id;
+            });
         const summary = {
             ...result.summaryMessages[0]!,
             metadata: {
@@ -341,17 +346,18 @@ describe('Context Compaction Integration Tests', () => {
             expect(summary).toBeNull();
         });
 
-        it('should not re-compact if few messages after existing summary', async () => {
+        it('should re-compact when a working-memory prefix is still eligible', async () => {
             // First compaction
             await addMessages(10);
             await runCompaction();
 
-            // Add only 2 messages (4 messages = 2 turns, below threshold)
+            // Add only 2 turns. The strategy can still compact the carried-forward
+            // working-memory prefix when manual/session compaction is invoked again.
             await addMessages(2);
 
-            // Should skip re-compaction
             const summary2 = await runCompaction();
-            expect(summary2).toBeNull();
+            expect(summary2).not.toBeNull();
+            expect(summary2?.metadata?.isRecompaction).toBe(true);
         });
 
         it('should handle compaction through prepareHistory flow', async () => {

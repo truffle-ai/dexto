@@ -141,7 +141,6 @@ export class ReactiveOverflowCompactionStrategy implements CompactionStrategy {
 
         const { model, logger } = context;
         const workingHistory = window.workingHistory;
-        const freshHistory = window.freshHistory;
 
         // Don't compact if history is too short
         if (workingHistory.length <= 2) {
@@ -151,15 +150,14 @@ export class ReactiveOverflowCompactionStrategy implements CompactionStrategy {
             return null;
         }
 
-        if (window.latestSummary && freshHistory.length <= 4) {
+        // Split working history into messages to summarize and messages to keep
+        const { toSummarize, toKeep } = this.splitHistory(workingHistory);
+        if (window.latestSummary && toSummarize.length === 0) {
             logger.debug(
-                `ReactiveOverflowCompactionStrategy: Only ${freshHistory.length} fresh message(s) after latest summary, skipping re-compaction`
+                'ReactiveOverflowCompactionStrategy: No working-history prefix is eligible for re-compaction'
             );
             return null;
         }
-
-        // Split working history into messages to summarize and messages to keep
-        const { toSummarize, toKeep } = this.splitHistory(workingHistory);
 
         // If nothing to summarize, return empty (no summary needed)
         if (toSummarize.length === 0) {

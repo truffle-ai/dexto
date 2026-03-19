@@ -32,6 +32,8 @@ import {
     LLM_PRICING_STATUSES,
     LLMConfigBaseSchema as CoreLLMConfigBaseSchema,
     LLM_PROVIDERS,
+    SESSION_COMPACTION_MODES,
+    SESSION_COMPACTION_TRIGGERS,
 } from '@dexto/core';
 
 // TODO: Implement shared error response schemas for OpenAPI documentation.
@@ -427,11 +429,11 @@ export type SessionUsageTracking = z.output<typeof SessionUsageTrackingSchema>;
 export type SessionMetadata = z.output<typeof SessionMetadataSchema>;
 
 export const SessionCompactionModeSchema = z
-    .enum(['artifact-only', 'continue-in-place', 'continue-in-child'])
+    .enum(SESSION_COMPACTION_MODES)
     .describe('How the compaction artifact should be applied');
 
 export const SessionCompactionTriggerSchema = z
-    .enum(['manual', 'api', 'scheduled', 'overflow'])
+    .enum(SESSION_COMPACTION_TRIGGERS)
     .describe('Why the compaction was triggered');
 
 export const SessionCompactionSchema = z

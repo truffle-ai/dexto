@@ -480,4 +480,45 @@ describe('DextoAgent session compaction integration', () => {
 
         getCompactionStrategySpy.mockRestore();
     });
+
+    it('rejects continue-in-place compaction when preserved source messages lack stable ids', async () => {
+        const sessionId = 'compact-in-place-missing-preserved-id';
+        await addSeedHistory(agent, sessionId);
+
+        const session = await agent.getSession(sessionId);
+        if (!session) {
+            throw new Error(`Expected session '${sessionId}' to exist`);
+        }
+
+        const contextManager = session.getContextManager();
+        const originalGetHistory = contextManager.getHistory.bind(contextManager);
+        const getHistorySpy = vi
+            .spyOn(contextManager, 'getHistory')
+            .mockImplementation(async () => {
+                const history = await originalGetHistory();
+                return history.map((message, index) =>
+                    index >= 2
+                        ? (() => {
+                              const cloned = structuredClone(message);
+                              delete cloned.id;
+                              return cloned;
+                          })()
+                        : message
+                );
+            });
+
+        await expect(
+            agent.compactSession({
+                sessionId,
+                mode: 'continue-in-place',
+                trigger: 'manual',
+            })
+        ).rejects.toThrow('produced continuation messages without stable IDs');
+
+        const history = await agent.getSessionHistory(sessionId);
+        expect(history).toHaveLength(4);
+        expect(history.filter((message) => message.metadata?.isSummary === true)).toHaveLength(0);
+
+        getHistorySpy.mockRestore();
+    });
 });

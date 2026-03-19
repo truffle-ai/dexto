@@ -95,12 +95,18 @@ describe('ReactiveOverflowCompactionStrategy', () => {
     ): InternalMessage {
         const compactionWindow = buildCompactionWindow(history);
         const summary = structuredClone(result.summaryMessages[0]!);
+        const preservedMessageIds = compactionWindow.workingHistory
+            .slice(result.preserveFromWorkingIndex)
+            .map((message) => {
+                if (!message.id) {
+                    throw new Error('Expected preserved working message to have a stable id');
+                }
+                return message.id;
+            });
         summary.metadata = {
             ...(summary.metadata ?? {}),
             isSummary: true,
-            preservedMessageIds: compactionWindow.workingHistory
-                .slice(result.preserveFromWorkingIndex)
-                .flatMap((message) => (message.id ? [message.id] : [])),
+            preservedMessageIds,
         };
         if (compactionWindow.latestSummary && summary.metadata?.isRecompaction !== true) {
             summary.metadata.isRecompaction = true;
@@ -177,21 +183,26 @@ describe('ReactiveOverflowCompactionStrategy', () => {
             expect(result?.preserveFromWorkingIndex).toBe(4);
         });
 
-        it('skips recompaction when too few fresh messages were added after the latest summary', async () => {
+        it('skips recompaction when no working-history prefix is eligible after the latest summary', async () => {
             const history: InternalMessage[] = [
                 createUserMessage('Ancient question', 1000),
                 createAssistantMessage('Ancient answer', 1001),
-                createUserMessage('Preserved question', 1002),
-                createAssistantMessage('Preserved answer', 1003),
-                createSummaryMessage(
-                    'Previous summary',
-                    ['user-Preserved question-1002', 'assistant-Preserved answer-1003'],
-                    1004
-                ),
-                createUserMessage('Fresh question 1', 2000),
-                createAssistantMessage('Fresh answer 1', 2001),
-                createUserMessage('Fresh question 2', 2002),
-                createAssistantMessage('Fresh answer 2', 2003),
+                createSummaryMessage('Previous summary', [], 1002),
+                {
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'Thinking through the task' }],
+                    timestamp: 2000,
+                    id: 'assistant-thinking',
+                },
+                {
+                    role: 'tool',
+                    content: [{ type: 'text', text: 'Tool output' }],
+                    timestamp: 2001,
+                    id: 'tool-output',
+                    name: 'read_file',
+                    toolCallId: 'call-1',
+                },
+                createAssistantMessage('Still working on it', 2002),
             ];
 
             const result = await compactHistory(history);
