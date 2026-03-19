@@ -95,6 +95,20 @@ async function addSeedHistory(agent: DextoAgent, sessionId: string): Promise<voi
     }
 }
 
+async function addShortSeedHistory(agent: DextoAgent, sessionId: string): Promise<void> {
+    const session = await agent.createSession(sessionId);
+    const contextManager = session.getContextManager();
+
+    await contextManager.addMessage({
+        role: 'user',
+        content: [{ type: 'text', text: 'brief request' }],
+    });
+    await contextManager.addMessage({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'brief response' }],
+    });
+}
+
 describe('DextoAgent session compaction integration', () => {
     let agent: DextoAgent;
 
@@ -208,6 +222,40 @@ describe('DextoAgent session compaction integration', () => {
         expect(stored?.continuationMessages).toHaveLength(3);
     });
 
+    it('allows session compaction for short histories when the strategy returns a summary', async () => {
+        const sessionId = 'compact-short-history';
+        await addShortSeedHistory(agent, sessionId);
+
+        const compaction = await agent.compactSession({
+            sessionId,
+            mode: 'continue-in-place',
+            trigger: 'manual',
+        });
+
+        expect(compaction).not.toBeNull();
+        expect(compaction?.summaryMessages).toHaveLength(1);
+        expect(compaction?.continuationMessages).toHaveLength(1);
+    });
+
+    it('validates the input object before reading sessionId', async () => {
+        await expect(Reflect.apply(agent.compactSession, agent, [undefined])).rejects.toThrow(
+            'input is required and must be an object'
+        );
+    });
+
+    it('rejects childTitle outside continue-in-child mode for direct SDK consumers', async () => {
+        const sessionId = 'compact-child-title-invalid';
+        await addSeedHistory(agent, sessionId);
+
+        await expect(
+            agent.compactSession({
+                sessionId,
+                mode: 'artifact-only',
+                childTitle: 'Should not be allowed',
+            })
+        ).rejects.toThrow('childTitle is only supported when mode is "continue-in-child"');
+    });
+
     it('does not mutate the source session when artifact persistence fails in continue-in-place mode', async () => {
         const sessionId = 'compact-in-place-save-failure';
         await addSeedHistory(agent, sessionId);
@@ -272,5 +320,55 @@ describe('DextoAgent session compaction integration', () => {
 
         saveSpy.mockRestore();
         createSpy.mockRestore();
+    });
+
+    it('rejects strategies that return multiple summary messages for session compaction', async () => {
+        const sessionId = 'compact-multi-summary-invalid';
+        await addSeedHistory(agent, sessionId);
+
+        const session = await agent.getSession(sessionId);
+        if (!session) {
+            throw new Error(`Expected session '${sessionId}' to exist`);
+        }
+
+        const multiSummaryStrategy: CompactionStrategy = {
+            ...testCompactionStrategy,
+            compact: async () => [
+                {
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'Summary one' }],
+                    metadata: {
+                        isSummary: true,
+                        originalMessageCount: 2,
+                    },
+                },
+                {
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'Summary two' }],
+                    metadata: {
+                        isSummary: true,
+                        originalMessageCount: 2,
+                    },
+                },
+            ],
+        };
+
+        const getCompactionStrategySpy = vi
+            .spyOn(session.getLLMService(), 'getCompactionStrategy')
+            .mockReturnValue(multiSummaryStrategy);
+
+        await expect(
+            agent.compactSession({
+                sessionId,
+                mode: 'continue-in-place',
+                trigger: 'manual',
+            })
+        ).rejects.toThrow('must return exactly one summary message');
+
+        const history = await agent.getSessionHistory(sessionId);
+        expect(history).toHaveLength(4);
+        expect(history.some((message) => message.metadata?.isSummary === true)).toBe(false);
+
+        getCompactionStrategySpy.mockRestore();
     });
 });

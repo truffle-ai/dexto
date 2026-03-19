@@ -1900,6 +1900,10 @@ export class DextoAgent {
     ): Promise<SessionCompactionRecord | null> {
         this.ensureStarted();
 
+        if (!input || typeof input !== 'object' || Array.isArray(input)) {
+            throw AgentError.apiValidationError('input is required and must be an object');
+        }
+
         const sessionId = input.sessionId;
         if (!sessionId || typeof sessionId !== 'string') {
             throw AgentError.apiValidationError(
@@ -1911,6 +1915,12 @@ export class DextoAgent {
         if (!sessionCompactionModes.has(mode)) {
             throw AgentError.apiValidationError(
                 `mode must be one of: ${SESSION_COMPACTION_MODES.join(', ')}`
+            );
+        }
+
+        if (input.childTitle !== undefined && mode !== 'continue-in-child') {
+            throw AgentError.apiValidationError(
+                'childTitle is only supported when mode is "continue-in-child"'
             );
         }
 

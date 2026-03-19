@@ -353,6 +353,31 @@ export class SessionManager {
         return await this.services.storageManager.getDatabase().get<SessionCompactionRecord>(key);
     }
 
+    private async deleteCompactionsForSession(sessionId: string): Promise<number> {
+        const database = this.services.storageManager.getDatabase();
+        const compactionKeys = await database.list(SessionManager.SESSION_COMPACTION_KEY_PREFIX);
+        let deletedCount = 0;
+
+        for (const key of compactionKeys) {
+            const compaction = await database.get<SessionCompactionRecord>(key);
+            if (!compaction) {
+                continue;
+            }
+
+            if (
+                compaction.sourceSessionId !== sessionId &&
+                compaction.targetSessionId !== sessionId
+            ) {
+                continue;
+            }
+
+            await database.delete(key);
+            deletedCount += 1;
+        }
+
+        return deletedCount;
+    }
+
     private resolveParentTitle(parentSessionData: SessionData, parentSessionId: string): string {
         const rawParentTitle = parentSessionData.metadata?.title;
         const parentTitle = typeof rawParentTitle === 'string' ? rawParentTitle.trim() : '';
@@ -759,8 +784,14 @@ export class SessionManager {
 
         const messagesKey = `messages:${sessionId}`;
         await this.services.storageManager.getDatabase().delete(messagesKey);
+        const deletedCompactionCount = await this.deleteCompactionsForSession(sessionId);
 
-        this.logger.debug(`Deleted session and conversation history: ${sessionId}`);
+        this.logger.debug(
+            `Deleted session and conversation history: ${sessionId}` +
+                (deletedCompactionCount > 0
+                    ? ` (removed ${deletedCompactionCount} compaction artifact${deletedCompactionCount === 1 ? '' : 's'})`
+                    : '')
+        );
     }
 
     /**

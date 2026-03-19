@@ -739,6 +739,52 @@ describe('Hono API Integration Tests', () => {
             expect(history.some((message) => message.metadata?.isSummary === true)).toBe(false);
         });
 
+        it('POST /api/sessions/:id/compact rejects childTitle outside continue-in-child mode', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = 'test-session-compact-invalid-child-title';
+            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId,
+            });
+
+            const session = await testServer.agent.getSession(sessionId);
+            if (!session) {
+                throw new Error(`Expected session '${sessionId}' to exist`);
+            }
+
+            const contextManager = session.getContextManager();
+            await contextManager.addMessage({
+                role: 'user',
+                content: [{ type: 'text', text: 'old request' }],
+            });
+            await contextManager.addMessage({
+                role: 'assistant',
+                content: [{ type: 'text', text: 'old response' }],
+            });
+            await contextManager.addMessage({
+                role: 'user',
+                content: [{ type: 'text', text: 'keep request' }],
+            });
+            await contextManager.addMessage({
+                role: 'assistant',
+                content: [{ type: 'text', text: 'keep response' }],
+            });
+
+            const compactRes = await httpRequest(
+                testServer.baseUrl,
+                'POST',
+                `/api/sessions/${sessionId}/compact`,
+                {
+                    childTitle: 'Should be rejected',
+                }
+            );
+
+            expect(compactRes.status).toBe(400);
+
+            const history = await testServer.agent.getSessionHistory(sessionId);
+            expect(history).toHaveLength(4);
+            expect(history.some((message) => message.metadata?.isSummary === true)).toBe(false);
+        });
+
         it('POST /api/sessions/:id/compact rejects malformed JSON bodies', async () => {
             if (!testServer) throw new Error('Test server not initialized');
             const sessionId = 'test-session-compact-malformed-json';
@@ -768,6 +814,134 @@ describe('Hono API Integration Tests', () => {
                 '/api/sessions/compactions/missing-compaction'
             );
             expect(res.status).toBe(404);
+            expect(res.body).toMatchObject({
+                code: 'compaction_not_found',
+                message: 'Compaction artifact not found',
+                scope: 'agent',
+                type: 'not_found',
+                endpoint: '/api/sessions/compactions/missing-compaction',
+                method: 'GET',
+            });
+        });
+
+        it('POST /api/sessions/:id/compact serializes multimodal artifacts to JSON-safe strings', async () => {
+            const multimodalCompactionStrategy: CompactionStrategy = {
+                name: 'test-api-multimodal-compaction',
+                getSettings: () => ({
+                    enabled: true,
+                    thresholdPercent: 0.9,
+                }),
+                getModelLimits: (modelContextWindow: number) => ({
+                    contextWindow: modelContextWindow,
+                }),
+                shouldCompact: () => false,
+                compact: async () => [
+                    {
+                        role: 'assistant',
+                        content: [
+                            {
+                                type: 'image',
+                                image: Buffer.from('summary-image-bytes'),
+                                mimeType: 'image/png',
+                            },
+                        ],
+                        metadata: {
+                            isSummary: true,
+                            originalMessageCount: 2,
+                        },
+                    },
+                ],
+            };
+
+            const multimodalAgent = await createTestAgent(undefined, {
+                compaction: multimodalCompactionStrategy,
+            });
+            const multimodalServer = await startTestServer(multimodalAgent);
+
+            try {
+                const sessionId = 'test-session-compact-serialized';
+                await httpRequest(multimodalServer.baseUrl, 'POST', '/api/sessions', {
+                    sessionId,
+                });
+
+                const session = await multimodalServer.agent.getSession(sessionId);
+                if (!session) {
+                    throw new Error(`Expected session '${sessionId}' to exist`);
+                }
+
+                const contextManager = session.getContextManager();
+                await contextManager.addMessage({
+                    role: 'user',
+                    content: [{ type: 'text', text: 'old request' }],
+                });
+                await contextManager.addMessage({
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'old response' }],
+                });
+                await contextManager.addMessage({
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'file',
+                            data: new URL('https://example.com/file.pdf'),
+                            mimeType: 'application/pdf',
+                            filename: 'file.pdf',
+                        },
+                    ],
+                });
+                await contextManager.addMessage({
+                    role: 'assistant',
+                    content: [{ type: 'text', text: 'keep response' }],
+                });
+
+                const compactRes = await httpRequest(
+                    multimodalServer.baseUrl,
+                    'POST',
+                    `/api/sessions/${sessionId}/compact`,
+                    {
+                        mode: 'artifact-only',
+                    }
+                );
+
+                expect(compactRes.status).toBe(200);
+
+                const compaction = (
+                    compactRes.body as {
+                        compaction: {
+                            summaryMessages: Array<{
+                                content: Array<{
+                                    type: string;
+                                    image?: string;
+                                    mimeType?: string;
+                                }>;
+                            }>;
+                            continuationMessages: Array<{
+                                content: Array<{
+                                    type: string;
+                                    data?: string;
+                                    mimeType?: string;
+                                    filename?: string;
+                                }>;
+                            }>;
+                        } | null;
+                    }
+                ).compaction;
+
+                expect(compaction).not.toBeNull();
+                expect(compaction?.summaryMessages[0]?.content[0]).toMatchObject({
+                    type: 'image',
+                    image: Buffer.from('summary-image-bytes').toString('base64'),
+                    mimeType: 'image/png',
+                });
+                expect(compaction?.continuationMessages[1]?.content[0]).toMatchObject({
+                    type: 'file',
+                    data: 'https://example.com/file.pdf',
+                    mimeType: 'application/pdf',
+                    filename: 'file.pdf',
+                });
+            } finally {
+                await multimodalServer.cleanup();
+            }
         });
 
         it('DELETE /api/sessions/:id deletes session', async () => {

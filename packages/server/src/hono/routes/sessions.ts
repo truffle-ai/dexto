@@ -1,16 +1,24 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import {
+    DextoRuntimeError,
+    ErrorType,
     getConfiguredUsageScopeId,
+    type ContentPart as CoreContentPart,
+    type InternalMessage as CoreInternalMessage,
     type SessionCompactionRecord as CoreSessionCompactionRecord,
     type SessionMetadata as CoreSessionMetadata,
+    type ToolCall as CoreToolCall,
 } from '@dexto/core';
 import {
+    type ContentPart as ApiContentPart,
     SessionMetadataSchema,
     SessionCompactionModeSchema,
     SessionCompactionSchema,
     InternalMessageSchema,
+    type InternalMessage as ApiInternalMessage,
     ScopedUsageSummarySchema,
     StandardErrorEnvelopeSchema,
+    type ToolCall as ApiToolCall,
     UsageSummarySchema,
 } from '../schemas/responses.js';
 import type { GetAgentFn } from '../index.js';
@@ -32,6 +40,15 @@ const CompactSessionSchema = z
             .describe('Optional title for a continuation child session'),
     })
     .strict()
+    .superRefine((value, ctx) => {
+        if (value.childTitle !== undefined && value.mode !== 'continue-in-child') {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['childTitle'],
+                message: '`childTitle` is only supported when mode is "continue-in-child"',
+            });
+        }
+    })
     .describe('Request body for compacting a session');
 
 function mapSessionMetadata(
@@ -66,16 +83,107 @@ function mapSessionMetadata(
 function mapSessionCompaction(
     compaction: CoreSessionCompactionRecord
 ): z.output<typeof SessionCompactionSchema> {
-    // TODO: Improve type alignment between core and server schemas.
-    // Core's InternalMessage uses richer binary unions, but JSON responses
-    // serialize those values to strings at the API boundary.
     return {
         ...compaction,
         targetSessionId: compaction.targetSessionId ?? null,
-        summaryMessages: compaction.summaryMessages as z.output<typeof InternalMessageSchema>[],
-        continuationMessages: compaction.continuationMessages as z.output<
-            typeof InternalMessageSchema
-        >[],
+        summaryMessages: compaction.summaryMessages.map(serializeInternalMessage),
+        continuationMessages: compaction.continuationMessages.map(serializeInternalMessage),
+    };
+}
+
+function serializeBinaryPayload(value: string | Uint8Array | Buffer | ArrayBuffer | URL): string {
+    if (typeof value === 'string') {
+        return value;
+    }
+
+    if (value instanceof URL) {
+        return value.toString();
+    }
+
+    if (Buffer.isBuffer(value)) {
+        return value.toString('base64');
+    }
+
+    if (value instanceof Uint8Array) {
+        return Buffer.from(value).toString('base64');
+    }
+
+    return Buffer.from(new Uint8Array(value)).toString('base64');
+}
+
+function serializeContentPart(part: CoreContentPart): ApiContentPart {
+    switch (part.type) {
+        case 'text':
+            return {
+                type: 'text',
+                text: part.text,
+            };
+        case 'image':
+            return {
+                type: 'image',
+                image: serializeBinaryPayload(part.image),
+                ...(part.mimeType !== undefined && { mimeType: part.mimeType }),
+            };
+        case 'file':
+            return {
+                type: 'file',
+                data: serializeBinaryPayload(part.data),
+                mimeType: part.mimeType,
+                ...(part.filename !== undefined && { filename: part.filename }),
+            };
+        case 'ui-resource':
+            return {
+                type: 'ui-resource',
+                uri: part.uri,
+                mimeType: part.mimeType,
+                ...(part.content !== undefined && { content: part.content }),
+                ...(part.blob !== undefined && { blob: part.blob }),
+                ...(part.metadata !== undefined && { metadata: part.metadata }),
+            };
+    }
+}
+
+function serializeToolCall(toolCall: CoreToolCall): ApiToolCall {
+    return {
+        id: toolCall.id,
+        type: toolCall.type,
+        function: {
+            name: toolCall.function.name,
+            arguments: toolCall.function.arguments,
+        },
+    };
+}
+
+function serializeInternalMessage(message: CoreInternalMessage): ApiInternalMessage {
+    return {
+        role: message.role,
+        content: Array.isArray(message.content)
+            ? message.content.map(serializeContentPart)
+            : message.content,
+        ...(message.id !== undefined && { id: message.id }),
+        ...(message.timestamp !== undefined && { timestamp: message.timestamp }),
+        ...('reasoning' in message &&
+            message.reasoning !== undefined && { reasoning: message.reasoning }),
+        ...('tokenUsage' in message &&
+            message.tokenUsage !== undefined && { tokenUsage: message.tokenUsage }),
+        ...('estimatedCost' in message &&
+            message.estimatedCost !== undefined && { estimatedCost: message.estimatedCost }),
+        ...('pricingStatus' in message &&
+            message.pricingStatus !== undefined && { pricingStatus: message.pricingStatus }),
+        ...('usageScopeId' in message &&
+            message.usageScopeId !== undefined && { usageScopeId: message.usageScopeId }),
+        ...('model' in message && message.model !== undefined && { model: message.model }),
+        ...('provider' in message &&
+            message.provider !== undefined && { provider: message.provider }),
+        ...('toolCalls' in message &&
+            message.toolCalls !== undefined && {
+                toolCalls: message.toolCalls.map(serializeToolCall),
+            }),
+        ...('toolCallId' in message &&
+            message.toolCallId !== undefined && { toolCallId: message.toolCallId }),
+        ...('name' in message && message.name !== undefined && { name: message.name }),
+        ...('success' in message && message.success !== undefined && { success: message.success }),
+        ...(message.metadata !== undefined && { metadata: message.metadata }),
     };
 }
 
@@ -287,6 +395,11 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             },
             404: {
                 description: 'Compaction artifact not found',
+                content: {
+                    'application/json': {
+                        schema: StandardErrorEnvelopeSchema,
+                    },
+                },
             },
         },
     });
@@ -627,12 +740,21 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             const { compactionId } = ctx.req.valid('param');
             const compaction = await agent.getSessionCompaction(compactionId);
             if (!compaction) {
-                return ctx.json({ error: 'Compaction not found' }, 404);
+                throw new DextoRuntimeError(
+                    'compaction_not_found',
+                    'agent',
+                    ErrorType.NOT_FOUND,
+                    'Compaction artifact not found',
+                    { compactionId }
+                );
             }
 
-            return ctx.json({
-                compaction: mapSessionCompaction(compaction),
-            });
+            return ctx.json(
+                {
+                    compaction: mapSessionCompaction(compaction),
+                },
+                200
+            );
         })
         .openapi(getRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -653,11 +775,8 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                 agent.getSessionHistory(sessionId),
                 agent.isSessionBusy(sessionId),
             ]);
-            // TODO: Improve type alignment between core and server schemas.
-            // Core's InternalMessage has union types (string | Uint8Array | Buffer | URL)
-            // for binary data, but JSON responses are always base64 strings.
             return ctx.json({
-                history: history as z.output<typeof InternalMessageSchema>[],
+                history: history.map(serializeInternalMessage),
                 isBusy,
             });
         })
