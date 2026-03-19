@@ -5,3 +5,4 @@ export * from './schemas.js';
 export * from './errors.js';
 export * from './error-codes.js';
 export * from './resolver.js';
+export * from './bundled-config.js';
