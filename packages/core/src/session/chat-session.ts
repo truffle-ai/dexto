@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { createDatabaseHistoryProvider } from './history/factory.js';
 import { createLLMService } from '../llm/services/factory.js';
 import type { ContextManager } from '../context/index.js';
@@ -25,7 +26,7 @@ import { HookErrorCode } from '../hooks/error-codes.js';
 import type { InternalMessage, ContentPart } from '../context/types.js';
 import type { UserMessageInput } from './message-queue.js';
 import type { ContentInput } from '../agent/types.js';
-import { getModelPricing, calculateCost } from '../llm/registry/index.js';
+import { getUsagePricingMetadata, hasMeaningfulTokenUsage } from '../llm/usage-metadata.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
 import { parseCodexBaseURL } from '../llm/providers/codex-base-url.js';
 
@@ -118,23 +119,6 @@ export class ChatSession {
      * Calling cancel() aborts the in-flight LLM request and tool execution checks.
      */
     private currentRunController: AbortController | null = null;
-
-    private isMeaningfulTokenUsage(
-        tokenUsage: SessionEventMap['llm:response']['tokenUsage']
-    ): boolean {
-        if (!tokenUsage) {
-            return false;
-        }
-
-        return (
-            (tokenUsage.inputTokens ?? 0) > 0 ||
-            (tokenUsage.outputTokens ?? 0) > 0 ||
-            (tokenUsage.reasoningTokens ?? 0) > 0 ||
-            (tokenUsage.cacheReadTokens ?? 0) > 0 ||
-            (tokenUsage.cacheWriteTokens ?? 0) > 0 ||
-            (tokenUsage.totalTokens ?? 0) > 0
-        );
-    }
 
     public readonly logger: Logger;
 
@@ -232,7 +216,7 @@ export class ChatSession {
                 const isChatGPTLogin =
                     llmConfig.provider === 'openai-compatible' &&
                     parseCodexBaseURL(llmConfig.baseURL)?.authMode === 'chatgpt';
-                const hasMeaningfulUsage = this.isMeaningfulTokenUsage(payload.tokenUsage);
+                const hasMeaningfulUsage = hasMeaningfulTokenUsage(payload.tokenUsage);
 
                 if (isChatGPTLogin && !hasMeaningfulUsage) {
                     this.services.sessionManager
@@ -251,16 +235,20 @@ export class ChatSession {
                     model: payload.model ?? llmConfig.model,
                 };
 
-                // Calculate cost if pricing is available (using the actual model from payload)
-                let cost: number | undefined;
-                const pricing = getModelPricing(modelInfo.provider, modelInfo.model);
-                if (pricing) {
-                    cost = calculateCost(payload.tokenUsage, pricing);
-                }
+                const pricingMetadata = getUsagePricingMetadata({
+                    provider: modelInfo.provider,
+                    model: modelInfo.model,
+                    tokenUsage: payload.tokenUsage,
+                });
 
                 // Fire and forget - don't block the event flow
                 this.services.sessionManager
-                    .accumulateTokenUsage(this.id, payload.tokenUsage, cost, modelInfo)
+                    .accumulateTokenUsage(
+                        this.id,
+                        payload.tokenUsage,
+                        payload.estimatedCost ?? pricingMetadata.estimatedCost,
+                        modelInfo
+                    )
                     .catch((err) => {
                         this.logger.warn(
                             `Failed to accumulate token usage: ${err instanceof Error ? err.message : String(err)}`
@@ -325,18 +313,24 @@ export class ChatSession {
         _imageData?: { image: string; mimeType: string },
         _fileData?: { data: string; mimeType: string; filename?: string }
     ): Promise<void> {
+        const timestamp = Date.now();
+
         // Create redacted user message (do not persist sensitive content or attachments)
         // When content is blocked by policy (abusive language, inappropriate content, etc.),
         // we shouldn't store the original content to comply with data minimization principles
         const userMessage: InternalMessage = {
+            id: randomUUID(),
             role: 'user',
+            timestamp,
             content: [{ type: 'text', text: '[Blocked by content policy: input redacted]' }],
         };
 
         // Create assistant error message
         const errorContent = `Error: ${errorMessage}`;
         const assistantMessage: InternalMessage = {
+            id: randomUUID(),
             role: 'assistant',
+            timestamp: timestamp + 1,
             content: [{ type: 'text', text: errorContent }],
         };
 
@@ -352,6 +346,7 @@ export class ChatSession {
             content: errorContent,
             provider: llmConfig.provider,
             model: llmConfig.model,
+            ...(assistantMessage.id && { messageId: assistantMessage.id }),
         });
     }
 

@@ -17,7 +17,7 @@ import {
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
-import type { CodexModelInfo, DextoAgent, LLMProvider, ReasoningVariant } from '@dexto/core';
+import type { CodexModelInfo, LLMProvider, ReasoningVariant } from '@dexto/core';
 import {
     CodexAppServerClient,
     createCodexBaseURL,
@@ -52,6 +52,7 @@ import {
     toCodePoints,
 } from '../../utils/textUtils.js';
 import { HintBar } from '../shared/HintBar.js';
+import type { TuiAgentBackend } from '../../agent-backend.js';
 
 type ModelSelectorTab = 'all-models' | 'featured' | 'recents' | 'favorites' | 'custom';
 const FEATURED_SECTION_LIMIT = 8;
@@ -157,7 +158,7 @@ function matchesConfiguredModel(
     return candidateCodex?.authMode === configuredCodex?.authMode;
 }
 
-async function loadChatGPTCodexModels(agent: DextoAgent): Promise<CodexModelInfo[]> {
+async function loadChatGPTCodexModels(agent: TuiAgentBackend): Promise<CodexModelInfo[]> {
     let client: CodexAppServerClient | null = null;
 
     try {
@@ -369,7 +370,7 @@ interface ModelSelectorProps {
     onClose: () => void;
     onAddCustomModel: () => void;
     onEditCustomModel: (model: CustomModel) => void;
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
 }
 
 export interface ModelSelectorHandle {

@@ -6,14 +6,15 @@
 import React, { useState, useEffect, forwardRef, useRef, useImperativeHandle } from 'react';
 import { Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import type { DextoAgent, McpServerStatus, McpConnectionStatus } from '@dexto/core';
+import type { McpServerStatus, McpConnectionStatus } from '@dexto/core';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
+import type { TuiAgentBackend } from '../../agent-backend.js';
 
 interface McpRemoveSelectorProps {
     isVisible: boolean;
     onSelect: (serverName: string) => void;
     onClose: () => void;
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
 }
 
 export interface McpRemoveSelectorHandle {

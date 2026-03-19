@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import type { LLMProvider, ReasoningVariant } from '../llm/types.js';
+import type { LLMProvider, LLMPricingStatus, ReasoningVariant, TokenUsage } from '../llm/types.js';
 import type { AgentRuntimeSettings } from '../agent/runtime-config.js';
 import type { ApprovalRequest, ApprovalResponse } from '../approval/types.js';
 import type { SanitizedToolResult } from '../context/types.js';
@@ -364,14 +364,15 @@ export interface AgentEventMap {
         reasoningVariant?: ReasoningVariant;
         /** Reasoning budget tokens used for this call, when the provider exposes it. */
         reasoningBudgetTokens?: number;
-        tokenUsage?: {
-            inputTokens?: number;
-            outputTokens?: number;
-            reasoningTokens?: number;
-            totalTokens?: number;
-            cacheReadTokens?: number;
-            cacheWriteTokens?: number;
-        };
+        tokenUsage?: TokenUsage;
+        /** Stable assistant message ID for this response. */
+        messageId?: string;
+        /** Optional usage scope identifier for runtime-scoped metering. */
+        usageScopeId?: string;
+        /** Estimated cost in USD for this response, when pricing is available. */
+        estimatedCost?: number;
+        /** Whether pricing was resolved for this response. */
+        pricingStatus?: LLMPricingStatus;
         /** Estimated input tokens before LLM call (for analytics/calibration) */
         estimatedInputTokens?: number;
         /** Finish reason: 'tool-calls' means more steps coming, others indicate completion */
@@ -644,14 +645,15 @@ export interface SessionEventMap {
         reasoningVariant?: ReasoningVariant;
         /** Reasoning budget tokens used for this call, when the provider exposes it. */
         reasoningBudgetTokens?: number;
-        tokenUsage?: {
-            inputTokens?: number;
-            outputTokens?: number;
-            reasoningTokens?: number;
-            totalTokens?: number;
-            cacheReadTokens?: number;
-            cacheWriteTokens?: number;
-        };
+        tokenUsage?: TokenUsage;
+        /** Stable assistant message ID for this response. */
+        messageId?: string;
+        /** Optional usage scope identifier for runtime-scoped metering. */
+        usageScopeId?: string;
+        /** Estimated cost in USD for this response, when pricing is available. */
+        estimatedCost?: number;
+        /** Whether pricing was resolved for this response. */
+        pricingStatus?: LLMPricingStatus;
         /** Estimated input tokens before LLM call (for analytics/calibration) */
         estimatedInputTokens?: number;
         /** Finish reason: 'tool-calls' means more steps coming, others indicate completion */

@@ -69,7 +69,6 @@ import {
     AgentConfigSchema,
     loadImage,
     resolveServicesFromConfig,
-    setImageImporter,
     toDextoAgentOptions,
     type DextoImage,
     type ValidatedAgentConfig,
@@ -106,22 +105,13 @@ import type { CreateAppOptions } from './cli/commands/create-app.js';
 import type { CLISetupOptionsInput } from './cli/commands/setup.js';
 import type { UpgradeCommandOptions } from './cli/commands/upgrade.js';
 import type { UninstallCliCommandOptions } from './cli/commands/uninstall.js';
+import { ensureImageImporterConfigured } from './cli/utils/image-importer.js';
 
 const program = new Command();
 
-let imageImporterConfigured = false;
 let dextoApiKeyBootstrapped = false;
 let versionCheckPromise: Promise<UpdateInfo | null> | null = null;
 let llmRegistryAutoUpdateStarted = false;
-
-async function ensureImageImporterConfigured(): Promise<void> {
-    if (imageImporterConfigured) {
-        return;
-    }
-    const { importImageModule } = await import('./cli/utils/image-store.js');
-    setImageImporter((specifier) => importImageModule(specifier));
-    imageImporterConfigured = true;
-}
 
 async function ensureDextoApiKeyBootstrap(): Promise<void> {
     if (dextoApiKeyBootstrapped) {
@@ -161,6 +151,7 @@ program
     .description('AI-powered CLI and WebUI for interacting with MCP servers.')
     .version(cliVersion, '-v, --version', 'output the current version')
     .option('-a, --agent <id|path>', 'Agent ID or path to agent config file')
+    .option('--cloud-agent <id>', 'Connect the interactive CLI to a deployed cloud agent by ID')
     .option('-p, --prompt <text>', 'Start the interactive CLI and immediately run the prompt')
     .option('-s, --strict', 'Require all server connections to succeed')
     .option('--no-verbose', 'Disable verbose output')
@@ -586,8 +577,13 @@ program
 
                 // ——— FORCE CLI MODE FOR PROMPT/SESSION FLAGS ———
                 // If a prompt or session flag was provided, force CLI mode.
-                if ((initialPrompt || opts.continue || opts.resume) && opts.mode !== 'cli') {
-                    console.error(`ℹ️  Forcing CLI mode due to --prompt/--continue/--resume.`);
+                if (
+                    (initialPrompt || opts.continue || opts.resume || opts.cloudAgent) &&
+                    opts.mode !== 'cli'
+                ) {
+                    console.error(
+                        `ℹ️  Forcing CLI mode due to --prompt/--continue/--resume/--cloud-agent.`
+                    );
                     console.error(`   Original mode: ${opts.mode} → Overridden to: cli`);
                     opts.mode = 'cli';
                 }
@@ -599,6 +595,30 @@ program
                         '💡 For non-interactive runs, use `dexto run "<prompt>"`, or use --mode server for automation.'
                     );
                     safeExit('main', 1, 'no-tty');
+                }
+
+                if (opts.cloudAgent) {
+                    if (opts.agent) {
+                        console.error(
+                            '❌ `--agent` and `--cloud-agent` are mutually exclusive. Use one chat target at a time.'
+                        );
+                        safeExit('main', 1, 'cloud-agent-conflict');
+                    }
+
+                    try {
+                        const { startCloudChatCli } = await import('./cli/cloud-chat.js');
+                        await startCloudChatCli({
+                            cloudAgentId: String(opts.cloudAgent),
+                            ...(initialPrompt ? { initialPrompt } : {}),
+                            ...(opts.resume ? { resume: String(opts.resume) } : {}),
+                            ...(opts.continue ? { continueMostRecent: true } : {}),
+                        });
+                        safeExit('main', 0);
+                    } catch (err) {
+                        if (err instanceof ExitSignal) throw err;
+                        console.error(`❌ Cloud chat failed: ${err}`);
+                        safeExit('main', 1, 'cloud-chat-error');
+                    }
                 }
 
                 // ——— Infer provider & API key from model ———

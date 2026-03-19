@@ -5,26 +5,105 @@ import { tmpdir } from 'os';
 import { stripVTControlCharacters } from 'node:util';
 import { handleSetupCommand, type CLISetupOptionsInput } from './setup.js';
 
-const { mockCodexAppServerCreate, mockOpen } = vi.hoisted(() => ({
-    mockCodexAppServerCreate: vi.fn(),
-    mockOpen: vi.fn().mockResolvedValue(undefined),
-}));
+const { mockCodexAppServerCreate, mockOpen, mockExecuteCommand, providerModels, llmRegistry } =
+    vi.hoisted(() => {
+        const providerModels = {
+            anthropic: ['claude-haiku-4-5-20251001'],
+            google: ['gemini-2.5-pro'],
+            openai: ['gpt-4', 'gpt-4o', 'gpt-4o-mini', 'gpt-5', 'gpt-5-mini'],
+            'openai-compatible': ['gpt-4', 'gpt-4o', 'gpt-4o-mini'],
+            'dexto-nova': ['openai/gpt-5.2'],
+            openrouter: ['openai/gpt-5.2-codex'],
+            local: ['local-model'],
+            ollama: ['llama3.1'],
+        } as const;
+
+        const llmRegistry = Object.fromEntries(
+            Object.entries(providerModels).map(([provider, models]) => [
+                provider,
+                {
+                    models: models.map((model) => ({
+                        name: model,
+                        model,
+                        displayName: model,
+                        description: `${model} description`,
+                    })),
+                },
+            ])
+        );
+
+        return {
+            mockCodexAppServerCreate: vi.fn(),
+            mockOpen: vi.fn().mockResolvedValue(undefined),
+            mockExecuteCommand: vi.fn(),
+            providerModels,
+            llmRegistry,
+        };
+    });
 
 vi.mock('open', () => ({
     default: mockOpen,
 }));
 
-// Mock only external dependencies that can't be tested directly
-vi.mock('@dexto/core', async () => {
-    const actual = await vi.importActual<typeof import('@dexto/core')>('@dexto/core');
+vi.mock('../utils/self-management.js', async () => {
+    const actual = await vi.importActual<typeof import('../utils/self-management.js')>(
+        '../utils/self-management.js'
+    );
     return {
         ...actual,
-        getCuratedModelsForProvider: vi.fn((provider: any) => {
-            const models = (actual as any).LLM_REGISTRY?.[provider]?.models ?? [];
-            return Array.isArray(models) ? models.slice(0, 8) : [];
-        }),
+        executeCommand: mockExecuteCommand,
+    };
+});
+
+// Mock only external dependencies that can't be tested directly
+vi.mock('@dexto/core', () => {
+    const getModelsForProvider = (provider: string): string[] => [
+        ...(providerModels[provider as keyof typeof providerModels] ?? ['test-model']),
+    ];
+    const isReasoningModel = (model: string): boolean =>
+        model.includes('gpt-5') || model.includes('codex') || model.includes('claude');
+
+    return {
+        acceptsAnyModel: vi.fn(() => false),
+        getCuratedModelsForProvider: vi.fn((provider: string) =>
+            getModelsForProvider(provider)
+                .slice(0, 8)
+                .map((model, index) => ({
+                    id: model,
+                    model,
+                    name: model,
+                    displayName: model,
+                    description: `${model} description`,
+                    hidden: false,
+                    isDefault: index === 0,
+                    supportedReasoningEfforts: [],
+                    defaultReasoningEffort: 'medium',
+                }))
+        ),
+        getDefaultModelForProvider: vi.fn((provider: string) => getModelsForProvider(provider)[0]),
+        getSupportedModels: vi.fn((provider: string) => getModelsForProvider(provider)),
+        getReasoningProfile: vi.fn((_provider: string, model: string) =>
+            isReasoningModel(model)
+                ? {
+                      capable: true,
+                      supportedVariants: ['enabled', 'disabled'],
+                      defaultVariant: 'enabled',
+                  }
+                : {
+                      capable: false,
+                      supportedVariants: [],
+                      defaultVariant: undefined,
+                  }
+        ),
+        isValidProviderModel: vi.fn((provider: string, model: string) =>
+            getModelsForProvider(provider).includes(model)
+        ),
+        supportsCustomModels: vi.fn(() => false),
         resolveApiKeyForProvider: vi.fn(),
-        requiresApiKey: vi.fn(() => true), // Most providers need API keys
+        requiresApiKey: vi.fn(
+            (provider: string) =>
+                !['local', 'ollama', 'dexto-nova', 'openai-compatible'].includes(provider)
+        ),
         createCodexBaseURL: vi.fn((mode: string = 'chatgpt') => `codex://${mode}`),
         isCodexBaseURL: vi.fn(
             (value: unknown) => typeof value === 'string' && value.startsWith('codex://')
@@ -59,17 +138,31 @@ vi.mock('@dexto/core', async () => {
             }
             return 'Auto';
         }),
+        LLM_PROVIDERS: [
+            'anthropic',
+            'google',
+            'openai',
+            'openai-compatible',
+            'dexto-nova',
+            'openrouter',
+            'local',
+            'ollama',
+        ],
+        LLM_REGISTRY: llmRegistry,
+        logger: {
+            debug: vi.fn(),
+            info: vi.fn(),
+            warn: vi.fn(),
+            error: vi.fn(),
+        },
         CodexAppServerClient: {
             create: mockCodexAppServerCreate,
         },
     };
 });
 
-vi.mock('@dexto/agent-management', async () => {
-    const actual =
-        await vi.importActual<typeof import('@dexto/agent-management')>('@dexto/agent-management');
+vi.mock('@dexto/agent-management', () => {
     return {
-        ...actual,
         createInitialPreferences: vi.fn((...args: any[]) => {
             const options = args[0];
             // Handle new options object signature
@@ -102,8 +195,61 @@ vi.mock('@dexto/agent-management', async () => {
         getGlobalPreferencesPath: vi.fn(() => '/tmp/preferences.yml'),
         updateGlobalPreferences: vi.fn().mockResolvedValue(undefined),
         globalPreferencesExist: vi.fn(),
+        setActiveModel: vi.fn().mockResolvedValue(undefined),
+        isDextoAuthEnabled: vi.fn(() => false),
+        loadCustomModels: vi.fn().mockResolvedValue([]),
+        saveCustomModel: vi.fn().mockResolvedValue(undefined),
+        deleteCustomModel: vi.fn().mockResolvedValue(undefined),
+        getDextoGlobalPath: vi.fn((type: string, filename?: string) =>
+            path.join('/tmp', '.dexto', type, filename ?? '')
+        ),
     };
 });
+
+vi.mock('../../analytics/index.js', () => ({
+    capture: vi.fn(),
+}));
+
+vi.mock('../utils/dexto-setup.js', () => ({
+    canUseDextoProvider: vi.fn().mockResolvedValue(true),
+}));
+
+vi.mock('./auth/login.js', () => ({
+    handleAutoLogin: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../auth/index.js', () => ({
+    loadAuth: vi.fn().mockResolvedValue(null),
+    getDextoApiClient: vi.fn(() => ({
+        getUsageSummary: vi.fn().mockResolvedValue({ credits_usd: 0 }),
+    })),
+}));
+
+vi.mock('../auth/constants.js', () => ({
+    DEXTO_CREDITS_URL: 'https://example.com/credits',
+}));
+
+vi.mock('../utils/local-model-setup.js', () => ({
+    setupLocalModels: vi.fn().mockResolvedValue({ success: false, cancelled: true }),
+    setupOllamaModels: vi.fn().mockResolvedValue({ success: false, cancelled: true }),
+    hasSelectedModel: vi.fn(
+        (result: {
+            success?: boolean;
+            cancelled?: boolean;
+            back?: boolean;
+            skipped?: boolean;
+            modelId?: string;
+        }) =>
+            Boolean(
+                result.success &&
+                    !result.cancelled &&
+                    !result.back &&
+                    !result.skipped &&
+                    result.modelId
+            )
+    ),
+    getModelFromResult: vi.fn((result: { modelId?: string }) => result.modelId ?? 'test-model'),
+}));
 
 vi.mock('../utils/api-key-setup.js', () => ({
     interactiveApiKeySetup: vi.fn().mockResolvedValue({ success: true }),
@@ -149,6 +295,7 @@ describe('Setup Command', () => {
     let mockRequiresSetup: any;
     let mockResolveApiKeyForProvider: any;
     let mockGlobalPreferencesExist: any;
+    let mockManagedExecuteCommand: any;
     let mockPrompts: any;
     let consoleSpy: any;
     let consoleErrorSpy: any;
@@ -179,6 +326,7 @@ describe('Setup Command', () => {
         mockResolveApiKeyForProvider = vi.mocked(apiKeyResolver.resolveApiKeyForProvider);
         mockSelectProvider = vi.mocked(providerSetup.selectProvider);
         mockRequiresSetup = vi.mocked(setupUtils.requiresSetup);
+        mockManagedExecuteCommand = mockExecuteCommand;
         mockPrompts = {
             intro: vi.mocked(prompts.intro),
             note: vi.mocked(prompts.note),
@@ -187,6 +335,7 @@ describe('Setup Command', () => {
             isCancel: vi.mocked(prompts.isCancel),
             select: vi.mocked(prompts.select),
             log: {
+                error: vi.mocked(prompts.log.error),
                 warn: vi.mocked(prompts.log.warn),
                 success: vi.mocked(prompts.log.success),
                 info: vi.mocked(prompts.log.info),
@@ -234,7 +383,13 @@ describe('Setup Command', () => {
         mockPrompts.select.mockResolvedValue('exit'); // Default: exit settings menu
         mockCodexAppServerCreate.mockReset();
         mockOpen.mockReset();
+        mockManagedExecuteCommand.mockReset();
         mockOpen.mockResolvedValue(undefined);
+        mockManagedExecuteCommand.mockResolvedValue({
+            code: 0,
+            stdout: '',
+            stderr: '',
+        });
 
         // Mock console to prevent test output noise
         consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -393,6 +548,105 @@ describe('Setup Command', () => {
             );
             expect(mockSaveGlobalPreferences).toHaveBeenCalled();
             expect(codexClient.close).toHaveBeenCalled();
+        });
+
+        it('installs the Codex CLI automatically when ChatGPT Login setup needs it', async () => {
+            const missingCodexError = new Error('spawn codex ENOENT') as NodeJS.ErrnoException;
+            missingCodexError.code = 'ENOENT';
+            const codexClient = {
+                readAccount: vi.fn(),
+                startLogin: vi.fn(),
+                waitForLoginCompleted: vi.fn(),
+                listModels: vi.fn(),
+                logout: vi.fn(),
+                close: vi.fn().mockResolvedValue(undefined),
+            };
+
+            codexClient.readAccount
+                .mockResolvedValueOnce({ account: null, requiresOpenaiAuth: true })
+                .mockResolvedValueOnce({
+                    account: {
+                        type: 'chatgpt',
+                        email: 'dev@example.com',
+                        planType: 'plus',
+                    },
+                    requiresOpenaiAuth: false,
+                });
+            codexClient.startLogin.mockResolvedValue({
+                type: 'chatgpt',
+                loginId: 'login-1',
+                authUrl: 'https://chatgpt.example/login',
+            });
+            codexClient.waitForLoginCompleted.mockResolvedValue({
+                loginId: 'login-1',
+                success: true,
+                error: null,
+            });
+            codexClient.listModels.mockResolvedValue([
+                {
+                    id: 'model-1',
+                    model: 'gpt-4o-mini',
+                    displayName: 'GPT-4o Mini',
+                    description: 'Fast',
+                    hidden: false,
+                    isDefault: true,
+                    supportedReasoningEfforts: [],
+                    defaultReasoningEffort: 'medium',
+                },
+            ]);
+            mockCodexAppServerCreate
+                .mockRejectedValueOnce(missingCodexError)
+                .mockResolvedValueOnce(codexClient);
+
+            mockPrompts.select
+                .mockResolvedValueOnce('openai-codex')
+                .mockResolvedValueOnce('gpt-4o-mini')
+                .mockResolvedValueOnce('cli');
+
+            await handleSetupCommand({ interactive: true });
+
+            expect(mockManagedExecuteCommand).toHaveBeenNthCalledWith(1, 'npm', ['--version']);
+            expect(mockManagedExecuteCommand).toHaveBeenNthCalledWith(
+                2,
+                'npm',
+                ['install', '@openai/codex', '--no-audit', '--no-fund'],
+                expect.objectContaining({
+                    cwd: expect.stringContaining('.dexto'),
+                })
+            );
+            expect(mockCodexAppServerCreate).toHaveBeenCalledTimes(2);
+            expect(codexClient.close).toHaveBeenCalled();
+        });
+
+        it('surfaces automatic Codex CLI install failures during ChatGPT Login setup', async () => {
+            const missingCodexError = new Error('spawn codex ENOENT') as NodeJS.ErrnoException;
+            missingCodexError.code = 'ENOENT';
+            mockCodexAppServerCreate.mockRejectedValueOnce(missingCodexError);
+            mockManagedExecuteCommand
+                .mockResolvedValueOnce({
+                    code: 0,
+                    stdout: '10.0.0',
+                    stderr: '',
+                })
+                .mockResolvedValueOnce({
+                    code: 1,
+                    stdout: '',
+                    stderr: 'network unreachable',
+                });
+
+            const cancelToken = Symbol.for('cancel');
+            mockPrompts.select
+                .mockResolvedValueOnce('openai-codex')
+                .mockResolvedValueOnce(cancelToken);
+            mockPrompts.isCancel.mockImplementation((value: unknown) => value === cancelToken);
+
+            await expect(handleSetupCommand({ interactive: true })).rejects.toThrow(
+                'Process exit called with code 0'
+            );
+
+            expect(mockPrompts.log.error).toHaveBeenCalledWith(
+                'ChatGPT Login setup failed: Failed to install the OpenAI Codex CLI via npm: network unreachable'
+            );
         });
 
         it('shows setup type selection when interactive without provider', async () => {

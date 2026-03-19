@@ -1,14 +1,17 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type {
-    SessionMetadata as CoreSessionMetadata,
-    SessionCompactionRecord as CoreSessionCompactionRecord,
+import {
+    getConfiguredUsageScopeId,
+    type SessionCompactionRecord as CoreSessionCompactionRecord,
+    type SessionMetadata as CoreSessionMetadata,
 } from '@dexto/core';
 import {
     SessionMetadataSchema,
     SessionCompactionModeSchema,
     SessionCompactionSchema,
     InternalMessageSchema,
+    ScopedUsageSummarySchema,
     StandardErrorEnvelopeSchema,
+    UsageSummarySchema,
 } from '../schemas/responses.js';
 import type { GetAgentFn } from '../index.js';
 
@@ -49,6 +52,12 @@ function mapSessionMetadata(
         lastActivity: metadata?.lastActivity ?? defaults?.lastActivity ?? null,
         messageCount: metadata?.messageCount ?? defaults?.messageCount ?? 0,
         title: metadata?.title ?? defaults?.title ?? null,
+        ...(metadata?.tokenUsage && { tokenUsage: metadata.tokenUsage }),
+        ...(metadata?.estimatedCost !== undefined && {
+            estimatedCost: metadata.estimatedCost,
+        }),
+        ...(metadata?.modelStats && { modelStats: metadata.modelStats }),
+        ...(metadata?.usageTracking && { usageTracking: metadata.usageTracking }),
         workspaceId: metadata?.workspaceId ?? defaults?.workspaceId ?? null,
         parentSessionId: metadata?.parentSessionId ?? defaults?.parentSessionId ?? null,
     };
@@ -416,6 +425,18 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                                         .describe(
                                             'Whether the session is currently processing a message'
                                         ),
+                                    usageSummary: UsageSummarySchema.describe(
+                                        'Exact usage summary derived from assistant message history'
+                                    ),
+                                    activeUsageScopeId: z
+                                        .string()
+                                        .nullable()
+                                        .describe(
+                                            'Current runtime usage scope identifier, if configured'
+                                        ),
+                                    activeUsageScope: ScopedUsageSummarySchema.nullable().describe(
+                                        'Usage summary for the current runtime scope, if configured'
+                                    ),
                                 }).describe('Session metadata with processing status'),
                             })
                             .strict(),
@@ -429,6 +450,35 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                         schema: z
                             .object({
                                 error: z.string().describe('Error message'),
+                            })
+                            .strict(),
+                    },
+                },
+            },
+        },
+    });
+
+    const clearContextRoute = createRoute({
+        method: 'post',
+        path: '/sessions/{sessionId}/clear-context',
+        summary: 'Clear Session Context',
+        description:
+            'Clears the model context window for a session while preserving conversation history for review.',
+        tags: ['sessions'],
+        request: {
+            params: z.object({ sessionId: z.string().describe('Session identifier') }),
+        },
+        responses: {
+            200: {
+                description: 'Session context cleared successfully',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                status: z
+                                    .literal('context cleared')
+                                    .describe('Context clear status'),
+                                sessionId: z.string().describe('Session ID'),
                             })
                             .strict(),
                     },
@@ -669,15 +719,32 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             // Return session metadata with processing status
             const metadata = await agent.getSessionMetadata(sessionId);
             const isBusy = await agent.isSessionBusy(sessionId);
+            const usageSummary = await agent.getSessionUsageSummary(sessionId);
+            const activeUsageScopeId = getConfiguredUsageScopeId() ?? null;
+            const activeUsageScope = activeUsageScopeId
+                ? {
+                      scopeId: activeUsageScopeId,
+                      ...(await agent.getSessionUsageSummary(sessionId, activeUsageScopeId)),
+                  }
+                : null;
             return ctx.json(
                 {
                     session: {
                         ...mapSessionMetadata(sessionId, metadata),
                         isBusy,
+                        usageSummary,
+                        activeUsageScopeId,
+                        activeUsageScope,
                     },
                 },
                 200
             );
+        })
+        .openapi(clearContextRoute, async (ctx) => {
+            const agent = await getAgent(ctx);
+            const { sessionId } = ctx.req.valid('param');
+            await agent.clearContext(sessionId);
+            return ctx.json({ status: 'context cleared', sessionId });
         })
         .openapi(patchRoute, async (ctx) => {
             const agent = await getAgent(ctx);

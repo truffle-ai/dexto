@@ -1,5 +1,29 @@
 # @dexto/tools-builtins
 
+## 1.6.17
+
+### Patch Changes
+
+- Updated dependencies [302d1c3]
+    - @dexto/core@1.6.17
+    - @dexto/agent-config@1.6.17
+
+## 1.6.16
+
+### Patch Changes
+
+- Updated dependencies [11acdc1]
+    - @dexto/core@1.6.16
+    - @dexto/agent-config@1.6.16
+
+## 1.6.15
+
+### Patch Changes
+
+- Updated dependencies [6a490b0]
+    - @dexto/core@1.6.15
+    - @dexto/agent-config@1.6.15
+
 ## 1.6.14
 
 ### Patch Changes

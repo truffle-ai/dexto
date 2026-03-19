@@ -942,15 +942,20 @@ describe('StreamProcessor', () => {
 
             await processor.process(() => createMockStream(events) as never);
 
-            expect(mocks.contextManager.updateAssistantMessage).toHaveBeenCalledWith('msg-1', {
-                tokenUsage: {
-                    inputTokens: 100,
-                    outputTokens: 50,
-                    totalTokens: 150,
-                    cacheReadTokens: 0,
-                    cacheWriteTokens: 0,
-                },
-            });
+            expect(mocks.contextManager.updateAssistantMessage).toHaveBeenCalledWith(
+                'msg-1',
+                expect.objectContaining({
+                    tokenUsage: {
+                        inputTokens: 100,
+                        outputTokens: 50,
+                        totalTokens: 150,
+                        cacheReadTokens: 0,
+                        cacheWriteTokens: 0,
+                    },
+                    estimatedCost: expect.any(Number),
+                    pricingStatus: 'estimated',
+                })
+            );
         });
 
         test('persists reasoning text to assistant message', async () => {
@@ -1097,14 +1102,65 @@ describe('StreamProcessor', () => {
             expect(responseEvent).toBeDefined();
             expect(responseEvent?.payload).toMatchObject({
                 content: 'Final response',
+                messageId: 'msg-1',
                 provider: 'openai',
                 model: 'gpt-4',
+                pricingStatus: 'estimated',
                 tokenUsage: {
                     inputTokens: 100,
                     outputTokens: 50,
                     totalTokens: 150,
                 },
             });
+            expect(
+                (responseEvent?.payload as { estimatedCost?: number } | undefined)?.estimatedCost
+            ).toBeGreaterThan(0);
+        });
+
+        test('tags response usage with configured usage scope id', async () => {
+            const previousUsageScopeId = process.env.DEXTO_USAGE_SCOPE_ID;
+            process.env.DEXTO_USAGE_SCOPE_ID = 'cloud-agent-1';
+
+            try {
+                const mocks = createMocks();
+                const processor = new StreamProcessor(
+                    mocks.contextManager,
+                    mocks.eventBus,
+                    mocks.resourceManager,
+                    mocks.abortController.signal,
+                    mocks.config,
+                    mocks.logger,
+                    true
+                );
+
+                const events = [
+                    { type: 'text-delta', text: 'Scoped response' },
+                    {
+                        type: 'finish',
+                        finishReason: 'stop',
+                        totalUsage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
+                    },
+                ];
+
+                await processor.process(() => createMockStream(events) as never);
+
+                const responseEvent = mocks.emittedEvents.find((e) => e.name === 'llm:response');
+                expect(responseEvent?.payload).toMatchObject({
+                    usageScopeId: 'cloud-agent-1',
+                });
+                expect(mocks.contextManager.updateAssistantMessage).toHaveBeenCalledWith(
+                    'msg-1',
+                    expect.objectContaining({
+                        usageScopeId: 'cloud-agent-1',
+                    })
+                );
+            } finally {
+                if (previousUsageScopeId === undefined) {
+                    delete process.env.DEXTO_USAGE_SCOPE_ID;
+                } else {
+                    process.env.DEXTO_USAGE_SCOPE_ID = previousUsageScopeId;
+                }
+            }
         });
     });
 
@@ -1211,6 +1267,64 @@ describe('StreamProcessor', () => {
             const result = await processor.process(() => abortingStream as never);
             expect(result.text).toBe('Hello');
             expect(result.finishReason).toBe('cancelled');
+        });
+
+        test('persists assistant usage metadata before emitting cancelled response', async () => {
+            const mocks = createMocks();
+
+            const abortingStream = {
+                fullStream: (async function* () {
+                    yield { type: 'text-delta', text: 'Hello' };
+                    yield {
+                        type: 'finish-step',
+                        usage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
+                    };
+                    yield { type: 'abort' };
+                })(),
+            };
+
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.resourceManager,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
+
+            await processor.process(() => abortingStream as never);
+
+            expect(mocks.contextManager.updateAssistantMessage).toHaveBeenCalledWith(
+                'msg-1',
+                expect.objectContaining({
+                    tokenUsage: {
+                        inputTokens: 12,
+                        outputTokens: 4,
+                        totalTokens: 16,
+                        cacheReadTokens: 0,
+                        cacheWriteTokens: 0,
+                    },
+                    estimatedCost: expect.any(Number),
+                    pricingStatus: 'estimated',
+                })
+            );
+
+            const responseEvent = mocks.emittedEvents.find((e) => e.name === 'llm:response');
+            expect(responseEvent?.payload).toMatchObject({
+                finishReason: 'cancelled',
+                pricingStatus: 'estimated',
+                tokenUsage: {
+                    inputTokens: 12,
+                    outputTokens: 4,
+                    totalTokens: 16,
+                    cacheReadTokens: 0,
+                    cacheWriteTokens: 0,
+                },
+            });
+            expect(
+                (responseEvent?.payload as { estimatedCost?: number } | undefined)?.estimatedCost
+            ).toBeGreaterThan(0);
         });
     });
 

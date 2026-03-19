@@ -2793,6 +2793,16 @@
                           "minimum": 0,
                           "description": "Number of reasoning tokens"
                         },
+                        "cacheReadTokens": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Number of cache read tokens"
+                        },
+                        "cacheWriteTokens": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Number of cache write tokens"
+                        },
                         "totalTokens": {
                           "type": "integer",
                           "minimum": 0,
@@ -2801,6 +2811,28 @@
                       },
                       "additionalProperties": false,
                       "description": "Token usage statistics"
+                    },
+                    "messageId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "description": "Assistant message ID for this response"
+                    },
+                    "usageScopeId": {
+                      "type": "string",
+                      "description": "Optional usage scope identifier for runtime-scoped metering"
+                    },
+                    "estimatedCost": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "Estimated cost in USD for this response"
+                    },
+                    "pricingStatus": {
+                      "type": "string",
+                      "enum": [
+                        "estimated",
+                        "unpriced"
+                      ],
+                      "description": "Whether pricing was resolved for this response"
                     },
                     "reasoning": {
                       "type": "string",
@@ -2908,7 +2940,7 @@
     "/api/message-stream": {
       "post": {
         "summary": "Stream message response",
-        "description": "Sends a message and streams the response via Server-Sent Events (SSE). Returns SSE stream directly in response. Events include llm:thinking, llm:chunk, llm:tool-call, llm:tool-result, llm:response, and llm:error. If the session is busy processing another message, returns 202 with queue information.",
+        "description": "Sends a message and streams the response via Server-Sent Events (SSE). Returns SSE stream directly in response. Events include llm:thinking, llm:chunk, llm:tool-call, llm:tool-result, llm:response, and llm:error. Final llm:response events include token usage, assistant message ID, and pricing metadata when available. If the session is busy processing another message, returns 202 with queue information.",
         "tags": [
           "messages"
         ],
@@ -3062,7 +3094,7 @@
               "text/event-stream": {
                 "schema": {
                   "type": "string",
-                  "description": "Server-Sent Events stream. Events: llm:thinking (start), llm:chunk (text fragments), llm:tool-call (tool execution), llm:tool-result (tool output), llm:response (final), llm:error (errors)"
+                  "description": "Server-Sent Events stream. Events: llm:thinking (start), llm:chunk (text fragments), llm:tool-call (tool execution), llm:tool-result (tool output), llm:response (final), llm:error (errors). Final llm:response payloads include token usage, assistant message ID, and pricing metadata when available."
                 }
               }
             }
@@ -8025,33 +8057,27 @@
                             "properties": {
                               "inputTokens": {
                                 "type": "integer",
-                                "minimum": 0,
-                                "description": "Number of input tokens"
+                                "minimum": 0
                               },
                               "outputTokens": {
                                 "type": "integer",
-                                "minimum": 0,
-                                "description": "Number of output tokens"
+                                "minimum": 0
                               },
                               "reasoningTokens": {
                                 "type": "integer",
-                                "minimum": 0,
-                                "description": "Number of reasoning tokens"
+                                "minimum": 0
                               },
                               "cacheReadTokens": {
                                 "type": "integer",
-                                "minimum": 0,
-                                "description": "Number of cache read tokens"
+                                "minimum": 0
                               },
                               "cacheWriteTokens": {
                                 "type": "integer",
-                                "minimum": 0,
-                                "description": "Number of cache write tokens"
+                                "minimum": 0
                               },
                               "totalTokens": {
                                 "type": "integer",
-                                "minimum": 0,
-                                "description": "Total tokens used"
+                                "minimum": 0
                               }
                             },
                             "required": [
@@ -8093,33 +8119,27 @@
                                   "properties": {
                                     "inputTokens": {
                                       "type": "integer",
-                                      "minimum": 0,
-                                      "description": "Number of input tokens"
+                                      "minimum": 0
                                     },
                                     "outputTokens": {
                                       "type": "integer",
-                                      "minimum": 0,
-                                      "description": "Number of output tokens"
+                                      "minimum": 0
                                     },
                                     "reasoningTokens": {
                                       "type": "integer",
-                                      "minimum": 0,
-                                      "description": "Number of reasoning tokens"
+                                      "minimum": 0
                                     },
                                     "cacheReadTokens": {
                                       "type": "integer",
-                                      "minimum": 0,
-                                      "description": "Number of cache read tokens"
+                                      "minimum": 0
                                     },
                                     "cacheWriteTokens": {
                                       "type": "integer",
-                                      "minimum": 0,
-                                      "description": "Number of cache write tokens"
+                                      "minimum": 0
                                     },
                                     "totalTokens": {
                                       "type": "integer",
-                                      "minimum": 0,
-                                      "description": "Total tokens used"
+                                      "minimum": 0
                                     }
                                   },
                                   "required": [
@@ -8164,6 +8184,17 @@
                               "description": "Per-model statistics within a session"
                             },
                             "description": "Per-model usage statistics (for multi-model sessions)"
+                          },
+                          "usageTracking": {
+                            "type": "object",
+                            "properties": {
+                              "hasUntrackedChatGPTLoginUsage": {
+                                "type": "boolean",
+                                "description": "Whether this session includes known untracked ChatGPT Login usage"
+                              }
+                            },
+                            "additionalProperties": false,
+                            "description": "Known caveats or gaps in usage tracking for this session"
                           },
                           "workspaceId": {
                             "type": "string",
@@ -8264,33 +8295,27 @@
                           "properties": {
                             "inputTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of input tokens"
+                              "minimum": 0
                             },
                             "outputTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of output tokens"
+                              "minimum": 0
                             },
                             "reasoningTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of reasoning tokens"
+                              "minimum": 0
                             },
                             "cacheReadTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of cache read tokens"
+                              "minimum": 0
                             },
                             "cacheWriteTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of cache write tokens"
+                              "minimum": 0
                             },
                             "totalTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Total tokens used"
+                              "minimum": 0
                             }
                           },
                           "required": [
@@ -8332,33 +8357,27 @@
                                 "properties": {
                                   "inputTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of input tokens"
+                                    "minimum": 0
                                   },
                                   "outputTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of output tokens"
+                                    "minimum": 0
                                   },
                                   "reasoningTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of reasoning tokens"
+                                    "minimum": 0
                                   },
                                   "cacheReadTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of cache read tokens"
+                                    "minimum": 0
                                   },
                                   "cacheWriteTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of cache write tokens"
+                                    "minimum": 0
                                   },
                                   "totalTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Total tokens used"
+                                    "minimum": 0
                                   }
                                 },
                                 "required": [
@@ -8403,6 +8422,17 @@
                             "description": "Per-model statistics within a session"
                           },
                           "description": "Per-model usage statistics (for multi-model sessions)"
+                        },
+                        "usageTracking": {
+                          "type": "object",
+                          "properties": {
+                            "hasUntrackedChatGPTLoginUsage": {
+                              "type": "boolean",
+                              "description": "Whether this session includes known untracked ChatGPT Login usage"
+                            }
+                          },
+                          "additionalProperties": false,
+                          "description": "Known caveats or gaps in usage tracking for this session"
                         },
                         "workspaceId": {
                           "type": "string",
@@ -8499,33 +8529,27 @@
                           "properties": {
                             "inputTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of input tokens"
+                              "minimum": 0
                             },
                             "outputTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of output tokens"
+                              "minimum": 0
                             },
                             "reasoningTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of reasoning tokens"
+                              "minimum": 0
                             },
                             "cacheReadTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of cache read tokens"
+                              "minimum": 0
                             },
                             "cacheWriteTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of cache write tokens"
+                              "minimum": 0
                             },
                             "totalTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Total tokens used"
+                              "minimum": 0
                             }
                           },
                           "required": [
@@ -8567,33 +8591,27 @@
                                 "properties": {
                                   "inputTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of input tokens"
+                                    "minimum": 0
                                   },
                                   "outputTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of output tokens"
+                                    "minimum": 0
                                   },
                                   "reasoningTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of reasoning tokens"
+                                    "minimum": 0
                                   },
                                   "cacheReadTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of cache read tokens"
+                                    "minimum": 0
                                   },
                                   "cacheWriteTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of cache write tokens"
+                                    "minimum": 0
                                   },
                                   "totalTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Total tokens used"
+                                    "minimum": 0
                                   }
                                 },
                                 "required": [
@@ -8638,6 +8656,17 @@
                             "description": "Per-model statistics within a session"
                           },
                           "description": "Per-model usage statistics (for multi-model sessions)"
+                        },
+                        "usageTracking": {
+                          "type": "object",
+                          "properties": {
+                            "hasUntrackedChatGPTLoginUsage": {
+                              "type": "boolean",
+                              "description": "Whether this session includes known untracked ChatGPT Login usage"
+                            }
+                          },
+                          "additionalProperties": false,
+                          "description": "Known caveats or gaps in usage tracking for this session"
                         },
                         "workspaceId": {
                           "type": "string",
@@ -10661,33 +10690,27 @@
                           "properties": {
                             "inputTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of input tokens"
+                              "minimum": 0
                             },
                             "outputTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of output tokens"
+                              "minimum": 0
                             },
                             "reasoningTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of reasoning tokens"
+                              "minimum": 0
                             },
                             "cacheReadTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of cache read tokens"
+                              "minimum": 0
                             },
                             "cacheWriteTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of cache write tokens"
+                              "minimum": 0
                             },
                             "totalTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Total tokens used"
+                              "minimum": 0
                             }
                           },
                           "required": [
@@ -10729,33 +10752,27 @@
                                 "properties": {
                                   "inputTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of input tokens"
+                                    "minimum": 0
                                   },
                                   "outputTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of output tokens"
+                                    "minimum": 0
                                   },
                                   "reasoningTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of reasoning tokens"
+                                    "minimum": 0
                                   },
                                   "cacheReadTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of cache read tokens"
+                                    "minimum": 0
                                   },
                                   "cacheWriteTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of cache write tokens"
+                                    "minimum": 0
                                   },
                                   "totalTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Total tokens used"
+                                    "minimum": 0
                                   }
                                 },
                                 "required": [
@@ -10800,6 +10817,17 @@
                             "description": "Per-model statistics within a session"
                           },
                           "description": "Per-model usage statistics (for multi-model sessions)"
+                        },
+                        "usageTracking": {
+                          "type": "object",
+                          "properties": {
+                            "hasUntrackedChatGPTLoginUsage": {
+                              "type": "boolean",
+                              "description": "Whether this session includes known untracked ChatGPT Login usage"
+                            }
+                          },
+                          "additionalProperties": false,
+                          "description": "Known caveats or gaps in usage tracking for this session"
                         },
                         "workspaceId": {
                           "type": "string",
@@ -10969,33 +10997,27 @@
                           "properties": {
                             "inputTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of input tokens"
+                              "minimum": 0
                             },
                             "outputTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of output tokens"
+                              "minimum": 0
                             },
                             "reasoningTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of reasoning tokens"
+                              "minimum": 0
                             },
                             "cacheReadTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of cache read tokens"
+                              "minimum": 0
                             },
                             "cacheWriteTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of cache write tokens"
+                              "minimum": 0
                             },
                             "totalTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Total tokens used"
+                              "minimum": 0
                             }
                           },
                           "required": [
@@ -11037,33 +11059,27 @@
                                 "properties": {
                                   "inputTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of input tokens"
+                                    "minimum": 0
                                   },
                                   "outputTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of output tokens"
+                                    "minimum": 0
                                   },
                                   "reasoningTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of reasoning tokens"
+                                    "minimum": 0
                                   },
                                   "cacheReadTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of cache read tokens"
+                                    "minimum": 0
                                   },
                                   "cacheWriteTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of cache write tokens"
+                                    "minimum": 0
                                   },
                                   "totalTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Total tokens used"
+                                    "minimum": 0
                                   }
                                 },
                                 "required": [
@@ -11108,6 +11124,17 @@
                             "description": "Per-model statistics within a session"
                           },
                           "description": "Per-model usage statistics (for multi-model sessions)"
+                        },
+                        "usageTracking": {
+                          "type": "object",
+                          "properties": {
+                            "hasUntrackedChatGPTLoginUsage": {
+                              "type": "boolean",
+                              "description": "Whether this session includes known untracked ChatGPT Login usage"
+                            }
+                          },
+                          "additionalProperties": false,
+                          "description": "Known caveats or gaps in usage tracking for this session"
                         },
                         "workspaceId": {
                           "type": "string",
@@ -11382,6 +11409,16 @@
                                 "minimum": 0,
                                 "description": "Number of reasoning tokens"
                               },
+                              "cacheReadTokens": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Number of cache read tokens"
+                              },
+                              "cacheWriteTokens": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Number of cache write tokens"
+                              },
                               "totalTokens": {
                                 "type": "integer",
                                 "minimum": 0,
@@ -11390,6 +11427,23 @@
                             },
                             "additionalProperties": false,
                             "description": "Optional token usage accounting"
+                          },
+                          "estimatedCost": {
+                            "type": "number",
+                            "minimum": 0,
+                            "description": "Estimated cost in USD for this response"
+                          },
+                          "pricingStatus": {
+                            "type": "string",
+                            "enum": [
+                              "estimated",
+                              "unpriced"
+                            ],
+                            "description": "Whether pricing was resolved for this response"
+                          },
+                          "usageScopeId": {
+                            "type": "string",
+                            "description": "Optional usage scope identifier for runtime-scoped metering"
                           },
                           "model": {
                             "type": "string",
@@ -11668,33 +11722,27 @@
                           "properties": {
                             "inputTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of input tokens"
+                              "minimum": 0
                             },
                             "outputTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of output tokens"
+                              "minimum": 0
                             },
                             "reasoningTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of reasoning tokens"
+                              "minimum": 0
                             },
                             "cacheReadTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of cache read tokens"
+                              "minimum": 0
                             },
                             "cacheWriteTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Number of cache write tokens"
+                              "minimum": 0
                             },
                             "totalTokens": {
                               "type": "integer",
-                              "minimum": 0,
-                              "description": "Total tokens used"
+                              "minimum": 0
                             }
                           },
                           "required": [
@@ -11736,33 +11784,27 @@
                                 "properties": {
                                   "inputTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of input tokens"
+                                    "minimum": 0
                                   },
                                   "outputTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of output tokens"
+                                    "minimum": 0
                                   },
                                   "reasoningTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of reasoning tokens"
+                                    "minimum": 0
                                   },
                                   "cacheReadTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of cache read tokens"
+                                    "minimum": 0
                                   },
                                   "cacheWriteTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Number of cache write tokens"
+                                    "minimum": 0
                                   },
                                   "totalTokens": {
                                     "type": "integer",
-                                    "minimum": 0,
-                                    "description": "Total tokens used"
+                                    "minimum": 0
                                   }
                                 },
                                 "required": [
@@ -11808,6 +11850,17 @@
                           },
                           "description": "Per-model usage statistics (for multi-model sessions)"
                         },
+                        "usageTracking": {
+                          "type": "object",
+                          "properties": {
+                            "hasUntrackedChatGPTLoginUsage": {
+                              "type": "boolean",
+                              "description": "Whether this session includes known untracked ChatGPT Login usage"
+                            }
+                          },
+                          "additionalProperties": false,
+                          "description": "Known caveats or gaps in usage tracking for this session"
+                        },
                         "workspaceId": {
                           "type": "string",
                           "nullable": true,
@@ -11821,6 +11874,285 @@
                         "isBusy": {
                           "type": "boolean",
                           "description": "Whether the session is currently processing a message"
+                        },
+                        "usageSummary": {
+                          "type": "object",
+                          "properties": {
+                            "tokenUsage": {
+                              "type": "object",
+                              "properties": {
+                                "inputTokens": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "outputTokens": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "reasoningTokens": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "cacheReadTokens": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "cacheWriteTokens": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "totalTokens": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                }
+                              },
+                              "required": [
+                                "inputTokens",
+                                "outputTokens",
+                                "reasoningTokens",
+                                "cacheReadTokens",
+                                "cacheWriteTokens",
+                                "totalTokens"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Aggregate token usage for the selected scope"
+                            },
+                            "estimatedCost": {
+                              "type": "number",
+                              "minimum": 0,
+                              "description": "Total estimated cost in USD for the selected scope"
+                            },
+                            "hasUnpricedResponses": {
+                              "type": "boolean",
+                              "description": "Whether any response in the selected scope has usage but no resolved pricing"
+                            },
+                            "modelStats": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "provider": {
+                                    "type": "string",
+                                    "description": "LLM provider identifier"
+                                  },
+                                  "model": {
+                                    "type": "string",
+                                    "description": "Model identifier"
+                                  },
+                                  "messageCount": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of responses using this model in the selected scope"
+                                  },
+                                  "tokenUsage": {
+                                    "type": "object",
+                                    "properties": {
+                                      "inputTokens": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                      },
+                                      "outputTokens": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                      },
+                                      "reasoningTokens": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                      },
+                                      "cacheReadTokens": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                      },
+                                      "cacheWriteTokens": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                      },
+                                      "totalTokens": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                      }
+                                    },
+                                    "required": [
+                                      "inputTokens",
+                                      "outputTokens",
+                                      "reasoningTokens",
+                                      "cacheReadTokens",
+                                      "cacheWriteTokens",
+                                      "totalTokens"
+                                    ],
+                                    "additionalProperties": false,
+                                    "description": "Token usage for this model in the selected scope"
+                                  },
+                                  "estimatedCost": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "description": "Estimated cost in USD for this model in the selected scope"
+                                  }
+                                },
+                                "required": [
+                                  "provider",
+                                  "model",
+                                  "messageCount",
+                                  "tokenUsage",
+                                  "estimatedCost"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "description": "Per-model usage statistics within the selected scope"
+                            }
+                          },
+                          "required": [
+                            "tokenUsage",
+                            "estimatedCost",
+                            "hasUnpricedResponses"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Exact usage summary derived from assistant message history"
+                        },
+                        "activeUsageScopeId": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "Current runtime usage scope identifier, if configured"
+                        },
+                        "activeUsageScope": {
+                          "type": "object",
+                          "nullable": true,
+                          "properties": {
+                            "tokenUsage": {
+                              "type": "object",
+                              "properties": {
+                                "inputTokens": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "outputTokens": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "reasoningTokens": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "cacheReadTokens": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "cacheWriteTokens": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "totalTokens": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                }
+                              },
+                              "required": [
+                                "inputTokens",
+                                "outputTokens",
+                                "reasoningTokens",
+                                "cacheReadTokens",
+                                "cacheWriteTokens",
+                                "totalTokens"
+                              ],
+                              "additionalProperties": false,
+                              "description": "Aggregate token usage for the selected scope"
+                            },
+                            "estimatedCost": {
+                              "type": "number",
+                              "minimum": 0,
+                              "description": "Total estimated cost in USD for the selected scope"
+                            },
+                            "hasUnpricedResponses": {
+                              "type": "boolean",
+                              "description": "Whether any response in the selected scope has usage but no resolved pricing"
+                            },
+                            "modelStats": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "provider": {
+                                    "type": "string",
+                                    "description": "LLM provider identifier"
+                                  },
+                                  "model": {
+                                    "type": "string",
+                                    "description": "Model identifier"
+                                  },
+                                  "messageCount": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of responses using this model in the selected scope"
+                                  },
+                                  "tokenUsage": {
+                                    "type": "object",
+                                    "properties": {
+                                      "inputTokens": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                      },
+                                      "outputTokens": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                      },
+                                      "reasoningTokens": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                      },
+                                      "cacheReadTokens": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                      },
+                                      "cacheWriteTokens": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                      },
+                                      "totalTokens": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                      }
+                                    },
+                                    "required": [
+                                      "inputTokens",
+                                      "outputTokens",
+                                      "reasoningTokens",
+                                      "cacheReadTokens",
+                                      "cacheWriteTokens",
+                                      "totalTokens"
+                                    ],
+                                    "additionalProperties": false,
+                                    "description": "Token usage for this model in the selected scope"
+                                  },
+                                  "estimatedCost": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "description": "Estimated cost in USD for this model in the selected scope"
+                                  }
+                                },
+                                "required": [
+                                  "provider",
+                                  "model",
+                                  "messageCount",
+                                  "tokenUsage",
+                                  "estimatedCost"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "description": "Per-model usage statistics within the selected scope"
+                            },
+                            "scopeId": {
+                              "type": "string",
+                              "description": "Usage scope identifier"
+                            }
+                          },
+                          "required": [
+                            "tokenUsage",
+                            "estimatedCost",
+                            "hasUnpricedResponses",
+                            "scopeId"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Usage summary for the current runtime scope, if configured"
                         }
                       },
                       "required": [
@@ -11828,7 +12160,10 @@
                         "createdAt",
                         "lastActivity",
                         "messageCount",
-                        "isBusy"
+                        "isBusy",
+                        "usageSummary",
+                        "activeUsageScopeId",
+                        "activeUsageScope"
                       ],
                       "additionalProperties": false,
                       "description": "Session metadata with processing status"
@@ -11856,6 +12191,57 @@
                   },
                   "required": [
                     "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/clear-context": {
+      "post": {
+        "summary": "Clear Session Context",
+        "description": "Clears the model context window for a session while preserving conversation history for review.",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Session identifier"
+            },
+            "required": true,
+            "description": "Session identifier",
+            "name": "sessionId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session context cleared successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "context cleared"
+                      ],
+                      "description": "Context clear status"
+                    },
+                    "sessionId": {
+                      "type": "string",
+                      "description": "Session ID"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "sessionId"
                   ],
                   "additionalProperties": false
                 }
@@ -12216,6 +12602,16 @@
                                     "minimum": 0,
                                     "description": "Number of reasoning tokens"
                                   },
+                                  "cacheReadTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache read tokens"
+                                  },
+                                  "cacheWriteTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache write tokens"
+                                  },
                                   "totalTokens": {
                                     "type": "integer",
                                     "minimum": 0,
@@ -12224,6 +12620,23 @@
                                 },
                                 "additionalProperties": false,
                                 "description": "Optional token usage accounting"
+                              },
+                              "estimatedCost": {
+                                "type": "number",
+                                "minimum": 0,
+                                "description": "Estimated cost in USD for this response"
+                              },
+                              "pricingStatus": {
+                                "type": "string",
+                                "enum": [
+                                  "estimated",
+                                  "unpriced"
+                                ],
+                                "description": "Whether pricing was resolved for this response"
+                              },
+                              "usageScopeId": {
+                                "type": "string",
+                                "description": "Optional usage scope identifier for runtime-scoped metering"
                               },
                               "model": {
                                 "type": "string",
@@ -12660,6 +13073,16 @@
                                         "minimum": 0,
                                         "description": "Number of reasoning tokens"
                                       },
+                                      "cacheReadTokens": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "description": "Number of cache read tokens"
+                                      },
+                                      "cacheWriteTokens": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "description": "Number of cache write tokens"
+                                      },
                                       "totalTokens": {
                                         "type": "integer",
                                         "minimum": 0,
@@ -12668,6 +13091,23 @@
                                     },
                                     "additionalProperties": false,
                                     "description": "Optional token usage accounting"
+                                  },
+                                  "estimatedCost": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "description": "Estimated cost in USD for this response"
+                                  },
+                                  "pricingStatus": {
+                                    "type": "string",
+                                    "enum": [
+                                      "estimated",
+                                      "unpriced"
+                                    ],
+                                    "description": "Whether pricing was resolved for this response"
+                                  },
+                                  "usageScopeId": {
+                                    "type": "string",
+                                    "description": "Optional usage scope identifier for runtime-scoped metering"
                                   },
                                   "model": {
                                     "type": "string",
@@ -17634,7 +18074,8 @@
                     "type": "string",
                     "enum": [
                       "approved",
-                      "denied"
+                      "denied",
+                      "cancelled"
                     ],
                     "description": "The user decision"
                   },
@@ -17648,11 +18089,37 @@
                   "rememberChoice": {
                     "type": "boolean",
                     "description": "Whether to remember this choice for future requests"
+                  },
+                  "rememberPattern": {
+                    "type": "string",
+                    "description": "Optional approval pattern to remember for future requests"
+                  },
+                  "rememberDirectory": {
+                    "type": "boolean",
+                    "description": "Whether to remember the approved directory for future requests"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "user_denied",
+                      "system_denied",
+                      "timeout",
+                      "user_cancelled",
+                      "system_cancelled",
+                      "validation_failed",
+                      "elicitation_disabled"
+                    ],
+                    "description": "Optional structured denial or cancellation reason"
+                  },
+                  "message": {
+                    "type": "string",
+                    "description": "Optional freeform denial or cancellation message"
                   }
                 },
                 "required": [
                   "status"
                 ],
+                "additionalProperties": false,
                 "description": "Request body for submitting an approval decision"
               }
             }
@@ -17678,7 +18145,8 @@
                       "type": "string",
                       "enum": [
                         "approved",
-                        "denied"
+                        "denied",
+                        "cancelled"
                       ],
                       "description": "The final status"
                     }

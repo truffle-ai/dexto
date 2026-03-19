@@ -1,5 +1,23 @@
 # @dexto/core
 
+## 1.6.17
+
+### Patch Changes
+
+- 302d1c3: Improve LLM usage delivery safety and summary completeness.
+
+## 1.6.16
+
+### Patch Changes
+
+- 11acdc1: Add codex dependency resolution for ChatGPT login.
+
+## 1.6.15
+
+### Patch Changes
+
+- 6a490b0: Added `dexto init` commands for scaffolding AGENTS.md, agents/ and skills/.
+
 ## 1.6.14
 
 ## 1.6.13

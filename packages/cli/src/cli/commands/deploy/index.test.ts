@@ -18,6 +18,7 @@ const {
     mockRemoveWorkspaceDeployLink,
     mockSaveWorkspaceDeployLink,
     mockSpinner,
+    mockStartCloudChatCli,
     mockValidateAgentConfig,
 } = vi.hoisted(() => ({
     mockCreateWorkspaceSnapshot: vi.fn(),
@@ -38,6 +39,7 @@ const {
         stop: vi.fn(),
         message: vi.fn(),
     },
+    mockStartCloudChatCli: vi.fn(),
     mockValidateAgentConfig: vi.fn(),
 }));
 
@@ -104,6 +106,10 @@ vi.mock('open', () => ({
 
 vi.mock('./snapshot.js', () => ({
     createWorkspaceSnapshot: mockCreateWorkspaceSnapshot,
+}));
+
+vi.mock('../../cloud-chat.js', () => ({
+    startCloudChatCli: mockStartCloudChatCli,
 }));
 
 vi.mock('../../utils/config-validation.js', () => ({

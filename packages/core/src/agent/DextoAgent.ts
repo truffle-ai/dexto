@@ -56,6 +56,7 @@ import type { LLMProvider } from '../llm/types.js';
 import { createAgentServices } from '../utils/service-initializer.js';
 import { LLMConfigSchema, LLMUpdatesSchema } from '../llm/schemas.js';
 import type { LLMUpdates, ValidatedLLMConfig } from '../llm/schemas.js';
+import { summarizeAssistantUsage } from '../llm/usage-summary.js';
 import { ServersConfigSchema } from '../mcp/schemas.js';
 import { MemoriesConfigSchema } from '../memory/schemas.js';
 import { PromptsSchema } from '../prompts/schemas.js';
@@ -852,6 +853,8 @@ export class DextoAgent {
             inputTokens: 0,
             outputTokens: 0,
             totalTokens: 0,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
         };
         const usage = responseEvent.tokenUsage ?? defaultUsage;
 
@@ -861,6 +864,14 @@ export class DextoAgent {
             usage: usage as import('./types.js').TokenUsage,
             toolCalls,
             sessionId,
+            ...(responseEvent.messageId && { messageId: responseEvent.messageId }),
+            ...(responseEvent.usageScopeId && { usageScopeId: responseEvent.usageScopeId }),
+            ...(responseEvent.provider && { provider: responseEvent.provider }),
+            ...(responseEvent.model && { model: responseEvent.model }),
+            ...(responseEvent.estimatedCost !== undefined && {
+                estimatedCost: responseEvent.estimatedCost,
+            }),
+            ...(responseEvent.pricingStatus && { pricingStatus: responseEvent.pricingStatus }),
         };
     }
 
@@ -1753,6 +1764,16 @@ export class DextoAgent {
                 }),
             }))
         )) as InternalMessage[];
+    }
+
+    public async getSessionUsageSummary(sessionId: string, usageScopeId?: string) {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+
+        return summarizeAssistantUsage(await session.getHistory(), usageScopeId);
     }
 
     /**

@@ -20,9 +20,14 @@
  * into a single CLI_COMMANDS array for the command execution system.
  */
 
-import type { DextoAgent } from '@dexto/core';
 import type { CommandDefinition, CommandHandlerResult } from './command-parser.js';
 import { isDextoAuthEnabled } from '@dexto/agent-management';
+import {
+    isCommandDefinitionSupported,
+    isCommandSupported,
+    supportsPrompts,
+    type TuiAgentBackend,
+} from '../agent-backend.js';
 
 // Import modular command definitions
 import { generalCommands, createHelpCommand } from './general-commands.js';
@@ -93,7 +98,7 @@ const baseCommands: CommandDefinition[] = [
 ];
 
 // Add help command that can see all commands
-CLI_COMMANDS.push(createHelpCommand(() => CLI_COMMANDS));
+CLI_COMMANDS.push(createHelpCommand((agent) => getAvailableCommands(agent)));
 
 // Add all other commands
 CLI_COMMANDS.push(...baseCommands);
@@ -107,7 +112,7 @@ CLI_COMMANDS.push(...baseCommands);
 export async function executeCommand(
     command: string,
     args: string[],
-    agent: DextoAgent,
+    agent: TuiAgentBackend,
     sessionId?: string,
     configFilePath?: string | null
 ): Promise<CommandHandlerResult> {
@@ -120,6 +125,10 @@ export async function executeCommand(
     );
 
     if (cmd) {
+        if (!isCommandSupported(agent, command, cmd)) {
+            return `⚠️  Command /${command} is not available for this chat target.`;
+        }
+
         try {
             // Execute the handler with context
             const result = await cmd.handler(args, agent, ctx);
@@ -138,23 +147,25 @@ export async function executeCommand(
     // Command not found in static commands - check if it's a dynamic prompt command
     // Dynamic commands use displayName (e.g., "quick-start" instead of "config:quick-start")
     try {
-        // Import prompt command creation dynamically to avoid circular dependencies
-        const { getDynamicPromptCommands } = await import('./prompt-commands.js');
-        const dynamicCommands = await getDynamicPromptCommands(agent);
-        // Commands are registered by displayName, so search by command name directly
-        const promptCmd = dynamicCommands.find((c) => c.name === command);
+        if (supportsPrompts(agent)) {
+            // Import prompt command creation dynamically to avoid circular dependencies
+            const { getDynamicPromptCommands } = await import('./prompt-commands.js');
+            const dynamicCommands = await getDynamicPromptCommands(agent);
+            // Commands are registered by displayName, so search by command name directly
+            const promptCmd = dynamicCommands.find((c) => c.name === command);
 
-        if (promptCmd) {
-            try {
-                const result = await promptCmd.handler(args, agent, ctx);
-                // Return the result directly - can be string, boolean, StyledOutput, or SendMessageMarker
-                return result;
-            } catch (error) {
-                const errorMsg = `❌ Error executing prompt /${command}:\n${error instanceof Error ? error.message : String(error)}`;
-                agent.logger.error(
-                    `Error executing prompt /${command}: ${error instanceof Error ? error.message : String(error)}`
-                );
-                return errorMsg;
+            if (promptCmd) {
+                try {
+                    const result = await promptCmd.handler(args, agent, ctx);
+                    // Return the result directly - can be string, boolean, StyledOutput, or SendMessageMarker
+                    return result;
+                } catch (error) {
+                    const errorMsg = `❌ Error executing prompt /${command}:\n${error instanceof Error ? error.message : String(error)}`;
+                    agent.logger.error(
+                        `Error executing prompt /${command}: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                    return errorMsg;
+                }
             }
         }
     } catch (error) {
@@ -175,4 +186,8 @@ export async function executeCommand(
  */
 export function getAllCommands(): CommandDefinition[] {
     return CLI_COMMANDS;
+}
+
+export function getAvailableCommands(agent: TuiAgentBackend): CommandDefinition[] {
+    return CLI_COMMANDS.filter((command) => isCommandDefinitionSupported(agent, command));
 }

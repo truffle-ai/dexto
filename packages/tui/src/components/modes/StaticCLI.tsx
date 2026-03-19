@@ -16,7 +16,7 @@
 
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { Box, Static, Text, useStdout } from 'ink';
-import type { DextoAgent } from '@dexto/core';
+import type { TuiAgentBackend } from '../../agent-backend.js';
 
 // ANSI escape sequence to clear terminal (equivalent to ansiEscapes.clearTerminal)
 const CLEAR_TERMINAL = '\x1B[2J\x1B[3J\x1B[H';
@@ -45,7 +45,7 @@ import { OverlayContainer } from '../../containers/OverlayContainer.js';
 import { shouldHideStatusChrome } from '../../utils/overlayPresentation.js';
 
 interface StaticCLIProps {
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
     initialSessionId: string | null;
     initialPrompt?: string | undefined;
     startupInfo: StartupInfo;
