@@ -263,21 +263,21 @@ async function ensureSkillMcpServersConnected(
 
     try {
         for (const [serverName, serverConfig] of Object.entries(mcpServers)) {
-            const existingStatus = context.agent.getMcpServerStatus(serverName);
+            let serverStatus = context.agent.getMcpServerStatus(serverName);
 
-            if (!existingStatus) {
+            if (!serverStatus) {
                 await context.agent.addMcpServer(serverName, serverConfig);
-                continue;
+                serverStatus = context.agent.getMcpServerStatus(serverName);
             }
 
-            if (!existingStatus.enabled) {
+            if (!serverStatus?.enabled || serverStatus.status !== 'connected') {
                 await context.agent.enableMcpServer(serverName);
-                continue;
+                serverStatus = context.agent.getMcpServerStatus(serverName);
             }
 
-            if (existingStatus.status !== 'connected') {
+            if (!serverStatus || serverStatus.status !== 'connected') {
                 return {
-                    error: `Skill '${skill}' requires MCP server '${serverName}', but it is currently ${existingStatus.status}${existingStatus.error ? `: ${existingStatus.error}` : ''}.`,
+                    error: `Skill '${skill}' requires MCP server '${serverName}', but it is currently ${serverStatus?.status ?? 'unavailable'}${serverStatus?.error ? `: ${serverStatus.error}` : ''}.`,
                     mcpServers: serverNames,
                 };
             }
