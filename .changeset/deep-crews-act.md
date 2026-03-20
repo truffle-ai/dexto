@@ -5,4 +5,4 @@
 'dexto': patch
 ---
 
-Update create-skill and formalizd convention for new skill bundles in workspaces. Updated `dexto init` to initialize with create-skill default.
+Update create-skill and formalized convention for new skill bundles in workspaces. Updated `dexto init` to initialize with create-skill default.
