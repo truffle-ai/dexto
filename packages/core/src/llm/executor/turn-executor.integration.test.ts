@@ -19,6 +19,9 @@ import type { LanguageModel, ModelMessage } from 'ai';
 import type { LLMContext } from '../types.js';
 import type { ValidatedLLMConfig } from '../schemas.js';
 import type { Logger } from '../../logger/v2/types.js';
+import type { CompactionStrategy } from '../../context/compaction/types.js';
+import type { SessionCompactionRecord } from '../../session/compaction.js';
+import type { SessionCompactionPersistence } from '../../session/compaction-service.js';
 
 // Only mock the AI SDK's streamText/generateText - everything else is real
 vi.mock('ai', async (importOriginal) => {
@@ -800,6 +803,213 @@ describe('TurnExecutor Integration Tests', () => {
                         ))
             );
             expect(hasSystemContent).toBe(true);
+        });
+    });
+
+    describe('Structured Overflow Compaction', () => {
+        it('routes overflow compaction through the shared session compaction pipeline', async () => {
+            const overflowCompactionStrategy: CompactionStrategy = {
+                name: 'test-overflow-compaction',
+                getSettings: () => ({
+                    enabled: true,
+                    thresholdPercent: 0.9,
+                }),
+                getModelLimits: (contextWindow: number) => ({
+                    contextWindow,
+                }),
+                shouldCompact: (inputTokens: number) => inputTokens > 120,
+                compact: async () => ({
+                    summaryMessages: [
+                        {
+                            role: 'assistant',
+                            content: [{ type: 'text', text: 'Overflow compacted summary' }],
+                            timestamp: Date.now(),
+                        },
+                    ],
+                    preserveFromWorkingIndex: 2,
+                }),
+            };
+
+            const savedCompactions: SessionCompactionRecord[] = [];
+            const sessionCompactionPersistence: SessionCompactionPersistence = {
+                createSeededChildSession: vi.fn(async () => ({
+                    id: 'unused-child-session',
+                })),
+                deleteSession: vi.fn(async () => undefined),
+                deleteSessionCompaction: vi.fn(async () => undefined),
+                saveSessionCompaction: vi.fn(async (compaction) => {
+                    savedCompactions.push(compaction);
+                }),
+            };
+
+            const compactingEvents: Array<{ estimatedTokens: number }> = [];
+            const compactedEvents: Array<{
+                compactionId?: string;
+                mode?: 'artifact-only' | 'continue-in-place' | 'continue-in-child';
+                reason: 'overflow' | 'manual';
+                strategy: string;
+            }> = [];
+
+            sessionEventBus.on('context:compacting', (payload) => {
+                compactingEvents.push(payload);
+            });
+            sessionEventBus.on('context:compacted', (payload) => {
+                compactedEvents.push(payload);
+            });
+
+            const longText = 'very long archived context '.repeat(40);
+            await contextManager.addMessage({
+                role: 'user',
+                content: [{ type: 'text', text: longText }],
+            });
+            await contextManager.addMessage({
+                role: 'assistant',
+                content: [{ type: 'text', text: longText }],
+            });
+            await contextManager.addMessage({
+                role: 'user',
+                content: [{ type: 'text', text: 'Keep this recent request.' }],
+            });
+            await contextManager.addMessage({
+                role: 'assistant',
+                content: [{ type: 'text', text: 'Keep this recent reply.' }],
+            });
+            await contextManager.addUserMessage([
+                { type: 'text', text: 'Respond after compacting.' },
+            ]);
+
+            const executorWithCompaction = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 10, maxOutputTokens: 4096, temperature: 0.7 },
+                llmContext,
+                logger,
+                messageQueue,
+                { contextWindow: 200 },
+                undefined,
+                overflowCompactionStrategy,
+                sessionCompactionPersistence
+            );
+
+            vi.mocked(streamText).mockImplementation(
+                () =>
+                    createMockStream({
+                        text: 'Compacted response',
+                        finishReason: 'stop',
+                        usage: {
+                            inputTokens: 80,
+                            outputTokens: 20,
+                            totalTokens: 100,
+                        },
+                    }) as unknown as ReturnType<typeof streamText>
+            );
+
+            await executorWithCompaction.execute({ mcpManager }, true);
+
+            expect(sessionCompactionPersistence.saveSessionCompaction).toHaveBeenCalledTimes(1);
+            expect(savedCompactions).toHaveLength(1);
+
+            const [savedCompaction] = savedCompactions;
+            expect(savedCompaction?.sourceSessionId).toBe(sessionId);
+            expect(savedCompaction?.trigger).toBe('overflow');
+            expect(savedCompaction?.mode).toBe('continue-in-place');
+            expect(savedCompaction?.targetSessionId).toBeUndefined();
+
+            expect(compactingEvents).toHaveLength(1);
+            expect(compactedEvents).toHaveLength(1);
+            expect(compactedEvents[0]).toMatchObject({
+                compactionId: savedCompaction?.id,
+                mode: 'continue-in-place',
+                reason: 'overflow',
+                strategy: 'test-overflow-compaction',
+            });
+
+            const history = await contextManager.getHistory();
+            expect(history.some((message) => message.metadata?.isSummary === true)).toBe(true);
+        });
+
+        it('does not mutate history when overflow compaction persistence fails', async () => {
+            const overflowCompactionStrategy: CompactionStrategy = {
+                name: 'test-overflow-compaction-save-failure',
+                getSettings: () => ({
+                    enabled: true,
+                    thresholdPercent: 0.9,
+                }),
+                getModelLimits: (contextWindow: number) => ({
+                    contextWindow,
+                }),
+                shouldCompact: (inputTokens: number) => inputTokens > 120,
+                compact: async () => ({
+                    summaryMessages: [
+                        {
+                            role: 'assistant',
+                            content: [{ type: 'text', text: 'Overflow compacted summary' }],
+                            timestamp: Date.now(),
+                        },
+                    ],
+                    preserveFromWorkingIndex: 2,
+                }),
+            };
+
+            const sessionCompactionPersistence: SessionCompactionPersistence = {
+                createSeededChildSession: vi.fn(async () => ({
+                    id: 'unused-child-session',
+                })),
+                deleteSession: vi.fn(async () => undefined),
+                deleteSessionCompaction: vi.fn(async () => undefined),
+                saveSessionCompaction: vi.fn(async () => {
+                    throw new Error('persist failed');
+                }),
+            };
+
+            const longText = 'very long archived context '.repeat(40);
+            await contextManager.addMessage({
+                role: 'user',
+                content: [{ type: 'text', text: longText }],
+            });
+            await contextManager.addMessage({
+                role: 'assistant',
+                content: [{ type: 'text', text: longText }],
+            });
+            await contextManager.addMessage({
+                role: 'user',
+                content: [{ type: 'text', text: 'Keep this recent request.' }],
+            });
+            await contextManager.addMessage({
+                role: 'assistant',
+                content: [{ type: 'text', text: 'Keep this recent reply.' }],
+            });
+            await contextManager.addUserMessage([
+                { type: 'text', text: 'Respond after compacting.' },
+            ]);
+
+            const executorWithCompaction = new TurnExecutor(
+                createMockModel(),
+                toolManager,
+                contextManager,
+                sessionEventBus,
+                resourceManager,
+                sessionId,
+                { maxSteps: 10, maxOutputTokens: 4096, temperature: 0.7 },
+                llmContext,
+                logger,
+                messageQueue,
+                { contextWindow: 200 },
+                undefined,
+                overflowCompactionStrategy,
+                sessionCompactionPersistence
+            );
+
+            await expect(executorWithCompaction.execute({ mcpManager }, true)).rejects.toThrow(
+                'persist failed'
+            );
+
+            const history = await contextManager.getHistory();
+            expect(history.some((message) => message.metadata?.isSummary === true)).toBe(false);
         });
     });
 

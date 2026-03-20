@@ -8838,6 +8838,1997 @@
         }
       }
     },
+    "/api/sessions/{sessionId}/compact": {
+      "post": {
+        "summary": "Compact Session",
+        "description": "Generates a persisted compaction artifact for a session and can optionally apply it in place or seed a new child session.",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Source session identifier"
+            },
+            "required": true,
+            "description": "Source session identifier",
+            "name": "sessionId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "artifact-only",
+                      "continue-in-place",
+                      "continue-in-child"
+                    ],
+                    "description": "Whether to persist the artifact only, update the current session in place, or seed a new child session"
+                  },
+                  "childTitle": {
+                    "type": "string",
+                    "description": "Optional title for a continuation child session"
+                  }
+                },
+                "additionalProperties": false,
+                "description": "Request body for compacting a session"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Compaction result. Returns null when the session was too short or nothing needed compaction.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "compaction": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Unique compaction artifact identifier"
+                        },
+                        "sourceSessionId": {
+                          "type": "string",
+                          "description": "Source session identifier"
+                        },
+                        "targetSessionId": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "Target child session when continuation was applied into a new session"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Creation timestamp (Unix ms)"
+                        },
+                        "strategy": {
+                          "type": "string",
+                          "description": "Compaction strategy name used to produce the artifact"
+                        },
+                        "mode": {
+                          "type": "string",
+                          "enum": [
+                            "artifact-only",
+                            "continue-in-place",
+                            "continue-in-child"
+                          ],
+                          "description": "How the compaction artifact should be applied"
+                        },
+                        "trigger": {
+                          "type": "string",
+                          "enum": [
+                            "manual",
+                            "api",
+                            "scheduled",
+                            "overflow"
+                          ],
+                          "description": "Why the compaction was triggered"
+                        },
+                        "originalTokens": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Estimated tokens before compaction"
+                        },
+                        "compactedTokens": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Estimated tokens after compaction"
+                        },
+                        "originalMessages": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Prepared message count before compaction"
+                        },
+                        "compactedMessages": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Prepared message count after compaction"
+                        },
+                        "summaryMessages": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid",
+                                "description": "Unique message identifier (UUID)"
+                              },
+                              "role": {
+                                "type": "string",
+                                "enum": [
+                                  "system",
+                                  "user",
+                                  "assistant",
+                                  "tool"
+                                ],
+                                "description": "Role of the message sender"
+                              },
+                              "timestamp": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "Creation timestamp (Unix ms)"
+                              },
+                              "content": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "nullable": true
+                                  },
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "oneOf": [
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "type": {
+                                              "type": "string",
+                                              "enum": [
+                                                "text"
+                                              ],
+                                              "description": "Part type: text"
+                                            },
+                                            "text": {
+                                              "type": "string",
+                                              "description": "Text content"
+                                            }
+                                          },
+                                          "required": [
+                                            "type",
+                                            "text"
+                                          ],
+                                          "additionalProperties": false,
+                                          "description": "Text content part"
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "type": {
+                                              "type": "string",
+                                              "enum": [
+                                                "image"
+                                              ],
+                                              "description": "Part type: image"
+                                            },
+                                            "image": {
+                                              "type": "string",
+                                              "description": "Base64-encoded image data"
+                                            },
+                                            "mimeType": {
+                                              "type": "string",
+                                              "description": "MIME type of the image"
+                                            }
+                                          },
+                                          "required": [
+                                            "type",
+                                            "image"
+                                          ],
+                                          "additionalProperties": false,
+                                          "description": "Image content part"
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "type": {
+                                              "type": "string",
+                                              "enum": [
+                                                "file"
+                                              ],
+                                              "description": "Part type: file"
+                                            },
+                                            "data": {
+                                              "type": "string",
+                                              "description": "Base64-encoded file data"
+                                            },
+                                            "mimeType": {
+                                              "type": "string",
+                                              "description": "MIME type of the file"
+                                            },
+                                            "filename": {
+                                              "type": "string",
+                                              "description": "Optional filename"
+                                            }
+                                          },
+                                          "required": [
+                                            "type",
+                                            "data",
+                                            "mimeType"
+                                          ],
+                                          "additionalProperties": false,
+                                          "description": "File content part"
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "type": {
+                                              "type": "string",
+                                              "enum": [
+                                                "ui-resource"
+                                              ],
+                                              "description": "Part type: ui-resource"
+                                            },
+                                            "uri": {
+                                              "type": "string",
+                                              "description": "URI identifying the UI resource (must start with ui://)"
+                                            },
+                                            "mimeType": {
+                                              "type": "string",
+                                              "description": "MIME type: text/html, text/uri-list, or application/vnd.mcp-ui.remote-dom"
+                                            },
+                                            "content": {
+                                              "type": "string",
+                                              "description": "Inline HTML content or URL"
+                                            },
+                                            "blob": {
+                                              "type": "string",
+                                              "description": "Base64-encoded content (alternative to content)"
+                                            },
+                                            "metadata": {
+                                              "type": "object",
+                                              "properties": {
+                                                "title": {
+                                                  "type": "string",
+                                                  "description": "Display title for the UI resource"
+                                                },
+                                                "preferredSize": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "width": {
+                                                      "type": "number",
+                                                      "description": "Preferred width in pixels"
+                                                    },
+                                                    "height": {
+                                                      "type": "number",
+                                                      "description": "Preferred height in pixels"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "width",
+                                                    "height"
+                                                  ],
+                                                  "additionalProperties": false,
+                                                  "description": "Preferred rendering size"
+                                                }
+                                              },
+                                              "additionalProperties": false,
+                                              "description": "Optional metadata for the UI resource"
+                                            }
+                                          },
+                                          "required": [
+                                            "type",
+                                            "uri",
+                                            "mimeType"
+                                          ],
+                                          "additionalProperties": false,
+                                          "description": "UI Resource content part for MCP-UI interactive components"
+                                        }
+                                      ],
+                                      "description": "Message content part (text, image, file, or UI resource)"
+                                    }
+                                  },
+                                  {
+                                    "nullable": true
+                                  }
+                                ],
+                                "description": "Message content (string, null, or array of parts)"
+                              },
+                              "reasoning": {
+                                "type": "string",
+                                "description": "Optional model reasoning text"
+                              },
+                              "tokenUsage": {
+                                "type": "object",
+                                "properties": {
+                                  "inputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of input tokens"
+                                  },
+                                  "outputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of output tokens"
+                                  },
+                                  "reasoningTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of reasoning tokens"
+                                  },
+                                  "cacheReadTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache read tokens"
+                                  },
+                                  "cacheWriteTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache write tokens"
+                                  },
+                                  "totalTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Total tokens used"
+                                  }
+                                },
+                                "additionalProperties": false,
+                                "description": "Optional token usage accounting"
+                              },
+                              "estimatedCost": {
+                                "type": "number",
+                                "minimum": 0,
+                                "description": "Estimated cost in USD for this response"
+                              },
+                              "pricingStatus": {
+                                "type": "string",
+                                "enum": [
+                                  "estimated",
+                                  "unpriced"
+                                ],
+                                "description": "Whether pricing was resolved for this response"
+                              },
+                              "usageScopeId": {
+                                "type": "string",
+                                "description": "Optional usage scope identifier for runtime-scoped metering"
+                              },
+                              "model": {
+                                "type": "string",
+                                "description": "Model identifier for assistant messages"
+                              },
+                              "provider": {
+                                "type": "string",
+                                "enum": [
+                                  "openai",
+                                  "openai-compatible",
+                                  "anthropic",
+                                  "google",
+                                  "groq",
+                                  "xai",
+                                  "cohere",
+                                  "minimax",
+                                  "glm",
+                                  "openrouter",
+                                  "litellm",
+                                  "glama",
+                                  "vertex",
+                                  "bedrock",
+                                  "local",
+                                  "ollama",
+                                  "dexto-nova"
+                                ],
+                                "description": "Provider identifier for assistant messages"
+                              },
+                              "toolCalls": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string",
+                                      "description": "Unique identifier for this tool call"
+                                    },
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "function"
+                                      ],
+                                      "description": "Tool call type (currently only function is supported)"
+                                    },
+                                    "function": {
+                                      "type": "object",
+                                      "properties": {
+                                        "name": {
+                                          "type": "string",
+                                          "description": "Name of the function to call"
+                                        },
+                                        "arguments": {
+                                          "type": "string",
+                                          "description": "Arguments for the function in JSON string format"
+                                        }
+                                      },
+                                      "required": [
+                                        "name",
+                                        "arguments"
+                                      ],
+                                      "additionalProperties": false,
+                                      "description": "Function call details"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "type",
+                                    "function"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Tool call made by the assistant"
+                                },
+                                "description": "Tool calls made by the assistant"
+                              },
+                              "toolCallId": {
+                                "type": "string",
+                                "description": "ID of the tool call this message responds to"
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "Name of the tool that produced this result"
+                              },
+                              "success": {
+                                "type": "boolean",
+                                "description": "Whether tool execution succeeded (present for role=tool messages)"
+                              },
+                              "metadata": {
+                                "type": "object",
+                                "properties": {
+                                  "isSummary": {
+                                    "type": "boolean",
+                                    "description": "Whether this message marks a compaction summary boundary"
+                                  },
+                                  "isSessionSummary": {
+                                    "type": "boolean",
+                                    "description": "Whether this message marks a session-level summary boundary"
+                                  },
+                                  "isRecompaction": {
+                                    "type": "boolean",
+                                    "description": "Whether this summary was produced from already-compacted history"
+                                  },
+                                  "originalMessageCount": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "How many original messages were summarized by this boundary"
+                                  },
+                                  "preservedMessageIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "description": "Stable message IDs preserved in the continuation window when this summary supersedes older working memory"
+                                  }
+                                },
+                                "additionalProperties": {
+                                  "nullable": true
+                                },
+                                "description": "Optional message metadata"
+                              }
+                            },
+                            "required": [
+                              "role",
+                              "content"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Internal message representation"
+                          },
+                          "description": "Generated summary messages returned by the compaction strategy"
+                        },
+                        "continuationMessages": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid",
+                                "description": "Unique message identifier (UUID)"
+                              },
+                              "role": {
+                                "type": "string",
+                                "enum": [
+                                  "system",
+                                  "user",
+                                  "assistant",
+                                  "tool"
+                                ],
+                                "description": "Role of the message sender"
+                              },
+                              "timestamp": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "Creation timestamp (Unix ms)"
+                              },
+                              "content": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "nullable": true
+                                  },
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "oneOf": [
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "type": {
+                                              "type": "string",
+                                              "enum": [
+                                                "text"
+                                              ],
+                                              "description": "Part type: text"
+                                            },
+                                            "text": {
+                                              "type": "string",
+                                              "description": "Text content"
+                                            }
+                                          },
+                                          "required": [
+                                            "type",
+                                            "text"
+                                          ],
+                                          "additionalProperties": false,
+                                          "description": "Text content part"
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "type": {
+                                              "type": "string",
+                                              "enum": [
+                                                "image"
+                                              ],
+                                              "description": "Part type: image"
+                                            },
+                                            "image": {
+                                              "type": "string",
+                                              "description": "Base64-encoded image data"
+                                            },
+                                            "mimeType": {
+                                              "type": "string",
+                                              "description": "MIME type of the image"
+                                            }
+                                          },
+                                          "required": [
+                                            "type",
+                                            "image"
+                                          ],
+                                          "additionalProperties": false,
+                                          "description": "Image content part"
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "type": {
+                                              "type": "string",
+                                              "enum": [
+                                                "file"
+                                              ],
+                                              "description": "Part type: file"
+                                            },
+                                            "data": {
+                                              "type": "string",
+                                              "description": "Base64-encoded file data"
+                                            },
+                                            "mimeType": {
+                                              "type": "string",
+                                              "description": "MIME type of the file"
+                                            },
+                                            "filename": {
+                                              "type": "string",
+                                              "description": "Optional filename"
+                                            }
+                                          },
+                                          "required": [
+                                            "type",
+                                            "data",
+                                            "mimeType"
+                                          ],
+                                          "additionalProperties": false,
+                                          "description": "File content part"
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "type": {
+                                              "type": "string",
+                                              "enum": [
+                                                "ui-resource"
+                                              ],
+                                              "description": "Part type: ui-resource"
+                                            },
+                                            "uri": {
+                                              "type": "string",
+                                              "description": "URI identifying the UI resource (must start with ui://)"
+                                            },
+                                            "mimeType": {
+                                              "type": "string",
+                                              "description": "MIME type: text/html, text/uri-list, or application/vnd.mcp-ui.remote-dom"
+                                            },
+                                            "content": {
+                                              "type": "string",
+                                              "description": "Inline HTML content or URL"
+                                            },
+                                            "blob": {
+                                              "type": "string",
+                                              "description": "Base64-encoded content (alternative to content)"
+                                            },
+                                            "metadata": {
+                                              "type": "object",
+                                              "properties": {
+                                                "title": {
+                                                  "type": "string",
+                                                  "description": "Display title for the UI resource"
+                                                },
+                                                "preferredSize": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "width": {
+                                                      "type": "number",
+                                                      "description": "Preferred width in pixels"
+                                                    },
+                                                    "height": {
+                                                      "type": "number",
+                                                      "description": "Preferred height in pixels"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "width",
+                                                    "height"
+                                                  ],
+                                                  "additionalProperties": false,
+                                                  "description": "Preferred rendering size"
+                                                }
+                                              },
+                                              "additionalProperties": false,
+                                              "description": "Optional metadata for the UI resource"
+                                            }
+                                          },
+                                          "required": [
+                                            "type",
+                                            "uri",
+                                            "mimeType"
+                                          ],
+                                          "additionalProperties": false,
+                                          "description": "UI Resource content part for MCP-UI interactive components"
+                                        }
+                                      ],
+                                      "description": "Message content part (text, image, file, or UI resource)"
+                                    }
+                                  },
+                                  {
+                                    "nullable": true
+                                  }
+                                ],
+                                "description": "Message content (string, null, or array of parts)"
+                              },
+                              "reasoning": {
+                                "type": "string",
+                                "description": "Optional model reasoning text"
+                              },
+                              "tokenUsage": {
+                                "type": "object",
+                                "properties": {
+                                  "inputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of input tokens"
+                                  },
+                                  "outputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of output tokens"
+                                  },
+                                  "reasoningTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of reasoning tokens"
+                                  },
+                                  "cacheReadTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache read tokens"
+                                  },
+                                  "cacheWriteTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache write tokens"
+                                  },
+                                  "totalTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Total tokens used"
+                                  }
+                                },
+                                "additionalProperties": false,
+                                "description": "Optional token usage accounting"
+                              },
+                              "estimatedCost": {
+                                "type": "number",
+                                "minimum": 0,
+                                "description": "Estimated cost in USD for this response"
+                              },
+                              "pricingStatus": {
+                                "type": "string",
+                                "enum": [
+                                  "estimated",
+                                  "unpriced"
+                                ],
+                                "description": "Whether pricing was resolved for this response"
+                              },
+                              "usageScopeId": {
+                                "type": "string",
+                                "description": "Optional usage scope identifier for runtime-scoped metering"
+                              },
+                              "model": {
+                                "type": "string",
+                                "description": "Model identifier for assistant messages"
+                              },
+                              "provider": {
+                                "type": "string",
+                                "enum": [
+                                  "openai",
+                                  "openai-compatible",
+                                  "anthropic",
+                                  "google",
+                                  "groq",
+                                  "xai",
+                                  "cohere",
+                                  "minimax",
+                                  "glm",
+                                  "openrouter",
+                                  "litellm",
+                                  "glama",
+                                  "vertex",
+                                  "bedrock",
+                                  "local",
+                                  "ollama",
+                                  "dexto-nova"
+                                ],
+                                "description": "Provider identifier for assistant messages"
+                              },
+                              "toolCalls": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string",
+                                      "description": "Unique identifier for this tool call"
+                                    },
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "function"
+                                      ],
+                                      "description": "Tool call type (currently only function is supported)"
+                                    },
+                                    "function": {
+                                      "type": "object",
+                                      "properties": {
+                                        "name": {
+                                          "type": "string",
+                                          "description": "Name of the function to call"
+                                        },
+                                        "arguments": {
+                                          "type": "string",
+                                          "description": "Arguments for the function in JSON string format"
+                                        }
+                                      },
+                                      "required": [
+                                        "name",
+                                        "arguments"
+                                      ],
+                                      "additionalProperties": false,
+                                      "description": "Function call details"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "type",
+                                    "function"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Tool call made by the assistant"
+                                },
+                                "description": "Tool calls made by the assistant"
+                              },
+                              "toolCallId": {
+                                "type": "string",
+                                "description": "ID of the tool call this message responds to"
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "Name of the tool that produced this result"
+                              },
+                              "success": {
+                                "type": "boolean",
+                                "description": "Whether tool execution succeeded (present for role=tool messages)"
+                              },
+                              "metadata": {
+                                "type": "object",
+                                "properties": {
+                                  "isSummary": {
+                                    "type": "boolean",
+                                    "description": "Whether this message marks a compaction summary boundary"
+                                  },
+                                  "isSessionSummary": {
+                                    "type": "boolean",
+                                    "description": "Whether this message marks a session-level summary boundary"
+                                  },
+                                  "isRecompaction": {
+                                    "type": "boolean",
+                                    "description": "Whether this summary was produced from already-compacted history"
+                                  },
+                                  "originalMessageCount": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "How many original messages were summarized by this boundary"
+                                  },
+                                  "preservedMessageIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "description": "Stable message IDs preserved in the continuation window when this summary supersedes older working memory"
+                                  }
+                                },
+                                "additionalProperties": {
+                                  "nullable": true
+                                },
+                                "description": "Optional message metadata"
+                              }
+                            },
+                            "required": [
+                              "role",
+                              "content"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Internal message representation"
+                          },
+                          "description": "Messages that can seed a continued session after compaction"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "sourceSessionId",
+                        "createdAt",
+                        "strategy",
+                        "mode",
+                        "trigger",
+                        "originalTokens",
+                        "compactedTokens",
+                        "originalMessages",
+                        "compactedMessages",
+                        "summaryMessages",
+                        "continuationMessages"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Persisted session compaction artifact"
+                    }
+                  },
+                  "required": [
+                    "compaction"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid compaction request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard API error envelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Source session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard API error envelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/compactions/{compactionId}": {
+      "get": {
+        "summary": "Get Session Compaction",
+        "description": "Retrieves a previously persisted session compaction artifact.",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Compaction artifact identifier"
+            },
+            "required": true,
+            "description": "Compaction artifact identifier",
+            "name": "compactionId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Persisted session compaction artifact",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "compaction": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Unique compaction artifact identifier"
+                        },
+                        "sourceSessionId": {
+                          "type": "string",
+                          "description": "Source session identifier"
+                        },
+                        "targetSessionId": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "Target child session when continuation was applied into a new session"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "description": "Creation timestamp (Unix ms)"
+                        },
+                        "strategy": {
+                          "type": "string",
+                          "description": "Compaction strategy name used to produce the artifact"
+                        },
+                        "mode": {
+                          "type": "string",
+                          "enum": [
+                            "artifact-only",
+                            "continue-in-place",
+                            "continue-in-child"
+                          ],
+                          "description": "How the compaction artifact should be applied"
+                        },
+                        "trigger": {
+                          "type": "string",
+                          "enum": [
+                            "manual",
+                            "api",
+                            "scheduled",
+                            "overflow"
+                          ],
+                          "description": "Why the compaction was triggered"
+                        },
+                        "originalTokens": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Estimated tokens before compaction"
+                        },
+                        "compactedTokens": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Estimated tokens after compaction"
+                        },
+                        "originalMessages": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Prepared message count before compaction"
+                        },
+                        "compactedMessages": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Prepared message count after compaction"
+                        },
+                        "summaryMessages": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid",
+                                "description": "Unique message identifier (UUID)"
+                              },
+                              "role": {
+                                "type": "string",
+                                "enum": [
+                                  "system",
+                                  "user",
+                                  "assistant",
+                                  "tool"
+                                ],
+                                "description": "Role of the message sender"
+                              },
+                              "timestamp": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "Creation timestamp (Unix ms)"
+                              },
+                              "content": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "nullable": true
+                                  },
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "oneOf": [
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "type": {
+                                              "type": "string",
+                                              "enum": [
+                                                "text"
+                                              ],
+                                              "description": "Part type: text"
+                                            },
+                                            "text": {
+                                              "type": "string",
+                                              "description": "Text content"
+                                            }
+                                          },
+                                          "required": [
+                                            "type",
+                                            "text"
+                                          ],
+                                          "additionalProperties": false,
+                                          "description": "Text content part"
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "type": {
+                                              "type": "string",
+                                              "enum": [
+                                                "image"
+                                              ],
+                                              "description": "Part type: image"
+                                            },
+                                            "image": {
+                                              "type": "string",
+                                              "description": "Base64-encoded image data"
+                                            },
+                                            "mimeType": {
+                                              "type": "string",
+                                              "description": "MIME type of the image"
+                                            }
+                                          },
+                                          "required": [
+                                            "type",
+                                            "image"
+                                          ],
+                                          "additionalProperties": false,
+                                          "description": "Image content part"
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "type": {
+                                              "type": "string",
+                                              "enum": [
+                                                "file"
+                                              ],
+                                              "description": "Part type: file"
+                                            },
+                                            "data": {
+                                              "type": "string",
+                                              "description": "Base64-encoded file data"
+                                            },
+                                            "mimeType": {
+                                              "type": "string",
+                                              "description": "MIME type of the file"
+                                            },
+                                            "filename": {
+                                              "type": "string",
+                                              "description": "Optional filename"
+                                            }
+                                          },
+                                          "required": [
+                                            "type",
+                                            "data",
+                                            "mimeType"
+                                          ],
+                                          "additionalProperties": false,
+                                          "description": "File content part"
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "type": {
+                                              "type": "string",
+                                              "enum": [
+                                                "ui-resource"
+                                              ],
+                                              "description": "Part type: ui-resource"
+                                            },
+                                            "uri": {
+                                              "type": "string",
+                                              "description": "URI identifying the UI resource (must start with ui://)"
+                                            },
+                                            "mimeType": {
+                                              "type": "string",
+                                              "description": "MIME type: text/html, text/uri-list, or application/vnd.mcp-ui.remote-dom"
+                                            },
+                                            "content": {
+                                              "type": "string",
+                                              "description": "Inline HTML content or URL"
+                                            },
+                                            "blob": {
+                                              "type": "string",
+                                              "description": "Base64-encoded content (alternative to content)"
+                                            },
+                                            "metadata": {
+                                              "type": "object",
+                                              "properties": {
+                                                "title": {
+                                                  "type": "string",
+                                                  "description": "Display title for the UI resource"
+                                                },
+                                                "preferredSize": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "width": {
+                                                      "type": "number",
+                                                      "description": "Preferred width in pixels"
+                                                    },
+                                                    "height": {
+                                                      "type": "number",
+                                                      "description": "Preferred height in pixels"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "width",
+                                                    "height"
+                                                  ],
+                                                  "additionalProperties": false,
+                                                  "description": "Preferred rendering size"
+                                                }
+                                              },
+                                              "additionalProperties": false,
+                                              "description": "Optional metadata for the UI resource"
+                                            }
+                                          },
+                                          "required": [
+                                            "type",
+                                            "uri",
+                                            "mimeType"
+                                          ],
+                                          "additionalProperties": false,
+                                          "description": "UI Resource content part for MCP-UI interactive components"
+                                        }
+                                      ],
+                                      "description": "Message content part (text, image, file, or UI resource)"
+                                    }
+                                  },
+                                  {
+                                    "nullable": true
+                                  }
+                                ],
+                                "description": "Message content (string, null, or array of parts)"
+                              },
+                              "reasoning": {
+                                "type": "string",
+                                "description": "Optional model reasoning text"
+                              },
+                              "tokenUsage": {
+                                "type": "object",
+                                "properties": {
+                                  "inputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of input tokens"
+                                  },
+                                  "outputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of output tokens"
+                                  },
+                                  "reasoningTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of reasoning tokens"
+                                  },
+                                  "cacheReadTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache read tokens"
+                                  },
+                                  "cacheWriteTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache write tokens"
+                                  },
+                                  "totalTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Total tokens used"
+                                  }
+                                },
+                                "additionalProperties": false,
+                                "description": "Optional token usage accounting"
+                              },
+                              "estimatedCost": {
+                                "type": "number",
+                                "minimum": 0,
+                                "description": "Estimated cost in USD for this response"
+                              },
+                              "pricingStatus": {
+                                "type": "string",
+                                "enum": [
+                                  "estimated",
+                                  "unpriced"
+                                ],
+                                "description": "Whether pricing was resolved for this response"
+                              },
+                              "usageScopeId": {
+                                "type": "string",
+                                "description": "Optional usage scope identifier for runtime-scoped metering"
+                              },
+                              "model": {
+                                "type": "string",
+                                "description": "Model identifier for assistant messages"
+                              },
+                              "provider": {
+                                "type": "string",
+                                "enum": [
+                                  "openai",
+                                  "openai-compatible",
+                                  "anthropic",
+                                  "google",
+                                  "groq",
+                                  "xai",
+                                  "cohere",
+                                  "minimax",
+                                  "glm",
+                                  "openrouter",
+                                  "litellm",
+                                  "glama",
+                                  "vertex",
+                                  "bedrock",
+                                  "local",
+                                  "ollama",
+                                  "dexto-nova"
+                                ],
+                                "description": "Provider identifier for assistant messages"
+                              },
+                              "toolCalls": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string",
+                                      "description": "Unique identifier for this tool call"
+                                    },
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "function"
+                                      ],
+                                      "description": "Tool call type (currently only function is supported)"
+                                    },
+                                    "function": {
+                                      "type": "object",
+                                      "properties": {
+                                        "name": {
+                                          "type": "string",
+                                          "description": "Name of the function to call"
+                                        },
+                                        "arguments": {
+                                          "type": "string",
+                                          "description": "Arguments for the function in JSON string format"
+                                        }
+                                      },
+                                      "required": [
+                                        "name",
+                                        "arguments"
+                                      ],
+                                      "additionalProperties": false,
+                                      "description": "Function call details"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "type",
+                                    "function"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Tool call made by the assistant"
+                                },
+                                "description": "Tool calls made by the assistant"
+                              },
+                              "toolCallId": {
+                                "type": "string",
+                                "description": "ID of the tool call this message responds to"
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "Name of the tool that produced this result"
+                              },
+                              "success": {
+                                "type": "boolean",
+                                "description": "Whether tool execution succeeded (present for role=tool messages)"
+                              },
+                              "metadata": {
+                                "type": "object",
+                                "properties": {
+                                  "isSummary": {
+                                    "type": "boolean",
+                                    "description": "Whether this message marks a compaction summary boundary"
+                                  },
+                                  "isSessionSummary": {
+                                    "type": "boolean",
+                                    "description": "Whether this message marks a session-level summary boundary"
+                                  },
+                                  "isRecompaction": {
+                                    "type": "boolean",
+                                    "description": "Whether this summary was produced from already-compacted history"
+                                  },
+                                  "originalMessageCount": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "How many original messages were summarized by this boundary"
+                                  },
+                                  "preservedMessageIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "description": "Stable message IDs preserved in the continuation window when this summary supersedes older working memory"
+                                  }
+                                },
+                                "additionalProperties": {
+                                  "nullable": true
+                                },
+                                "description": "Optional message metadata"
+                              }
+                            },
+                            "required": [
+                              "role",
+                              "content"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Internal message representation"
+                          },
+                          "description": "Generated summary messages returned by the compaction strategy"
+                        },
+                        "continuationMessages": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid",
+                                "description": "Unique message identifier (UUID)"
+                              },
+                              "role": {
+                                "type": "string",
+                                "enum": [
+                                  "system",
+                                  "user",
+                                  "assistant",
+                                  "tool"
+                                ],
+                                "description": "Role of the message sender"
+                              },
+                              "timestamp": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "exclusiveMinimum": true,
+                                "description": "Creation timestamp (Unix ms)"
+                              },
+                              "content": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "nullable": true
+                                  },
+                                  {
+                                    "type": "array",
+                                    "items": {
+                                      "oneOf": [
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "type": {
+                                              "type": "string",
+                                              "enum": [
+                                                "text"
+                                              ],
+                                              "description": "Part type: text"
+                                            },
+                                            "text": {
+                                              "type": "string",
+                                              "description": "Text content"
+                                            }
+                                          },
+                                          "required": [
+                                            "type",
+                                            "text"
+                                          ],
+                                          "additionalProperties": false,
+                                          "description": "Text content part"
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "type": {
+                                              "type": "string",
+                                              "enum": [
+                                                "image"
+                                              ],
+                                              "description": "Part type: image"
+                                            },
+                                            "image": {
+                                              "type": "string",
+                                              "description": "Base64-encoded image data"
+                                            },
+                                            "mimeType": {
+                                              "type": "string",
+                                              "description": "MIME type of the image"
+                                            }
+                                          },
+                                          "required": [
+                                            "type",
+                                            "image"
+                                          ],
+                                          "additionalProperties": false,
+                                          "description": "Image content part"
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "type": {
+                                              "type": "string",
+                                              "enum": [
+                                                "file"
+                                              ],
+                                              "description": "Part type: file"
+                                            },
+                                            "data": {
+                                              "type": "string",
+                                              "description": "Base64-encoded file data"
+                                            },
+                                            "mimeType": {
+                                              "type": "string",
+                                              "description": "MIME type of the file"
+                                            },
+                                            "filename": {
+                                              "type": "string",
+                                              "description": "Optional filename"
+                                            }
+                                          },
+                                          "required": [
+                                            "type",
+                                            "data",
+                                            "mimeType"
+                                          ],
+                                          "additionalProperties": false,
+                                          "description": "File content part"
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "type": {
+                                              "type": "string",
+                                              "enum": [
+                                                "ui-resource"
+                                              ],
+                                              "description": "Part type: ui-resource"
+                                            },
+                                            "uri": {
+                                              "type": "string",
+                                              "description": "URI identifying the UI resource (must start with ui://)"
+                                            },
+                                            "mimeType": {
+                                              "type": "string",
+                                              "description": "MIME type: text/html, text/uri-list, or application/vnd.mcp-ui.remote-dom"
+                                            },
+                                            "content": {
+                                              "type": "string",
+                                              "description": "Inline HTML content or URL"
+                                            },
+                                            "blob": {
+                                              "type": "string",
+                                              "description": "Base64-encoded content (alternative to content)"
+                                            },
+                                            "metadata": {
+                                              "type": "object",
+                                              "properties": {
+                                                "title": {
+                                                  "type": "string",
+                                                  "description": "Display title for the UI resource"
+                                                },
+                                                "preferredSize": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "width": {
+                                                      "type": "number",
+                                                      "description": "Preferred width in pixels"
+                                                    },
+                                                    "height": {
+                                                      "type": "number",
+                                                      "description": "Preferred height in pixels"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "width",
+                                                    "height"
+                                                  ],
+                                                  "additionalProperties": false,
+                                                  "description": "Preferred rendering size"
+                                                }
+                                              },
+                                              "additionalProperties": false,
+                                              "description": "Optional metadata for the UI resource"
+                                            }
+                                          },
+                                          "required": [
+                                            "type",
+                                            "uri",
+                                            "mimeType"
+                                          ],
+                                          "additionalProperties": false,
+                                          "description": "UI Resource content part for MCP-UI interactive components"
+                                        }
+                                      ],
+                                      "description": "Message content part (text, image, file, or UI resource)"
+                                    }
+                                  },
+                                  {
+                                    "nullable": true
+                                  }
+                                ],
+                                "description": "Message content (string, null, or array of parts)"
+                              },
+                              "reasoning": {
+                                "type": "string",
+                                "description": "Optional model reasoning text"
+                              },
+                              "tokenUsage": {
+                                "type": "object",
+                                "properties": {
+                                  "inputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of input tokens"
+                                  },
+                                  "outputTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of output tokens"
+                                  },
+                                  "reasoningTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of reasoning tokens"
+                                  },
+                                  "cacheReadTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache read tokens"
+                                  },
+                                  "cacheWriteTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Number of cache write tokens"
+                                  },
+                                  "totalTokens": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Total tokens used"
+                                  }
+                                },
+                                "additionalProperties": false,
+                                "description": "Optional token usage accounting"
+                              },
+                              "estimatedCost": {
+                                "type": "number",
+                                "minimum": 0,
+                                "description": "Estimated cost in USD for this response"
+                              },
+                              "pricingStatus": {
+                                "type": "string",
+                                "enum": [
+                                  "estimated",
+                                  "unpriced"
+                                ],
+                                "description": "Whether pricing was resolved for this response"
+                              },
+                              "usageScopeId": {
+                                "type": "string",
+                                "description": "Optional usage scope identifier for runtime-scoped metering"
+                              },
+                              "model": {
+                                "type": "string",
+                                "description": "Model identifier for assistant messages"
+                              },
+                              "provider": {
+                                "type": "string",
+                                "enum": [
+                                  "openai",
+                                  "openai-compatible",
+                                  "anthropic",
+                                  "google",
+                                  "groq",
+                                  "xai",
+                                  "cohere",
+                                  "minimax",
+                                  "glm",
+                                  "openrouter",
+                                  "litellm",
+                                  "glama",
+                                  "vertex",
+                                  "bedrock",
+                                  "local",
+                                  "ollama",
+                                  "dexto-nova"
+                                ],
+                                "description": "Provider identifier for assistant messages"
+                              },
+                              "toolCalls": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string",
+                                      "description": "Unique identifier for this tool call"
+                                    },
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
+                                        "function"
+                                      ],
+                                      "description": "Tool call type (currently only function is supported)"
+                                    },
+                                    "function": {
+                                      "type": "object",
+                                      "properties": {
+                                        "name": {
+                                          "type": "string",
+                                          "description": "Name of the function to call"
+                                        },
+                                        "arguments": {
+                                          "type": "string",
+                                          "description": "Arguments for the function in JSON string format"
+                                        }
+                                      },
+                                      "required": [
+                                        "name",
+                                        "arguments"
+                                      ],
+                                      "additionalProperties": false,
+                                      "description": "Function call details"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "type",
+                                    "function"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Tool call made by the assistant"
+                                },
+                                "description": "Tool calls made by the assistant"
+                              },
+                              "toolCallId": {
+                                "type": "string",
+                                "description": "ID of the tool call this message responds to"
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "Name of the tool that produced this result"
+                              },
+                              "success": {
+                                "type": "boolean",
+                                "description": "Whether tool execution succeeded (present for role=tool messages)"
+                              },
+                              "metadata": {
+                                "type": "object",
+                                "properties": {
+                                  "isSummary": {
+                                    "type": "boolean",
+                                    "description": "Whether this message marks a compaction summary boundary"
+                                  },
+                                  "isSessionSummary": {
+                                    "type": "boolean",
+                                    "description": "Whether this message marks a session-level summary boundary"
+                                  },
+                                  "isRecompaction": {
+                                    "type": "boolean",
+                                    "description": "Whether this summary was produced from already-compacted history"
+                                  },
+                                  "originalMessageCount": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "How many original messages were summarized by this boundary"
+                                  },
+                                  "preservedMessageIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "description": "Stable message IDs preserved in the continuation window when this summary supersedes older working memory"
+                                  }
+                                },
+                                "additionalProperties": {
+                                  "nullable": true
+                                },
+                                "description": "Optional message metadata"
+                              }
+                            },
+                            "required": [
+                              "role",
+                              "content"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Internal message representation"
+                          },
+                          "description": "Messages that can seed a continued session after compaction"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "sourceSessionId",
+                        "createdAt",
+                        "strategy",
+                        "mode",
+                        "trigger",
+                        "originalTokens",
+                        "compactedTokens",
+                        "originalMessages",
+                        "compactedMessages",
+                        "summaryMessages",
+                        "continuationMessages"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Persisted session compaction artifact"
+                    }
+                  },
+                  "required": [
+                    "compaction"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Compaction artifact not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard API error envelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sessions/{sessionId}": {
       "get": {
         "summary": "Get Session Details",
@@ -9740,6 +11731,39 @@
                           "success": {
                             "type": "boolean",
                             "description": "Whether tool execution succeeded (present for role=tool messages)"
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "properties": {
+                              "isSummary": {
+                                "type": "boolean",
+                                "description": "Whether this message marks a compaction summary boundary"
+                              },
+                              "isSessionSummary": {
+                                "type": "boolean",
+                                "description": "Whether this message marks a session-level summary boundary"
+                              },
+                              "isRecompaction": {
+                                "type": "boolean",
+                                "description": "Whether this summary was produced from already-compacted history"
+                              },
+                              "originalMessageCount": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "How many original messages were summarized by this boundary"
+                              },
+                              "preservedMessageIds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "description": "Stable message IDs preserved in the continuation window when this summary supersedes older working memory"
+                              }
+                            },
+                            "additionalProperties": {
+                              "nullable": true
+                            },
+                            "description": "Optional message metadata"
                           }
                         },
                         "required": [
@@ -10907,6 +12931,39 @@
                               "success": {
                                 "type": "boolean",
                                 "description": "Whether tool execution succeeded (present for role=tool messages)"
+                              },
+                              "metadata": {
+                                "type": "object",
+                                "properties": {
+                                  "isSummary": {
+                                    "type": "boolean",
+                                    "description": "Whether this message marks a compaction summary boundary"
+                                  },
+                                  "isSessionSummary": {
+                                    "type": "boolean",
+                                    "description": "Whether this message marks a session-level summary boundary"
+                                  },
+                                  "isRecompaction": {
+                                    "type": "boolean",
+                                    "description": "Whether this summary was produced from already-compacted history"
+                                  },
+                                  "originalMessageCount": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "How many original messages were summarized by this boundary"
+                                  },
+                                  "preservedMessageIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "description": "Stable message IDs preserved in the continuation window when this summary supersedes older working memory"
+                                  }
+                                },
+                                "additionalProperties": {
+                                  "nullable": true
+                                },
+                                "description": "Optional message metadata"
                               }
                             },
                             "required": [
@@ -11352,6 +13409,39 @@
                                   "success": {
                                     "type": "boolean",
                                     "description": "Whether tool execution succeeded (present for role=tool messages)"
+                                  },
+                                  "metadata": {
+                                    "type": "object",
+                                    "properties": {
+                                      "isSummary": {
+                                        "type": "boolean",
+                                        "description": "Whether this message marks a compaction summary boundary"
+                                      },
+                                      "isSessionSummary": {
+                                        "type": "boolean",
+                                        "description": "Whether this message marks a session-level summary boundary"
+                                      },
+                                      "isRecompaction": {
+                                        "type": "boolean",
+                                        "description": "Whether this summary was produced from already-compacted history"
+                                      },
+                                      "originalMessageCount": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "description": "How many original messages were summarized by this boundary"
+                                      },
+                                      "preservedMessageIds": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        },
+                                        "description": "Stable message IDs preserved in the continuation window when this summary supersedes older working memory"
+                                      }
+                                    },
+                                    "additionalProperties": {
+                                      "nullable": true
+                                    },
+                                    "description": "Optional message metadata"
                                   }
                                 },
                                 "required": [

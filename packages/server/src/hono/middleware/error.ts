@@ -84,12 +84,13 @@ export function handleHonoError(ctx: any, err: unknown) {
         );
     }
 
-    // Some hono specific handlers (e.g., ctx.req.json()) may throw SyntaxError for invalid/empty JSON
-    if (err instanceof SyntaxError) {
+    // Some Hono handlers surface malformed JSON as SyntaxError, while the validator
+    // middleware currently throws a plain Error with this exact message.
+    if (err instanceof SyntaxError || isMalformedJsonRequestError(err)) {
         return ctx.json(
             {
                 code: 'invalid_json',
-                message: err.message || 'Invalid JSON body',
+                message: err instanceof Error ? err.message : 'Invalid JSON body',
                 scope: 'agent',
                 type: 'user',
                 severity: 'error',
@@ -126,4 +127,8 @@ export function handleHonoError(ctx: any, err: unknown) {
         },
         500
     );
+}
+
+function isMalformedJsonRequestError(err: unknown): err is Error {
+    return err instanceof Error && err.message === 'Malformed JSON in request body';
 }

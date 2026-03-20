@@ -1,6 +1,10 @@
-import type { InternalMessage } from '../../types.js';
 import type { ModelLimits } from '../overflow.js';
-import type { CompactionRuntimeContext, CompactionSettings, CompactionStrategy } from '../types.js';
+import type {
+    CompactionRuntimeContext,
+    CompactionSettings,
+    CompactionStrategy,
+    CompactionWindow,
+} from '../types.js';
 
 /**
  * No-op compaction strategy that doesn't perform any compaction.
@@ -47,12 +51,9 @@ export class NoOpCompactionStrategy implements CompactionStrategy {
     }
 
     /**
-     * Does nothing - returns empty array (no summary needed)
+     * Does nothing - returns null (no compaction needed)
      */
-    async compact(
-        _history: readonly InternalMessage[],
-        _context: CompactionRuntimeContext
-    ): Promise<InternalMessage[]> {
-        return [];
+    async compact(_window: CompactionWindow, _context: CompactionRuntimeContext): Promise<null> {
+        return null;
     }
 }

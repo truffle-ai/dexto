@@ -289,7 +289,8 @@ export class ChatSession {
             this.id,
             this.services.resourceManager, // Pass ResourceManager for blob storage
             this.logger, // Pass logger for dependency injection
-            compactionStrategy // Pass compaction strategy
+            compactionStrategy, // Pass compaction strategy
+            this.services.sessionManager
         );
 
         this.logger.debug(`ChatSession ${this.id}: Services initialized with storage`);
@@ -676,7 +677,8 @@ export class ChatSession {
                 this.id,
                 this.services.resourceManager,
                 this.logger,
-                compactionStrategy // Pass compaction strategy
+                compactionStrategy, // Pass compaction strategy
+                this.services.sessionManager
             );
 
             // Replace the LLM service

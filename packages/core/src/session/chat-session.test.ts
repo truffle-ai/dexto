@@ -283,7 +283,8 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager,
                 mockLogger,
-                null // compaction strategy
+                null, // compaction strategy
+                mockServices.sessionManager
             );
         });
 
@@ -309,7 +310,8 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager,
                 mockLogger,
-                null // compaction strategy
+                null, // compaction strategy
+                mockServices.sessionManager
             );
         });
 
@@ -426,7 +428,8 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager, // ResourceManager parameter
                 mockLogger, // Logger parameter
-                null // compaction strategy
+                null, // compaction strategy
+                mockServices.sessionManager
             );
 
             // Verify session-specific history provider creation

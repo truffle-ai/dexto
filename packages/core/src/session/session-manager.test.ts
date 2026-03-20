@@ -724,6 +724,75 @@ describe('SessionManager', () => {
             expect(mockStorageManager.database.delete).toHaveBeenCalledWith('session:non-existent');
         });
 
+        test('should delete compaction artifacts that reference the deleted session', async () => {
+            const sessionId = 'test-session';
+
+            await sessionManager.createSession(sessionId);
+
+            mockStorageManager.database.list.mockResolvedValueOnce([
+                'session-compaction:source-hit',
+                'session-compaction:target-hit',
+                'session-compaction:miss',
+            ]);
+            mockStorageManager.database.get
+                .mockResolvedValueOnce({
+                    id: 'source-hit',
+                    sourceSessionId: sessionId,
+                    createdAt: Date.now(),
+                    strategy: 'test',
+                    mode: 'continue-in-place',
+                    trigger: 'manual',
+                    originalTokens: 10,
+                    compactedTokens: 5,
+                    originalMessages: 4,
+                    compactedMessages: 2,
+                    summaryMessages: [],
+                    continuationMessages: [],
+                })
+                .mockResolvedValueOnce({
+                    id: 'target-hit',
+                    sourceSessionId: 'other-session',
+                    targetSessionId: sessionId,
+                    createdAt: Date.now(),
+                    strategy: 'test',
+                    mode: 'continue-in-child',
+                    trigger: 'manual',
+                    originalTokens: 10,
+                    compactedTokens: 5,
+                    originalMessages: 4,
+                    compactedMessages: 2,
+                    summaryMessages: [],
+                    continuationMessages: [],
+                })
+                .mockResolvedValueOnce({
+                    id: 'miss',
+                    sourceSessionId: 'other-session',
+                    createdAt: Date.now(),
+                    strategy: 'test',
+                    mode: 'artifact-only',
+                    trigger: 'manual',
+                    originalTokens: 10,
+                    compactedTokens: 5,
+                    originalMessages: 4,
+                    compactedMessages: 2,
+                    summaryMessages: [],
+                    continuationMessages: [],
+                });
+
+            await sessionManager.deleteSession(sessionId);
+
+            expect(mockStorageManager.database.list).toHaveBeenCalledWith('session-compaction:');
+            expect(mockStorageManager.database.delete).toHaveBeenCalledWith(
+                'session-compaction:source-hit'
+            );
+            expect(mockStorageManager.database.delete).toHaveBeenCalledWith(
+                'session-compaction:target-hit'
+            );
+            expect(mockStorageManager.database.delete).not.toHaveBeenCalledWith(
+                'session-compaction:miss'
+            );
+        });
+
         test('should cleanup all sessions during shutdown', async () => {
             // Create multiple sessions
             const sessions = [

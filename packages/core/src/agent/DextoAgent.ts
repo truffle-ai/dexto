@@ -12,8 +12,18 @@ import type { InternalMessage } from '../context/types.js';
 import { PromptManager } from '../prompts/index.js';
 import type { PromptsConfig } from '../prompts/schemas.js';
 import { AgentStateManager } from './state-manager.js';
-import { SessionManager, ChatSession, SessionError } from '../session/index.js';
-import type { SessionMetadata } from '../session/index.js';
+import {
+    SessionManager,
+    ChatSession,
+    SessionError,
+    SESSION_COMPACTION_MODES,
+    SESSION_COMPACTION_TRIGGERS,
+} from '../session/index.js';
+import type {
+    SessionMetadata,
+    SessionCompactionInput,
+    SessionCompactionRecord,
+} from '../session/index.js';
 import {
     AgentServices,
     type InitializeServicesOptions,
@@ -74,6 +84,10 @@ import type { ApprovalHandler } from '../approval/types.js';
 import type { DextoAgentOptions } from './agent-options.js';
 import type { WorkspaceManager } from '../workspace/manager.js';
 import type { SetWorkspaceInput, WorkspaceContext } from '../workspace/types.js';
+import {
+    createAgentSessionCompactionEventSink,
+    runSessionCompaction,
+} from '../session/compaction-service.js';
 
 const requiredServices: (keyof AgentServices)[] = [
     'mcpManager',
@@ -86,6 +100,9 @@ const requiredServices: (keyof AgentServices)[] = [
     'searchService',
     'memoryManager',
 ];
+
+const sessionCompactionModes = new Set<string>(SESSION_COMPACTION_MODES);
+const sessionCompactionTriggers = new Set<string>(SESSION_COMPACTION_TRIGGERS);
 
 /**
  * Interface for objects that can subscribe to the agent's event bus.
@@ -1853,14 +1870,111 @@ export class DextoAgent {
     }
 
     /**
+     * Resolve a persisted compaction artifact by its ID.
+     */
+    public async getSessionCompaction(
+        compactionId: string
+    ): Promise<SessionCompactionRecord | undefined> {
+        this.ensureStarted();
+
+        if (!compactionId || typeof compactionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'compactionId is required and must be a non-empty string'
+            );
+        }
+
+        return await this.sessionManager.getSessionCompaction(compactionId);
+    }
+
+    /**
+     * Compact a session into a persisted artifact and optionally apply it.
+     *
+     * This turns the current working memory into a reusable compaction artifact
+     * that can:
+     * - remain as an artifact only
+     * - update the current session in place
+     * - seed a new child session for continuation
+     */
+    public async compactSession(
+        input: SessionCompactionInput
+    ): Promise<SessionCompactionRecord | null> {
+        this.ensureStarted();
+
+        if (!input || typeof input !== 'object' || Array.isArray(input)) {
+            throw AgentError.apiValidationError('input is required and must be an object');
+        }
+
+        const sessionId = input.sessionId;
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+
+        const mode = input.mode ?? 'continue-in-place';
+        if (!sessionCompactionModes.has(mode)) {
+            throw AgentError.apiValidationError(
+                `mode must be one of: ${SESSION_COMPACTION_MODES.join(', ')}`
+            );
+        }
+
+        if (input.childTitle !== undefined && typeof input.childTitle !== 'string') {
+            throw AgentError.apiValidationError('childTitle must be a string when provided');
+        }
+
+        if (input.childTitle !== undefined && mode !== 'continue-in-child') {
+            throw AgentError.apiValidationError(
+                'childTitle is only supported when mode is "continue-in-child"'
+            );
+        }
+
+        const trigger = input.trigger ?? 'manual';
+        if (!sessionCompactionTriggers.has(trigger)) {
+            throw AgentError.apiValidationError(
+                `trigger must be one of: ${SESSION_COMPACTION_TRIGGERS.join(', ')}`
+            );
+        }
+
+        const session = await this.sessionManager.getSession(sessionId);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+
+        const llmService = session.getLLMService();
+        const compactionStrategy = llmService.getCompactionStrategy();
+
+        if (!compactionStrategy) {
+            this.logger.warn(
+                `Compaction strategy not configured for session ${sessionId} - skipping compaction`
+            );
+            return null;
+        }
+
+        const contextManager = session.getContextManager();
+
+        const contributorContext = await this.toolManager.buildContributorContext({ sessionId });
+        const tools = await llmService.getEnabledTools();
+        return await runSessionCompaction({
+            sessionId,
+            mode,
+            trigger,
+            ...(input.childTitle !== undefined && { childTitle: input.childTitle }),
+            languageModel: llmService.getLanguageModel(),
+            logger: session.logger,
+            contextManager,
+            compactionStrategy,
+            contributorContext,
+            tools,
+            persistence: this.sessionManager,
+            eventSink: createAgentSessionCompactionEventSink(this.agentEventBus, sessionId),
+        });
+    }
+
+    /**
      * Manually compact the context for a session.
      *
-     * Compaction generates a summary of older messages and adds it to the conversation history.
-     * When the context is loaded, filterCompacted() will exclude messages before the summary,
-     * effectively reducing the context window while preserving the full history in storage.
-     *
-     * @param sessionId Session ID of the session to compact (required)
-     * @returns Compaction result with stats, or null if compaction was skipped
+     * Compatibility wrapper over the new compaction primitive that preserves
+     * the previous public API shape.
      */
     public async compactContext(sessionId: string): Promise<{
         /** The session that was compacted */
@@ -1872,115 +1986,21 @@ export class DextoAgent {
         /** Number of messages after compaction (summary + preserved) */
         compactedMessages: number;
     } | null> {
-        this.ensureStarted();
-
-        if (!sessionId || typeof sessionId !== 'string') {
-            throw AgentError.apiValidationError(
-                'sessionId is required and must be a non-empty string'
-            );
-        }
-
-        const session = await this.sessionManager.getSession(sessionId);
-        if (!session) {
-            throw SessionError.notFound(sessionId);
-        }
-
-        // Get compaction strategy from the session's LLM service
-        const llmService = session.getLLMService();
-        const compactionStrategy = llmService.getCompactionStrategy();
-
-        if (!compactionStrategy) {
-            this.logger.warn(
-                `Compaction strategy not configured for session ${sessionId} - skipping manual compaction`
-            );
-            return null;
-        }
-
-        // Get history and generate summary
-        const contextManager = session.getContextManager();
-        const history = await contextManager.getHistory();
-
-        if (history.length < 4) {
-            this.logger.debug(`Compaction skipped for session ${sessionId} - history too short`);
-            return null;
-        }
-
-        // Get full context estimate BEFORE compaction (includes system prompt, tools, messages)
-        // This uses the same calculation as /context command for consistency
-        const contributorContext = await this.toolManager.buildContributorContext({ sessionId });
-        const tools = await llmService.getEnabledTools();
-        const beforeEstimate = await contextManager.getContextTokenEstimate(
-            contributorContext,
-            tools
-        );
-        const originalTokens = beforeEstimate.estimated;
-        const originalMessages = beforeEstimate.stats.filteredMessageCount;
-
-        // Emit compacting event
-        this.agentEventBus.emit('context:compacting', {
-            estimatedTokens: originalTokens,
+        const compaction = await this.compactSession({
             sessionId,
+            mode: 'continue-in-place',
+            trigger: 'manual',
         });
 
-        // Generate summary message(s)
-        const summaryMessages = await compactionStrategy.compact(history, {
-            sessionId,
-            model: llmService.getLanguageModel(),
-            logger: session.logger,
-        });
-
-        if (summaryMessages.length === 0) {
-            this.logger.debug(`Compaction skipped for session ${sessionId} - nothing to compact`);
-            this.agentEventBus.emit('context:compacted', {
-                originalTokens,
-                compactedTokens: originalTokens,
-                originalMessages,
-                compactedMessages: originalMessages,
-                strategy: compactionStrategy.name,
-                reason: 'manual',
-                sessionId,
-            });
+        if (!compaction) {
             return null;
         }
-
-        // Add summary to history - filterCompacted() will exclude pre-summary messages at read-time
-        for (const summary of summaryMessages) {
-            await contextManager.addMessage(summary);
-        }
-
-        // Reset actual token tracking since context has fundamentally changed
-        // The formula (lastInput + lastOutput + newEstimate) is no longer valid after compaction
-        contextManager.resetActualTokenTracking();
-
-        // Get full context estimate AFTER compaction (uses pure estimation since actuals were reset)
-        // This ensures /context will show the same value
-        const afterEstimate = await contextManager.getContextTokenEstimate(
-            contributorContext,
-            tools
-        );
-        const compactedTokens = afterEstimate.estimated;
-        const compactedMessages = afterEstimate.stats.filteredMessageCount;
-
-        this.agentEventBus.emit('context:compacted', {
-            originalTokens,
-            compactedTokens,
-            originalMessages,
-            compactedMessages,
-            strategy: compactionStrategy.name,
-            reason: 'manual',
-            sessionId,
-        });
-
-        this.logger.info(
-            `Compaction complete for session ${sessionId}: ` +
-                `${originalMessages} messages → ${compactedMessages} messages (~${compactedTokens} tokens)`
-        );
 
         return {
             sessionId,
-            compactedContextTokens: compactedTokens,
-            originalMessages,
-            compactedMessages,
+            compactedContextTokens: compaction.compactedTokens,
+            originalMessages: compaction.originalMessages,
+            compactedMessages: compaction.compactedMessages,
         };
     }
 

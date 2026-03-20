@@ -19,6 +19,7 @@ import { createLocalLanguageModel } from '../providers/local/ai-sdk-adapter.js';
 import type { ConversationHistoryProvider } from '../../session/history/types.js';
 import type { SystemPromptManager } from '../../systemPrompt/manager.js';
 import type { Logger } from '../../logger/v2/types.js';
+import type { SessionCompactionPersistence } from '../../session/compaction-service.js';
 import { requiresApiKey } from '../registry/index.js';
 import { getPrimaryApiKeyEnvVar, resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
 import {
@@ -321,6 +322,7 @@ export function createVercelModel(
  * @param resourceManager Resource manager for blob storage and resource access
  * @param logger Logger instance for dependency injection
  * @param compactionStrategy Optional compaction strategy for context management
+ * @param sessionCompactionPersistence Persistence adapter for structured session compaction
  * @param compactionConfig Optional compaction configuration for thresholds
  * @returns VercelLLMService instance
  */
@@ -333,7 +335,8 @@ export function createLLMService(
     sessionId: string,
     resourceManager: import('../../resources/index.js').ResourceManager,
     logger: Logger,
-    compactionStrategy?: import('../../context/compaction/types.js').CompactionStrategy | null
+    compactionStrategy?: import('../../context/compaction/types.js').CompactionStrategy | null,
+    sessionCompactionPersistence?: SessionCompactionPersistence
 ): VercelLLMService {
     const model = createVercelModel(config, {
         sessionId,
@@ -356,6 +359,7 @@ export function createLLMService(
         sessionId,
         resourceManager,
         logger,
-        compactionStrategy
+        compactionStrategy,
+        sessionCompactionPersistence
     );
 }

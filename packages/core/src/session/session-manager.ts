@@ -12,6 +12,8 @@ import type { HookManager } from '../hooks/manager.js';
 import { SessionError } from './errors.js';
 import type { TokenUsage } from '../llm/types.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
+import type { InternalMessage } from '../context/types.js';
+import type { SessionCompactionRecord } from './compaction.js';
 export type SessionLoggerFactory = (options: {
     baseLogger: Logger;
     agentId: string;
@@ -90,6 +92,13 @@ export interface SessionData {
     llmOverride?: PersistedLLMConfig;
 }
 
+interface CreateDerivedSessionOptions {
+    parentSessionId: string;
+    title: string;
+    messageCount: number;
+    populateMessages: (childMessagesKey: string) => Promise<void>;
+}
+
 /**
  * Manages multiple chat sessions within a Dexto agent.
  *
@@ -122,6 +131,7 @@ export class SessionManager {
     private static readonly FORK_ID_GENERATION_MAX_ATTEMPTS = 5;
     private static readonly FORK_TITLE_PREFIX = 'Fork: ';
     private static readonly FORK_PARENT_ID_PREVIEW_LENGTH = 8;
+    private static readonly SESSION_COMPACTION_KEY_PREFIX = 'session-compaction:';
 
     private readonly sessionLoggerFactory: SessionLoggerFactory;
 
@@ -276,35 +286,158 @@ export class SessionManager {
     public async forkSession(parentSessionId: string): Promise<ChatSession> {
         await this.ensureInitialized();
 
-        const database = this.services.storageManager.getDatabase();
-        const cache = this.services.storageManager.getCache();
-        const parentSessionKey = `session:${parentSessionId}`;
+        const parentSessionData = await this.getRequiredSessionData(parentSessionId);
         const parentMessagesKey = `messages:${parentSessionId}`;
+        const childSession = await this.createDerivedSession({
+            parentSessionId,
+            title: this.buildDerivedTitle(parentSessionData, parentSessionId, {
+                prefix: SessionManager.FORK_TITLE_PREFIX,
+            }),
+            messageCount: parentSessionData.messageCount,
+            populateMessages: async (childMessagesKey) => {
+                await this.copySessionHistory(parentMessagesKey, childMessagesKey);
+            },
+        });
 
-        const parentSessionData = await database.get<SessionData>(parentSessionKey);
+        this.logger.info(`Forked session '${parentSessionId}' into child '${childSession.id}'`);
+        return childSession;
+    }
+
+    /**
+     * Create a child session seeded with continuation messages from the parent.
+     * This is used by structured session compaction to start a fresh child
+     * session from compacted working memory rather than a full raw history clone.
+     */
+    public async createSeededChildSession(
+        parentSessionId: string,
+        options: {
+            initialMessages: readonly InternalMessage[];
+            title?: string;
+        }
+    ): Promise<ChatSession> {
+        await this.ensureInitialized();
+
+        const parentSessionData = await this.getRequiredSessionData(parentSessionId);
+        const defaultTitle = this.resolveParentTitle(parentSessionData, parentSessionId);
+        const childTitle = options.title?.trim() || defaultTitle;
+        const normalizedMessages = options.initialMessages.map((message) =>
+            structuredClone(message)
+        );
+
+        const childSession = await this.createDerivedSession({
+            parentSessionId,
+            title: childTitle,
+            messageCount: normalizedMessages.length,
+            populateMessages: async (childMessagesKey) => {
+                await this.appendMessages(childMessagesKey, normalizedMessages);
+            },
+        });
+
+        this.logger.info(
+            `Created seeded child session '${childSession.id}' from parent '${parentSessionId}'`
+        );
+        return childSession;
+    }
+
+    public async saveSessionCompaction(compaction: SessionCompactionRecord): Promise<void> {
+        await this.ensureInitialized();
+        const key = `${SessionManager.SESSION_COMPACTION_KEY_PREFIX}${compaction.id}`;
+        await this.services.storageManager.getDatabase().set(key, compaction);
+    }
+
+    public async deleteSessionCompaction(compactionId: string): Promise<void> {
+        await this.ensureInitialized();
+        const key = `${SessionManager.SESSION_COMPACTION_KEY_PREFIX}${compactionId}`;
+        await this.services.storageManager.getDatabase().delete(key);
+    }
+
+    public async getSessionCompaction(
+        compactionId: string
+    ): Promise<SessionCompactionRecord | undefined> {
+        await this.ensureInitialized();
+        const key = `${SessionManager.SESSION_COMPACTION_KEY_PREFIX}${compactionId}`;
+        return await this.services.storageManager.getDatabase().get<SessionCompactionRecord>(key);
+    }
+
+    private async deleteCompactionsForSession(sessionId: string): Promise<number> {
+        const database = this.services.storageManager.getDatabase();
+        const compactionKeys = await database.list(SessionManager.SESSION_COMPACTION_KEY_PREFIX);
+        let deletedCount = 0;
+
+        for (const key of compactionKeys) {
+            const compaction = await database.get<SessionCompactionRecord>(key);
+            if (!compaction) {
+                continue;
+            }
+
+            if (
+                compaction.sourceSessionId !== sessionId &&
+                compaction.targetSessionId !== sessionId
+            ) {
+                continue;
+            }
+
+            await database.delete(key);
+            deletedCount += 1;
+        }
+
+        return deletedCount;
+    }
+
+    private resolveParentTitle(parentSessionData: SessionData, parentSessionId: string): string {
+        const rawParentTitle = parentSessionData.metadata?.title;
+        const parentTitle = typeof rawParentTitle === 'string' ? rawParentTitle.trim() : '';
+        return parentTitle.length > 0
+            ? parentTitle
+            : parentSessionId.slice(0, SessionManager.FORK_PARENT_ID_PREVIEW_LENGTH);
+    }
+
+    private buildDerivedTitle(
+        parentSessionData: SessionData,
+        parentSessionId: string,
+        options: {
+            prefix?: string;
+        } = {}
+    ): string {
+        const prefix = options.prefix ?? '';
+        const baseTitle = this.resolveParentTitle(parentSessionData, parentSessionId);
+
+        if (!prefix) {
+            return baseTitle;
+        }
+
+        return baseTitle.startsWith(prefix) ? baseTitle : `${prefix}${baseTitle}`.trim();
+    }
+
+    private async getRequiredSessionData(parentSessionId: string): Promise<SessionData> {
+        const parentSessionData = await this.services.storageManager
+            .getDatabase()
+            .get<SessionData>(`session:${parentSessionId}`);
         if (!parentSessionData) {
             throw SessionError.notFound(parentSessionId);
         }
+        return parentSessionData;
+    }
 
-        const activeSessionKeys = await database.list('session:');
-        if (activeSessionKeys.length >= this.maxSessions) {
-            throw SessionError.maxSessionsExceeded(activeSessionKeys.length, this.maxSessions);
-        }
+    private async createDerivedSession(options: CreateDerivedSessionOptions): Promise<ChatSession> {
+        const parentSessionData = await this.getRequiredSessionData(options.parentSessionId);
+        await this.ensureSessionCapacity();
 
-        const childSessionId = await this.generateForkSessionId();
+        const database = this.services.storageManager.getDatabase();
+        const cache = this.services.storageManager.getCache();
+        const childSessionId = await this.generateChildSessionId();
         const childSessionKey = `session:${childSessionId}`;
         const childMessagesKey = `messages:${childSessionId}`;
         const now = Date.now();
 
-        const childTitle = this.buildForkTitle(parentSessionData, parentSessionId);
         const childSessionData: SessionData = {
             id: childSessionId,
             createdAt: now,
             lastActivity: now,
-            messageCount: parentSessionData.messageCount,
-            parentSessionId,
+            messageCount: options.messageCount,
+            parentSessionId: options.parentSessionId,
             metadata: {
-                title: childTitle,
+                title: options.title,
             },
             ...(parentSessionData.workspaceId !== undefined && {
                 workspaceId: parentSessionData.workspaceId,
@@ -316,13 +449,10 @@ export class SessionManager {
 
         try {
             await database.set(childSessionKey, childSessionData);
-            await this.copySessionHistory(parentMessagesKey, childMessagesKey);
+            await options.populateMessages(childMessagesKey);
 
-            const childSession = await this.createSession(childSessionId);
-            this.logger.info(`Forked session '${parentSessionId}' into child '${childSessionId}'`);
-            return childSession;
+            return await this.createSession(childSessionId);
         } catch (error) {
-            // Best-effort rollback for partially created fork state.
             await Promise.allSettled([
                 database.delete(childSessionKey),
                 database.delete(childMessagesKey),
@@ -343,22 +473,14 @@ export class SessionManager {
         }
     }
 
-    private buildForkTitle(parentSessionData: SessionData, parentSessionId: string): string {
-        const rawParentTitle = parentSessionData.metadata?.title;
-        const parentTitle = typeof rawParentTitle === 'string' ? rawParentTitle.trim() : '';
-        const prefix = SessionManager.FORK_TITLE_PREFIX;
-
-        const baseTitle =
-            parentTitle.length > 0
-                ? parentTitle.startsWith(prefix)
-                    ? parentTitle.slice(prefix.length).trim() || parentTitle
-                    : parentTitle
-                : parentSessionId.slice(0, SessionManager.FORK_PARENT_ID_PREVIEW_LENGTH);
-
-        return `${prefix}${baseTitle}`;
+    private async ensureSessionCapacity(): Promise<void> {
+        const activeSessionKeys = await this.services.storageManager.getDatabase().list('session:');
+        if (activeSessionKeys.length >= this.maxSessions) {
+            throw SessionError.maxSessionsExceeded(activeSessionKeys.length, this.maxSessions);
+        }
     }
 
-    private async generateForkSessionId(): Promise<string> {
+    private async generateChildSessionId(): Promise<string> {
         const database = this.services.storageManager.getDatabase();
 
         for (let attempt = 0; attempt < SessionManager.FORK_ID_GENERATION_MAX_ATTEMPTS; attempt++) {
@@ -406,6 +528,17 @@ export class SessionManager {
             if (batch.length < SessionManager.FORK_HISTORY_BATCH_SIZE) {
                 return;
             }
+        }
+    }
+
+    private async appendMessages(
+        childMessagesKey: string,
+        messages: readonly InternalMessage[]
+    ): Promise<void> {
+        const database = this.services.storageManager.getDatabase();
+
+        for (const message of messages) {
+            await database.append(childMessagesKey, structuredClone(message));
         }
     }
 
@@ -657,8 +790,14 @@ export class SessionManager {
 
         const messagesKey = `messages:${sessionId}`;
         await this.services.storageManager.getDatabase().delete(messagesKey);
+        const deletedCompactionCount = await this.deleteCompactionsForSession(sessionId);
 
-        this.logger.debug(`Deleted session and conversation history: ${sessionId}`);
+        this.logger.debug(
+            `Deleted session and conversation history: ${sessionId}` +
+                (deletedCompactionCount > 0
+                    ? ` (removed ${deletedCompactionCount} compaction artifact${deletedCompactionCount === 1 ? '' : 's'})`
+                    : '')
+        );
     }
 
     /**

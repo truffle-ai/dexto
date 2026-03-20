@@ -73,3 +73,51 @@ export class SessionError {
         );
     }
 }
+
+/**
+ * Session compaction error factory for invalid strategy output and lifecycle invariants.
+ */
+export class SessionCompactionError {
+    static invalidSummaryCount(strategy: string, summaryMessageCount: number) {
+        return new DextoRuntimeError(
+            SessionErrorCode.SESSION_COMPACTION_INVALID_OUTPUT,
+            ErrorScope.SESSION,
+            ErrorType.SYSTEM,
+            `Compaction strategy '${strategy}' must return exactly one summary message for session-level compaction`,
+            {
+                strategy,
+                summaryMessageCount,
+            }
+        );
+    }
+
+    static invalidPreserveFromWorkingIndex(
+        strategy: string,
+        preserveFromWorkingIndex: unknown,
+        workingHistoryLength: number
+    ) {
+        return new DextoRuntimeError(
+            SessionErrorCode.SESSION_COMPACTION_INVALID_OUTPUT,
+            ErrorScope.SESSION,
+            ErrorType.SYSTEM,
+            `Compaction strategy '${strategy}' must provide a valid preserveFromWorkingIndex within the current working history bounds`,
+            {
+                strategy,
+                preserveFromWorkingIndex,
+                workingHistoryLength,
+            }
+        );
+    }
+
+    static preservedMessageMissingId(strategy: string) {
+        return new DextoRuntimeError(
+            SessionErrorCode.SESSION_COMPACTION_INVALID_OUTPUT,
+            ErrorScope.SESSION,
+            ErrorType.SYSTEM,
+            `Compaction strategy '${strategy}' produced continuation messages without stable IDs, so the preserved working-memory boundary could not be materialized`,
+            {
+                strategy,
+            }
+        );
+    }
+}

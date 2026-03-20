@@ -153,6 +153,41 @@ await agent.deleteSession('demo');
 // Session no longer exists
 ```
 
+## Compacting Sessions
+
+Sessions are Dexto's working memory layer. When a transcript gets large, you can
+compact older turns into a persisted compaction artifact and then decide how
+to continue:
+
+```typescript
+const compaction = await agent.compactSession({
+  sessionId: session.id,
+  mode: 'continue-in-child',
+  trigger: 'manual',
+});
+
+const nextSessionId = compaction?.targetSessionId ?? session.id;
+```
+
+`compactSession()` supports three modes:
+
+- `artifact-only`: create the artifact without changing the active session
+- `continue-in-place`: compact the current session and keep using the same ID
+- `continue-in-child`: create a new child session seeded with the compacted continuation
+
+You can also resolve a stored artifact later:
+
+```typescript
+if (compaction) {
+  const artifact = await agent.getSessionCompaction(compaction.id);
+  console.log(artifact?.summaryMessages);
+}
+```
+
+This is still session lifecycle and working-memory management. Long-term memory
+systems, semantic extraction, and user preference storage should build on top of
+these artifacts rather than replacing them.
+
 ## When to Create Sessions
 
 **One session per conversation thread.** Here are common patterns:

@@ -6,7 +6,7 @@ import {
 } from '@dexto/agent-config';
 import imageLocal from '@dexto/image-local';
 import { DextoAgent, createAgentCard } from '@dexto/core';
-import type { AgentCard } from '@dexto/core';
+import type { AgentCard, DextoAgentOptions } from '@dexto/core';
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import type { Server as HttpServer } from 'node:http';
@@ -60,16 +60,23 @@ export function createTestAgentConfig(): AgentConfig {
  * Creates a real DextoAgent instance with in-memory storage
  * No mocks - uses real implementations
  */
-export async function createTestAgent(config?: AgentConfig): Promise<DextoAgent> {
+export async function createTestAgent(
+    config?: AgentConfig,
+    options?: {
+        compaction?: DextoAgentOptions['compaction'];
+    }
+): Promise<DextoAgent> {
     const agentConfig = config ?? createTestAgentConfig();
     const validatedConfig = AgentConfigSchema.parse(agentConfig);
     const services = await resolveServicesFromConfig(validatedConfig, imageLocal);
-    const agent = new DextoAgent(
-        toDextoAgentOptions({
-            config: validatedConfig,
-            services,
-        })
-    );
+    const agentOptions = toDextoAgentOptions({
+        config: validatedConfig,
+        services,
+    });
+    const agent = new DextoAgent({
+        ...agentOptions,
+        ...(options?.compaction !== undefined ? { compaction: options.compaction } : {}),
+    });
     await agent.start();
     return agent;
 }
