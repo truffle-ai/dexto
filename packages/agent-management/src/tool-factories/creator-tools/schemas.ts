@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const CREATOR_TOOL_NAMES = [
     'skill_create',
     'skill_update',
+    'skill_refresh',
     'skill_search',
     'skill_list',
     'tool_catalog',

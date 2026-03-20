@@ -152,6 +152,37 @@ describe('enrichAgentConfig', () => {
             expect(enriched.prompts).toEqual([{ type: 'file', file: workspacePrompt }]);
         });
 
+        it('discovers standalone skills without preloading their bundled MCP servers', () => {
+            const workspaceRoot = '/workspace/project';
+            vi.mocked(discoverStandaloneSkills).mockReturnValue([
+                {
+                    name: 'release-skill',
+                    path: path.join(workspaceRoot, 'skills', 'release-skill'),
+                    skillFile: path.join(workspaceRoot, 'skills', 'release-skill', 'SKILL.md'),
+                    source: 'project',
+                },
+            ]);
+
+            const baseConfig: AgentConfig = {
+                llm: {
+                    provider: 'openai',
+                    model: 'gpt-5',
+                    apiKey: 'test-key',
+                },
+                systemPrompt: 'You are a helpful assistant.',
+            };
+
+            const enriched = enrichAgentConfig(baseConfig, 'test-agent', {
+                workspaceRoot,
+            });
+
+            expect(enriched.prompts).toContainEqual({
+                type: 'file',
+                file: path.join(workspaceRoot, 'skills', 'release-skill', 'SKILL.md'),
+            });
+            expect(enriched.mcpServers).toBeUndefined();
+        });
+
         it('uses the resolved workspace root for storage defaults too', async () => {
             const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'dexto-enrichment-'));
             const workspaceRoot = path.join(tempDir, 'workspace');

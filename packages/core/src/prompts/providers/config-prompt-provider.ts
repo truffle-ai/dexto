@@ -8,6 +8,7 @@ import { DextoLogComponent } from '../../logger/v2/types.js';
 import { PromptError } from '../errors.js';
 import { expandPlaceholders } from '../utils.js';
 import { assertValidPromptName } from '../name-validation.js';
+import { loadBundledMcpConfigFromDirectory } from '../../mcp/bundled-config.js';
 import { readFile, realpath } from 'fs/promises';
 import { existsSync } from 'fs';
 import { basename, dirname, relative, sep } from 'path';
@@ -255,6 +256,17 @@ export class ConfigPromptProvider implements PromptProvider {
             const model = prompt.model ?? parsed.model;
             const context = prompt.context ?? parsed.context;
             const agent = prompt.agent ?? parsed.agent;
+            const bundledMcpResult = loadBundledMcpConfigFromDirectory(
+                dirname(filePath),
+                parsed.id,
+                {
+                    scanNestedMcps: true,
+                }
+            );
+
+            for (const warning of bundledMcpResult.warnings) {
+                this.logger.warn(warning);
+            }
 
             const displayName = parsed.id;
             const promptName = prompt.namespace
@@ -285,6 +297,9 @@ export class ConfigPromptProvider implements PromptProvider {
                     originalId: parsed.id,
                     ...(prompt.namespace && { namespace: prompt.namespace }),
                     ...(parsed.toolkits !== undefined && { toolkits: parsed.toolkits }),
+                    ...(bundledMcpResult.mcpServers !== undefined && {
+                        mcpServers: bundledMcpResult.mcpServers,
+                    }),
                 },
             };
 

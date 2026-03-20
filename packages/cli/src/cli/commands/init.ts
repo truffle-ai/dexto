@@ -34,6 +34,9 @@ import { ensureImageImporterConfigured } from '../utils/image-importer.js';
 
 const AGENTS_FILENAME = 'AGENTS.md';
 const WORKSPACE_DIRECTORIES = ['agents', 'skills'] as const;
+const SKILL_RESOURCE_DIRECTORIES = ['handlers', 'scripts', 'mcps', 'references'] as const;
+const STARTER_SKILL_ID = 'create-skill';
+const STARTER_SKILL_IDS = [STARTER_SKILL_ID] as const;
 const DEFAULT_AGENT_PROVIDER: LLMProvider = 'openai';
 const DEFAULT_AGENT_MODEL = 'gpt-5.3-codex';
 
@@ -45,7 +48,8 @@ This workspace can define project-specific agents and skills.
 
 ## Structure
 - Put custom agents and subagents in \`agents/\`
-- Put custom skills in \`skills/<skill-id>/SKILL.md\`
+- Put custom skills in \`skills/<skill-id>/\`
+- Each skill bundle should keep \`SKILL.md\` plus optional \`handlers/\`, \`scripts/\`, \`mcps/\`, and \`references/\`
 - Use \`.dexto/\` only for Dexto-managed state and installed assets
 
 ## Defaults
@@ -72,6 +76,8 @@ export interface WorkspaceAgentScaffoldResult {
 export interface WorkspaceSkillScaffoldResult {
     workspace: WorkspaceScaffoldResult;
     skillFile: { path: string; status: ScaffoldEntryStatus };
+    resourceDirectories: Array<{ path: string; status: ScaffoldEntryStatus }>;
+    extraFiles: Array<{ path: string; status: ScaffoldEntryStatus }>;
 }
 
 export interface WorkspacePrimaryAgentResult {
@@ -1189,20 +1195,244 @@ description: "TODO: Describe when to use this skill."
 ## Purpose
 Describe what this skill helps the agent accomplish.
 
-## Inputs
+## When To Use
 - The task or context that should trigger this skill
 - Relevant files, paths, or constraints
 
-## Steps
-1. Review the relevant context.
-2. Apply the workflow for this skill.
-3. Return a concise result with any important follow-up actions.
+## Workflow
+1. Review the relevant context and only open bundled files that are actually needed.
+2. Use \`references/\` for background knowledge, schemas, or examples.
+3. Use \`scripts/\` for deterministic helper code and \`handlers/\` for reusable workflow logic.
+4. Use \`mcps/\` for any MCP server configs this skill needs to carry with it.
+5. Return a concise result with any important follow-up actions.
+
+## Bundled Resources
+- \`handlers/\`: Reusable workflow helpers or code snippets this skill can point to
+- \`scripts/\`: Executable helpers for deterministic or repetitive tasks
+- \`mcps/\`: MCP server config JSON files associated with this skill
+- \`references/\`: Docs, schemas, examples, or domain notes to load on demand
 
 ## Output Format
 - Summary of what was found or changed
 - Key decisions or recommendations
 - Follow-up actions, if any
 `;
+}
+
+function buildCreateSkillStarterTemplate(): string {
+    return `---
+name: "${STARTER_SKILL_ID}"
+description: "Create or update Dexto skill bundles with SKILL.md, handlers, scripts, mcps, and references."
+toolkits: ["creator-tools"]
+allowed-tools: ["skill_create", "skill_update", "skill_refresh", "skill_search", "skill_list", "tool_catalog"]
+---
+
+# Create Skill
+
+Create or update standalone Dexto skill bundles. Treat \`skills/<id>/\` as the canonical workspace location unless the user explicitly asks for a global skill.
+
+## Core Flow
+1. Search for overlap first with \`skill_list\` and \`skill_search\`.
+2. Propose a kebab-case id, one-sentence description, scope, and the minimum tool access the skill needs.
+3. Create or update the skill bundle.
+4. Keep \`SKILL.md\` focused on trigger conditions, workflow, and when to open bundled files.
+5. Add bundled files only when they materially improve the workflow:
+   - \`references/\` for larger docs, copied external material, schemas, examples, or policies
+   - \`scripts/\` for deterministic helpers
+   - \`handlers/\` for reusable workflow logic or structured helper code
+   - \`mcps/\` for MCP configs the skill should carry with it
+   - When a skill needs a real bundled MCP server, prefer the SDK-based stdio pattern in \`references/mcp-server-pattern.md\`
+6. Prefer extending existing skills or references over duplicating content.
+7. If you edit \`SKILL.md\` or bundled files with non-creator tools, run \`skill_refresh\` before relying on the skill in the current session.
+8. Creating \`mcps/*.json\` only creates bundled MCP config. Do not say you created a real MCP server unless the config points at a bundled runnable implementation or a verified external command/package.
+
+## Authoring Rules
+- Default to workspace scope.
+- Default to no extra toolkits and no \`allowed-tools\` unless the skill needs them.
+- Keep most actionable instructions in \`SKILL.md\` so the agent can act without opening extra files.
+- Use \`references/\` sparingly for larger copied docs, external references, schemas, examples, or policies.
+- Keep references one level deep from \`SKILL.md\` and link them explicitly.
+- Reuse language and conventions from nearby skills when possible.
+- If you add MCP config files or update bundled resources outside creator tools, run \`skill_refresh\` so the current session reloads the skill metadata before invoking it.
+- For real bundled MCPs, prefer the official \`@modelcontextprotocol/sdk\` server APIs with \`StdioServerTransport\`. Avoid hand-rolled Content-Length framing unless the user explicitly asks for low-level protocol code.
+
+## SKILL.md Structure
+- \`# <Title>\`
+- \`## Purpose\`
+- \`## When To Use\`
+- \`## Workflow\`
+- \`## Bundled Resources\`
+- \`## Output Format\`
+
+## Resource Guide
+Read \`references/skill-anatomy.md\` when you need the bundle layout or packaging checklist.
+Read \`references/mcp-server-pattern.md\` when the skill needs a bundled MCP server implementation.
+`;
+}
+
+function buildCreateSkillStarterReference(): string {
+    return `# Skill Anatomy
+
+## Canonical Layout
+\`\`\`
+skills/<skill-id>/
+├── SKILL.md
+├── handlers/
+├── scripts/
+├── mcps/
+└── references/
+\`\`\`
+
+## What Goes Where
+- \`SKILL.md\`: The trigger, workflow, and navigation entrypoint.
+- \`handlers/\`: Reusable helper code or structured workflow fragments the skill can reference.
+- \`scripts/\`: Deterministic helpers the agent can run instead of rewriting logic.
+- \`mcps/\`: JSON config fragments for MCP servers used by the skill. This is config only, not proof that the MCP implementation exists.
+- \`references/\`: Supporting material the agent should open only when needed, especially larger copied docs, schemas, external references, or long examples.
+
+## Creation Checklist
+1. Search existing skills first to avoid duplicates.
+2. Pick a kebab-case id and concise description.
+3. Keep actionable workflow in \`SKILL.md\`; move only larger reference material into \`references/\`.
+4. Add scripts or handlers only when they remove repeated work or improve reliability.
+5. Add MCP configs only when the skill truly depends on them.
+6. Reference bundled files from \`SKILL.md\` using relative paths.
+
+## MCP Notes
+- Store standalone skill MCP configs as JSON files in \`mcps/\`.
+- Each file may define one or more servers using the same shape as \`.mcp.json\`.
+- Skill MCP configs are bundled metadata. They do not by themselves implement or verify an MCP server.
+- If you claim the skill ships a real MCP, the config must point to a bundled runnable server or a verified external package/command.
+- Run \`skill_refresh\` after editing bundled files so the running session reloads the latest skill content and MCP metadata.
+`;
+}
+
+function buildCreateSkillMcpReference(): string {
+    return `# MCP Server Pattern
+
+Use this pattern when a skill needs to bundle a real MCP server in \`scripts/\`.
+
+## Preferred Approach
+- Use the official \`@modelcontextprotocol/sdk\` server APIs.
+- Use \`StdioServerTransport\` for bundled local servers.
+- Keep the MCP config in \`mcps/*.json\` simple and skill-relative.
+- Prefer \`.mjs\` for bundled MCP server scripts to avoid CommonJS/ESM ambiguity.
+
+## Avoid
+- Do not hand-roll MCP framing with manual \`Content-Length\` parsing unless the user explicitly asks for low-level protocol code.
+- Do not claim the MCP works just because the script exists or passes \`node --check\`.
+- Do not stop at writing \`mcps/*.json\` if the user asked for a real MCP implementation.
+
+## Minimal Server Template
+\`\`\`js
+#!/usr/bin/env node
+
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+
+const server = new Server(
+    {
+        name: 'my-skill-server',
+        version: '1.0.0',
+    },
+    {
+        capabilities: {
+            tools: {},
+        },
+    }
+);
+
+server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: [
+        {
+            name: 'my_tool',
+            description: 'Describe what the tool does.',
+            inputSchema: {
+                type: 'object',
+                properties: {
+                    value: {
+                        type: 'string',
+                    },
+                },
+                required: ['value'],
+            },
+        },
+    ],
+}));
+
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    if (request.params.name !== 'my_tool') {
+        throw new Error(\`Unknown tool: \${request.params.name}\`);
+    }
+
+    const value =
+        typeof request.params.arguments?.value === 'string' ? request.params.arguments.value : '';
+
+    return {
+        content: [
+            {
+                type: 'text',
+                text: \`Handled: \${value}\`,
+            },
+        ],
+        structuredContent: {
+            value,
+        },
+    };
+});
+
+const transport = new StdioServerTransport();
+await server.connect(transport);
+\`\`\`
+
+## Matching MCP Config
+\`\`\`json
+{
+  "mcpServers": {
+    "my_server": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["scripts/my-skill-server.mjs"]
+    }
+  }
+}
+\`\`\`
+
+## Verification Sequence
+1. Create or update \`SKILL.md\`, \`scripts/\`, and \`mcps/\`.
+2. Run \`skill_refresh\` after non-creator file edits.
+3. Invoke the skill in the current session.
+4. Confirm the bundled MCP connects and the new MCP tool appears.
+5. Call the MCP tool once with a simple input and confirm the result.
+
+If step 3 or 4 fails, the skill is not done yet.
+`;
+}
+
+function buildSkillExtraFiles(skillId: string): Array<{ relativePath: string; content: string }> {
+    if (skillId === STARTER_SKILL_ID) {
+        return [
+            {
+                relativePath: path.join('references', 'skill-anatomy.md'),
+                content: buildCreateSkillStarterReference(),
+            },
+            {
+                relativePath: path.join('references', 'mcp-server-pattern.md'),
+                content: buildCreateSkillMcpReference(),
+            },
+        ];
+    }
+
+    return [];
+}
+
+function buildSkillTemplateForId(skillId: string): string {
+    if (skillId === STARTER_SKILL_ID) {
+        return buildCreateSkillStarterTemplate();
+    }
+
+    return buildSkillTemplate(skillId);
 }
 
 async function loadWorkspaceProjectRegistry(workspaceRoot: string): Promise<{
@@ -1396,8 +1626,24 @@ export async function createWorkspaceSkillScaffold(
     const skillDirPath = path.join(workspace.root, 'skills', skillId);
     const skillFilePath = path.join(skillDirPath, 'SKILL.md');
 
+    const resourceDirectories: WorkspaceSkillScaffoldResult['resourceDirectories'] = [];
+    const extraFiles: WorkspaceSkillScaffoldResult['extraFiles'] = [];
+
     await ensureDirectory(skillDirPath);
-    const skillFileStatus = await ensureFile(skillFilePath, buildSkillTemplate(skillId));
+    const skillFileStatus = await ensureFile(skillFilePath, buildSkillTemplateForId(skillId));
+
+    for (const directory of SKILL_RESOURCE_DIRECTORIES) {
+        const resourcePath = path.join(skillDirPath, directory);
+        const status = await ensureDirectory(resourcePath);
+        resourceDirectories.push({ path: resourcePath, status });
+    }
+
+    for (const file of buildSkillExtraFiles(skillId)) {
+        const filePath = path.join(skillDirPath, file.relativePath);
+        await ensureDirectory(path.dirname(filePath));
+        const status = await ensureFile(filePath, file.content);
+        extraFiles.push({ path: filePath, status });
+    }
 
     return {
         workspace,
@@ -1405,6 +1651,8 @@ export async function createWorkspaceSkillScaffold(
             path: skillFilePath,
             status: skillFileStatus,
         },
+        resourceDirectories,
+        extraFiles,
     };
 }
 
@@ -1543,6 +1791,18 @@ function formatSkillPaths(result: WorkspaceSkillScaffoldResult): string[] {
 
     if (result.skillFile.status === 'created') {
         createdPaths.push(path.relative(result.workspace.root, result.skillFile.path));
+    }
+
+    for (const directory of result.resourceDirectories) {
+        if (directory.status === 'created') {
+            createdPaths.push(path.relative(result.workspace.root, directory.path));
+        }
+    }
+
+    for (const file of result.extraFiles) {
+        if (file.status === 'created') {
+            createdPaths.push(path.relative(result.workspace.root, file.path));
+        }
     }
 
     return createdPaths;
@@ -1730,7 +1990,16 @@ export async function handleInitCommand(workspaceRoot: string = process.cwd()): 
     p.intro(chalk.inverse('Dexto Init'));
 
     const result = await createWorkspaceScaffold(workspaceRoot);
-    const createdPaths = formatCreatedPaths(result);
+    const starterSkills = await Promise.all(
+        STARTER_SKILL_IDS.map((skillId) => createWorkspaceSkillScaffold(skillId, workspaceRoot))
+    );
+    const workspacePaths = formatCreatedPaths(result);
+    const createdPaths = [
+        ...workspacePaths,
+        ...starterSkills.flatMap((skill) =>
+            formatSkillPaths(skill).filter((item) => !workspacePaths.includes(item))
+        ),
+    ];
 
     if (createdPaths.length === 0) {
         p.outro(chalk.green('Workspace already initialized.'));

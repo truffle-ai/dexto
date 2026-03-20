@@ -1,6 +1,12 @@
 import { z } from 'zod';
 import { ToolError, createLocalToolCallHeader, defineTool, flattenPromptResult } from '@dexto/core';
-import type { PromptInfo, TaskForkOptions, Tool, ToolExecutionContext } from '@dexto/core';
+import type {
+    McpServerConfig,
+    PromptInfo,
+    TaskForkOptions,
+    Tool,
+    ToolExecutionContext,
+} from '@dexto/core';
 
 const InvokeSkillInputSchema = z
     .object({
@@ -112,6 +118,19 @@ export function createInvokeSkillTool(): Tool<typeof InvokeSkillInputSchema> {
             }
 
             const promptDef = await promptManager.getPromptDefinition(skillKey);
+            const taskForker = context.services?.taskForker;
+
+            if (promptDef?.context === 'fork' && !taskForker) {
+                return {
+                    error: `Skill '${skill}' requires fork execution (context: fork), but agent spawning is not available.`,
+                    skill: skillKey,
+                };
+            }
+
+            const skillMcpError = await ensureSkillMcpServersConnected(skill, matchedInfo, context);
+            if (skillMcpError) {
+                return skillMcpError;
+            }
 
             if (
                 promptDef?.context !== 'fork' &&
@@ -138,8 +157,8 @@ export function createInvokeSkillTool(): Tool<typeof InvokeSkillInputSchema> {
             const content = flattened.text;
 
             if (promptDef?.context === 'fork') {
-                const taskForker = context.services?.taskForker;
-                if (!taskForker) {
+                const activeTaskForker = taskForker;
+                if (!activeTaskForker) {
                     return {
                         error: `Skill '${skill}' requires fork execution (context: fork), but agent spawning is not available.`,
                         skill: skillKey,
@@ -165,7 +184,7 @@ export function createInvokeSkillTool(): Tool<typeof InvokeSkillInputSchema> {
                     forkOptions.sessionId = context.sessionId;
                 }
 
-                const result = await taskForker.fork(forkOptions);
+                const result = await activeTaskForker.fork(forkOptions);
 
                 if (result.success) {
                     return result.response ?? 'Task completed successfully.';
@@ -199,8 +218,87 @@ Parameters:
 Execution modes:
 - **Inline skills**: Return instructions for you to follow in the current conversation
 - **Fork skills**: Automatically execute in an isolated subagent and return the result (no additional tool calls needed)
+- **Bundled MCP skills**: Automatically connect any MCP servers carried inside the skill bundle when the skill is invoked
 
 Fork skills run in complete isolation without access to conversation history. They're useful for tasks that should run independently.
 
 Available skills are listed in your system prompt. Use the skill name exactly as shown.`;
+}
+
+function getSkillBundledMcpServers(
+    promptInfo: PromptInfo | undefined
+): Record<string, McpServerConfig> {
+    const rawServers = promptInfo?.metadata?.mcpServers;
+    if (!rawServers || typeof rawServers !== 'object' || Array.isArray(rawServers)) {
+        return {};
+    }
+
+    return Object.fromEntries(
+        Object.entries(rawServers).filter(
+            ([, config]) => typeof config === 'object' && config !== null && !Array.isArray(config)
+        )
+    ) as Record<string, McpServerConfig>;
+}
+
+async function ensureSkillMcpServersConnected(
+    skill: string,
+    promptInfo: PromptInfo | undefined,
+    context: ToolExecutionContext
+): Promise<
+    | {
+          error: string;
+          mcpServers: string[];
+      }
+    | undefined
+> {
+    const mcpServers = getSkillBundledMcpServers(promptInfo);
+    const serverNames = Object.keys(mcpServers);
+
+    if (serverNames.length === 0) {
+        return undefined;
+    }
+
+    if (
+        !context.agent?.addMcpServer ||
+        !context.agent.getMcpServerStatus ||
+        !context.agent.enableMcpServer
+    ) {
+        return {
+            error: `Skill '${skill}' requires bundled MCP servers (${serverNames.join(', ')}), but this agent does not support dynamic MCP loading.`,
+            mcpServers: serverNames,
+        };
+    }
+
+    try {
+        for (const [serverName, serverConfig] of Object.entries(mcpServers)) {
+            let serverStatus = context.agent.getMcpServerStatus(serverName);
+
+            if (!serverStatus) {
+                await context.agent.addMcpServer(serverName, serverConfig);
+                serverStatus = context.agent.getMcpServerStatus(serverName);
+            }
+
+            if (!serverStatus?.enabled || serverStatus.status !== 'connected') {
+                await context.agent.enableMcpServer(serverName);
+                serverStatus = context.agent.getMcpServerStatus(serverName);
+            }
+
+            if (!serverStatus || serverStatus.status !== 'connected') {
+                return {
+                    error: `Skill '${skill}' requires MCP server '${serverName}', but it is currently ${serverStatus?.status ?? 'unavailable'}${serverStatus?.error ? `: ${serverStatus.error}` : ''}.`,
+                    mcpServers: serverNames,
+                };
+            }
+        }
+    } catch (error) {
+        return {
+            error:
+                error instanceof Error
+                    ? error.message
+                    : 'Failed to connect bundled MCP servers for skill',
+            mcpServers: serverNames,
+        };
+    }
+
+    return undefined;
 }

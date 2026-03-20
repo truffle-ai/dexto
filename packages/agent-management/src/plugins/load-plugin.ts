@@ -10,8 +10,8 @@
 
 import * as path from 'path';
 import { existsSync, readdirSync, readFileSync } from 'fs';
-import { PluginMCPConfigSchema } from './schemas.js';
-import type { DiscoveredPlugin, LoadedPlugin, PluginCommand, PluginMCPConfig } from './types.js';
+import type { DiscoveredPlugin, LoadedPlugin, PluginCommand } from './types.js';
+import { loadMcpConfigFromDirectory } from './mcp-config.js';
 
 /**
  * Loads a discovered plugin's contents.
@@ -77,7 +77,8 @@ export function loadClaudeCodePlugin(plugin: DiscoveredPlugin): LoadedPlugin {
     }
 
     // 3. Load .mcp.json if exists
-    const mcpConfig = loadMcpConfig(pluginPath, pluginName, warnings);
+    const mcpResult = loadMcpConfigFromDirectory(pluginPath, pluginName);
+    warnings.push(...mcpResult.warnings);
 
     // 4. Check for unsupported features
     checkUnsupportedFeatures(pluginPath, pluginName, warnings);
@@ -85,7 +86,7 @@ export function loadClaudeCodePlugin(plugin: DiscoveredPlugin): LoadedPlugin {
     return {
         manifest: plugin.manifest,
         commands,
-        mcpConfig,
+        mcpConfig: mcpResult.mcpConfig,
         warnings,
     };
 }
@@ -118,104 +119,6 @@ function readFileSafe(filePath: string): string | null {
         return readFileSync(filePath, 'utf-8');
     } catch {
         return null;
-    }
-}
-
-/**
- * Loads MCP configuration from .mcp.json if it exists.
- *
- * Claude Code's .mcp.json format puts servers directly at the root level:
- * { "serverName": { "type": "http", "url": "..." } }
- *
- * We normalize this to: { mcpServers: { "serverName": { ... } } }
- */
-function loadMcpConfig(
-    pluginPath: string,
-    pluginName: string,
-    warnings: string[]
-): PluginMCPConfig | undefined {
-    const mcpPath = path.join(pluginPath, '.mcp.json');
-
-    if (!existsSync(mcpPath)) {
-        return undefined;
-    }
-
-    try {
-        const content = readFileSync(mcpPath, 'utf-8');
-        const parsed = JSON.parse(content);
-
-        // Claude Code format: servers directly at root level
-        // Check if this looks like the Claude Code format (no mcpServers key, has server-like objects)
-        if (!parsed.mcpServers && typeof parsed === 'object' && parsed !== null) {
-            // Check if any root key looks like a server config (has 'type' or 'command' or 'url')
-            const hasServerConfig = Object.values(parsed).some(
-                (val) =>
-                    typeof val === 'object' &&
-                    val !== null &&
-                    ('type' in val || 'command' in val || 'url' in val)
-            );
-
-            if (hasServerConfig) {
-                // Normalize Claude Code format to Dexto format
-                // Claude Code doesn't require 'type' field - it infers from 'command' vs 'url'
-                const normalized: Record<string, unknown> = {};
-
-                for (const [serverName, serverConfig] of Object.entries(parsed)) {
-                    if (
-                        typeof serverConfig === 'object' &&
-                        serverConfig !== null &&
-                        !Array.isArray(serverConfig)
-                    ) {
-                        const config = serverConfig as Record<string, unknown>;
-
-                        // If type is already present, use as-is
-                        if ('type' in config) {
-                            normalized[serverName] = config;
-                        }
-                        // If command is present, infer type: 'stdio'
-                        else if ('command' in config) {
-                            normalized[serverName] = {
-                                type: 'stdio',
-                                ...config,
-                            };
-                        }
-                        // If url is present, infer type based on URL or default to 'http'
-                        else if ('url' in config) {
-                            const url = String(config.url || '');
-                            // If URL contains /sse or ends with /sse, assume SSE
-                            const inferredType = url.includes('/sse') ? 'sse' : 'http';
-                            normalized[serverName] = {
-                                type: inferredType,
-                                ...config,
-                            };
-                        } else {
-                            // Unknown format - keep as-is and let validation catch it
-                            normalized[serverName] = config;
-                        }
-                    }
-                }
-
-                return { mcpServers: normalized };
-            }
-        }
-
-        // Try standard schema validation
-        const result = PluginMCPConfigSchema.safeParse(parsed);
-
-        if (!result.success) {
-            const issues = result.error.issues.map((i) => i.message).join(', ');
-            warnings.push(`[${pluginName}] Invalid .mcp.json: ${issues}`);
-            return undefined;
-        }
-
-        return result.data;
-    } catch (error) {
-        if (error instanceof SyntaxError) {
-            warnings.push(`[${pluginName}] Failed to parse .mcp.json: invalid JSON`);
-        } else {
-            warnings.push(`[${pluginName}] Failed to load .mcp.json: ${String(error)}`);
-        }
-        return undefined;
     }
 }
 

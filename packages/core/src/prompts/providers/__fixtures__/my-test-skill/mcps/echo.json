@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "skill_fixture_echo": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "scripts/fixture-echo-server.mjs"
+      ]
+    }
+  }
+}
