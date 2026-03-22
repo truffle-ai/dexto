@@ -685,6 +685,75 @@ describe('SessionManager', () => {
             });
         });
 
+        test('stores and retrieves session system prompt contributors', async () => {
+            const sessionId = 'test-session';
+            mockStorageManager.database.get.mockResolvedValue({
+                ...mockSessionData,
+                metadata: {},
+            });
+
+            const replaced = await sessionManager.upsertSessionSystemPromptContributor(sessionId, {
+                id: 'peer-origin',
+                priority: 0,
+                content: 'Reply to the originating human thread.',
+            });
+            const contributors = await sessionManager.getSessionSystemPromptContributors(sessionId);
+
+            expect(replaced).toBe(false);
+            expect(contributors).toEqual([
+                {
+                    id: 'peer-origin',
+                    priority: 0,
+                    content: 'Reply to the originating human thread.',
+                },
+            ]);
+            expect(mockStorageManager.database.set).toHaveBeenCalledWith(
+                `session:${sessionId}`,
+                expect.objectContaining({
+                    metadata: {
+                        systemPromptContributors: [
+                            {
+                                id: 'peer-origin',
+                                priority: 0,
+                                content: 'Reply to the originating human thread.',
+                            },
+                        ],
+                    },
+                })
+            );
+        });
+
+        test('removes session system prompt contributors by id', async () => {
+            const sessionId = 'test-session';
+            mockStorageManager.database.get.mockResolvedValue({
+                ...mockSessionData,
+                metadata: {
+                    systemPromptContributors: [
+                        {
+                            id: 'peer-origin',
+                            priority: 0,
+                            content: 'Reply to the originating human thread.',
+                        },
+                    ],
+                },
+            });
+
+            const removed = await sessionManager.removeSessionSystemPromptContributor(
+                sessionId,
+                'peer-origin'
+            );
+
+            expect(removed).toBe(true);
+            expect(mockStorageManager.database.set).toHaveBeenCalledWith(
+                `session:${sessionId}`,
+                expect.objectContaining({
+                    metadata: {
+                        systemPromptContributors: [],
+                    },
+                })
+            );
+        });
+
         test('should list all active sessions', async () => {
             const activeSessionKeys = [
                 'session:session-1',

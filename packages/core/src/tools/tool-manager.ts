@@ -1080,10 +1080,23 @@ export class ToolManager {
             typeof options?.sessionId === 'string' && options.sessionId.length > 0
                 ? options.sessionId
                 : undefined;
+        const sessionPromptContributors =
+            sessionId !== undefined && this.sessionManager
+                ? await this.sessionManager.getSessionSystemPromptContributors(sessionId)
+                : [];
         const baseContext: DynamicContributorContext = {
             mcpManager: this.mcpManager,
             workspace: baseWorkspace,
-            ...(sessionId !== undefined ? { session: { id: sessionId } } : {}),
+            ...(sessionId !== undefined
+                ? {
+                      session: {
+                          id: sessionId,
+                          ...(sessionPromptContributors.length > 0
+                              ? { systemPromptContributors: sessionPromptContributors }
+                              : {}),
+                      },
+                  }
+                : {}),
         };
 
         if (!this.contributorContextFactory) {

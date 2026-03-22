@@ -53,6 +53,7 @@ import { PromptsSchema } from '../prompts/schemas.js';
 import { ResourcesConfigSchema } from '../resources/schemas.js';
 import { SessionConfigSchema } from '../session/schemas.js';
 import { SystemPromptConfigSchema } from '../systemPrompt/schemas.js';
+import { SessionPromptContributorSchema } from '../systemPrompt/schemas.js';
 import { ElicitationConfigSchema, PermissionsConfigSchema } from '../tools/schemas.js';
 import { OtelConfigurationSchema } from '../telemetry/schemas.js';
 import { AgentCardSchema } from './schemas.js';
@@ -3079,6 +3080,58 @@ export class DextoAgent {
         this.ensureStarted();
         const context = await this.toolManager.buildContributorContext();
         return await this.systemPromptManager.build(context);
+    }
+
+    public async getSessionSystemPromptContributors(sessionId: string) {
+        this.ensureStarted();
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+
+        return await this.sessionManager.getSessionSystemPromptContributors(sessionId);
+    }
+
+    public async upsertSessionSystemPromptContributor(
+        sessionId: string,
+        contributor: unknown
+    ): Promise<{ replaced: boolean }> {
+        this.ensureStarted();
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+
+        const parsedContributor = SessionPromptContributorSchema.parse(contributor);
+        const replaced = await this.sessionManager.upsertSessionSystemPromptContributor(
+            sessionId,
+            parsedContributor
+        );
+        return { replaced };
+    }
+
+    public async removeSessionSystemPromptContributor(
+        sessionId: string,
+        contributorId: string
+    ): Promise<boolean> {
+        this.ensureStarted();
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+        if (!contributorId || typeof contributorId !== 'string') {
+            throw AgentError.apiValidationError(
+                'contributorId is required and must be a non-empty string'
+            );
+        }
+
+        return await this.sessionManager.removeSessionSystemPromptContributor(
+            sessionId,
+            contributorId
+        );
     }
 
     /**

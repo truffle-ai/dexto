@@ -202,6 +202,48 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 platform: 'linux',
             });
         });
+
+        it('includes session prompt contributors when session manager support is configured', async () => {
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [],
+                mockLogger
+            );
+
+            toolManager.setHookSupport(
+                {} as any,
+                {
+                    getSessionSystemPromptContributors: vi.fn().mockResolvedValue([
+                        {
+                            id: 'peer-origin',
+                            priority: 0,
+                            content: 'Reply to the originating peer.',
+                        },
+                    ]),
+                } as any,
+                {} as any
+            );
+
+            const context = await toolManager.buildContributorContext({
+                sessionId: 'session-789',
+            });
+
+            expect(context.session).toEqual({
+                id: 'session-789',
+                systemPromptContributors: [
+                    {
+                        id: 'peer-origin',
+                        priority: 0,
+                        content: 'Reply to the originating peer.',
+                    },
+                ],
+            });
+        });
     });
 
     describe('Tool Name Parsing Logic', () => {

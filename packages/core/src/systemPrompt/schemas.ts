@@ -113,6 +113,22 @@ export type ContributorConfig = z.input<typeof ContributorConfigSchema>;
 // Validated type for internal use (post-parsing)
 export type ValidatedContributorConfig = z.output<typeof ContributorConfigSchema>;
 
+export const SessionPromptContributorSchema = z
+    .object({
+        id: z.string().min(1).describe('Unique identifier for the session contributor'),
+        priority: z
+            .number()
+            .int()
+            .nonnegative()
+            .describe('Execution priority of the session contributor (lower numbers run first)'),
+        content: z
+            .string()
+            .describe('Static content to include in the system prompt for this session only'),
+    })
+    .strict();
+
+export type SessionPromptContributor = z.output<typeof SessionPromptContributorSchema>;
+
 export const SystemPromptContributorsSchema = z
     .object({
         contributors: z

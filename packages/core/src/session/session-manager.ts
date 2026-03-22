@@ -12,6 +12,10 @@ import type { HookManager } from '../hooks/manager.js';
 import { SessionError } from './errors.js';
 import type { TokenUsage } from '../llm/types.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
+import {
+    SessionPromptContributorSchema,
+    type SessionPromptContributor,
+} from '../systemPrompt/schemas.js';
 export type SessionLoggerFactory = (options: {
     baseLogger: Logger;
     agentId: string;
@@ -736,6 +740,98 @@ export class SessionManager {
             }),
             ...(sessionData.usageTracking && { usageTracking: sessionData.usageTracking }),
         };
+    }
+
+    public async getSessionSystemPromptContributors(
+        sessionId: string
+    ): Promise<SessionPromptContributor[]> {
+        await this.ensureInitialized();
+
+        const sessionKey = `session:${sessionId}`;
+        const sessionData = await this.services.storageManager
+            .getDatabase()
+            .get<SessionData>(sessionKey);
+
+        if (!sessionData) {
+            throw SessionError.notFound(sessionId);
+        }
+
+        return SessionPromptContributorSchema.array().parse(
+            sessionData.metadata?.systemPromptContributors ?? []
+        );
+    }
+
+    public async upsertSessionSystemPromptContributor(
+        sessionId: string,
+        contributor: SessionPromptContributor
+    ): Promise<boolean> {
+        await this.ensureInitialized();
+
+        const sessionKey = `session:${sessionId}`;
+        const sessionData = await this.services.storageManager
+            .getDatabase()
+            .get<SessionData>(sessionKey);
+
+        if (!sessionData) {
+            throw SessionError.notFound(sessionId);
+        }
+
+        const existing = SessionPromptContributorSchema.array().parse(
+            sessionData.metadata?.systemPromptContributors ?? []
+        );
+        const next = existing.filter((entry) => entry.id !== contributor.id);
+        const replaced = next.length !== existing.length;
+
+        next.push(contributor);
+        next.sort((left, right) => left.priority - right.priority);
+
+        sessionData.metadata = sessionData.metadata || {};
+        sessionData.metadata.systemPromptContributors = next;
+        sessionData.lastActivity = Date.now();
+
+        await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
+        await this.services.storageManager
+            .getCache()
+            .set(sessionKey, sessionData, this.sessionTTL / 1000);
+
+        return replaced;
+    }
+
+    public async removeSessionSystemPromptContributor(
+        sessionId: string,
+        contributorId: string
+    ): Promise<boolean> {
+        await this.ensureInitialized();
+
+        const sessionKey = `session:${sessionId}`;
+        const sessionData = await this.services.storageManager
+            .getDatabase()
+            .get<SessionData>(sessionKey);
+
+        if (!sessionData) {
+            throw SessionError.notFound(sessionId);
+        }
+
+        const existing = SessionPromptContributorSchema.array().parse(
+            sessionData.metadata?.systemPromptContributors ?? []
+        );
+        const next = existing.filter((entry) => entry.id !== contributorId);
+        const removed = next.length !== existing.length;
+
+        if (!removed) {
+            return false;
+        }
+
+        sessionData.metadata = sessionData.metadata || {};
+        sessionData.metadata.systemPromptContributors = next;
+        sessionData.lastActivity = Date.now();
+
+        await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
+        await this.services.storageManager
+            .getCache()
+            .set(sessionKey, sessionData, this.sessionTTL / 1000);
+
+        return true;
     }
 
     public async markUntrackedChatGPTLoginUsage(sessionId: string): Promise<void> {

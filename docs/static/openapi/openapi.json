@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Dexto API",
-    "version": "1.6.14",
+    "version": "1.6.17",
     "description": "OpenAPI spec for the Dexto REST API server"
   },
   "servers": [
@@ -9761,6 +9761,376 @@
                     "isBusy"
                   ],
                   "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{sessionId}/system-prompt/contributors": {
+      "get": {
+        "summary": "List Session System Prompt Contributors",
+        "description": "Lists static system prompt contributors that apply only to the specified session.",
+        "tags": [
+          "sessions",
+          "config"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Session identifier"
+            },
+            "required": true,
+            "description": "Session identifier",
+            "name": "sessionId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current session contributor list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "contributors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "Contributor identifier"
+                          },
+                          "priority": {
+                            "type": "number",
+                            "description": "Contributor priority"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "priority"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Session-scoped system prompt contributor metadata."
+                      },
+                      "description": "Registered session prompt contributors."
+                    }
+                  },
+                  "required": [
+                    "contributors"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard API error envelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Upsert Session System Prompt Contributor",
+        "description": "Adds or updates a static system prompt contributor that applies only to the specified session. Set enabled=false or send empty content to remove it.",
+        "tags": [
+          "sessions",
+          "config"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Session identifier"
+            },
+            "required": true,
+            "description": "Session identifier",
+            "name": "sessionId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Contributor identifier"
+                  },
+                  "priority": {
+                    "type": "number",
+                    "description": "Optional priority override"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "Set false to remove the contributor instead of adding or updating it"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "Static contributor content for this session (required when enabled)"
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "additionalProperties": false,
+                "description": "Session-scoped system prompt contributor update payload."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session contributor upsert result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Contributor identifier"
+                    },
+                    "enabled": {
+                      "type": "boolean",
+                      "description": "Whether the contributor remains enabled"
+                    },
+                    "priority": {
+                      "type": "number",
+                      "description": "Contributor priority"
+                    },
+                    "replaced": {
+                      "type": "boolean",
+                      "description": "Whether an existing contributor was replaced"
+                    },
+                    "removed": {
+                      "type": "boolean",
+                      "description": "Whether the contributor was removed"
+                    },
+                    "contentLength": {
+                      "type": "number",
+                      "description": "Stored content length in characters"
+                    },
+                    "truncated": {
+                      "type": "boolean",
+                      "description": "Whether the submitted content was truncated"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "enabled"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid session contributor request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard API error envelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Error code"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error message"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Error scope"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Error context"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Recovery guidance"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Trace identifier"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request endpoint"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "scope",
+                    "type",
+                    "traceId",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard API error envelope"
                 }
               }
             }
