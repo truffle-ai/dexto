@@ -1,5 +1,11 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import { type SessionMetadata as CoreSessionMetadata } from '@dexto/core';
+import {
+    DextoRuntimeError,
+    ErrorScope,
+    ErrorType,
+    zodToIssues,
+    type SessionMetadata as CoreSessionMetadata,
+} from '@dexto/core';
 import {
     SessionMetadataSchema,
     InternalMessageSchema,
@@ -8,12 +14,63 @@ import {
     UsageSummarySchema,
 } from '../schemas/responses.js';
 import type { GetAgentFn } from '../index.js';
+import { handleHonoError } from '../middleware/error.js';
 
 const CreateSessionSchema = z
     .object({
         sessionId: z.string().optional().describe('A custom ID for the new session'),
     })
     .describe('Request body for creating a new session');
+
+const MAX_SYSTEM_PROMPT_CONTRIBUTOR_CONTENT_CHARS = 120000;
+const DEFAULT_SYSTEM_PROMPT_CONTRIBUTOR_PRIORITY = 45;
+
+const SessionPromptContributorInfoSchema = z
+    .object({
+        id: z.string().describe('Contributor identifier'),
+        priority: z.number().describe('Contributor priority'),
+    })
+    .strict()
+    .describe('Session-scoped system prompt contributor metadata.');
+
+const UpsertSessionPromptContributorSchema = z
+    .object({
+        id: z.string().min(1).describe('Contributor identifier'),
+        priority: z
+            .number()
+            .int()
+            .nonnegative()
+            .optional()
+            .default(DEFAULT_SYSTEM_PROMPT_CONTRIBUTOR_PRIORITY)
+            .describe('Optional priority override'),
+        enabled: z
+            .boolean()
+            .default(true)
+            .describe('Set false to remove the contributor instead of adding or updating it'),
+        content: z
+            .string()
+            .optional()
+            .describe('Static contributor content for this session (required when enabled)'),
+    })
+    .strict()
+    .superRefine((value, ctx) => {
+        if (value.enabled !== false && (!value.content || value.content.trim().length === 0)) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['content'],
+                message: 'Contributor content is required when enabled',
+            });
+        }
+    })
+    .describe('Session-scoped system prompt contributor update payload.');
+
+function sanitizeContributorId(value: string): string {
+    return value
+        .trim()
+        .replace(/[^A-Za-z0-9._-]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 80);
+}
 
 function mapSessionMetadata(
     sessionId: string,
@@ -45,7 +102,24 @@ function mapSessionMetadata(
 }
 
 export function createSessionsRouter(getAgent: GetAgentFn) {
-    const app = new OpenAPIHono();
+    const app = new OpenAPIHono({
+        defaultHook: (result, ctx) => {
+            if (!result.success) {
+                const issues = zodToIssues(result.error);
+                return handleHonoError(
+                    ctx,
+                    new DextoRuntimeError(
+                        'validation_failed',
+                        'validation',
+                        ErrorType.USER,
+                        issues[0]?.message ?? 'Validation failed',
+                        { issues }
+                    )
+                );
+            }
+        },
+    });
+    app.onError((err, ctx) => handleHonoError(ctx, err));
 
     const listRoute = createRoute({
         method: 'get',
@@ -198,6 +272,110 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                                     ),
                             })
                             .strict(),
+                    },
+                },
+            },
+        },
+    });
+
+    const listSessionPromptContributorsRoute = createRoute({
+        method: 'get',
+        path: '/sessions/{sessionId}/system-prompt/contributors',
+        summary: 'List Session System Prompt Contributors',
+        description:
+            'Lists static system prompt contributors that apply only to the specified session.',
+        tags: ['sessions', 'config'],
+        request: { params: z.object({ sessionId: z.string().describe('Session identifier') }) },
+        responses: {
+            200: {
+                description: 'Current session contributor list',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                contributors: z
+                                    .array(SessionPromptContributorInfoSchema)
+                                    .describe('Registered session prompt contributors.'),
+                            })
+                            .strict(),
+                    },
+                },
+            },
+            404: {
+                description: 'Session not found',
+                content: {
+                    'application/json': {
+                        schema: StandardErrorEnvelopeSchema,
+                    },
+                },
+            },
+        },
+    });
+
+    const upsertSessionPromptContributorRoute = createRoute({
+        method: 'post',
+        path: '/sessions/{sessionId}/system-prompt/contributors',
+        summary: 'Upsert Session System Prompt Contributor',
+        description:
+            'Adds or updates a static system prompt contributor that applies only to the specified session. Set enabled=false to remove it.',
+        tags: ['sessions', 'config'],
+        request: {
+            params: z.object({ sessionId: z.string().describe('Session identifier') }),
+            body: {
+                required: true,
+                content: {
+                    'application/json': {
+                        schema: UpsertSessionPromptContributorSchema,
+                    },
+                },
+            },
+        },
+        responses: {
+            200: {
+                description: 'Session contributor upsert result',
+                content: {
+                    'application/json': {
+                        schema: z
+                            .object({
+                                id: z.string().describe('Contributor identifier'),
+                                enabled: z
+                                    .boolean()
+                                    .describe('Whether the contributor remains enabled'),
+                                priority: z.number().optional().describe('Contributor priority'),
+                                replaced: z
+                                    .boolean()
+                                    .optional()
+                                    .describe('Whether an existing contributor was replaced'),
+                                removed: z
+                                    .boolean()
+                                    .optional()
+                                    .describe('Whether the contributor was removed'),
+                                contentLength: z
+                                    .number()
+                                    .optional()
+                                    .describe('Stored content length in characters'),
+                                truncated: z
+                                    .boolean()
+                                    .optional()
+                                    .describe('Whether the submitted content was truncated'),
+                            })
+                            .strict(),
+                    },
+                },
+            },
+            400: {
+                description: 'Invalid session contributor request',
+                content: {
+                    'application/json': {
+                        schema: StandardErrorEnvelopeSchema,
+                    },
+                },
+            },
+            404: {
+                description: 'Session not found',
+                content: {
+                    'application/json': {
+                        schema: StandardErrorEnvelopeSchema,
                     },
                 },
             },
@@ -510,6 +688,89 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                 history: history as z.output<typeof InternalMessageSchema>[],
                 isBusy,
             });
+        })
+        .openapi(listSessionPromptContributorsRoute, async (ctx) => {
+            const agent = await getAgent(ctx);
+            const { sessionId } = ctx.req.valid('param');
+            const contributors = await agent.getSessionSystemPromptContributors(sessionId);
+            return ctx.json(
+                {
+                    contributors: contributors.map((contributor) => ({
+                        id: contributor.id,
+                        priority: contributor.priority,
+                    })),
+                },
+                200
+            );
+        })
+        .openapi(upsertSessionPromptContributorRoute, async (ctx) => {
+            const agent = await getAgent(ctx);
+            const { sessionId } = ctx.req.valid('param');
+            const payload = ctx.req.valid('json');
+
+            const contributorId = sanitizeContributorId(payload.id);
+            if (contributorId.length === 0) {
+                throw new DextoRuntimeError(
+                    'session_systemprompt_contributor_config_invalid',
+                    ErrorScope.SYSTEM_PROMPT,
+                    ErrorType.USER,
+                    'A valid contributor id is required',
+                    {
+                        id: payload.id,
+                        sessionId,
+                    }
+                );
+            }
+
+            const rawContent = payload.content ?? '';
+            const content = rawContent.slice(0, MAX_SYSTEM_PROMPT_CONTRIBUTOR_CONTENT_CHARS);
+
+            if (!payload.enabled) {
+                const removed = await agent.removeSessionSystemPromptContributor(
+                    sessionId,
+                    contributorId
+                );
+                return ctx.json(
+                    {
+                        id: contributorId,
+                        enabled: false,
+                        removed,
+                    },
+                    200
+                );
+            }
+
+            if (content.trim().length === 0) {
+                throw new DextoRuntimeError(
+                    'session_systemprompt_contributor_config_invalid',
+                    ErrorScope.SYSTEM_PROMPT,
+                    ErrorType.USER,
+                    'Contributor content is required when enabled',
+                    {
+                        id: payload.id,
+                        sessionId,
+                    }
+                );
+            }
+
+            const priority = payload.priority;
+            const result = await agent.upsertSessionSystemPromptContributor(sessionId, {
+                id: contributorId,
+                priority,
+                content,
+            });
+
+            return ctx.json(
+                {
+                    id: contributorId,
+                    enabled: true,
+                    priority,
+                    replaced: result.replaced,
+                    contentLength: content.length,
+                    truncated: rawContent.length > content.length,
+                },
+                200
+            );
         })
         .openapi(deleteRoute, async (ctx) => {
             const agent = await getAgent(ctx);

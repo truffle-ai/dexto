@@ -118,12 +118,13 @@ dexto init status
 - `AGENTS.md`
 - `agents/`
 - `skills/`
+- `skills/create-skill/` as a starter skill bundle for authoring more skills
 
 **What the follow-up commands do:**
 - `dexto init agent` creates `agents/<id>/<id>.yml`
 - The first non-subagent agent becomes the workspace primary by default
 - `dexto init agent --subagent` creates a subagent and links it to the current primary agent when one exists
-- `dexto init skill <id>` creates `skills/<id>/SKILL.md`
+- `dexto init skill <id>` creates `skills/<id>/SKILL.md` plus `handlers/`, `scripts/`, `mcps/`, and `references/`
 - `dexto init status` shows the current workspace structure, primary agent, skills, and what `dexto deploy` would use
 
 ### `init-app` - Initialize Existing TypeScript App

@@ -10,6 +10,9 @@
  * ~/.dexto/skills/
  * └── skill-name/
  *     ├── SKILL.md          (required - the skill prompt)
+ *     ├── handlers/         (optional - workflow helper files)
+ *     ├── scripts/          (optional - executable helpers)
+ *     ├── mcps/             (optional - MCP server config JSON files)
  *     └── references/       (optional - reference files)
  *
  * These skills are loaded as prompts directly, not as part of a plugin package.
@@ -30,6 +33,11 @@ export interface DiscoveredSkill {
     skillFile: string;
     /** Source location */
     source: 'user' | 'project';
+    /**
+     * Reserved for future discovery metadata.
+     * Skill-bundled MCP config is resolved lazily from the skill directory when the prompt is loaded.
+     */
+    warnings?: string[] | undefined;
 }
 
 /**

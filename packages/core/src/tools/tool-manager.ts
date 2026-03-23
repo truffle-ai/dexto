@@ -10,7 +10,7 @@ import {
 import type { ToolDisplayData } from './display-types.js';
 import { ToolError } from './errors.js';
 import { ToolErrorCode } from './error-codes.js';
-import { DextoRuntimeError } from '../errors/index.js';
+import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { convertZodSchemaToJsonSchema } from '../utils/schema.js';
@@ -1080,10 +1080,40 @@ export class ToolManager {
             typeof options?.sessionId === 'string' && options.sessionId.length > 0
                 ? options.sessionId
                 : undefined;
+        let sessionPromptContributors: NonNullable<
+            NonNullable<DynamicContributorContext['session']>['systemPromptContributors']
+        > = [];
+        if (sessionId !== undefined && this.sessionManager) {
+            try {
+                sessionPromptContributors =
+                    await this.sessionManager.getSessionSystemPromptContributors(sessionId);
+            } catch (error) {
+                if (
+                    error instanceof DextoRuntimeError &&
+                    error.scope === ErrorScope.SESSION &&
+                    error.type === ErrorType.NOT_FOUND
+                ) {
+                    this.logger.debug('Session not found while building contributor context', {
+                        sessionId,
+                    });
+                } else {
+                    throw error;
+                }
+            }
+        }
         const baseContext: DynamicContributorContext = {
             mcpManager: this.mcpManager,
             workspace: baseWorkspace,
-            ...(sessionId !== undefined ? { session: { id: sessionId } } : {}),
+            ...(sessionId !== undefined
+                ? {
+                      session: {
+                          id: sessionId,
+                          ...(sessionPromptContributors.length > 0
+                              ? { systemPromptContributors: sessionPromptContributors }
+                              : {}),
+                      },
+                  }
+                : {}),
         };
 
         if (!this.contributorContextFactory) {

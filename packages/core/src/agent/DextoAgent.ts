@@ -53,6 +53,7 @@ import { PromptsSchema } from '../prompts/schemas.js';
 import { ResourcesConfigSchema } from '../resources/schemas.js';
 import { SessionConfigSchema } from '../session/schemas.js';
 import { SystemPromptConfigSchema } from '../systemPrompt/schemas.js';
+import { SessionPromptContributorSchema } from '../systemPrompt/schemas.js';
 import { ElicitationConfigSchema, PermissionsConfigSchema } from '../tools/schemas.js';
 import { OtelConfigurationSchema } from '../telemetry/schemas.js';
 import { AgentCardSchema } from './schemas.js';
@@ -3064,6 +3065,7 @@ export class DextoAgent {
      * Useful for debugging prompt issues, inspecting what context the AI receives,
      * and understanding how dynamic content is being incorporated.
      *
+     * @param sessionId Optional session identifier to include session-scoped contributors
      * @returns Promise resolving to the complete system prompt string
      *
      * @example
@@ -3079,10 +3081,72 @@ export class DextoAgent {
      * }
      * ```
      */
-    public async getSystemPrompt(): Promise<string> {
+    public async getSystemPrompt(sessionId?: string): Promise<string> {
         this.ensureStarted();
-        const context = await this.toolManager.buildContributorContext();
+        if (sessionId !== undefined && (!sessionId || typeof sessionId !== 'string')) {
+            throw AgentError.apiValidationError(
+                'sessionId must be a non-empty string when provided'
+            );
+        }
+        const context = await this.toolManager.buildContributorContext(
+            sessionId !== undefined ? { sessionId } : undefined
+        );
         return await this.systemPromptManager.build(context);
+    }
+
+    public async getSessionSystemPromptContributors(sessionId: string) {
+        this.ensureStarted();
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+
+        return await this.sessionManager.getSessionSystemPromptContributors(sessionId);
+    }
+
+    public async upsertSessionSystemPromptContributor(
+        sessionId: string,
+        contributor: unknown
+    ): Promise<{ replaced: boolean }> {
+        this.ensureStarted();
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+
+        const parseResult = SessionPromptContributorSchema.safeParse(contributor);
+        const parsedContributor = parseResult.success
+            ? parseResult.data
+            : ensureOk(fail(zodToIssues(parseResult.error, 'error')), this.logger);
+        const replaced = await this.sessionManager.upsertSessionSystemPromptContributor(
+            sessionId,
+            parsedContributor
+        );
+        return { replaced };
+    }
+
+    public async removeSessionSystemPromptContributor(
+        sessionId: string,
+        contributorId: string
+    ): Promise<boolean> {
+        this.ensureStarted();
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+        if (!contributorId || typeof contributorId !== 'string') {
+            throw AgentError.apiValidationError(
+                'contributorId is required and must be a non-empty string'
+            );
+        }
+
+        return await this.sessionManager.removeSessionSystemPromptContributor(
+            sessionId,
+            contributorId
+        );
     }
 
     /**

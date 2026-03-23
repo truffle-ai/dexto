@@ -172,11 +172,11 @@ dexto
 
 **Project Scaffolding:**
 - `dexto create-app`: Create a new Dexto project structure.
-- `dexto init`: Initialize the current folder as a Dexto workspace (`AGENTS.md`, `agents/`, `skills/`).
+- `dexto init`: Initialize the current folder as a Dexto workspace (`AGENTS.md`, `agents/`, `skills/`) and seed `skills/create-skill/` as a starter skill bundle.
 - `dexto init agent [id]`: Create a workspace agent scaffold and add it to `agents/registry.json` (interactive if `id` is omitted).
 - `dexto init agent <id> --subagent`: Create a subagent and link it to the current primary agent when one exists.
 - `dexto init primary [id]`: Set the workspace primary agent.
-- `dexto init skill <id>`: Create `skills/<id>/SKILL.md`.
+- `dexto init skill <id>`: Create `skills/<id>/SKILL.md` plus `handlers/`, `scripts/`, `mcps/`, and `references/`.
 - `dexto init status`: Show the current workspace config, primary agent, skills, and deploy preview.
 - `dexto init-app`: Initialize Dexto in an existing TypeScript project.
 
