@@ -165,6 +165,21 @@ describe('DextoAgent Lifecycle Management', () => {
             });
             expect(mockServices.systemPromptManager.build).toHaveBeenCalledWith({});
         });
+
+        test('should reject empty session ids when getting a session system prompt', async () => {
+            const agent = createTestAgent(mockValidatedConfig);
+
+            await agent.start();
+
+            await expect(
+                Promise.resolve(Reflect.apply(agent.getSystemPrompt, agent, ['']))
+            ).rejects.toMatchObject({
+                code: AgentErrorCode.API_VALIDATION_ERROR,
+                scope: ErrorScope.AGENT,
+                type: ErrorType.USER,
+            });
+            expect(mockServices.toolManager.buildContributorContext).not.toHaveBeenCalled();
+        });
     });
 
     describe('start() Method', () => {
@@ -300,6 +315,12 @@ describe('DextoAgent Lifecycle Management', () => {
             { name: 'switchLLM', args: [{ model: 'gpt-5' }] },
             { name: 'addMcpServer', args: ['test', { type: 'stdio', command: 'test' }] },
             { name: 'getAllMcpTools', args: [] },
+            { name: 'getSessionSystemPromptContributors', args: ['session-id'] },
+            {
+                name: 'upsertSessionSystemPromptContributor',
+                args: ['session-id', { id: 'peer-origin', priority: 0, content: 'test' }],
+            },
+            { name: 'removeSessionSystemPromptContributor', args: ['session-id', 'peer-origin'] },
         ];
 
         test.each(testMethods)('$name should throw before start()', async ({ name, args }) => {

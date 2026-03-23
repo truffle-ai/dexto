@@ -894,6 +894,64 @@ describe('SessionManager', () => {
             ]);
         });
 
+        test('serializes contributor and message-count mutations through the shared session lock', async () => {
+            const sessionId = 'test-session';
+            const sessionKey = `session:${sessionId}`;
+            let storedSessionData: SessionData = {
+                ...mockSessionData,
+                metadata: {},
+            };
+            let setCalls = 0;
+            let releaseFirstWrite: (() => void) | undefined;
+            const firstWriteReleased = new Promise<void>((resolve) => {
+                releaseFirstWrite = resolve;
+            });
+
+            mockStorageManager.database.get.mockImplementation(async (key: string) =>
+                key === sessionKey ? JSON.parse(JSON.stringify(storedSessionData)) : null
+            );
+            mockStorageManager.database.set.mockImplementation(
+                async (key: string, value: SessionData) => {
+                    if (key !== sessionKey) {
+                        return;
+                    }
+
+                    setCalls += 1;
+                    if (setCalls === 1) {
+                        await firstWriteReleased;
+                    }
+
+                    storedSessionData = JSON.parse(JSON.stringify(value));
+                }
+            );
+
+            const contributorMutation = sessionManager.upsertSessionSystemPromptContributor(
+                sessionId,
+                {
+                    id: 'peer-origin',
+                    priority: 0,
+                    content: 'Reply to the originating human thread.',
+                }
+            );
+            const messageCountMutation = sessionManager.incrementMessageCount(sessionId);
+
+            if (!releaseFirstWrite) {
+                throw new Error('Expected first session write gate to be initialized.');
+            }
+            releaseFirstWrite();
+
+            await Promise.all([contributorMutation, messageCountMutation]);
+
+            expect(storedSessionData.messageCount).toBe(mockSessionData.messageCount + 1);
+            expect(storedSessionData.metadata?.systemPromptContributors).toEqual([
+                {
+                    id: 'peer-origin',
+                    priority: 0,
+                    content: 'Reply to the originating human thread.',
+                },
+            ]);
+        });
+
         test('continues queued contributor mutations after an earlier mutation fails', async () => {
             const sessionId = 'test-session';
             const sessionKey = `session:${sessionId}`;

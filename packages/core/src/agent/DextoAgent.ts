@@ -3079,6 +3079,11 @@ export class DextoAgent {
      */
     public async getSystemPrompt(sessionId?: string): Promise<string> {
         this.ensureStarted();
+        if (sessionId !== undefined && (!sessionId || typeof sessionId !== 'string')) {
+            throw AgentError.apiValidationError(
+                'sessionId must be a non-empty string when provided'
+            );
+        }
         const context = await this.toolManager.buildContributorContext(
             sessionId !== undefined ? { sessionId } : undefined
         );
