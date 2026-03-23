@@ -3105,13 +3105,9 @@ export class DextoAgent {
         }
 
         const parseResult = SessionPromptContributorSchema.safeParse(contributor);
-        if (!parseResult.success) {
-            const validation = fail(zodToIssues(parseResult.error, 'error'));
-            ensureOk(validation, this.logger);
-            throw new Error('Unreachable');
-        }
-
-        const parsedContributor = parseResult.data;
+        const parsedContributor = parseResult.success
+            ? parseResult.data
+            : ensureOk(fail(zodToIssues(parseResult.error, 'error')), this.logger);
         const replaced = await this.sessionManager.upsertSessionSystemPromptContributor(
             sessionId,
             parsedContributor

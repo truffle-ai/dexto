@@ -12,6 +12,7 @@ import type { HookManager } from '../hooks/manager.js';
 import { SessionError } from './errors.js';
 import type { TokenUsage } from '../llm/types.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
+import { ZodError } from 'zod';
 import {
     SessionPromptContributorSchema,
     type SessionPromptContributor,
@@ -757,9 +758,7 @@ export class SessionManager {
             throw SessionError.notFound(sessionId);
         }
 
-        return SessionPromptContributorSchema.array().parse(
-            sessionData.metadata?.systemPromptContributors ?? []
-        );
+        return this.parseSessionPromptContributors(sessionId, sessionData);
     }
 
     public async upsertSessionSystemPromptContributor(
@@ -772,33 +771,33 @@ export class SessionManager {
         const previousLock = this.sessionContributorLocks.get(sessionKey) ?? Promise.resolve();
         let replaced = false;
 
-        const currentLock = previousLock.then(async () => {
-            const sessionData = await this.services.storageManager
-                .getDatabase()
-                .get<SessionData>(sessionKey);
+        const currentLock = previousLock
+            .catch(() => {})
+            .then(async () => {
+                const sessionData = await this.services.storageManager
+                    .getDatabase()
+                    .get<SessionData>(sessionKey);
 
-            if (!sessionData) {
-                throw SessionError.notFound(sessionId);
-            }
+                if (!sessionData) {
+                    throw SessionError.notFound(sessionId);
+                }
 
-            const existing = SessionPromptContributorSchema.array().parse(
-                sessionData.metadata?.systemPromptContributors ?? []
-            );
-            const next = existing.filter((entry) => entry.id !== contributor.id);
-            replaced = next.length !== existing.length;
+                const existing = this.parseSessionPromptContributors(sessionId, sessionData);
+                const next = existing.filter((entry) => entry.id !== contributor.id);
+                replaced = next.length !== existing.length;
 
-            next.push(contributor);
-            next.sort((left, right) => left.priority - right.priority);
+                next.push(contributor);
+                next.sort((left, right) => left.priority - right.priority);
 
-            sessionData.metadata = sessionData.metadata || {};
-            sessionData.metadata.systemPromptContributors = next;
-            sessionData.lastActivity = Date.now();
+                sessionData.metadata = sessionData.metadata || {};
+                sessionData.metadata.systemPromptContributors = next;
+                sessionData.lastActivity = Date.now();
 
-            await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
-            await this.services.storageManager
-                .getCache()
-                .set(sessionKey, sessionData, this.sessionTTL / 1000);
-        });
+                await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
+                await this.services.storageManager
+                    .getCache()
+                    .set(sessionKey, sessionData, this.sessionTTL / 1000);
+            });
 
         this.sessionContributorLocks.set(sessionKey, currentLock);
 
@@ -822,34 +821,34 @@ export class SessionManager {
         const previousLock = this.sessionContributorLocks.get(sessionKey) ?? Promise.resolve();
         let removed = false;
 
-        const currentLock = previousLock.then(async () => {
-            const sessionData = await this.services.storageManager
-                .getDatabase()
-                .get<SessionData>(sessionKey);
+        const currentLock = previousLock
+            .catch(() => {})
+            .then(async () => {
+                const sessionData = await this.services.storageManager
+                    .getDatabase()
+                    .get<SessionData>(sessionKey);
 
-            if (!sessionData) {
-                throw SessionError.notFound(sessionId);
-            }
+                if (!sessionData) {
+                    throw SessionError.notFound(sessionId);
+                }
 
-            const existing = SessionPromptContributorSchema.array().parse(
-                sessionData.metadata?.systemPromptContributors ?? []
-            );
-            const next = existing.filter((entry) => entry.id !== contributorId);
-            removed = next.length !== existing.length;
+                const existing = this.parseSessionPromptContributors(sessionId, sessionData);
+                const next = existing.filter((entry) => entry.id !== contributorId);
+                removed = next.length !== existing.length;
 
-            if (!removed) {
-                return;
-            }
+                if (!removed) {
+                    return;
+                }
 
-            sessionData.metadata = sessionData.metadata || {};
-            sessionData.metadata.systemPromptContributors = next;
-            sessionData.lastActivity = Date.now();
+                sessionData.metadata = sessionData.metadata || {};
+                sessionData.metadata.systemPromptContributors = next;
+                sessionData.lastActivity = Date.now();
 
-            await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
-            await this.services.storageManager
-                .getCache()
-                .set(sessionKey, sessionData, this.sessionTTL / 1000);
-        });
+                await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
+                await this.services.storageManager
+                    .getCache()
+                    .set(sessionKey, sessionData, this.sessionTTL / 1000);
+            });
 
         this.sessionContributorLocks.set(sessionKey, currentLock);
 
@@ -860,6 +859,23 @@ export class SessionManager {
             if (this.sessionContributorLocks.get(sessionKey) === currentLock) {
                 this.sessionContributorLocks.delete(sessionKey);
             }
+        }
+    }
+
+    private parseSessionPromptContributors(
+        sessionId: string,
+        sessionData: SessionData
+    ): SessionPromptContributor[] {
+        try {
+            return SessionPromptContributorSchema.array().parse(
+                sessionData.metadata?.systemPromptContributors ?? []
+            );
+        } catch (error) {
+            if (error instanceof ZodError) {
+                throw SessionError.storageFailed(sessionId, 'read', error.message);
+            }
+
+            throw error;
         }
     }
 

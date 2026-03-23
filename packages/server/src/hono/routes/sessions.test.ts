@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DextoAgent } from '@dexto/core';
 import { createSessionsRouter } from './sessions.js';
+import { handleHonoError } from '../middleware/error.js';
 
 function createAgent() {
     const clearContext = vi.fn(async () => {});
@@ -151,6 +152,34 @@ describe('createSessionsRouter', () => {
             id: 'peer-origin',
             enabled: false,
             removed: true,
+        });
+    });
+
+    it('rejects contributor content that becomes empty after truncation', async () => {
+        const { agent, upsertSessionSystemPromptContributor } = createAgent();
+        const app = createSessionsRouter(async () => agent);
+        app.onError((err, ctx) => handleHonoError(ctx, err));
+
+        const response = await app.request('/sessions/session-1/system-prompt/contributors', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                id: 'peer-origin',
+                content: `${' '.repeat(120000)}x`,
+            }),
+        });
+
+        expect(response.status).toBe(400);
+        expect(upsertSessionSystemPromptContributor).not.toHaveBeenCalled();
+        await expect(response.json()).resolves.toMatchObject({
+            code: 'session_systemprompt_contributor_config_invalid',
+            message: 'Contributor content is required when enabled',
+            scope: 'system_prompt',
+            type: 'user',
+            endpoint: '/sessions/session-1/system-prompt/contributors',
+            method: 'POST',
         });
     });
 });

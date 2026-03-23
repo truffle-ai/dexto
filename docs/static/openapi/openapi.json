@@ -9901,7 +9901,7 @@
       },
       "post": {
         "summary": "Upsert Session System Prompt Contributor",
-        "description": "Adds or updates a static system prompt contributor that applies only to the specified session. Set enabled=false or send empty content to remove it.",
+        "description": "Adds or updates a static system prompt contributor that applies only to the specified session. Set enabled=false to remove it.",
         "tags": [
           "sessions",
           "config"
@@ -9919,6 +9919,7 @@
           }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {

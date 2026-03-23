@@ -301,11 +301,12 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
         path: '/sessions/{sessionId}/system-prompt/contributors',
         summary: 'Upsert Session System Prompt Contributor',
         description:
-            'Adds or updates a static system prompt contributor that applies only to the specified session. Set enabled=false or send empty content to remove it.',
+            'Adds or updates a static system prompt contributor that applies only to the specified session. Set enabled=false to remove it.',
         tags: ['sessions', 'config'],
         request: {
             params: z.object({ sessionId: z.string().describe('Session identifier') }),
             body: {
+                required: true,
                 content: {
                     'application/json': {
                         schema: UpsertSessionPromptContributorSchema,
@@ -720,6 +721,19 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                         removed,
                     },
                     200
+                );
+            }
+
+            if (content.trim().length === 0) {
+                throw new DextoRuntimeError(
+                    'session_systemprompt_contributor_config_invalid',
+                    ErrorScope.SYSTEM_PROMPT,
+                    ErrorType.USER,
+                    'Contributor content is required when enabled',
+                    {
+                        id: payload.id,
+                        sessionId,
+                    }
                 );
             }
 

@@ -839,6 +839,87 @@ describe('SessionManager', () => {
             ]);
         });
 
+        test('continues queued contributor mutations after an earlier mutation fails', async () => {
+            const sessionId = 'test-session';
+            const sessionKey = `session:${sessionId}`;
+            let storedSessionData: SessionData = {
+                ...mockSessionData,
+                metadata: {},
+            };
+            let getCalls = 0;
+
+            mockStorageManager.database.get.mockImplementation(async (key: string) => {
+                if (key !== sessionKey) {
+                    return null;
+                }
+
+                getCalls += 1;
+                if (getCalls === 1) {
+                    return {
+                        ...storedSessionData,
+                        metadata: {
+                            systemPromptContributors: [{ id: 'invalid' }],
+                        },
+                    };
+                }
+
+                return JSON.parse(JSON.stringify(storedSessionData));
+            });
+            mockStorageManager.database.set.mockImplementation(
+                async (key: string, value: SessionData) => {
+                    if (key === sessionKey) {
+                        storedSessionData = JSON.parse(JSON.stringify(value));
+                    }
+                }
+            );
+
+            await expect(
+                sessionManager.upsertSessionSystemPromptContributor(sessionId, {
+                    id: 'alpha',
+                    priority: 10,
+                    content: 'Contributor A',
+                })
+            ).rejects.toMatchObject({
+                code: SessionErrorCode.SESSION_STORAGE_FAILED,
+                scope: ErrorScope.SESSION,
+                type: ErrorType.SYSTEM,
+            });
+
+            await expect(
+                sessionManager.upsertSessionSystemPromptContributor(sessionId, {
+                    id: 'beta',
+                    priority: 20,
+                    content: 'Contributor B',
+                })
+            ).resolves.toBe(false);
+
+            expect(storedSessionData.metadata?.systemPromptContributors).toEqual([
+                {
+                    id: 'beta',
+                    priority: 20,
+                    content: 'Contributor B',
+                },
+            ]);
+        });
+
+        test('converts invalid stored contributors into typed storage failures', async () => {
+            const sessionId = 'test-session';
+            mockStorageManager.database.get.mockResolvedValue({
+                ...mockSessionData,
+                metadata: {
+                    systemPromptContributors: [{ id: 'invalid' }],
+                },
+            });
+
+            await expect(
+                sessionManager.getSessionSystemPromptContributors(sessionId)
+            ).rejects.toMatchObject({
+                code: SessionErrorCode.SESSION_STORAGE_FAILED,
+                scope: ErrorScope.SESSION,
+                type: ErrorType.SYSTEM,
+            });
+        });
+
         test('should list all active sessions', async () => {
             const activeSessionKeys = [
                 'session:session-1',
