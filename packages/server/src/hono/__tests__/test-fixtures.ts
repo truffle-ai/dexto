@@ -6,7 +6,7 @@ import {
 } from '@dexto/agent-config';
 import imageLocal from '@dexto/image-local';
 import { DextoAgent, createAgentCard } from '@dexto/core';
-import type { AgentCard } from '@dexto/core';
+import type { AgentCard, DextoAgentConfigInput } from '@dexto/core';
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import type { Server as HttpServer } from 'node:http';
@@ -56,11 +56,18 @@ export function createTestAgentConfig(): AgentConfig {
     };
 }
 
+interface CreateTestAgentOptions {
+    runtimeOverrides?: Pick<DextoAgentConfigInput, 'usageScopeId'> | undefined;
+}
+
 /**
  * Creates a real DextoAgent instance with in-memory storage
  * No mocks - uses real implementations
  */
-export async function createTestAgent(config?: AgentConfig): Promise<DextoAgent> {
+export async function createTestAgent(
+    config?: AgentConfig,
+    options?: CreateTestAgentOptions
+): Promise<DextoAgent> {
     const agentConfig = config ?? createTestAgentConfig();
     const validatedConfig = AgentConfigSchema.parse(agentConfig);
     const services = await resolveServicesFromConfig(validatedConfig, imageLocal);
@@ -68,6 +75,7 @@ export async function createTestAgent(config?: AgentConfig): Promise<DextoAgent>
         toDextoAgentOptions({
             config: validatedConfig,
             services,
+            ...(options?.runtimeOverrides ? { runtimeOverrides: options.runtimeOverrides } : {}),
         })
     );
     await agent.start();

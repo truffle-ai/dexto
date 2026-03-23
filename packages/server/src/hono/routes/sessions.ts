@@ -1,8 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import {
-    getConfiguredUsageScopeId,
-    type SessionMetadata as CoreSessionMetadata,
-} from '@dexto/core';
+import { type SessionMetadata as CoreSessionMetadata } from '@dexto/core';
 import {
     SessionMetadataSchema,
     InternalMessageSchema,
@@ -573,7 +570,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             const metadata = await agent.getSessionMetadata(sessionId);
             const isBusy = await agent.isSessionBusy(sessionId);
             const usageSummary = await agent.getSessionUsageSummary(sessionId);
-            const activeUsageScopeId = getConfiguredUsageScopeId() ?? null;
+            const activeUsageScopeId = agent.getEffectiveConfig().usageScopeId ?? null;
             const activeUsageScope = activeUsageScopeId
                 ? {
                       scopeId: activeUsageScopeId,

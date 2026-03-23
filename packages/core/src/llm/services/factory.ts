@@ -31,6 +31,7 @@ import {
     ANTHROPIC_INTERLEAVED_THINKING_BETA,
 } from '../reasoning/anthropic-betas.js';
 import { supportsAnthropicInterleavedThinking } from '../reasoning/anthropic-thinking.js';
+import type { CompactionStrategy } from '../../context/compaction/types.js';
 
 function isLanguageModel(value: unknown): value is LanguageModel {
     if (!value || typeof value !== 'object') return false;
@@ -59,6 +60,11 @@ export interface DextoProviderContext {
     clientSource?: 'cli' | 'web' | 'sdk';
     /** Optional callback for ChatGPT Login rate-limit status updates from Codex. */
     onCodexRateLimitStatus?: (snapshot: CodexRateLimitSnapshot) => void;
+}
+
+export interface CreateLLMServiceOptions {
+    usageScopeId?: string | undefined;
+    compactionStrategy?: CompactionStrategy | null | undefined;
 }
 
 /**
@@ -320,8 +326,7 @@ export function createVercelModel(
  * @param sessionId Session ID
  * @param resourceManager Resource manager for blob storage and resource access
  * @param logger Logger instance for dependency injection
- * @param compactionStrategy Optional compaction strategy for context management
- * @param compactionConfig Optional compaction configuration for thresholds
+ * @param options Session-scoped runtime options
  * @returns VercelLLMService instance
  */
 export function createLLMService(
@@ -333,8 +338,10 @@ export function createLLMService(
     sessionId: string,
     resourceManager: import('../../resources/index.js').ResourceManager,
     logger: Logger,
-    compactionStrategy?: import('../../context/compaction/types.js').CompactionStrategy | null
+    options: CreateLLMServiceOptions = {}
 ): VercelLLMService {
+    const { usageScopeId, compactionStrategy } = options;
+
     const model = createVercelModel(config, {
         sessionId,
         onCodexRateLimitStatus: (snapshot) => {
@@ -356,6 +363,7 @@ export function createLLMService(
         sessionId,
         resourceManager,
         logger,
+        usageScopeId,
         compactionStrategy
     );
 }

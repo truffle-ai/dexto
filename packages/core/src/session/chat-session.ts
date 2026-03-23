@@ -289,7 +289,10 @@ export class ChatSession {
             this.id,
             this.services.resourceManager, // Pass ResourceManager for blob storage
             this.logger, // Pass logger for dependency injection
-            compactionStrategy // Pass compaction strategy
+            {
+                usageScopeId: runtimeConfig.usageScopeId,
+                compactionStrategy,
+            }
         );
 
         this.logger.debug(`ChatSession ${this.id}: Services initialized with storage`);
@@ -662,6 +665,7 @@ export class ChatSession {
      */
     public async switchLLM(newLLMConfig: ValidatedLLMConfig): Promise<void> {
         try {
+            const runtimeConfig = this.services.stateManager.getRuntimeConfig(this.id);
             // Reuse the agent-provided compaction strategy (if any)
             const compactionStrategy = this.services.compactionStrategy;
 
@@ -676,7 +680,10 @@ export class ChatSession {
                 this.id,
                 this.services.resourceManager,
                 this.logger,
-                compactionStrategy // Pass compaction strategy
+                {
+                    usageScopeId: runtimeConfig.usageScopeId,
+                    compactionStrategy,
+                }
             );
 
             // Replace the LLM service

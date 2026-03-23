@@ -460,7 +460,12 @@ async function bootstrapAgentFromGlobalOpts(options: {
 
     const validatedConfig = AgentConfigSchema.parse(enrichedConfig);
     const services = await resolveServicesFromConfig(validatedConfig, image);
-    const agent = new DextoAgent(toDextoAgentOptions({ config: validatedConfig, services }));
+    const agent = new DextoAgent(
+        toDextoAgentOptions({
+            config: validatedConfig,
+            services,
+        })
+    );
     await agent.start();
 
     // Register graceful shutdown

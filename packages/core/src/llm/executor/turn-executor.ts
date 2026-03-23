@@ -99,6 +99,7 @@ export class TurnExecutor {
             maxOutputTokens?: number | undefined;
             temperature?: number | undefined;
             baseURL?: string | undefined;
+            usageScopeId?: string | undefined;
             // Provider-specific options
             reasoning?: LLMReasoningConfig | undefined;
         },
@@ -132,6 +133,9 @@ export class TurnExecutor {
         return {
             provider: this.llmContext.provider,
             model: this.llmContext.model,
+            ...(this.config.usageScopeId !== undefined && {
+                usageScopeId: this.config.usageScopeId,
+            }),
             ...(estimatedInputTokens !== undefined && { estimatedInputTokens }),
             ...(reasoning?.reasoningVariant !== undefined && {
                 reasoningVariant: reasoning.reasoningVariant,

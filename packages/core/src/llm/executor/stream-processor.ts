@@ -9,7 +9,6 @@ import type { SanitizedToolResult } from '../../context/types.js';
 import type { Logger } from '../../logger/v2/types.js';
 import { DextoLogComponent } from '../../logger/v2/types.js';
 import type { ToolPresentationSnapshotV1 } from '../../tools/types.js';
-import { getConfiguredUsageScopeId } from '../usage-scope.js';
 import { getUsagePricingMetadata } from '../usage-metadata.js';
 import type { LLMProvider, LLMPricingStatus, ReasoningVariant, TokenUsage } from '../types.js';
 
@@ -58,6 +57,7 @@ type ToolInputEndEvent = Extract<FullStreamPart, { type: 'tool-input-end' }> & {
 export interface StreamProcessorConfig {
     provider: LLMProvider;
     model: string;
+    usageScopeId?: string;
     /** Estimated input tokens before LLM call (for analytics/calibration) */
     estimatedInputTokens?: number;
     /** Reasoning variant used for this call, when the provider exposes it. */
@@ -75,7 +75,7 @@ export class StreamProcessor {
     private accumulatedText: string = '';
     private logger: Logger;
     private hasStepUsage = false;
-    private readonly usageScopeId = getConfiguredUsageScopeId();
+    private readonly usageScopeId: string | undefined;
     /**
      * Track pending tool calls (added to context but no result yet).
      * On cancel/abort, we add synthetic "cancelled" results to maintain tool_use/tool_result pairing.
@@ -111,6 +111,7 @@ export class StreamProcessor {
         >
     ) {
         this.logger = logger.createChild(DextoLogComponent.EXECUTOR);
+        this.usageScopeId = config.usageScopeId;
     }
 
     async process(

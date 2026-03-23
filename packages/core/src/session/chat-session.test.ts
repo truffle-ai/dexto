@@ -283,7 +283,10 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager,
                 mockLogger,
-                null // compaction strategy
+                {
+                    usageScopeId: undefined,
+                    compactionStrategy: null,
+                }
             );
         });
 
@@ -309,7 +312,10 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager,
                 mockLogger,
-                null // compaction strategy
+                {
+                    usageScopeId: undefined,
+                    compactionStrategy: null,
+                }
             );
         });
 
@@ -426,7 +432,10 @@ describe('ChatSession', () => {
                 sessionId,
                 mockServices.resourceManager, // ResourceManager parameter
                 mockLogger, // Logger parameter
-                null // compaction strategy
+                {
+                    usageScopeId: undefined,
+                    compactionStrategy: null,
+                }
             );
 
             // Verify session-specific history provider creation

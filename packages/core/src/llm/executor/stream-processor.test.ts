@@ -1118,49 +1118,39 @@ describe('StreamProcessor', () => {
         });
 
         test('tags response usage with configured usage scope id', async () => {
-            const previousUsageScopeId = process.env.DEXTO_USAGE_SCOPE_ID;
-            process.env.DEXTO_USAGE_SCOPE_ID = 'cloud-agent-1';
+            const mocks = createMocks();
+            mocks.config.usageScopeId = 'cloud-agent-1';
+            const processor = new StreamProcessor(
+                mocks.contextManager,
+                mocks.eventBus,
+                mocks.resourceManager,
+                mocks.abortController.signal,
+                mocks.config,
+                mocks.logger,
+                true
+            );
 
-            try {
-                const mocks = createMocks();
-                const processor = new StreamProcessor(
-                    mocks.contextManager,
-                    mocks.eventBus,
-                    mocks.resourceManager,
-                    mocks.abortController.signal,
-                    mocks.config,
-                    mocks.logger,
-                    true
-                );
+            const events = [
+                { type: 'text-delta', text: 'Scoped response' },
+                {
+                    type: 'finish',
+                    finishReason: 'stop',
+                    totalUsage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
+                },
+            ];
 
-                const events = [
-                    { type: 'text-delta', text: 'Scoped response' },
-                    {
-                        type: 'finish',
-                        finishReason: 'stop',
-                        totalUsage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
-                    },
-                ];
+            await processor.process(() => createMockStream(events) as never);
 
-                await processor.process(() => createMockStream(events) as never);
-
-                const responseEvent = mocks.emittedEvents.find((e) => e.name === 'llm:response');
-                expect(responseEvent?.payload).toMatchObject({
+            const responseEvent = mocks.emittedEvents.find((e) => e.name === 'llm:response');
+            expect(responseEvent?.payload).toMatchObject({
+                usageScopeId: 'cloud-agent-1',
+            });
+            expect(mocks.contextManager.updateAssistantMessage).toHaveBeenCalledWith(
+                'msg-1',
+                expect.objectContaining({
                     usageScopeId: 'cloud-agent-1',
-                });
-                expect(mocks.contextManager.updateAssistantMessage).toHaveBeenCalledWith(
-                    'msg-1',
-                    expect.objectContaining({
-                        usageScopeId: 'cloud-agent-1',
-                    })
-                );
-            } finally {
-                if (previousUsageScopeId === undefined) {
-                    delete process.env.DEXTO_USAGE_SCOPE_ID;
-                } else {
-                    process.env.DEXTO_USAGE_SCOPE_ID = previousUsageScopeId;
-                }
-            }
+                })
+            );
         });
     });
 

@@ -38,6 +38,7 @@ export interface AgentRuntimeSettings {
 
     resources: ValidatedResourcesConfig;
     prompts: ValidatedPromptsConfig;
+    usageScopeId?: string | undefined;
 }
 
 /**
@@ -64,4 +65,5 @@ export interface DextoAgentConfigInput {
 
     resources?: ResourcesConfig | undefined;
     prompts?: PromptsConfig | undefined;
+    usageScopeId?: string | undefined;
 }
