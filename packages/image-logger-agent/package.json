@@ -1,6 +1,6 @@
 {
     "name": "@dexto/image-logger-agent",
-    "version": "1.6.17",
+    "version": "1.6.18",
     "description": "Example image for the Logger Agent (adds request-logger hook)",
     "type": "module",
     "main": "./dist/index.js",

@@ -1,5 +1,19 @@
 # @dexto/agent-management
 
+## 1.6.18
+
+### Patch Changes
+
+- 29bd887: Update create-skill and formalized convention for new skill bundles in workspaces. Updated `dexto init` to initialize with create-skill default.
+- 3d4fb3d: Pass explicit usage scope IDs through agent creation, LLM execution, and session load responses.
+- Updated dependencies [29bd887]
+- Updated dependencies [3d4fb3d]
+- Updated dependencies [beb8efa]
+    - @dexto/tools-builtins@1.6.18
+    - @dexto/core@1.6.18
+    - @dexto/agent-config@1.6.18
+    - @dexto/orchestration@1.6.18
+
 ## 1.6.17
 
 ### Patch Changes

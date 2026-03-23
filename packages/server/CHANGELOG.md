@@ -1,5 +1,21 @@
 # @dexto/server
 
+## 1.6.18
+
+### Patch Changes
+
+- 3d4fb3d: Pass explicit usage scope IDs through agent creation, LLM execution, and session load responses.
+- beb8efa: Add session prompt contributors allowing adding and injecting context into at a session level.
+- Updated dependencies [29bd887]
+- Updated dependencies [3d4fb3d]
+- Updated dependencies [beb8efa]
+    - @dexto/agent-management@1.6.18
+    - @dexto/core@1.6.18
+    - @dexto/agent-config@1.6.18
+    - @dexto/image-local@1.6.18
+    - @dexto/storage@1.6.18
+    - @dexto/tools-scheduler@1.6.18
+
 ## 1.6.17
 
 ### Patch Changes
