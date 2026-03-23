@@ -1,4 +1,5 @@
 import { MCPManager } from '../mcp/manager.js';
+import type { SessionPromptContributor } from './schemas.js';
 import type { WorkspaceContext } from '../workspace/types.js';
 
 export type EnvironmentContext = {
@@ -10,6 +11,7 @@ export type EnvironmentContext = {
 
 export type SessionContext = {
     id: string;
+    systemPromptContributors?: SessionPromptContributor[];
 };
 
 // Context passed to dynamic contributors

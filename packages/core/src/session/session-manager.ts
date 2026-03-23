@@ -12,6 +12,11 @@ import type { HookManager } from '../hooks/manager.js';
 import { SessionError } from './errors.js';
 import type { TokenUsage } from '../llm/types.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
+import { ZodError } from 'zod';
+import {
+    SessionPromptContributorSchema,
+    type SessionPromptContributor,
+} from '../systemPrompt/schemas.js';
 export type SessionLoggerFactory = (options: {
     baseLogger: Logger;
     agentId: string;
@@ -115,8 +120,8 @@ export class SessionManager {
     private initializationPromise!: Promise<void>;
     // Add a Map to track ongoing session creation operations to prevent race conditions
     private readonly pendingCreations = new Map<string, Promise<ChatSession>>();
-    // Per-session mutex for token usage updates to prevent lost updates from concurrent calls
-    private readonly tokenUsageLocks = new Map<string, Promise<void>>();
+    // Per-session mutex for any SessionData read-modify-write path.
+    private readonly sessionDataLocks = new Map<string, Promise<void>>();
     private logger: Logger;
     private static readonly FORK_HISTORY_BATCH_SIZE = 500;
     private static readonly FORK_ID_GENERATION_MAX_ATTEMPTS = 5;
@@ -303,9 +308,18 @@ export class SessionManager {
             lastActivity: now,
             messageCount: parentSessionData.messageCount,
             parentSessionId,
-            metadata: {
-                title: childTitle,
-            },
+            ...(parentSessionData.metadata !== undefined
+                ? {
+                      metadata: {
+                          ...parentSessionData.metadata,
+                          title: childTitle,
+                      },
+                  }
+                : {
+                      metadata: {
+                          title: childTitle,
+                      },
+                  }),
             ...(parentSessionData.workspaceId !== undefined && {
                 workspaceId: parentSessionData.workspaceId,
             }),
@@ -678,19 +692,18 @@ export class SessionManager {
         await session.reset();
 
         // Reset message count in metadata
-        const sessionKey = `session:${sessionId}`;
-        const sessionData = await this.services.storageManager
-            .getDatabase()
-            .get<SessionData>(sessionKey);
-        if (sessionData) {
+        await this.runWithSessionDataLock(sessionId, async (sessionKey) => {
+            const sessionData = await this.services.storageManager
+                .getDatabase()
+                .get<SessionData>(sessionKey);
+            if (!sessionData) {
+                return;
+            }
+
             sessionData.messageCount = 0;
             sessionData.lastActivity = Date.now();
-            await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
-            // Update cache as well
-            await this.services.storageManager
-                .getCache()
-                .set(sessionKey, sessionData, this.sessionTTL / 1000);
-        }
+            await this.persistSessionData(sessionKey, sessionData);
+        });
 
         this.logger.debug(`Reset session conversation: ${sessionId}`);
     }
@@ -738,13 +751,107 @@ export class SessionManager {
         };
     }
 
-    public async markUntrackedChatGPTLoginUsage(sessionId: string): Promise<void> {
+    public async getSessionSystemPromptContributors(
+        sessionId: string
+    ): Promise<SessionPromptContributor[]> {
         await this.ensureInitialized();
 
         const sessionKey = `session:${sessionId}`;
-        const previousLock = this.tokenUsageLocks.get(sessionKey) ?? Promise.resolve();
+        const sessionData = await this.services.storageManager
+            .getDatabase()
+            .get<SessionData>(sessionKey);
 
-        const currentLock = previousLock.then(async () => {
+        if (!sessionData) {
+            throw SessionError.notFound(sessionId);
+        }
+
+        return this.parseSessionPromptContributors(sessionId, sessionData);
+    }
+
+    public async upsertSessionSystemPromptContributor(
+        sessionId: string,
+        contributor: SessionPromptContributor
+    ): Promise<boolean> {
+        await this.ensureInitialized();
+
+        return await this.runWithSessionDataLock(sessionId, async (sessionKey) => {
+            const sessionData = await this.services.storageManager
+                .getDatabase()
+                .get<SessionData>(sessionKey);
+
+            if (!sessionData) {
+                throw SessionError.notFound(sessionId);
+            }
+
+            const existing = this.parseSessionPromptContributors(sessionId, sessionData);
+            const next = existing.filter((entry) => entry.id !== contributor.id);
+            const replaced = next.length !== existing.length;
+
+            next.push(contributor);
+            next.sort((left, right) => left.priority - right.priority);
+
+            sessionData.metadata = sessionData.metadata || {};
+            sessionData.metadata.systemPromptContributors = next;
+            sessionData.lastActivity = Date.now();
+
+            await this.persistSessionData(sessionKey, sessionData);
+            return replaced;
+        });
+    }
+
+    public async removeSessionSystemPromptContributor(
+        sessionId: string,
+        contributorId: string
+    ): Promise<boolean> {
+        await this.ensureInitialized();
+
+        return await this.runWithSessionDataLock(sessionId, async (sessionKey) => {
+            const sessionData = await this.services.storageManager
+                .getDatabase()
+                .get<SessionData>(sessionKey);
+
+            if (!sessionData) {
+                throw SessionError.notFound(sessionId);
+            }
+
+            const existing = this.parseSessionPromptContributors(sessionId, sessionData);
+            const next = existing.filter((entry) => entry.id !== contributorId);
+            const removed = next.length !== existing.length;
+
+            if (!removed) {
+                return false;
+            }
+
+            sessionData.metadata = sessionData.metadata || {};
+            sessionData.metadata.systemPromptContributors = next;
+            sessionData.lastActivity = Date.now();
+
+            await this.persistSessionData(sessionKey, sessionData);
+            return true;
+        });
+    }
+
+    private parseSessionPromptContributors(
+        sessionId: string,
+        sessionData: SessionData
+    ): SessionPromptContributor[] {
+        try {
+            return SessionPromptContributorSchema.array().parse(
+                sessionData.metadata?.systemPromptContributors ?? []
+            );
+        } catch (error) {
+            if (error instanceof ZodError) {
+                throw SessionError.storageFailed(sessionId, 'read', error.message);
+            }
+
+            throw error;
+        }
+    }
+
+    public async markUntrackedChatGPTLoginUsage(sessionId: string): Promise<void> {
+        await this.ensureInitialized();
+
+        await this.runWithSessionDataLock(sessionId, async (sessionKey) => {
             const sessionData = await this.services.storageManager
                 .getDatabase()
                 .get<SessionData>(sessionKey);
@@ -758,21 +865,8 @@ export class SessionManager {
                 hasUntrackedChatGPTLoginUsage: true,
             };
 
-            await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
-            await this.services.storageManager
-                .getCache()
-                .set(sessionKey, sessionData, this.sessionTTL / 1000);
+            await this.persistSessionData(sessionKey, sessionData);
         });
-
-        this.tokenUsageLocks.set(sessionKey, currentLock);
-
-        try {
-            await currentLock;
-        } finally {
-            if (this.tokenUsageLocks.get(sessionKey) === currentLock) {
-                this.tokenUsageLocks.delete(sessionKey);
-            }
-        }
     }
 
     /**
@@ -789,19 +883,18 @@ export class SessionManager {
      * Updates the last activity timestamp for a session.
      */
     private async updateSessionActivity(sessionId: string): Promise<void> {
-        const sessionKey = `session:${sessionId}`;
-        const sessionData = await this.services.storageManager
-            .getDatabase()
-            .get<SessionData>(sessionKey);
+        await this.runWithSessionDataLock(sessionId, async (sessionKey) => {
+            const sessionData = await this.services.storageManager
+                .getDatabase()
+                .get<SessionData>(sessionKey);
 
-        if (sessionData) {
+            if (!sessionData) {
+                return;
+            }
+
             sessionData.lastActivity = Date.now();
-            await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
-            // Update cache as well
-            await this.services.storageManager
-                .getCache()
-                .set(sessionKey, sessionData, this.sessionTTL / 1000);
-        }
+            await this.persistSessionData(sessionKey, sessionData);
+        });
     }
 
     /**
@@ -810,20 +903,19 @@ export class SessionManager {
     public async incrementMessageCount(sessionId: string): Promise<void> {
         await this.ensureInitialized();
 
-        const sessionKey = `session:${sessionId}`;
-        const sessionData = await this.services.storageManager
-            .getDatabase()
-            .get<SessionData>(sessionKey);
+        await this.runWithSessionDataLock(sessionId, async (sessionKey) => {
+            const sessionData = await this.services.storageManager
+                .getDatabase()
+                .get<SessionData>(sessionKey);
 
-        if (sessionData) {
+            if (!sessionData) {
+                return;
+            }
+
             sessionData.messageCount++;
             sessionData.lastActivity = Date.now();
-            await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
-            // Update cache as well
-            await this.services.storageManager
-                .getCache()
-                .set(sessionKey, sessionData, this.sessionTTL / 1000);
-        }
+            await this.persistSessionData(sessionKey, sessionData);
+        });
     }
 
     /**
@@ -845,12 +937,7 @@ export class SessionManager {
     ): Promise<void> {
         await this.ensureInitialized();
 
-        const sessionKey = `session:${sessionId}`;
-
-        // Wait for any in-flight update for this session, then chain ours
-        const previousLock = this.tokenUsageLocks.get(sessionKey) ?? Promise.resolve();
-
-        const currentLock = previousLock.then(async () => {
+        await this.runWithSessionDataLock(sessionId, async (sessionKey) => {
             const sessionData = await this.services.storageManager
                 .getDatabase()
                 .get<SessionData>(sessionKey);
@@ -884,24 +971,8 @@ export class SessionManager {
 
             sessionData.lastActivity = Date.now();
 
-            // Persist
-            await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
-            await this.services.storageManager
-                .getCache()
-                .set(sessionKey, sessionData, this.sessionTTL / 1000);
+            await this.persistSessionData(sessionKey, sessionData);
         });
-
-        this.tokenUsageLocks.set(sessionKey, currentLock);
-
-        // Wait for our update to complete, but don't let errors propagate to break the chain
-        try {
-            await currentLock;
-        } finally {
-            // Clean up lock if this was the last operation
-            if (this.tokenUsageLocks.get(sessionKey) === currentLock) {
-                this.tokenUsageLocks.delete(sessionKey);
-            }
-        }
     }
 
     /**
@@ -986,28 +1057,26 @@ export class SessionManager {
     ): Promise<void> {
         await this.ensureInitialized();
 
-        const sessionKey = `session:${sessionId}`;
-        const sessionData = await this.services.storageManager
-            .getDatabase()
-            .get<SessionData>(sessionKey);
-
-        if (!sessionData) {
-            throw SessionError.notFound(sessionId);
-        }
-
         const normalized = title.trim().slice(0, 80);
-        if (opts.ifUnsetOnly && sessionData.metadata?.title) {
-            return;
-        }
+        await this.runWithSessionDataLock(sessionId, async (sessionKey) => {
+            const sessionData = await this.services.storageManager
+                .getDatabase()
+                .get<SessionData>(sessionKey);
 
-        sessionData.metadata = sessionData.metadata || {};
-        sessionData.metadata.title = normalized;
-        sessionData.lastActivity = Date.now();
+            if (!sessionData) {
+                throw SessionError.notFound(sessionId);
+            }
 
-        await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
-        await this.services.storageManager
-            .getCache()
-            .set(sessionKey, sessionData, this.sessionTTL / 1000);
+            if (opts.ifUnsetOnly && sessionData.metadata?.title) {
+                return;
+            }
+
+            sessionData.metadata = sessionData.metadata || {};
+            sessionData.metadata.title = normalized;
+            sessionData.lastActivity = Date.now();
+
+            await this.persistSessionData(sessionKey, sessionData);
+        });
     }
 
     /**
@@ -1132,20 +1201,18 @@ export class SessionManager {
 
         // Persist the LLM override to storage so it survives restarts
         // SECURITY: Don't persist API keys - they should be resolved from environment variables
-        const sessionKey = `session:${sessionId}`;
-        const sessionData = await this.services.storageManager
-            .getDatabase()
-            .get<SessionData>(sessionKey);
-        if (sessionData) {
-            // Store everything except the API key
+        await this.runWithSessionDataLock(sessionId, async (sessionKey) => {
+            const sessionData = await this.services.storageManager
+                .getDatabase()
+                .get<SessionData>(sessionKey);
+            if (!sessionData) {
+                return;
+            }
+
             const { apiKey: _apiKey, ...configWithoutApiKey } = newLLMConfig;
             sessionData.llmOverride = configWithoutApiKey;
-            await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
-            // Also update cache for consistency
-            await this.services.storageManager
-                .getCache()
-                .set(sessionKey, sessionData, this.sessionTTL / 1000);
-        }
+            await this.persistSessionData(sessionKey, sessionData);
+        });
 
         this.services.agentEventBus.emit('llm:switched', {
             newConfig: newLLMConfig,
@@ -1156,6 +1223,36 @@ export class SessionManager {
         const message = `Successfully switched to ${newLLMConfig.provider}/${newLLMConfig.model} for session ${sessionId}`;
 
         return { message, warnings: [] };
+    }
+
+    private async runWithSessionDataLock<T>(
+        sessionId: string,
+        fn: (sessionKey: string) => Promise<T>
+    ): Promise<T> {
+        const sessionKey = `session:${sessionId}`;
+        const previousLock = this.sessionDataLocks.get(sessionKey) ?? Promise.resolve();
+        const currentResult = previousLock.catch(() => {}).then(() => fn(sessionKey));
+        const currentLock = currentResult.then(
+            () => undefined,
+            () => undefined
+        );
+
+        this.sessionDataLocks.set(sessionKey, currentLock);
+
+        try {
+            return await currentResult;
+        } finally {
+            if (this.sessionDataLocks.get(sessionKey) === currentLock) {
+                this.sessionDataLocks.delete(sessionKey);
+            }
+        }
+    }
+
+    private async persistSessionData(sessionKey: string, sessionData: SessionData): Promise<void> {
+        await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
+        await this.services.storageManager
+            .getCache()
+            .set(sessionKey, sessionData, this.sessionTTL / 1000);
     }
 
     /**

@@ -11,6 +11,7 @@ import type { ApprovalManager } from '../approval/manager.js';
 import type { AllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
 import { ApprovalStatus, ApprovalType } from '../approval/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
+import { SessionError } from '../session/errors.js';
 
 // Mock logger
 vi.mock('../logger/index.js', () => ({
@@ -201,6 +202,83 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 cwd: '/workspace',
                 platform: 'linux',
             });
+        });
+
+        it('includes session prompt contributors when session manager support is configured', async () => {
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [],
+                mockLogger
+            );
+
+            toolManager.setHookSupport(
+                {} as any,
+                {
+                    getSessionSystemPromptContributors: vi.fn().mockResolvedValue([
+                        {
+                            id: 'peer-origin',
+                            priority: 0,
+                            content: 'Reply to the originating peer.',
+                        },
+                    ]),
+                } as any,
+                {} as any
+            );
+
+            const context = await toolManager.buildContributorContext({
+                sessionId: 'session-789',
+            });
+
+            expect(context.session).toEqual({
+                id: 'session-789',
+                systemPromptContributors: [
+                    {
+                        id: 'peer-origin',
+                        priority: 0,
+                        content: 'Reply to the originating peer.',
+                    },
+                ],
+            });
+        });
+
+        it('gracefully ignores missing sessions when building contributor context', async () => {
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [],
+                mockLogger
+            );
+
+            toolManager.setHookSupport(
+                {} as any,
+                {
+                    getSessionSystemPromptContributors: vi
+                        .fn()
+                        .mockRejectedValue(SessionError.notFound('missing-session')),
+                } as any,
+                {} as any
+            );
+
+            const context = await toolManager.buildContributorContext({
+                sessionId: 'missing-session',
+            });
+
+            expect(context.session).toEqual({ id: 'missing-session' });
+            expect(mockLogger.debug).toHaveBeenCalledWith(
+                'Session not found while building contributor context',
+                {
+                    sessionId: 'missing-session',
+                }
+            );
         });
     });
 
