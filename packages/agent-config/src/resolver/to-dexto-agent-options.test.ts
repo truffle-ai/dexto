@@ -65,4 +65,43 @@ describe('toDextoAgentOptions', () => {
         expect(options.compaction).toBeNull();
         expect(options.toolkitLoader).toBe(services.toolkitLoader);
     });
+
+    it('applies runtime overrides outside the validated agent config', () => {
+        const validated = AgentConfigSchema.parse({
+            systemPrompt: 'You are a helpful assistant',
+            llm: {
+                provider: 'openai',
+                model: 'gpt-4o-mini',
+                apiKey: 'test-key',
+            },
+            storage: {
+                cache: { type: 'in-memory' },
+                database: { type: 'in-memory' },
+                blob: { type: 'in-memory' },
+            },
+            compaction: { type: 'noop', enabled: false },
+        });
+
+        const logger = createMockLogger();
+        const services: ResolvedServices = {
+            logger,
+            storage: {
+                blob: createMockBlobStore('in-memory'),
+                database: createMockDatabase('in-memory'),
+                cache: createMockCache('in-memory'),
+            },
+            tools: [createMockTool('foo')],
+            toolkitLoader: async () => [],
+            hooks: [],
+            compaction: null,
+        };
+
+        const options = toDextoAgentOptions({
+            config: validated,
+            services,
+            runtimeOverrides: { usageScopeId: 'cloud-agent-1' },
+        });
+
+        expect(options.usageScopeId).toBe('cloud-agent-1');
+    });
 });

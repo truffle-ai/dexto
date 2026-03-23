@@ -364,18 +364,17 @@ describe('Hono API Integration Tests', () => {
         });
 
         it('GET /api/sessions/:id/load returns exact usage summary for the active usage scope', async () => {
-            if (!testServer) throw new Error('Test server not initialized');
-
-            const previousUsageScopeId = process.env.DEXTO_USAGE_SCOPE_ID;
-            process.env.DEXTO_USAGE_SCOPE_ID = 'cloud-agent-1';
-
+            const scopedAgent = await createTestAgent(undefined, {
+                runtimeOverrides: { usageScopeId: 'cloud-agent-1' },
+            });
+            const scopedServer = await startTestServer(scopedAgent);
             try {
-                await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                await httpRequest(scopedServer.baseUrl, 'POST', '/api/sessions', {
                     sessionId: 'test-session-load-scoped',
                 });
 
                 const usageSpy = vi
-                    .spyOn(testServer.agent, 'getSessionUsageSummary')
+                    .spyOn(scopedServer.agent, 'getSessionUsageSummary')
                     .mockResolvedValueOnce({
                         tokenUsage: {
                             inputTokens: 15,
@@ -403,7 +402,7 @@ describe('Hono API Integration Tests', () => {
 
                 try {
                     const res = await httpRequest(
-                        testServer.baseUrl,
+                        scopedServer.baseUrl,
                         'GET',
                         '/api/sessions/test-session-load-scoped/load'
                     );
@@ -450,11 +449,7 @@ describe('Hono API Integration Tests', () => {
                     usageSpy.mockRestore();
                 }
             } finally {
-                if (previousUsageScopeId === undefined) {
-                    delete process.env.DEXTO_USAGE_SCOPE_ID;
-                } else {
-                    process.env.DEXTO_USAGE_SCOPE_ID = previousUsageScopeId;
-                }
+                await scopedServer.cleanup();
             }
         });
 

@@ -58,6 +58,7 @@ import { ElicitationConfigSchema, PermissionsConfigSchema } from '../tools/schem
 import { OtelConfigurationSchema } from '../telemetry/schemas.js';
 import { AgentCardSchema } from './schemas.js';
 import type { AgentRuntimeSettings, DextoAgentConfigInput } from './runtime-config.js';
+import { UsageScopeIdSchema } from '../llm/usage-scope.js';
 import {
     AgentEventBus,
     type AgentEventMap,
@@ -241,6 +242,9 @@ export class DextoAgent {
             elicitation: ElicitationConfigSchema.parse(options.elicitation ?? {}),
             resources: ResourcesConfigSchema.parse(options.resources ?? []),
             prompts: PromptsSchema.parse(options.prompts),
+            ...(options.usageScopeId !== undefined && {
+                usageScopeId: UsageScopeIdSchema.parse(options.usageScopeId),
+            }),
             ...(options.agentCard !== undefined && {
                 agentCard: AgentCardSchema.parse(options.agentCard),
             }),

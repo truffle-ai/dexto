@@ -3,7 +3,6 @@ import {
     DextoRuntimeError,
     ErrorScope,
     ErrorType,
-    getConfiguredUsageScopeId,
     zodToIssues,
     type SessionMetadata as CoreSessionMetadata,
 } from '@dexto/core';
@@ -832,7 +831,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             const metadata = await agent.getSessionMetadata(sessionId);
             const isBusy = await agent.isSessionBusy(sessionId);
             const usageSummary = await agent.getSessionUsageSummary(sessionId);
-            const activeUsageScopeId = getConfiguredUsageScopeId() ?? null;
+            const activeUsageScopeId = agent.getEffectiveConfig().usageScopeId ?? null;
             const activeUsageScope = activeUsageScopeId
                 ? {
                       scopeId: activeUsageScopeId,

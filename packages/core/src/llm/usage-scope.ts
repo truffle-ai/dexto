@@ -1,11 +1,5 @@
-export const DEXTO_USAGE_SCOPE_ID_ENV = 'DEXTO_USAGE_SCOPE_ID';
+import { z } from 'zod';
 
-export function getConfiguredUsageScopeId(): string | undefined {
-    const value = process.env[DEXTO_USAGE_SCOPE_ID_ENV];
-    if (!value) {
-        return undefined;
-    }
+export const UsageScopeIdSchema = z.string().trim().min(1);
 
-    const trimmedValue = value.trim();
-    return trimmedValue.length > 0 ? trimmedValue : undefined;
-}
+export type UsageScopeId = z.output<typeof UsageScopeIdSchema>;
