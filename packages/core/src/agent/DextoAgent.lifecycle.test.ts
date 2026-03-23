@@ -89,9 +89,12 @@ describe('DextoAgent Lifecycle Management', () => {
             toolManager: {
                 setTools: vi.fn(),
                 setToolExecutionContextFactory: vi.fn(),
+                buildContributorContext: vi.fn().mockResolvedValue({}),
                 initialize: vi.fn().mockResolvedValue(undefined),
             } as any,
-            systemPromptManager: {} as any,
+            systemPromptManager: {
+                build: vi.fn().mockResolvedValue('resolved system prompt'),
+            } as any,
             agentEventBus: {
                 on: vi.fn(),
                 emit: vi.fn(),
@@ -145,6 +148,22 @@ describe('DextoAgent Lifecycle Management', () => {
 
             expect(agent.isStarted()).toBe(false);
             expect(agent.isStopped()).toBe(false);
+        });
+    });
+
+    describe('Prompt Inspection', () => {
+        test('should include session context when getting a session system prompt', async () => {
+            const agent = createTestAgent(mockValidatedConfig);
+
+            await agent.start();
+            await expect(agent.getSystemPrompt('session-123')).resolves.toBe(
+                'resolved system prompt'
+            );
+
+            expect(mockServices.toolManager.buildContributorContext).toHaveBeenCalledWith({
+                sessionId: 'session-123',
+            });
+            expect(mockServices.systemPromptManager.build).toHaveBeenCalledWith({});
         });
     });
 

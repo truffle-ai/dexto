@@ -3061,6 +3061,7 @@ export class DextoAgent {
      * Useful for debugging prompt issues, inspecting what context the AI receives,
      * and understanding how dynamic content is being incorporated.
      *
+     * @param sessionId Optional session identifier to include session-scoped contributors
      * @returns Promise resolving to the complete system prompt string
      *
      * @example
@@ -3076,9 +3077,11 @@ export class DextoAgent {
      * }
      * ```
      */
-    public async getSystemPrompt(): Promise<string> {
+    public async getSystemPrompt(sessionId?: string): Promise<string> {
         this.ensureStarted();
-        const context = await this.toolManager.buildContributorContext();
+        const context = await this.toolManager.buildContributorContext(
+            sessionId !== undefined ? { sessionId } : undefined
+        );
         return await this.systemPromptManager.build(context);
     }
 

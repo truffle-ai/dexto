@@ -309,9 +309,18 @@ export class SessionManager {
             lastActivity: now,
             messageCount: parentSessionData.messageCount,
             parentSessionId,
-            metadata: {
-                title: childTitle,
-            },
+            ...(parentSessionData.metadata !== undefined
+                ? {
+                      metadata: {
+                          ...parentSessionData.metadata,
+                          title: childTitle,
+                      },
+                  }
+                : {
+                      metadata: {
+                          title: childTitle,
+                      },
+                  }),
             ...(parentSessionData.workspaceId !== undefined && {
                 workspaceId: parentSessionData.workspaceId,
             }),

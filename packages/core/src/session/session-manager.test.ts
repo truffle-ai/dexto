@@ -478,6 +478,61 @@ describe('SessionManager', () => {
             expect(createSessionSpy).toHaveBeenCalledWith('mock-uuid-123');
         });
 
+        test('should preserve session prompt contributors when forking a session', async () => {
+            const parentSessionId = 'parent-session-with-contributors';
+            const parentSessionData = {
+                id: parentSessionId,
+                createdAt: 1000,
+                lastActivity: 2000,
+                messageCount: 1,
+                metadata: {
+                    title: 'Parent title',
+                    systemPromptContributors: [
+                        {
+                            id: 'peer-origin',
+                            priority: 0,
+                            content: 'Reply to the originating human thread.',
+                        },
+                    ],
+                },
+            };
+
+            mockStorageManager.database.get.mockImplementation((key: string) => {
+                if (key === `session:${parentSessionId}`) {
+                    return Promise.resolve(parentSessionData);
+                }
+                if (key === 'session:mock-uuid-123') {
+                    return Promise.resolve(undefined);
+                }
+                return Promise.resolve(undefined);
+            });
+            mockStorageManager.database.getRange.mockResolvedValueOnce([]);
+
+            const mockChildSession = { id: 'mock-uuid-123' } as any;
+            const createSessionSpy = vi
+                .spyOn(sessionManager, 'createSession')
+                .mockResolvedValue(mockChildSession);
+
+            await sessionManager.forkSession(parentSessionId);
+
+            expect(mockStorageManager.database.set).toHaveBeenCalledWith(
+                'session:mock-uuid-123',
+                expect.objectContaining({
+                    metadata: {
+                        title: 'Fork: Parent title',
+                        systemPromptContributors: [
+                            {
+                                id: 'peer-origin',
+                                priority: 0,
+                                content: 'Reply to the originating human thread.',
+                            },
+                        ],
+                    },
+                })
+            );
+            expect(createSessionSpy).toHaveBeenCalledWith('mock-uuid-123');
+        });
+
         test('should throw not found when forking a non-existent parent session', async () => {
             mockStorageManager.database.get.mockResolvedValue(undefined);
 
