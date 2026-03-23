@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DextoAgent } from '@dexto/core';
 import { createSessionsRouter } from './sessions.js';
-import { handleHonoError } from '../middleware/error.js';
 
 function createAgent() {
     const clearContext = vi.fn(async () => {});
@@ -113,16 +112,52 @@ describe('createSessionsRouter', () => {
 
         expect(response.status).toBe(400);
         expect(upsertSessionSystemPromptContributor).not.toHaveBeenCalled();
-        await expect(response.json()).resolves.toEqual({
-            success: false,
-            error: {
-                name: 'ZodError',
+        await expect(response.json()).resolves.toMatchObject({
+            code: 'validation_failed',
+            scope: 'validation',
+            type: 'user',
+            endpoint: '/sessions/session-1/system-prompt/contributors',
+            method: 'POST',
+            context: {
                 issues: [
                     {
-                        code: 'custom',
-                        message: 'Contributor content is required when enabled',
                         path: ['content'],
+                        message: 'Contributor content is required when enabled',
                     },
+                ],
+            },
+        });
+    });
+
+    it('rejects non-integer contributor priority at the schema boundary', async () => {
+        const { agent, upsertSessionSystemPromptContributor } = createAgent();
+        const app = createSessionsRouter(async () => agent);
+
+        const response = await app.request('/sessions/session-1/system-prompt/contributors', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                id: 'peer-origin',
+                priority: 4.5,
+                content: 'Return the answer to the origin session.',
+            }),
+        });
+
+        expect(response.status).toBe(400);
+        expect(upsertSessionSystemPromptContributor).not.toHaveBeenCalled();
+        await expect(response.json()).resolves.toMatchObject({
+            code: 'validation_failed',
+            scope: 'validation',
+            type: 'user',
+            endpoint: '/sessions/session-1/system-prompt/contributors',
+            method: 'POST',
+            context: {
+                issues: [
+                    expect.objectContaining({
+                        path: ['priority'],
+                    }),
                 ],
             },
         });
@@ -158,7 +193,6 @@ describe('createSessionsRouter', () => {
     it('rejects contributor content that becomes empty after truncation', async () => {
         const { agent, upsertSessionSystemPromptContributor } = createAgent();
         const app = createSessionsRouter(async () => agent);
-        app.onError((err, ctx) => handleHonoError(ctx, err));
 
         const response = await app.request('/sessions/session-1/system-prompt/contributors', {
             method: 'POST',

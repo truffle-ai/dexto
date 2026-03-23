@@ -4,6 +4,7 @@ import {
     ErrorScope,
     ErrorType,
     getConfiguredUsageScopeId,
+    zodToIssues,
     type SessionMetadata as CoreSessionMetadata,
 } from '@dexto/core';
 import {
@@ -14,6 +15,7 @@ import {
     UsageSummarySchema,
 } from '../schemas/responses.js';
 import type { GetAgentFn } from '../index.js';
+import { handleHonoError } from '../middleware/error.js';
 
 const CreateSessionSchema = z
     .object({
@@ -35,7 +37,13 @@ const SessionPromptContributorInfoSchema = z
 const UpsertSessionPromptContributorSchema = z
     .object({
         id: z.string().min(1).describe('Contributor identifier'),
-        priority: z.number().optional().describe('Optional priority override'),
+        priority: z
+            .number()
+            .int()
+            .nonnegative()
+            .optional()
+            .default(DEFAULT_SYSTEM_PROMPT_CONTRIBUTOR_PRIORITY)
+            .describe('Optional priority override'),
         enabled: z
             .boolean()
             .default(true)
@@ -63,14 +71,6 @@ function sanitizeContributorId(value: string): string {
         .replace(/[^A-Za-z0-9._-]+/g, '-')
         .replace(/^-+|-+$/g, '')
         .slice(0, 80);
-}
-
-function resolveContributorPriority(value: number | undefined): number {
-    if (typeof value === 'number' && Number.isFinite(value)) {
-        return Math.trunc(value);
-    }
-
-    return DEFAULT_SYSTEM_PROMPT_CONTRIBUTOR_PRIORITY;
 }
 
 function mapSessionMetadata(
@@ -103,7 +103,24 @@ function mapSessionMetadata(
 }
 
 export function createSessionsRouter(getAgent: GetAgentFn) {
-    const app = new OpenAPIHono();
+    const app = new OpenAPIHono({
+        defaultHook: (result, ctx) => {
+            if (!result.success) {
+                const issues = zodToIssues(result.error);
+                return handleHonoError(
+                    ctx,
+                    new DextoRuntimeError(
+                        'validation_failed',
+                        'validation',
+                        ErrorType.USER,
+                        issues[0]?.message ?? 'Validation failed',
+                        { issues }
+                    )
+                );
+            }
+        },
+    });
+    app.onError((err, ctx) => handleHonoError(ctx, err));
 
     const listRoute = createRoute({
         method: 'get',
@@ -737,7 +754,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                 );
             }
 
-            const priority = resolveContributorPriority(payload.priority);
+            const priority = payload.priority;
             const result = await agent.upsertSessionSystemPromptContributor(sessionId, {
                 id: contributorId,
                 priority,
