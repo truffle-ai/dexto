@@ -1,6 +1,6 @@
 {
   "name": "@dexto/agent-management",
-  "version": "1.6.17",
+  "version": "1.6.18",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",

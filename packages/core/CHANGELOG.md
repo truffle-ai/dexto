@@ -1,5 +1,13 @@
 # @dexto/core
 
+## 1.6.18
+
+### Patch Changes
+
+- 29bd887: Update create-skill and formalized convention for new skill bundles in workspaces. Updated `dexto init` to initialize with create-skill default.
+- 3d4fb3d: Pass explicit usage scope IDs through agent creation, LLM execution, and session load responses.
+- beb8efa: Add session prompt contributors allowing adding and injecting context into at a session level.
+
 ## 1.6.17
 
 ### Patch Changes
