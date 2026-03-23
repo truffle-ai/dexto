@@ -3104,7 +3104,14 @@ export class DextoAgent {
             );
         }
 
-        const parsedContributor = SessionPromptContributorSchema.parse(contributor);
+        const parseResult = SessionPromptContributorSchema.safeParse(contributor);
+        if (!parseResult.success) {
+            const validation = fail(zodToIssues(parseResult.error, 'error'));
+            ensureOk(validation, this.logger);
+            throw new Error('Unreachable');
+        }
+
+        const parsedContributor = parseResult.data;
         const replaced = await this.sessionManager.upsertSessionSystemPromptContributor(
             sessionId,
             parsedContributor

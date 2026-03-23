@@ -9935,6 +9935,7 @@
                   },
                   "enabled": {
                     "type": "boolean",
+                    "default": true,
                     "description": "Set false to remove the contributor instead of adding or updating it"
                   },
                   "content": {

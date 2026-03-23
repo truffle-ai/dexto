@@ -38,7 +38,7 @@ const UpsertSessionPromptContributorSchema = z
         priority: z.number().optional().describe('Optional priority override'),
         enabled: z
             .boolean()
-            .optional()
+            .default(true)
             .describe('Set false to remove the contributor instead of adding or updating it'),
         content: z
             .string()
@@ -46,6 +46,15 @@ const UpsertSessionPromptContributorSchema = z
             .describe('Static contributor content for this session (required when enabled)'),
     })
     .strict()
+    .superRefine((value, ctx) => {
+        if (value.enabled !== false && (!value.content || value.content.trim().length === 0)) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ['content'],
+                message: 'Contributor content is required when enabled',
+            });
+        }
+    })
     .describe('Session-scoped system prompt contributor update payload.');
 
 function sanitizeContributorId(value: string): string {
@@ -696,12 +705,10 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                 );
             }
 
-            const enabled = payload.enabled !== false;
-            const hasContent = payload.content !== undefined;
             const rawContent = payload.content ?? '';
             const content = rawContent.slice(0, MAX_SYSTEM_PROMPT_CONTRIBUTOR_CONTENT_CHARS);
 
-            if (!enabled || (hasContent && content.trim().length === 0)) {
+            if (!payload.enabled) {
                 const removed = await agent.removeSessionSystemPromptContributor(
                     sessionId,
                     contributorId
@@ -713,19 +720,6 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                         removed,
                     },
                     200
-                );
-            }
-
-            if (!hasContent || content.trim().length === 0) {
-                throw new DextoRuntimeError(
-                    'session_systemprompt_contributor_config_invalid',
-                    ErrorScope.SYSTEM_PROMPT,
-                    ErrorType.USER,
-                    'Contributor content is required when enabled',
-                    {
-                        id: payload.id,
-                        sessionId,
-                    }
                 );
             }
 

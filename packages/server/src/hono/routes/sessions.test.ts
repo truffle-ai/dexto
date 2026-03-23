@@ -96,6 +96,37 @@ describe('createSessionsRouter', () => {
         });
     });
 
+    it('rejects enabled contributor updates without content at the schema boundary', async () => {
+        const { agent, upsertSessionSystemPromptContributor } = createAgent();
+        const app = createSessionsRouter(async () => agent);
+
+        const response = await app.request('/sessions/session-1/system-prompt/contributors', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                id: 'peer-origin',
+            }),
+        });
+
+        expect(response.status).toBe(400);
+        expect(upsertSessionSystemPromptContributor).not.toHaveBeenCalled();
+        await expect(response.json()).resolves.toEqual({
+            success: false,
+            error: {
+                name: 'ZodError',
+                issues: [
+                    {
+                        code: 'custom',
+                        message: 'Contributor content is required when enabled',
+                        path: ['content'],
+                    },
+                ],
+            },
+        });
+    });
+
     it('removes session system prompt contributors when disabled', async () => {
         const { agent, removeSessionSystemPromptContributor } = createAgent();
         const app = createSessionsRouter(async () => agent);

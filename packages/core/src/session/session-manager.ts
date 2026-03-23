@@ -121,6 +121,7 @@ export class SessionManager {
     private readonly pendingCreations = new Map<string, Promise<ChatSession>>();
     // Per-session mutex for token usage updates to prevent lost updates from concurrent calls
     private readonly tokenUsageLocks = new Map<string, Promise<void>>();
+    private readonly sessionContributorLocks = new Map<string, Promise<void>>();
     private logger: Logger;
     private static readonly FORK_HISTORY_BATCH_SIZE = 500;
     private static readonly FORK_ID_GENERATION_MAX_ATTEMPTS = 5;
@@ -768,33 +769,47 @@ export class SessionManager {
         await this.ensureInitialized();
 
         const sessionKey = `session:${sessionId}`;
-        const sessionData = await this.services.storageManager
-            .getDatabase()
-            .get<SessionData>(sessionKey);
+        const previousLock = this.sessionContributorLocks.get(sessionKey) ?? Promise.resolve();
+        let replaced = false;
 
-        if (!sessionData) {
-            throw SessionError.notFound(sessionId);
+        const currentLock = previousLock.then(async () => {
+            const sessionData = await this.services.storageManager
+                .getDatabase()
+                .get<SessionData>(sessionKey);
+
+            if (!sessionData) {
+                throw SessionError.notFound(sessionId);
+            }
+
+            const existing = SessionPromptContributorSchema.array().parse(
+                sessionData.metadata?.systemPromptContributors ?? []
+            );
+            const next = existing.filter((entry) => entry.id !== contributor.id);
+            replaced = next.length !== existing.length;
+
+            next.push(contributor);
+            next.sort((left, right) => left.priority - right.priority);
+
+            sessionData.metadata = sessionData.metadata || {};
+            sessionData.metadata.systemPromptContributors = next;
+            sessionData.lastActivity = Date.now();
+
+            await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
+            await this.services.storageManager
+                .getCache()
+                .set(sessionKey, sessionData, this.sessionTTL / 1000);
+        });
+
+        this.sessionContributorLocks.set(sessionKey, currentLock);
+
+        try {
+            await currentLock;
+            return replaced;
+        } finally {
+            if (this.sessionContributorLocks.get(sessionKey) === currentLock) {
+                this.sessionContributorLocks.delete(sessionKey);
+            }
         }
-
-        const existing = SessionPromptContributorSchema.array().parse(
-            sessionData.metadata?.systemPromptContributors ?? []
-        );
-        const next = existing.filter((entry) => entry.id !== contributor.id);
-        const replaced = next.length !== existing.length;
-
-        next.push(contributor);
-        next.sort((left, right) => left.priority - right.priority);
-
-        sessionData.metadata = sessionData.metadata || {};
-        sessionData.metadata.systemPromptContributors = next;
-        sessionData.lastActivity = Date.now();
-
-        await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
-        await this.services.storageManager
-            .getCache()
-            .set(sessionKey, sessionData, this.sessionTTL / 1000);
-
-        return replaced;
     }
 
     public async removeSessionSystemPromptContributor(
@@ -804,34 +819,48 @@ export class SessionManager {
         await this.ensureInitialized();
 
         const sessionKey = `session:${sessionId}`;
-        const sessionData = await this.services.storageManager
-            .getDatabase()
-            .get<SessionData>(sessionKey);
+        const previousLock = this.sessionContributorLocks.get(sessionKey) ?? Promise.resolve();
+        let removed = false;
 
-        if (!sessionData) {
-            throw SessionError.notFound(sessionId);
+        const currentLock = previousLock.then(async () => {
+            const sessionData = await this.services.storageManager
+                .getDatabase()
+                .get<SessionData>(sessionKey);
+
+            if (!sessionData) {
+                throw SessionError.notFound(sessionId);
+            }
+
+            const existing = SessionPromptContributorSchema.array().parse(
+                sessionData.metadata?.systemPromptContributors ?? []
+            );
+            const next = existing.filter((entry) => entry.id !== contributorId);
+            removed = next.length !== existing.length;
+
+            if (!removed) {
+                return;
+            }
+
+            sessionData.metadata = sessionData.metadata || {};
+            sessionData.metadata.systemPromptContributors = next;
+            sessionData.lastActivity = Date.now();
+
+            await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
+            await this.services.storageManager
+                .getCache()
+                .set(sessionKey, sessionData, this.sessionTTL / 1000);
+        });
+
+        this.sessionContributorLocks.set(sessionKey, currentLock);
+
+        try {
+            await currentLock;
+            return removed;
+        } finally {
+            if (this.sessionContributorLocks.get(sessionKey) === currentLock) {
+                this.sessionContributorLocks.delete(sessionKey);
+            }
         }
-
-        const existing = SessionPromptContributorSchema.array().parse(
-            sessionData.metadata?.systemPromptContributors ?? []
-        );
-        const next = existing.filter((entry) => entry.id !== contributorId);
-        const removed = next.length !== existing.length;
-
-        if (!removed) {
-            return false;
-        }
-
-        sessionData.metadata = sessionData.metadata || {};
-        sessionData.metadata.systemPromptContributors = next;
-        sessionData.lastActivity = Date.now();
-
-        await this.services.storageManager.getDatabase().set(sessionKey, sessionData);
-        await this.services.storageManager
-            .getCache()
-            .set(sessionKey, sessionData, this.sessionTTL / 1000);
-
-        return true;
     }
 
     public async markUntrackedChatGPTLoginUsage(sessionId: string): Promise<void> {
