@@ -3,6 +3,7 @@ import type { DextoAgent } from '@dexto/core';
 import { logger } from '@dexto/core';
 import { safeExit, ExitSignal } from '../../analytics/wrapper.js';
 import type { MainModeContext } from './context.js';
+import { applyWorkspaceToAgent } from '../../utils/workspace.js';
 
 async function getMostRecentSessionId(agent: DextoAgent): Promise<string | null> {
     const sessionIds = await agent.listSessions();
@@ -25,8 +26,15 @@ async function getMostRecentSessionId(agent: DextoAgent): Promise<string | null>
 }
 
 export async function runCliMode(context: MainModeContext): Promise<void> {
-    const { agent, opts, validatedConfig, resolvedPath, initialPrompt, getVersionCheckResult } =
-        context;
+    const {
+        agent,
+        opts,
+        workspaceRoot,
+        validatedConfig,
+        resolvedPath,
+        initialPrompt,
+        getVersionCheckResult,
+    } = context;
 
     const needsHandler =
         validatedConfig.permissions.mode === 'manual' || validatedConfig.elicitation.enabled;
@@ -40,6 +48,7 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
     }
 
     await agent.start();
+    await applyWorkspaceToAgent(agent, workspaceRoot);
     try {
         const llmConfig = agent.getCurrentLLMConfig();
         const { requiresApiKey } = await import('@dexto/core');
