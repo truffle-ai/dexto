@@ -145,6 +145,7 @@ export class ChatSession {
             hookManager: HookManager;
             mcpManager: MCPManager;
             sessionManager: import('./session-manager.js').SessionManager;
+            workspaceManager?: import('../workspace/manager.js').WorkspaceManager;
             compactionStrategy: CompactionStrategy | null;
         },
         public readonly id: string,
@@ -267,6 +268,7 @@ export class ChatSession {
         // Get current effective configuration for this session from state manager
         const runtimeConfig = this.services.stateManager.getRuntimeConfig(this.id);
         const llmConfig = runtimeConfig.llm;
+        const workspace = await this.services.workspaceManager?.getWorkspace();
 
         // Create session-specific history provider directly with database backend
         // This persists across LLM switches to maintain conversation history
@@ -292,6 +294,7 @@ export class ChatSession {
             {
                 usageScopeId: runtimeConfig.usageScopeId,
                 compactionStrategy,
+                cwd: workspace?.path,
             }
         );
 
@@ -666,6 +669,7 @@ export class ChatSession {
     public async switchLLM(newLLMConfig: ValidatedLLMConfig): Promise<void> {
         try {
             const runtimeConfig = this.services.stateManager.getRuntimeConfig(this.id);
+            const workspace = await this.services.workspaceManager?.getWorkspace();
             // Reuse the agent-provided compaction strategy (if any)
             const compactionStrategy = this.services.compactionStrategy;
 
@@ -683,6 +687,7 @@ export class ChatSession {
                 {
                     usageScopeId: runtimeConfig.usageScopeId,
                     compactionStrategy,
+                    cwd: workspace?.path,
                 }
             );
 

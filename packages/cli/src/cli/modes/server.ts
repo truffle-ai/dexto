@@ -2,7 +2,8 @@ import { getPort } from '../../utils/port-utils.js';
 import type { MainModeContext } from './context.js';
 
 export async function runServerMode(context: MainModeContext): Promise<void> {
-    const { agent, opts, derivedAgentId, resolvedPath, getVersionCheckResult } = context;
+    const { agent, opts, workspaceRoot, derivedAgentId, resolvedPath, getVersionCheckResult } =
+        context;
 
     const { startHonoApiServer } = await import('../../api/server-hono.js');
 
@@ -29,7 +30,14 @@ export async function runServerMode(context: MainModeContext): Promise<void> {
     const apiUrl = process.env.DEXTO_URL ?? `http://localhost:${apiPort}`;
 
     console.log('🌐 Starting server (REST APIs + SSE)...');
-    await startHonoApiServer(agent, apiPort, agentCard, derivedAgentId, resolvedPath);
+    await startHonoApiServer(
+        agent,
+        apiPort,
+        agentCard,
+        derivedAgentId,
+        resolvedPath,
+        workspaceRoot
+    );
     console.log(`✅ Server running at ${apiUrl}`);
     console.log('Available endpoints:');
     console.log('  POST /api/message - Send async message');

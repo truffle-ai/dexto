@@ -28,6 +28,7 @@ import {
     type WebUIRuntimeConfig,
 } from '@dexto/server';
 import { registerGracefulShutdown } from '../utils/graceful-shutdown.js';
+import { applyWorkspaceToAgent } from '../utils/workspace.js';
 
 const DEFAULT_AGENT_VERSION = '1.0.0';
 
@@ -69,7 +70,7 @@ async function listAgents(): Promise<{
  * Applies user preferences (preferences.yml) to ALL agents, not just the default.
  * See feature-plans/auto-update.md section 8.11 - Three-Layer LLM Resolution.
  */
-async function createAgentFromId(agentId: string): Promise<DextoAgent> {
+async function createAgentFromId(agentId: string, workspaceRoot?: string): Promise<DextoAgent> {
     try {
         // Use registry to resolve agent path (auto-installs if not present)
         const registry = getAgentRegistry();
@@ -99,7 +100,10 @@ async function createAgentFromId(agentId: string): Promise<DextoAgent> {
         return await createDextoAgentFromConfig({
             config,
             configPath: agentPath,
-            enrichOptions: { logLevel: 'info' },
+            enrichOptions: {
+                logLevel: 'info',
+                ...(workspaceRoot ? { workspaceRoot } : {}),
+            },
             overrides: { sessionLoggerFactory },
         });
     } catch (error) {
@@ -141,6 +145,7 @@ export async function initializeHonoApi(
     listenPort?: number,
     agentId?: string,
     configFilePath?: string,
+    workspaceRoot?: string,
     webRoot?: string,
     webUIConfig?: WebUIRuntimeConfig
 ): Promise<HonoInitializationResult> {
@@ -257,6 +262,9 @@ export async function initializeHonoApi(
 
         logger.info(`Starting new agent: ${agentId}`);
         await newAgent.start();
+        if (workspaceRoot) {
+            await applyWorkspaceToAgent(newAgent, workspaceRoot);
+        }
 
         // Update agent card for A2A and MCP routes
         agentCardData = createAgentCard(
@@ -301,7 +309,7 @@ export async function initializeHonoApi(
             // 2. Create new agent from registry (will initialize fresh telemetry in createAgentServices)
             const registry = getAgentRegistry();
             newAgentConfigPath = await registry.resolveAgent(agentId, true);
-            newAgent = await createAgentFromId(agentId);
+            newAgent = await createAgentFromId(agentId, workspaceRoot);
 
             // 3. Use common switch logic (register subscribers, start agent, stop previous)
             return await performAgentSwitch(newAgent, agentId, newAgentConfigPath, bridge);
@@ -367,7 +375,10 @@ export async function initializeHonoApi(
             newAgent = await createDextoAgentFromConfig({
                 config,
                 configPath: filePath,
-                enrichOptions: { logLevel: 'info' },
+                enrichOptions: {
+                    logLevel: 'info',
+                    ...(workspaceRoot ? { workspaceRoot } : {}),
+                },
                 overrides: { sessionLoggerFactory },
             });
 
@@ -489,6 +500,9 @@ export async function initializeHonoApi(
     // Start the initial agent now that approval handler is set and subscribers are wired
     logger.info('Starting initial agent...');
     await activeAgent.start();
+    if (workspaceRoot) {
+        await applyWorkspaceToAgent(activeAgent, workspaceRoot);
+    }
 
     // Initialize MCP server after agent has started
     if (mcpTransport) {
@@ -522,6 +536,7 @@ export async function startHonoApiServer(
     agentCardOverride?: Partial<AgentCard>,
     agentId?: string,
     configFilePath?: string,
+    workspaceRoot?: string,
     webRoot?: string,
     webUIConfig?: WebUIRuntimeConfig
 ): Promise<{
@@ -534,6 +549,7 @@ export async function startHonoApiServer(
         port,
         agentId,
         configFilePath,
+        workspaceRoot,
         webRoot,
         webUIConfig
     );

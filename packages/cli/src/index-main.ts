@@ -467,6 +467,7 @@ async function bootstrapAgentFromGlobalOpts(options: {
         })
     );
     await agent.start();
+    await (await import('./utils/workspace.js')).applyWorkspaceToAgent(agent, workspaceRoot);
 
     // Register graceful shutdown
     const shutdown = async () => {
@@ -541,6 +542,7 @@ program
                 }
 
                 const opts = program.opts();
+                const workspaceRoot = findDextoProjectRoot(process.cwd()) ?? process.cwd();
 
                 // Set dev mode early to use local repo agents instead of ~/.dexto
                 if (opts.dev) {
@@ -938,7 +940,6 @@ program
                     // Enrichment adds filesystem paths to storage (schema has in-memory defaults)
                     // Interactive CLI mode: only log to file (console would interfere with chat UI)
                     const isInteractiveCli = opts.mode === 'cli';
-                    const workspaceRoot = findDextoProjectRoot(process.cwd()) ?? process.cwd();
                     const enrichedConfig = enrichAgentConfig(
                         configWithImageDefaults,
                         resolvedPath,
@@ -1085,6 +1086,9 @@ program
                     // - other modes: start immediately (no approval support)
                     if (opts.mode !== 'web' && opts.mode !== 'server' && opts.mode !== 'cli') {
                         await agent.start();
+                        await (
+                            await import('./utils/workspace.js')
+                        ).applyWorkspaceToAgent(agent, workspaceRoot);
                     }
 
                     // Derive a concise agent ID for display purposes (used by API/UI)
@@ -1110,6 +1114,7 @@ program
                 await dispatchMainMode({
                     agent,
                     opts: mainModeOpts,
+                    workspaceRoot,
                     validatedConfig,
                     resolvedPath,
                     derivedAgentId,

@@ -317,6 +317,33 @@ describe('createCodexLanguageModel', () => {
         );
     });
 
+    it('passes the configured cwd through to the Codex client and thread start', async () => {
+        const mock = createMockClient();
+        const createSpy = vi
+            .spyOn(CodexAppServerClient, 'create')
+            .mockResolvedValue(mock.client as unknown as CodexAppServerClient);
+
+        const model = createCodexLanguageModel({
+            modelId: 'gpt-5.4',
+            baseURL: 'codex://chatgpt',
+            cwd: '/tmp/dexto-cloud',
+        });
+
+        const execution = await model.doStream(createCallOptions());
+        await execution.stream.cancel();
+
+        expect(createSpy).toHaveBeenCalledWith(
+            expect.objectContaining({
+                cwd: '/tmp/dexto-cloud',
+            })
+        );
+        expect(mock.client.startEphemeralThread).toHaveBeenCalledWith(
+            expect.objectContaining({
+                cwd: '/tmp/dexto-cloud',
+            })
+        );
+    });
+
     it('removes the abort listener after the stream finishes', async () => {
         const mock = createMockClient();
         vi.spyOn(CodexAppServerClient, 'create').mockResolvedValue(
