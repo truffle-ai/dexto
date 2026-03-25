@@ -47,9 +47,9 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
         logger.debug('CLI approval handler configured for Ink CLI');
     }
 
-    await agent.start();
-    await applyWorkspaceToAgent(agent, workspaceRoot);
     try {
+        await agent.start();
+        await applyWorkspaceToAgent(agent, workspaceRoot);
         const llmConfig = agent.getCurrentLLMConfig();
         const { requiresApiKey } = await import('@dexto/core');
         if (requiresApiKey(llmConfig.provider) && !llmConfig.apiKey?.trim()) {
