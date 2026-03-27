@@ -4,7 +4,7 @@
  * Provides typed errors for plan operations following the DextoRuntimeError pattern.
  */
 
-import { DextoRuntimeError, ErrorType } from '@dexto/core';
+import { DextoRuntimeError } from '@dexto/core';
 
 /**
  * Error codes for plan operations
@@ -39,7 +39,7 @@ export const PlanError = {
         return new DextoRuntimeError(
             PlanErrorCode.PLAN_ALREADY_EXISTS,
             'plan',
-            ErrorType.USER,
+            'user',
             `A plan already exists for session '${sessionId}'. Use plan_update to modify it.`,
             { sessionId },
             'Use plan_update to modify the existing plan, or plan_read to view it.'
@@ -53,7 +53,7 @@ export const PlanError = {
         return new DextoRuntimeError(
             PlanErrorCode.PLAN_NOT_FOUND,
             'plan',
-            ErrorType.NOT_FOUND,
+            'not_found',
             `No plan found for session '${sessionId}'.`,
             { sessionId },
             'Use plan_create to create a new plan for this session.'
@@ -67,7 +67,7 @@ export const PlanError = {
         return new DextoRuntimeError(
             PlanErrorCode.SESSION_ID_REQUIRED,
             'plan',
-            ErrorType.USER,
+            'user',
             'Session ID is required for plan operations.',
             {},
             'Ensure the tool is called within a valid session context.'
@@ -81,7 +81,7 @@ export const PlanError = {
         return new DextoRuntimeError(
             PlanErrorCode.INVALID_SESSION_ID,
             'plan',
-            ErrorType.USER,
+            'user',
             `Invalid session ID: '${sessionId}' contains invalid path characters.`,
             { sessionId },
             'Session IDs must not contain path traversal characters like "..".'
@@ -95,7 +95,7 @@ export const PlanError = {
         return new DextoRuntimeError(
             PlanErrorCode.CHECKPOINT_NOT_FOUND,
             'plan',
-            ErrorType.NOT_FOUND,
+            'not_found',
             `Checkpoint '${checkpointId}' not found in plan for session '${sessionId}'.`,
             { checkpointId, sessionId },
             'Use plan_read to view available checkpoints.'
@@ -109,7 +109,7 @@ export const PlanError = {
         return new DextoRuntimeError(
             PlanErrorCode.STORAGE_ERROR,
             'plan',
-            ErrorType.SYSTEM,
+            'system',
             `Failed to ${operation} plan for session '${sessionId}': ${cause?.message || 'unknown error'}`,
             { operation, sessionId, cause: cause?.message },
             'Check file system permissions and try again.'

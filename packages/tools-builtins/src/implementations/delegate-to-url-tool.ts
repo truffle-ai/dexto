@@ -2,8 +2,6 @@ import { z } from 'zod';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 import {
     DextoRuntimeError,
-    ErrorScope,
-    ErrorType,
     createLocalToolCallHeader,
     defineTool,
     truncateForHeader,
@@ -137,8 +135,8 @@ class SimpleA2AClient {
                 if (error instanceof Error && error.name === 'AbortError') {
                     throw new DextoRuntimeError(
                         'DELEGATION_TIMEOUT',
-                        ErrorScope.TOOLS,
-                        ErrorType.TIMEOUT,
+                        'tools',
+                        'timeout',
                         `Delegation timeout after ${this.timeout}ms`
                     );
                 }
@@ -150,8 +148,8 @@ class SimpleA2AClient {
 
         throw new DextoRuntimeError(
             'DELEGATION_FAILED',
-            ErrorScope.TOOLS,
-            ErrorType.THIRD_PARTY,
+            'tools',
+            'third_party',
             `Failed to connect to agent at ${this.url}. Tried endpoints: ${endpoints.join(', ')}. Last error: ${lastError?.message || 'Unknown error'}`
         );
     }
@@ -230,8 +228,8 @@ export function createDelegateToUrlTool(): Tool<typeof DelegateToUrlInputSchema>
 
                 throw new DextoRuntimeError(
                     'DELEGATION_ERROR',
-                    ErrorScope.TOOLS,
-                    ErrorType.SYSTEM,
+                    'tools',
+                    'system',
                     `Delegation failed: ${error instanceof Error ? error.message : String(error)}`
                 );
             }

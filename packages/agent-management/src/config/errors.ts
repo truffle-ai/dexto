@@ -1,4 +1,4 @@
-import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
+import { DextoRuntimeError } from '@dexto/core';
 import { ConfigErrorCode } from './error-codes.js';
 
 /**
@@ -10,8 +10,8 @@ export class ConfigError {
     static fileNotFound(configPath: string) {
         return new DextoRuntimeError(
             ConfigErrorCode.FILE_NOT_FOUND,
-            ErrorScope.CONFIG,
-            ErrorType.USER,
+            'config',
+            'user',
             `Configuration file not found: ${configPath}`,
             { configPath },
             'Ensure the configuration file exists at the specified path'
@@ -21,8 +21,8 @@ export class ConfigError {
     static fileReadError(configPath: string, cause: string) {
         return new DextoRuntimeError(
             ConfigErrorCode.FILE_READ_ERROR,
-            ErrorScope.CONFIG,
-            ErrorType.SYSTEM,
+            'config',
+            'system',
             `Failed to read configuration file: ${cause}`,
             { configPath, cause },
             'Check file permissions and ensure the file is not corrupted'
@@ -32,8 +32,8 @@ export class ConfigError {
     static fileWriteError(configPath: string, cause: string) {
         return new DextoRuntimeError(
             ConfigErrorCode.FILE_WRITE_ERROR,
-            ErrorScope.CONFIG,
-            ErrorType.SYSTEM,
+            'config',
+            'system',
             `Failed to write configuration file '${configPath}': ${cause}`,
             { configPath, cause },
             'Check file permissions and available disk space'
@@ -44,8 +44,8 @@ export class ConfigError {
     static parseError(configPath: string, cause: string) {
         return new DextoRuntimeError(
             ConfigErrorCode.PARSE_ERROR,
-            ErrorScope.CONFIG,
-            ErrorType.USER,
+            'config',
+            'user',
             `Failed to parse configuration file: ${cause}`,
             { configPath, cause },
             'Ensure the configuration file contains valid YAML syntax'
@@ -56,8 +56,8 @@ export class ConfigError {
     static noProjectDefault(projectPath: string) {
         return new DextoRuntimeError(
             ConfigErrorCode.NO_PROJECT_DEFAULT,
-            ErrorScope.CONFIG,
-            ErrorType.USER,
+            'config',
+            'user',
             `No project agent found and no global preferences configured.\nSet a primaryAgent in a workspace registry under agents/, create a single workspace agent under agents/, or run \`dexto setup\` to configure preferences.`,
             { projectPath },
             'Run `dexto setup` or create a project-specific agent config'
@@ -67,8 +67,8 @@ export class ConfigError {
     static invalidProjectPrimary(registryPath: string, primaryAgent: string, reason?: string) {
         return new DextoRuntimeError(
             ConfigErrorCode.INVALID_PROJECT_PRIMARY,
-            ErrorScope.CONFIG,
-            ErrorType.USER,
+            'config',
+            'user',
             `Invalid primaryAgent '${primaryAgent}' in ${registryPath}${reason ? `: ${reason}` : ''}`,
             { registryPath, primaryAgent, reason },
             'Update the workspace registry so primaryAgent points to a valid workspace agent config'
@@ -78,8 +78,8 @@ export class ConfigError {
     static noGlobalPreferences() {
         return new DextoRuntimeError(
             ConfigErrorCode.NO_GLOBAL_PREFERENCES,
-            ErrorScope.CONFIG,
-            ErrorType.USER,
+            'config',
+            'user',
             `No global preferences found. Run \`dexto setup\` to get started.`,
             {},
             'Run `dexto setup` to configure your AI preferences'
@@ -89,8 +89,8 @@ export class ConfigError {
     static setupIncomplete() {
         return new DextoRuntimeError(
             ConfigErrorCode.SETUP_INCOMPLETE,
-            ErrorScope.CONFIG,
-            ErrorType.USER,
+            'config',
+            'user',
             `Global preferences setup is incomplete. Run \`dexto setup\` to complete.`,
             {},
             'Run `dexto setup` to complete your configuration'
@@ -100,8 +100,8 @@ export class ConfigError {
     static bundledNotFound(bundledPath: string) {
         return new DextoRuntimeError(
             ConfigErrorCode.BUNDLED_NOT_FOUND,
-            ErrorScope.CONFIG,
-            ErrorType.NOT_FOUND,
+            'config',
+            'not_found',
             `Bundled default agent not found: ${bundledPath}. Run npm run build first.`,
             { path: bundledPath },
             'Run `npm run build` to build the bundled agents'
@@ -111,8 +111,8 @@ export class ConfigError {
     static unknownContext(context: string) {
         return new DextoRuntimeError(
             ConfigErrorCode.UNKNOWN_CONTEXT,
-            ErrorScope.CONFIG,
-            ErrorType.SYSTEM,
+            'config',
+            'system',
             `Unknown execution context: ${context}`,
             { context },
             'This is an internal error - please report it'

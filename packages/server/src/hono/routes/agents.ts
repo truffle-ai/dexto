@@ -14,7 +14,7 @@ import { stringify as yamlStringify, parse as yamlParse } from 'yaml';
 import os from 'os';
 import path from 'path';
 import { promises as fs } from 'fs';
-import { DextoValidationError, AgentErrorCode, ErrorScope, ErrorType } from '@dexto/core';
+import { DextoValidationError, AgentErrorCode } from '@dexto/core';
 import { AgentRegistryEntrySchema } from '../schemas/responses.js';
 import type { Context } from 'hono';
 import type { GetAgentConfigPathFn } from '../index.js';
@@ -839,8 +839,8 @@ export function createAgentsRouter(
                     {
                         code: AgentErrorCode.INVALID_CONFIG,
                         message: `Invalid YAML syntax: ${message}`,
-                        scope: ErrorScope.AGENT,
-                        type: ErrorType.USER,
+                        scope: 'agent',
+                        type: 'user',
                         severity: 'error',
                     },
                 ]);
@@ -852,8 +852,8 @@ export function createAgentsRouter(
                     {
                         code: AgentErrorCode.INVALID_CONFIG,
                         message: 'Configuration must be a valid YAML object',
-                        scope: ErrorScope.AGENT,
-                        type: ErrorType.USER,
+                        scope: 'agent',
+                        type: 'user',
                         severity: 'error',
                     },
                 ]);
@@ -873,8 +873,8 @@ export function createAgentsRouter(
                     validationResult.error.errors.map((err) => ({
                         code: AgentErrorCode.INVALID_CONFIG,
                         message: `${err.path.join('.')}: ${err.message}`,
-                        scope: ErrorScope.AGENT,
-                        type: ErrorType.USER,
+                        scope: 'agent',
+                        type: 'user',
                         severity: 'error',
                     }))
                 );

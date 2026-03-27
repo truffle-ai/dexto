@@ -12,7 +12,6 @@ import {
     LLM_PROVIDERS,
     NonEmptyTrimmed,
     OptionalURL,
-    ErrorType,
 } from '@dexto/core';
 import { PreferenceErrorCode } from './error-codes.js';
 
@@ -79,7 +78,7 @@ export const PreferenceLLMSchema = z
                 params: {
                     code: PreferenceErrorCode.MODEL_INCOMPATIBLE,
                     scope: 'preference',
-                    type: ErrorType.USER,
+                    type: 'user',
                 },
             });
         }
@@ -93,7 +92,7 @@ export const PreferenceLLMSchema = z
                 params: {
                     code: PreferenceErrorCode.INVALID_PREFERENCE_VALUE,
                     scope: 'preference',
-                    type: ErrorType.USER,
+                    type: 'user',
                 },
             });
         }
@@ -113,7 +112,7 @@ export const PreferenceLLMSchema = z
                     params: {
                         code: PreferenceErrorCode.INVALID_PREFERENCE_VALUE,
                         scope: 'preference',
-                        type: ErrorType.USER,
+                        type: 'user',
                     },
                 });
             }
@@ -128,7 +127,7 @@ export const PreferenceLLMSchema = z
                     params: {
                         code: PreferenceErrorCode.INVALID_PREFERENCE_VALUE,
                         scope: 'preference',
-                        type: ErrorType.USER,
+                        type: 'user',
                     },
                 });
             }

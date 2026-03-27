@@ -3,7 +3,6 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'node:url';
 import { loadAgentConfig } from './loader.js';
-import { ErrorScope, ErrorType } from '@dexto/core';
 import { ConfigErrorCode } from './error-codes.js';
 
 // Temp config file path relative to this test file (stable across monorepo runners)
@@ -59,8 +58,8 @@ mcpServers:
         await expect(loadAgentConfig(missing)).rejects.toThrow(
             expect.objectContaining({
                 code: ConfigErrorCode.FILE_NOT_FOUND,
-                scope: ErrorScope.CONFIG,
-                type: ErrorType.USER,
+                scope: 'config',
+                type: 'user',
             })
         );
     });
@@ -70,8 +69,8 @@ mcpServers:
         await expect(loadAgentConfig(tmpFile)).rejects.toThrow(
             expect.objectContaining({
                 code: ConfigErrorCode.FILE_READ_ERROR,
-                scope: ErrorScope.CONFIG,
-                type: ErrorType.SYSTEM,
+                scope: 'config',
+                type: 'system',
             })
         );
         await fs.unlink(tmpFile);
@@ -94,8 +93,8 @@ mcpServers:
         await expect(loadAgentConfig(tmpFile)).rejects.toThrow(
             expect.objectContaining({
                 code: ConfigErrorCode.PARSE_ERROR,
-                scope: ErrorScope.CONFIG,
-                type: ErrorType.USER,
+                scope: 'config',
+                type: 'user',
             })
         );
     });
@@ -106,8 +105,8 @@ mcpServers:
         await expect(loadAgentConfig(nonExistentPath)).rejects.toThrow(
             expect.objectContaining({
                 code: ConfigErrorCode.FILE_NOT_FOUND,
-                scope: ErrorScope.CONFIG,
-                type: ErrorType.USER,
+                scope: 'config',
+                type: 'user',
             })
         );
     });
@@ -202,8 +201,8 @@ mcpServers:
         await expect(loadAgentConfig(tmpFile)).rejects.toThrow(
             expect.objectContaining({
                 code: ConfigErrorCode.PARSE_ERROR,
-                scope: ErrorScope.CONFIG,
-                type: ErrorType.USER,
+                scope: 'config',
+                type: 'user',
             })
         );
     });
@@ -244,8 +243,8 @@ tools:
         await expect(loadAgentConfig(tmpFile)).rejects.toThrow(
             expect.objectContaining({
                 code: ConfigErrorCode.PARSE_ERROR,
-                scope: ErrorScope.CONFIG,
-                type: ErrorType.USER,
+                scope: 'config',
+                type: 'user',
             })
         );
     });

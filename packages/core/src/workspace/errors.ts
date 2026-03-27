@@ -1,5 +1,4 @@
 import { DextoValidationError } from '../errors/DextoValidationError.js';
-import { ErrorType } from '../errors/types.js';
 import { WorkspaceErrorCodes } from './error-codes.js';
 
 export class WorkspaceError {
@@ -9,7 +8,7 @@ export class WorkspaceError {
                 code: WorkspaceErrorCodes.PATH_REQUIRED,
                 message: 'Workspace path is required',
                 scope: 'workspace',
-                type: ErrorType.USER,
+                type: 'user',
                 severity: 'error',
                 path: ['path'],
             },

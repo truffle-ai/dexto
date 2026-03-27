@@ -1,5 +1,4 @@
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
-import { ErrorScope, ErrorType } from '../errors/types.js';
 import { MCPErrorCode } from './error-codes.js';
 
 /**
@@ -13,8 +12,8 @@ export class MCPError {
     static connectionFailed(serverName: string, reason: string) {
         return new DextoRuntimeError(
             MCPErrorCode.CONNECTION_FAILED,
-            ErrorScope.MCP,
-            ErrorType.THIRD_PARTY,
+            'mcp',
+            'third_party',
             `Failed to connect to MCP server '${serverName}': ${reason}`,
             { serverName, reason },
             'Check that the MCP server is running and accessible'
@@ -27,8 +26,8 @@ export class MCPError {
     static disconnectionFailed(serverName: string, reason: string) {
         return new DextoRuntimeError(
             MCPErrorCode.DISCONNECTION_FAILED,
-            ErrorScope.MCP,
-            ErrorType.SYSTEM,
+            'mcp',
+            'system',
             `Failed to disconnect MCP server '${serverName}': ${reason}`,
             { serverName, reason },
             'Try restarting the application if the server remains in an inconsistent state'
@@ -41,8 +40,8 @@ export class MCPError {
     static protocolError(message: string, details?: unknown) {
         return new DextoRuntimeError(
             MCPErrorCode.PROTOCOL_ERROR,
-            ErrorScope.MCP,
-            ErrorType.THIRD_PARTY,
+            'mcp',
+            'third_party',
             `MCP protocol error: ${message}`,
             details,
             'Check MCP server compatibility and protocol version'
@@ -55,8 +54,8 @@ export class MCPError {
     static authenticationRequired(serverName: string, reason?: string) {
         return new DextoRuntimeError(
             MCPErrorCode.AUTH_REQUIRED,
-            ErrorScope.MCP,
-            ErrorType.THIRD_PARTY,
+            'mcp',
+            'third_party',
             `Authentication required for MCP server '${serverName}'${reason ? `: ${reason}` : ''}`,
             { serverName, reason },
             'Authenticate with the MCP server using the CLI /mcp flow'
@@ -69,8 +68,8 @@ export class MCPError {
     static duplicateName(name: string, existingName: string) {
         return new DextoRuntimeError(
             MCPErrorCode.DUPLICATE_NAME,
-            ErrorScope.MCP,
-            ErrorType.USER,
+            'mcp',
+            'user',
             `Server name '${name}' conflicts with existing '${existingName}'`,
             { name, existingName },
             'Use a unique name for each MCP server'
@@ -83,8 +82,8 @@ export class MCPError {
     static serverNotFound(serverName: string, reason?: string) {
         return new DextoRuntimeError(
             MCPErrorCode.SERVER_NOT_FOUND,
-            ErrorScope.MCP,
-            ErrorType.NOT_FOUND,
+            'mcp',
+            'not_found',
             `MCP server '${serverName}' not found${reason ? `: ${reason}` : ''}`,
             { serverName, reason }
         );
@@ -96,8 +95,8 @@ export class MCPError {
     static toolNotFound(toolName: string) {
         return new DextoRuntimeError(
             MCPErrorCode.TOOL_NOT_FOUND,
-            ErrorScope.MCP,
-            ErrorType.NOT_FOUND,
+            'mcp',
+            'not_found',
             `No MCP tool found: ${toolName}`,
             { toolName }
         );
@@ -109,8 +108,8 @@ export class MCPError {
     static promptNotFound(promptName: string) {
         return new DextoRuntimeError(
             MCPErrorCode.PROMPT_NOT_FOUND,
-            ErrorScope.MCP,
-            ErrorType.NOT_FOUND,
+            'mcp',
+            'not_found',
             `No client found for prompt: ${promptName}`,
             { promptName }
         );
@@ -122,8 +121,8 @@ export class MCPError {
     static resourceNotFound(resourceUri: string) {
         return new DextoRuntimeError(
             MCPErrorCode.RESOURCE_NOT_FOUND,
-            ErrorScope.MCP,
-            ErrorType.NOT_FOUND,
+            'mcp',
+            'not_found',
             `No client found for resource: ${resourceUri}`,
             { resourceUri }
         );
@@ -135,8 +134,8 @@ export class MCPError {
     static clientNotConnected(context?: string) {
         return new DextoRuntimeError(
             MCPErrorCode.CONNECTION_FAILED,
-            ErrorScope.MCP,
-            ErrorType.SYSTEM,
+            'mcp',
+            'system',
             `MCP client is not connected${context ? `: ${context}` : ''}`,
             { context }
         );
@@ -148,8 +147,8 @@ export class MCPError {
     static invalidToolSchema(toolName: string, reason: string) {
         return new DextoRuntimeError(
             MCPErrorCode.PROTOCOL_ERROR,
-            ErrorScope.MCP,
-            ErrorType.THIRD_PARTY,
+            'mcp',
+            'third_party',
             `Tool '${toolName}' has invalid schema: ${reason}`,
             { toolName, reason }
         );

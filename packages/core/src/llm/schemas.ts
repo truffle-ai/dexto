@@ -1,5 +1,4 @@
 import { LLMErrorCode } from './error-codes.js';
-import { ErrorScope, ErrorType } from '../errors/types.js';
 import { DextoRuntimeError } from '../errors/index.js';
 import { NonEmptyTrimmed, EnvExpandedString, OptionalURL } from '../utils/result.js';
 import { z } from 'zod';
@@ -133,8 +132,8 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
                 `'openai/gpt-5-mini' or 'anthropic/claude-sonnet-4.5'). You provided '${data.model}'.`,
             params: {
                 code: LLMErrorCode.MODEL_INCOMPATIBLE,
-                scope: ErrorScope.LLM,
-                type: ErrorType.USER,
+                scope: 'llm',
+                type: 'user',
             },
         });
     }
@@ -149,8 +148,8 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
                     `Use an 'openai-compatible' provider if you need a custom base URL.`,
                 params: {
                     code: LLMErrorCode.BASE_URL_INVALID,
-                    scope: ErrorScope.LLM,
-                    type: ErrorType.USER,
+                    scope: 'llm',
+                    type: 'user',
                 },
             });
         }
@@ -170,8 +169,8 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
                         `Supported: ${supportedModelsList.join(', ')}`,
                     params: {
                         code: LLMErrorCode.MODEL_INCOMPATIBLE,
-                        scope: ErrorScope.LLM,
-                        type: ErrorType.USER,
+                        scope: 'llm',
+                        type: 'user',
                     },
                 });
             }
@@ -194,8 +193,8 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
                             `You provided ${data.maxInputTokens}`,
                         params: {
                             code: LLMErrorCode.TOKENS_EXCEEDED,
-                            scope: ErrorScope.LLM,
-                            type: ErrorType.USER,
+                            scope: 'llm',
+                            type: 'user',
                         },
                     });
                 }
@@ -225,8 +224,8 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
                         message,
                         params: {
                             code: LLMErrorCode.REQUEST_INVALID_SCHEMA,
-                            scope: ErrorScope.LLM,
-                            type: ErrorType.SYSTEM,
+                            scope: 'llm',
+                            type: 'system',
                         },
                     });
                 }
@@ -248,8 +247,8 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
                     `model '${data.model}'. Supported: ${profile.variants.map((entry) => entry.id).join(', ')}`,
                 params: {
                     code: LLMErrorCode.MODEL_INCOMPATIBLE,
-                    scope: ErrorScope.LLM,
-                    type: ErrorType.USER,
+                    scope: 'llm',
+                    type: 'user',
                 },
             });
         }
@@ -263,8 +262,8 @@ export const LLMConfigSchema = LLMConfigBaseSchema.superRefine((data, ctx) => {
                     `model '${data.model}'. Remove reasoning.budgetTokens to use provider defaults.`,
                 params: {
                     code: LLMErrorCode.MODEL_INCOMPATIBLE,
-                    scope: ErrorScope.LLM,
-                    type: ErrorType.USER,
+                    scope: 'llm',
+                    type: 'user',
                 },
             });
         }
@@ -318,8 +317,8 @@ export const LLMUpdatesSchema = z
                         `model '${data.model}'. Supported: ${profile.variants.map((entry) => entry.id).join(', ')}`,
                     params: {
                         code: LLMErrorCode.MODEL_INCOMPATIBLE,
-                        scope: ErrorScope.LLM,
-                        type: ErrorType.USER,
+                        scope: 'llm',
+                        type: 'user',
                     },
                 });
             }
@@ -333,8 +332,8 @@ export const LLMUpdatesSchema = z
                         `model '${data.model}'. Remove reasoning.budgetTokens to use provider defaults.`,
                     params: {
                         code: LLMErrorCode.MODEL_INCOMPATIBLE,
-                        scope: ErrorScope.LLM,
-                        type: ErrorType.USER,
+                        scope: 'llm',
+                        type: 'user',
                     },
                 });
             }

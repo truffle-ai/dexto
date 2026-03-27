@@ -2,8 +2,6 @@ import { z } from 'zod';
 import type { Tool, ToolExecutionContext } from '@dexto/core';
 import {
     DextoRuntimeError,
-    ErrorScope,
-    ErrorType,
     createLocalToolCallHeader,
     defineTool,
     truncateForHeader,
@@ -164,8 +162,8 @@ export function createSafeLookup(config?: {
                         toErrnoException(
                             new DextoRuntimeError(
                                 'HTTP_REQUEST_UNSAFE_TARGET',
-                                ErrorScope.TOOLS,
-                                ErrorType.FORBIDDEN,
+                                'tools',
+                                'forbidden',
                                 `Blocked request to local hostname: ${hostname}`
                             )
                         )
@@ -186,8 +184,8 @@ export function createSafeLookup(config?: {
                         toErrnoException(
                             new DextoRuntimeError(
                                 'HTTP_REQUEST_DNS_FAILED',
-                                ErrorScope.TOOLS,
-                                ErrorType.THIRD_PARTY,
+                                'tools',
+                                'third_party',
                                 `Failed to resolve hostname: ${hostname}`
                             )
                         )
@@ -201,8 +199,8 @@ export function createSafeLookup(config?: {
                             toErrnoException(
                                 new DextoRuntimeError(
                                     'HTTP_REQUEST_UNSAFE_TARGET',
-                                    ErrorScope.TOOLS,
-                                    ErrorType.FORBIDDEN,
+                                    'tools',
+                                    'forbidden',
                                     `Blocked request to private address: ${record.address}`
                                 )
                             )
@@ -230,8 +228,8 @@ export function createSafeLookup(config?: {
                         toErrnoException(
                             new DextoRuntimeError(
                                 'HTTP_REQUEST_DNS_FAILED',
-                                ErrorScope.TOOLS,
-                                ErrorType.THIRD_PARTY,
+                                'tools',
+                                'third_party',
                                 `Failed to resolve hostname: ${hostname}`
                             )
                         )
@@ -254,8 +252,8 @@ export function createSafeLookup(config?: {
                         ? error
                         : new DextoRuntimeError(
                               'HTTP_REQUEST_DNS_FAILED',
-                              ErrorScope.TOOLS,
-                              ErrorType.THIRD_PARTY,
+                              'tools',
+                              'third_party',
                               `Failed to resolve hostname: ${hostname}`
                           );
 
@@ -275,8 +273,8 @@ async function assertSafeUrl(requestUrl: URL): Promise<void> {
     if (!['http:', 'https:'].includes(requestUrl.protocol)) {
         throw new DextoRuntimeError(
             'HTTP_REQUEST_UNSUPPORTED_PROTOCOL',
-            ErrorScope.TOOLS,
-            ErrorType.USER,
+            'tools',
+            'user',
             `Unsupported URL protocol: ${requestUrl.protocol}`
         );
     }
@@ -285,8 +283,8 @@ async function assertSafeUrl(requestUrl: URL): Promise<void> {
     if (!hostname) {
         throw new DextoRuntimeError(
             'HTTP_REQUEST_INVALID_TARGET',
-            ErrorScope.TOOLS,
-            ErrorType.USER,
+            'tools',
+            'user',
             'Request URL hostname is required'
         );
     }
@@ -294,8 +292,8 @@ async function assertSafeUrl(requestUrl: URL): Promise<void> {
     if (BLOCKED_HOSTNAMES.has(hostname) || hostname.endsWith('.localhost')) {
         throw new DextoRuntimeError(
             'HTTP_REQUEST_UNSAFE_TARGET',
-            ErrorScope.TOOLS,
-            ErrorType.FORBIDDEN,
+            'tools',
+            'forbidden',
             `Blocked request to local hostname: ${hostname}`
         );
     }
@@ -303,8 +301,8 @@ async function assertSafeUrl(requestUrl: URL): Promise<void> {
     if (isPrivateAddress(hostname)) {
         throw new DextoRuntimeError(
             'HTTP_REQUEST_UNSAFE_TARGET',
-            ErrorScope.TOOLS,
-            ErrorType.FORBIDDEN,
+            'tools',
+            'forbidden',
             `Blocked request to private address: ${hostname}`
         );
     }
@@ -317,8 +315,8 @@ async function readResponseTextWithLimit(response: Response): Promise<string> {
         if (!Number.isNaN(parsed) && parsed > MAX_RESPONSE_BYTES) {
             throw new DextoRuntimeError(
                 'HTTP_REQUEST_RESPONSE_TOO_LARGE',
-                ErrorScope.TOOLS,
-                ErrorType.THIRD_PARTY,
+                'tools',
+                'third_party',
                 `Response too large: ${parsed} bytes exceeds ${MAX_RESPONSE_BYTES} byte limit`
             );
         }
@@ -342,8 +340,8 @@ async function readResponseTextWithLimit(response: Response): Promise<string> {
             await reader.cancel();
             throw new DextoRuntimeError(
                 'HTTP_REQUEST_RESPONSE_TOO_LARGE',
-                ErrorScope.TOOLS,
-                ErrorType.THIRD_PARTY,
+                'tools',
+                'third_party',
                 `Response too large: exceeded ${MAX_RESPONSE_BYTES} byte limit`
             );
         }
@@ -443,16 +441,16 @@ export function createHttpRequestTool(): Tool<typeof HttpRequestInputSchema> {
                 if (error instanceof Error && error.name === 'AbortError') {
                     throw new DextoRuntimeError(
                         'HTTP_REQUEST_TIMEOUT',
-                        ErrorScope.TOOLS,
-                        ErrorType.TIMEOUT,
+                        'tools',
+                        'timeout',
                         `HTTP request timed out after ${timeoutMs}ms`
                     );
                 }
 
                 throw new DextoRuntimeError(
                     'HTTP_REQUEST_FAILED',
-                    ErrorScope.TOOLS,
-                    ErrorType.THIRD_PARTY,
+                    'tools',
+                    'third_party',
                     `HTTP request failed: ${error instanceof Error ? error.message : String(error)}`
                 );
             } finally {

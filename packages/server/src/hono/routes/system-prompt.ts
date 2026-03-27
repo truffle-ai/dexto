@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
-import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
+import { DextoRuntimeError } from '@dexto/core';
 import { StandardErrorEnvelopeSchema } from '../schemas/responses.js';
 import type { Context } from 'hono';
 
@@ -158,8 +158,8 @@ export function createSystemPromptRouter(getAgent: GetAgentFn) {
             if (contributorId.length === 0) {
                 throw new DextoRuntimeError(
                     'systemprompt_contributor_config_invalid',
-                    ErrorScope.SYSTEM_PROMPT,
-                    ErrorType.USER,
+                    'system_prompt',
+                    'user',
                     'A valid contributor id is required',
                     {
                         id: payload.id,
@@ -188,8 +188,8 @@ export function createSystemPromptRouter(getAgent: GetAgentFn) {
             if (!hasContent || content.trim().length === 0) {
                 throw new DextoRuntimeError(
                     'systemprompt_contributor_config_invalid',
-                    ErrorScope.SYSTEM_PROMPT,
-                    ErrorType.USER,
+                    'system_prompt',
+                    'user',
                     'Contributor content is required when enabled',
                     {
                         id: payload.id,

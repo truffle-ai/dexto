@@ -3,7 +3,7 @@ import type { LLMProvider } from './types.js';
 import type { Logger } from '../logger/v2/types.js';
 import type { ImageData, FileData } from '../context/types.js';
 import { Result, ok, fail } from '../utils/result.js';
-import { Issue, ErrorScope, ErrorType } from '../errors/types.js';
+import { Issue } from '../errors/types.js';
 import { LLMErrorCode } from './error-codes.js';
 
 // TOOD: Refactor/simplify this file
@@ -79,8 +79,8 @@ export function validateInputForLLM(
                 issues.push({
                     code: LLMErrorCode.INPUT_FILE_UNSUPPORTED,
                     message: fileValidation.error || 'File type not supported by current LLM',
-                    scope: ErrorScope.LLM,
-                    type: ErrorType.USER,
+                    scope: 'llm',
+                    type: 'user',
                     severity: 'error',
                     context: {
                         ...context,
@@ -102,8 +102,8 @@ export function validateInputForLLM(
                 issues.push({
                     code: LLMErrorCode.INPUT_IMAGE_UNSUPPORTED,
                     message: imageValidation.error || 'Image format not supported by current LLM',
-                    scope: ErrorScope.LLM,
-                    type: ErrorType.USER,
+                    scope: 'llm',
+                    type: 'user',
                     severity: 'error',
                     context: {
                         ...context,
@@ -124,8 +124,8 @@ export function validateInputForLLM(
             {
                 code: LLMErrorCode.REQUEST_INVALID_SCHEMA,
                 message: 'Failed to validate input',
-                scope: ErrorScope.LLM,
-                type: ErrorType.SYSTEM,
+                scope: 'llm',
+                type: 'system',
                 severity: 'error',
                 context: {
                     provider: config.provider,

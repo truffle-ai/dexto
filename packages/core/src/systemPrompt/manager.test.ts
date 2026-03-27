@@ -5,7 +5,6 @@ import type { DynamicContributorContext } from './types.js';
 import * as registry from './registry.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { SystemPromptErrorCode } from './error-codes.js';
-import { ErrorScope, ErrorType } from '../errors/types.js';
 import * as path from 'path';
 
 // Mock the registry functions
@@ -288,8 +287,8 @@ You can help with:
             })() as DextoRuntimeError;
             expect(error).toBeInstanceOf(DextoRuntimeError);
             expect(error.code).toBe(SystemPromptErrorCode.CONTRIBUTOR_SOURCE_UNKNOWN);
-            expect(error.scope).toBe(ErrorScope.SYSTEM_PROMPT);
-            expect(error.type).toBe(ErrorType.USER);
+            expect(error.scope).toBe('system_prompt');
+            expect(error.type).toBe('user');
         });
 
         it('should handle multiple dynamic contributors', async () => {

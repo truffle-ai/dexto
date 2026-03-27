@@ -10,7 +10,7 @@ import {
 import type { ToolDisplayData } from './display-types.js';
 import { ToolError } from './errors.js';
 import { ToolErrorCode } from './error-codes.js';
-import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
+import { DextoRuntimeError } from '../errors/index.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { convertZodSchemaToJsonSchema } from '../utils/schema.js';
@@ -1090,8 +1090,8 @@ export class ToolManager {
             } catch (error) {
                 if (
                     error instanceof DextoRuntimeError &&
-                    error.scope === ErrorScope.SESSION &&
-                    error.type === ErrorType.NOT_FOUND
+                    error.scope === 'session' &&
+                    error.type === 'not_found'
                 ) {
                     this.logger.debug('Session not found while building contributor context', {
                         sessionId,

@@ -1,8 +1,8 @@
 import type { LLMProvider, SupportedFileType } from '../types.js';
 import type { ModelInfo } from './index.js';
+import type { Issue } from '../../errors/types.js';
 import { DextoValidationError } from '../../errors/DextoValidationError.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
-import { ErrorScope, ErrorType } from '../../errors/types.js';
 
 export const MODELS_DEV_URL = 'https://models.dev/api.json';
 
@@ -62,12 +62,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function makeIssue(message: string, path?: Array<string | number>) {
+function makeIssue(message: string, path?: Array<string | number>): Issue {
     return {
         code: 'llm_registry_models_dev_parse',
         message,
-        scope: ErrorScope.LLM,
-        type: ErrorType.USER,
+        scope: 'llm',
+        type: 'user',
         severity: 'error' as const,
         ...(path ? { path } : {}),
     };
@@ -376,8 +376,8 @@ function buildModelsFromModelsDevProvider(params: {
     if (!modelsDevProvider) {
         throw new DextoRuntimeError(
             'llm_registry_models_dev_provider_missing',
-            ErrorScope.LLM,
-            ErrorType.THIRD_PARTY,
+            'llm',
+            'third_party',
             `models.dev provider '${spec.modelsDevProviderId}' not found (needed for dexto-nova provider '${spec.provider}')`,
             { modelsDevProviderId: spec.modelsDevProviderId, provider: spec.provider }
         );
@@ -567,8 +567,8 @@ export async function buildModelsByProviderFromRemote(options?: {
     if (!modelsDevRes.ok) {
         throw new DextoRuntimeError(
             'llm_registry_models_dev_fetch_failed',
-            ErrorScope.LLM,
-            ErrorType.THIRD_PARTY,
+            'llm',
+            'third_party',
             `Failed to fetch models.dev (${modelsDevRes.status} ${modelsDevRes.statusText})`,
             { status: modelsDevRes.status, statusText: modelsDevRes.statusText }
         );

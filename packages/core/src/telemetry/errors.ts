@@ -1,5 +1,4 @@
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
-import { ErrorScope, ErrorType } from '../errors/types.js';
 import { TelemetryErrorCode } from './error-codes.js';
 
 /**
@@ -13,8 +12,8 @@ export class TelemetryError {
     static dependencyNotInstalled(packages: string[]): DextoRuntimeError {
         return new DextoRuntimeError(
             TelemetryErrorCode.DEPENDENCY_NOT_INSTALLED,
-            ErrorScope.TELEMETRY,
-            ErrorType.USER,
+            'telemetry',
+            'user',
             'Telemetry is enabled but required OpenTelemetry packages are not installed.',
             {
                 packages,
@@ -33,8 +32,8 @@ export class TelemetryError {
     ): DextoRuntimeError {
         return new DextoRuntimeError(
             TelemetryErrorCode.EXPORTER_DEPENDENCY_NOT_INSTALLED,
-            ErrorScope.TELEMETRY,
-            ErrorType.USER,
+            'telemetry',
+            'user',
             `OTLP ${exporterType.toUpperCase()} exporter configured but '${packageName}' is not installed.`,
             {
                 exporterType,
@@ -50,8 +49,8 @@ export class TelemetryError {
     static initializationFailed(reason: string, originalError?: unknown): DextoRuntimeError {
         return new DextoRuntimeError(
             TelemetryErrorCode.INITIALIZATION_FAILED,
-            ErrorScope.TELEMETRY,
-            ErrorType.SYSTEM,
+            'telemetry',
+            'system',
             `Failed to initialize telemetry: ${reason}`,
             {
                 reason,
@@ -67,8 +66,8 @@ export class TelemetryError {
     static notInitialized(): DextoRuntimeError {
         return new DextoRuntimeError(
             TelemetryErrorCode.NOT_INITIALIZED,
-            ErrorScope.TELEMETRY,
-            ErrorType.USER,
+            'telemetry',
+            'user',
             'Telemetry not initialized. Call Telemetry.init() first.',
             {
                 hint: 'Ensure telemetry is initialized before accessing the global instance.',
@@ -82,8 +81,8 @@ export class TelemetryError {
     static shutdownFailed(reason: string): DextoRuntimeError {
         return new DextoRuntimeError(
             TelemetryErrorCode.SHUTDOWN_FAILED,
-            ErrorScope.TELEMETRY,
-            ErrorType.SYSTEM,
+            'telemetry',
+            'system',
             `Telemetry shutdown failed: ${reason}`,
             { reason }
         );

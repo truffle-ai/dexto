@@ -2,7 +2,7 @@
  * Error classes for scheduler operations
  */
 
-import { DextoRuntimeError, ErrorType } from '@dexto/core';
+import { DextoRuntimeError } from '@dexto/core';
 import { SchedulerErrorCode } from './error-codes.js';
 
 /**
@@ -19,7 +19,7 @@ export class SchedulerError {
         return new DextoRuntimeError(
             SchedulerErrorCode.SCHEDULER_NOT_ENABLED,
             SCHEDULER_ERROR_SCOPE,
-            ErrorType.USER,
+            'user',
             'Scheduler is not enabled in configuration',
             undefined,
             'Add scheduler-tools to customTools in your agent configuration'
@@ -30,7 +30,7 @@ export class SchedulerError {
         return new DextoRuntimeError(
             SchedulerErrorCode.SCHEDULER_MISSING_STORAGE,
             SCHEDULER_ERROR_SCOPE,
-            ErrorType.SYSTEM,
+            'system',
             'StorageManager is required but not available',
             undefined,
             'Ensure StorageManager is available in context.services'
@@ -41,7 +41,7 @@ export class SchedulerError {
         return new DextoRuntimeError(
             SchedulerErrorCode.SCHEDULER_INVALID_CONFIG,
             SCHEDULER_ERROR_SCOPE,
-            ErrorType.USER,
+            'user',
             `Invalid scheduler configuration: ${details}`,
             { details }
         );
@@ -51,7 +51,7 @@ export class SchedulerError {
         return new DextoRuntimeError(
             SchedulerErrorCode.SCHEDULE_INVALID_CRON,
             SCHEDULER_ERROR_SCOPE,
-            ErrorType.USER,
+            'user',
             `Invalid cron expression: ${expression}${details ? ` - ${details}` : ''}`,
             { expression, details }
         );
@@ -61,7 +61,7 @@ export class SchedulerError {
         return new DextoRuntimeError(
             SchedulerErrorCode.SCHEDULE_INVALID_INPUT,
             SCHEDULER_ERROR_SCOPE,
-            ErrorType.USER,
+            'user',
             `Invalid schedule input: ${details}`,
             { details }
         );
@@ -71,7 +71,7 @@ export class SchedulerError {
         return new DextoRuntimeError(
             SchedulerErrorCode.SCHEDULE_LIMIT_REACHED,
             SCHEDULER_ERROR_SCOPE,
-            ErrorType.USER,
+            'user',
             `Schedule limit reached: ${current}/${max}`,
             { current, max },
             'Delete unused schedules or increase maxSchedules in configuration'
@@ -82,7 +82,7 @@ export class SchedulerError {
         return new DextoRuntimeError(
             SchedulerErrorCode.SCHEDULE_NOT_FOUND,
             SCHEDULER_ERROR_SCOPE,
-            ErrorType.NOT_FOUND,
+            'not_found',
             `Schedule not found: ${scheduleId}`,
             { scheduleId }
         );
@@ -92,7 +92,7 @@ export class SchedulerError {
         return new DextoRuntimeError(
             SchedulerErrorCode.SCHEDULE_CREATE_FAILED,
             SCHEDULER_ERROR_SCOPE,
-            ErrorType.SYSTEM,
+            'system',
             `Failed to create schedule: ${details}`,
             { details }
         );
@@ -102,7 +102,7 @@ export class SchedulerError {
         return new DextoRuntimeError(
             SchedulerErrorCode.SCHEDULE_UPDATE_FAILED,
             SCHEDULER_ERROR_SCOPE,
-            ErrorType.SYSTEM,
+            'system',
             `Failed to update schedule ${scheduleId}: ${details}`,
             { scheduleId, details }
         );
@@ -112,7 +112,7 @@ export class SchedulerError {
         return new DextoRuntimeError(
             SchedulerErrorCode.SCHEDULE_DELETE_FAILED,
             SCHEDULER_ERROR_SCOPE,
-            ErrorType.SYSTEM,
+            'system',
             `Failed to delete schedule ${scheduleId}: ${details}`,
             { scheduleId, details }
         );
@@ -122,7 +122,7 @@ export class SchedulerError {
         return new DextoRuntimeError(
             SchedulerErrorCode.SCHEDULE_EXECUTION_FAILED,
             SCHEDULER_ERROR_SCOPE,
-            ErrorType.SYSTEM,
+            'system',
             `Schedule execution failed for ${scheduleId}: ${details}`,
             { scheduleId, details }
         );
@@ -132,7 +132,7 @@ export class SchedulerError {
         return new DextoRuntimeError(
             SchedulerErrorCode.SCHEDULE_EXECUTION_TIMEOUT,
             SCHEDULER_ERROR_SCOPE,
-            ErrorType.TIMEOUT,
+            'timeout',
             `Schedule execution timed out for ${scheduleId} after ${timeout}ms`,
             { scheduleId, timeout }
         );
@@ -142,7 +142,7 @@ export class SchedulerError {
         return new DextoRuntimeError(
             SchedulerErrorCode.STORAGE_READ_FAILED,
             SCHEDULER_ERROR_SCOPE,
-            ErrorType.SYSTEM,
+            'system',
             `Storage read failed for ${operation}: ${details}`,
             { operation, details }
         );
@@ -152,7 +152,7 @@ export class SchedulerError {
         return new DextoRuntimeError(
             SchedulerErrorCode.STORAGE_WRITE_FAILED,
             SCHEDULER_ERROR_SCOPE,
-            ErrorType.SYSTEM,
+            'system',
             `Storage write failed for ${operation}: ${details}`,
             { operation, details }
         );

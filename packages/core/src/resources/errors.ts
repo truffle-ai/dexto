@@ -1,5 +1,4 @@
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
-import { ErrorScope, ErrorType } from '../errors/types.js';
 import { ResourceErrorCodes } from './error-codes.js';
 
 /**
@@ -41,8 +40,8 @@ export class ResourceError {
     static invalidUriFormat(uri: string, expected?: string) {
         return new DextoRuntimeError(
             ResourceErrorCodes.INVALID_URI_FORMAT,
-            ErrorScope.RESOURCE,
-            ErrorType.USER,
+            'resource',
+            'user',
             `Invalid resource URI format: '${ResourceError.redactUri(uri)}'${expected ? ` (expected ${expected})` : ''}`,
             { uri: ResourceError.redactUri(uri), uriRaw: uri, expected },
             expected ? `Use format: ${expected}` : 'Check the resource URI format'
@@ -52,8 +51,8 @@ export class ResourceError {
     static emptyUri() {
         return new DextoRuntimeError(
             ResourceErrorCodes.EMPTY_URI,
-            ErrorScope.RESOURCE,
-            ErrorType.USER,
+            'resource',
+            'user',
             'Resource URI cannot be empty',
             {},
             'Provide a valid resource URI'
@@ -64,8 +63,8 @@ export class ResourceError {
     static resourceNotFound(uri: string) {
         return new DextoRuntimeError(
             ResourceErrorCodes.RESOURCE_NOT_FOUND,
-            ErrorScope.RESOURCE,
-            ErrorType.NOT_FOUND,
+            'resource',
+            'not_found',
             `Resource not found: '${ResourceError.redactUri(uri)}'`,
             { uri: ResourceError.redactUri(uri), uriRaw: uri },
             'Check that the resource exists and is accessible'
@@ -75,8 +74,8 @@ export class ResourceError {
     static providerNotInitialized(providerType: string, uri: string) {
         return new DextoRuntimeError(
             ResourceErrorCodes.PROVIDER_NOT_INITIALIZED,
-            ErrorScope.RESOURCE,
-            ErrorType.SYSTEM,
+            'resource',
+            'system',
             `${providerType} resource provider not initialized for: '${ResourceError.redactUri(uri)}'`,
             { providerType, uri: ResourceError.redactUri(uri), uriRaw: uri },
             'Ensure the resource provider is properly configured'
@@ -86,8 +85,8 @@ export class ResourceError {
     static providerNotAvailable(providerType: string) {
         return new DextoRuntimeError(
             ResourceErrorCodes.PROVIDER_NOT_AVAILABLE,
-            ErrorScope.RESOURCE,
-            ErrorType.SYSTEM,
+            'resource',
+            'system',
             `${providerType} resource provider is not available`,
             { providerType },
             'Check resource provider configuration and availability'
@@ -99,8 +98,8 @@ export class ResourceError {
         const { message: reasonMsg, raw: reasonRaw } = ResourceError.toMessageAndRaw(reason);
         return new DextoRuntimeError(
             ResourceErrorCodes.READ_FAILED,
-            ErrorScope.RESOURCE,
-            ErrorType.SYSTEM,
+            'resource',
+            'system',
             `Failed to read resource '${ResourceError.redactUri(uri)}': ${reasonMsg}`,
             { uri: ResourceError.redactUri(uri), uriRaw: uri, reason: reasonMsg, reasonRaw },
             'Check resource permissions and availability'
@@ -110,8 +109,8 @@ export class ResourceError {
     static accessDenied(uri: string) {
         return new DextoRuntimeError(
             ResourceErrorCodes.ACCESS_DENIED,
-            ErrorScope.RESOURCE,
-            ErrorType.FORBIDDEN,
+            'resource',
+            'forbidden',
             `Access denied to resource: '${ResourceError.redactUri(uri)}'`,
             { uri: ResourceError.redactUri(uri), uriRaw: uri },
             'Ensure you have permission to access this resource'
@@ -122,8 +121,8 @@ export class ResourceError {
     static noSuitableProvider(uri: string) {
         return new DextoRuntimeError(
             ResourceErrorCodes.NO_SUITABLE_PROVIDER,
-            ErrorScope.RESOURCE,
-            ErrorType.NOT_FOUND,
+            'resource',
+            'not_found',
             `No suitable provider found for resource: '${ResourceError.redactUri(uri)}'`,
             { uri: ResourceError.redactUri(uri), uriRaw: uri },
             'Check that the resource type is supported'
@@ -134,8 +133,8 @@ export class ResourceError {
         const { message: reasonMsg, raw: reasonRaw } = ResourceError.toMessageAndRaw(reason);
         return new DextoRuntimeError(
             ResourceErrorCodes.PROVIDER_ERROR,
-            ErrorScope.RESOURCE,
-            ErrorType.SYSTEM,
+            'resource',
+            'system',
             `${providerType} provider failed during ${operation}: ${reasonMsg}`,
             { providerType, operation, reason: reasonMsg, reasonRaw },
             'Check provider configuration and logs for details'

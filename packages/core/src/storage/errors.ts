@@ -1,6 +1,4 @@
 import { DextoRuntimeError, DextoValidationError } from '../errors/index.js';
-import { ErrorScope, ErrorType } from '../errors/types.js';
-import { StorageErrorCode } from './error-codes.js';
 
 /**
  * Storage error factory with typed methods for creating storage-specific errors
@@ -13,9 +11,9 @@ export class StorageError {
      */
     static connectionFailed(reason: string, config?: Record<string, unknown>) {
         return new DextoRuntimeError(
-            StorageErrorCode.CONNECTION_FAILED,
-            ErrorScope.STORAGE,
-            ErrorType.THIRD_PARTY,
+            'storage_connection_failed',
+            'storage',
+            'third_party',
             `Storage connection failed: ${reason}`,
             { reason, config }
         );
@@ -26,9 +24,9 @@ export class StorageError {
      */
     static notConnected(backendType: string) {
         return new DextoRuntimeError(
-            StorageErrorCode.CONNECTION_FAILED,
-            ErrorScope.STORAGE,
-            ErrorType.SYSTEM,
+            'storage_connection_failed',
+            'storage',
+            'system',
             `${backendType} not connected`,
             { backendType }
         );
@@ -39,9 +37,9 @@ export class StorageError {
      */
     static managerNotInitialized(method: string) {
         return new DextoRuntimeError(
-            StorageErrorCode.MANAGER_NOT_INITIALIZED,
-            ErrorScope.STORAGE,
-            ErrorType.USER,
+            'storage_manager_not_initialized',
+            'storage',
+            'user',
             `StorageManager is not initialized. Call initialize() before ${method}()`,
             { method, hint: 'Call await manager.initialize() first' }
         );
@@ -52,9 +50,9 @@ export class StorageError {
      */
     static managerNotConnected(method: string) {
         return new DextoRuntimeError(
-            StorageErrorCode.MANAGER_NOT_CONNECTED,
-            ErrorScope.STORAGE,
-            ErrorType.USER,
+            'storage_manager_not_connected',
+            'storage',
+            'user',
             `StorageManager is not connected. Call connect() before ${method}()`,
             { method, hint: 'Call await manager.connect() after initialize()' }
         );
@@ -69,9 +67,9 @@ export class StorageError {
         installCommand: string
     ) {
         return new DextoRuntimeError(
-            StorageErrorCode.DEPENDENCY_NOT_INSTALLED,
-            ErrorScope.STORAGE,
-            ErrorType.USER,
+            'storage_dependency_not_installed',
+            'storage',
+            'user',
             `${backendType} storage configured but '${packageName}' package is not installed`,
             {
                 backendType,
@@ -87,9 +85,9 @@ export class StorageError {
      */
     static readFailed(operation: string, reason: string, details?: Record<string, unknown>) {
         return new DextoRuntimeError(
-            StorageErrorCode.READ_FAILED,
-            ErrorScope.STORAGE,
-            ErrorType.SYSTEM,
+            'storage_read_failed',
+            'storage',
+            'system',
             `Storage read failed for ${operation}: ${reason}`,
             { operation, reason, ...details }
         );
@@ -100,9 +98,9 @@ export class StorageError {
      */
     static writeFailed(operation: string, reason: string, details?: Record<string, unknown>) {
         return new DextoRuntimeError(
-            StorageErrorCode.WRITE_FAILED,
-            ErrorScope.STORAGE,
-            ErrorType.SYSTEM,
+            'storage_write_failed',
+            'storage',
+            'system',
             `Storage write failed for ${operation}: ${reason}`,
             { operation, reason, ...details }
         );
@@ -113,9 +111,9 @@ export class StorageError {
      */
     static deleteFailed(operation: string, reason: string, details?: Record<string, unknown>) {
         return new DextoRuntimeError(
-            StorageErrorCode.DELETE_FAILED,
-            ErrorScope.STORAGE,
-            ErrorType.SYSTEM,
+            'storage_delete_failed',
+            'storage',
+            'system',
             `Storage delete failed for ${operation}: ${reason}`,
             { operation, reason, ...details }
         );
@@ -126,9 +124,9 @@ export class StorageError {
      */
     static migrationFailed(reason: string, details?: Record<string, unknown>) {
         return new DextoRuntimeError(
-            StorageErrorCode.MIGRATION_FAILED,
-            ErrorScope.STORAGE,
-            ErrorType.SYSTEM,
+            'storage_migration_failed',
+            'storage',
+            'system',
             `Database migration failed: ${reason}`,
             { reason, ...details }
         );
@@ -143,10 +141,10 @@ export class StorageError {
     ): DextoValidationError {
         return new DextoValidationError([
             {
-                code: StorageErrorCode.DATABASE_INVALID_CONFIG,
+                code: 'storage_database_invalid_config',
                 message,
-                scope: ErrorScope.STORAGE,
-                type: ErrorType.USER,
+                scope: 'storage',
+                type: 'user',
                 severity: 'error' as const,
                 context: context || {},
             },
@@ -162,10 +160,10 @@ export class StorageError {
     ): DextoValidationError {
         return new DextoValidationError([
             {
-                code: StorageErrorCode.CACHE_INVALID_CONFIG,
+                code: 'storage_cache_invalid_config',
                 message,
-                scope: ErrorScope.STORAGE,
-                type: ErrorType.USER,
+                scope: 'storage',
+                type: 'user',
                 severity: 'error' as const,
                 context: context || {},
             },
@@ -183,10 +181,10 @@ export class StorageError {
     ): DextoValidationError {
         return new DextoValidationError([
             {
-                code: StorageErrorCode.BLOB_INVALID_CONFIG,
+                code: 'BLOB_INVALID_CONFIG',
                 message,
-                scope: ErrorScope.STORAGE,
-                type: ErrorType.USER,
+                scope: 'storage',
+                type: 'user',
                 severity: 'error' as const,
                 context: context || {},
             },
@@ -198,9 +196,9 @@ export class StorageError {
      */
     static blobSizeExceeded(size: number, maxSize: number): DextoRuntimeError {
         return new DextoRuntimeError(
-            StorageErrorCode.BLOB_SIZE_EXCEEDED,
-            ErrorScope.STORAGE,
-            ErrorType.USER,
+            'BLOB_SIZE_EXCEEDED',
+            'storage',
+            'user',
             `Blob size ${size} bytes exceeds maximum ${maxSize} bytes`,
             { size, maxSize }
         );
@@ -211,9 +209,9 @@ export class StorageError {
      */
     static blobTotalSizeExceeded(totalSize: number, maxTotalSize: number): DextoRuntimeError {
         return new DextoRuntimeError(
-            StorageErrorCode.BLOB_TOTAL_SIZE_EXCEEDED,
-            ErrorScope.STORAGE,
-            ErrorType.SYSTEM,
+            'BLOB_TOTAL_SIZE_EXCEEDED',
+            'storage',
+            'system',
             `Total storage size ${totalSize} bytes exceeds maximum ${maxTotalSize} bytes`,
             { totalSize, maxTotalSize }
         );
@@ -224,9 +222,9 @@ export class StorageError {
      */
     static blobInvalidInput(input: unknown, reason: string): DextoRuntimeError {
         return new DextoRuntimeError(
-            StorageErrorCode.BLOB_INVALID_INPUT,
-            ErrorScope.STORAGE,
-            ErrorType.USER,
+            'BLOB_INVALID_INPUT',
+            'storage',
+            'user',
             `Invalid blob input: ${reason}`,
             { inputType: typeof input, reason }
         );
@@ -237,9 +235,9 @@ export class StorageError {
      */
     static blobEncodingError(operation: string, error: unknown): DextoRuntimeError {
         return new DextoRuntimeError(
-            StorageErrorCode.BLOB_ENCODING_ERROR,
-            ErrorScope.STORAGE,
-            ErrorType.SYSTEM,
+            'BLOB_ENCODING_ERROR',
+            'storage',
+            'system',
             `Blob ${operation} failed: encoding error`,
             { operation, originalError: error instanceof Error ? error.message : String(error) }
         );
@@ -250,9 +248,9 @@ export class StorageError {
      */
     static blobNotFound(reference: string): DextoRuntimeError {
         return new DextoRuntimeError(
-            StorageErrorCode.BLOB_NOT_FOUND,
-            ErrorScope.STORAGE,
-            ErrorType.NOT_FOUND,
+            'BLOB_NOT_FOUND',
+            'storage',
+            'not_found',
             `Blob not found: ${reference}`,
             { reference }
         );
@@ -263,9 +261,9 @@ export class StorageError {
      */
     static blobInvalidReference(reference: string, reason: string): DextoRuntimeError {
         return new DextoRuntimeError(
-            StorageErrorCode.BLOB_INVALID_REFERENCE,
-            ErrorScope.STORAGE,
-            ErrorType.USER,
+            'BLOB_INVALID_REFERENCE',
+            'storage',
+            'user',
             `Invalid blob reference '${reference}': ${reason}`,
             { reference, reason }
         );
@@ -276,9 +274,9 @@ export class StorageError {
      */
     static blobAccessDenied(reference: string, operation: string): DextoRuntimeError {
         return new DextoRuntimeError(
-            StorageErrorCode.BLOB_ACCESS_DENIED,
-            ErrorScope.STORAGE,
-            ErrorType.FORBIDDEN,
+            'BLOB_ACCESS_DENIED',
+            'storage',
+            'forbidden',
             `Access denied for blob ${operation}: ${reference}`,
             { reference, operation }
         );
@@ -289,9 +287,9 @@ export class StorageError {
      */
     static blobCorrupted(reference: string, reason: string): DextoRuntimeError {
         return new DextoRuntimeError(
-            StorageErrorCode.BLOB_CORRUPTED,
-            ErrorScope.STORAGE,
-            ErrorType.SYSTEM,
+            'BLOB_CORRUPTED',
+            'storage',
+            'system',
             `Blob data corrupted: ${reference} (${reason})`,
             { reference, reason }
         );
@@ -302,9 +300,9 @@ export class StorageError {
      */
     static blobBackendNotConnected(backendType: string): DextoRuntimeError {
         return new DextoRuntimeError(
-            StorageErrorCode.BLOB_BACKEND_NOT_CONNECTED,
-            ErrorScope.STORAGE,
-            ErrorType.THIRD_PARTY,
+            'BLOB_BACKEND_NOT_CONNECTED',
+            'storage',
+            'third_party',
             `Blob backend ${backendType} is not connected`,
             { backendType }
         );
@@ -315,9 +313,9 @@ export class StorageError {
      */
     static blobBackendUnavailable(backendType: string, error: unknown): DextoRuntimeError {
         return new DextoRuntimeError(
-            StorageErrorCode.BLOB_BACKEND_UNAVAILABLE,
-            ErrorScope.STORAGE,
-            ErrorType.THIRD_PARTY,
+            'BLOB_BACKEND_UNAVAILABLE',
+            'storage',
+            'third_party',
             `Blob backend ${backendType} is unavailable`,
             { backendType, originalError: error instanceof Error ? error.message : String(error) }
         );
@@ -328,9 +326,9 @@ export class StorageError {
      */
     static blobCleanupFailed(backendType: string, error: unknown): DextoRuntimeError {
         return new DextoRuntimeError(
-            StorageErrorCode.BLOB_CLEANUP_FAILED,
-            ErrorScope.STORAGE,
-            ErrorType.SYSTEM,
+            'BLOB_CLEANUP_FAILED',
+            'storage',
+            'system',
             `Blob cleanup failed for backend ${backendType}`,
             { backendType, originalError: error instanceof Error ? error.message : String(error) }
         );
@@ -345,9 +343,9 @@ export class StorageError {
         error: unknown
     ): DextoRuntimeError {
         return new DextoRuntimeError(
-            StorageErrorCode.BLOB_OPERATION_FAILED,
-            ErrorScope.STORAGE,
-            ErrorType.SYSTEM,
+            'BLOB_OPERATION_FAILED',
+            'storage',
+            'system',
             `Blob ${operation} failed for backend ${backendType}`,
             {
                 operation,

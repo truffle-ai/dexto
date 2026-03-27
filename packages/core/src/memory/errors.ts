@@ -1,5 +1,4 @@
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
-import { ErrorScope, ErrorType } from '../errors/types.js';
 import { MemoryErrorCode } from './error-codes.js';
 
 /**
@@ -9,8 +8,8 @@ export class MemoryError {
     static notFound(id: string): DextoRuntimeError {
         return new DextoRuntimeError(
             MemoryErrorCode.MEMORY_NOT_FOUND,
-            ErrorScope.MEMORY,
-            ErrorType.NOT_FOUND,
+            'memory',
+            'not_found',
             `Memory not found: ${id}`,
             { id }
         );
@@ -19,8 +18,8 @@ export class MemoryError {
     static alreadyExists(id: string): DextoRuntimeError {
         return new DextoRuntimeError(
             MemoryErrorCode.MEMORY_ALREADY_EXISTS,
-            ErrorScope.MEMORY,
-            ErrorType.USER,
+            'memory',
+            'user',
             `Memory already exists: ${id}`,
             { id }
         );
@@ -29,8 +28,8 @@ export class MemoryError {
     static contentRequired(): DextoRuntimeError {
         return new DextoRuntimeError(
             MemoryErrorCode.MEMORY_CONTENT_REQUIRED,
-            ErrorScope.MEMORY,
-            ErrorType.USER,
+            'memory',
+            'user',
             'Memory content is required'
         );
     }
@@ -38,8 +37,8 @@ export class MemoryError {
     static contentTooLong(length: number, maxLength: number): DextoRuntimeError {
         return new DextoRuntimeError(
             MemoryErrorCode.MEMORY_CONTENT_TOO_LONG,
-            ErrorScope.MEMORY,
-            ErrorType.USER,
+            'memory',
+            'user',
             `Memory content too long: ${length} characters (max: ${maxLength})`,
             { length, maxLength }
         );
@@ -48,8 +47,8 @@ export class MemoryError {
     static invalidId(id: string): DextoRuntimeError {
         return new DextoRuntimeError(
             MemoryErrorCode.MEMORY_INVALID_ID,
-            ErrorScope.MEMORY,
-            ErrorType.USER,
+            'memory',
+            'user',
             `Invalid memory ID: ${id}`,
             { id }
         );
@@ -58,8 +57,8 @@ export class MemoryError {
     static invalidTags(tags: unknown): DextoRuntimeError {
         return new DextoRuntimeError(
             MemoryErrorCode.MEMORY_INVALID_TAGS,
-            ErrorScope.MEMORY,
-            ErrorType.USER,
+            'memory',
+            'user',
             `Invalid tags format: ${JSON.stringify(tags)}`,
             { tags }
         );
@@ -68,8 +67,8 @@ export class MemoryError {
     static storageError(message: string, cause?: Error): DextoRuntimeError {
         return new DextoRuntimeError(
             MemoryErrorCode.MEMORY_STORAGE_ERROR,
-            ErrorScope.MEMORY,
-            ErrorType.SYSTEM,
+            'memory',
+            'system',
             `Memory storage error: ${message}`,
             { cause }
         );
@@ -78,8 +77,8 @@ export class MemoryError {
     static retrievalError(message: string, cause?: Error): DextoRuntimeError {
         return new DextoRuntimeError(
             MemoryErrorCode.MEMORY_RETRIEVAL_ERROR,
-            ErrorScope.MEMORY,
-            ErrorType.SYSTEM,
+            'memory',
+            'system',
             `Memory retrieval error: ${message}`,
             { cause }
         );
@@ -88,8 +87,8 @@ export class MemoryError {
     static deleteError(message: string, cause?: Error): DextoRuntimeError {
         return new DextoRuntimeError(
             MemoryErrorCode.MEMORY_DELETE_ERROR,
-            ErrorScope.MEMORY,
-            ErrorType.SYSTEM,
+            'memory',
+            'system',
             `Memory deletion error: ${message}`,
             { cause }
         );

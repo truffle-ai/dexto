@@ -1,6 +1,7 @@
 // packages/core/src/preferences/errors.ts
 
-import { DextoRuntimeError, DextoValidationError, ErrorType } from '@dexto/core';
+import { DextoRuntimeError, DextoValidationError } from '@dexto/core';
+import type { Issue } from '@dexto/core';
 import { type ZodError } from 'zod';
 import { PreferenceErrorCode } from './error-codes.js';
 
@@ -11,7 +12,7 @@ export class PreferenceError {
         return new DextoRuntimeError(
             PreferenceErrorCode.FILE_NOT_FOUND,
             'preference',
-            ErrorType.USER,
+            'user',
             `Preferences file not found: ${preferencesPath}`,
             { preferencesPath },
             'Run `dexto setup` to create preferences'
@@ -22,7 +23,7 @@ export class PreferenceError {
         return new DextoRuntimeError(
             PreferenceErrorCode.FILE_READ_ERROR,
             'preference',
-            ErrorType.SYSTEM,
+            'system',
             `Failed to read preferences: ${cause}`,
             { preferencesPath, cause },
             'Check file permissions and ensure the file is not corrupted'
@@ -33,7 +34,7 @@ export class PreferenceError {
         return new DextoRuntimeError(
             PreferenceErrorCode.FILE_WRITE_ERROR,
             'preference',
-            ErrorType.SYSTEM,
+            'system',
             `Failed to save preferences: ${cause}`,
             { preferencesPath, cause },
             'Check file permissions and available disk space'
@@ -41,11 +42,11 @@ export class PreferenceError {
     }
 
     static validationFailed(zodError: ZodError) {
-        const issues = zodError.issues.map((issue) => ({
+        const issues: Issue[] = zodError.issues.map((issue) => ({
             code: PreferenceErrorCode.VALIDATION_ERROR,
             message: `${issue.path.join('.')}: ${issue.message}`,
             scope: 'preference',
-            type: ErrorType.USER,
+            type: 'user',
             severity: 'error' as const,
         }));
 
@@ -58,7 +59,7 @@ export class PreferenceError {
                 code: PreferenceErrorCode.INVALID_PREFERENCE_VALUE,
                 message: `agentId is invalid: ${agentId}`,
                 scope: 'preference',
-                type: ErrorType.USER,
+                type: 'user',
                 severity: 'error' as const,
             },
         ]);

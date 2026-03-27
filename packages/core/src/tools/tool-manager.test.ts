@@ -5,7 +5,6 @@ import { defineTool } from './define-tool.js';
 import { MCPManager } from '../mcp/manager.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { ToolErrorCode } from './error-codes.js';
-import { ErrorScope, ErrorType } from '../errors/types.js';
 import { AgentEventBus } from '../events/index.js';
 import type { ApprovalManager } from '../approval/manager.js';
 import type { AllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
@@ -316,8 +315,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 .catch((e) => e)) as DextoRuntimeError;
             expect(error).toBeInstanceOf(DextoRuntimeError);
             expect(error.code).toBe(ToolErrorCode.TOOL_NOT_FOUND);
-            expect(error.scope).toBe(ErrorScope.TOOLS);
-            expect(error.type).toBe(ErrorType.NOT_FOUND);
+            expect(error.scope).toBe('tools');
+            expect(error.type).toBe('not_found');
         });
 
         it('should reject MCP tools with prefix but no name', async () => {
@@ -337,8 +336,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 .catch((e) => e)) as DextoRuntimeError;
             expect(mcpError).toBeInstanceOf(DextoRuntimeError);
             expect(mcpError.code).toBe(ToolErrorCode.TOOL_INVALID_ARGS);
-            expect(mcpError.scope).toBe(ErrorScope.TOOLS);
-            expect(mcpError.type).toBe(ErrorType.USER);
+            expect(mcpError.scope).toBe('tools');
+            expect(mcpError.type).toBe('user');
 
             // Should NOT call the underlying managers
             expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
@@ -361,8 +360,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 .catch((e) => e)) as DextoRuntimeError;
             expect(error).toBeInstanceOf(DextoRuntimeError);
             expect(error.code).toBe(ToolErrorCode.TOOL_NOT_FOUND);
-            expect(error.scope).toBe(ErrorScope.TOOLS);
-            expect(error.type).toBe(ErrorType.NOT_FOUND);
+            expect(error.scope).toBe('tools');
+            expect(error.type).toBe('not_found');
         });
     });
 
@@ -1065,8 +1064,8 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
                 .catch((e) => e)) as DextoRuntimeError;
             expect(error).toBeInstanceOf(DextoRuntimeError);
             expect(error.code).toBe(ToolErrorCode.EXECUTION_DENIED);
-            expect(error.scope).toBe(ErrorScope.TOOLS);
-            expect(error.type).toBe(ErrorType.FORBIDDEN);
+            expect(error.scope).toBe('tools');
+            expect(error.type).toBe('forbidden');
 
             expect(mockMcpManager.executeTool).not.toHaveBeenCalled();
         });

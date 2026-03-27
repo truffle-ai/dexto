@@ -4,7 +4,6 @@
  */
 
 import { DextoRuntimeError } from '../../../errors/DextoRuntimeError.js';
-import { ErrorType } from '../../../errors/types.js';
 import { LocalModelErrorCode } from './error-codes.js';
 
 const SCOPE = 'local-models';
@@ -18,7 +17,7 @@ export const LocalModelError = {
         return new DextoRuntimeError(
             LocalModelErrorCode.NODE_LLAMA_NOT_INSTALLED,
             SCOPE,
-            ErrorType.NOT_FOUND,
+            'not_found',
             'node-llama-cpp is not installed. Run `dexto setup` and select "local" provider to install it.',
             {},
             'Run `dexto setup` and select "local" provider to install local model support'
@@ -29,7 +28,7 @@ export const LocalModelError = {
         return new DextoRuntimeError(
             LocalModelErrorCode.NODE_LLAMA_INSTALL_FAILED,
             SCOPE,
-            ErrorType.THIRD_PARTY,
+            'third_party',
             `Failed to install node-llama-cpp: ${error}`,
             { error },
             'Check your Node.js version and try again. CMake may be required for your platform.'
@@ -40,7 +39,7 @@ export const LocalModelError = {
         return new DextoRuntimeError(
             LocalModelErrorCode.CMAKE_NOT_FOUND,
             SCOPE,
-            ErrorType.NOT_FOUND,
+            'not_found',
             'CMake is required to build node-llama-cpp from source but was not found.',
             {},
             'Install CMake: brew install cmake (macOS), apt install cmake (Linux), or download from cmake.org (Windows)'
@@ -52,7 +51,7 @@ export const LocalModelError = {
         return new DextoRuntimeError(
             LocalModelErrorCode.DOWNLOAD_FAILED,
             SCOPE,
-            ErrorType.THIRD_PARTY,
+            'third_party',
             `Failed to download model '${modelId}': ${error}`,
             { modelId, error },
             'Check your internet connection and try again'
@@ -63,7 +62,7 @@ export const LocalModelError = {
         return new DextoRuntimeError(
             LocalModelErrorCode.DOWNLOAD_INTERRUPTED,
             SCOPE,
-            ErrorType.THIRD_PARTY,
+            'third_party',
             `Download of model '${modelId}' was interrupted`,
             { modelId },
             'Run the download command again to resume'
@@ -74,7 +73,7 @@ export const LocalModelError = {
         return new DextoRuntimeError(
             LocalModelErrorCode.DOWNLOAD_HASH_MISMATCH,
             SCOPE,
-            ErrorType.USER,
+            'user',
             `Downloaded model '${modelId}' has invalid hash. Expected: ${expected}, Got: ${actual}`,
             { modelId, expected, actual },
             'Delete the file and download again'
@@ -87,7 +86,7 @@ export const LocalModelError = {
         return new DextoRuntimeError(
             LocalModelErrorCode.INSUFFICIENT_DISK_SPACE,
             SCOPE,
-            ErrorType.USER,
+            'user',
             `Insufficient disk space to download '${modelId}'. Required: ${requiredGB}GB, Available: ${availableGB}GB`,
             { modelId, required, available },
             'Free up disk space or choose a smaller model'
@@ -98,7 +97,7 @@ export const LocalModelError = {
         return new DextoRuntimeError(
             LocalModelErrorCode.HF_AUTH_REQUIRED,
             SCOPE,
-            ErrorType.FORBIDDEN,
+            'forbidden',
             `Model '${modelId}' is a gated model and requires HuggingFace authentication`,
             { modelId },
             'Set HF_TOKEN environment variable or run `huggingface-cli login`'
@@ -110,7 +109,7 @@ export const LocalModelError = {
         return new DextoRuntimeError(
             LocalModelErrorCode.MODEL_NOT_FOUND,
             SCOPE,
-            ErrorType.NOT_FOUND,
+            'not_found',
             `Model '${modelId}' not found in local model registry`,
             { modelId },
             'Run `dexto setup` and select "local" to see available models'
@@ -121,7 +120,7 @@ export const LocalModelError = {
         return new DextoRuntimeError(
             LocalModelErrorCode.MODEL_NOT_DOWNLOADED,
             SCOPE,
-            ErrorType.NOT_FOUND,
+            'not_found',
             `Model '${modelId}' is not downloaded. Download it first.`,
             { modelId },
             'Run `dexto setup` and select "local" to download models'
@@ -132,7 +131,7 @@ export const LocalModelError = {
         return new DextoRuntimeError(
             LocalModelErrorCode.MODEL_LOAD_FAILED,
             SCOPE,
-            ErrorType.THIRD_PARTY,
+            'third_party',
             `Failed to load model '${modelId}': ${error}`,
             { modelId, error },
             'The model file may be corrupted. Try re-downloading it.'
@@ -143,7 +142,7 @@ export const LocalModelError = {
         return new DextoRuntimeError(
             LocalModelErrorCode.MODEL_CORRUPT,
             SCOPE,
-            ErrorType.USER,
+            'user',
             `Model file for '${modelId}' appears to be corrupted`,
             { modelId, filePath },
             `Delete ${filePath} and download the model again`
@@ -154,7 +153,7 @@ export const LocalModelError = {
         return new DextoRuntimeError(
             LocalModelErrorCode.CONTEXT_TOO_LARGE,
             SCOPE,
-            ErrorType.USER,
+            'user',
             `Requested context size ${requested} exceeds model's maximum of ${maxSupported}`,
             { modelId, requested, maxSupported },
             `Use a context size of ${maxSupported} or less`
@@ -166,7 +165,7 @@ export const LocalModelError = {
         return new DextoRuntimeError(
             LocalModelErrorCode.GPU_NOT_AVAILABLE,
             SCOPE,
-            ErrorType.NOT_FOUND,
+            'not_found',
             'No GPU acceleration available. Running on CPU.',
             {},
             'For better performance, ensure GPU drivers are installed'
@@ -177,7 +176,7 @@ export const LocalModelError = {
         return new DextoRuntimeError(
             LocalModelErrorCode.INSUFFICIENT_VRAM,
             SCOPE,
-            ErrorType.USER,
+            'user',
             `Model '${modelId}' requires ${required}GB VRAM but only ${available}GB available`,
             { modelId, required, available },
             'Use a smaller quantization or reduce GPU layers'
@@ -188,7 +187,7 @@ export const LocalModelError = {
         return new DextoRuntimeError(
             LocalModelErrorCode.GPU_DRIVER_ERROR,
             SCOPE,
-            ErrorType.THIRD_PARTY,
+            'third_party',
             `GPU driver error: ${error}`,
             { error },
             'Update your GPU drivers'
@@ -200,7 +199,7 @@ export const LocalModelError = {
         return new DextoRuntimeError(
             LocalModelErrorCode.OLLAMA_NOT_RUNNING,
             SCOPE,
-            ErrorType.THIRD_PARTY,
+            'third_party',
             `Ollama server is not running at ${url}`,
             { url },
             'Start Ollama with `ollama serve` or ensure it is running'
@@ -211,7 +210,7 @@ export const LocalModelError = {
         return new DextoRuntimeError(
             LocalModelErrorCode.OLLAMA_MODEL_NOT_FOUND,
             SCOPE,
-            ErrorType.NOT_FOUND,
+            'not_found',
             `Model '${modelName}' not found on Ollama server`,
             { modelName },
             `Pull the model with \`ollama pull ${modelName}\``
@@ -222,7 +221,7 @@ export const LocalModelError = {
         return new DextoRuntimeError(
             LocalModelErrorCode.OLLAMA_PULL_FAILED,
             SCOPE,
-            ErrorType.THIRD_PARTY,
+            'third_party',
             `Failed to pull model '${modelName}' from Ollama: ${error}`,
             { modelName, error },
             'Check your internet connection and Ollama server status'
@@ -233,7 +232,7 @@ export const LocalModelError = {
         return new DextoRuntimeError(
             LocalModelErrorCode.OLLAMA_API_ERROR,
             SCOPE,
-            ErrorType.THIRD_PARTY,
+            'third_party',
             `Ollama API error: ${error}`,
             { error },
             'Check Ollama server logs for details'

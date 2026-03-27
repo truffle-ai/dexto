@@ -21,7 +21,7 @@ import {
 } from '../events/index.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
-import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
+import { DextoRuntimeError } from '../errors/index.js';
 import { HookErrorCode } from '../hooks/error-codes.js';
 import type { InternalMessage, ContentPart } from '../context/types.js';
 import type { UserMessageInput } from './message-queue.js';
@@ -523,8 +523,8 @@ export class ChatSession {
             if (
                 error instanceof DextoRuntimeError &&
                 error.code === HookErrorCode.HOOK_BLOCKED_EXECUTION &&
-                error.scope === ErrorScope.HOOK &&
-                error.type === ErrorType.FORBIDDEN
+                error.scope === 'hook' &&
+                error.type === 'forbidden'
             ) {
                 // Save the blocked interaction to history
                 const textContent = parts

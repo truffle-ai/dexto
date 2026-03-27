@@ -12,7 +12,6 @@ import {
 } from './loader.js';
 import { type GlobalPreferences } from './schemas.js';
 import { PreferenceErrorCode } from './error-codes.js';
-import { ErrorType } from '@dexto/core';
 
 // Mock getDextoGlobalPath to use a temporary directory
 import * as pathUtils from '../utils/path.js';
@@ -182,7 +181,7 @@ describe('Preferences Loader', () => {
                         expect.objectContaining({
                             code: PreferenceErrorCode.VALIDATION_ERROR,
                             scope: 'preference',
-                            type: ErrorType.USER,
+                            type: 'user',
                         }),
                     ]),
                 })
@@ -239,7 +238,7 @@ describe('Preferences Loader', () => {
                 expect.objectContaining({
                     code: PreferenceErrorCode.FILE_NOT_FOUND,
                     scope: 'preference',
-                    type: ErrorType.USER,
+                    type: 'user',
                 })
             );
         });
@@ -252,7 +251,7 @@ describe('Preferences Loader', () => {
                 expect.objectContaining({
                     code: PreferenceErrorCode.FILE_READ_ERROR,
                     scope: 'preference',
-                    type: ErrorType.SYSTEM,
+                    type: 'system',
                 })
             );
         });
@@ -274,7 +273,7 @@ describe('Preferences Loader', () => {
                         expect.objectContaining({
                             code: PreferenceErrorCode.VALIDATION_ERROR,
                             scope: 'preference',
-                            type: ErrorType.USER,
+                            type: 'user',
                         }),
                     ]),
                 })
@@ -299,7 +298,7 @@ setup:
                         expect.objectContaining({
                             code: PreferenceErrorCode.VALIDATION_ERROR,
                             scope: 'preference',
-                            type: ErrorType.USER,
+                            type: 'user',
                         }),
                     ]),
                 })
@@ -485,7 +484,7 @@ setup:
                         expect.objectContaining({
                             code: PreferenceErrorCode.VALIDATION_ERROR,
                             scope: 'preference',
-                            type: ErrorType.USER,
+                            type: 'user',
                         }),
                     ]),
                 })

@@ -4,7 +4,7 @@
  * Error classes for process execution and management
  */
 
-import { DextoRuntimeError, ErrorType } from '@dexto/core';
+import { DextoRuntimeError } from '@dexto/core';
 
 /** Error scope for process operations */
 const PROCESS_SCOPE = 'process';
@@ -32,7 +32,7 @@ export class ProcessError {
         return new DextoRuntimeError(
             ProcessErrorCode.INVALID_COMMAND,
             PROCESS_SCOPE,
-            ErrorType.USER,
+            'user',
             `Invalid command: ${command}. ${reason}`,
             { command, reason }
         );
@@ -45,7 +45,7 @@ export class ProcessError {
         return new DextoRuntimeError(
             ProcessErrorCode.COMMAND_BLOCKED,
             PROCESS_SCOPE,
-            ErrorType.FORBIDDEN,
+            'forbidden',
             `Command is blocked: ${command}. ${reason}`,
             { command, reason }
         );
@@ -58,7 +58,7 @@ export class ProcessError {
         return new DextoRuntimeError(
             ProcessErrorCode.COMMAND_TOO_LONG,
             PROCESS_SCOPE,
-            ErrorType.USER,
+            'user',
             `Command too long: ${length} characters. Maximum allowed: ${maxLength}`,
             { length, maxLength }
         );
@@ -71,7 +71,7 @@ export class ProcessError {
         return new DextoRuntimeError(
             ProcessErrorCode.INJECTION_DETECTED,
             PROCESS_SCOPE,
-            ErrorType.FORBIDDEN,
+            'forbidden',
             `Potential command injection detected in: ${command}. Pattern: ${pattern}`,
             { command, pattern }
         );
@@ -84,7 +84,7 @@ export class ProcessError {
         return new DextoRuntimeError(
             ProcessErrorCode.APPROVAL_REQUIRED,
             PROCESS_SCOPE,
-            ErrorType.FORBIDDEN,
+            'forbidden',
             `Command requires approval: ${command}${reason ? `. ${reason}` : ''}`,
             { command, reason },
             'Provide an approval function to execute dangerous commands'
@@ -98,7 +98,7 @@ export class ProcessError {
         return new DextoRuntimeError(
             ProcessErrorCode.APPROVAL_DENIED,
             PROCESS_SCOPE,
-            ErrorType.FORBIDDEN,
+            'forbidden',
             `Command approval denied by user: ${command}`,
             { command }
         );
@@ -111,7 +111,7 @@ export class ProcessError {
         return new DextoRuntimeError(
             ProcessErrorCode.EXECUTION_FAILED,
             PROCESS_SCOPE,
-            ErrorType.SYSTEM,
+            'system',
             `Command execution failed: ${command}. ${cause}`,
             { command, cause }
         );
@@ -124,7 +124,7 @@ export class ProcessError {
         return new DextoRuntimeError(
             ProcessErrorCode.TIMEOUT,
             PROCESS_SCOPE,
-            ErrorType.TIMEOUT,
+            'timeout',
             `Command timed out after ${timeout}ms: ${command}`,
             { command, timeout },
             'Increase timeout or optimize the command'
@@ -138,7 +138,7 @@ export class ProcessError {
         return new DextoRuntimeError(
             ProcessErrorCode.PERMISSION_DENIED,
             PROCESS_SCOPE,
-            ErrorType.FORBIDDEN,
+            'forbidden',
             `Permission denied: ${command}`,
             { command }
         );
@@ -151,7 +151,7 @@ export class ProcessError {
         return new DextoRuntimeError(
             ProcessErrorCode.COMMAND_NOT_FOUND,
             PROCESS_SCOPE,
-            ErrorType.NOT_FOUND,
+            'not_found',
             `Command not found: ${command}`,
             { command },
             'Ensure the command is installed and available in PATH'
@@ -165,7 +165,7 @@ export class ProcessError {
         return new DextoRuntimeError(
             ProcessErrorCode.WORKING_DIRECTORY_INVALID,
             PROCESS_SCOPE,
-            ErrorType.USER,
+            'user',
             `Invalid working directory: ${path}. ${reason}`,
             { path, reason }
         );
@@ -178,7 +178,7 @@ export class ProcessError {
         return new DextoRuntimeError(
             ProcessErrorCode.PROCESS_NOT_FOUND,
             PROCESS_SCOPE,
-            ErrorType.NOT_FOUND,
+            'not_found',
             `Process not found: ${processId}`,
             { processId }
         );
@@ -191,7 +191,7 @@ export class ProcessError {
         return new DextoRuntimeError(
             ProcessErrorCode.TOO_MANY_PROCESSES,
             PROCESS_SCOPE,
-            ErrorType.USER,
+            'user',
             `Too many concurrent processes: ${current}. Maximum allowed: ${max}`,
             { current, max },
             'Wait for running processes to complete or increase the limit'
@@ -205,7 +205,7 @@ export class ProcessError {
         return new DextoRuntimeError(
             ProcessErrorCode.KILL_FAILED,
             PROCESS_SCOPE,
-            ErrorType.SYSTEM,
+            'system',
             `Failed to kill process ${processId}: ${cause}`,
             { processId, cause }
         );
@@ -218,7 +218,7 @@ export class ProcessError {
         return new DextoRuntimeError(
             ProcessErrorCode.OUTPUT_BUFFER_FULL,
             PROCESS_SCOPE,
-            ErrorType.SYSTEM,
+            'system',
             `Output buffer full for process ${processId}: ${size} bytes. Maximum: ${maxSize}`,
             { processId, size, maxSize },
             'Process output exceeded buffer limit'
@@ -232,7 +232,7 @@ export class ProcessError {
         return new DextoRuntimeError(
             ProcessErrorCode.INVALID_CONFIG,
             PROCESS_SCOPE,
-            ErrorType.USER,
+            'user',
             `Invalid Process configuration: ${reason}`,
             { reason }
         );
@@ -245,7 +245,7 @@ export class ProcessError {
         return new DextoRuntimeError(
             ProcessErrorCode.SERVICE_NOT_INITIALIZED,
             PROCESS_SCOPE,
-            ErrorType.SYSTEM,
+            'system',
             'ProcessService has not been initialized',
             {},
             'Initialize the ProcessService before using it'

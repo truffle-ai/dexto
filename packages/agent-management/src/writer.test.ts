@@ -9,7 +9,6 @@ import {
     type LLMOverrides,
 } from './writer.js';
 import { type AgentConfig } from '@dexto/agent-config';
-import { ErrorScope, ErrorType } from '@dexto/core';
 import { ConfigErrorCode } from './config/index.js';
 import { type GlobalPreferences } from './preferences/schemas.js';
 
@@ -115,8 +114,8 @@ describe('Config Writer', () => {
             await expect(writeConfigFile(invalidPath, sampleConfig)).rejects.toThrow(
                 expect.objectContaining({
                     code: ConfigErrorCode.FILE_WRITE_ERROR,
-                    scope: ErrorScope.CONFIG,
-                    type: ErrorType.SYSTEM,
+                    scope: 'config',
+                    type: 'system',
                 })
             );
         });
@@ -227,8 +226,8 @@ describe('Config Writer', () => {
             await expect(writeLLMPreferences(nonExistentPath, samplePreferences)).rejects.toThrow(
                 expect.objectContaining({
                     code: ConfigErrorCode.FILE_READ_ERROR,
-                    scope: ErrorScope.CONFIG,
-                    type: ErrorType.SYSTEM,
+                    scope: 'config',
+                    type: 'system',
                 })
             );
         });
@@ -240,8 +239,8 @@ describe('Config Writer', () => {
             await expect(writeLLMPreferences(tempConfigPath, samplePreferences)).rejects.toThrow(
                 expect.objectContaining({
                     code: ConfigErrorCode.PARSE_ERROR,
-                    scope: ErrorScope.CONFIG,
-                    type: ErrorType.USER,
+                    scope: 'config',
+                    type: 'user',
                 })
             );
         });
@@ -371,8 +370,8 @@ describe('Config Writer', () => {
             ).rejects.toThrow(
                 expect.objectContaining({
                     code: ConfigErrorCode.FILE_READ_ERROR,
-                    scope: ErrorScope.CONFIG,
-                    type: ErrorType.SYSTEM,
+                    scope: 'config',
+                    type: 'system',
                 })
             );
         });

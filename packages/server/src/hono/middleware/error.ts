@@ -1,4 +1,5 @@
-import { DextoRuntimeError, DextoValidationError, ErrorType, zodToIssues } from '@dexto/core';
+import { DextoRuntimeError, DextoValidationError, zodToIssues } from '@dexto/core';
+import type { ErrorType } from '@dexto/core';
 import { logger } from '@dexto/core';
 import { ZodError } from 'zod';
 
@@ -14,25 +15,25 @@ import { ZodError } from 'zod';
 
 export const mapErrorTypeToStatus = (type: ErrorType): number => {
     switch (type) {
-        case ErrorType.USER:
+        case 'user':
             return 400;
-        case ErrorType.PAYMENT_REQUIRED:
+        case 'payment_required':
             return 402;
-        case ErrorType.FORBIDDEN:
+        case 'forbidden':
             return 403;
-        case ErrorType.NOT_FOUND:
+        case 'not_found':
             return 404;
-        case ErrorType.TIMEOUT:
+        case 'timeout':
             return 408;
-        case ErrorType.CONFLICT:
+        case 'conflict':
             return 409;
-        case ErrorType.RATE_LIMIT:
+        case 'rate_limit':
             return 429;
-        case ErrorType.SYSTEM:
+        case 'system':
             return 500;
-        case ErrorType.THIRD_PARTY:
+        case 'third_party':
             return 502;
-        case ErrorType.UNKNOWN:
+        case 'unknown':
         default:
             return 500;
     }
@@ -40,7 +41,7 @@ export const mapErrorTypeToStatus = (type: ErrorType): number => {
 
 export const statusForValidation = (issues: ReturnType<typeof zodToIssues>): number => {
     const firstError = issues.find((i) => i.severity === 'error');
-    const type = firstError?.type ?? ErrorType.USER;
+    const type = firstError?.type ?? 'user';
     return mapErrorTypeToStatus(type);
 };
 

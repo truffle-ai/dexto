@@ -2,7 +2,6 @@ import { describe, test, expect, vi, beforeEach, type Mocked } from 'vitest';
 import { DatabaseHistoryProvider } from './database.js';
 import type { Database } from '../../storage/types.js';
 import { SessionErrorCode } from '../error-codes.js';
-import { ErrorScope, ErrorType } from '../../errors/types.js';
 import { createMockLogger } from '../../logger/v2/test-utils.js';
 
 describe('DatabaseHistoryProvider error mapping', () => {
@@ -36,8 +35,8 @@ describe('DatabaseHistoryProvider error mapping', () => {
             provider.saveMessage({ role: 'user', content: 'hi' } as any)
         ).rejects.toMatchObject({
             code: SessionErrorCode.SESSION_STORAGE_FAILED,
-            scope: ErrorScope.SESSION,
-            type: ErrorType.SYSTEM,
+            scope: 'session',
+            type: 'system',
             context: expect.objectContaining({ sessionId }),
         });
     });
@@ -46,8 +45,8 @@ describe('DatabaseHistoryProvider error mapping', () => {
         db.delete.mockRejectedValue(new Error('delete failed'));
         await expect(provider.clearHistory()).rejects.toMatchObject({
             code: SessionErrorCode.SESSION_RESET_FAILED,
-            scope: ErrorScope.SESSION,
-            type: ErrorType.SYSTEM,
+            scope: 'session',
+            type: 'system',
             context: expect.objectContaining({ sessionId }),
         });
     });
@@ -56,8 +55,8 @@ describe('DatabaseHistoryProvider error mapping', () => {
         db.getRange.mockRejectedValue(new Error('getRange failed'));
         await expect(provider.getHistory()).rejects.toMatchObject({
             code: SessionErrorCode.SESSION_STORAGE_FAILED,
-            scope: ErrorScope.SESSION,
-            type: ErrorType.SYSTEM,
+            scope: 'session',
+            type: 'system',
             context: expect.objectContaining({ sessionId }),
         });
     });

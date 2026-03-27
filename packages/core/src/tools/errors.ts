@@ -1,5 +1,4 @@
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
-import { ErrorScope, ErrorType } from '../errors/types.js';
 import { ToolErrorCode } from './error-codes.js';
 
 /**
@@ -13,8 +12,8 @@ export class ToolError {
     static notFound(toolName: string) {
         return new DextoRuntimeError(
             ToolErrorCode.TOOL_NOT_FOUND,
-            ErrorScope.TOOLS,
-            ErrorType.NOT_FOUND,
+            'tools',
+            'not_found',
             `Tool '${toolName}' not found`,
             { toolName }
         );
@@ -26,8 +25,8 @@ export class ToolError {
     static executionFailed(toolName: string, reason: string, sessionId?: string) {
         return new DextoRuntimeError(
             ToolErrorCode.EXECUTION_FAILED,
-            ErrorScope.TOOLS,
-            ErrorType.SYSTEM,
+            'tools',
+            'system',
             `Tool '${toolName}' execution failed: ${reason}`,
             { toolName, reason, sessionId }
         );
@@ -45,8 +44,8 @@ export class ToolError {
             : `Tool '${toolName}' execution was denied by the user`;
         return new DextoRuntimeError(
             ToolErrorCode.EXECUTION_DENIED,
-            ErrorScope.TOOLS,
-            ErrorType.FORBIDDEN,
+            'tools',
+            'forbidden',
             message,
             { toolName, sessionId, userMessage }
         );
@@ -60,8 +59,8 @@ export class ToolError {
     static directoryAccessDenied(directory: string, sessionId?: string) {
         return new DextoRuntimeError(
             ToolErrorCode.DIRECTORY_ACCESS_DENIED,
-            ErrorScope.TOOLS,
-            ErrorType.FORBIDDEN,
+            'tools',
+            'forbidden',
             `Access to directory '${directory}' was denied`,
             { directory, sessionId },
             'Request access to the directory or work within the allowed working directory'
@@ -76,13 +75,11 @@ export class ToolError {
             timeoutMs > 0
                 ? `Tool '${toolName}' execution timed out after ${timeoutMs}ms`
                 : `Tool '${toolName}' execution timed out`;
-        return new DextoRuntimeError(
-            ToolErrorCode.EXECUTION_TIMEOUT,
-            ErrorScope.TOOLS,
-            ErrorType.TIMEOUT,
-            message,
-            { toolName, timeoutMs, sessionId }
-        );
+        return new DextoRuntimeError(ToolErrorCode.EXECUTION_TIMEOUT, 'tools', 'timeout', message, {
+            toolName,
+            timeoutMs,
+            sessionId,
+        });
     }
 
     /**
@@ -93,8 +90,8 @@ export class ToolError {
     static validationFailed(toolName: string, reason: string, context?: Record<string, unknown>) {
         return new DextoRuntimeError(
             ToolErrorCode.VALIDATION_FAILED,
-            ErrorScope.TOOLS,
-            ErrorType.USER,
+            'tools',
+            'user',
             `Tool '${toolName}' validation failed: ${reason}`,
             { toolName, reason, ...context }
         );
@@ -107,8 +104,8 @@ export class ToolError {
     static fileModifiedSincePreview(toolName: string, filePath: string) {
         return new DextoRuntimeError(
             ToolErrorCode.FILE_MODIFIED_SINCE_PREVIEW,
-            ErrorScope.TOOLS,
-            ErrorType.USER,
+            'tools',
+            'user',
             `File '${filePath}' was modified since the preview was generated. Please read the file again and retry the operation.`,
             {
                 toolName,
@@ -125,8 +122,8 @@ export class ToolError {
     static unauthorized(toolName: string, sessionId?: string) {
         return new DextoRuntimeError(
             ToolErrorCode.TOOL_UNAUTHORIZED,
-            ErrorScope.TOOLS,
-            ErrorType.FORBIDDEN,
+            'tools',
+            'forbidden',
             `Unauthorized access to tool '${toolName}'`,
             { toolName, sessionId }
         );
@@ -138,8 +135,8 @@ export class ToolError {
     static confirmationHandlerMissing(toolName: string) {
         return new DextoRuntimeError(
             ToolErrorCode.CONFIRMATION_HANDLER_MISSING,
-            ErrorScope.TOOLS,
-            ErrorType.SYSTEM,
+            'tools',
+            'system',
             `Confirmation handler missing for tool '${toolName}'`,
             { toolName }
         );
@@ -151,8 +148,8 @@ export class ToolError {
     static confirmationTimeout(toolName: string, timeoutMs: number, sessionId?: string) {
         return new DextoRuntimeError(
             ToolErrorCode.CONFIRMATION_TIMEOUT,
-            ErrorScope.TOOLS,
-            ErrorType.TIMEOUT,
+            'tools',
+            'timeout',
             `Tool '${toolName}' confirmation timed out after ${timeoutMs}ms`,
             { toolName, timeoutMs, sessionId }
         );
@@ -164,8 +161,8 @@ export class ToolError {
     static invalidName(toolName: string, reason: string) {
         return new DextoRuntimeError(
             ToolErrorCode.TOOL_INVALID_ARGS,
-            ErrorScope.TOOLS,
-            ErrorType.USER,
+            'tools',
+            'user',
             `Invalid tool name '${toolName}': ${reason}`,
             { toolName, reason }
         );
@@ -175,13 +172,7 @@ export class ToolError {
      * Invalid tool configuration
      */
     static configInvalid(message: string) {
-        return new DextoRuntimeError(
-            ToolErrorCode.CONFIG_INVALID,
-            ErrorScope.TOOLS,
-            ErrorType.USER,
-            message,
-            {}
-        );
+        return new DextoRuntimeError(ToolErrorCode.CONFIG_INVALID, 'tools', 'user', message, {});
     }
 
     /**
@@ -190,8 +181,8 @@ export class ToolError {
     static confirmationCancelled(toolName: string, reason: string) {
         return new DextoRuntimeError(
             ToolErrorCode.CONFIRMATION_CANCELLED,
-            ErrorScope.TOOLS,
-            ErrorType.USER,
+            'tools',
+            'user',
             `Tool confirmation for '${toolName}' was cancelled: ${reason}`,
             { toolName, reason }
         );
@@ -207,8 +198,8 @@ export class ToolError {
     ): DextoRuntimeError<{ toolName: string; missingFeatures: string[] }> {
         return new DextoRuntimeError(
             ToolErrorCode.FEATURE_DISABLED,
-            ErrorScope.TOOLS,
-            ErrorType.USER,
+            'tools',
+            'user',
             message,
             { toolName, missingFeatures },
             [
@@ -224,8 +215,8 @@ export class ToolError {
     static unknownCustomToolFactory(type: string, availableTypes: string[]): DextoRuntimeError {
         return new DextoRuntimeError(
             ToolErrorCode.CUSTOM_TOOL_FACTORY_UNKNOWN,
-            ErrorScope.TOOLS,
-            ErrorType.USER,
+            'tools',
+            'user',
             `Unknown custom tool factory: '${type}'`,
             { type, availableTypes },
             `Available types: ${availableTypes.length > 0 ? availableTypes.join(', ') : 'none'}`
@@ -238,8 +229,8 @@ export class ToolError {
     static customToolFactoryAlreadyRegistered(type: string): DextoRuntimeError {
         return new DextoRuntimeError(
             ToolErrorCode.CUSTOM_TOOL_FACTORY_ALREADY_REGISTERED,
-            ErrorScope.TOOLS,
-            ErrorType.USER,
+            'tools',
+            'user',
             `Custom tool factory '${type}' is already registered`,
             { type },
             `Use unregister() first if you want to replace it`

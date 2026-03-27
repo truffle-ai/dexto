@@ -19,40 +19,44 @@ import type { TelemetryErrorCode } from '../telemetry/error-codes.js';
  * Error scopes representing functional domains in the system
  * Each scope owns its validation and error logic
  */
-export enum ErrorScope {
-    LLM = 'llm', // LLM operations, model compatibility, input validation for LLMs
-    AGENT = 'agent', // Agent lifecycle, configuration
-    CONFIG = 'config', // Configuration file operations, parsing, validation
-    CONTEXT = 'context', // Context management, message validation, token processing
-    SESSION = 'session', // Session lifecycle, management, and state
-    MCP = 'mcp', // MCP server connections and protocol
-    TOOLS = 'tools', // Tool execution and authorization
-    STORAGE = 'storage', // Storage backend operations
-    LOGGER = 'logger', // Logging system operations, transports, and configuration
-    SYSTEM_PROMPT = 'system_prompt', // System prompt contributors and file processing
-    RESOURCE = 'resource', // Resource management (MCP/internal) discovery and access
-    PROMPT = 'prompt', // Prompt management, resolution, and providers
-    MEMORY = 'memory', // Memory management and storage
-    HOOK = 'hook', // Hook loading, validation, and execution
-    TELEMETRY = 'telemetry', // Telemetry initialization and export operations
-}
+export const ERROR_SCOPES = [
+    'llm',
+    'agent',
+    'config',
+    'context',
+    'session',
+    'mcp',
+    'tools',
+    'storage',
+    'logger',
+    'system_prompt',
+    'resource',
+    'prompt',
+    'memory',
+    'hook',
+    'telemetry',
+] as const;
+
+export type ErrorScope = (typeof ERROR_SCOPES)[number];
 
 /**
  * Error types that map directly to HTTP status codes
  * Each type represents the nature of the error
  */
-export enum ErrorType {
-    USER = 'user', // 400 - bad input, config errors, validation failures
-    PAYMENT_REQUIRED = 'payment_required', // 402 - insufficient credits, billing issue
-    FORBIDDEN = 'forbidden', // 403 - permission denied, unauthorized
-    NOT_FOUND = 'not_found', // 404 - resource doesn't exist (session, file, etc.)
-    TIMEOUT = 'timeout', // 408 - operation timed out
-    CONFLICT = 'conflict', // 409 - resource conflict, concurrent operation
-    RATE_LIMIT = 'rate_limit', // 429 - too many requests
-    SYSTEM = 'system', // 500 - bugs, internal failures, unexpected states
-    THIRD_PARTY = 'third_party', // 502 - upstream provider failures, API errors
-    UNKNOWN = 'unknown', // 500 - unclassified errors, fallback
-}
+export const ERROR_TYPES = [
+    'user',
+    'payment_required',
+    'forbidden',
+    'not_found',
+    'timeout',
+    'conflict',
+    'rate_limit',
+    'system',
+    'third_party',
+    'unknown',
+] as const;
+
+export type ErrorType = (typeof ERROR_TYPES)[number];
 
 /**
  * Union type for all error codes across domains

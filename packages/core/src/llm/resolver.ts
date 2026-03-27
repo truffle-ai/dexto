@@ -1,5 +1,5 @@
 import { Result, hasErrors, splitIssues, ok, fail, zodToIssues } from '../utils/result.js';
-import { Issue, ErrorScope, ErrorType } from '../errors/types.js';
+import { Issue } from '../errors/types.js';
 import { LLMErrorCode } from './error-codes.js';
 
 import { type ValidatedLLMConfig, type LLMUpdates, type LLMConfig } from './schemas.js';
@@ -82,8 +82,8 @@ export async function resolveLLMConfig(
             code: LLMErrorCode.API_KEY_CANDIDATE_MISSING,
             message: 'API key not provided or found in environment',
             severity: 'warning',
-            scope: ErrorScope.LLM,
-            type: ErrorType.USER,
+            scope: 'llm',
+            type: 'user',
             context: { provider },
         });
     } else if (typeof apiKey === 'string' && apiKey.length < 10) {
@@ -91,8 +91,8 @@ export async function resolveLLMConfig(
             code: LLMErrorCode.API_KEY_INVALID,
             message: 'API key looks unusually short',
             severity: 'warning',
-            scope: ErrorScope.LLM,
-            type: ErrorType.USER,
+            scope: 'llm',
+            type: 'user',
             context: { provider },
         });
     }
@@ -112,8 +112,8 @@ export async function resolveLLMConfig(
             code: LLMErrorCode.MODEL_INCOMPATIBLE,
             message: `Model set to default '${model}' for provider '${provider}'`,
             severity: 'warning',
-            scope: ErrorScope.LLM,
-            type: ErrorType.USER,
+            scope: 'llm',
+            type: 'user',
             context: { provider, model },
         });
     }
@@ -134,8 +134,8 @@ export async function resolveLLMConfig(
                 code: LLMErrorCode.MODEL_INCOMPATIBLE,
                 message: `Model set to default '${model}' for provider '${provider}'`,
                 severity: 'warning',
-                scope: ErrorScope.LLM,
-                type: ErrorType.USER,
+                scope: 'llm',
+                type: 'user',
                 context: { provider, model },
             });
         }
@@ -163,8 +163,8 @@ export async function resolveLLMConfig(
                     'GOOGLE_VERTEX_PROJECT environment variable is required for Vertex AI. ' +
                     'Set it to your GCP project ID and ensure ADC is configured via `gcloud auth application-default login`',
                 severity: 'error',
-                scope: ErrorScope.LLM,
-                type: ErrorType.USER,
+                scope: 'llm',
+                type: 'user',
                 context: { provider, model },
             });
         }
@@ -184,8 +184,8 @@ export async function resolveLLMConfig(
                     'Also set either AWS_BEARER_TOKEN_BEDROCK (API key) or ' +
                     'AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY (IAM credentials).',
                 severity: 'error',
-                scope: ErrorScope.LLM,
-                type: ErrorType.USER,
+                scope: 'llm',
+                type: 'user',
                 context: { provider, model },
             });
         }
@@ -214,8 +214,8 @@ export async function resolveLLMConfig(
                 code: LLMErrorCode.MODEL_INCOMPATIBLE,
                 message: `Model '${model}' not found in OpenRouter catalog. Check model ID at https://openrouter.ai/models`,
                 severity: 'error',
-                scope: ErrorScope.LLM,
-                type: ErrorType.USER,
+                scope: 'llm',
+                type: 'user',
                 context: { provider, model },
             });
         }
@@ -292,8 +292,8 @@ export function validateLLMConfig(
             message: 'API key seems too short - please verify it is correct',
             path: ['apiKey'],
             severity: 'warning',
-            scope: ErrorScope.LLM,
-            type: ErrorType.USER,
+            scope: 'llm',
+            type: 'user',
             context: {
                 provider: candidate.provider,
                 model: candidate.model,

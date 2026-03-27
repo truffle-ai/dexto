@@ -11,7 +11,6 @@ import { PromptsSchema } from '../prompts/schemas.js';
 import { ServersConfigSchema } from '../mcp/schemas.js';
 import type { AgentServices } from '../utils/service-initializer.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
-import { ErrorScope, ErrorType } from '../errors/types.js';
 import { AgentErrorCode } from './error-codes.js';
 import { createLogger } from '../logger/factory.js';
 import {
@@ -175,8 +174,8 @@ describe('DextoAgent Lifecycle Management', () => {
                 Promise.resolve(Reflect.apply(agent.getSystemPrompt, agent, ['']))
             ).rejects.toMatchObject({
                 code: AgentErrorCode.API_VALIDATION_ERROR,
-                scope: ErrorScope.AGENT,
-                type: ErrorType.USER,
+                scope: 'agent',
+                type: 'user',
             });
             expect(mockServices.toolManager.buildContributorContext).not.toHaveBeenCalled();
         });
@@ -234,8 +233,8 @@ describe('DextoAgent Lifecycle Management', () => {
             await expect(agent.start()).rejects.toThrow(
                 expect.objectContaining({
                     code: AgentErrorCode.ALREADY_STARTED,
-                    scope: ErrorScope.AGENT,
-                    type: ErrorType.USER,
+                    scope: 'agent',
+                    type: 'user',
                 })
             );
         });
@@ -269,8 +268,8 @@ describe('DextoAgent Lifecycle Management', () => {
             await expect(agent.stop()).rejects.toThrow(
                 expect.objectContaining({
                     code: AgentErrorCode.NOT_STARTED,
-                    scope: ErrorScope.AGENT,
-                    type: ErrorType.USER,
+                    scope: 'agent',
+                    type: 'user',
                 })
             );
         });
@@ -337,8 +336,8 @@ describe('DextoAgent Lifecycle Management', () => {
             expect(thrownError).toBeDefined();
             expect(thrownError).toMatchObject({
                 code: AgentErrorCode.NOT_STARTED,
-                scope: ErrorScope.AGENT,
-                type: ErrorType.USER,
+                scope: 'agent',
+                type: 'user',
             });
         });
 
@@ -358,8 +357,8 @@ describe('DextoAgent Lifecycle Management', () => {
             expect(thrownError).toBeDefined();
             expect(thrownError).toMatchObject({
                 code: AgentErrorCode.STOPPED,
-                scope: ErrorScope.AGENT,
-                type: ErrorType.USER,
+                scope: 'agent',
+                type: 'user',
             });
         });
 

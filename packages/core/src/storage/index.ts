@@ -13,7 +13,8 @@ export { StorageManager } from './storage-manager.js';
 export type { StorageBackends } from './storage-manager.js';
 
 export { StorageError } from './errors.js';
-export { StorageErrorCode } from './error-codes.js';
+export { STORAGE_ERROR_CODES } from './error-codes.js';
+export type { StorageErrorCode } from './error-codes.js';
 
 export type { Cache } from './cache/types.js';
 export type { Database } from './database/types.js';

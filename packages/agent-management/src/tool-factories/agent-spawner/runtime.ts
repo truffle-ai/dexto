@@ -14,12 +14,7 @@
 import { randomUUID } from 'crypto';
 import type { AgentConfig } from '@dexto/agent-config';
 import type { DextoAgent, Logger, TaskForker } from '@dexto/core';
-import {
-    DextoRuntimeError,
-    ErrorType,
-    getReasoningProfile,
-    supportsReasoningVariant,
-} from '@dexto/core';
+import { DextoRuntimeError, getReasoningProfile, supportsReasoningVariant } from '@dexto/core';
 import { AgentRuntime } from '../../runtime/AgentRuntime.js';
 import { createDelegatingApprovalHandler } from '../../runtime/approval-delegation.js';
 import { loadAgentConfig } from '../../config/loader.js';
@@ -634,7 +629,7 @@ export class AgentSpawnerRuntime implements TaskForker {
             if (error.scope === 'llm') return true;
 
             // Payment / quota style errors should trigger fallback
-            if (error.type === ErrorType.PAYMENT_REQUIRED || error.type === ErrorType.FORBIDDEN) {
+            if (error.type === 'payment_required' || error.type === 'forbidden') {
                 return true;
             }
         }

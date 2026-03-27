@@ -11,7 +11,7 @@ import {
     ensureSchedulerManagerForAgent,
     getSchedulerManager,
 } from '@dexto/tools-scheduler/service';
-import { DextoRuntimeError, ErrorType } from '@dexto/core';
+import { DextoRuntimeError } from '@dexto/core';
 
 const CreateScheduleSchema = z
     .object({
@@ -35,7 +35,7 @@ const UpdateScheduleSchema = CreateScheduleSchema.partial()
 
 const isScheduleNotFoundError = (error: unknown): boolean =>
     error instanceof DextoRuntimeError &&
-    error.type === ErrorType.NOT_FOUND &&
+    error.type === 'not_found' &&
     error.code === SchedulerErrorCode.SCHEDULE_NOT_FOUND;
 
 const logSchedulerError = (

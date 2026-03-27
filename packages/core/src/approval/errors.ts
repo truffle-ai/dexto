@@ -1,4 +1,4 @@
-import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
+import { DextoRuntimeError } from '../errors/index.js';
 import { ApprovalErrorCode } from './error-codes.js';
 import type { ApprovalType, DenialReason } from './types.js';
 
@@ -53,8 +53,8 @@ export class ApprovalError {
     ): DextoRuntimeError<ApprovalValidationContext> {
         return new DextoRuntimeError(
             ApprovalErrorCode.APPROVAL_INVALID_REQUEST,
-            ErrorScope.TOOLS, // Approvals are part of tool execution flow
-            ErrorType.USER,
+            'tools', // Approvals are part of tool execution flow
+            'user',
             `Invalid approval request: ${reason}`,
             context,
             ['Check the approval request structure', 'Ensure all required fields are provided']
@@ -70,8 +70,8 @@ export class ApprovalError {
     ): DextoRuntimeError<ApprovalValidationContext> {
         return new DextoRuntimeError(
             ApprovalErrorCode.APPROVAL_INVALID_RESPONSE,
-            ErrorScope.TOOLS,
-            ErrorType.USER,
+            'tools',
+            'user',
             `Invalid approval response: ${reason}`,
             context,
             [
@@ -91,8 +91,8 @@ export class ApprovalError {
     ): DextoRuntimeError<ApprovalValidationContext> {
         return new DextoRuntimeError(
             ApprovalErrorCode.APPROVAL_INVALID_METADATA,
-            ErrorScope.TOOLS,
-            ErrorType.USER,
+            'tools',
+            'user',
             `Invalid metadata for ${type}: ${reason}`,
             { type, reason },
             ['Check the metadata structure for this approval type']
@@ -105,8 +105,8 @@ export class ApprovalError {
     static invalidSchema(reason: string): DextoRuntimeError<ApprovalValidationContext> {
         return new DextoRuntimeError(
             ApprovalErrorCode.APPROVAL_INVALID_SCHEMA,
-            ErrorScope.TOOLS,
-            ErrorType.USER,
+            'tools',
+            'user',
             `Invalid elicitation schema: ${reason}`,
             { reason },
             ['Ensure the schema is a valid JSON Schema', 'Check MCP server implementation']
@@ -134,8 +134,8 @@ export class ApprovalError {
 
         return new DextoRuntimeError(
             ApprovalErrorCode.APPROVAL_TIMEOUT,
-            ErrorScope.TOOLS,
-            ErrorType.TIMEOUT,
+            'tools',
+            'timeout',
             `Approval request timed out after ${timeout}ms`,
             context,
             [
@@ -169,8 +169,8 @@ export class ApprovalError {
 
         return new DextoRuntimeError(
             ApprovalErrorCode.APPROVAL_CANCELLED,
-            ErrorScope.TOOLS,
-            ErrorType.USER,
+            'tools',
+            'user',
             message,
             context
         );
@@ -192,8 +192,8 @@ export class ApprovalError {
 
         return new DextoRuntimeError(
             ApprovalErrorCode.APPROVAL_CANCELLED_ALL,
-            ErrorScope.TOOLS,
-            ErrorType.USER,
+            'tools',
+            'user',
             message,
             context
         );
@@ -205,8 +205,8 @@ export class ApprovalError {
     static providerNotConfigured(): DextoRuntimeError<Record<string, never>> {
         return new DextoRuntimeError(
             ApprovalErrorCode.APPROVAL_PROVIDER_NOT_CONFIGURED,
-            ErrorScope.TOOLS,
-            ErrorType.SYSTEM,
+            'tools',
+            'system',
             'Approval provider not configured',
             {},
             [
@@ -228,8 +228,8 @@ export class ApprovalError {
 
         return new DextoRuntimeError(
             ApprovalErrorCode.APPROVAL_PROVIDER_ERROR,
-            ErrorScope.TOOLS,
-            ErrorType.SYSTEM,
+            'tools',
+            'system',
             `Approval provider error: ${message}`,
             context,
             ['Check approval provider implementation', 'Review system logs for details']
@@ -242,8 +242,8 @@ export class ApprovalError {
     static notFound(approvalId: string): DextoRuntimeError<{ approvalId: string }> {
         return new DextoRuntimeError(
             ApprovalErrorCode.APPROVAL_NOT_FOUND,
-            ErrorScope.TOOLS,
-            ErrorType.NOT_FOUND,
+            'tools',
+            'not_found',
             `Approval request not found: ${approvalId}`,
             { approvalId },
             [
@@ -301,8 +301,8 @@ export class ApprovalError {
 
         return new DextoRuntimeError(
             ApprovalErrorCode.APPROVAL_TOOL_APPROVAL_DENIED,
-            ErrorScope.TOOLS,
-            ErrorType.FORBIDDEN,
+            'tools',
+            'forbidden',
             message,
             context,
             suggestions
@@ -383,8 +383,8 @@ export class ApprovalError {
 
         return new DextoRuntimeError(
             ApprovalErrorCode.APPROVAL_ELICITATION_DENIED,
-            ErrorScope.TOOLS,
-            ErrorType.FORBIDDEN,
+            'tools',
+            'forbidden',
             message,
             context,
             suggestions
@@ -401,8 +401,8 @@ export class ApprovalError {
     ): DextoRuntimeError<ElicitationValidationContext> {
         return new DextoRuntimeError(
             ApprovalErrorCode.APPROVAL_ELICITATION_VALIDATION_FAILED,
-            ErrorScope.TOOLS,
-            ErrorType.USER,
+            'tools',
+            'user',
             `Elicitation form validation failed: ${errors.join(', ')}`,
             { approvalId, serverName, errors },
             ['Check the form inputs match the schema requirements', 'Review validation errors']
@@ -415,8 +415,8 @@ export class ApprovalError {
     static invalidConfig(reason: string): DextoRuntimeError<{ reason: string }> {
         return new DextoRuntimeError(
             ApprovalErrorCode.APPROVAL_CONFIG_INVALID,
-            ErrorScope.TOOLS,
-            ErrorType.USER,
+            'tools',
+            'user',
             `Invalid approval configuration: ${reason}`,
             { reason },
             ['Check approval configuration in agent.yml', 'Review approval.mode and related fields']

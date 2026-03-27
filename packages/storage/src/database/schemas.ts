@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { EnvExpandedString, ErrorScope, ErrorType, StorageErrorCode } from '@dexto/core';
+import { EnvExpandedString } from '@dexto/core';
 
 export const DATABASE_TYPES = ['in-memory', 'sqlite', 'postgres'] as const;
 export type DatabaseType = (typeof DATABASE_TYPES)[number];
@@ -66,9 +66,9 @@ export const PostgresDatabaseSchema = BaseDatabaseSchema.extend({
                     "PostgreSQL database requires one of 'url', 'connectionString', or 'host' to be specified",
                 path: ['url'],
                 params: {
-                    code: StorageErrorCode.CONNECTION_CONFIG_MISSING,
-                    scope: ErrorScope.STORAGE,
-                    type: ErrorType.USER,
+                    code: 'storage_connection_config_missing',
+                    scope: 'storage',
+                    type: 'user',
                 },
             });
         }

@@ -1,5 +1,4 @@
 import { DextoRuntimeError } from '../errors/index.js';
-import { ErrorScope, ErrorType } from '../errors/types.js';
 import { ContextErrorCode } from './error-codes.js';
 
 /**
@@ -11,8 +10,8 @@ export class ContextError {
     static messageRoleMissing() {
         return new DextoRuntimeError(
             ContextErrorCode.MESSAGE_ROLE_MISSING,
-            ErrorScope.CONTEXT,
-            ErrorType.USER,
+            'context',
+            'user',
             'Message must have a role',
             {},
             'Ensure all messages have a valid role field'
@@ -22,8 +21,8 @@ export class ContextError {
     static userMessageContentInvalid() {
         return new DextoRuntimeError(
             ContextErrorCode.USER_MESSAGE_CONTENT_INVALID,
-            ErrorScope.CONTEXT,
-            ErrorType.USER,
+            'context',
+            'user',
             'User message content should be a non-empty string or a non-empty array of parts',
             {},
             'Provide valid content for user messages'
@@ -33,8 +32,8 @@ export class ContextError {
     static assistantMessageContentOrToolsRequired() {
         return new DextoRuntimeError(
             ContextErrorCode.ASSISTANT_MESSAGE_CONTENT_OR_TOOLS_REQUIRED,
-            ErrorScope.CONTEXT,
-            ErrorType.USER,
+            'context',
+            'user',
             'Assistant message must have content or toolCalls',
             {},
             'Provide either content or toolCalls for assistant messages'
@@ -44,8 +43,8 @@ export class ContextError {
     static assistantMessageToolCallsInvalid() {
         return new DextoRuntimeError(
             ContextErrorCode.ASSISTANT_MESSAGE_TOOL_CALLS_INVALID,
-            ErrorScope.CONTEXT,
-            ErrorType.USER,
+            'context',
+            'user',
             'Invalid toolCalls structure in assistant message',
             {},
             'Ensure toolCalls have proper structure with function name and arguments'
@@ -55,8 +54,8 @@ export class ContextError {
     static toolMessageFieldsMissing() {
         return new DextoRuntimeError(
             ContextErrorCode.TOOL_MESSAGE_FIELDS_MISSING,
-            ErrorScope.CONTEXT,
-            ErrorType.USER,
+            'context',
+            'user',
             'Tool message missing required fields (toolCallId, name, content)',
             {},
             'Ensure tool messages have toolCallId, name, and content fields'
@@ -66,8 +65,8 @@ export class ContextError {
     static systemMessageContentInvalid() {
         return new DextoRuntimeError(
             ContextErrorCode.SYSTEM_MESSAGE_CONTENT_INVALID,
-            ErrorScope.CONTEXT,
-            ErrorType.USER,
+            'context',
+            'user',
             'System message content must be a non-empty string',
             {},
             'Provide valid string content for system messages'
@@ -77,8 +76,8 @@ export class ContextError {
     static userMessageContentEmpty() {
         return new DextoRuntimeError(
             ContextErrorCode.MESSAGE_CONTENT_EMPTY,
-            ErrorScope.CONTEXT,
-            ErrorType.USER,
+            'context',
+            'user',
             'Content must be a non-empty string or have imageData/fileData',
             {},
             'Provide non-empty content or attach image/file data'
@@ -88,8 +87,8 @@ export class ContextError {
     static toolCallIdNameRequired() {
         return new DextoRuntimeError(
             ContextErrorCode.TOOL_CALL_ID_NAME_REQUIRED,
-            ErrorScope.CONTEXT,
-            ErrorType.USER,
+            'context',
+            'user',
             'toolCallId and name are required',
             {},
             'Provide both toolCallId and name for tool results'
@@ -103,8 +102,8 @@ export class ContextError {
     static preserveValuesNegative() {
         return new DextoRuntimeError(
             ContextErrorCode.PRESERVE_VALUES_NEGATIVE,
-            ErrorScope.CONTEXT,
-            ErrorType.USER,
+            'context',
+            'user',
             'preserveStart and preserveEnd must be non-negative',
             {},
             'Set preserveStart and preserveEnd to zero or positive values'
@@ -114,8 +113,8 @@ export class ContextError {
     static tokenCountFailed(cause: string) {
         return new DextoRuntimeError(
             ContextErrorCode.TOKEN_COUNT_FAILED,
-            ErrorScope.CONTEXT,
-            ErrorType.SYSTEM,
+            'context',
+            'system',
             `Failed to count tokens: ${cause}`,
             { cause },
             'Check tokenizer implementation and message content structure'
@@ -125,8 +124,8 @@ export class ContextError {
     static minMessagesNegative() {
         return new DextoRuntimeError(
             ContextErrorCode.MIN_MESSAGES_NEGATIVE,
-            ErrorScope.CONTEXT,
-            ErrorType.USER,
+            'context',
+            'user',
             'minMessagesToKeep must be non-negative',
             {},
             'Set minMessagesToKeep to zero or positive value'
@@ -136,8 +135,8 @@ export class ContextError {
     static compactionInvalidType(type: string, available: string[]) {
         return new DextoRuntimeError(
             ContextErrorCode.COMPACTION_INVALID_TYPE,
-            ErrorScope.CONTEXT,
-            ErrorType.USER,
+            'context',
+            'user',
             `Unknown compaction provider type: '${type}'`,
             { type, available },
             `Use one of the available types: ${available.join(', ')}`
@@ -147,8 +146,8 @@ export class ContextError {
     static compactionValidation(type: string, errors: unknown) {
         return new DextoRuntimeError(
             ContextErrorCode.COMPACTION_VALIDATION,
-            ErrorScope.CONTEXT,
-            ErrorType.USER,
+            'context',
+            'user',
             `Invalid configuration for compaction provider '${type}'`,
             { type, errors },
             'Check the configuration schema for this provider'
@@ -158,8 +157,8 @@ export class ContextError {
     static compactionMissingLLM(type: string) {
         return new DextoRuntimeError(
             ContextErrorCode.COMPACTION_MISSING_LLM,
-            ErrorScope.CONTEXT,
-            ErrorType.USER,
+            'context',
+            'user',
             `Compaction provider '${type}' requires LLM service but none provided`,
             { type },
             'Ensure LLM service is initialized before creating this compaction provider'
@@ -169,8 +168,8 @@ export class ContextError {
     static compactionProviderAlreadyRegistered(type: string) {
         return new DextoRuntimeError(
             ContextErrorCode.COMPACTION_PROVIDER_ALREADY_REGISTERED,
-            ErrorScope.CONTEXT,
-            ErrorType.USER,
+            'context',
+            'user',
             `Compaction provider '${type}' is already registered`,
             { type },
             'Each provider type can only be registered once'
@@ -181,8 +180,8 @@ export class ContextError {
     static messageNotFound(messageId: string) {
         return new DextoRuntimeError(
             ContextErrorCode.MESSAGE_NOT_FOUND,
-            ErrorScope.CONTEXT,
-            ErrorType.NOT_FOUND,
+            'context',
+            'not_found',
             `Message with ID ${messageId} not found`,
             { messageId }
         );
@@ -191,8 +190,8 @@ export class ContextError {
     static messageNotAssistant(messageId: string) {
         return new DextoRuntimeError(
             ContextErrorCode.MESSAGE_NOT_ASSISTANT,
-            ErrorScope.CONTEXT,
-            ErrorType.USER,
+            'context',
+            'user',
             `Message with ID ${messageId} is not an assistant message`,
             { messageId }
         );
@@ -201,8 +200,8 @@ export class ContextError {
     static assistantContentNotString() {
         return new DextoRuntimeError(
             ContextErrorCode.ASSISTANT_CONTENT_NOT_STRING,
-            ErrorScope.CONTEXT,
-            ErrorType.USER,
+            'context',
+            'user',
             'Cannot append text to non-string assistant message content',
             {}
         );

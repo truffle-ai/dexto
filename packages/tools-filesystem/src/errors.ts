@@ -4,7 +4,7 @@
  * Error classes for file system operations
  */
 
-import { DextoRuntimeError, ErrorType } from '@dexto/core';
+import { DextoRuntimeError } from '@dexto/core';
 
 /** Error scope for filesystem operations */
 const FILESYSTEM_SCOPE = 'filesystem';
@@ -34,7 +34,7 @@ export class FileSystemError {
         return new DextoRuntimeError(
             FileSystemErrorCode.FILE_NOT_FOUND,
             FILESYSTEM_SCOPE,
-            ErrorType.NOT_FOUND,
+            'not_found',
             `File not found: ${path}`,
             { path }
         );
@@ -47,7 +47,7 @@ export class FileSystemError {
         return new DextoRuntimeError(
             FileSystemErrorCode.DIRECTORY_NOT_FOUND,
             FILESYSTEM_SCOPE,
-            ErrorType.NOT_FOUND,
+            'not_found',
             `Directory not found: ${path}`,
             { path }
         );
@@ -60,7 +60,7 @@ export class FileSystemError {
         return new DextoRuntimeError(
             FileSystemErrorCode.PERMISSION_DENIED,
             FILESYSTEM_SCOPE,
-            ErrorType.FORBIDDEN,
+            'forbidden',
             `Permission denied: cannot ${operation} ${path}`,
             { path, operation }
         );
@@ -73,7 +73,7 @@ export class FileSystemError {
         return new DextoRuntimeError(
             FileSystemErrorCode.PATH_NOT_ALLOWED,
             FILESYSTEM_SCOPE,
-            ErrorType.USER,
+            'user',
             `Path not allowed: ${path}. Must be within allowed paths: ${allowedPaths.join(', ')}`,
             { path, allowedPaths },
             'Ensure the path is within the configured allowed paths'
@@ -87,7 +87,7 @@ export class FileSystemError {
         return new DextoRuntimeError(
             FileSystemErrorCode.PATH_BLOCKED,
             FILESYSTEM_SCOPE,
-            ErrorType.FORBIDDEN,
+            'forbidden',
             `Path is blocked: ${path}. Reason: ${reason}`,
             { path, reason }
         );
@@ -100,7 +100,7 @@ export class FileSystemError {
         return new DextoRuntimeError(
             FileSystemErrorCode.INVALID_PATH,
             FILESYSTEM_SCOPE,
-            ErrorType.USER,
+            'user',
             `Invalid path: ${path}. ${reason}`,
             { path, reason }
         );
@@ -113,7 +113,7 @@ export class FileSystemError {
         return new DextoRuntimeError(
             FileSystemErrorCode.PATH_TRAVERSAL_DETECTED,
             FILESYSTEM_SCOPE,
-            ErrorType.FORBIDDEN,
+            'forbidden',
             `Path traversal detected in: ${path}`,
             { path }
         );
@@ -126,7 +126,7 @@ export class FileSystemError {
         return new DextoRuntimeError(
             FileSystemErrorCode.INVALID_FILE_EXTENSION,
             FILESYSTEM_SCOPE,
-            ErrorType.USER,
+            'user',
             `Invalid file extension: ${path}. Blocked extensions: ${blockedExtensions.join(', ')}`,
             { path, blockedExtensions }
         );
@@ -139,7 +139,7 @@ export class FileSystemError {
         return new DextoRuntimeError(
             FileSystemErrorCode.FILE_TOO_LARGE,
             FILESYSTEM_SCOPE,
-            ErrorType.USER,
+            'user',
             `File too large: ${path} (${size} bytes). Maximum allowed: ${maxSize} bytes`,
             { path, size, maxSize }
         );
@@ -152,7 +152,7 @@ export class FileSystemError {
         return new DextoRuntimeError(
             FileSystemErrorCode.TOO_MANY_RESULTS,
             FILESYSTEM_SCOPE,
-            ErrorType.USER,
+            'user',
             `Too many results from ${operation}: ${count}. Maximum allowed: ${maxResults}`,
             { operation, count, maxResults },
             'Narrow your search pattern or increase maxResults limit'
@@ -166,7 +166,7 @@ export class FileSystemError {
         return new DextoRuntimeError(
             FileSystemErrorCode.READ_FAILED,
             FILESYSTEM_SCOPE,
-            ErrorType.SYSTEM,
+            'system',
             `Failed to read file: ${path}. ${cause}`,
             { path, cause }
         );
@@ -179,7 +179,7 @@ export class FileSystemError {
         return new DextoRuntimeError(
             FileSystemErrorCode.LIST_FAILED,
             FILESYSTEM_SCOPE,
-            ErrorType.SYSTEM,
+            'system',
             `Failed to list directory: ${path}. ${cause}`,
             { path, cause }
         );
@@ -192,7 +192,7 @@ export class FileSystemError {
         return new DextoRuntimeError(
             FileSystemErrorCode.CREATE_DIR_FAILED,
             FILESYSTEM_SCOPE,
-            ErrorType.SYSTEM,
+            'system',
             `Failed to create directory: ${path}. ${cause}`,
             { path, cause }
         );
@@ -205,7 +205,7 @@ export class FileSystemError {
         return new DextoRuntimeError(
             FileSystemErrorCode.DELETE_FAILED,
             FILESYSTEM_SCOPE,
-            ErrorType.SYSTEM,
+            'system',
             `Failed to delete path: ${path}. ${cause}`,
             { path, cause }
         );
@@ -218,7 +218,7 @@ export class FileSystemError {
         return new DextoRuntimeError(
             FileSystemErrorCode.RENAME_FAILED,
             FILESYSTEM_SCOPE,
-            ErrorType.SYSTEM,
+            'system',
             `Failed to rename path: ${path}. ${cause}`,
             { path, cause }
         );
@@ -231,7 +231,7 @@ export class FileSystemError {
         return new DextoRuntimeError(
             FileSystemErrorCode.WRITE_FAILED,
             FILESYSTEM_SCOPE,
-            ErrorType.SYSTEM,
+            'system',
             `Failed to write file: ${path}. ${cause}`,
             { path, cause }
         );
@@ -244,7 +244,7 @@ export class FileSystemError {
         return new DextoRuntimeError(
             FileSystemErrorCode.BACKUP_FAILED,
             FILESYSTEM_SCOPE,
-            ErrorType.SYSTEM,
+            'system',
             `Failed to create backup for: ${path}. ${cause}`,
             { path, cause }
         );
@@ -257,7 +257,7 @@ export class FileSystemError {
         return new DextoRuntimeError(
             FileSystemErrorCode.EDIT_FAILED,
             FILESYSTEM_SCOPE,
-            ErrorType.SYSTEM,
+            'system',
             `Failed to edit file: ${path}. ${cause}`,
             { path, cause }
         );
@@ -274,7 +274,7 @@ export class FileSystemError {
         return new DextoRuntimeError(
             FileSystemErrorCode.STRING_NOT_UNIQUE,
             FILESYSTEM_SCOPE,
-            ErrorType.USER,
+            'user',
             `String is not unique in ${path}: "${searchString}" found ${occurrences} times. Use replaceAll=true or provide a more specific string.`,
             { path, searchString, occurrences },
             'Use replaceAll option or provide more context in the search string'
@@ -288,7 +288,7 @@ export class FileSystemError {
         return new DextoRuntimeError(
             FileSystemErrorCode.STRING_NOT_FOUND,
             FILESYSTEM_SCOPE,
-            ErrorType.USER,
+            'user',
             `String not found in ${path}: "${searchString}"`,
             { path, searchString }
         );
@@ -301,7 +301,7 @@ export class FileSystemError {
         return new DextoRuntimeError(
             FileSystemErrorCode.GLOB_FAILED,
             FILESYSTEM_SCOPE,
-            ErrorType.SYSTEM,
+            'system',
             `Glob operation failed for pattern: ${pattern}. ${cause}`,
             { pattern, cause }
         );
@@ -314,7 +314,7 @@ export class FileSystemError {
         return new DextoRuntimeError(
             FileSystemErrorCode.SEARCH_FAILED,
             FILESYSTEM_SCOPE,
-            ErrorType.SYSTEM,
+            'system',
             `Search operation failed for pattern: ${pattern}. ${cause}`,
             { pattern, cause }
         );
@@ -327,7 +327,7 @@ export class FileSystemError {
         return new DextoRuntimeError(
             FileSystemErrorCode.INVALID_PATTERN,
             FILESYSTEM_SCOPE,
-            ErrorType.USER,
+            'user',
             `Invalid pattern: ${pattern}. ${cause}`,
             { pattern, cause }
         );
@@ -340,7 +340,7 @@ export class FileSystemError {
         return new DextoRuntimeError(
             FileSystemErrorCode.REGEX_TIMEOUT,
             FILESYSTEM_SCOPE,
-            ErrorType.TIMEOUT,
+            'timeout',
             `Regex operation timed out for pattern: ${pattern}`,
             { pattern },
             'Simplify your regex pattern or increase timeout'
@@ -354,7 +354,7 @@ export class FileSystemError {
         return new DextoRuntimeError(
             FileSystemErrorCode.INVALID_CONFIG,
             FILESYSTEM_SCOPE,
-            ErrorType.USER,
+            'user',
             `Invalid FileSystem configuration: ${reason}`,
             { reason }
         );
@@ -367,7 +367,7 @@ export class FileSystemError {
         return new DextoRuntimeError(
             FileSystemErrorCode.SERVICE_NOT_INITIALIZED,
             FILESYSTEM_SCOPE,
-            ErrorType.SYSTEM,
+            'system',
             'FileSystemService has not been initialized',
             {},
             'Initialize the FileSystemService before using it'

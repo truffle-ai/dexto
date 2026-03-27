@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createDelegateToUrlTool } from './delegate-to-url-tool.js';
-import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
+import { DextoRuntimeError } from '@dexto/core';
 import type { Logger, ToolExecutionContext } from '@dexto/core';
 
 function createMockLogger(): Logger {
@@ -49,8 +49,8 @@ describe('delegate_to_url tool', () => {
         await expect(tool.execute(input, context)).rejects.toMatchObject({
             name: 'DextoRuntimeError',
             code: 'DELEGATION_FAILED',
-            scope: ErrorScope.TOOLS,
-            type: ErrorType.THIRD_PARTY,
+            scope: 'tools',
+            type: 'third_party',
         });
     });
 
@@ -80,8 +80,8 @@ describe('delegate_to_url tool', () => {
             expect(error).toBeInstanceOf(DextoRuntimeError);
             expect(error).toMatchObject({
                 code: 'DELEGATION_TIMEOUT',
-                scope: ErrorScope.TOOLS,
-                type: ErrorType.TIMEOUT,
+                scope: 'tools',
+                type: 'timeout',
             });
         }
     });

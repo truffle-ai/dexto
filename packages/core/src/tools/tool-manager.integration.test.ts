@@ -3,7 +3,6 @@ import { ToolManager } from './tool-manager.js';
 import { MCPManager } from '../mcp/manager.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { ToolErrorCode } from './error-codes.js';
-import { ErrorScope, ErrorType } from '../errors/types.js';
 import { z } from 'zod';
 import type { McpClient } from '../mcp/types.js';
 import { AgentEventBus } from '../events/index.js';
@@ -389,8 +388,8 @@ describe('ToolManager Integration Tests', () => {
                 .catch((e) => e)) as DextoRuntimeError;
             expect(error).toBeInstanceOf(DextoRuntimeError);
             expect(error.code).toBe(ToolErrorCode.EXECUTION_DENIED);
-            expect(error.scope).toBe(ErrorScope.TOOLS);
-            expect(error.type).toBe(ErrorType.FORBIDDEN);
+            expect(error.scope).toBe('tools');
+            expect(error.type).toBe('forbidden');
 
             expect(mockClient.callTool).not.toHaveBeenCalled();
         });

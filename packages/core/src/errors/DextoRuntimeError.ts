@@ -1,6 +1,6 @@
 import { DextoBaseError } from './DextoBaseError.js';
-import { ErrorScope } from './types.js';
-import { ErrorType } from './types.js';
+import type { ErrorScope } from './types.js';
+import type { ErrorType } from './types.js';
 import type { DextoErrorCode } from './types.js';
 
 /**

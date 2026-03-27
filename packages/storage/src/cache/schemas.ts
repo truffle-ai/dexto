@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { EnvExpandedString, ErrorScope, ErrorType, StorageErrorCode } from '@dexto/core';
+import { EnvExpandedString } from '@dexto/core';
 
 export const CACHE_TYPES = ['in-memory', 'redis'] as const;
 export type CacheType = (typeof CACHE_TYPES)[number];
@@ -46,9 +46,9 @@ export const RedisCacheSchema = BaseCacheSchema.extend({
                 message: "Redis cache requires either 'url' or 'host' to be specified",
                 path: ['url'],
                 params: {
-                    code: StorageErrorCode.CONNECTION_CONFIG_MISSING,
-                    scope: ErrorScope.STORAGE,
-                    type: ErrorType.USER,
+                    code: 'storage_connection_config_missing',
+                    scope: 'storage',
+                    type: 'user',
                 },
             });
         }

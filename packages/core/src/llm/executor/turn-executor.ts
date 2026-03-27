@@ -35,7 +35,6 @@ import type { StreamProcessorConfig } from './stream-processor.js';
 import type { CoalescedMessage } from '../../session/types.js';
 import { defer } from '../../utils/defer.js';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
-import { ErrorScope, ErrorType } from '../../errors/types.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { toError } from '../../utils/error-conversion.js';
 import type { CompactionStrategy } from '../../context/compaction/types.js';
@@ -1198,8 +1197,8 @@ export class TurnExecutor {
                 }
                 return new DextoRuntimeError(
                     LLMErrorCode.INSUFFICIENT_CREDITS,
-                    ErrorScope.LLM,
-                    ErrorType.PAYMENT_REQUIRED,
+                    'llm',
+                    'payment_required',
                     `Insufficient Dexto credits${balance !== undefined ? `. Balance: $${balance.toFixed(2)}` : ''}`,
                     {
                         sessionId: this.sessionId,
@@ -1215,8 +1214,8 @@ export class TurnExecutor {
             if (status === 429) {
                 return new DextoRuntimeError(
                     LLMErrorCode.RATE_LIMIT_EXCEEDED,
-                    ErrorScope.LLM,
-                    ErrorType.RATE_LIMIT,
+                    'llm',
+                    'rate_limit',
                     `Rate limit exceeded${body ? ` - ${body}` : ''}`,
                     {
                         sessionId: this.sessionId,
@@ -1231,8 +1230,8 @@ export class TurnExecutor {
             if (status === 408) {
                 return new DextoRuntimeError(
                     LLMErrorCode.GENERATION_FAILED,
-                    ErrorScope.LLM,
-                    ErrorType.TIMEOUT,
+                    'llm',
+                    'timeout',
                     `Provider timed out${body ? ` - ${body}` : ''}`,
                     {
                         sessionId: this.sessionId,
@@ -1245,8 +1244,8 @@ export class TurnExecutor {
             }
             return new DextoRuntimeError(
                 LLMErrorCode.GENERATION_FAILED,
-                ErrorScope.LLM,
-                ErrorType.THIRD_PARTY,
+                'llm',
+                'third_party',
                 `Provider error ${status}${body ? ` - ${body}` : ''}`,
                 {
                     sessionId: this.sessionId,

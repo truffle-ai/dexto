@@ -1,7 +1,6 @@
 // schemas/helpers.ts
 import { z, type ZodError } from 'zod';
 import type { DextoErrorCode, Issue } from '../errors/types.js';
-import { ErrorScope, ErrorType } from '../errors/types.js';
 
 /** Trim and require non-empty after trim */
 export const NonEmptyTrimmed = z
@@ -255,8 +254,8 @@ export function zodToIssues<C = unknown>(
                 issues.push({
                     code: (params.code ?? 'schema_validation') as DextoErrorCode,
                     message: e.message,
-                    scope: params.scope ?? ErrorScope.AGENT,
-                    type: params.type ?? ErrorType.USER,
+                    scope: params.scope ?? 'agent',
+                    type: params.type ?? 'user',
                     path: e.path,
                     severity,
                     context: params as C,
@@ -268,8 +267,8 @@ export function zodToIssues<C = unknown>(
             issues.push({
                 code: (params.code ?? 'schema_validation') as DextoErrorCode,
                 message: e.message,
-                scope: params.scope ?? ErrorScope.AGENT,
-                type: params.type ?? ErrorType.USER,
+                scope: params.scope ?? 'agent',
+                type: params.type ?? 'user',
                 path: e.path,
                 severity,
                 context: params as C,

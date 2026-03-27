@@ -5,7 +5,6 @@ import {
     providerRequiresApiKey,
     cleanupTestEnvironment,
 } from './test-utils.integration.js';
-import { ErrorScope, ErrorType } from '../../errors/index.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { resolveApiKeyForProvider } from '../../utils/api-key-resolver.js';
 import type { LLMProvider } from '../types.js';
@@ -244,8 +243,8 @@ describe('Vercel AI SDK LLM Service Integration', () => {
                     issues: [
                         expect.objectContaining({
                             code: LLMErrorCode.INPUT_FILE_UNSUPPORTED,
-                            scope: ErrorScope.LLM,
-                            type: ErrorType.USER,
+                            scope: 'llm',
+                            type: 'user',
                         }),
                     ],
                 });

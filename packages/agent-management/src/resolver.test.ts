@@ -3,7 +3,6 @@ import { promises as fs, mkdtempSync } from 'fs';
 import * as path from 'path';
 import { tmpdir } from 'os';
 import { resolveAgentPath, updateDefaultAgentPreference } from './resolver.js';
-import { ErrorScope, ErrorType } from '@dexto/core';
 import { ConfigErrorCode } from './config/index.js';
 
 // Mock dependencies - use vi.fn() in factory to avoid hoisting issues
@@ -118,8 +117,8 @@ describe('Agent Resolver', () => {
             await expect(resolveAgentPath(nonExistentFile)).rejects.toThrow(
                 expect.objectContaining({
                     code: ConfigErrorCode.FILE_NOT_FOUND,
-                    scope: ErrorScope.CONFIG,
-                    type: ErrorType.USER,
+                    scope: 'config',
+                    type: 'user',
                 })
             );
         });
@@ -356,8 +355,8 @@ describe('Agent Resolver', () => {
             await expect(resolveAgentPath()).rejects.toThrow(
                 expect.objectContaining({
                     code: ConfigErrorCode.BUNDLED_NOT_FOUND,
-                    scope: ErrorScope.CONFIG,
-                    type: ErrorType.NOT_FOUND,
+                    scope: 'config',
+                    type: 'not_found',
                 })
             );
         });
@@ -370,8 +369,8 @@ describe('Agent Resolver', () => {
             await expect(resolveAgentPath()).rejects.toThrow(
                 expect.objectContaining({
                     code: ConfigErrorCode.BUNDLED_NOT_FOUND,
-                    scope: ErrorScope.CONFIG,
-                    type: ErrorType.NOT_FOUND,
+                    scope: 'config',
+                    type: 'not_found',
                 })
             );
         });
@@ -478,8 +477,8 @@ describe('Agent Resolver', () => {
 
             await expect(resolveAgentPath()).rejects.toMatchObject({
                 code: ConfigErrorCode.INVALID_PROJECT_PRIMARY,
-                scope: ErrorScope.CONFIG,
-                type: ErrorType.USER,
+                scope: 'config',
+                type: 'user',
             });
         });
 
@@ -554,8 +553,8 @@ describe('Agent Resolver', () => {
             await expect(resolveAgentPath()).rejects.toThrow(
                 expect.objectContaining({
                     code: ConfigErrorCode.SETUP_INCOMPLETE,
-                    scope: ErrorScope.CONFIG,
-                    type: ErrorType.USER,
+                    scope: 'config',
+                    type: 'user',
                 })
             );
         });
@@ -617,8 +616,8 @@ describe('Agent Resolver', () => {
             await expect(resolveAgentPath()).rejects.toThrow(
                 expect.objectContaining({
                     code: ConfigErrorCode.NO_GLOBAL_PREFERENCES,
-                    scope: ErrorScope.CONFIG,
-                    type: ErrorType.USER,
+                    scope: 'config',
+                    type: 'user',
                 })
             );
         });
@@ -633,8 +632,8 @@ describe('Agent Resolver', () => {
             await expect(resolveAgentPath()).rejects.toThrow(
                 expect.objectContaining({
                     code: ConfigErrorCode.SETUP_INCOMPLETE,
-                    scope: ErrorScope.CONFIG,
-                    type: ErrorType.USER,
+                    scope: 'config',
+                    type: 'user',
                 })
             );
         });
@@ -647,8 +646,8 @@ describe('Agent Resolver', () => {
             await expect(resolveAgentPath()).rejects.toThrow(
                 expect.objectContaining({
                     code: ConfigErrorCode.UNKNOWN_CONTEXT,
-                    scope: ErrorScope.CONFIG,
-                    type: ErrorType.SYSTEM,
+                    scope: 'config',
+                    type: 'system',
                 })
             );
         });

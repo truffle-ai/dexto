@@ -1,7 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import { z, ZodError } from 'zod';
 import { zodToIssues, ok, fail, hasErrors, splitIssues } from './result.js';
-import { ErrorScope, ErrorType } from '../errors/index.js';
 import type { Issue } from '../errors/index.js';
 
 // Helper to create test issues with less boilerplate
@@ -13,8 +12,8 @@ const makeIssue = (
     code,
     message,
     severity,
-    scope: ErrorScope.AGENT,
-    type: ErrorType.USER,
+    scope: 'agent',
+    type: 'user',
     context: {},
 });
 
@@ -37,8 +36,8 @@ describe('zodToIssues', () => {
                     message: 'Expected number, received string',
                     path: ['age'],
                     severity: 'error',
-                    scope: ErrorScope.AGENT,
-                    type: ErrorType.USER,
+                    scope: 'agent',
+                    type: 'user',
                 });
             }
         });

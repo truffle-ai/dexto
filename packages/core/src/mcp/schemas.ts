@@ -1,5 +1,4 @@
 import { MCPErrorCode } from './error-codes.js';
-import { ErrorScope, ErrorType } from '../errors/types.js';
 import { EnvExpandedString, RequiredEnvURL } from '../utils/result.js';
 import { z } from 'zod';
 
@@ -48,8 +47,8 @@ export const StdioServerConfigSchema = z
                     message: 'Stdio server requires a non-empty command',
                     params: {
                         code: MCPErrorCode.COMMAND_MISSING,
-                        scope: ErrorScope.MCP,
-                        type: ErrorType.USER,
+                        scope: 'mcp',
+                        type: 'user',
                     },
                 });
             }

@@ -1,8 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import {
     DextoRuntimeError,
-    ErrorScope,
-    ErrorType,
     zodToIssues,
     type SessionMetadata as CoreSessionMetadata,
 } from '@dexto/core';
@@ -111,7 +109,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                     new DextoRuntimeError(
                         'validation_failed',
                         'validation',
-                        ErrorType.USER,
+                        'user',
                         issues[0]?.message ?? 'Validation failed',
                         { issues }
                     )
@@ -712,8 +710,8 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             if (contributorId.length === 0) {
                 throw new DextoRuntimeError(
                     'session_systemprompt_contributor_config_invalid',
-                    ErrorScope.SYSTEM_PROMPT,
-                    ErrorType.USER,
+                    'system_prompt',
+                    'user',
                     'A valid contributor id is required',
                     {
                         id: payload.id,
@@ -743,8 +741,8 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             if (content.trim().length === 0) {
                 throw new DextoRuntimeError(
                     'session_systemprompt_contributor_config_invalid',
-                    ErrorScope.SYSTEM_PROMPT,
-                    ErrorType.USER,
+                    'system_prompt',
+                    'user',
                     'Contributor content is required when enabled',
                     {
                         id: payload.id,

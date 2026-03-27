@@ -1,5 +1,4 @@
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
-import { ErrorScope, ErrorType } from '../../errors/types.js';
 import { LoggerErrorCode } from './error-codes.js';
 
 /**
@@ -16,8 +15,8 @@ export class LoggerError {
     ): DextoRuntimeError {
         return new DextoRuntimeError(
             LoggerErrorCode.TRANSPORT_NOT_IMPLEMENTED,
-            ErrorScope.LOGGER,
-            ErrorType.USER,
+            'logger',
+            'user',
             `${transportType} transport not yet implemented. Available transports: ${availableTransports.join(', ')}`,
             { transportType, availableTransports }
         );
@@ -29,8 +28,8 @@ export class LoggerError {
     static unknownTransportType(transportType: string): DextoRuntimeError {
         return new DextoRuntimeError(
             LoggerErrorCode.TRANSPORT_UNKNOWN_TYPE,
-            ErrorScope.LOGGER,
-            ErrorType.USER,
+            'logger',
+            'user',
             `Unknown transport type: ${transportType}`,
             { transportType }
         );
@@ -46,8 +45,8 @@ export class LoggerError {
     ): DextoRuntimeError {
         return new DextoRuntimeError(
             LoggerErrorCode.TRANSPORT_INITIALIZATION_FAILED,
-            ErrorScope.LOGGER,
-            ErrorType.SYSTEM,
+            'logger',
+            'system',
             `Failed to initialize ${transportType} transport: ${reason}`,
             { transportType, reason, ...(details ?? {}) }
         );
@@ -59,8 +58,8 @@ export class LoggerError {
     static transportWriteFailed(transportType: string, error: unknown): DextoRuntimeError {
         return new DextoRuntimeError(
             LoggerErrorCode.TRANSPORT_WRITE_FAILED,
-            ErrorScope.LOGGER,
-            ErrorType.SYSTEM,
+            'logger',
+            'system',
             `Transport write failed for ${transportType}`,
             {
                 transportType,
@@ -75,8 +74,8 @@ export class LoggerError {
     static invalidConfig(message: string, context?: Record<string, unknown>): DextoRuntimeError {
         return new DextoRuntimeError(
             LoggerErrorCode.INVALID_CONFIG,
-            ErrorScope.LOGGER,
-            ErrorType.USER,
+            'logger',
+            'user',
             `Invalid logger configuration: ${message}`,
             context
         );
@@ -88,8 +87,8 @@ export class LoggerError {
     static invalidLogLevel(level: string, validLevels: string[]): DextoRuntimeError {
         return new DextoRuntimeError(
             LoggerErrorCode.INVALID_LOG_LEVEL,
-            ErrorScope.LOGGER,
-            ErrorType.USER,
+            'logger',
+            'user',
             `Invalid log level '${level}'. Valid levels: ${validLevels.join(', ')}`,
             { level, validLevels }
         );

@@ -1,6 +1,4 @@
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
-import { ErrorScope } from '../errors/types.js';
-import { ErrorType } from '../errors/types.js';
 import { LLMErrorCode } from './error-codes.js';
 // Use types solely from types.ts to avoid duplication
 import { getSupportedProviders } from './registry/index.js';
@@ -18,8 +16,8 @@ export class LLMError {
     static unknownModel(provider: LLMProvider, model: string) {
         return new DextoRuntimeError(
             LLMErrorCode.MODEL_UNKNOWN,
-            ErrorScope.LLM,
-            ErrorType.USER,
+            'llm',
+            'user',
             `Unknown model '${model}' for provider '${provider}'`,
             { provider, model }
         );
@@ -28,8 +26,8 @@ export class LLMError {
     static baseUrlMissing(provider: LLMProvider) {
         return new DextoRuntimeError(
             LLMErrorCode.BASE_URL_MISSING,
-            ErrorScope.LLM,
-            ErrorType.USER,
+            'llm',
+            'user',
             `Provider '${provider}' requires a baseURL (set config.baseURL or OPENAI_BASE_URL environment variable)`,
             { provider }
         );
@@ -38,8 +36,8 @@ export class LLMError {
     static missingConfig(provider: LLMProvider, configName: string) {
         return new DextoRuntimeError(
             LLMErrorCode.CONFIG_MISSING,
-            ErrorScope.LLM,
-            ErrorType.USER,
+            'llm',
+            'user',
             `Provider '${provider}' requires ${configName}`,
             { provider, configName }
         );
@@ -49,8 +47,8 @@ export class LLMError {
         const availableProviders = getSupportedProviders();
         return new DextoRuntimeError(
             LLMErrorCode.PROVIDER_UNSUPPORTED,
-            ErrorScope.LLM,
-            ErrorType.USER,
+            'llm',
+            'user',
             `Provider '${provider}' is not supported. Available providers: ${availableProviders.join(', ')}`,
             { provider, availableProviders }
         );
@@ -64,8 +62,8 @@ export class LLMError {
     static apiKeyMissing(provider: LLMProvider, envVar: string) {
         return new DextoRuntimeError(
             LLMErrorCode.API_KEY_MISSING,
-            ErrorScope.LLM,
-            ErrorType.USER,
+            'llm',
+            'user',
             `API key required for provider '${provider}'`,
             { provider, envVar },
             `Set the ${envVar} environment variable or configure it in Settings`
@@ -76,8 +74,8 @@ export class LLMError {
         const availableProviders = getSupportedProviders();
         return new DextoRuntimeError(
             LLMErrorCode.MODEL_UNKNOWN,
-            ErrorScope.LLM,
-            ErrorType.USER,
+            'llm',
+            'user',
             `Unknown model '${model}' - could not infer provider. Available providers: ${availableProviders.join(', ')}`,
             { model, availableProviders },
             'Specify the provider explicitly or use a recognized model name'
@@ -89,8 +87,8 @@ export class LLMError {
     static rateLimitExceeded(provider: LLMProvider, retryAfter?: number) {
         return new DextoRuntimeError(
             LLMErrorCode.RATE_LIMIT_EXCEEDED,
-            ErrorScope.LLM,
-            ErrorType.RATE_LIMIT,
+            'llm',
+            'rate_limit',
             `Rate limit exceeded for ${provider}`,
             {
                 details: { provider, retryAfter },
@@ -109,8 +107,8 @@ export class LLMError {
         const balanceStr = balance !== undefined ? `$${balance.toFixed(2)}` : 'low';
         return new DextoRuntimeError(
             LLMErrorCode.INSUFFICIENT_CREDITS,
-            ErrorScope.LLM,
-            ErrorType.FORBIDDEN,
+            'llm',
+            'forbidden',
             `Insufficient Dexto credits. Balance: ${balanceStr}`,
             { balance },
             'Run `dexto billing` to check your balance'
@@ -121,8 +119,8 @@ export class LLMError {
     static generationFailed(error: string, provider: LLMProvider, model: string) {
         return new DextoRuntimeError(
             LLMErrorCode.GENERATION_FAILED,
-            ErrorScope.LLM,
-            ErrorType.THIRD_PARTY,
+            'llm',
+            'third_party',
             `Generation failed: ${error}`,
             { details: { error, provider, model } }
         );
@@ -132,8 +130,8 @@ export class LLMError {
     static switchInputMissing() {
         return new DextoRuntimeError(
             LLMErrorCode.SWITCH_INPUT_MISSING,
-            ErrorScope.LLM,
-            ErrorType.USER,
+            'llm',
+            'user',
             'At least model or provider must be specified for LLM switch',
             {},
             'Provide either a model name, provider, or both'

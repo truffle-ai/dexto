@@ -4,7 +4,6 @@ import * as path from 'path';
 import { tmpdir } from 'os';
 import { LocalAgentRegistry } from './registry.js';
 import { RegistryErrorCode } from './error-codes.js';
-import { ErrorType } from '@dexto/core';
 
 // Mock dependencies
 vi.mock('../utils/path.js', () => ({
@@ -222,7 +221,7 @@ describe('LocalAgentRegistry', () => {
             await expect(registry.installAgent('unknown-agent')).rejects.toMatchObject({
                 code: RegistryErrorCode.AGENT_NOT_FOUND,
                 scope: 'agent_registry',
-                type: ErrorType.USER,
+                type: 'user',
                 context: {
                     agentId: 'unknown-agent',
                     availableAgents: expect.arrayContaining(['test-agent', 'dir-agent']),
@@ -321,7 +320,7 @@ describe('LocalAgentRegistry', () => {
             await expect(registry.resolveAgent('unknown-agent')).rejects.toMatchObject({
                 code: RegistryErrorCode.AGENT_NOT_FOUND,
                 scope: 'agent_registry',
-                type: ErrorType.USER,
+                type: 'user',
                 context: {
                     agentId: 'unknown-agent',
                     availableAgents: expect.arrayContaining(['test-agent', 'dir-agent']),
@@ -411,7 +410,7 @@ describe('LocalAgentRegistry', () => {
                     {
                         code: RegistryErrorCode.AGENT_NOT_INSTALLED_AUTO_INSTALL_DISABLED,
                         scope: 'agent_registry',
-                        type: ErrorType.USER,
+                        type: 'user',
                         context: {
                             agentId: 'auto-test-agent',
                             availableAgents: expect.arrayContaining([
@@ -474,7 +473,7 @@ describe('LocalAgentRegistry', () => {
                 expect.objectContaining({
                     code: RegistryErrorCode.AGENT_INVALID_ENTRY,
                     scope: 'agent_registry',
-                    type: ErrorType.SYSTEM,
+                    type: 'system',
                     context: {
                         agentId: 'bad-dir-agent',
                         reason: 'directory entry missing main field',

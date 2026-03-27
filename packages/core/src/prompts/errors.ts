@@ -1,6 +1,5 @@
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { DextoValidationError } from '../errors/DextoValidationError.js';
-import { ErrorScope, ErrorType } from '../errors/types.js';
 import { PromptErrorCode } from './error-codes.js';
 
 /**
@@ -14,8 +13,8 @@ export class PromptError {
     static notFound(name: string) {
         return new DextoRuntimeError(
             PromptErrorCode.PROMPT_NOT_FOUND,
-            ErrorScope.PROMPT,
-            ErrorType.NOT_FOUND,
+            'prompt',
+            'not_found',
             `Prompt not found: ${name}`,
             { name }
         );
@@ -29,8 +28,8 @@ export class PromptError {
             {
                 code: PromptErrorCode.PROMPT_MISSING_TEXT,
                 message: 'Prompt missing text content',
-                scope: ErrorScope.PROMPT,
-                type: ErrorType.USER,
+                scope: 'prompt',
+                type: 'user',
                 severity: 'error',
                 context: {},
             },
@@ -45,8 +44,8 @@ export class PromptError {
             {
                 code: PromptErrorCode.PROMPT_MISSING_REQUIRED_ARGUMENTS,
                 message: `Missing required arguments: ${missingNames.join(', ')}`,
-                scope: ErrorScope.PROMPT,
-                type: ErrorType.USER,
+                scope: 'prompt',
+                type: 'user',
                 severity: 'error',
                 context: { missingNames },
             },
@@ -59,8 +58,8 @@ export class PromptError {
     static providerNotFound(source: string) {
         return new DextoRuntimeError(
             PromptErrorCode.PROMPT_PROVIDER_NOT_FOUND,
-            ErrorScope.PROMPT,
-            ErrorType.NOT_FOUND,
+            'prompt',
+            'not_found',
             `No provider found for prompt source: ${source}`,
             { source }
         );
@@ -74,8 +73,8 @@ export class PromptError {
             {
                 code: PromptErrorCode.PROMPT_NAME_REQUIRED,
                 message: 'Prompt name is required',
-                scope: ErrorScope.PROMPT,
-                type: ErrorType.USER,
+                scope: 'prompt',
+                type: 'user',
                 severity: 'error',
                 context: {},
             },
@@ -92,8 +91,8 @@ export class PromptError {
             {
                 code: PromptErrorCode.PROMPT_INVALID_NAME,
                 message: `${contextPrefix} '${name}' must be ${guidance}.${hintSuffix}`,
-                scope: ErrorScope.PROMPT,
-                type: ErrorType.USER,
+                scope: 'prompt',
+                type: 'user',
                 severity: 'error',
                 context: { name, guidance },
             },
@@ -106,8 +105,8 @@ export class PromptError {
             {
                 code: PromptErrorCode.PROMPT_ALREADY_EXISTS,
                 message: `Prompt already exists: ${name}`,
-                scope: ErrorScope.PROMPT,
-                type: ErrorType.USER,
+                scope: 'prompt',
+                type: 'user',
                 severity: 'error',
                 context: { name },
             },
@@ -120,8 +119,8 @@ export class PromptError {
     static emptyResolvedContent(name: string) {
         return new DextoRuntimeError(
             PromptErrorCode.PROMPT_EMPTY_CONTENT,
-            ErrorScope.PROMPT,
-            ErrorType.NOT_FOUND,
+            'prompt',
+            'not_found',
             `Prompt resolved to empty content: ${name}`,
             { name }
         );
@@ -135,8 +134,8 @@ export class PromptError {
             {
                 code: PromptErrorCode.PROMPT_CONFIG_INVALID,
                 message: `Invalid prompts configuration: ${details}`,
-                scope: ErrorScope.PROMPT,
-                type: ErrorType.USER,
+                scope: 'prompt',
+                type: 'user',
                 severity: 'error',
                 context: { details },
             },

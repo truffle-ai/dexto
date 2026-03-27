@@ -4,7 +4,6 @@ import { MCPManager } from './manager.js';
 import type { McpClient, MCPResourceSummary } from './types.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { MCPErrorCode } from './error-codes.js';
-import { ErrorScope, ErrorType } from '../errors/types.js';
 import { eventBus } from '../events/index.js';
 import type { JSONSchema7 } from 'json-schema';
 import type { Prompt } from '@modelcontextprotocol/sdk/types.js';
@@ -310,8 +309,8 @@ describe('MCPManager Tool Conflict Resolution', () => {
             })() as DextoRuntimeError;
             expect(error).toBeInstanceOf(DextoRuntimeError);
             expect(error.code).toBe(MCPErrorCode.DUPLICATE_NAME);
-            expect(error.scope).toBe(ErrorScope.MCP);
-            expect(error.type).toBe(ErrorType.USER);
+            expect(error.scope).toBe('mcp');
+            expect(error.type).toBe('user');
         });
 
         it('should allow re-registering the same server name', () => {

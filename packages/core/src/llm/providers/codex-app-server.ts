@@ -15,7 +15,7 @@ import type {
     LanguageModelV2Usage,
 } from '@ai-sdk/provider';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
-import { ErrorScope, ErrorType } from '../../errors/types.js';
+import type { ErrorType } from '../../errors/types.js';
 import { getDextoGlobalPath } from '../../utils/path.js';
 import { safeStringify } from '../../utils/safe-stringify.js';
 import { LLMErrorCode } from '../error-codes.js';
@@ -135,27 +135,15 @@ function createCodexProtocolError(
     message: string,
     context?: Record<string, unknown>
 ): DextoRuntimeError<Record<string, unknown> | undefined> {
-    return new DextoRuntimeError(
-        CODEX_PROTOCOL_ERROR_CODE,
-        ErrorScope.LLM,
-        ErrorType.THIRD_PARTY,
-        message,
-        context
-    );
+    return new DextoRuntimeError(CODEX_PROTOCOL_ERROR_CODE, 'llm', 'third_party', message, context);
 }
 
 function createCodexClientRuntimeError(
     message: string,
     context?: Record<string, unknown>,
-    type: ErrorType = ErrorType.SYSTEM
+    type: ErrorType = 'system'
 ): DextoRuntimeError<Record<string, unknown> | undefined> {
-    return new DextoRuntimeError(
-        CODEX_CLIENT_RUNTIME_ERROR_CODE,
-        ErrorScope.LLM,
-        type,
-        message,
-        context
-    );
+    return new DextoRuntimeError(CODEX_CLIENT_RUNTIME_ERROR_CODE, 'llm', type, message, context);
 }
 
 function createCodexClientExitedError(input: {
@@ -168,7 +156,7 @@ function createCodexClientExitedError(input: {
             ...(input.code !== undefined ? { code: input.code } : {}),
             ...(input.signal !== undefined ? { signal: input.signal } : {}),
         },
-        ErrorType.THIRD_PARTY
+        'third_party'
     );
 }
 
@@ -636,8 +624,8 @@ function toChatGPTUsageLimitError(
 
     return new DextoRuntimeError(
         LLMErrorCode.RATE_LIMIT_EXCEEDED,
-        ErrorScope.LLM,
-        ErrorType.RATE_LIMIT,
+        'llm',
+        'rate_limit',
         message,
         {
             provider: 'openai-compatible',
@@ -1183,7 +1171,7 @@ export class CodexAppServerClient {
                     createCodexClientRuntimeError(
                         `Timed out waiting for Codex notification: ${method}`,
                         { method },
-                        ErrorType.TIMEOUT
+                        'timeout'
                     )
                 );
             }, timeoutMs);
@@ -1197,7 +1185,7 @@ export class CodexAppServerClient {
                             : createCodexClientRuntimeError(
                                   'Codex operation aborted',
                                   { method },
-                                  ErrorType.USER
+                                  'user'
                               )
                     );
                 };
@@ -1313,9 +1301,7 @@ export class CodexAppServerClient {
             if (isRecord(payload['error'])) {
                 const message =
                     getString(payload['error']['message']) ?? 'Codex JSON-RPC request failed';
-                pending.reject(
-                    createCodexClientRuntimeError(message, { id }, ErrorType.THIRD_PARTY)
-                );
+                pending.reject(createCodexClientRuntimeError(message, { id }, 'third_party'));
                 return;
             }
 
@@ -1359,7 +1345,7 @@ export class CodexAppServerClient {
                     createCodexClientRuntimeError(
                         `Codex request timed out: ${method}`,
                         { method, id },
-                        ErrorType.TIMEOUT
+                        'timeout'
                     )
                 );
             }, this.requestTimeoutMs);
@@ -1801,7 +1787,7 @@ export function createCodexLanguageModel(options: {
                                     : createCodexClientRuntimeError(
                                           'Codex generation aborted',
                                           { modelId: options.modelId },
-                                          ErrorType.USER
+                                          'user'
                                       )
                             );
                         };

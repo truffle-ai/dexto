@@ -27,7 +27,6 @@ import {
 } from './index.js';
 import { MODELS_BY_PROVIDER } from './models.generated.js';
 import { LLMErrorCode } from '../error-codes.js';
-import { ErrorScope, ErrorType } from '../../errors/types.js';
 import type { Logger } from '../../logger/v2/types.js';
 import {
     getCachedOpenRouterModelsWithInfo,
@@ -82,8 +81,8 @@ describe('LLM Registry Core Functions', () => {
             expect(() => getMaxInputTokensForModel('openai', 'unknown-model', mockLogger)).toThrow(
                 expect.objectContaining({
                     code: LLMErrorCode.MODEL_UNKNOWN,
-                    scope: ErrorScope.LLM,
-                    type: ErrorType.USER,
+                    scope: 'llm',
+                    type: 'user',
                 })
             );
         });
@@ -108,8 +107,8 @@ describe('LLM Registry Core Functions', () => {
             expect(() => getProviderFromModel('unknown-model')).toThrow(
                 expect.objectContaining({
                     code: LLMErrorCode.MODEL_UNKNOWN,
-                    scope: ErrorScope.LLM,
-                    type: ErrorType.USER,
+                    scope: 'llm',
+                    type: 'user',
                 })
             );
         });
@@ -331,8 +330,8 @@ describe('getEffectiveMaxInputTokens', () => {
         expect(() => getEffectiveMaxInputTokens(config, mockLogger)).toThrow(
             expect.objectContaining({
                 code: LLMErrorCode.MODEL_UNKNOWN,
-                scope: ErrorScope.LLM,
-                type: ErrorType.USER,
+                scope: 'llm',
+                type: 'user',
             })
         );
     });
@@ -382,8 +381,8 @@ describe('File Support Functions', () => {
             expect(() => getSupportedFileTypesForModel('openai', 'unknown-model')).toThrow(
                 expect.objectContaining({
                     code: LLMErrorCode.MODEL_UNKNOWN,
-                    scope: ErrorScope.LLM,
-                    type: ErrorType.USER,
+                    scope: 'llm',
+                    type: 'user',
                 })
             );
         });
@@ -411,8 +410,8 @@ describe('File Support Functions', () => {
             expect(() => modelSupportsFileType('openai', 'unknown-model', 'pdf')).toThrow(
                 expect.objectContaining({
                     code: LLMErrorCode.MODEL_UNKNOWN,
-                    scope: ErrorScope.LLM,
-                    type: ErrorType.USER,
+                    scope: 'llm',
+                    type: 'user',
                 })
             );
         });

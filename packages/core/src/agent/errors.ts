@@ -1,5 +1,4 @@
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
-import { ErrorScope, ErrorType } from '../errors/types.js';
 import { AgentErrorCode } from './error-codes.js';
 
 /**
@@ -14,8 +13,8 @@ export class AgentError {
     static notStarted() {
         return new DextoRuntimeError(
             AgentErrorCode.NOT_STARTED,
-            ErrorScope.AGENT,
-            ErrorType.USER,
+            'agent',
+            'user',
             'Agent must be started before use',
             undefined,
             'Call agent.start() before using other methods'
@@ -28,8 +27,8 @@ export class AgentError {
     static alreadyStarted() {
         return new DextoRuntimeError(
             AgentErrorCode.ALREADY_STARTED,
-            ErrorScope.AGENT,
-            ErrorType.USER,
+            'agent',
+            'user',
             'Agent is already started',
             undefined,
             'Call agent.stop() before starting again'
@@ -42,8 +41,8 @@ export class AgentError {
     static stopped() {
         return new DextoRuntimeError(
             AgentErrorCode.STOPPED,
-            ErrorScope.AGENT,
-            ErrorType.USER,
+            'agent',
+            'user',
             'Agent has been stopped and cannot be used',
             undefined,
             'Create a new agent instance or restart this one'
@@ -56,8 +55,8 @@ export class AgentError {
     static switchInProgress() {
         return new DextoRuntimeError(
             AgentErrorCode.SWITCH_IN_PROGRESS,
-            ErrorScope.AGENT,
-            ErrorType.CONFLICT,
+            'agent',
+            'conflict',
             'Agent switch already in progress',
             undefined,
             'Wait for the current switch operation to complete before starting a new one'
@@ -70,8 +69,8 @@ export class AgentError {
     static initializationFailed(reason: string, details?: unknown) {
         return new DextoRuntimeError(
             AgentErrorCode.INITIALIZATION_FAILED,
-            ErrorScope.AGENT,
-            ErrorType.SYSTEM,
+            'agent',
+            'system',
             `Agent initialization failed: ${reason}`,
             details,
             'Check logs for initialization errors'
@@ -84,8 +83,8 @@ export class AgentError {
     static noConfigPath() {
         return new DextoRuntimeError(
             AgentErrorCode.NO_CONFIG_PATH,
-            ErrorScope.AGENT,
-            ErrorType.SYSTEM,
+            'agent',
+            'system',
             'No configuration file path is available',
             undefined,
             'Agent was created without a config file path, cannot perform file operations'
@@ -98,8 +97,8 @@ export class AgentError {
     static apiValidationError(message: string, details?: unknown) {
         return new DextoRuntimeError(
             AgentErrorCode.API_VALIDATION_ERROR,
-            ErrorScope.AGENT,
-            ErrorType.USER,
+            'agent',
+            'user',
             message,
             details,
             'Check the request parameters and try again'
@@ -112,8 +111,8 @@ export class AgentError {
     static streamFailed(message: string, details?: unknown) {
         return new DextoRuntimeError(
             AgentErrorCode.STREAM_FAILED,
-            ErrorScope.AGENT,
-            ErrorType.SYSTEM,
+            'agent',
+            'system',
             message,
             details,
             'Check logs for details'

@@ -1,4 +1,4 @@
-import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
+import { DextoRuntimeError } from '@dexto/core';
 import { MarketplaceErrorCode } from './error-codes.js';
 
 /**
@@ -10,8 +10,8 @@ export class MarketplaceError {
     static registryReadFailed(path: string, cause: string) {
         return new DextoRuntimeError(
             MarketplaceErrorCode.REGISTRY_READ_FAILED,
-            ErrorScope.CONFIG,
-            ErrorType.SYSTEM,
+            'config',
+            'system',
             `Failed to read marketplace registry at ${path}: ${cause}`,
             { path, cause },
             'Check file permissions and ensure the file exists'
@@ -21,8 +21,8 @@ export class MarketplaceError {
     static registryWriteFailed(path: string, cause: string) {
         return new DextoRuntimeError(
             MarketplaceErrorCode.REGISTRY_WRITE_FAILED,
-            ErrorScope.CONFIG,
-            ErrorType.SYSTEM,
+            'config',
+            'system',
             `Failed to write marketplace registry at ${path}: ${cause}`,
             { path, cause },
             'Check file permissions and disk space'
@@ -33,8 +33,8 @@ export class MarketplaceError {
     static addAlreadyExists(name: string, existingPath: string) {
         return new DextoRuntimeError(
             MarketplaceErrorCode.ADD_ALREADY_EXISTS,
-            ErrorScope.CONFIG,
-            ErrorType.USER,
+            'config',
+            'user',
             `Marketplace '${name}' already exists at ${existingPath}`,
             { name, existingPath },
             'Use a different name or remove the existing marketplace first'
@@ -44,8 +44,8 @@ export class MarketplaceError {
     static addCloneFailed(source: string, cause: string) {
         return new DextoRuntimeError(
             MarketplaceErrorCode.ADD_CLONE_FAILED,
-            ErrorScope.CONFIG,
-            ErrorType.SYSTEM,
+            'config',
+            'system',
             `Failed to clone marketplace from ${source}: ${cause}`,
             { source, cause },
             'Check the URL is correct and you have network access'
@@ -55,8 +55,8 @@ export class MarketplaceError {
     static addInvalidSource(source: string, reason: string) {
         return new DextoRuntimeError(
             MarketplaceErrorCode.ADD_INVALID_SOURCE,
-            ErrorScope.CONFIG,
-            ErrorType.USER,
+            'config',
+            'user',
             `Invalid marketplace source '${source}': ${reason}`,
             { source, reason },
             'Use format: owner/repo (GitHub), git URL, or local path'
@@ -66,8 +66,8 @@ export class MarketplaceError {
     static addLocalNotFound(path: string) {
         return new DextoRuntimeError(
             MarketplaceErrorCode.ADD_LOCAL_NOT_FOUND,
-            ErrorScope.CONFIG,
-            ErrorType.USER,
+            'config',
+            'user',
             `Local marketplace path not found: ${path}`,
             { path },
             'Check the path exists and is a directory'
@@ -78,8 +78,8 @@ export class MarketplaceError {
     static removeNotFound(name: string) {
         return new DextoRuntimeError(
             MarketplaceErrorCode.REMOVE_NOT_FOUND,
-            ErrorScope.CONFIG,
-            ErrorType.USER,
+            'config',
+            'user',
             `Marketplace '${name}' not found`,
             { name },
             'Use `dexto plugin marketplace list` to see registered marketplaces'
@@ -89,8 +89,8 @@ export class MarketplaceError {
     static removeDeleteFailed(name: string, path: string, cause: string) {
         return new DextoRuntimeError(
             MarketplaceErrorCode.REMOVE_DELETE_FAILED,
-            ErrorScope.CONFIG,
-            ErrorType.SYSTEM,
+            'config',
+            'system',
             `Failed to delete marketplace '${name}' at ${path}: ${cause}`,
             { name, path, cause },
             'Check file permissions'
@@ -101,8 +101,8 @@ export class MarketplaceError {
     static updateNotFound(name: string) {
         return new DextoRuntimeError(
             MarketplaceErrorCode.UPDATE_NOT_FOUND,
-            ErrorScope.CONFIG,
-            ErrorType.USER,
+            'config',
+            'user',
             `Marketplace '${name}' not found`,
             { name },
             'Use `dexto plugin marketplace list` to see registered marketplaces'
@@ -112,8 +112,8 @@ export class MarketplaceError {
     static updatePullFailed(name: string, cause: string) {
         return new DextoRuntimeError(
             MarketplaceErrorCode.UPDATE_PULL_FAILED,
-            ErrorScope.CONFIG,
-            ErrorType.SYSTEM,
+            'config',
+            'system',
             `Failed to update marketplace '${name}': ${cause}`,
             { name, cause },
             'Check network connectivity and that the repository is accessible'
@@ -123,8 +123,8 @@ export class MarketplaceError {
     static updateLocalNotSupported(name: string) {
         return new DextoRuntimeError(
             MarketplaceErrorCode.UPDATE_LOCAL_NOT_SUPPORTED,
-            ErrorScope.CONFIG,
-            ErrorType.USER,
+            'config',
+            'user',
             `Cannot update local marketplace '${name}'`,
             { name },
             'Local marketplaces do not support automatic updates'
@@ -135,8 +135,8 @@ export class MarketplaceError {
     static installMarketplaceNotFound(marketplace: string) {
         return new DextoRuntimeError(
             MarketplaceErrorCode.INSTALL_MARKETPLACE_NOT_FOUND,
-            ErrorScope.CONFIG,
-            ErrorType.USER,
+            'config',
+            'user',
             `Marketplace '${marketplace}' not found`,
             { marketplace },
             'Use `dexto plugin marketplace list` to see registered marketplaces, or `dexto plugin marketplace add` to register one'
@@ -147,8 +147,8 @@ export class MarketplaceError {
         const marketplaceInfo = marketplace ? ` in marketplace '${marketplace}'` : '';
         return new DextoRuntimeError(
             MarketplaceErrorCode.INSTALL_PLUGIN_NOT_FOUND,
-            ErrorScope.CONFIG,
-            ErrorType.USER,
+            'config',
+            'user',
             `Plugin '${pluginName}' not found${marketplaceInfo}`,
             { pluginName, marketplace },
             'Use `dexto plugin marketplace` to browse available plugins'
@@ -158,8 +158,8 @@ export class MarketplaceError {
     static installCopyFailed(pluginName: string, cause: string) {
         return new DextoRuntimeError(
             MarketplaceErrorCode.INSTALL_COPY_FAILED,
-            ErrorScope.CONFIG,
-            ErrorType.SYSTEM,
+            'config',
+            'system',
             `Failed to copy plugin '${pluginName}' from marketplace: ${cause}`,
             { pluginName, cause },
             'Check file permissions and disk space'
@@ -170,8 +170,8 @@ export class MarketplaceError {
     static scanFailed(marketplacePath: string, cause: string) {
         return new DextoRuntimeError(
             MarketplaceErrorCode.SCAN_FAILED,
-            ErrorScope.CONFIG,
-            ErrorType.SYSTEM,
+            'config',
+            'system',
             `Failed to scan marketplace at ${marketplacePath}: ${cause}`,
             { marketplacePath, cause },
             'Check the marketplace directory is accessible'

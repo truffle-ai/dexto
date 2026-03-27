@@ -1,4 +1,4 @@
-import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
+import { DextoRuntimeError } from '../errors/index.js';
 import { HookErrorCode } from './error-codes.js';
 import { getContext } from '../utils/async-context.js';
 import type { ExtensionPoint, HookExecutionContext, Hook, HookResult } from './types.js';
@@ -67,8 +67,8 @@ export class HookManager {
         if (this.initialized) {
             throw new DextoRuntimeError(
                 HookErrorCode.HOOK_CONFIGURATION_INVALID,
-                ErrorScope.HOOK,
-                ErrorType.SYSTEM,
+                'hook',
+                'system',
                 'Cannot set hooks after initialization'
             );
         }
@@ -90,8 +90,8 @@ export class HookManager {
         if (this.initialized) {
             throw new DextoRuntimeError(
                 HookErrorCode.HOOK_CONFIGURATION_INVALID,
-                ErrorScope.HOOK,
-                ErrorType.SYSTEM,
+                'hook',
+                'system',
                 'HookManager already initialized'
             );
         }
@@ -157,8 +157,8 @@ export class HookManager {
         if (payload === null || typeof payload !== 'object') {
             throw new DextoRuntimeError(
                 HookErrorCode.HOOK_INVALID_SHAPE,
-                ErrorScope.HOOK,
-                ErrorType.USER,
+                'hook',
+                'user',
                 `Payload for ${extensionPoint} must be an object (got ${payload === null ? 'null' : typeof payload})`,
                 { extensionPoint, payloadType: typeof payload }
             );
@@ -241,8 +241,8 @@ export class HookManager {
                     if (result.cancel) {
                         throw new DextoRuntimeError(
                             HookErrorCode.HOOK_BLOCKED_EXECUTION,
-                            ErrorScope.HOOK,
-                            ErrorType.FORBIDDEN,
+                            'hook',
+                            'forbidden',
                             result.message || `Operation blocked by hook '${hookName}'`,
                             {
                                 hook: hookName,
@@ -270,8 +270,8 @@ export class HookManager {
                 if (result.cancel) {
                     throw new DextoRuntimeError(
                         HookErrorCode.HOOK_BLOCKED_EXECUTION,
-                        ErrorScope.HOOK,
-                        ErrorType.FORBIDDEN,
+                        'hook',
+                        'forbidden',
                         result.message || `Operation cancelled by hook '${hookName}'`,
                         {
                             hook: hookName,
@@ -296,8 +296,8 @@ export class HookManager {
 
                 throw new DextoRuntimeError(
                     HookErrorCode.HOOK_EXECUTION_FAILED,
-                    ErrorScope.HOOK,
-                    ErrorType.SYSTEM,
+                    'hook',
+                    'system',
                     `Hook '${hookName}' failed: ${
                         error instanceof Error ? error.message : String(error)
                     }`,
@@ -327,8 +327,8 @@ export class HookManager {
                 reject(
                     new DextoRuntimeError(
                         HookErrorCode.HOOK_EXECUTION_TIMEOUT,
-                        ErrorScope.HOOK,
-                        ErrorType.TIMEOUT,
+                        'hook',
+                        'timeout',
                         `Hook '${hookName}' execution timed out after ${ms}ms`
                     )
                 );
@@ -430,8 +430,8 @@ export class HookManager {
         if (!hasExtensionPoint) {
             throw new DextoRuntimeError(
                 HookErrorCode.HOOK_INVALID_SHAPE,
-                ErrorScope.HOOK,
-                ErrorType.USER,
+                'hook',
+                'user',
                 `Hook '${this.deriveHookName(hook, index)}' must implement at least one extension point method`,
                 { availableExtensionPoints: extensionPoints }
             );

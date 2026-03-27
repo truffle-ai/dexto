@@ -1,5 +1,4 @@
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
-import { ErrorScope, ErrorType } from '../errors/types.js';
 import { SystemPromptErrorCode } from './error-codes.js';
 import { safeStringify } from '../utils/safe-stringify.js';
 
@@ -14,8 +13,8 @@ export class SystemPromptError {
     static invalidFileType(filePath: string, allowedExtensions: string[]) {
         return new DextoRuntimeError(
             SystemPromptErrorCode.FILE_INVALID_TYPE,
-            ErrorScope.SYSTEM_PROMPT,
-            ErrorType.USER,
+            'system_prompt',
+            'user',
             `File ${filePath} is not a ${allowedExtensions.join(' or ')} file`,
             { filePath, allowedExtensions }
         );
@@ -27,8 +26,8 @@ export class SystemPromptError {
     static fileTooLarge(filePath: string, fileSize: number, maxSize: number) {
         return new DextoRuntimeError(
             SystemPromptErrorCode.FILE_TOO_LARGE,
-            ErrorScope.SYSTEM_PROMPT,
-            ErrorType.USER,
+            'system_prompt',
+            'user',
             `File ${filePath} exceeds maximum size of ${maxSize} bytes`,
             { filePath, fileSize, maxSize }
         );
@@ -40,8 +39,8 @@ export class SystemPromptError {
     static fileReadFailed(filePath: string, reason: string) {
         return new DextoRuntimeError(
             SystemPromptErrorCode.FILE_READ_FAILED,
-            ErrorScope.SYSTEM_PROMPT,
-            ErrorType.SYSTEM,
+            'system_prompt',
+            'system',
             `Failed to read file ${filePath}: ${reason}`,
             { filePath, reason }
         );
@@ -53,8 +52,8 @@ export class SystemPromptError {
     static unknownContributorSource(source: string) {
         return new DextoRuntimeError(
             SystemPromptErrorCode.CONTRIBUTOR_SOURCE_UNKNOWN,
-            ErrorScope.SYSTEM_PROMPT,
-            ErrorType.USER,
+            'system_prompt',
+            'user',
             `No generator registered for dynamic contributor source: ${source}`,
             { source }
         );
@@ -66,8 +65,8 @@ export class SystemPromptError {
     static invalidContributorConfig(config: unknown): DextoRuntimeError {
         return new DextoRuntimeError(
             SystemPromptErrorCode.CONTRIBUTOR_CONFIG_INVALID,
-            ErrorScope.SYSTEM_PROMPT,
-            ErrorType.USER,
+            'system_prompt',
+            'user',
             `Invalid contributor config: ${safeStringify(config)}`,
             { config }
         );

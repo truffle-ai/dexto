@@ -4,7 +4,7 @@
  * Error factory for todo list management operations
  */
 
-import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
+import { DextoRuntimeError } from '@dexto/core';
 import { TodoErrorCode } from './error-codes.js';
 
 /**
@@ -28,7 +28,7 @@ export class TodoError {
         return new DextoRuntimeError(
             TodoErrorCode.SERVICE_NOT_INITIALIZED,
             TODO_ERROR_SCOPE,
-            ErrorType.SYSTEM,
+            'system',
             'TodoService has not been initialized',
             {},
             'Initialize the TodoService before using it'
@@ -42,7 +42,7 @@ export class TodoError {
         return new DextoRuntimeError(
             TodoErrorCode.TODO_LIMIT_EXCEEDED,
             TODO_ERROR_SCOPE,
-            ErrorType.USER,
+            'user',
             `Todo limit exceeded: ${current} todos. Maximum allowed: ${max}`,
             { current, max },
             'Complete or delete existing todos before adding new ones'
@@ -56,7 +56,7 @@ export class TodoError {
         return new DextoRuntimeError(
             TodoErrorCode.INVALID_TODO_STATUS,
             TODO_ERROR_SCOPE,
-            ErrorType.USER,
+            'user',
             `Invalid todo status: ${status}. Must be 'pending', 'in_progress', or 'completed'`,
             { status }
         );
@@ -69,7 +69,7 @@ export class TodoError {
         return new DextoRuntimeError(
             TodoErrorCode.DATABASE_ERROR,
             TODO_ERROR_SCOPE,
-            ErrorType.SYSTEM,
+            'system',
             `Database error during ${operation}: ${cause}`,
             { operation, cause }
         );

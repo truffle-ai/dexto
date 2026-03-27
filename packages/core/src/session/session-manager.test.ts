@@ -3,7 +3,6 @@ import { SessionManager } from './session-manager.js';
 import { ChatSession } from './chat-session.js';
 import { type ValidatedLLMConfig } from '../llm/schemas.js';
 import { LLMConfigSchema } from '../llm/schemas.js';
-import { ErrorScope, ErrorType } from '../errors/types.js';
 import { SessionErrorCode } from './error-codes.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
 import { createInMemoryStorageManager } from '../test-utils/in-memory-storage.js';
@@ -538,8 +537,8 @@ describe('SessionManager', () => {
 
             await expect(sessionManager.forkSession('missing-parent')).rejects.toMatchObject({
                 code: SessionErrorCode.SESSION_NOT_FOUND,
-                scope: ErrorScope.SESSION,
-                type: ErrorType.NOT_FOUND,
+                scope: 'session',
+                type: 'not_found',
             });
         });
 
@@ -564,8 +563,8 @@ describe('SessionManager', () => {
 
             await expect(sessionManager.forkSession(parentSessionId)).rejects.toMatchObject({
                 code: SessionErrorCode.SESSION_MAX_SESSIONS_EXCEEDED,
-                scope: ErrorScope.SESSION,
-                type: ErrorType.USER,
+                scope: 'session',
+                type: 'user',
             });
             expect(mockStorageManager.database.set).not.toHaveBeenCalledWith(
                 'session:mock-uuid-123',
@@ -588,8 +587,8 @@ describe('SessionManager', () => {
 
             await expect(limitedManager.createSession()).rejects.toMatchObject({
                 code: SessionErrorCode.SESSION_MAX_SESSIONS_EXCEEDED,
-                scope: ErrorScope.SESSION,
-                type: ErrorType.USER,
+                scope: 'session',
+                type: 'user',
             });
         });
 
@@ -994,8 +993,8 @@ describe('SessionManager', () => {
                 })
             ).rejects.toMatchObject({
                 code: SessionErrorCode.SESSION_STORAGE_FAILED,
-                scope: ErrorScope.SESSION,
-                type: ErrorType.SYSTEM,
+                scope: 'session',
+                type: 'system',
             });
 
             await expect(
@@ -1028,8 +1027,8 @@ describe('SessionManager', () => {
                 sessionManager.getSessionSystemPromptContributors(sessionId)
             ).rejects.toMatchObject({
                 code: SessionErrorCode.SESSION_STORAGE_FAILED,
-                scope: ErrorScope.SESSION,
-                type: ErrorType.SYSTEM,
+                scope: 'session',
+                type: 'system',
             });
         });
 
@@ -1140,8 +1139,8 @@ describe('SessionManager', () => {
                 sessionManager.switchLLMForSpecificSession(newLLMConfig, 'non-existent')
             ).rejects.toMatchObject({
                 code: SessionErrorCode.SESSION_NOT_FOUND,
-                scope: ErrorScope.SESSION,
-                type: ErrorType.NOT_FOUND,
+                scope: 'session',
+                type: 'not_found',
             });
         });
 
@@ -1294,8 +1293,8 @@ describe('SessionManager', () => {
             failures.forEach((failure) => {
                 const err = (failure as PromiseRejectedResult).reason as any;
                 expect(err.code).toBe(SessionErrorCode.SESSION_MAX_SESSIONS_EXCEEDED);
-                expect(err.scope).toBe(ErrorScope.SESSION);
-                expect(err.type).toBe(ErrorType.USER);
+                expect(err.scope).toBe('session');
+                expect(err.type).toBe('user');
             });
 
             // Clean up
