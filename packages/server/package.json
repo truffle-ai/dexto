@@ -35,7 +35,7 @@
     "@hono/zod-openapi": "^0.19.1",
     "hono": "^4.12.7",
     "ws": "^8.18.1",
-    "yaml": "^2.7.1",
+    "yaml": "^2.8.3",
     "@modelcontextprotocol/sdk": "^1.27.1"
   },
   "scripts": {
