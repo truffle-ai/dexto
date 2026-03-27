@@ -1,5 +1,12 @@
 # @dexto/core
 
+## 1.6.19
+
+### Patch Changes
+
+- aa54df6: Replace browser-facing approval enums with const-list exports and string-union types.
+- 015dd4f: Align workspace root resolution across Dexto and Codex, and ensure the CLI always stops the agent if workspace setup fails during startup.
+
 ## 1.6.18
 
 ### Patch Changes

@@ -1,5 +1,25 @@
 # dexto
 
+## 1.6.19
+
+### Patch Changes
+
+- aa54df6: Replace browser-facing approval enums with const-list exports and string-union types.
+- 015dd4f: Align workspace root resolution across Dexto and Codex, and ensure the CLI always stops the agent if workspace setup fails during startup.
+- Updated dependencies [aa54df6]
+- Updated dependencies [015dd4f]
+    - @dexto/core@1.6.19
+    - @dexto/agent-config@1.6.19
+    - @dexto/agent-management@1.6.19
+    - @dexto/analytics@1.6.19
+    - @dexto/client-sdk@1.6.19
+    - @dexto/image-local@1.6.19
+    - @dexto/image-logger-agent@1.6.19
+    - @dexto/server@1.6.19
+    - @dexto/storage@1.6.19
+    - @dexto/tui@1.6.19
+    - @dexto/registry@1.6.19
+
 ## 1.6.18
 
 ### Patch Changes
