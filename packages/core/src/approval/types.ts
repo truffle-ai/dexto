@@ -34,68 +34,100 @@ import type {
 /**
  * Types of approval requests supported by the system
  */
-export enum ApprovalType {
+export const APPROVAL_TYPES = [
+    'tool_confirmation',
+    'command_confirmation',
+    'elicitation',
+    'directory_access',
+    'custom',
+] as const;
+
+export type ApprovalType = (typeof APPROVAL_TYPES)[number];
+
+const ApprovalTypeValues = {
     /**
      * Binary approval for tool execution
      * Metadata contains: toolName, args, description
      */
-    TOOL_APPROVAL = 'tool_confirmation',
+    TOOL_APPROVAL: 'tool_confirmation',
 
     /**
      * Binary approval for dangerous commands within an already-approved tool
      * Metadata contains: toolName, command, originalCommand
      * (sessionId is provided at the request level, not in metadata)
      */
-    COMMAND_CONFIRMATION = 'command_confirmation',
+    COMMAND_CONFIRMATION: 'command_confirmation',
 
     /**
      * Schema-based form input from MCP servers
      * Metadata contains: schema, prompt, serverName, context
      */
-    ELICITATION = 'elicitation',
+    ELICITATION: 'elicitation',
 
     /**
      * Approval for accessing files outside the working directory
      * Metadata contains: path, parentDir, operation, toolName
      */
-    DIRECTORY_ACCESS = 'directory_access',
+    DIRECTORY_ACCESS: 'directory_access',
 
     /**
      * Custom approval types for extensibility
      * Metadata format defined by consumer
      */
-    CUSTOM = 'custom',
-}
+    CUSTOM: 'custom',
+} as const satisfies Record<string, ApprovalType>;
+
+export { ApprovalTypeValues as ApprovalType };
 
 /**
  * Status of an approval response
  */
-export enum ApprovalStatus {
-    APPROVED = 'approved',
-    DENIED = 'denied',
-    CANCELLED = 'cancelled',
-}
+export const APPROVAL_STATUSES = ['approved', 'denied', 'cancelled'] as const;
+
+export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
+
+const ApprovalStatusValues = {
+    APPROVED: 'approved',
+    DENIED: 'denied',
+    CANCELLED: 'cancelled',
+} as const satisfies Record<string, ApprovalStatus>;
+
+export { ApprovalStatusValues as ApprovalStatus };
 
 /**
  * Reason for denial or cancellation
  * Provides context about why an approval was not granted
  */
-export enum DenialReason {
+export const DENIAL_REASONS = [
+    'user_denied',
+    'system_denied',
+    'timeout',
+    'user_cancelled',
+    'system_cancelled',
+    'validation_failed',
+    'elicitation_disabled',
+] as const;
+
+export type DenialReason = (typeof DENIAL_REASONS)[number];
+
+const DenialReasonValues = {
     /** User explicitly clicked deny/reject */
-    USER_DENIED = 'user_denied',
+    USER_DENIED: 'user_denied',
     /** System denied due to policy (auto-deny mode, alwaysDeny list) */
-    SYSTEM_DENIED = 'system_denied',
+    SYSTEM_DENIED: 'system_denied',
     /** Request timed out waiting for user response */
-    TIMEOUT = 'timeout',
+    TIMEOUT: 'timeout',
     /** User cancelled the request */
-    USER_CANCELLED = 'user_cancelled',
+    USER_CANCELLED: 'user_cancelled',
     /** System cancelled (session ended, agent stopped) */
-    SYSTEM_CANCELLED = 'system_cancelled',
+    SYSTEM_CANCELLED: 'system_cancelled',
     /** Validation failed (form validation, schema mismatch) */
-    VALIDATION_FAILED = 'validation_failed',
+    VALIDATION_FAILED: 'validation_failed',
     /** Elicitation disabled in configuration */
-    ELICITATION_DISABLED = 'elicitation_disabled',
-}
+    ELICITATION_DISABLED: 'elicitation_disabled',
+} as const satisfies Record<string, DenialReason>;
+
+export { DenialReasonValues as DenialReason };
 
 // ============================================================================
 // Metadata Types - Derived from Zod schemas

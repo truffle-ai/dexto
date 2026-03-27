@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import type { JSONSchema7 } from 'json-schema';
-import { ApprovalType, ApprovalStatus, DenialReason } from './types.js';
+import { APPROVAL_TYPES, APPROVAL_STATUSES, DENIAL_REASONS, ApprovalType } from './types.js';
 import type { ToolDisplayData } from '../tools/display-types.js';
 import { isValidDisplayData } from '../tools/display-types.js';
 import type { ToolPresentationSnapshotV1 } from '../tools/types.js';
@@ -15,17 +15,17 @@ const JsonSchema7Schema = z.record(z.unknown()) as z.ZodType<JSONSchema7>;
 /**
  * Schema for approval types
  */
-export const ApprovalTypeSchema = z.nativeEnum(ApprovalType);
+export const ApprovalTypeSchema = z.enum(APPROVAL_TYPES);
 
 /**
  * Schema for approval status
  */
-export const ApprovalStatusSchema = z.nativeEnum(ApprovalStatus);
+export const ApprovalStatusSchema = z.enum(APPROVAL_STATUSES);
 
 /**
  * Schema for denial/cancellation reasons
  */
-export const DenialReasonSchema = z.nativeEnum(DenialReason);
+export const DenialReasonSchema = z.enum(DENIAL_REASONS);
 
 // Custom Zod schema for ToolDisplayData validation
 const ToolDisplayDataSchema = z.custom<ToolDisplayData>((val) => isValidDisplayData(val), {
