@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { DextoAgent, ContentPart } from '@dexto/core';
-import { ContentPartSchema } from '../schemas/responses.js';
+import { DextoRuntimeError, ErrorType, type DextoAgent, type ContentPart } from '@dexto/core';
+import { ApiErrorResponseSchema, ContentPartSchema } from '../schemas/responses.js';
 import type { Context } from 'hono';
 type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
@@ -57,6 +57,82 @@ const QueueMessageBodySchema = z
     })
     .describe('Request body for queueing a message');
 
+function serializeBinaryValue(value: string | Uint8Array | Buffer | ArrayBuffer | URL): string {
+    if (typeof value === 'string') {
+        return value;
+    }
+    if (value instanceof URL) {
+        return value.toString();
+    }
+    if (value instanceof ArrayBuffer) {
+        return Buffer.from(new Uint8Array(value)).toString('base64');
+    }
+    return Buffer.from(value).toString('base64');
+}
+
+function toQueueRequestContent(
+    rawContent: z.output<typeof QueueMessageBodySchema>['content']
+): ContentPart[] {
+    if (typeof rawContent === 'string') {
+        return [{ type: 'text', text: rawContent }];
+    }
+
+    return rawContent.map((part) => {
+        switch (part.type) {
+            case 'text':
+                return {
+                    type: 'text',
+                    text: part.text,
+                };
+            case 'image':
+                return {
+                    type: 'image',
+                    image: part.image,
+                    ...(part.mimeType !== undefined ? { mimeType: part.mimeType } : {}),
+                };
+            case 'file':
+                return {
+                    type: 'file',
+                    data: part.data,
+                    mimeType: part.mimeType,
+                    ...(part.filename !== undefined ? { filename: part.filename } : {}),
+                };
+        }
+    });
+}
+
+function toQueueResponseContentPart(part: ContentPart): z.output<typeof ContentPartSchema> {
+    switch (part.type) {
+        case 'text':
+            return {
+                type: 'text',
+                text: part.text,
+            };
+        case 'image':
+            return {
+                type: 'image',
+                image: serializeBinaryValue(part.image),
+                ...(part.mimeType !== undefined ? { mimeType: part.mimeType } : {}),
+            };
+        case 'file':
+            return {
+                type: 'file',
+                data: serializeBinaryValue(part.data),
+                mimeType: part.mimeType,
+                ...(part.filename !== undefined ? { filename: part.filename } : {}),
+            };
+        case 'ui-resource':
+            return {
+                type: 'ui-resource',
+                uri: part.uri,
+                mimeType: part.mimeType,
+                ...(part.content !== undefined ? { content: part.content } : {}),
+                ...(part.blob !== undefined ? { blob: part.blob } : {}),
+                ...(part.metadata !== undefined ? { metadata: part.metadata } : {}),
+            };
+    }
+}
+
 export function createQueueRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
 
@@ -86,7 +162,10 @@ export function createQueueRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            404: { description: 'Session not found' },
+            404: {
+                description: 'Session not found',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
 
@@ -121,7 +200,10 @@ export function createQueueRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            404: { description: 'Session not found' },
+            404: {
+                description: 'Session not found',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
 
@@ -152,7 +234,10 @@ export function createQueueRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            404: { description: 'Session or message not found' },
+            404: {
+                description: 'Session or message not found',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
 
@@ -182,7 +267,10 @@ export function createQueueRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            404: { description: 'Session not found' },
+            404: {
+                description: 'Session not found',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
 
@@ -192,23 +280,26 @@ export function createQueueRouter(getAgent: GetAgentFn) {
             const { sessionId } = ctx.req.valid('param');
 
             const messages = await agent.getQueuedMessages(sessionId);
-            return ctx.json({
-                messages,
-                count: messages.length,
-            });
+            const responseMessages = messages.map((message) => ({
+                id: message.id,
+                content: message.content.map(toQueueResponseContentPart),
+                queuedAt: message.queuedAt,
+                ...(message.metadata !== undefined ? { metadata: message.metadata } : {}),
+                ...(message.kind !== undefined ? { kind: message.kind } : {}),
+            }));
+            return ctx.json(
+                {
+                    messages: responseMessages,
+                    count: responseMessages.length,
+                },
+                200
+            );
         })
         .openapi(queueMessageRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('param');
             const { content: rawContent } = ctx.req.valid('json');
-
-            // Normalize content to array format and cast to ContentPart[]
-            // (same exactOptionalPropertyTypes issue as messages.ts - see TODO there)
-            const content = (
-                typeof rawContent === 'string'
-                    ? [{ type: 'text' as const, text: rawContent }]
-                    : rawContent
-            ) as ContentPart[];
+            const content = toQueueRequestContent(rawContent);
 
             const { kind } = ctx.req.valid('json');
             const result = await agent.queueMessage(sessionId, {
@@ -230,15 +321,21 @@ export function createQueueRouter(getAgent: GetAgentFn) {
 
             const removed = await agent.removeQueuedMessage(sessionId, messageId);
             if (!removed) {
-                return ctx.json({ error: 'Message not found in queue' }, 404);
+                throw new DextoRuntimeError(
+                    'queued_message_not_found',
+                    'queue',
+                    ErrorType.NOT_FOUND,
+                    'Message not found in queue',
+                    { sessionId, messageId }
+                );
             }
-            return ctx.json({ removed: true, id: messageId });
+            return ctx.json({ removed: true, id: messageId }, 200);
         })
         .openapi(clearQueueRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('param');
 
             const count = await agent.clearMessageQueue(sessionId);
-            return ctx.json({ cleared: true, count });
+            return ctx.json({ cleared: true, count }, 200);
         });
 }

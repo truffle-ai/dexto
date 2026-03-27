@@ -1,7 +1,11 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { PromptError } from '@dexto/core';
-import { PromptInfoSchema, PromptDefinitionSchema } from '../schemas/responses.js';
+import {
+    ApiErrorResponseSchema,
+    PromptDefinitionSchema,
+    PromptInfoSchema,
+} from '../schemas/responses.js';
 import type { Context } from 'hono';
 type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
@@ -170,7 +174,10 @@ export function createPromptsRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            404: { description: 'Prompt not found' },
+            404: {
+                description: 'Prompt not found',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
 
@@ -202,7 +209,10 @@ export function createPromptsRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            404: { description: 'Prompt not found' },
+            404: {
+                description: 'Prompt not found',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
 
@@ -259,7 +269,7 @@ export function createPromptsRouter(getAgent: GetAgentFn) {
             const { name } = ctx.req.valid('param');
             const definition = await agent.getPromptDefinition(name);
             if (!definition) throw PromptError.notFound(name);
-            return ctx.json({ definition });
+            return ctx.json({ definition }, 200);
         })
         .openapi(resolvePromptRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -289,6 +299,6 @@ export function createPromptsRouter(getAgent: GetAgentFn) {
 
             // Use DextoAgent's resolvePrompt method
             const result = await agent.resolvePrompt(name, options);
-            return ctx.json({ text: result.text, resources: result.resources });
+            return ctx.json({ text: result.text, resources: result.resources }, 200);
         });
 }

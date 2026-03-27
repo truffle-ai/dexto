@@ -3,7 +3,11 @@ import { streamSSE } from 'hono/streaming';
 import type { ContentInput } from '@dexto/core';
 import { LLM_PROVIDERS } from '@dexto/core';
 import type { ApprovalCoordinator } from '../../approval/approval-coordinator.js';
-import { PricingStatusSchema, TokenUsageSchema } from '../schemas/responses.js';
+import {
+    ApiErrorResponseSchema,
+    PricingStatusSchema,
+    TokenUsageSchema,
+} from '../schemas/responses.js';
 import type { GetAgentFn } from '../index.js';
 
 // ContentPart schemas matching @dexto/core types
@@ -99,7 +103,10 @@ export function createMessagesRouter(
                     },
                 },
             },
-            400: { description: 'Validation error' },
+            400: {
+                description: 'Validation error',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
     const messageSyncRoute = createRoute({
@@ -155,7 +162,10 @@ export function createMessagesRouter(
                     },
                 },
             },
-            400: { description: 'Validation error' },
+            400: {
+                description: 'Validation error',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
 
@@ -250,7 +260,10 @@ export function createMessagesRouter(
                     },
                 },
             },
-            400: { description: 'Validation error' },
+            400: {
+                description: 'Validation error',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
 
@@ -281,18 +294,21 @@ export function createMessagesRouter(
 
             const result = await agent.generate(content as ContentInput, sessionId);
 
-            return ctx.json({
-                response: result.content,
-                sessionId: result.sessionId,
-                tokenUsage: result.usage,
-                messageId: result.messageId,
-                usageScopeId: result.usageScopeId,
-                estimatedCost: result.estimatedCost,
-                pricingStatus: result.pricingStatus,
-                reasoning: result.reasoning,
-                model: result.model,
-                provider: result.provider,
-            });
+            return ctx.json(
+                {
+                    response: result.content,
+                    sessionId: result.sessionId,
+                    tokenUsage: result.usage,
+                    messageId: result.messageId,
+                    usageScopeId: result.usageScopeId,
+                    estimatedCost: result.estimatedCost,
+                    pricingStatus: result.pricingStatus,
+                    reasoning: result.reasoning,
+                    model: result.model,
+                    provider: result.provider,
+                },
+                200
+            );
         })
         .openapi(resetRoute, async (ctx) => {
             const agent = await getAgent(ctx);

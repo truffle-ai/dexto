@@ -1,7 +1,13 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import { AgentError, logger, McpServerConfigSchema, MCP_CONNECTION_STATUSES } from '@dexto/core';
+import {
+    AgentError,
+    logger,
+    MCPError,
+    McpServerConfigSchema,
+    MCP_CONNECTION_STATUSES,
+} from '@dexto/core';
 import { updateAgentConfigFile } from '@dexto/agent-management';
-import { ResourceSchema } from '../schemas/responses.js';
+import { ApiErrorResponseSchema } from '../schemas/responses.js';
 import type { GetAgentConfigPathFn, GetAgentFn } from '../index.js';
 
 const McpServerRequestSchema = z
@@ -138,10 +144,20 @@ const ServerConfigResponseSchema = z
     .strict()
     .describe('MCP server configuration response');
 
+const ServerResourceSchema = z
+    .object({
+        uri: z.string().describe('Resolved resource URI for this server'),
+        name: z.string().describe('Resource display name'),
+        originalUri: z.string().describe('Original MCP resource URI'),
+        serverName: z.string().describe('Owning MCP server name'),
+    })
+    .strict()
+    .describe('Resource exposed by a specific MCP server');
+
 const ResourcesListResponseSchema = z
     .object({
         success: z.boolean().describe('Success indicator'),
-        resources: z.array(ResourceSchema).describe('Array of available resources'),
+        resources: z.array(ServerResourceSchema).describe('Array of available resources'),
     })
     .strict()
     .describe('List of resources from MCP server');
@@ -206,7 +222,10 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
                 description: 'Server configuration',
                 content: { 'application/json': { schema: ServerConfigResponseSchema } },
             },
-            404: { description: 'Not found' },
+            404: {
+                description: 'Not found',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
 
@@ -225,7 +244,10 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
                 description: 'Server updated',
                 content: { 'application/json': { schema: ServerStatusResponseSchema } },
             },
-            404: { description: 'Not found' },
+            404: {
+                description: 'Not found',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
 
@@ -243,7 +265,10 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
                 description: 'Tools list',
                 content: { 'application/json': { schema: ToolsListResponseSchema } },
             },
-            404: { description: 'Not found' },
+            404: {
+                description: 'Not found',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
 
@@ -261,7 +286,10 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
                 description: 'Disconnected',
                 content: { 'application/json': { schema: DisconnectResponseSchema } },
             },
-            404: { description: 'Not found' },
+            404: {
+                description: 'Not found',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
 
@@ -279,7 +307,10 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
                 description: 'Server restarted',
                 content: { 'application/json': { schema: RestartResponseSchema } },
             },
-            404: { description: 'Not found' },
+            404: {
+                description: 'Not found',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
 
@@ -301,7 +332,10 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
                 description: 'Tool executed',
                 content: { 'application/json': { schema: ToolExecutionResponseSchema } },
             },
-            404: { description: 'Not found' },
+            404: {
+                description: 'Not found',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
 
@@ -319,7 +353,10 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
                 description: 'Server resources',
                 content: { 'application/json': { schema: ResourcesListResponseSchema } },
             },
-            404: { description: 'Not found' },
+            404: {
+                description: 'Not found',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
 
@@ -345,7 +382,10 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
                 description: 'Resource content',
                 content: { 'application/json': { schema: ResourceContentResponseSchema } },
             },
-            404: { description: 'Not found' },
+            404: {
+                description: 'Not found',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
 
@@ -414,16 +454,16 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
             for (const name of Object.keys(failedConnections)) {
                 servers.push({ id: name, name, status: 'error' });
             }
-            return ctx.json({ servers });
+            return ctx.json({ servers }, 200);
         })
         .openapi(getServerConfigRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             const { serverId } = ctx.req.valid('param');
             const config = agent.getMcpServerConfig(serverId);
             if (!config) {
-                return ctx.json({ error: `Server '${serverId}' not found.` }, 404);
+                throw MCPError.serverNotFound(serverId);
             }
-            return ctx.json({ name: serverId, config }, 200);
+            return ctx.json({ name: serverId, config: McpServerConfigSchema.parse(config) }, 200);
         })
         .openapi(updateServerRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -432,7 +472,7 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
 
             const existingConfig = agent.getMcpServerConfig(serverId);
             if (!existingConfig) {
-                return ctx.json({ error: `Server '${serverId}' not found.` }, 404);
+                throw MCPError.serverNotFound(serverId);
             }
 
             await agent.updateMcpServer(serverId, config);
@@ -472,17 +512,20 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
             const { serverId } = ctx.req.valid('param');
             const client = agent.getMcpClients().get(serverId);
             if (!client) {
-                return ctx.json({ error: `Server '${serverId}' not found` }, 404);
+                throw MCPError.serverNotFound(serverId);
             }
             const toolsMap = await client.getTools();
             const tools = Object.entries(toolsMap).map(([toolName, toolDef]) => ({
                 id: toolName,
                 name: toolName,
                 description: toolDef.description || '',
-                inputSchema: toolDef.parameters,
+                inputSchema:
+                    toolDef.parameters === undefined
+                        ? undefined
+                        : ToolInputSchema.parse(toolDef.parameters),
                 _meta: toolDef._meta,
             }));
-            return ctx.json({ tools });
+            return ctx.json({ tools }, 200);
         })
         .openapi(deleteServerRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -490,11 +533,11 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
             const clientExists =
                 agent.getMcpClients().has(serverId) || agent.getMcpFailedConnections()[serverId];
             if (!clientExists) {
-                return ctx.json({ error: `Server '${serverId}' not found.` }, 404);
+                throw MCPError.serverNotFound(serverId);
             }
 
             await agent.removeMcpServer(serverId);
-            return ctx.json({ status: 'disconnected', id: serverId });
+            return ctx.json({ status: 'disconnected', id: serverId }, 200);
         })
         .openapi(restartServerRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -504,11 +547,11 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
             const clientExists = agent.getMcpClients().has(serverId);
             if (!clientExists) {
                 logger.warn(`Attempted to restart non-existent server: ${serverId}`);
-                return ctx.json({ error: `Server '${serverId}' not found.` }, 404);
+                throw MCPError.serverNotFound(serverId);
             }
 
             await agent.restartMcpServer(serverId);
-            return ctx.json({ status: 'restarted', id: serverId });
+            return ctx.json({ status: 'restarted', id: serverId }, 200);
         })
         .openapi(execToolRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -516,12 +559,12 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
             const body = ctx.req.valid('json');
             const client = agent.getMcpClients().get(serverId);
             if (!client) {
-                return ctx.json({ success: false, error: `Server '${serverId}' not found` }, 404);
+                throw MCPError.serverNotFound(serverId);
             }
             // Execute tool directly on the specified server (matches Express implementation)
             try {
                 const rawResult = await client.callTool(toolName, body);
-                return ctx.json({ success: true, data: rawResult });
+                return ctx.json({ success: true, data: rawResult }, 200);
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : String(error);
                 logger.error(
@@ -536,20 +579,20 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
             const { serverId } = ctx.req.valid('param');
             const client = agent.getMcpClients().get(serverId);
             if (!client) {
-                return ctx.json({ error: `Server '${serverId}' not found` }, 404);
+                throw MCPError.serverNotFound(serverId);
             }
             const resources = await agent.listResourcesForServer(serverId);
-            return ctx.json({ success: true, resources });
+            return ctx.json({ success: true, resources }, 200);
         })
         .openapi(getResourceContentRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             const { serverId, resourceId } = ctx.req.valid('param');
             const client = agent.getMcpClients().get(serverId);
             if (!client) {
-                return ctx.json({ error: `Server '${serverId}' not found` }, 404);
+                throw MCPError.serverNotFound(serverId);
             }
             const qualifiedUri = `mcp:${serverId}:${resourceId}`;
             const content = await agent.readResource(qualifiedUri);
-            return ctx.json({ success: true, data: { content } });
+            return ctx.json({ success: true, data: { content } }, 200);
         });
 }

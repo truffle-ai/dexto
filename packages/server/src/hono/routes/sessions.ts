@@ -613,7 +613,12 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                 },
             },
             404: {
-                description: 'Session not found (error format handled by middleware)',
+                description: 'Session not found',
+                content: {
+                    'application/json': {
+                        schema: StandardErrorEnvelopeSchema,
+                    },
+                },
             },
         },
     });
@@ -871,6 +876,6 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('param');
             const title = await agent.generateSessionTitle(sessionId);
-            return ctx.json({ title, sessionId });
+            return ctx.json({ title, sessionId }, 200);
         });
 }

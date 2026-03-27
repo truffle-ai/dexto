@@ -34,18 +34,48 @@ import {
     LLM_PROVIDERS,
 } from '@dexto/core';
 
-// TODO: Implement shared error response schemas for OpenAPI documentation.
-// Currently, 404 and other error responses lack body schemas because @hono/zod-openapi
-// enforces strict type matching between route definitions and handlers. When a 404 schema
-// is defined, TypeScript expects handler return types to be a union of all response types,
-// but the type system tries to match every return against every schema instead of by status code.
-//
-// Solution: Create a typed helper or wrapper that:
-// 1. Defines a shared ErrorResponseSchema (e.g., { error: string, code?: string })
-// 2. Properly types handlers to return discriminated unions by status code
-// 3. Can be reused across all routes for consistent error documentation
-//
-// See: https://github.com/honojs/middleware/tree/main/packages/zod-openapi for patterns
+export const IssueSchema = z
+    .object({
+        code: z.string().describe('Machine-readable issue code'),
+        message: z.string().describe('Human-readable issue message'),
+        scope: z.string().describe('Domain that produced the issue'),
+        type: z.string().describe('Error type used for HTTP status mapping'),
+        severity: z.enum(['error', 'warning']).describe('Issue severity'),
+        path: z
+            .array(z.union([z.string(), z.number()]))
+            .optional()
+            .describe('Optional location for the issue'),
+        context: z.unknown().optional().describe('Optional structured issue context'),
+    })
+    .strict()
+    .describe('Structured validation or runtime issue');
+
+export const ApiErrorResponseSchema = z
+    .object({
+        name: z.string().optional().describe('Optional error class name'),
+        message: z.string().describe('Human-readable error message'),
+        code: z.string().optional().describe('Machine-readable error code'),
+        scope: z.string().optional().describe('Domain that produced the error'),
+        type: z.string().optional().describe('Error type used for HTTP status mapping'),
+        severity: z
+            .enum(['error', 'warning'])
+            .optional()
+            .describe('Optional error severity for lightweight failures'),
+        endpoint: z.string().describe('Request path that failed'),
+        method: z.string().describe('HTTP method for the failed request'),
+        traceId: z.string().optional().describe('Optional trace identifier'),
+        recovery: z
+            .union([z.string(), z.array(z.string())])
+            .optional()
+            .describe('Optional recovery guidance'),
+        context: z.unknown().optional().describe('Optional structured error context'),
+        issues: z.array(IssueSchema).optional().describe('Validation issues when present'),
+        errorCount: z.number().int().nonnegative().optional().describe('Number of errors'),
+        warningCount: z.number().int().nonnegative().optional().describe('Number of warnings'),
+        stack: z.string().optional().describe('Development-only stack trace'),
+    })
+    .strict()
+    .describe('Standard API error response');
 
 // ============================================================================
 // Imports from @dexto/core - Reusable schemas

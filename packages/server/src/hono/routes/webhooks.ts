@@ -1,7 +1,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { DextoAgent } from '@dexto/core';
+import { DextoRuntimeError, ErrorType, type DextoAgent } from '@dexto/core';
 import { WebhookEventSubscriber } from '../../events/webhook-subscriber.js';
 import type { WebhookConfig } from '../../events/webhook-types.js';
+import { ApiErrorResponseSchema } from '../schemas/responses.js';
 import type { Context } from 'hono';
 type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
@@ -112,7 +113,10 @@ export function createWebhooksRouter(
                     },
                 },
             },
-            404: { description: 'Not found' },
+            404: {
+                description: 'Not found',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
 
@@ -139,7 +143,10 @@ export function createWebhooksRouter(
                     },
                 },
             },
-            404: { description: 'Not found' },
+            404: {
+                description: 'Not found',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
 
@@ -166,7 +173,10 @@ export function createWebhooksRouter(
                     },
                 },
             },
-            404: { description: 'Not found' },
+            404: {
+                description: 'Not found',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
 
@@ -213,27 +223,42 @@ export function createWebhooksRouter(
             const { webhookId } = ctx.req.valid('param');
             const webhook = webhookSubscriber.getWebhook(webhookId);
             if (!webhook) {
-                return ctx.json({ error: 'Webhook not found' }, 404);
+                throw new DextoRuntimeError(
+                    'webhook_not_found',
+                    'webhook',
+                    ErrorType.NOT_FOUND,
+                    'Webhook not found',
+                    { webhookId }
+                );
             }
 
-            return ctx.json({
-                webhook: {
-                    id: webhook.id,
-                    url: webhook.url,
-                    description: webhook.description,
-                    createdAt: webhook.createdAt,
+            return ctx.json(
+                {
+                    webhook: {
+                        id: webhook.id,
+                        url: webhook.url,
+                        description: webhook.description,
+                        createdAt: webhook.createdAt,
+                    },
                 },
-            });
+                200
+            );
         })
         .openapi(deleteRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             const { webhookId } = ctx.req.valid('param');
             const removed = webhookSubscriber.removeWebhook(webhookId);
             if (!removed) {
-                return ctx.json({ error: 'Webhook not found' }, 404);
+                throw new DextoRuntimeError(
+                    'webhook_not_found',
+                    'webhook',
+                    ErrorType.NOT_FOUND,
+                    'Webhook not found',
+                    { webhookId }
+                );
             }
             agent.logger.info(`Webhook removed: ${webhookId}`);
-            return ctx.json({ status: 'removed', webhookId });
+            return ctx.json({ status: 'removed', webhookId }, 200);
         })
         .openapi(testRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -241,20 +266,29 @@ export function createWebhooksRouter(
             const webhook = webhookSubscriber.getWebhook(webhookId);
 
             if (!webhook) {
-                return ctx.json({ error: 'Webhook not found' }, 404);
+                throw new DextoRuntimeError(
+                    'webhook_not_found',
+                    'webhook',
+                    ErrorType.NOT_FOUND,
+                    'Webhook not found',
+                    { webhookId }
+                );
             }
 
             agent.logger.info(`Testing webhook: ${webhookId}`);
             const result = await webhookSubscriber.testWebhook(webhookId);
 
-            return ctx.json({
-                test: 'completed',
-                result: {
-                    success: result.success,
-                    statusCode: result.statusCode,
-                    responseTime: result.responseTime,
-                    error: result.error,
+            return ctx.json(
+                {
+                    test: 'completed',
+                    result: {
+                        success: result.success,
+                        statusCode: result.statusCode,
+                        responseTime: result.responseTime,
+                        error: result.error,
+                    },
                 },
-            });
+                200
+            );
         });
 }
