@@ -187,7 +187,7 @@ export const TestConfigs = {
             groq: 'llama-3.1-8b-instant',
             xai: 'grok-beta',
             cohere: 'command-r',
-            minimax: 'MiniMax-M2.1',
+            minimax: 'MiniMax-M2.7',
             glm: 'glm-4.7',
             'openai-compatible': 'gpt-5-mini',
             openrouter: 'anthropic/claude-3.5-haiku', // OpenRouter model format: provider/model

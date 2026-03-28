@@ -832,11 +832,11 @@ describe('getAllModelsForProvider', () => {
         const dextoModels = getAllModelsForProvider('dexto-nova');
         const dextoNativeModels = dextoModels.filter((m) => m.originalProvider === 'dexto-nova');
 
-        // Should include Dexto Nova's native models like glm-4.7 and minimax-m2.1
+        // Should include Dexto Nova's native models like glm-4.7 and minimax-m2.7
         expect(dextoNativeModels.length).toBeGreaterThan(0);
         const dextoNativeModelNames = dextoNativeModels.map((m) => m.name);
         expect(dextoNativeModelNames).toContain('z-ai/glm-4.7');
-        expect(dextoNativeModelNames).toContain('minimax/minimax-m2.5');
+        expect(dextoNativeModelNames).toContain('minimax/minimax-m2.7');
     });
 
     it('uses cached OpenRouter catalog for openrouter provider when available', () => {
