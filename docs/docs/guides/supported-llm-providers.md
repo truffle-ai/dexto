@@ -135,6 +135,25 @@ llm:
 
 ---
 
+### MiniMax
+
+```yaml
+llm:
+  provider: minimax
+  model: MiniMax-M2.7
+  apiKey: $MINIMAX_API_KEY
+```
+
+**Supported models:**
+- `MiniMax-M2.7` (default, 204K context window)
+- `MiniMax-M2.7-highspeed` (204K context window, faster inference)
+- `MiniMax-M2.5`, `MiniMax-M2.5-highspeed`
+- `MiniMax-M2.1`, `MiniMax-M2`
+
+**Features:** Reasoning, tool calling, streaming, OpenAI-compatible API, competitive pricing
+
+---
+
 ## Cloud Platform Providers
 
 ### Amazon Bedrock
@@ -468,6 +487,7 @@ GOOGLE_GENERATIVE_AI_API_KEY=your_google_key
 GROQ_API_KEY=your_groq_key
 XAI_API_KEY=your_xai_key
 COHERE_API_KEY=your_cohere_key
+MINIMAX_API_KEY=your_minimax_key
 
 # Google Cloud Vertex AI (uses ADC, not API keys)
 GOOGLE_VERTEX_PROJECT=your_gcp_project_id

@@ -156,7 +156,7 @@ export function createVercelModel(
         }
         case 'minimax': {
             // MiniMax - OpenAI-compatible endpoint
-            const minimaxBaseURL = baseURL || 'https://api.minimax.chat/v1';
+            const minimaxBaseURL = baseURL || 'https://api.minimax.io/v1';
             return createOpenAI({ apiKey: apiKey ?? '', baseURL: minimaxBaseURL }).chat(model);
         }
         case 'glm': {
