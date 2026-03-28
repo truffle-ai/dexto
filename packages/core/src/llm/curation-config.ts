@@ -46,7 +46,7 @@ export const CURATED_MODEL_IDS_BY_PROVIDER: Partial<Record<LLMProvider, string[]
     xai: ['grok-4', 'grok-3', 'grok-3-mini'],
     groq: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'qwen-qwq-32b'],
     cohere: ['command-a-03-2025', 'command-r-plus-08-2024', 'command-r-08-2024'],
-    minimax: ['MiniMax-M2.5', 'MiniMax-M2.1', 'MiniMax-M2'],
+    minimax: ['MiniMax-M2.7', 'MiniMax-M2.7-highspeed', 'MiniMax-M2.5', 'MiniMax-M2.1'],
     glm: ['glm-4.7', 'glm-4.5'],
     bedrock: [
         'anthropic.claude-sonnet-4-5-20250929-v1:0',
@@ -64,7 +64,7 @@ export const CURATED_MODEL_IDS_BY_PROVIDER: Partial<Record<LLMProvider, string[]
         'qwen/qwen3-coder:free',
         'deepseek/deepseek-r1-0528:free',
         'z-ai/glm-4.7',
-        'minimax/minimax-m2.5',
+        'minimax/minimax-m2.7',
         'moonshotai/kimi-k2.5',
     ],
 };
