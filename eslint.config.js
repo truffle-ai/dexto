@@ -5,12 +5,14 @@ import prettier from 'eslint-config-prettier';
 import requireZodDescribe from './eslint-rules/require-zod-describe.js';
 import noOptionalLoggerInConstructor from './eslint-rules/no-optional-logger-in-constructor.js';
 import requireOpenApiRouteContract from './eslint-rules/require-openapi-route-contract.js';
+import requireOpenApiJsonErrorResponses from './eslint-rules/require-openapi-json-error-responses.js';
 
 const dextoCustomPlugin = {
     rules: {
         'require-zod-describe': requireZodDescribe,
         'no-optional-logger-in-constructor': noOptionalLoggerInConstructor,
         'require-openapi-route-contract': requireOpenApiRouteContract,
+        'require-openapi-json-error-responses': requireOpenApiJsonErrorResponses,
     },
 };
 
@@ -128,6 +130,7 @@ export default [
         files: ['packages/server/src/hono/routes/**/*.ts'],
         rules: {
             'dexto-custom/require-openapi-route-contract': 'error',
+            'dexto-custom/require-openapi-json-error-responses': 'warn',
         },
     },
 
