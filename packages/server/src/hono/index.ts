@@ -7,8 +7,8 @@ import { getDextoPackageRoot } from '@dexto/agent-management';
 import { createHealthRouter } from './routes/health.js';
 import { createGreetingRouter, type GreetingRouterSchema } from './routes/greeting.js';
 import { createMessagesRouter, type MessagesRouterSchema } from './routes/messages.js';
-import { createLlmRouter } from './routes/llm.js';
-import { createSessionsRouter } from './routes/sessions.js';
+import { createLlmRouter, type LlmRouterSchema } from './routes/llm.js';
+import { createSessionsRouter, type SessionsRouterSchema } from './routes/sessions.js';
 import { createSearchRouter, type SearchRouterSchema } from './routes/search.js';
 import { createMcpRouter } from './routes/mcp.js';
 import { createA2aRouter } from './routes/a2a.js';
@@ -45,7 +45,7 @@ import { ApprovalCoordinator } from '../approval/approval-coordinator.js';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import type { DextoApp, GetAgentConfigPathFn, GetAgentFn, HonoRouterSchema } from './types.js';
+import type { DextoApp, GetAgentConfigPathFn, GetAgentFn } from './types.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -145,8 +145,8 @@ type JsonRpcSchema = MergeSchemaPath<ExtractSchema<ReturnType<typeof createA2AJs
 type ConversationRouterSchema =
     | GreetingRouterSchema
     | MessagesRouterSchema
-    | HonoRouterSchema<ReturnType<typeof createLlmRouter>>
-    | HonoRouterSchema<ReturnType<typeof createSessionsRouter>>
+    | LlmRouterSchema
+    | SessionsRouterSchema
     | SearchRouterSchema;
 
 type IntegrationRouterSchema =
