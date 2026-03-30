@@ -1,5 +1,21 @@
 # @dexto/server
 
+## 1.6.20
+
+### Patch Changes
+
+- 059b3d1: Patch release for the recent Hono contract cleanup and package export fix.
+    - `@dexto/server`: publish the Hono inference contract/schema cleanup so downstream typed clients stop seeing opaque response shapes.
+    - `@dexto/agent-management`: publish the `exports["."].types` fix so NodeNext consumers resolve declarations correctly.
+
+- Updated dependencies [059b3d1]
+    - @dexto/agent-management@1.6.20
+    - @dexto/image-local@1.6.20
+    - @dexto/core@1.6.20
+    - @dexto/storage@1.6.20
+    - @dexto/agent-config@1.6.20
+    - @dexto/tools-scheduler@1.6.20
+
 ## 1.6.19
 
 ### Patch Changes
