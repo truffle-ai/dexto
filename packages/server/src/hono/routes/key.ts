@@ -10,6 +10,7 @@
 
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { LLM_PROVIDERS } from '@dexto/core';
+import { BadRequestErrorResponse, InternalErrorResponse } from '../schemas/responses.js';
 import {
     getProviderKeyStatus,
     saveProviderApiKey,
@@ -80,6 +81,8 @@ export function createKeyRouter() {
                     },
                 },
             },
+            400: BadRequestErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -110,6 +113,8 @@ export function createKeyRouter() {
                     },
                 },
             },
+            400: BadRequestErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -120,17 +125,20 @@ export function createKeyRouter() {
             const apiKey = resolveApiKeyForProvider(provider);
             const maskedKey = apiKey ? maskApiKey(apiKey) : undefined;
 
-            return ctx.json({
-                provider,
-                envVar: keyStatus.envVar,
-                hasKey: keyStatus.hasApiKey,
-                ...(maskedKey && { keyValue: maskedKey }),
-            });
+            return ctx.json(
+                {
+                    provider,
+                    envVar: keyStatus.envVar,
+                    hasKey: keyStatus.hasApiKey,
+                    ...(maskedKey && { keyValue: maskedKey }),
+                },
+                200
+            );
         })
         .openapi(saveKeyRoute, async (ctx) => {
             const { provider, apiKey } = ctx.req.valid('json');
             // saveProviderApiKey uses getDextoEnvPath internally for context-aware .env resolution
             const meta = await saveProviderApiKey(provider, apiKey);
-            return ctx.json({ ok: true as const, provider, envVar: meta.envVar });
+            return ctx.json({ ok: true as const, provider, envVar: meta.envVar }, 200);
         });
 }

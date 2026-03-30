@@ -19,6 +19,7 @@ import {
     getInstalledModel,
     removeInstalledModel,
 } from '@dexto/agent-management';
+import { BadRequestErrorResponse, InternalErrorResponse } from '../schemas/responses.js';
 
 // ============================================================================
 // Schemas
@@ -86,6 +87,7 @@ const listLocalModelsRoute = createRoute({
                 },
             },
         },
+        500: InternalErrorResponse,
     },
 });
 
@@ -125,6 +127,8 @@ const listOllamaModelsRoute = createRoute({
                 },
             },
         },
+        400: BadRequestErrorResponse,
+        500: InternalErrorResponse,
     },
 });
 
@@ -154,6 +158,8 @@ const validateLocalFileRoute = createRoute({
                 },
             },
         },
+        400: BadRequestErrorResponse,
+        500: InternalErrorResponse,
     },
 });
 
@@ -213,6 +219,8 @@ const deleteLocalModelRoute = createRoute({
                 },
             },
         },
+        400: BadRequestErrorResponse,
+        500: InternalErrorResponse,
     },
 });
 
@@ -241,7 +249,7 @@ export function createModelsRouter() {
                 };
             });
 
-            return ctx.json({ models });
+            return ctx.json({ models }, 200);
         })
         .openapi(listOllamaModelsRoute, async (ctx) => {
             const { baseURL } = ctx.req.valid('query');
@@ -252,35 +260,44 @@ export function createModelsRouter() {
                 const status = await checkOllamaStatus(ollamaURL);
 
                 if (!status.running) {
-                    return ctx.json({
-                        available: false,
-                        models: [],
-                        error: 'Ollama server is not running',
-                    });
+                    return ctx.json(
+                        {
+                            available: false,
+                            models: [],
+                            error: 'Ollama server is not running',
+                        },
+                        200
+                    );
                 }
 
                 // List available models
                 const ollamaModels = await listOllamaModels(ollamaURL);
 
-                return ctx.json({
-                    available: true,
-                    version: status.version,
-                    models: ollamaModels.map((m) => ({
-                        name: m.name,
-                        size: m.size,
-                        digest: m.digest,
-                        modifiedAt: m.modifiedAt,
-                    })),
-                });
+                return ctx.json(
+                    {
+                        available: true,
+                        version: status.version,
+                        models: ollamaModels.map((m) => ({
+                            name: m.name,
+                            size: m.size,
+                            digest: m.digest,
+                            modifiedAt: m.modifiedAt,
+                        })),
+                    },
+                    200
+                );
             } catch (error) {
-                return ctx.json({
-                    available: false,
-                    models: [],
-                    error:
-                        error instanceof Error
-                            ? error.message
-                            : 'Failed to connect to Ollama server',
-                });
+                return ctx.json(
+                    {
+                        available: false,
+                        models: [],
+                        error:
+                            error instanceof Error
+                                ? error.message
+                                : 'Failed to connect to Ollama server',
+                    },
+                    200
+                );
             }
         })
         .openapi(validateLocalFileRoute, async (ctx) => {
@@ -289,58 +306,79 @@ export function createModelsRouter() {
             // Security: Basic path validation
             // Prevent path traversal attacks by ensuring absolute path
             if (!filePath.startsWith('/')) {
-                return ctx.json({
-                    valid: false,
-                    error: 'File path must be absolute (start with /)',
-                });
+                return ctx.json(
+                    {
+                        valid: false,
+                        error: 'File path must be absolute (start with /)',
+                    },
+                    200
+                );
             }
 
             // Validate file extension
             if (!filePath.endsWith('.gguf')) {
-                return ctx.json({
-                    valid: false,
-                    error: 'File must have .gguf extension',
-                });
+                return ctx.json(
+                    {
+                        valid: false,
+                        error: 'File must have .gguf extension',
+                    },
+                    200
+                );
             }
 
             try {
                 const stats = await fs.stat(filePath);
 
                 if (!stats.isFile()) {
-                    return ctx.json({
-                        valid: false,
-                        error: 'Path is not a file',
-                    });
+                    return ctx.json(
+                        {
+                            valid: false,
+                            error: 'Path is not a file',
+                        },
+                        200
+                    );
                 }
 
                 // Check file is readable
                 await fs.access(filePath, fs.constants.R_OK);
 
-                return ctx.json({
-                    valid: true,
-                    sizeBytes: stats.size,
-                });
+                return ctx.json(
+                    {
+                        valid: true,
+                        sizeBytes: stats.size,
+                    },
+                    200
+                );
             } catch (error) {
                 const nodeError = error as NodeJS.ErrnoException;
 
                 if (nodeError.code === 'ENOENT') {
-                    return ctx.json({
-                        valid: false,
-                        error: 'File not found',
-                    });
+                    return ctx.json(
+                        {
+                            valid: false,
+                            error: 'File not found',
+                        },
+                        200
+                    );
                 }
 
                 if (nodeError.code === 'EACCES') {
-                    return ctx.json({
-                        valid: false,
-                        error: 'File is not readable (permission denied)',
-                    });
+                    return ctx.json(
+                        {
+                            valid: false,
+                            error: 'File is not readable (permission denied)',
+                        },
+                        200
+                    );
                 }
 
-                return ctx.json({
-                    valid: false,
-                    error: error instanceof Error ? error.message : 'Failed to access file',
-                });
+                return ctx.json(
+                    {
+                        valid: false,
+                        error: error instanceof Error ? error.message : 'Failed to access file',
+                    },
+                    200
+                );
             }
         })
         .openapi(deleteLocalModelRoute, async (ctx) => {
@@ -396,18 +434,24 @@ export function createModelsRouter() {
             // Remove from state.json
             const removed = await removeInstalledModel(modelId);
             if (!removed) {
-                return ctx.json({
-                    success: false,
-                    modelId,
-                    fileDeleted,
-                    error: 'Failed to remove model from state',
-                });
+                return ctx.json(
+                    {
+                        success: false,
+                        modelId,
+                        fileDeleted,
+                        error: 'Failed to remove model from state',
+                    },
+                    200
+                );
             }
 
-            return ctx.json({
-                success: true,
-                modelId,
-                fileDeleted,
-            });
+            return ctx.json(
+                {
+                    success: true,
+                    modelId,
+                    fileDeleted,
+                },
+                200
+            );
         });
 }

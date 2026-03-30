@@ -78,6 +78,87 @@ export const ApiErrorResponseSchema = z
     .strict()
     .describe('Standard API error response');
 
+export const BadRequestErrorResponse = {
+    description: 'Validation or request error',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
+
+export const PaymentRequiredErrorResponse = {
+    description: 'Payment required',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
+
+export const ForbiddenErrorResponse = {
+    description: 'Forbidden',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
+
+export const NotFoundErrorResponse = {
+    description: 'Resource not found',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
+
+export const TimeoutErrorResponse = {
+    description: 'Request timed out',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
+
+export const ConflictErrorResponse = {
+    description: 'Conflict',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
+
+export const RateLimitErrorResponse = {
+    description: 'Rate limited',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
+
+export const InternalErrorResponse = {
+    description: 'Internal server error',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
+
+export const UpstreamErrorResponse = {
+    description: 'Upstream service failure',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
+
 // ============================================================================
 // Imports from @dexto/core - Reusable schemas
 // ============================================================================

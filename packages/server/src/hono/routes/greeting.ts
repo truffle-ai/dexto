@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { GetAgentFn } from '../index.js';
+import { BadRequestErrorResponse, InternalErrorResponse } from '../schemas/responses.js';
 
 const querySchema = z
     .object({
@@ -36,6 +37,8 @@ export function createGreetingRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            400: BadRequestErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -43,6 +46,6 @@ export function createGreetingRouter(getAgent: GetAgentFn) {
         const agent = await getAgent(ctx);
         const { sessionId } = ctx.req.valid('query');
         const cfg = agent.getEffectiveConfig(sessionId);
-        return ctx.json({ greeting: cfg.greeting });
+        return ctx.json({ greeting: cfg.greeting }, 200);
     });
 }

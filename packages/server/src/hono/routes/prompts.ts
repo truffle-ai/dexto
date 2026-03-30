@@ -3,6 +3,8 @@ import type { DextoAgent } from '@dexto/core';
 import { PromptError } from '@dexto/core';
 import {
     ApiErrorResponseSchema,
+    BadRequestErrorResponse,
+    InternalErrorResponse,
     PromptDefinitionSchema,
     PromptInfoSchema,
 } from '../schemas/responses.js';
@@ -99,6 +101,7 @@ export function createPromptsRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            500: InternalErrorResponse,
         },
     });
 
@@ -132,6 +135,8 @@ export function createPromptsRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            400: BadRequestErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -221,7 +226,7 @@ export function createPromptsRouter(getAgent: GetAgentFn) {
             const agent = await getAgent(ctx);
             const prompts = await agent.listPrompts();
             const list = Object.values(prompts);
-            return ctx.json({ prompts: list });
+            return ctx.json({ prompts: list }, 200);
         })
         .openapi(createCustomRoute, async (ctx) => {
             const agent = await getAgent(ctx);

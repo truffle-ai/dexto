@@ -1,7 +1,12 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { CreateMemoryInputSchema, UpdateMemoryInputSchema } from '@dexto/core';
-import { MemorySchema } from '../schemas/responses.js';
+import {
+    BadRequestErrorResponse,
+    InternalErrorResponse,
+    MemorySchema,
+    NotFoundErrorResponse,
+} from '../schemas/responses.js';
 import type { Context } from 'hono';
 type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
@@ -64,6 +69,15 @@ const MemoryDeleteResponseSchema = z
 
 export function createMemoryRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
+    const memoryCollectionErrorResponses = {
+        400: BadRequestErrorResponse,
+        500: InternalErrorResponse,
+    } as const;
+    const memoryItemErrorResponses = {
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        500: InternalErrorResponse,
+    } as const;
 
     const createMemoryRoute = createRoute({
         method: 'post',
@@ -85,6 +99,7 @@ export function createMemoryRouter(getAgent: GetAgentFn) {
                 description: 'Memory created',
                 content: { 'application/json': { schema: MemoryResponseSchema } },
             },
+            ...memoryCollectionErrorResponses,
         },
     });
 
@@ -100,6 +115,7 @@ export function createMemoryRouter(getAgent: GetAgentFn) {
                 description: 'List memories',
                 content: { 'application/json': { schema: MemoriesListResponseSchema } },
             },
+            ...memoryCollectionErrorResponses,
         },
     });
 
@@ -117,6 +133,7 @@ export function createMemoryRouter(getAgent: GetAgentFn) {
                 description: 'Memory details',
                 content: { 'application/json': { schema: MemoryResponseSchema } },
             },
+            ...memoryItemErrorResponses,
         },
     });
 
@@ -141,6 +158,7 @@ export function createMemoryRouter(getAgent: GetAgentFn) {
                 description: 'Memory updated',
                 content: { 'application/json': { schema: MemoryResponseSchema } },
             },
+            ...memoryItemErrorResponses,
         },
     });
 
@@ -158,6 +176,7 @@ export function createMemoryRouter(getAgent: GetAgentFn) {
                 description: 'Memory deleted',
                 content: { 'application/json': { schema: MemoryDeleteResponseSchema } },
             },
+            ...memoryItemErrorResponses,
         },
     });
 
@@ -200,13 +219,13 @@ export function createMemoryRouter(getAgent: GetAgentFn) {
 
             const agent = await getAgent(ctx);
             const memories = await agent.memoryManager.list(options);
-            return ctx.json({ ok: true as const, memories });
+            return ctx.json({ ok: true as const, memories }, 200);
         })
         .openapi(getRoute, async (ctx) => {
             const { id } = ctx.req.valid('param');
             const agent = await getAgent(ctx);
             const memory = await agent.memoryManager.get(id);
-            return ctx.json({ ok: true as const, memory });
+            return ctx.json({ ok: true as const, memory }, 200);
         })
         .openapi(updateRoute, async (ctx) => {
             const { id } = ctx.req.valid('param');
@@ -222,12 +241,12 @@ export function createMemoryRouter(getAgent: GetAgentFn) {
             if (updatesRaw.tags !== undefined) updates.tags = updatesRaw.tags;
             const agent = await getAgent(ctx);
             const memory = await agent.memoryManager.update(id, updates);
-            return ctx.json({ ok: true as const, memory });
+            return ctx.json({ ok: true as const, memory }, 200);
         })
         .openapi(deleteRoute, async (ctx) => {
             const { id } = ctx.req.valid('param');
             const agent = await getAgent(ctx);
             await agent.memoryManager.delete(id);
-            return ctx.json({ ok: true as const, message: 'Memory deleted successfully' });
+            return ctx.json({ ok: true as const, message: 'Memory deleted successfully' }, 200);
         });
 }

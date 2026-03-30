@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
-import { StandardErrorEnvelopeSchema } from '../schemas/responses.js';
+import { BadRequestErrorResponse, InternalErrorResponse } from '../schemas/responses.js';
 import type { Context } from 'hono';
 
 type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
@@ -32,10 +32,6 @@ const UpsertSystemPromptContributorSchema = z
     })
     .strict()
     .describe('System prompt contributor update payload.');
-
-const SystemPromptContributorErrorSchema = StandardErrorEnvelopeSchema.describe(
-    'System prompt contributor error response.'
-);
 
 function sanitizeContributorId(value: string): string {
     return value
@@ -77,6 +73,7 @@ export function createSystemPromptRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            500: InternalErrorResponse,
         },
     });
 
@@ -131,13 +128,9 @@ export function createSystemPromptRouter(getAgent: GetAgentFn) {
                 },
             },
             400: {
-                description: 'Invalid contributor update request',
-                content: {
-                    'application/json': {
-                        schema: SystemPromptContributorErrorSchema,
-                    },
-                },
+                ...BadRequestErrorResponse,
             },
+            500: InternalErrorResponse,
         },
     });
 
@@ -148,7 +141,7 @@ export function createSystemPromptRouter(getAgent: GetAgentFn) {
                 id: contributor.id,
                 priority: contributor.priority,
             }));
-            return ctx.json({ contributors });
+            return ctx.json({ contributors }, 200);
         })
         .openapi(upsertContributorRoute, async (ctx) => {
             const agent = await getAgent(ctx);

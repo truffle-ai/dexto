@@ -1,6 +1,11 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
-import { MessageSearchResponseSchema, SessionSearchResponseSchema } from '../schemas/responses.js';
+import {
+    BadRequestErrorResponse,
+    InternalErrorResponse,
+    MessageSearchResponseSchema,
+    SessionSearchResponseSchema,
+} from '../schemas/responses.js';
 import type { Context } from 'hono';
 type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
@@ -43,6 +48,8 @@ export function createSearchRouter(getAgent: GetAgentFn) {
                 description: 'Message search results',
                 content: { 'application/json': { schema: MessageSearchResponseSchema } },
             },
+            400: BadRequestErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -58,6 +65,8 @@ export function createSearchRouter(getAgent: GetAgentFn) {
                 description: 'Session search results',
                 content: { 'application/json': { schema: SessionSearchResponseSchema } },
             },
+            400: BadRequestErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -75,13 +84,13 @@ export function createSearchRouter(getAgent: GetAgentFn) {
             const searchResults = await agent.searchMessages(q, options);
             // TODO: Improve type alignment between core and server schemas.
             // Core's InternalMessage has union types for binary data, but JSON responses are strings.
-            return ctx.json(searchResults as z.output<typeof MessageSearchResponseSchema>);
+            return ctx.json(searchResults as z.output<typeof MessageSearchResponseSchema>, 200);
         })
         .openapi(sessionsRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             const { q } = ctx.req.valid('query');
             const searchResults = await agent.searchSessions(q);
             // TODO: Improve type alignment between core and server schemas.
-            return ctx.json(searchResults as z.output<typeof SessionSearchResponseSchema>);
+            return ctx.json(searchResults as z.output<typeof SessionSearchResponseSchema>, 200);
         });
 }

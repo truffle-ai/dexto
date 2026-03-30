@@ -2,7 +2,11 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { DextoRuntimeError, ErrorType, type DextoAgent } from '@dexto/core';
 import { WebhookEventSubscriber } from '../../events/webhook-subscriber.js';
 import type { WebhookConfig } from '../../events/webhook-types.js';
-import { ApiErrorResponseSchema } from '../schemas/responses.js';
+import {
+    ApiErrorResponseSchema,
+    BadRequestErrorResponse,
+    InternalErrorResponse,
+} from '../schemas/responses.js';
 import type { Context } from 'hono';
 type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
@@ -66,6 +70,8 @@ export function createWebhooksRouter(
                     },
                 },
             },
+            400: BadRequestErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -90,6 +96,7 @@ export function createWebhooksRouter(
                     },
                 },
             },
+            500: InternalErrorResponse,
         },
     });
 
@@ -217,7 +224,7 @@ export function createWebhooksRouter(
                 createdAt: webhook.createdAt,
             }));
 
-            return ctx.json({ webhooks });
+            return ctx.json({ webhooks }, 200);
         })
         .openapi(getRoute, (ctx) => {
             const { webhookId } = ctx.req.valid('param');

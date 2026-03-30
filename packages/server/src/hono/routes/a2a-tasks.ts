@@ -18,6 +18,7 @@ import { logger } from '@dexto/core';
 import type { A2ASseEventSubscriber } from '../../events/a2a-sse-subscriber.js';
 import { a2aToInternalMessage } from '../../a2a/adapters/message.js';
 import type { Context } from 'hono';
+import { BadRequestErrorResponse, InternalErrorResponse } from '../schemas/responses.js';
 type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
 // Request/Response Schemas for OpenAPI (using A2A-compliant schema)
@@ -240,6 +241,8 @@ export function createA2ATasksRouter(getAgent: GetAgentFn, sseSubscriber: A2ASse
                     },
                 },
             },
+            400: BadRequestErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -269,6 +272,8 @@ export function createA2ATasksRouter(getAgent: GetAgentFn, sseSubscriber: A2ASse
                     },
                 },
             },
+            400: BadRequestErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -400,7 +405,7 @@ export function createA2ATasksRouter(getAgent: GetAgentFn, sseSubscriber: A2ASse
             // from mutable handler types. Structurally compatible at runtime.
             const result = await handlers.messageSend(body as any);
 
-            return ctx.json(result as any);
+            return ctx.json(result as any, 200);
         })
         .openapi(listTasksRoute, async (ctx) => {
             const handlers = new A2AMethodHandlers(await getAgent(ctx));
@@ -410,7 +415,7 @@ export function createA2ATasksRouter(getAgent: GetAgentFn, sseSubscriber: A2ASse
             // from mutable handler types. Structurally compatible at runtime.
             const result = await handlers.tasksList(query as any);
 
-            return ctx.json(result);
+            return ctx.json(result, 200);
         })
         .openapi(getTaskRoute, async (ctx) => {
             const handlers = new A2AMethodHandlers(await getAgent(ctx));

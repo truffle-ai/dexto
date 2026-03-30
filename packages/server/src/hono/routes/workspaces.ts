@@ -1,5 +1,9 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import { WorkspaceSchema } from '../schemas/responses.js';
+import {
+    BadRequestErrorResponse,
+    InternalErrorResponse,
+    WorkspaceSchema,
+} from '../schemas/responses.js';
 import type { GetAgentFn } from '../index.js';
 
 const SetWorkspaceSchema = z
@@ -32,6 +36,7 @@ export function createWorkspacesRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            500: InternalErrorResponse,
         },
     });
 
@@ -56,6 +61,7 @@ export function createWorkspacesRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            500: InternalErrorResponse,
         },
     });
 
@@ -79,6 +85,8 @@ export function createWorkspacesRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            400: BadRequestErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -103,6 +111,7 @@ export function createWorkspacesRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            500: InternalErrorResponse,
         },
     });
 
@@ -110,12 +119,12 @@ export function createWorkspacesRouter(getAgent: GetAgentFn) {
         .openapi(listRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             const workspaces = await agent.listWorkspaces();
-            return ctx.json({ workspaces });
+            return ctx.json({ workspaces }, 200);
         })
         .openapi(getActiveRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             const workspace = await agent.getWorkspace();
-            return ctx.json({ workspace: workspace ?? null });
+            return ctx.json({ workspace: workspace ?? null }, 200);
         })
         .openapi(setActiveRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -125,11 +134,11 @@ export function createWorkspacesRouter(getAgent: GetAgentFn) {
                     ? { path: input.path }
                     : { path: input.path, name: input.name };
             const workspace = await agent.setWorkspace(workspaceInput);
-            return ctx.json({ workspace });
+            return ctx.json({ workspace }, 200);
         })
         .openapi(clearActiveRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             await agent.clearWorkspace();
-            return ctx.json({ workspace: null });
+            return ctx.json({ workspace: null }, 200);
         });
 }

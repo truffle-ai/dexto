@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { GetAgentFn } from '../index.js';
+import { InternalErrorResponse } from '../schemas/responses.js';
 import {
     isDextoAuthEnabled,
     isDextoAuthenticated,
@@ -39,6 +40,7 @@ export function createDextoAuthRouter(_getAgent: GetAgentFn) {
                     },
                 },
             },
+            500: InternalErrorResponse,
         },
     });
 
@@ -46,20 +48,26 @@ export function createDextoAuthRouter(_getAgent: GetAgentFn) {
         const enabled = isDextoAuthEnabled();
 
         if (!enabled) {
-            return c.json({
-                enabled: false,
-                authenticated: false,
-                canUse: false,
-            });
+            return c.json(
+                {
+                    enabled: false,
+                    authenticated: false,
+                    canUse: false,
+                },
+                200
+            );
         }
 
         const authenticated = await isDextoAuthenticated();
         const canUse = await canUseDextoProvider();
 
-        return c.json({
-            enabled,
-            authenticated,
-            canUse,
-        });
+        return c.json(
+            {
+                enabled,
+                authenticated,
+                canUse,
+            },
+            200
+        );
     });
 }

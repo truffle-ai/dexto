@@ -1,5 +1,10 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import { ResourceSchema } from '../schemas/responses.js';
+import {
+    BadRequestErrorResponse,
+    InternalErrorResponse,
+    NotFoundErrorResponse,
+    ResourceSchema,
+} from '../schemas/responses.js';
 import type { GetAgentFn } from '../index.js';
 
 const ResourceIdParamSchema = z
@@ -71,6 +76,7 @@ export function createResourcesRouter(getAgent: GetAgentFn) {
                 description: 'List all resources',
                 content: { 'application/json': { schema: ListResourcesResponseSchema } },
             },
+            500: InternalErrorResponse,
         },
     });
 
@@ -89,6 +95,9 @@ export function createResourcesRouter(getAgent: GetAgentFn) {
                 description: 'Resource content',
                 content: { 'application/json': { schema: ReadResourceResponseSchema } },
             },
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -111,13 +120,13 @@ export function createResourcesRouter(getAgent: GetAgentFn) {
         .openapi(listRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             const resources = await agent.listResources();
-            return ctx.json({ ok: true, resources: Object.values(resources) });
+            return ctx.json({ ok: true, resources: Object.values(resources) }, 200);
         })
         .openapi(getContentRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             const { resourceId } = ctx.req.valid('param');
             const content = await agent.readResource(resourceId);
-            return ctx.json({ ok: true, content });
+            return ctx.json({ ok: true, content }, 200);
         })
         .openapi(headRoute, async (ctx) => {
             const agent = await getAgent(ctx);

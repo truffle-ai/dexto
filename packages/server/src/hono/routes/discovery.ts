@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { InternalErrorResponse } from '../schemas/responses.js';
 import type { Context } from 'hono';
 import type { DextoImage } from '@dexto/agent-config';
 import { loadImage } from '@dexto/agent-config';
@@ -166,10 +167,11 @@ export function createDiscoveryRouter(getAgentConfigPath: GetAgentConfigPathFn) 
                 description: 'Available factories grouped by category',
                 content: { 'application/json': { schema: DiscoveryResponseSchema } },
             },
+            500: InternalErrorResponse,
         },
     });
 
     return app.openapi(discoveryRoute, async (ctx) => {
-        return ctx.json(await listDiscoveryFactories({ ctx, getAgentConfigPath }));
+        return ctx.json(await listDiscoveryFactories({ ctx, getAgentConfigPath }), 200);
     });
 }

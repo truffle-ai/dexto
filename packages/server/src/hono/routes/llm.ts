@@ -35,9 +35,13 @@ import {
 } from '@dexto/agent-management';
 import type { Context } from 'hono';
 import {
+    BadRequestErrorResponse,
+    ConflictErrorResponse,
+    InternalErrorResponse,
     ProviderCatalogSchema,
     ModelFlatSchema,
     LLMConfigResponseSchema,
+    NotFoundErrorResponse,
     StandardErrorEnvelopeSchema,
 } from '../schemas/responses.js';
 
@@ -183,6 +187,17 @@ const ModelPickerErrorResponses = {
 
 export function createLlmRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
+    const llmQueryErrorResponses = {
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        500: InternalErrorResponse,
+    } as const;
+    const llmMutationErrorResponses = {
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        409: ConflictErrorResponse,
+        500: InternalErrorResponse,
+    } as const;
 
     const currentRoute = createRoute({
         method: 'get',
@@ -222,6 +237,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            ...llmQueryErrorResponses,
         },
     });
     const catalogRoute = createRoute({
@@ -265,6 +281,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            ...llmQueryErrorResponses,
         },
     });
 
@@ -302,6 +319,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            ...llmMutationErrorResponses,
         },
     });
 
@@ -323,6 +341,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            ...llmQueryErrorResponses,
         },
     });
 
@@ -347,6 +366,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            ...llmMutationErrorResponses,
         },
     });
 
@@ -373,17 +393,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            404: {
-                description: 'Custom model not found',
-                content: {
-                    'application/json': {
-                        schema: z.object({
-                            ok: z.literal(false).describe('Failure indicator'),
-                            error: z.string().describe('Error message'),
-                        }),
-                    },
-                },
-            },
+            ...llmQueryErrorResponses,
         },
     });
 
@@ -475,6 +485,7 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            ...llmQueryErrorResponses,
         },
     });
 
@@ -826,16 +837,19 @@ export function createLlmRouter(getAgent: GetAgentFn) {
             // Only report viaDexto when the feature is enabled
             const viaDexto = isDextoAuthEnabled() && currentConfig.provider === 'dexto-nova';
 
-            return ctx.json({
-                config: {
-                    ...configWithoutKey,
-                    hasApiKey: !!apiKey,
-                    ...(displayName && { displayName }),
+            return ctx.json(
+                {
+                    config: {
+                        ...configWithoutKey,
+                        hasApiKey: !!apiKey,
+                        ...(displayName && { displayName }),
+                    },
+                    routing: {
+                        viaDexto,
+                    },
                 },
-                routing: {
-                    viaDexto,
-                },
-            });
+                200
+            );
         })
         .openapi(catalogRoute, (ctx) => {
             type ProviderCatalog = Pick<ProviderInfo, 'models' | 'supportedFileTypes'> & {
@@ -950,10 +964,10 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                         flat.push({ provider: id as LLMProvider, ...model });
                     }
                 }
-                return ctx.json({ models: flat });
+                return ctx.json({ models: flat }, 200);
             }
 
-            return ctx.json({ providers: filtered });
+            return ctx.json({ providers: filtered }, 200);
         })
         .openapi(switchRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -974,22 +988,25 @@ export function createLlmRouter(getAgent: GetAgentFn) {
 
             // Omit apiKey from response for security
             const { apiKey, ...configWithoutKey } = config;
-            return ctx.json({
-                config: {
-                    ...configWithoutKey,
-                    hasApiKey: !!apiKey,
+            return ctx.json(
+                {
+                    config: {
+                        ...configWithoutKey,
+                        hasApiKey: !!apiKey,
+                    },
+                    sessionId,
                 },
-                sessionId,
-            });
+                200
+            );
         })
         .openapi(listCustomModelsRoute, async (ctx) => {
             const models = await loadCustomModels();
-            return ctx.json({ models });
+            return ctx.json({ models }, 200);
         })
         .openapi(createCustomModelRoute, async (ctx) => {
             const model = ctx.req.valid('json');
             await saveCustomModel(model);
-            return ctx.json({ ok: true as const, model });
+            return ctx.json({ ok: true as const, model }, 200);
         })
         .openapi(deleteCustomModelRoute, async (ctx) => {
             const { name: encodedName } = ctx.req.valid('param');
@@ -1009,30 +1026,36 @@ export function createLlmRouter(getAgent: GetAgentFn) {
         })
         .openapi(modelPickerStateRoute, async (ctx) => {
             const sections = await buildModelPickerSections();
-            return ctx.json(sections);
+            return ctx.json(sections, 200);
         })
         .openapi(recordRecentModelRoute, async (ctx) => {
             const modelRef = ctx.req.valid('json');
             await recordRecentModel(modelRef);
-            return ctx.json({ ok: true as const });
+            return ctx.json({ ok: true as const }, 200);
         })
         .openapi(toggleFavoriteModelRoute, async (ctx) => {
             const modelRef = ctx.req.valid('json');
             const result = await toggleFavoriteModel(modelRef);
-            return ctx.json({
-                ok: true as const,
-                isFavorite: result.isFavorite,
-            });
+            return ctx.json(
+                {
+                    ok: true as const,
+                    isFavorite: result.isFavorite,
+                },
+                200
+            );
         })
         .openapi(setFavoritesRoute, async (ctx) => {
             const payload = ctx.req.valid('json');
             const state = await setFavoriteModels({
                 favorites: payload.favorites,
             });
-            return ctx.json({
-                ok: true as const,
-                count: state.favorites.length,
-            });
+            return ctx.json(
+                {
+                    ok: true as const,
+                    count: state.favorites.length,
+                },
+                200
+            );
         })
         .openapi(capabilitiesRoute, (ctx) => {
             const { provider, model } = ctx.req.valid('query');
@@ -1053,11 +1076,14 @@ export function createLlmRouter(getAgent: GetAgentFn) {
 
             const reasoning = getReasoningProfile(provider, model);
 
-            return ctx.json({
-                provider,
-                model,
-                supportedFileTypes,
-                reasoning,
-            });
+            return ctx.json(
+                {
+                    provider,
+                    model,
+                    supportedFileTypes,
+                    reasoning,
+                },
+                200
+            );
         });
 }

@@ -4,6 +4,9 @@ import { LLM_PROVIDERS } from '@dexto/core';
 import type { ApprovalCoordinator } from '../../approval/approval-coordinator.js';
 import {
     ApiErrorResponseSchema,
+    BadRequestErrorResponse,
+    InternalErrorResponse,
+    NotFoundErrorResponse,
     PricingStatusSchema,
     RequestContentSchema,
     TokenUsageSchema,
@@ -71,6 +74,7 @@ export function createMessagesRouter(
                 description: 'Validation error',
                 content: { 'application/json': { schema: ApiErrorResponseSchema } },
             },
+            500: InternalErrorResponse,
         },
     });
     const messageSyncRoute = createRoute({
@@ -130,6 +134,7 @@ export function createMessagesRouter(
                 description: 'Validation error',
                 content: { 'application/json': { schema: ApiErrorResponseSchema } },
             },
+            500: InternalErrorResponse,
         },
     });
 
@@ -158,6 +163,9 @@ export function createMessagesRouter(
                     },
                 },
             },
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -228,6 +236,7 @@ export function createMessagesRouter(
                 description: 'Validation error',
                 content: { 'application/json': { schema: ApiErrorResponseSchema } },
             },
+            500: InternalErrorResponse,
         },
     });
 
@@ -281,7 +290,7 @@ export function createMessagesRouter(
             agent.logger.info('Received request via POST /api/reset');
             const { sessionId } = ctx.req.valid('json');
             await agent.resetConversation(sessionId);
-            return ctx.json({ status: 'reset initiated', sessionId });
+            return ctx.json({ status: 'reset initiated', sessionId }, 200);
         })
         .openapi(messageStreamRoute, async (ctx) => {
             const agent = await getAgent(ctx);

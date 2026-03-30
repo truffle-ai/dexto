@@ -7,10 +7,13 @@ import {
     type SessionMetadata as CoreSessionMetadata,
 } from '@dexto/core';
 import {
+    BadRequestErrorResponse,
+    ConflictErrorResponse,
+    InternalErrorResponse,
     SessionMetadataSchema,
     InternalMessageSchema,
+    NotFoundErrorResponse,
     ScopedUsageSummarySchema,
-    StandardErrorEnvelopeSchema,
     UsageSummarySchema,
 } from '../schemas/responses.js';
 import type { GetAgentFn } from '../index.js';
@@ -32,6 +35,24 @@ const SessionPromptContributorInfoSchema = z
     })
     .strict()
     .describe('Session-scoped system prompt contributor metadata.');
+
+const SessionCollectionErrorResponses = {
+    400: BadRequestErrorResponse,
+    500: InternalErrorResponse,
+} as const;
+
+const SessionItemErrorResponses = {
+    400: BadRequestErrorResponse,
+    404: NotFoundErrorResponse,
+    500: InternalErrorResponse,
+} as const;
+
+const SessionMutationErrorResponses = {
+    400: BadRequestErrorResponse,
+    404: NotFoundErrorResponse,
+    409: ConflictErrorResponse,
+    500: InternalErrorResponse,
+} as const;
 
 const UpsertSessionPromptContributorSchema = z
     .object({
@@ -142,6 +163,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            ...SessionCollectionErrorResponses,
         },
     });
 
@@ -167,6 +189,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            ...SessionCollectionErrorResponses,
         },
     });
 
@@ -198,6 +221,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            ...SessionItemErrorResponses,
         },
     });
 
@@ -229,21 +253,12 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                 },
             },
             400: {
-                description: 'Invalid fork request (for example, max session limit reached)',
-                content: {
-                    'application/json': {
-                        schema: StandardErrorEnvelopeSchema,
-                    },
-                },
+                ...BadRequestErrorResponse,
             },
             404: {
-                description: 'Parent session not found',
-                content: {
-                    'application/json': {
-                        schema: StandardErrorEnvelopeSchema,
-                    },
-                },
+                ...NotFoundErrorResponse,
             },
+            500: InternalErrorResponse,
         },
     });
 
@@ -275,6 +290,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            ...SessionItemErrorResponses,
         },
     });
 
@@ -302,13 +318,9 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                 },
             },
             404: {
-                description: 'Session not found',
-                content: {
-                    'application/json': {
-                        schema: StandardErrorEnvelopeSchema,
-                    },
-                },
+                ...NotFoundErrorResponse,
             },
+            500: InternalErrorResponse,
         },
     });
 
@@ -364,21 +376,12 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                 },
             },
             400: {
-                description: 'Invalid session contributor request',
-                content: {
-                    'application/json': {
-                        schema: StandardErrorEnvelopeSchema,
-                    },
-                },
+                ...BadRequestErrorResponse,
             },
             404: {
-                description: 'Session not found',
-                content: {
-                    'application/json': {
-                        schema: StandardErrorEnvelopeSchema,
-                    },
-                },
+                ...NotFoundErrorResponse,
             },
+            500: InternalErrorResponse,
         },
     });
 
@@ -404,6 +407,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            ...SessionItemErrorResponses,
         },
     });
 
@@ -459,6 +463,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            ...SessionMutationErrorResponses,
         },
     });
 
@@ -504,17 +509,10 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                 },
             },
             404: {
-                description: 'Session not found',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                error: z.string().describe('Error message'),
-                            })
-                            .strict(),
-                    },
-                },
+                ...NotFoundErrorResponse,
             },
+            400: BadRequestErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -544,6 +542,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            ...SessionItemErrorResponses,
         },
     });
 
@@ -582,6 +581,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
+            ...SessionItemErrorResponses,
         },
     });
 
@@ -613,13 +613,10 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                 },
             },
             404: {
-                description: 'Session not found',
-                content: {
-                    'application/json': {
-                        schema: StandardErrorEnvelopeSchema,
-                    },
-                },
+                ...NotFoundErrorResponse,
             },
+            400: BadRequestErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -638,7 +635,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                     }
                 })
             );
-            return ctx.json({ sessions });
+            return ctx.json({ sessions }, 200);
         })
         .openapi(createRouteDef, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -672,12 +669,15 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             const { sessionId } = ctx.req.param();
             const metadata = await agent.getSessionMetadata(sessionId);
             const history = await agent.getSessionHistory(sessionId);
-            return ctx.json({
-                session: {
-                    ...mapSessionMetadata(sessionId, metadata),
-                    history: history.length,
+            return ctx.json(
+                {
+                    session: {
+                        ...mapSessionMetadata(sessionId, metadata),
+                        history: history.length,
+                    },
                 },
-            });
+                200
+            );
         })
         .openapi(historyRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -689,10 +689,13 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             // TODO: Improve type alignment between core and server schemas.
             // Core's InternalMessage has union types (string | Uint8Array | Buffer | URL)
             // for binary data, but JSON responses are always base64 strings.
-            return ctx.json({
-                history: history as z.output<typeof InternalMessageSchema>[],
-                isBusy,
-            });
+            return ctx.json(
+                {
+                    history: history as z.output<typeof InternalMessageSchema>[],
+                    isBusy,
+                },
+                200
+            );
         })
         .openapi(listSessionPromptContributorsRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -781,7 +784,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.param();
             await agent.deleteSession(sessionId);
-            return ctx.json({ status: 'deleted', sessionId });
+            return ctx.json({ status: 'deleted', sessionId }, 200);
         })
         .openapi(cancelRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -815,12 +818,15 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                 agent.logger.debug(`No in-flight run to cancel for session: ${sessionId}`);
             }
 
-            return ctx.json({
-                cancelled,
-                sessionId,
-                queueCleared: clearQueue,
-                clearedCount,
-            });
+            return ctx.json(
+                {
+                    cancelled,
+                    sessionId,
+                    queueCleared: clearQueue,
+                    clearedCount,
+                },
+                200
+            );
         })
         .openapi(loadRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -829,7 +835,13 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             // Validate that session exists
             const sessionIds = await agent.listSessions();
             if (!sessionIds.includes(sessionId)) {
-                return ctx.json({ error: `Session not found: ${sessionId}` }, 404);
+                throw new DextoRuntimeError(
+                    'session_not_found',
+                    ErrorScope.SESSION,
+                    ErrorType.NOT_FOUND,
+                    `Session not found: ${sessionId}`,
+                    { sessionId }
+                );
             }
 
             // Return session metadata with processing status
@@ -860,7 +872,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('param');
             await agent.clearContext(sessionId);
-            return ctx.json({ status: 'context cleared', sessionId });
+            return ctx.json({ status: 'context cleared', sessionId }, 200);
         })
         .openapi(patchRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -868,9 +880,12 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             const { title } = ctx.req.valid('json');
             await agent.setSessionTitle(sessionId, title);
             const metadata = await agent.getSessionMetadata(sessionId);
-            return ctx.json({
-                session: mapSessionMetadata(sessionId, metadata, { title }),
-            });
+            return ctx.json(
+                {
+                    session: mapSessionMetadata(sessionId, metadata, { title }),
+                },
+                200
+            );
         })
         .openapi(generateTitleRoute, async (ctx) => {
             const agent = await getAgent(ctx);

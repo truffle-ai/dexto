@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import type { Context } from 'hono';
+import { InternalErrorResponse } from '../schemas/responses.js';
 type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
 // JSON Schema definition for tool input parameters
@@ -69,6 +70,7 @@ export function createToolsRouter(getAgent: GetAgentFn) {
                 description: 'All tools',
                 content: { 'application/json': { schema: AllToolsResponseSchema } },
             },
+            500: InternalErrorResponse,
         },
     });
 
@@ -130,11 +132,14 @@ export function createToolsRouter(getAgent: GetAgentFn) {
             return a.name.localeCompare(b.name);
         });
 
-        return ctx.json({
-            tools: toolList,
-            totalCount: toolList.length,
-            localCount,
-            mcpCount,
-        });
+        return ctx.json(
+            {
+                tools: toolList,
+                totalCount: toolList.length,
+                localCount,
+                mcpCount,
+            },
+            200
+        );
     });
 }

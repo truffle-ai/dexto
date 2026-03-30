@@ -12,6 +12,7 @@ import {
     refreshOpenRouterModelCache,
     getOpenRouterModelInfo,
 } from '@dexto/core';
+import { BadRequestErrorResponse, InternalErrorResponse } from '../schemas/responses.js';
 
 const ValidateModelParamsSchema = z
     .object({
@@ -65,6 +66,8 @@ export function createOpenRouterRouter() {
                     },
                 },
             },
+            400: BadRequestErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -119,32 +122,41 @@ export function createOpenRouterRouter() {
                     logger.warn(
                         `OpenRouter cache refresh failed during validation: ${error instanceof Error ? error.message : String(error)}`
                     );
-                    return ctx.json({
-                        valid: false,
-                        modelId,
-                        status: 'unknown' as const,
-                        error: 'Could not validate model - cache refresh failed',
-                    });
+                    return ctx.json(
+                        {
+                            valid: false,
+                            modelId,
+                            status: 'unknown' as const,
+                            error: 'Could not validate model - cache refresh failed',
+                        },
+                        200
+                    );
                 }
             }
 
             if (status === 'invalid') {
-                return ctx.json({
-                    valid: false,
-                    modelId,
-                    status: 'invalid' as const,
-                    error: `Model '${modelId}' not found in OpenRouter. Check the model ID at https://openrouter.ai/models`,
-                });
+                return ctx.json(
+                    {
+                        valid: false,
+                        modelId,
+                        status: 'invalid' as const,
+                        error: `Model '${modelId}' not found in OpenRouter. Check the model ID at https://openrouter.ai/models`,
+                    },
+                    200
+                );
             }
 
             // Valid - include model info
             const info = getOpenRouterModelInfo(modelId);
-            return ctx.json({
-                valid: true,
-                modelId,
-                status: 'valid' as const,
-                ...(info && { info: { contextLength: info.contextLength } }),
-            });
+            return ctx.json(
+                {
+                    valid: true,
+                    modelId,
+                    status: 'valid' as const,
+                    ...(info && { info: { contextLength: info.contextLength } }),
+                },
+                200
+            );
         })
         .openapi(refreshRoute, async (ctx) => {
             try {

@@ -1,7 +1,11 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { type DextoAgent, DenialReason, ApprovalStatus, ApprovalError } from '@dexto/core';
 import type { ApprovalCoordinator } from '../../approval/approval-coordinator.js';
-import { ApiErrorResponseSchema } from '../schemas/responses.js';
+import {
+    ApiErrorResponseSchema,
+    BadRequestErrorResponse,
+    InternalErrorResponse,
+} from '../schemas/responses.js';
 import type { Context } from 'hono';
 type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
@@ -165,6 +169,8 @@ export function createApprovalsRouter(
                     },
                 },
             },
+            400: BadRequestErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -241,10 +247,13 @@ export function createApprovalsRouter(
                 metadata: {},
             }));
 
-            return ctx.json({
-                ok: true as const,
-                approvals,
-            });
+            return ctx.json(
+                {
+                    ok: true as const,
+                    approvals,
+                },
+                200
+            );
         })
         .openapi(submitApprovalRoute, async (ctx) => {
             const agent = await getAgent(ctx);

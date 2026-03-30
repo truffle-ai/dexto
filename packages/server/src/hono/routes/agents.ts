@@ -15,7 +15,13 @@ import os from 'os';
 import path from 'path';
 import { promises as fs } from 'fs';
 import { DextoValidationError, AgentErrorCode, ErrorScope, ErrorType } from '@dexto/core';
-import { AgentRegistryEntrySchema } from '../schemas/responses.js';
+import {
+    AgentRegistryEntrySchema,
+    BadRequestErrorResponse,
+    ConflictErrorResponse,
+    InternalErrorResponse,
+    NotFoundErrorResponse,
+} from '../schemas/responses.js';
 import type { Context } from 'hono';
 import type { GetAgentConfigPathFn } from '../index.js';
 type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
@@ -238,6 +244,16 @@ export function createAgentsRouter(
     getAgentConfigPath: GetAgentConfigPathFn
 ) {
     const app = new OpenAPIHono();
+    const agentQueryErrorResponses = {
+        400: BadRequestErrorResponse,
+        500: InternalErrorResponse,
+    } as const;
+    const agentMutationErrorResponses = {
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        409: ConflictErrorResponse,
+        500: InternalErrorResponse,
+    } as const;
     const { switchAgentById, switchAgentByPath, resolveAgentInfo, getActiveAgentId } = context;
     const resolveAgentConfigPath = async (ctx: Context): Promise<string> => {
         const configPath = await getAgentConfigPath(ctx);
@@ -258,6 +274,7 @@ export function createAgentsRouter(
                 description: 'List all agents',
                 content: { 'application/json': { schema: ListAgentsResponseSchema } },
             },
+            ...agentQueryErrorResponses,
         },
     });
 
@@ -272,6 +289,7 @@ export function createAgentsRouter(
                 description: 'Current agent',
                 content: { 'application/json': { schema: AgentInfoNullableSchema } },
             },
+            ...agentQueryErrorResponses,
         },
     });
 
@@ -295,6 +313,7 @@ export function createAgentsRouter(
                 description: 'Agent installed',
                 content: { 'application/json': { schema: InstallAgentResponseSchema } },
             },
+            ...agentMutationErrorResponses,
         },
     });
 
@@ -318,6 +337,7 @@ export function createAgentsRouter(
                 description: 'Agent switched',
                 content: { 'application/json': { schema: SwitchAgentResponseSchema } },
             },
+            ...agentMutationErrorResponses,
         },
     });
 
@@ -341,6 +361,7 @@ export function createAgentsRouter(
                 description: 'Name validation result',
                 content: { 'application/json': { schema: ValidateNameResponseSchema } },
             },
+            ...agentMutationErrorResponses,
         },
     });
 
@@ -365,6 +386,7 @@ export function createAgentsRouter(
                 description: 'Agent uninstalled',
                 content: { 'application/json': { schema: UninstallAgentResponseSchema } },
             },
+            ...agentMutationErrorResponses,
         },
     });
 
@@ -398,6 +420,7 @@ export function createAgentsRouter(
                     },
                 },
             },
+            ...agentMutationErrorResponses,
         },
     });
 
@@ -416,6 +439,7 @@ export function createAgentsRouter(
                     },
                 },
             },
+            ...agentMutationErrorResponses,
         },
     });
 
@@ -434,6 +458,7 @@ export function createAgentsRouter(
                     },
                 },
             },
+            ...agentMutationErrorResponses,
         },
     });
 
@@ -500,6 +525,7 @@ export function createAgentsRouter(
                     },
                 },
             },
+            ...agentMutationErrorResponses,
         },
     });
 
@@ -527,6 +553,7 @@ export function createAgentsRouter(
                     },
                 },
             },
+            ...agentMutationErrorResponses,
         },
     });
 
@@ -556,18 +583,23 @@ export function createAgentsRouter(
         .openapi(listRoute, async (ctx) => {
             const agents = await AgentFactory.listAgents();
             const currentId = getActiveAgentId() ?? null;
-            return ctx.json({
-                installed: agents.installed,
-                available: agents.available,
-                current: currentId ? await resolveAgentInfo(currentId) : { id: null, name: null },
-            });
+            return ctx.json(
+                {
+                    installed: agents.installed,
+                    available: agents.available,
+                    current: currentId
+                        ? await resolveAgentInfo(currentId)
+                        : { id: null, name: null },
+                },
+                200
+            );
         })
         .openapi(currentRoute, async (ctx) => {
             const currentId = getActiveAgentId() ?? null;
             if (!currentId) {
-                return ctx.json({ id: null, name: null });
+                return ctx.json({ id: null, name: null }, 200);
             }
-            return ctx.json(await resolveAgentInfo(currentId));
+            return ctx.json(await resolveAgentInfo(currentId), 200);
         })
         .openapi(installRoute, async (ctx) => {
             const body = ctx.req.valid('json');
@@ -609,7 +641,7 @@ export function createAgentsRouter(
             // Route based on presence of path parameter
             const result = filePath ? await switchAgentByPath(filePath) : await switchAgentById(id);
 
-            return ctx.json({ switched: true as const, ...result });
+            return ctx.json({ switched: true as const, ...result }, 200);
         })
         .openapi(validateNameRoute, async (ctx) => {
             const { id } = ctx.req.valid('json');
@@ -618,29 +650,35 @@ export function createAgentsRouter(
             // Check if name exists in installed agents
             const installedAgent = agents.installed.find((a) => a.id === id);
             if (installedAgent) {
-                return ctx.json({
-                    valid: false,
-                    conflict: installedAgent.type,
-                    message: `Agent id '${id}' already exists (${installedAgent.type})`,
-                });
+                return ctx.json(
+                    {
+                        valid: false,
+                        conflict: installedAgent.type,
+                        message: `Agent id '${id}' already exists (${installedAgent.type})`,
+                    },
+                    200
+                );
             }
 
             // Check if name exists in available agents (registry)
             const availableAgent = agents.available.find((a) => a.id === id);
             if (availableAgent) {
-                return ctx.json({
-                    valid: false,
-                    conflict: availableAgent.type,
-                    message: `Agent id '${id}' conflicts with ${availableAgent.type} agent`,
-                });
+                return ctx.json(
+                    {
+                        valid: false,
+                        conflict: availableAgent.type,
+                        message: `Agent id '${id}' conflicts with ${availableAgent.type} agent`,
+                    },
+                    200
+                );
             }
 
-            return ctx.json({ valid: true });
+            return ctx.json({ valid: true }, 200);
         })
         .openapi(uninstallRoute, async (ctx) => {
             const { id, force } = ctx.req.valid('json');
             await AgentFactory.uninstallAgent(id, force);
-            return ctx.json({ uninstalled: true as const, id });
+            return ctx.json({ uninstalled: true as const, id }, 200);
         })
         .openapi(customCreateRoute, async (ctx) => {
             const { id, name, description, author, tags, config } = ctx.req.valid('json');
@@ -711,12 +749,15 @@ export function createAgentsRouter(
             const ext = path.extname(agentPath);
             const name = path.basename(agentPath, ext);
 
-            return ctx.json({
-                path: agentPath,
-                relativePath,
-                name,
-                isDefault: name === 'coding-agent',
-            });
+            return ctx.json(
+                {
+                    path: agentPath,
+                    relativePath,
+                    name,
+                    isDefault: name === 'coding-agent',
+                },
+                200
+            );
         })
         .openapi(getConfigRoute, async (ctx) => {
             // Get the agent file path being used
@@ -728,16 +769,19 @@ export function createAgentsRouter(
             // Get metadata
             const stats = await fs.stat(agentPath);
 
-            return ctx.json({
-                yaml: yamlContent,
-                path: agentPath,
-                relativePath: path.basename(agentPath),
-                lastModified: stats.mtime,
-                warnings: [
-                    'Environment variables ($VAR) will be resolved at runtime',
-                    'API keys should use environment variables',
-                ],
-            });
+            return ctx.json(
+                {
+                    yaml: yamlContent,
+                    path: agentPath,
+                    relativePath: path.basename(agentPath),
+                    lastModified: stats.mtime,
+                    warnings: [
+                        'Environment variables ($VAR) will be resolved at runtime',
+                        'API keys should use environment variables',
+                    ],
+                },
+                200
+            );
         })
         .openapi(validateConfigRoute, async (ctx) => {
             const { yaml } = ctx.req.valid('json');
@@ -755,34 +799,40 @@ export function createAgentsRouter(
                               .linePos
                         : undefined;
 
-                return ctx.json({
-                    valid: false,
-                    errors: [
-                        {
-                            line: linePos?.[0]?.line ?? 1,
-                            column: linePos?.[0]?.col ?? 1,
-                            message,
-                            code: 'YAML_PARSE_ERROR',
-                        },
-                    ],
-                    warnings: [],
-                });
+                return ctx.json(
+                    {
+                        valid: false,
+                        errors: [
+                            {
+                                line: linePos?.[0]?.line ?? 1,
+                                column: linePos?.[0]?.col ?? 1,
+                                message,
+                                code: 'YAML_PARSE_ERROR',
+                            },
+                        ],
+                        warnings: [],
+                    },
+                    200
+                );
             }
 
             // Check that parsed content is a valid object (not null, array, or primitive)
             if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-                return ctx.json({
-                    valid: false,
-                    errors: [
-                        {
-                            line: 1,
-                            column: 1,
-                            message: 'Configuration must be a valid YAML object',
-                            code: 'INVALID_CONFIG_TYPE',
-                        },
-                    ],
-                    warnings: [],
-                });
+                return ctx.json(
+                    {
+                        valid: false,
+                        errors: [
+                            {
+                                line: 1,
+                                column: 1,
+                                message: 'Configuration must be a valid YAML object',
+                                code: 'INVALID_CONFIG_TYPE',
+                            },
+                        ],
+                        warnings: [],
+                    },
+                    200
+                );
             }
 
             // Enrich config with defaults/paths to satisfy schema requirements
@@ -802,11 +852,14 @@ export function createAgentsRouter(
                     code: 'SCHEMA_VALIDATION_ERROR',
                 }));
 
-                return ctx.json({
-                    valid: false,
-                    errors,
-                    warnings: [],
-                });
+                return ctx.json(
+                    {
+                        valid: false,
+                        errors,
+                        warnings: [],
+                    },
+                    200
+                );
             }
 
             // Check for warnings (e.g., plain text API keys)
@@ -819,11 +872,14 @@ export function createAgentsRouter(
                 });
             }
 
-            return ctx.json({
-                valid: true,
-                errors: [],
-                warnings,
-            });
+            return ctx.json(
+                {
+                    valid: true,
+                    errors: [],
+                    warnings,
+                },
+                200
+            );
         })
         .openapi(saveConfigRoute, async (ctx) => {
             const { yaml } = ctx.req.valid('json');

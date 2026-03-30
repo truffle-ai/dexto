@@ -14,12 +14,28 @@ function getPropertyName(property) {
     return null;
 }
 
+function unwrapExpression(node) {
+    let current = node;
+
+    while (
+        current &&
+        (current.type === 'TSAsExpression' ||
+            current.type === 'TSSatisfiesExpression' ||
+            current.type === 'TSNonNullExpression')
+    ) {
+        current = current.expression;
+    }
+
+    return current;
+}
+
 function getObjectProperty(node, name) {
-    if (!node || node.type !== 'ObjectExpression') {
+    const unwrappedNode = unwrapExpression(node);
+    if (!unwrappedNode || unwrappedNode.type !== 'ObjectExpression') {
         return null;
     }
 
-    for (const property of node.properties) {
+    for (const property of unwrappedNode.properties) {
         if (property.type !== 'Property') {
             continue;
         }
@@ -65,6 +81,62 @@ function hasJsonContent(responseObject) {
     return false;
 }
 
+function isKnownJsonErrorResponse(node, objectLiterals) {
+    const unwrappedNode = unwrapExpression(node);
+
+    if (!unwrappedNode) {
+        return false;
+    }
+
+    if (unwrappedNode.type === 'ObjectExpression') {
+        return hasJsonContent(unwrappedNode);
+    }
+
+    if (unwrappedNode.type === 'Identifier') {
+        const localObject = objectLiterals.get(unwrappedNode.name);
+        if (localObject) {
+            return isKnownJsonErrorResponse(localObject, objectLiterals);
+        }
+
+        return unwrappedNode.name.endsWith('ErrorResponse');
+    }
+
+    return false;
+}
+
+function collectResponseEntries(objectExpression, objectLiterals, seen = new Set()) {
+    const unwrappedObject = unwrapExpression(objectExpression);
+    if (!unwrappedObject || unwrappedObject.type !== 'ObjectExpression') {
+        return [];
+    }
+
+    const entries = [];
+
+    for (const property of unwrappedObject.properties) {
+        if (property.type === 'Property') {
+            entries.push(property);
+            continue;
+        }
+
+        if (
+            property.type === 'SpreadElement' &&
+            property.argument.type === 'Identifier' &&
+            !seen.has(property.argument.name)
+        ) {
+            const spreadObject = objectLiterals.get(property.argument.name);
+            if (!spreadObject) {
+                continue;
+            }
+
+            seen.add(property.argument.name);
+            entries.push(...collectResponseEntries(spreadObject, objectLiterals, seen));
+            seen.delete(property.argument.name);
+        }
+    }
+
+    return entries;
+}
+
 export default {
     meta: {
         type: 'problem',
@@ -87,6 +159,7 @@ export default {
         }
 
         const createRouteImports = new Set(['createRoute']);
+        const objectLiterals = new Map();
 
         return {
             ImportDeclaration(node) {
@@ -103,6 +176,18 @@ export default {
                         createRouteImports.add(specifier.local.name);
                     }
                 }
+            },
+
+            VariableDeclarator(node) {
+                if (
+                    node.parent.kind !== 'const' ||
+                    node.id.type !== 'Identifier' ||
+                    unwrapExpression(node.init)?.type !== 'ObjectExpression'
+                ) {
+                    return;
+                }
+
+                objectLiterals.set(node.id.name, unwrapExpression(node.init));
             },
 
             CallExpression(node) {
@@ -123,11 +208,11 @@ export default {
                 let hasJsonRoute = false;
                 let hasJsonErrorResponse = false;
 
-                for (const responseEntry of responsesProperty.value.properties) {
-                    if (
-                        responseEntry.type !== 'Property' ||
-                        responseEntry.value.type !== 'ObjectExpression'
-                    ) {
+                for (const responseEntry of collectResponseEntries(
+                    responsesProperty.value,
+                    objectLiterals
+                )) {
+                    if (responseEntry.type !== 'Property') {
                         continue;
                     }
 
@@ -136,7 +221,7 @@ export default {
                         continue;
                     }
 
-                    if (!hasJsonContent(responseEntry.value)) {
+                    if (!isKnownJsonErrorResponse(responseEntry.value, objectLiterals)) {
                         continue;
                     }
 

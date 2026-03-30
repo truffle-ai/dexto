@@ -7,7 +7,11 @@ import {
     MCP_CONNECTION_STATUSES,
 } from '@dexto/core';
 import { updateAgentConfigFile } from '@dexto/agent-management';
-import { ApiErrorResponseSchema } from '../schemas/responses.js';
+import {
+    ApiErrorResponseSchema,
+    BadRequestErrorResponse,
+    InternalErrorResponse,
+} from '../schemas/responses.js';
 import type { GetAgentConfigPathFn, GetAgentFn } from '../index.js';
 
 const McpServerRequestSchema = z
@@ -192,6 +196,8 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
                 description: 'Server connected',
                 content: { 'application/json': { schema: ServerStatusResponseSchema } },
             },
+            400: BadRequestErrorResponse,
+            500: InternalErrorResponse,
         },
     });
     const listServersRoute = createRoute({
@@ -205,6 +211,7 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
                 description: 'Servers list',
                 content: { 'application/json': { schema: ServersListResponseSchema } },
             },
+            500: InternalErrorResponse,
         },
     });
 
