@@ -7,7 +7,140 @@ import { spawnSync } from 'node:child_process';
 
 const scriptPath = fileURLToPath(import.meta.url);
 const repoRoot = path.resolve(path.dirname(scriptPath), '..');
-const clientEntryPath = path.resolve(repoRoot, 'packages/client-sdk/src/client.js');
+const surfaces = [
+    {
+        name: 'greeting',
+        importPath: './packages/server/src/hono/routes/greeting.ts',
+        schemaType: 'GreetingRouterSchema',
+        pathPrefix: 'dexto.api',
+    },
+    {
+        name: 'message',
+        importPath: './packages/server/src/hono/routes/messages.ts',
+        schemaType: 'MessagesRouterSchema',
+        pathPrefix: 'dexto.api',
+    },
+    {
+        name: 'message-sync',
+        importPath: './packages/server/src/hono/routes/messages.ts',
+        schemaType: 'MessagesRouterSchema',
+        pathPrefix: 'dexto.api',
+    },
+    {
+        name: 'reset',
+        importPath: './packages/server/src/hono/routes/messages.ts',
+        schemaType: 'MessagesRouterSchema',
+        pathPrefix: 'dexto.api',
+    },
+    {
+        name: 'sessions',
+        importPath: './packages/server/src/hono/routes/sessions.ts',
+        schemaType: 'SessionsRouterSchema',
+        pathPrefix: 'dexto.api',
+    },
+    {
+        name: 'llm',
+        importPath: './packages/server/src/hono/routes/llm.ts',
+        schemaType: 'LlmRouterSchema',
+        pathPrefix: 'dexto.api',
+    },
+    {
+        name: 'search',
+        importPath: './packages/server/src/hono/routes/search.ts',
+        schemaType: 'SearchRouterSchema',
+        pathPrefix: 'dexto.api',
+    },
+    {
+        name: 'mcp',
+        importPath: './packages/server/src/hono/routes/mcp.ts',
+        schemaType: 'McpRouterSchema',
+        pathPrefix: 'dexto.api',
+    },
+    {
+        name: 'webhooks',
+        importPath: './packages/server/src/hono/routes/webhooks.ts',
+        schemaType: 'WebhooksRouterSchema',
+        pathPrefix: 'dexto.api',
+    },
+    {
+        name: 'prompts',
+        importPath: './packages/server/src/hono/routes/prompts.ts',
+        schemaType: 'PromptsRouterSchema',
+        pathPrefix: 'dexto.api',
+    },
+    {
+        name: 'resources',
+        importPath: './packages/server/src/hono/routes/resources.ts',
+        schemaType: 'ResourcesRouterSchema',
+        pathPrefix: 'dexto.api',
+    },
+    {
+        name: 'memory',
+        importPath: './packages/server/src/hono/routes/memory.ts',
+        schemaType: 'MemoryRouterSchema',
+        pathPrefix: 'dexto.api',
+    },
+    {
+        name: 'workspaces',
+        importPath: './packages/server/src/hono/routes/workspaces.ts',
+        schemaType: 'WorkspacesRouterSchema',
+        pathPrefix: 'dexto.api',
+    },
+    {
+        name: 'schedules',
+        importPath: './packages/server/src/hono/routes/schedules.ts',
+        schemaType: 'SchedulesRouterSchema',
+        pathPrefix: 'dexto.api',
+    },
+    {
+        name: 'approvals',
+        importPath: './packages/server/src/hono/routes/approvals.ts',
+        schemaType: 'ApprovalsRouterSchema',
+        pathPrefix: 'dexto.api',
+    },
+    {
+        name: 'agents',
+        importPath: './packages/server/src/hono/routes/agents.ts',
+        schemaType: 'AgentsRouterSchema',
+        pathPrefix: 'dexto.api',
+    },
+    {
+        name: 'queue',
+        importPath: './packages/server/src/hono/routes/queue.ts',
+        schemaType: 'QueueRouterSchema',
+        pathPrefix: 'dexto.api',
+    },
+    {
+        name: 'openrouter',
+        importPath: './packages/server/src/hono/routes/openrouter.ts',
+        schemaType: 'OpenRouterRouterSchema',
+        pathPrefix: 'dexto.api',
+    },
+    {
+        name: 'models',
+        importPath: './packages/server/src/hono/routes/models.ts',
+        schemaType: 'ModelsRouterSchema',
+        pathPrefix: 'dexto.api',
+    },
+    {
+        name: 'discovery',
+        importPath: './packages/server/src/hono/routes/discovery.ts',
+        schemaType: 'DiscoveryRouterSchema',
+        pathPrefix: 'dexto.api',
+    },
+    {
+        name: 'system-prompt',
+        importPath: './packages/server/src/hono/routes/system-prompt.ts',
+        schemaType: 'SystemPromptRouterSchema',
+        pathPrefix: 'dexto.api',
+    },
+    {
+        name: 'dexto-auth',
+        importPath: './packages/server/src/hono/routes/dexto-auth.ts',
+        schemaType: 'DextoAuthRouterSchema',
+        pathPrefix: 'dexto.api',
+    },
+];
 
 function relativeImport(fromDirectory, targetPath) {
     const relativePath = path.relative(fromDirectory, targetPath);
@@ -175,11 +308,8 @@ function buildWorkspacePaths() {
     return paths;
 }
 
-function buildAssertionFile(tempDirectory, suppressedRoutes) {
-    return `import { createDextoClient as factory } from '${relativeImport(
-        tempDirectory,
-        clientEntryPath
-    )}';
+function buildAssertionFile(surface, tempDirectory, suppressedRoutes) {
+    return `import type { ${surface.schemaType} } from '${relativeImport(tempDirectory, surface.importPath)}';
 
 type JoinPath<Prefix extends string, Segment extends string> = Prefix extends ''
     ? Segment
@@ -224,26 +354,39 @@ type MethodIssues<T, Path extends string> = IsIgnoredRoute<Path> extends true
     ? never
     : IsHeadRoute<Path> extends true
     ? never
-    : T extends (...args: any[]) => Promise<infer Response>
-      ? Response extends {
-            status: infer Status;
-            json(): Promise<infer Output>;
-        }
+    : T extends {
+          status: infer Status;
+          output: infer Output;
+          outputFormat: infer OutputFormat;
+      }
+      ? OutputFormat extends 'json'
           ? Status extends 204
               ? never
               : IsOpaqueJsonUnion<Output> extends true
-              ? \`\${Path} has opaque json output\`
-              : never
+                ? \`\${Path} has opaque json output\`
+                : never
           : never
       : never;
 
-type RouteIssues<T, Path extends string = ''> = MethodIssues<T, Path> | (T extends object
-    ? {
-          [Key in keyof T & string]: RouteIssues<T[Key], JoinPath<Path, Key>>;
-      }[keyof T & string]
-    : never);
+type IsEndpoint<T> = T extends {
+    input: unknown;
+    output: unknown;
+    outputFormat: unknown;
+    status: unknown;
+}
+    ? true
+    : false;
 
-type Issues = RouteIssues<ReturnType<typeof factory>, 'dexto'>;
+type RouteIssues<T, Path extends string = ''> = MethodIssues<T, Path> | (IsEndpoint<T> extends true
+    ? never
+    : T extends object
+      ? {
+            [Key in keyof T & string]: RouteIssues<T[Key], JoinPath<Path, Key>>;
+        }[keyof T & string]
+      : never);
+
+type Surface = ${surface.schemaType};
+type Issues = RouteIssues<Surface, ${JSON.stringify(surface.pathPrefix)}>;
 declare const issues: Issues;
 const _check: never = issues;
 `;
@@ -274,39 +417,43 @@ function buildTempTsconfig(tempDirectory, workspacePaths) {
 function main() {
     const suppressions = readCheckerSuppressions();
     const workspacePaths = buildWorkspacePaths();
-    const tempDirectory = mkdtempSync(path.join(repoRoot, '.tmp-hono-inference-'));
-    const assertionFile = path.join(tempDirectory, 'check-hono-inference.generated.ts');
-    const tempTsconfig = path.join(tempDirectory, 'tsconfig.json');
+    for (const surface of surfaces) {
+        const tempDirectory = mkdtempSync(path.join(repoRoot, '.tmp-hono-inference-'));
+        const assertionFile = path.join(tempDirectory, 'check-hono-inference.generated.ts');
+        const tempTsconfig = path.join(tempDirectory, 'tsconfig.json');
 
-    try {
-        writeFileSync(assertionFile, buildAssertionFile(tempDirectory, suppressions));
-        writeFileSync(tempTsconfig, buildTempTsconfig(tempDirectory, workspacePaths));
+        try {
+            console.log(`Checking ${surface.name}...`);
+            writeFileSync(assertionFile, buildAssertionFile(surface, tempDirectory, suppressions));
+            writeFileSync(tempTsconfig, buildTempTsconfig(tempDirectory, workspacePaths));
 
-        const result = spawnSync(
-            'pnpm',
-            ['exec', 'tsc', '-p', tempTsconfig, '--pretty', 'false', '--noErrorTruncation'],
-            {
-                cwd: repoRoot,
-                encoding: 'utf8',
+            const result = spawnSync(
+                'pnpm',
+                ['exec', 'tsc', '-p', tempTsconfig, '--pretty', 'false', '--noErrorTruncation'],
+                {
+                    cwd: repoRoot,
+                    encoding: 'utf8',
+                }
+            );
+
+            if (result.stdout.trim().length > 0) {
+                process.stdout.write(result.stdout);
             }
-        );
+            if (result.stderr.trim().length > 0) {
+                process.stderr.write(result.stderr);
+            }
 
-        if (result.stdout.trim().length > 0) {
-            process.stdout.write(result.stdout);
+            if (result.status !== 0) {
+                console.error(`Hono inference check failed in surface: ${surface.name}`);
+                process.exitCode = result.status ?? 1;
+                return;
+            }
+        } finally {
+            rmSync(tempDirectory, { recursive: true, force: true });
         }
-        if (result.stderr.trim().length > 0) {
-            process.stderr.write(result.stderr);
-        }
-
-        if (result.status === 0) {
-            console.log('Hono inference check passed.');
-            return;
-        }
-
-        process.exitCode = result.status ?? 1;
-    } finally {
-        rmSync(tempDirectory, { recursive: true, force: true });
     }
+
+    console.log('Hono inference check passed.');
 }
 
 main();
