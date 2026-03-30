@@ -23,7 +23,7 @@ import {
     NotFoundErrorResponse,
 } from '../schemas/responses.js';
 import type { Context } from 'hono';
-import type { GetAgentConfigPathFn, GetAgentFn } from '../types.js';
+import type { GetAgentConfigPathFn, GetAgentFn, OpenAPIRouteSchema } from '../types.js';
 
 /**
  * OpenAPI-safe version of AgentConfigSchema
@@ -229,6 +229,352 @@ const SaveConfigResponseSchema = z
     .strict()
     .describe('Configuration save result');
 
+const CreateCustomAgentResponseSchema = z
+    .object({
+        created: z.literal(true).describe('Creation success indicator'),
+        id: z.string().describe('Agent identifier'),
+        name: z.string().describe('Agent name'),
+    })
+    .strict()
+    .describe('Custom agent creation response');
+
+const ValidateConfigErrorSchema = z
+    .object({
+        line: z.number().int().optional().describe('Line number'),
+        column: z.number().int().optional().describe('Column number'),
+        path: z.string().optional().describe('Configuration path'),
+        message: z.string().describe('Error message'),
+        code: z.string().describe('Error code'),
+    })
+    .passthrough()
+    .describe('Configuration validation error');
+
+const ValidateConfigWarningSchema = z
+    .object({
+        path: z.string().describe('Configuration path'),
+        message: z.string().describe('Warning message'),
+        code: z.string().describe('Warning code'),
+    })
+    .strict()
+    .describe('Configuration validation warning');
+
+const ValidateConfigResponseSchema = z
+    .object({
+        valid: z.boolean().describe('Whether configuration is valid'),
+        errors: z.array(ValidateConfigErrorSchema).describe('Validation errors'),
+        warnings: z.array(ValidateConfigWarningSchema).describe('Configuration warnings'),
+    })
+    .strict()
+    .describe('Configuration validation result');
+
+const ExportConfigQuerySchema = z
+    .object({
+        sessionId: z
+            .string()
+            .optional()
+            .describe('Session identifier to export session-specific configuration'),
+    })
+    .describe('Export configuration query');
+
+const InstallAgentRequestSchema = z
+    .union([CustomAgentInstallSchema, AgentIdentifierSchema])
+    .describe('Agent installation request');
+
+const listRoute = createRoute({
+    method: 'get',
+    path: '/agents',
+    summary: 'List Agents',
+    description: 'Retrieves all agents (installed, available, and current active agent)',
+    tags: ['agents'],
+    responses: {
+        200: {
+            description: 'List all agents',
+            content: { 'application/json': { schema: ListAgentsResponseSchema } },
+        },
+        400: BadRequestErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const currentRoute = createRoute({
+    method: 'get',
+    path: '/agents/current',
+    summary: 'Get Current Agent',
+    description: 'Retrieves the currently active agent',
+    tags: ['agents'],
+    responses: {
+        200: {
+            description: 'Current agent',
+            content: { 'application/json': { schema: AgentInfoNullableSchema } },
+        },
+        400: BadRequestErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const installRoute = createRoute({
+    method: 'post',
+    path: '/agents/install',
+    summary: 'Install Agent',
+    description: 'Installs an agent from the registry or from a custom source',
+    tags: ['agents'],
+    request: {
+        body: {
+            content: {
+                'application/json': {
+                    schema: InstallAgentRequestSchema,
+                },
+            },
+        },
+    },
+    responses: {
+        201: {
+            description: 'Agent installed',
+            content: { 'application/json': { schema: InstallAgentResponseSchema } },
+        },
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        409: ConflictErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const switchRoute = createRoute({
+    method: 'post',
+    path: '/agents/switch',
+    summary: 'Switch Agent',
+    description: 'Switches to a different agent by ID or file path',
+    tags: ['agents'],
+    request: {
+        body: {
+            content: {
+                'application/json': {
+                    schema: AgentIdentifierSchema,
+                },
+            },
+        },
+    },
+    responses: {
+        200: {
+            description: 'Agent switched',
+            content: { 'application/json': { schema: SwitchAgentResponseSchema } },
+        },
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        409: ConflictErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const validateNameRoute = createRoute({
+    method: 'post',
+    path: '/agents/validate-name',
+    summary: 'Validate Agent Name',
+    description: 'Checks if an agent ID conflicts with existing agents',
+    tags: ['agents'],
+    request: {
+        body: {
+            content: {
+                'application/json': {
+                    schema: AgentIdentifierSchema,
+                },
+            },
+        },
+    },
+    responses: {
+        200: {
+            description: 'Name validation result',
+            content: { 'application/json': { schema: ValidateNameResponseSchema } },
+        },
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        409: ConflictErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const uninstallRoute = createRoute({
+    method: 'post',
+    path: '/agents/uninstall',
+    summary: 'Uninstall Agent',
+    description:
+        'Removes an agent from the system. Custom agents are removed from registry; builtin agents can be reinstalled',
+    tags: ['agents'],
+    request: {
+        body: {
+            content: {
+                'application/json': {
+                    schema: UninstallAgentSchema,
+                },
+            },
+        },
+    },
+    responses: {
+        200: {
+            description: 'Agent uninstalled',
+            content: { 'application/json': { schema: UninstallAgentResponseSchema } },
+        },
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        409: ConflictErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const customCreateRoute = createRoute({
+    method: 'post',
+    path: '/agents/custom/create',
+    summary: 'Create Custom Agent',
+    description: 'Creates a new custom agent from scratch via the UI/API',
+    tags: ['agents'],
+    request: {
+        body: {
+            content: {
+                'application/json': {
+                    schema: CustomAgentCreateSchema,
+                },
+            },
+        },
+    },
+    responses: {
+        201: {
+            description: 'Custom agent created',
+            content: {
+                'application/json': {
+                    schema: CreateCustomAgentResponseSchema,
+                },
+            },
+        },
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        409: ConflictErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const getPathRoute = createRoute({
+    method: 'get',
+    path: '/agent/path',
+    summary: 'Get Agent File Path',
+    description: 'Retrieves the file path of the currently active agent configuration',
+    tags: ['agent'],
+    responses: {
+        200: {
+            description: 'Agent file path',
+            content: {
+                'application/json': {
+                    schema: AgentPathResponseSchema,
+                },
+            },
+        },
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        409: ConflictErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const getConfigRoute = createRoute({
+    method: 'get',
+    path: '/agent/config',
+    summary: 'Get Agent Configuration',
+    description: 'Retrieves the raw YAML configuration of the currently active agent',
+    tags: ['agent'],
+    responses: {
+        200: {
+            description: 'Agent configuration',
+            content: {
+                'application/json': {
+                    schema: AgentConfigResponseSchema,
+                },
+            },
+        },
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        409: ConflictErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const validateConfigRoute = createRoute({
+    method: 'post',
+    path: '/agent/validate',
+    summary: 'Validate Agent Configuration',
+    description: 'Validates YAML agent configuration without saving it',
+    tags: ['agent'],
+    request: {
+        body: {
+            content: {
+                'application/json': {
+                    schema: AgentConfigValidateSchema,
+                },
+            },
+        },
+    },
+    responses: {
+        200: {
+            description: 'Validation result',
+            content: {
+                'application/json': {
+                    schema: ValidateConfigResponseSchema,
+                },
+            },
+        },
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        409: ConflictErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const saveConfigRoute = createRoute({
+    method: 'post',
+    path: '/agent/config',
+    summary: 'Save Agent Configuration',
+    description: 'Saves and applies YAML agent configuration. Creates backup before saving',
+    tags: ['agent'],
+    request: {
+        body: {
+            content: {
+                'application/json': {
+                    schema: AgentConfigSaveSchema,
+                },
+            },
+        },
+    },
+    responses: {
+        200: {
+            description: 'Configuration saved',
+            content: {
+                'application/json': {
+                    schema: SaveConfigResponseSchema,
+                },
+            },
+        },
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        409: ConflictErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const exportConfigRoute = createRoute({
+    method: 'get',
+    path: '/agent/config/export',
+    summary: 'Export Agent Configuration',
+    description: 'Exports the effective agent configuration with sensitive values redacted',
+    tags: ['agent'],
+    request: {
+        query: ExportConfigQuerySchema,
+    },
+    responses: {
+        200: {
+            description: 'Exported configuration',
+            content: { 'application/x-yaml': { schema: z.string() } },
+        },
+    },
+});
+
 export type AgentsRouterContext = {
     switchAgentById: (agentId: string) => Promise<{ id: string; name: string }>;
     switchAgentByPath: (filePath: string) => Promise<{ id: string; name: string }>;
@@ -251,351 +597,6 @@ export function createAgentsRouter(
         }
         return configPath;
     };
-
-    const listRoute = createRoute({
-        method: 'get',
-        path: '/agents',
-        summary: 'List Agents',
-        description: 'Retrieves all agents (installed, available, and current active agent)',
-        tags: ['agents'],
-        responses: {
-            200: {
-                description: 'List all agents',
-                content: { 'application/json': { schema: ListAgentsResponseSchema } },
-            },
-            400: BadRequestErrorResponse,
-            500: InternalErrorResponse,
-        },
-    });
-
-    const currentRoute = createRoute({
-        method: 'get',
-        path: '/agents/current',
-        summary: 'Get Current Agent',
-        description: 'Retrieves the currently active agent',
-        tags: ['agents'],
-        responses: {
-            200: {
-                description: 'Current agent',
-                content: { 'application/json': { schema: AgentInfoNullableSchema } },
-            },
-            400: BadRequestErrorResponse,
-            500: InternalErrorResponse,
-        },
-    });
-
-    const installRoute = createRoute({
-        method: 'post',
-        path: '/agents/install',
-        summary: 'Install Agent',
-        description: 'Installs an agent from the registry or from a custom source',
-        tags: ['agents'],
-        request: {
-            body: {
-                content: {
-                    'application/json': {
-                        schema: z.union([CustomAgentInstallSchema, AgentIdentifierSchema]),
-                    },
-                },
-            },
-        },
-        responses: {
-            201: {
-                description: 'Agent installed',
-                content: { 'application/json': { schema: InstallAgentResponseSchema } },
-            },
-            400: BadRequestErrorResponse,
-            404: NotFoundErrorResponse,
-            409: ConflictErrorResponse,
-            500: InternalErrorResponse,
-        },
-    });
-
-    const switchRoute = createRoute({
-        method: 'post',
-        path: '/agents/switch',
-        summary: 'Switch Agent',
-        description: 'Switches to a different agent by ID or file path',
-        tags: ['agents'],
-        request: {
-            body: {
-                content: {
-                    'application/json': {
-                        schema: AgentIdentifierSchema,
-                    },
-                },
-            },
-        },
-        responses: {
-            200: {
-                description: 'Agent switched',
-                content: { 'application/json': { schema: SwitchAgentResponseSchema } },
-            },
-            400: BadRequestErrorResponse,
-            404: NotFoundErrorResponse,
-            409: ConflictErrorResponse,
-            500: InternalErrorResponse,
-        },
-    });
-
-    const validateNameRoute = createRoute({
-        method: 'post',
-        path: '/agents/validate-name',
-        summary: 'Validate Agent Name',
-        description: 'Checks if an agent ID conflicts with existing agents',
-        tags: ['agents'],
-        request: {
-            body: {
-                content: {
-                    'application/json': {
-                        schema: AgentIdentifierSchema,
-                    },
-                },
-            },
-        },
-        responses: {
-            200: {
-                description: 'Name validation result',
-                content: { 'application/json': { schema: ValidateNameResponseSchema } },
-            },
-            400: BadRequestErrorResponse,
-            404: NotFoundErrorResponse,
-            409: ConflictErrorResponse,
-            500: InternalErrorResponse,
-        },
-    });
-
-    const uninstallRoute = createRoute({
-        method: 'post',
-        path: '/agents/uninstall',
-        summary: 'Uninstall Agent',
-        description:
-            'Removes an agent from the system. Custom agents are removed from registry; builtin agents can be reinstalled',
-        tags: ['agents'],
-        request: {
-            body: {
-                content: {
-                    'application/json': {
-                        schema: UninstallAgentSchema,
-                    },
-                },
-            },
-        },
-        responses: {
-            200: {
-                description: 'Agent uninstalled',
-                content: { 'application/json': { schema: UninstallAgentResponseSchema } },
-            },
-            400: BadRequestErrorResponse,
-            404: NotFoundErrorResponse,
-            409: ConflictErrorResponse,
-            500: InternalErrorResponse,
-        },
-    });
-
-    const customCreateRoute = createRoute({
-        method: 'post',
-        path: '/agents/custom/create',
-        summary: 'Create Custom Agent',
-        description: 'Creates a new custom agent from scratch via the UI/API',
-        tags: ['agents'],
-        request: {
-            body: {
-                content: {
-                    'application/json': {
-                        schema: CustomAgentCreateSchema,
-                    },
-                },
-            },
-        },
-        responses: {
-            201: {
-                description: 'Custom agent created',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                created: z.literal(true).describe('Creation success indicator'),
-                                id: z.string().describe('Agent identifier'),
-                                name: z.string().describe('Agent name'),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-            400: BadRequestErrorResponse,
-            404: NotFoundErrorResponse,
-            409: ConflictErrorResponse,
-            500: InternalErrorResponse,
-        },
-    });
-
-    const getPathRoute = createRoute({
-        method: 'get',
-        path: '/agent/path',
-        summary: 'Get Agent File Path',
-        description: 'Retrieves the file path of the currently active agent configuration',
-        tags: ['agent'],
-        responses: {
-            200: {
-                description: 'Agent file path',
-                content: {
-                    'application/json': {
-                        schema: AgentPathResponseSchema,
-                    },
-                },
-            },
-            400: BadRequestErrorResponse,
-            404: NotFoundErrorResponse,
-            409: ConflictErrorResponse,
-            500: InternalErrorResponse,
-        },
-    });
-
-    const getConfigRoute = createRoute({
-        method: 'get',
-        path: '/agent/config',
-        summary: 'Get Agent Configuration',
-        description: 'Retrieves the raw YAML configuration of the currently active agent',
-        tags: ['agent'],
-        responses: {
-            200: {
-                description: 'Agent configuration',
-                content: {
-                    'application/json': {
-                        schema: AgentConfigResponseSchema,
-                    },
-                },
-            },
-            400: BadRequestErrorResponse,
-            404: NotFoundErrorResponse,
-            409: ConflictErrorResponse,
-            500: InternalErrorResponse,
-        },
-    });
-
-    const validateConfigRoute = createRoute({
-        method: 'post',
-        path: '/agent/validate',
-        summary: 'Validate Agent Configuration',
-        description: 'Validates YAML agent configuration without saving it',
-        tags: ['agent'],
-        request: {
-            body: {
-                content: {
-                    'application/json': {
-                        schema: AgentConfigValidateSchema,
-                    },
-                },
-            },
-        },
-        responses: {
-            200: {
-                description: 'Validation result',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                valid: z.boolean().describe('Whether configuration is valid'),
-                                errors: z
-                                    .array(
-                                        z
-                                            .object({
-                                                line: z
-                                                    .number()
-                                                    .int()
-                                                    .optional()
-                                                    .describe('Line number'),
-                                                column: z
-                                                    .number()
-                                                    .int()
-                                                    .optional()
-                                                    .describe('Column number'),
-                                                path: z
-                                                    .string()
-                                                    .optional()
-                                                    .describe('Configuration path'),
-                                                message: z.string().describe('Error message'),
-                                                code: z.string().describe('Error code'),
-                                            })
-                                            .passthrough()
-                                    )
-                                    .describe('Validation errors'),
-                                warnings: z
-                                    .array(
-                                        z
-                                            .object({
-                                                path: z.string().describe('Configuration path'),
-                                                message: z.string().describe('Warning message'),
-                                                code: z.string().describe('Warning code'),
-                                            })
-                                            .strict()
-                                    )
-                                    .describe('Configuration warnings'),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-            400: BadRequestErrorResponse,
-            404: NotFoundErrorResponse,
-            409: ConflictErrorResponse,
-            500: InternalErrorResponse,
-        },
-    });
-
-    const saveConfigRoute = createRoute({
-        method: 'post',
-        path: '/agent/config',
-        summary: 'Save Agent Configuration',
-        description: 'Saves and applies YAML agent configuration. Creates backup before saving',
-        tags: ['agent'],
-        request: {
-            body: {
-                content: {
-                    'application/json': {
-                        schema: AgentConfigSaveSchema,
-                    },
-                },
-            },
-        },
-        responses: {
-            200: {
-                description: 'Configuration saved',
-                content: {
-                    'application/json': {
-                        schema: SaveConfigResponseSchema,
-                    },
-                },
-            },
-            400: BadRequestErrorResponse,
-            404: NotFoundErrorResponse,
-            409: ConflictErrorResponse,
-            500: InternalErrorResponse,
-        },
-    });
-
-    const exportConfigRoute = createRoute({
-        method: 'get',
-        path: '/agent/config/export',
-        summary: 'Export Agent Configuration',
-        description: 'Exports the effective agent configuration with sensitive values redacted',
-        tags: ['agent'],
-        request: {
-            query: z.object({
-                sessionId: z
-                    .string()
-                    .optional()
-                    .describe('Session identifier to export session-specific configuration'),
-            }),
-        },
-        responses: {
-            200: {
-                description: 'Exported configuration',
-                content: { 'application/x-yaml': { schema: z.string() } },
-            },
-        },
-    });
 
     return app
         .openapi(listRoute, async (ctx) => {
@@ -1057,3 +1058,47 @@ export function createAgentsRouter(
             return ctx.body(yamlStr);
         });
 }
+
+type AgentIdentifierJsonInput = { json: z.input<typeof AgentIdentifierSchema> };
+type UninstallAgentJsonInput = { json: z.input<typeof UninstallAgentSchema> };
+type CustomAgentCreateJsonInput = { json: z.input<typeof CustomAgentCreateSchema> };
+type InstallAgentJsonInput = { json: z.input<typeof InstallAgentRequestSchema> };
+type AgentConfigValidateJsonInput = { json: z.input<typeof AgentConfigValidateSchema> };
+type AgentConfigSaveJsonInput = { json: z.input<typeof AgentConfigSaveSchema> };
+type ExportConfigQueryInput = { query: z.input<typeof ExportConfigQuerySchema> };
+
+type ListRouteSchema = OpenAPIRouteSchema<typeof listRoute, {}>;
+type CurrentRouteSchema = OpenAPIRouteSchema<typeof currentRoute, {}>;
+type InstallRouteSchema = OpenAPIRouteSchema<typeof installRoute, InstallAgentJsonInput>;
+type SwitchRouteSchema = OpenAPIRouteSchema<typeof switchRoute, AgentIdentifierJsonInput>;
+type ValidateNameRouteSchema = OpenAPIRouteSchema<
+    typeof validateNameRoute,
+    AgentIdentifierJsonInput
+>;
+type UninstallRouteSchema = OpenAPIRouteSchema<typeof uninstallRoute, UninstallAgentJsonInput>;
+type CustomCreateRouteSchema = OpenAPIRouteSchema<
+    typeof customCreateRoute,
+    CustomAgentCreateJsonInput
+>;
+type GetPathRouteSchema = OpenAPIRouteSchema<typeof getPathRoute, {}>;
+type GetConfigRouteSchema = OpenAPIRouteSchema<typeof getConfigRoute, {}>;
+type ValidateConfigRouteSchema = OpenAPIRouteSchema<
+    typeof validateConfigRoute,
+    AgentConfigValidateJsonInput
+>;
+type SaveConfigRouteSchema = OpenAPIRouteSchema<typeof saveConfigRoute, AgentConfigSaveJsonInput>;
+type ExportConfigRouteSchema = OpenAPIRouteSchema<typeof exportConfigRoute, ExportConfigQueryInput>;
+
+export type AgentsRouterSchema =
+    | ListRouteSchema
+    | CurrentRouteSchema
+    | InstallRouteSchema
+    | SwitchRouteSchema
+    | ValidateNameRouteSchema
+    | UninstallRouteSchema
+    | CustomCreateRouteSchema
+    | GetPathRouteSchema
+    | GetConfigRouteSchema
+    | ValidateConfigRouteSchema
+    | SaveConfigRouteSchema
+    | ExportConfigRouteSchema;

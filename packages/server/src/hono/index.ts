@@ -1,6 +1,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import type { Context, Hono } from 'hono';
 import type { BlankEnv, ExtractSchema, MergeSchemaPath } from 'hono/types';
+import type { Env, Schema } from 'hono/types';
 import type { AgentCard } from '@dexto/core';
 import { logger } from '@dexto/core';
 import { getDextoPackageRoot } from '@dexto/agent-management';
@@ -20,16 +21,20 @@ import { createResourcesRouter, type ResourcesRouterSchema } from './routes/reso
 import { createMemoryRouter, type MemoryRouterSchema } from './routes/memory.js';
 import { createWorkspacesRouter, type WorkspacesRouterSchema } from './routes/workspaces.js';
 import { createSchedulesRouter, type SchedulesRouterSchema } from './routes/schedules.js';
-import { createAgentsRouter, type AgentsRouterContext } from './routes/agents.js';
+import {
+    createAgentsRouter,
+    type AgentsRouterContext,
+    type AgentsRouterSchema,
+} from './routes/agents.js';
 import { createApprovalsRouter, type ApprovalsRouterSchema } from './routes/approvals.js';
 import { createQueueRouter, type QueueRouterSchema } from './routes/queue.js';
-import { createOpenRouterRouter } from './routes/openrouter.js';
-import { createKeyRouter } from './routes/key.js';
-import { createToolsRouter } from './routes/tools.js';
-import { createDiscoveryRouter } from './routes/discovery.js';
-import { createModelsRouter } from './routes/models.js';
-import { createDextoAuthRouter } from './routes/dexto-auth.js';
-import { createSystemPromptRouter } from './routes/system-prompt.js';
+import { createOpenRouterRouter, type OpenRouterRouterSchema } from './routes/openrouter.js';
+import { createKeyRouter, type KeyRouterSchema } from './routes/key.js';
+import { createToolsRouter, type ToolsRouterSchema } from './routes/tools.js';
+import { createDiscoveryRouter, type DiscoveryRouterSchema } from './routes/discovery.js';
+import { createModelsRouter, type ModelsRouterSchema } from './routes/models.js';
+import { createDextoAuthRouter, type DextoAuthRouterSchema } from './routes/dexto-auth.js';
+import { createSystemPromptRouter, type SystemPromptRouterSchema } from './routes/system-prompt.js';
 import {
     createStaticRouter,
     createSpaFallbackHandler,
@@ -158,19 +163,16 @@ type IntegrationRouterSchema =
     | WorkspacesRouterSchema
     | SchedulesRouterSchema;
 
-type ManagementRouterSchema =
-    | ApprovalsRouterSchema
-    | ExtractSchema<ReturnType<typeof createAgentsRouter>>
-    | QueueRouterSchema;
+type ManagementRouterSchema = ApprovalsRouterSchema | AgentsRouterSchema | QueueRouterSchema;
 
 type SystemRouterSchema =
-    | ExtractSchema<ReturnType<typeof createOpenRouterRouter>>
-    | ExtractSchema<ReturnType<typeof createKeyRouter>>
-    | ExtractSchema<ReturnType<typeof createToolsRouter>>
-    | ExtractSchema<ReturnType<typeof createDiscoveryRouter>>
-    | ExtractSchema<ReturnType<typeof createModelsRouter>>
-    | ExtractSchema<ReturnType<typeof createSystemPromptRouter>>
-    | ExtractSchema<ReturnType<typeof createDextoAuthRouter>>;
+    | OpenRouterRouterSchema
+    | KeyRouterSchema
+    | ToolsRouterSchema
+    | DiscoveryRouterSchema
+    | ModelsRouterSchema
+    | SystemPromptRouterSchema
+    | DextoAuthRouterSchema;
 
 type DefaultApiRouterSchema =
     | ConversationRouterSchema
@@ -239,39 +241,49 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
     const resolvedGetAgentConfigPath = getAgentConfigPath ?? ((_ctx: Context) => undefined);
     const fullApp: DextoApp = app;
 
-    fullApp.route('/health', createHealthRouter(getAgent));
-    fullApp.route('/', createA2aRouter(getAgentCard));
-    fullApp.route('/', createA2AJsonRpcRouter(getAgent, sseSubscriber));
-    fullApp.route('/', createA2ATasksRouter(getAgent, sseSubscriber));
-    fullApp.route(routePrefix, createGreetingRouter(getAgent));
-    fullApp.route(routePrefix, createMessagesRouter(getAgent, approvalCoordinator));
-    fullApp.route(routePrefix, createLlmRouter(getAgent));
-    fullApp.route(routePrefix, createSessionsRouter(getAgent));
-    fullApp.route(routePrefix, createSearchRouter(getAgent));
-    fullApp.route(routePrefix, createMcpRouter(getAgent, resolvedGetAgentConfigPath));
-    fullApp.route(routePrefix, createWebhooksRouter(getAgent, webhookSubscriber));
-    fullApp.route(routePrefix, createPromptsRouter(getAgent));
-    fullApp.route(routePrefix, createResourcesRouter(getAgent));
-    fullApp.route(routePrefix, createMemoryRouter(getAgent));
-    fullApp.route(routePrefix, createWorkspacesRouter(getAgent));
-    fullApp.route(routePrefix, createSchedulesRouter(getAgent));
-    fullApp.route(routePrefix, createApprovalsRouter(getAgent, approvalCoordinator));
-    fullApp.route(
-        routePrefix,
-        createAgentsRouter(
-            getAgent,
-            agentsContext || dummyAgentsContext,
-            resolvedGetAgentConfigPath
-        )
-    );
-    fullApp.route(routePrefix, createQueueRouter(getAgent));
-    fullApp.route(routePrefix, createOpenRouterRouter());
-    fullApp.route(routePrefix, createKeyRouter());
-    fullApp.route(routePrefix, createToolsRouter(getAgent));
-    fullApp.route(routePrefix, createDiscoveryRouter(resolvedGetAgentConfigPath));
-    fullApp.route(routePrefix, createModelsRouter());
-    fullApp.route(routePrefix, createSystemPromptRouter(getAgent));
-    fullApp.route(routePrefix, createDextoAuthRouter(getAgent));
+    // Keep route contracts in the route files themselves and avoid re-instantiating the entire
+    // composed router graph during declaration emit. Hono tracks the exported AppType from the
+    // explicit AppSchema above; erasing child router types here only affects this mount list.
+    // See: https://github.com/honojs/hono/issues/2399
+    const mountedRouters: Array<readonly [string, Hono<Env, Schema, string>]> = [
+        ['/health', createHealthRouter(getAgent)],
+        ['/', createA2aRouter(getAgentCard)],
+        ['/', createA2AJsonRpcRouter(getAgent, sseSubscriber)],
+        ['/', createA2ATasksRouter(getAgent, sseSubscriber)],
+        [routePrefix, createGreetingRouter(getAgent)],
+        [routePrefix, createMessagesRouter(getAgent, approvalCoordinator)],
+        [routePrefix, createLlmRouter(getAgent)],
+        [routePrefix, createSessionsRouter(getAgent)],
+        [routePrefix, createSearchRouter(getAgent)],
+        [routePrefix, createMcpRouter(getAgent, resolvedGetAgentConfigPath)],
+        [routePrefix, createWebhooksRouter(getAgent, webhookSubscriber)],
+        [routePrefix, createPromptsRouter(getAgent)],
+        [routePrefix, createResourcesRouter(getAgent)],
+        [routePrefix, createMemoryRouter(getAgent)],
+        [routePrefix, createWorkspacesRouter(getAgent)],
+        [routePrefix, createSchedulesRouter(getAgent)],
+        [routePrefix, createApprovalsRouter(getAgent, approvalCoordinator)],
+        [
+            routePrefix,
+            createAgentsRouter(
+                getAgent,
+                agentsContext || dummyAgentsContext,
+                resolvedGetAgentConfigPath
+            ),
+        ],
+        [routePrefix, createQueueRouter(getAgent)],
+        [routePrefix, createOpenRouterRouter()],
+        [routePrefix, createKeyRouter()],
+        [routePrefix, createToolsRouter(getAgent)],
+        [routePrefix, createDiscoveryRouter(resolvedGetAgentConfigPath)],
+        [routePrefix, createModelsRouter()],
+        [routePrefix, createSystemPromptRouter(getAgent)],
+        [routePrefix, createDextoAuthRouter(getAgent)],
+    ];
+
+    for (const [path, router] of mountedRouters) {
+        fullApp.route(path, router);
+    }
 
     // Expose OpenAPI document
     // Current approach uses @hono/zod-openapi's .doc() method for OpenAPI spec generation

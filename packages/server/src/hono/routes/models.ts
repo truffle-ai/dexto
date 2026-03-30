@@ -20,6 +20,7 @@ import {
     removeInstalledModel,
 } from '@dexto/agent-management';
 import { BadRequestErrorResponse, InternalErrorResponse } from '../schemas/responses.js';
+import type { OpenAPIRouteSchema } from '../types.js';
 
 // ============================================================================
 // Schemas
@@ -455,3 +456,23 @@ export function createModelsRouter() {
             );
         });
 }
+
+type ListLocalModelsRouteSchema = OpenAPIRouteSchema<typeof listLocalModelsRoute, {}>;
+type ListOllamaModelsRouteSchema = OpenAPIRouteSchema<
+    typeof listOllamaModelsRoute,
+    { query: { baseURL?: string | undefined } }
+>;
+type ValidateLocalFileRouteSchema = OpenAPIRouteSchema<
+    typeof validateLocalFileRoute,
+    { json: z.input<typeof ValidateFileRequestSchema> }
+>;
+type DeleteLocalModelRouteSchema = OpenAPIRouteSchema<
+    typeof deleteLocalModelRoute,
+    { param: { modelId: string }; json?: z.input<typeof DeleteModelRequestSchema> }
+>;
+
+export type ModelsRouterSchema =
+    | ListLocalModelsRouteSchema
+    | ListOllamaModelsRouteSchema
+    | ValidateLocalFileRouteSchema
+    | DeleteLocalModelRouteSchema;

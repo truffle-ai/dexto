@@ -16,6 +16,7 @@ import {
     saveProviderApiKey,
     resolveApiKeyForProvider,
 } from '@dexto/agent-management';
+import type { OpenAPIRouteSchema } from '../types.js';
 
 /**
  * Masks an API key for safe display, showing only prefix and suffix.
@@ -48,75 +49,73 @@ const SaveKeySchema = z
     })
     .describe('Request body for saving a provider API key');
 
+const GetKeyResponseSchema = z
+    .object({
+        provider: z.enum(LLM_PROVIDERS).describe('Provider identifier'),
+        envVar: z.string().describe('Environment variable name'),
+        hasKey: z.boolean().describe('Whether API key is configured'),
+        keyValue: z
+            .string()
+            .optional()
+            .describe('Masked API key value if configured (e.g., sk-proj...xyz4)'),
+    })
+    .strict()
+    .describe('API key status response');
+
+const SaveKeyResponseSchema = z
+    .object({
+        ok: z.literal(true).describe('Operation success indicator'),
+        provider: z.enum(LLM_PROVIDERS).describe('Provider for which the key was saved'),
+        envVar: z.string().describe('Environment variable name where key was stored'),
+    })
+    .strict()
+    .describe('API key save response');
+
+const getKeyRoute = createRoute({
+    method: 'get',
+    path: '/llm/key/{provider}',
+    summary: 'Get Provider API Key Status',
+    description:
+        'Retrieves the API key status for a provider. Returns a masked key value (e.g., sk-proj...xyz4) for UI display purposes.',
+    tags: ['llm'],
+    request: { params: GetKeyParamsSchema },
+    responses: {
+        200: {
+            description: 'API key status and value',
+            content: {
+                'application/json': {
+                    schema: GetKeyResponseSchema,
+                },
+            },
+        },
+        400: BadRequestErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const saveKeyRoute = createRoute({
+    method: 'post',
+    path: '/llm/key',
+    summary: 'Save Provider API Key',
+    description: 'Stores an API key for a provider in .env and makes it available immediately',
+    tags: ['llm'],
+    request: { body: { content: { 'application/json': { schema: SaveKeySchema } } } },
+    responses: {
+        200: {
+            description: 'API key saved',
+            content: {
+                'application/json': {
+                    schema: SaveKeyResponseSchema,
+                },
+            },
+        },
+        400: BadRequestErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
 export function createKeyRouter() {
     const app = new OpenAPIHono();
-
-    const getKeyRoute = createRoute({
-        method: 'get',
-        path: '/llm/key/{provider}',
-        summary: 'Get Provider API Key Status',
-        description:
-            'Retrieves the API key status for a provider. Returns a masked key value (e.g., sk-proj...xyz4) for UI display purposes.',
-        tags: ['llm'],
-        request: { params: GetKeyParamsSchema },
-        responses: {
-            200: {
-                description: 'API key status and value',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                provider: z.enum(LLM_PROVIDERS).describe('Provider identifier'),
-                                envVar: z.string().describe('Environment variable name'),
-                                hasKey: z.boolean().describe('Whether API key is configured'),
-                                keyValue: z
-                                    .string()
-                                    .optional()
-                                    .describe(
-                                        'Masked API key value if configured (e.g., sk-proj...xyz4)'
-                                    ),
-                            })
-                            .strict()
-                            .describe('API key status response'),
-                    },
-                },
-            },
-            400: BadRequestErrorResponse,
-            500: InternalErrorResponse,
-        },
-    });
-
-    const saveKeyRoute = createRoute({
-        method: 'post',
-        path: '/llm/key',
-        summary: 'Save Provider API Key',
-        description: 'Stores an API key for a provider in .env and makes it available immediately',
-        tags: ['llm'],
-        request: { body: { content: { 'application/json': { schema: SaveKeySchema } } } },
-        responses: {
-            200: {
-                description: 'API key saved',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                ok: z.literal(true).describe('Operation success indicator'),
-                                provider: z
-                                    .enum(LLM_PROVIDERS)
-                                    .describe('Provider for which the key was saved'),
-                                envVar: z
-                                    .string()
-                                    .describe('Environment variable name where key was stored'),
-                            })
-                            .strict()
-                            .describe('API key save response'),
-                    },
-                },
-            },
-            400: BadRequestErrorResponse,
-            500: InternalErrorResponse,
-        },
-    });
 
     return app
         .openapi(getKeyRoute, (ctx) => {
@@ -142,3 +141,14 @@ export function createKeyRouter() {
             return ctx.json({ ok: true as const, provider, envVar: meta.envVar }, 200);
         });
 }
+
+type GetKeyRouteSchema = OpenAPIRouteSchema<
+    typeof getKeyRoute,
+    { param: z.input<typeof GetKeyParamsSchema> }
+>;
+type SaveKeyRouteSchema = OpenAPIRouteSchema<
+    typeof saveKeyRoute,
+    { json: z.input<typeof SaveKeySchema> }
+>;
+
+export type KeyRouterSchema = GetKeyRouteSchema | SaveKeyRouteSchema;

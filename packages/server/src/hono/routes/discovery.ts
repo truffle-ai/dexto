@@ -5,6 +5,7 @@ import type { DextoImage } from '@dexto/agent-config';
 import { loadImage } from '@dexto/agent-config';
 import { loadAgentConfig } from '@dexto/agent-management';
 import imageLocal from '@dexto/image-local';
+import type { OpenAPIRouteSchema } from '../types.js';
 
 export type GetAgentConfigPathFn = (
     ctx: Context
@@ -152,26 +153,30 @@ async function listDiscoveryFactories(options: {
     return { blob, database, compaction, toolFactories: toolFactoriesList, builtinTools };
 }
 
+const discoveryRoute = createRoute({
+    method: 'get',
+    path: '/discovery',
+    summary: 'Discover Available Factories and Tools',
+    description:
+        'Returns all available factories (storage, compaction, tools) for the currently active image.',
+    tags: ['discovery'],
+    responses: {
+        200: {
+            description: 'Available factories grouped by category',
+            content: { 'application/json': { schema: DiscoveryResponseSchema } },
+        },
+        500: InternalErrorResponse,
+    },
+});
+
 export function createDiscoveryRouter(getAgentConfigPath: GetAgentConfigPathFn) {
     const app = new OpenAPIHono();
-
-    const discoveryRoute = createRoute({
-        method: 'get',
-        path: '/discovery',
-        summary: 'Discover Available Factories and Tools',
-        description:
-            'Returns all available factories (storage, compaction, tools) for the currently active image.',
-        tags: ['discovery'],
-        responses: {
-            200: {
-                description: 'Available factories grouped by category',
-                content: { 'application/json': { schema: DiscoveryResponseSchema } },
-            },
-            500: InternalErrorResponse,
-        },
-    });
 
     return app.openapi(discoveryRoute, async (ctx) => {
         return ctx.json(await listDiscoveryFactories({ ctx, getAgentConfigPath }), 200);
     });
 }
+
+type DiscoveryRouteSchema = OpenAPIRouteSchema<typeof discoveryRoute, {}>;
+
+export type DiscoveryRouterSchema = DiscoveryRouteSchema;

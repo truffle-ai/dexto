@@ -3116,7 +3116,8 @@
                       "description": "Greeting message from agent configuration"
                     }
                   },
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Greeting response payload"
                 }
               }
             }
@@ -3573,7 +3574,8 @@
                     "accepted",
                     "sessionId"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Asynchronous message acceptance response"
                 }
               }
             }
@@ -4117,7 +4119,8 @@
                     "response",
                     "sessionId"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Synchronous message response"
                 }
               }
             }
@@ -4475,7 +4478,8 @@
                     "status",
                     "sessionId"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Session reset response"
                 }
               }
             }
@@ -5134,7 +5138,8 @@
                     "queueLength",
                     "hint"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Busy response for streaming requests"
                 }
               }
             }
@@ -12877,7 +12882,8 @@
                 "required": [
                   "favorites"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "description": "Request body for setting favorite models"
               }
             }
           }
@@ -27541,10 +27547,6 @@
                             "description": "Source of the prompt"
                           },
                           "metadata": {
-                            "type": "object",
-                            "additionalProperties": {
-                              "nullable": true
-                            },
                             "description": "Additional metadata"
                           }
                         },
@@ -27873,10 +27875,6 @@
                           "description": "Source of the prompt"
                         },
                         "metadata": {
-                          "type": "object",
-                          "additionalProperties": {
-                            "nullable": true
-                          },
                           "description": "Additional metadata"
                         }
                       },
@@ -28760,7 +28758,8 @@
                           "metadata": {
                             "type": "object",
                             "additionalProperties": {
-                              "nullable": true
+                              "nullable": true,
+                              "description": "Any JSON-serializable value"
                             },
                             "description": "Additional metadata specific to the resource type"
                           }
@@ -29008,10 +29007,6 @@
                           "description": "Array of content items (typically one item)"
                         },
                         "_meta": {
-                          "type": "object",
-                          "additionalProperties": {
-                            "nullable": true
-                          },
                           "description": "Optional metadata about the resource"
                         }
                       },
@@ -33201,10 +33196,6 @@
                                 "description": "Instruction to execute"
                               },
                               "metadata": {
-                                "type": "object",
-                                "additionalProperties": {
-                                  "nullable": true
-                                },
                                 "description": "Optional task metadata"
                               }
                             },
@@ -33299,7 +33290,8 @@
                   "required": [
                     "schedules"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "List schedules response"
                 }
               }
             }
@@ -33491,10 +33483,6 @@
                               "description": "Instruction to execute"
                             },
                             "metadata": {
-                              "type": "object",
-                              "additionalProperties": {
-                                "nullable": true
-                              },
                               "description": "Optional task metadata"
                             }
                           },
@@ -33587,7 +33575,8 @@
                   "required": [
                     "schedule"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Create schedule response"
                 }
               }
             }
@@ -33883,10 +33872,6 @@
                               "description": "Instruction to execute"
                             },
                             "metadata": {
-                              "type": "object",
-                              "additionalProperties": {
-                                "nullable": true
-                              },
                               "description": "Optional task metadata"
                             }
                           },
@@ -33979,7 +33964,8 @@
                   "required": [
                     "schedule"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Update schedule response"
                 }
               }
             }
@@ -36374,7 +36360,8 @@
                     "additionalProperties": false,
                     "description": "Agent identifier for switching agents by ID or file path"
                   }
-                ]
+                ],
+                "description": "Agent installation request"
               }
             }
           }
@@ -39087,7 +39074,8 @@
                   "config": {
                     "type": "object",
                     "additionalProperties": {
-                      "nullable": true
+                      "nullable": true,
+                      "description": "Any JSON-serializable value"
                     },
                     "description": "Complete agent configuration"
                   }
@@ -39133,7 +39121,8 @@
                     "id",
                     "name"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Custom agent creation response"
                 }
               }
             }
@@ -41807,7 +41796,8 @@
                         "required": [
                           "message",
                           "code"
-                        ]
+                        ],
+                        "description": "Configuration validation error"
                       },
                       "description": "Validation errors"
                     },
@@ -41834,7 +41824,8 @@
                           "message",
                           "code"
                         ],
-                        "additionalProperties": false
+                        "additionalProperties": false,
+                        "description": "Configuration validation warning"
                       },
                       "description": "Configuration warnings"
                     }
@@ -41844,7 +41835,8 @@
                     "errors",
                     "warnings"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Configuration validation result"
                 }
               }
             }
@@ -42684,10 +42676,6 @@
                             "description": "Unix timestamp when message was queued"
                           },
                           "metadata": {
-                            "type": "object",
-                            "additionalProperties": {
-                              "nullable": true
-                            },
                             "description": "Optional metadata"
                           },
                           "kind": {
@@ -42718,7 +42706,8 @@
                     "messages",
                     "count"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Get queue response"
                 }
               }
             }
@@ -43042,7 +43031,8 @@
                     "id",
                     "position"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Queue message response"
                 }
               }
             }
@@ -43243,7 +43233,8 @@
                     "cleared",
                     "count"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Clear queue response"
                 }
               }
             }
@@ -43457,7 +43448,8 @@
                     "removed",
                     "id"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Remove queued message response"
                 }
               }
             }
@@ -44024,7 +44016,8 @@
                   "required": [
                     "ok",
                     "message"
-                  ]
+                  ],
+                  "description": "OpenRouter cache refresh success response"
                 }
               }
             }
@@ -44051,7 +44044,8 @@
                   "required": [
                     "ok",
                     "message"
-                  ]
+                  ],
+                  "description": "OpenRouter cache refresh failure response"
                 }
               }
             }
@@ -44982,7 +44976,8 @@
                           "_meta": {
                             "type": "object",
                             "additionalProperties": {
-                              "nullable": true
+                              "nullable": true,
+                              "description": "Any JSON-serializable value"
                             },
                             "description": "Optional tool metadata (e.g., MCP Apps UI resource info)"
                           }
@@ -47549,7 +47544,8 @@
                     "enabled",
                     "authenticated",
                     "canUse"
-                  ]
+                  ],
+                  "description": "Dexto auth status response"
                 }
               }
             }

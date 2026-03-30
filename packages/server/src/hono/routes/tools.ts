@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import type { Context } from 'hono';
 import { InternalErrorResponse, JsonObjectSchema, JsonValueSchema } from '../schemas/responses.js';
+import type { OpenAPIRouteSchema } from '../types.js';
 type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
 // JSON Schema definition for tool input parameters
@@ -56,23 +57,23 @@ const AllToolsResponseSchema = z
     .strict()
     .describe('All available tools from all sources');
 
+const allToolsRoute = createRoute({
+    method: 'get',
+    path: '/tools',
+    summary: 'List All Tools',
+    description: 'Retrieves all available tools from all sources (local and MCP)',
+    tags: ['tools'],
+    responses: {
+        200: {
+            description: 'All tools',
+            content: { 'application/json': { schema: AllToolsResponseSchema } },
+        },
+        500: InternalErrorResponse,
+    },
+});
+
 export function createToolsRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
-
-    const allToolsRoute = createRoute({
-        method: 'get',
-        path: '/tools',
-        summary: 'List All Tools',
-        description: 'Retrieves all available tools from all sources (local and MCP)',
-        tags: ['tools'],
-        responses: {
-            200: {
-                description: 'All tools',
-                content: { 'application/json': { schema: AllToolsResponseSchema } },
-            },
-            500: InternalErrorResponse,
-        },
-    });
 
     return app.openapi(allToolsRoute, async (ctx) => {
         const agent = await getAgent(ctx);
@@ -145,3 +146,7 @@ export function createToolsRouter(getAgent: GetAgentFn) {
         );
     });
 }
+
+type AllToolsRouteSchema = OpenAPIRouteSchema<typeof allToolsRoute, {}>;
+
+export type ToolsRouterSchema = AllToolsRouteSchema;
