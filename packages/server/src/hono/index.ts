@@ -14,11 +14,11 @@ import { createMcpRouter, type McpRouterSchema } from './routes/mcp.js';
 import { createA2aRouter } from './routes/a2a.js';
 import { createA2AJsonRpcRouter } from './routes/a2a-jsonrpc.js';
 import { createA2ATasksRouter } from './routes/a2a-tasks.js';
-import { createWebhooksRouter } from './routes/webhooks.js';
+import { createWebhooksRouter, type WebhooksRouterSchema } from './routes/webhooks.js';
 import { createPromptsRouter } from './routes/prompts.js';
-import { createResourcesRouter } from './routes/resources.js';
+import { createResourcesRouter, type ResourcesRouterSchema } from './routes/resources.js';
 import { createMemoryRouter } from './routes/memory.js';
-import { createWorkspacesRouter } from './routes/workspaces.js';
+import { createWorkspacesRouter, type WorkspacesRouterSchema } from './routes/workspaces.js';
 import { createSchedulesRouter } from './routes/schedules.js';
 import { createAgentsRouter, type AgentsRouterContext } from './routes/agents.js';
 import { createApprovalsRouter } from './routes/approvals.js';
@@ -151,11 +151,11 @@ type ConversationRouterSchema =
 
 type IntegrationRouterSchema =
     | McpRouterSchema
-    | ExtractSchema<ReturnType<typeof createWebhooksRouter>>
+    | WebhooksRouterSchema
     | ExtractSchema<ReturnType<typeof createPromptsRouter>>
-    | ExtractSchema<ReturnType<typeof createResourcesRouter>>
+    | ResourcesRouterSchema
     | ExtractSchema<ReturnType<typeof createMemoryRouter>>
-    | ExtractSchema<ReturnType<typeof createWorkspacesRouter>>
+    | WorkspacesRouterSchema
     | ExtractSchema<ReturnType<typeof createSchedulesRouter>>;
 
 type ManagementRouterSchema =

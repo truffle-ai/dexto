@@ -4,7 +4,7 @@ import {
     InternalErrorResponse,
     WorkspaceSchema,
 } from '../schemas/responses.js';
-import type { GetAgentFn } from '../types.js';
+import type { GetAgentFn, OpenAPIRouteSchema } from '../types.js';
 
 const SetWorkspaceSchema = z
     .object({
@@ -14,106 +14,106 @@ const SetWorkspaceSchema = z
     .strict()
     .describe('Request body for setting the active workspace');
 
+const listRoute = createRoute({
+    method: 'get',
+    path: '/workspaces',
+    summary: 'List Workspaces',
+    description: 'Retrieves all known workspaces',
+    tags: ['workspaces'],
+    responses: {
+        200: {
+            description: 'List of workspaces',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            workspaces: z.array(WorkspaceSchema).describe('Workspace list'),
+                        })
+                        .strict(),
+                },
+            },
+        },
+        500: InternalErrorResponse,
+    },
+});
+
+const getActiveRoute = createRoute({
+    method: 'get',
+    path: '/workspaces/active',
+    summary: 'Get Active Workspace',
+    description: 'Returns the active workspace, if any',
+    tags: ['workspaces'],
+    responses: {
+        200: {
+            description: 'Active workspace',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            workspace: WorkspaceSchema.nullable().describe(
+                                'Active workspace or null if none is set'
+                            ),
+                        })
+                        .strict(),
+                },
+            },
+        },
+        500: InternalErrorResponse,
+    },
+});
+
+const setActiveRoute = createRoute({
+    method: 'post',
+    path: '/workspaces/active',
+    summary: 'Set Active Workspace',
+    description: 'Sets the active workspace for this runtime',
+    tags: ['workspaces'],
+    request: { body: { content: { 'application/json': { schema: SetWorkspaceSchema } } } },
+    responses: {
+        200: {
+            description: 'Active workspace updated',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            workspace: WorkspaceSchema.describe('Updated active workspace'),
+                        })
+                        .strict(),
+                },
+            },
+        },
+        400: BadRequestErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const clearActiveRoute = createRoute({
+    method: 'delete',
+    path: '/workspaces/active',
+    summary: 'Clear Active Workspace',
+    description: 'Clears the active workspace for this runtime',
+    tags: ['workspaces'],
+    responses: {
+        200: {
+            description: 'Active workspace cleared',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            workspace: WorkspaceSchema.nullable().describe(
+                                'Active workspace or null if none is set'
+                            ),
+                        })
+                        .strict(),
+                },
+            },
+        },
+        500: InternalErrorResponse,
+    },
+});
+
 export function createWorkspacesRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
-
-    const listRoute = createRoute({
-        method: 'get',
-        path: '/workspaces',
-        summary: 'List Workspaces',
-        description: 'Retrieves all known workspaces',
-        tags: ['workspaces'],
-        responses: {
-            200: {
-                description: 'List of workspaces',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                workspaces: z.array(WorkspaceSchema).describe('Workspace list'),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-            500: InternalErrorResponse,
-        },
-    });
-
-    const getActiveRoute = createRoute({
-        method: 'get',
-        path: '/workspaces/active',
-        summary: 'Get Active Workspace',
-        description: 'Returns the active workspace, if any',
-        tags: ['workspaces'],
-        responses: {
-            200: {
-                description: 'Active workspace',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                workspace: WorkspaceSchema.nullable().describe(
-                                    'Active workspace or null if none is set'
-                                ),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-            500: InternalErrorResponse,
-        },
-    });
-
-    const setActiveRoute = createRoute({
-        method: 'post',
-        path: '/workspaces/active',
-        summary: 'Set Active Workspace',
-        description: 'Sets the active workspace for this runtime',
-        tags: ['workspaces'],
-        request: { body: { content: { 'application/json': { schema: SetWorkspaceSchema } } } },
-        responses: {
-            200: {
-                description: 'Active workspace updated',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                workspace: WorkspaceSchema.describe('Updated active workspace'),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-            400: BadRequestErrorResponse,
-            500: InternalErrorResponse,
-        },
-    });
-
-    const clearActiveRoute = createRoute({
-        method: 'delete',
-        path: '/workspaces/active',
-        summary: 'Clear Active Workspace',
-        description: 'Clears the active workspace for this runtime',
-        tags: ['workspaces'],
-        responses: {
-            200: {
-                description: 'Active workspace cleared',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                workspace: WorkspaceSchema.nullable().describe(
-                                    'Active workspace or null if none is set'
-                                ),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-            500: InternalErrorResponse,
-        },
-    });
 
     return app
         .openapi(listRoute, async (ctx) => {
@@ -142,3 +142,17 @@ export function createWorkspacesRouter(getAgent: GetAgentFn) {
             return ctx.json({ workspace: null }, 200);
         });
 }
+
+type ListRouteSchema = OpenAPIRouteSchema<typeof listRoute, {}>;
+type GetActiveRouteSchema = OpenAPIRouteSchema<typeof getActiveRoute, {}>;
+type SetActiveRouteSchema = OpenAPIRouteSchema<
+    typeof setActiveRoute,
+    { json: z.input<typeof SetWorkspaceSchema> }
+>;
+type ClearActiveRouteSchema = OpenAPIRouteSchema<typeof clearActiveRoute, {}>;
+
+export type WorkspacesRouterSchema =
+    | ListRouteSchema
+    | GetActiveRouteSchema
+    | SetActiveRouteSchema
+    | ClearActiveRouteSchema;

@@ -6,7 +6,7 @@ import {
     NotFoundErrorResponse,
     ResourceSchema,
 } from '../schemas/responses.js';
-import type { GetAgentFn } from '../types.js';
+import type { GetAgentFn, OpenAPIRouteSchema } from '../types.js';
 
 const ResourceIdParamSchema = z
     .object({
@@ -59,60 +59,60 @@ const ReadResourceResponseSchema = z
     .strict()
     .describe('Resource content response');
 
+const listRoute = createRoute({
+    method: 'get',
+    path: '/resources',
+    summary: 'List All Resources',
+    description:
+        'Retrieves a list of all available resources from all sources (MCP servers and internal providers)',
+    tags: ['resources'],
+    responses: {
+        200: {
+            description: 'List all resources',
+            content: { 'application/json': { schema: ListResourcesResponseSchema } },
+        },
+        500: InternalErrorResponse,
+    },
+});
+
+const getContentRoute = createRoute({
+    method: 'get',
+    path: '/resources/{resourceId}/content',
+    summary: 'Read Resource Content',
+    description:
+        'Reads the content of a specific resource by its URI. The resource ID in the URL must be URI-encoded',
+    tags: ['resources'],
+    request: {
+        params: ResourceIdParamSchema,
+    },
+    responses: {
+        200: {
+            description: 'Resource content',
+            content: { 'application/json': { schema: ReadResourceResponseSchema } },
+        },
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const headRoute = createRoute({
+    method: 'head',
+    path: '/resources/{resourceId}',
+    summary: 'Check Resource Exists',
+    description: 'Checks if a resource exists by its URI without retrieving its content',
+    tags: ['resources'],
+    request: {
+        params: ResourceIdParamSchema,
+    },
+    responses: {
+        200: { description: 'Resource exists' },
+        404: { description: 'Resource not found' },
+    },
+});
+
 export function createResourcesRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
-
-    const listRoute = createRoute({
-        method: 'get',
-        path: '/resources',
-        summary: 'List All Resources',
-        description:
-            'Retrieves a list of all available resources from all sources (MCP servers and internal providers)',
-        tags: ['resources'],
-        responses: {
-            200: {
-                description: 'List all resources',
-                content: { 'application/json': { schema: ListResourcesResponseSchema } },
-            },
-            500: InternalErrorResponse,
-        },
-    });
-
-    const getContentRoute = createRoute({
-        method: 'get',
-        path: '/resources/{resourceId}/content',
-        summary: 'Read Resource Content',
-        description:
-            'Reads the content of a specific resource by its URI. The resource ID in the URL must be URI-encoded',
-        tags: ['resources'],
-        request: {
-            params: ResourceIdParamSchema,
-        },
-        responses: {
-            200: {
-                description: 'Resource content',
-                content: { 'application/json': { schema: ReadResourceResponseSchema } },
-            },
-            400: BadRequestErrorResponse,
-            404: NotFoundErrorResponse,
-            500: InternalErrorResponse,
-        },
-    });
-
-    const headRoute = createRoute({
-        method: 'head',
-        path: '/resources/{resourceId}',
-        summary: 'Check Resource Exists',
-        description: 'Checks if a resource exists by its URI without retrieving its content',
-        tags: ['resources'],
-        request: {
-            params: ResourceIdParamSchema,
-        },
-        responses: {
-            200: { description: 'Resource exists' },
-            404: { description: 'Resource not found' },
-        },
-    });
 
     return app
         .openapi(listRoute, async (ctx) => {
@@ -145,3 +145,11 @@ export function createResourcesRouter(getAgent: GetAgentFn) {
             return ctx.body(null, exists ? 200 : 404);
         });
 }
+
+type ResourceIdParamInput = { param: z.input<typeof ResourceIdParamSchema> };
+
+type ListRouteSchema = OpenAPIRouteSchema<typeof listRoute, {}>;
+type GetContentRouteSchema = OpenAPIRouteSchema<typeof getContentRoute, ResourceIdParamInput>;
+type HeadRouteSchema = OpenAPIRouteSchema<typeof headRoute, ResourceIdParamInput>;
+
+export type ResourcesRouterSchema = ListRouteSchema | GetContentRouteSchema | HeadRouteSchema;
