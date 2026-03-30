@@ -324,7 +324,7 @@ setup:
                 },
                 defaults: {
                     defaultAgent: 'my-agent',
-                    defaultMode: 'web',
+                    defaultMode: 'cli',
                 },
                 setup: {
                     completed: true,

@@ -6,6 +6,8 @@ vi.mock('@dexto/agent-management', async () => {
     const actual = await vi.importActual('@dexto/agent-management');
     return {
         ...actual,
+        findDextoProjectRoot: vi.fn(),
+        findProjectRegistryPathSync: vi.fn(),
         globalPreferencesExist: vi.fn(),
         loadGlobalPreferences: vi.fn(),
     };
@@ -19,7 +21,12 @@ vi.mock('@dexto/core', async () => {
     };
 });
 
-const { globalPreferencesExist, loadGlobalPreferences } = await import('@dexto/agent-management');
+const {
+    findDextoProjectRoot,
+    findProjectRegistryPathSync,
+    globalPreferencesExist,
+    loadGlobalPreferences,
+} = await import('@dexto/agent-management');
 const { getExecutionContext } = await import('@dexto/core');
 
 describe('requiresSetup', () => {
@@ -28,6 +35,8 @@ describe('requiresSetup', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         delete process.env.DEXTO_DEV_MODE;
+        vi.mocked(findDextoProjectRoot).mockReturnValue(null);
+        vi.mocked(findProjectRegistryPathSync).mockReturnValue(null);
     });
 
     afterEach(() => {
@@ -63,10 +72,11 @@ describe('requiresSetup', () => {
 
         it('should not skip setup in project context', async () => {
             vi.mocked(getExecutionContext).mockReturnValue('dexto-project');
+            vi.mocked(globalPreferencesExist).mockReturnValue(false);
 
             const result = await requiresSetup();
 
-            expect(result).toBe(false);
+            expect(result).toBe(true);
         });
     });
 
@@ -75,21 +85,55 @@ describe('requiresSetup', () => {
             vi.mocked(getExecutionContext).mockReturnValue('dexto-project');
         });
 
-        it('should skip setup even for first-time user', async () => {
+        it('should not require setup when a project registry exists', async () => {
+            vi.mocked(findDextoProjectRoot).mockReturnValue('/workspace');
+            vi.mocked(findProjectRegistryPathSync).mockReturnValue(
+                '/workspace/agents/registry.json'
+            );
+
+            const result = await requiresSetup();
+
+            expect(result).toBe(false);
+            expect(globalPreferencesExist).not.toHaveBeenCalled();
+        });
+
+        it('should require setup for first-time user', async () => {
             vi.mocked(globalPreferencesExist).mockReturnValue(false);
 
             const result = await requiresSetup();
 
-            expect(result).toBe(false);
+            expect(result).toBe(true);
         });
 
-        it('should skip setup even with existing preferences', async () => {
+        it('should validate existing preferences', async () => {
             vi.mocked(globalPreferencesExist).mockReturnValue(true);
+            vi.mocked(loadGlobalPreferences).mockResolvedValue({
+                llm: {
+                    provider: 'google',
+                    model: 'gemini-2.5-pro',
+                    apiKey: '$GOOGLE_GENERATIVE_AI_API_KEY',
+                },
+                defaults: {
+                    defaultAgent: 'coding-agent',
+                    defaultMode: 'web',
+                },
+                setup: {
+                    completed: true,
+                    apiKeyPending: false,
+                    baseURLPending: false,
+                },
+                sounds: {
+                    enabled: true,
+                    onStartup: true,
+                    onApprovalRequired: true,
+                    onTaskComplete: true,
+                },
+            });
 
             const result = await requiresSetup();
 
             expect(result).toBe(false);
-            expect(loadGlobalPreferences).not.toHaveBeenCalled();
+            expect(loadGlobalPreferences).toHaveBeenCalled();
         });
     });
 
@@ -108,6 +152,14 @@ describe('requiresSetup', () => {
 
         it('should require setup in global-cli context', async () => {
             vi.mocked(getExecutionContext).mockReturnValue('global-cli');
+
+            const result = await requiresSetup();
+
+            expect(result).toBe(true);
+        });
+
+        it('should require setup in project context', async () => {
+            vi.mocked(getExecutionContext).mockReturnValue('dexto-project');
 
             const result = await requiresSetup();
 

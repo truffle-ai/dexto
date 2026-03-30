@@ -178,7 +178,7 @@ vi.mock('@dexto/agent-management', () => {
                     llm: llmConfig,
                     defaults: {
                         defaultAgent: options.defaultAgent || 'coding-agent',
-                        defaultMode: options.defaultMode || 'web',
+                        defaultMode: options.defaultMode || 'cli',
                     },
                     setup: { completed: options.setupCompleted ?? true },
                 };
@@ -360,7 +360,7 @@ describe('Setup Command', () => {
                     llm: llmConfig,
                     defaults: {
                         defaultAgent: options.defaultAgent || 'coding-agent',
-                        defaultMode: options.defaultMode || 'web',
+                        defaultMode: options.defaultMode || 'cli',
                     },
                     setup: { completed: options.setupCompleted ?? true },
                 };
@@ -896,7 +896,7 @@ describe('Setup Command', () => {
                 },
                 defaults: {
                     defaultAgent: options.defaultAgent || 'coding-agent',
-                    defaultMode: 'web',
+                    defaultMode: 'cli',
                 },
                 setup: { completed: true },
             }));
@@ -920,7 +920,7 @@ describe('Setup Command', () => {
                 },
                 defaults: {
                     defaultAgent: options.defaultAgent || 'coding-agent',
-                    defaultMode: 'web',
+                    defaultMode: 'cli',
                 },
                 setup: { completed: true },
             }));
@@ -993,7 +993,7 @@ describe('Setup Command', () => {
                 },
                 defaults: {
                     defaultAgent: options.defaultAgent || 'coding-agent',
-                    defaultMode: 'web',
+                    defaultMode: 'cli',
                 },
                 setup: { completed: true },
             }));

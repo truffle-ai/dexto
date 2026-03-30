@@ -532,32 +532,42 @@ describe('Agent Resolver', () => {
             expect(result).toBe(agentConfigPath);
         });
 
-        it('throws ConfigError.noProjectDefault when no project default and no preferences', async () => {
-            // No project default file
+        it('falls back to bundled coding-agent when no project default and no preferences', async () => {
             mockGlobalPreferencesExist.mockReturnValue(false);
-
-            await expect(resolveAgentPath()).rejects.toThrow(
-                expect.objectContaining({
-                    code: ConfigErrorCode.NO_PROJECT_DEFAULT,
-                })
+            const bundledCodingAgentPath = path.join(
+                tempDir,
+                '.dexto',
+                'agents',
+                'coding-agent',
+                'agent.yml'
             );
+            mockInstallBundledAgent.mockResolvedValue(bundledCodingAgentPath);
+
+            const result = await resolveAgentPath();
+
+            expect(result).toBe(bundledCodingAgentPath);
+            expect(mockInstallBundledAgent).toHaveBeenCalledWith('coding-agent');
         });
 
-        it('throws ConfigError.setupIncomplete when preferences setup incomplete', async () => {
-            // No project default file
+        it('falls back to bundled coding-agent when preferences setup is incomplete', async () => {
             mockGlobalPreferencesExist.mockReturnValue(true);
             mockLoadGlobalPreferences.mockResolvedValue({
                 setup: { completed: false },
                 defaults: { defaultAgent: 'my-agent' },
             });
-
-            await expect(resolveAgentPath()).rejects.toThrow(
-                expect.objectContaining({
-                    code: ConfigErrorCode.SETUP_INCOMPLETE,
-                    scope: ErrorScope.CONFIG,
-                    type: ErrorType.USER,
-                })
+            const bundledCodingAgentPath = path.join(
+                tempDir,
+                '.dexto',
+                'agents',
+                'coding-agent',
+                'agent.yml'
             );
+            mockInstallBundledAgent.mockResolvedValue(bundledCodingAgentPath);
+
+            const result = await resolveAgentPath();
+
+            expect(result).toBe(bundledCodingAgentPath);
+            expect(mockInstallBundledAgent).toHaveBeenCalledWith('coding-agent');
         });
     });
 
@@ -611,32 +621,42 @@ describe('Agent Resolver', () => {
             expect(result).toBe(agentConfigPath);
         });
 
-        it('throws ConfigError.noGlobalPreferences when no preferences exist', async () => {
+        it('falls back to bundled coding-agent when no preferences exist', async () => {
             mockGlobalPreferencesExist.mockReturnValue(false);
-
-            await expect(resolveAgentPath()).rejects.toThrow(
-                expect.objectContaining({
-                    code: ConfigErrorCode.NO_GLOBAL_PREFERENCES,
-                    scope: ErrorScope.CONFIG,
-                    type: ErrorType.USER,
-                })
+            const bundledCodingAgentPath = path.join(
+                tempDir,
+                '.dexto',
+                'agents',
+                'coding-agent',
+                'agent.yml'
             );
+            mockInstallBundledAgent.mockResolvedValue(bundledCodingAgentPath);
+
+            const result = await resolveAgentPath();
+
+            expect(result).toBe(bundledCodingAgentPath);
+            expect(mockInstallBundledAgent).toHaveBeenCalledWith('coding-agent');
         });
 
-        it('throws ConfigError.setupIncomplete when setup incomplete', async () => {
+        it('falls back to bundled coding-agent when setup is incomplete', async () => {
             mockGlobalPreferencesExist.mockReturnValue(true);
             mockLoadGlobalPreferences.mockResolvedValue({
                 setup: { completed: false },
                 defaults: { defaultAgent: 'my-agent' },
             });
-
-            await expect(resolveAgentPath()).rejects.toThrow(
-                expect.objectContaining({
-                    code: ConfigErrorCode.SETUP_INCOMPLETE,
-                    scope: ErrorScope.CONFIG,
-                    type: ErrorType.USER,
-                })
+            const bundledCodingAgentPath = path.join(
+                tempDir,
+                '.dexto',
+                'agents',
+                'coding-agent',
+                'agent.yml'
             );
+            mockInstallBundledAgent.mockResolvedValue(bundledCodingAgentPath);
+
+            const result = await resolveAgentPath();
+
+            expect(result).toBe(bundledCodingAgentPath);
+            expect(mockInstallBundledAgent).toHaveBeenCalledWith('coding-agent');
         });
     });
 

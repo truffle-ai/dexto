@@ -253,19 +253,17 @@ async function resolveDefaultAgentForDextoProject(autoInstall: boolean = true): 
     }
     logger.debug(`No project-local coding-agent found in ${projectRoot}`);
 
-    // 3. Use preferences default agent name - REQUIRED if no project default
-    if (!globalPreferencesExist()) {
-        throw ConfigError.noProjectDefault(projectRoot);
+    // 3. Use preferences default agent when setup is complete
+    if (globalPreferencesExist()) {
+        const preferences = await loadGlobalPreferences();
+        if (preferences.setup.completed && preferences.defaults.defaultAgent) {
+            const preferredAgentName = preferences.defaults.defaultAgent;
+            return await resolveAgentByName(preferredAgentName, autoInstall);
+        }
     }
 
-    const preferences = await loadGlobalPreferences();
-
-    if (!preferences.setup.completed) {
-        throw ConfigError.setupIncomplete();
-    }
-
-    const preferredAgentName = preferences.defaults.defaultAgent;
-    return await resolveAgentByName(preferredAgentName, autoInstall);
+    // 4. Final fallback: bundled coding-agent.
+    return await resolveAgentByName('coding-agent', autoInstall);
 }
 
 /**
@@ -273,18 +271,15 @@ async function resolveDefaultAgentForDextoProject(autoInstall: boolean = true): 
  */
 async function resolveDefaultAgentForGlobalCLI(autoInstall: boolean = true): Promise<string> {
     logger.debug('Resolving default agent for global CLI context');
-    if (!globalPreferencesExist()) {
-        throw ConfigError.noGlobalPreferences();
+    if (globalPreferencesExist()) {
+        const preferences = await loadGlobalPreferences();
+        if (preferences.setup.completed && preferences.defaults.defaultAgent) {
+            const preferredAgentName = preferences.defaults.defaultAgent;
+            return await resolveAgentByName(preferredAgentName, autoInstall);
+        }
     }
 
-    const preferences = await loadGlobalPreferences();
-
-    if (!preferences.setup.completed) {
-        throw ConfigError.setupIncomplete();
-    }
-
-    const preferredAgentName = preferences.defaults.defaultAgent;
-    return await resolveAgentByName(preferredAgentName, autoInstall);
+    return await resolveAgentByName('coding-agent', autoInstall);
 }
 
 /**

@@ -1,6 +1,7 @@
-import { describe, test, expect } from 'vitest';
+import { afterEach, describe, test, expect } from 'vitest';
 import {
     applyCLIOverrides,
+    applyStartupLLMFallback,
     applyUserPreferences,
     type CLIConfigOverrides,
 } from './cli-overrides.js';
@@ -230,5 +231,140 @@ describe('applyUserPreferences', () => {
         // Original should be unchanged
         expect(originalConfig.llm.provider).toBe('anthropic');
         expect(originalConfig.llm.model).toBe('claude-haiku-4-5-20251001');
+    });
+});
+
+describe('applyStartupLLMFallback', () => {
+    const originalOpenAiKey = process.env.OPENAI_API_KEY;
+    const originalAnthropicKey = process.env.ANTHROPIC_API_KEY;
+    const originalCustomAnthropicKey = process.env.CUSTOM_ANTHROPIC_KEY;
+
+    const bundledCodingAgentConfig: AgentConfig = {
+        systemPrompt: 'test agent',
+        llm: {
+            provider: 'anthropic',
+            model: 'claude-sonnet-4-5-20250929',
+            apiKey: '$ANTHROPIC_API_KEY',
+        },
+    };
+
+    afterEach(() => {
+        if (originalOpenAiKey === undefined) {
+            delete process.env.OPENAI_API_KEY;
+        } else {
+            process.env.OPENAI_API_KEY = originalOpenAiKey;
+        }
+
+        if (originalAnthropicKey === undefined) {
+            delete process.env.ANTHROPIC_API_KEY;
+        } else {
+            process.env.ANTHROPIC_API_KEY = originalAnthropicKey;
+        }
+
+        if (originalCustomAnthropicKey === undefined) {
+            delete process.env.CUSTOM_ANTHROPIC_KEY;
+        } else {
+            process.env.CUSTOM_ANTHROPIC_KEY = originalCustomAnthropicKey;
+        }
+    });
+
+    test('switches to an already-configured provider when setup is incomplete', () => {
+        delete process.env.ANTHROPIC_API_KEY;
+        process.env.OPENAI_API_KEY = 'sk-test-openai';
+
+        const result = applyStartupLLMFallback(clone(bundledCodingAgentConfig), {
+            hasCompletedSetup: false,
+            hasExplicitProviderOverride: false,
+            hasExplicitModelOverride: false,
+            hasExplicitApiKeyOverride: false,
+        });
+
+        expect(result.llm.provider).toBe('openai');
+        expect(result.llm.model).toBe('gpt-5-mini');
+        expect(result.llm.apiKey).toBe('sk-test-openai');
+    });
+
+    test('keeps bundled provider when its credentials already exist', () => {
+        process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
+        delete process.env.OPENAI_API_KEY;
+
+        const result = applyStartupLLMFallback(clone(bundledCodingAgentConfig), {
+            hasCompletedSetup: false,
+            hasExplicitProviderOverride: false,
+            hasExplicitModelOverride: false,
+            hasExplicitApiKeyOverride: false,
+        });
+
+        expect(result.llm.provider).toBe('anthropic');
+        expect(result.llm.model).toBe('claude-sonnet-4-5-20250929');
+        expect(result.llm.apiKey).toBe('$ANTHROPIC_API_KEY');
+    });
+
+    test('does not override explicit startup choices', () => {
+        delete process.env.ANTHROPIC_API_KEY;
+        process.env.OPENAI_API_KEY = 'sk-test-openai';
+
+        const result = applyStartupLLMFallback(clone(bundledCodingAgentConfig), {
+            hasCompletedSetup: false,
+            hasExplicitProviderOverride: true,
+            hasExplicitModelOverride: false,
+            hasExplicitApiKeyOverride: false,
+        });
+
+        expect(result.llm.provider).toBe('anthropic');
+        expect(result.llm.model).toBe('claude-sonnet-4-5-20250929');
+    });
+
+    test('keeps agent config when it already carries a usable inline api key', () => {
+        delete process.env.ANTHROPIC_API_KEY;
+        process.env.OPENAI_API_KEY = 'sk-test-openai';
+
+        const result = applyStartupLLMFallback(
+            clone({
+                ...bundledCodingAgentConfig,
+                llm: {
+                    provider: 'anthropic',
+                    model: 'claude-sonnet-4-5-20250929',
+                    apiKey: 'sk-inline-anthropic',
+                },
+            }),
+            {
+                hasCompletedSetup: false,
+                hasExplicitProviderOverride: false,
+                hasExplicitModelOverride: false,
+                hasExplicitApiKeyOverride: false,
+            }
+        );
+
+        expect(result.llm.provider).toBe('anthropic');
+        expect(result.llm.model).toBe('claude-sonnet-4-5-20250929');
+        expect(result.llm.apiKey).toBe('sk-inline-anthropic');
+    });
+
+    test('keeps agent config when its api key comes from a non-provider env var', () => {
+        delete process.env.ANTHROPIC_API_KEY;
+        process.env.CUSTOM_ANTHROPIC_KEY = 'sk-custom-anthropic';
+        process.env.OPENAI_API_KEY = 'sk-test-openai';
+
+        const result = applyStartupLLMFallback(
+            clone({
+                ...bundledCodingAgentConfig,
+                llm: {
+                    provider: 'anthropic',
+                    model: 'claude-sonnet-4-5-20250929',
+                    apiKey: '$CUSTOM_ANTHROPIC_KEY',
+                },
+            }),
+            {
+                hasCompletedSetup: false,
+                hasExplicitProviderOverride: false,
+                hasExplicitModelOverride: false,
+                hasExplicitApiKeyOverride: false,
+            }
+        );
+
+        expect(result.llm.provider).toBe('anthropic');
+        expect(result.llm.model).toBe('claude-sonnet-4-5-20250929');
+        expect(result.llm.apiKey).toBe('$CUSTOM_ANTHROPIC_KEY');
     });
 });
