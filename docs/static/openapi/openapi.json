@@ -2550,7 +2550,7 @@
                                   "enum": [
                                     "text"
                                   ],
-                                  "description": "Content type identifier"
+                                  "description": "Part type: text"
                                 },
                                 "text": {
                                   "type": "string",
@@ -2561,6 +2561,7 @@
                                 "type",
                                 "text"
                               ],
+                              "additionalProperties": false,
                               "description": "Text content part"
                             },
                             {
@@ -2571,21 +2572,22 @@
                                   "enum": [
                                     "image"
                                   ],
-                                  "description": "Content type identifier"
+                                  "description": "Part type: image"
                                 },
                                 "image": {
                                   "type": "string",
-                                  "description": "Base64-encoded image data or URL"
+                                  "description": "Base64-encoded image data"
                                 },
                                 "mimeType": {
                                   "type": "string",
-                                  "description": "MIME type (e.g., image/png)"
+                                  "description": "MIME type of the image"
                                 }
                               },
                               "required": [
                                 "type",
                                 "image"
                               ],
+                              "additionalProperties": false,
                               "description": "Image content part"
                             },
                             {
@@ -2596,15 +2598,15 @@
                                   "enum": [
                                     "file"
                                   ],
-                                  "description": "Content type identifier"
+                                  "description": "Part type: file"
                                 },
                                 "data": {
                                   "type": "string",
-                                  "description": "Base64-encoded file data or URL"
+                                  "description": "Base64-encoded file data"
                                 },
                                 "mimeType": {
                                   "type": "string",
-                                  "description": "MIME type (e.g., application/pdf)"
+                                  "description": "MIME type of the file"
                                 },
                                 "filename": {
                                   "type": "string",
@@ -2616,10 +2618,11 @@
                                 "data",
                                 "mimeType"
                               ],
+                              "additionalProperties": false,
                               "description": "File content part"
                             }
                           ],
-                          "description": "Content part - text, image, or file"
+                          "description": "Request message content part (text, image, or file)"
                         }
                       }
                     ],
@@ -2853,7 +2856,7 @@
                                   "enum": [
                                     "text"
                                   ],
-                                  "description": "Content type identifier"
+                                  "description": "Part type: text"
                                 },
                                 "text": {
                                   "type": "string",
@@ -2864,6 +2867,7 @@
                                 "type",
                                 "text"
                               ],
+                              "additionalProperties": false,
                               "description": "Text content part"
                             },
                             {
@@ -2874,21 +2878,22 @@
                                   "enum": [
                                     "image"
                                   ],
-                                  "description": "Content type identifier"
+                                  "description": "Part type: image"
                                 },
                                 "image": {
                                   "type": "string",
-                                  "description": "Base64-encoded image data or URL"
+                                  "description": "Base64-encoded image data"
                                 },
                                 "mimeType": {
                                   "type": "string",
-                                  "description": "MIME type (e.g., image/png)"
+                                  "description": "MIME type of the image"
                                 }
                               },
                               "required": [
                                 "type",
                                 "image"
                               ],
+                              "additionalProperties": false,
                               "description": "Image content part"
                             },
                             {
@@ -2899,15 +2904,15 @@
                                   "enum": [
                                     "file"
                                   ],
-                                  "description": "Content type identifier"
+                                  "description": "Part type: file"
                                 },
                                 "data": {
                                   "type": "string",
-                                  "description": "Base64-encoded file data or URL"
+                                  "description": "Base64-encoded file data"
                                 },
                                 "mimeType": {
                                   "type": "string",
-                                  "description": "MIME type (e.g., application/pdf)"
+                                  "description": "MIME type of the file"
                                 },
                                 "filename": {
                                   "type": "string",
@@ -2919,10 +2924,11 @@
                                 "data",
                                 "mimeType"
                               ],
+                              "additionalProperties": false,
                               "description": "File content part"
                             }
                           ],
-                          "description": "Content part - text, image, or file"
+                          "description": "Request message content part (text, image, or file)"
                         }
                       }
                     ],
@@ -3299,7 +3305,7 @@
                                   "enum": [
                                     "text"
                                   ],
-                                  "description": "Content type identifier"
+                                  "description": "Part type: text"
                                 },
                                 "text": {
                                   "type": "string",
@@ -3310,6 +3316,7 @@
                                 "type",
                                 "text"
                               ],
+                              "additionalProperties": false,
                               "description": "Text content part"
                             },
                             {
@@ -3320,21 +3327,22 @@
                                   "enum": [
                                     "image"
                                   ],
-                                  "description": "Content type identifier"
+                                  "description": "Part type: image"
                                 },
                                 "image": {
                                   "type": "string",
-                                  "description": "Base64-encoded image data or URL"
+                                  "description": "Base64-encoded image data"
                                 },
                                 "mimeType": {
                                   "type": "string",
-                                  "description": "MIME type (e.g., image/png)"
+                                  "description": "MIME type of the image"
                                 }
                               },
                               "required": [
                                 "type",
                                 "image"
                               ],
+                              "additionalProperties": false,
                               "description": "Image content part"
                             },
                             {
@@ -3345,15 +3353,15 @@
                                   "enum": [
                                     "file"
                                   ],
-                                  "description": "Content type identifier"
+                                  "description": "Part type: file"
                                 },
                                 "data": {
                                   "type": "string",
-                                  "description": "Base64-encoded file data or URL"
+                                  "description": "Base64-encoded file data"
                                 },
                                 "mimeType": {
                                   "type": "string",
-                                  "description": "MIME type (e.g., application/pdf)"
+                                  "description": "MIME type of the file"
                                 },
                                 "filename": {
                                   "type": "string",
@@ -3365,10 +3373,11 @@
                                 "data",
                                 "mimeType"
                               ],
+                              "additionalProperties": false,
                               "description": "File content part"
                             }
                           ],
-                          "description": "Content part - text, image, or file"
+                          "description": "Request message content part (text, image, or file)"
                         }
                       }
                     ],
@@ -20871,7 +20880,7 @@
                                   "enum": [
                                     "text"
                                   ],
-                                  "description": "Content type identifier"
+                                  "description": "Part type: text"
                                 },
                                 "text": {
                                   "type": "string",
@@ -20882,6 +20891,7 @@
                                 "type",
                                 "text"
                               ],
+                              "additionalProperties": false,
                               "description": "Text content part"
                             },
                             {
@@ -20892,21 +20902,22 @@
                                   "enum": [
                                     "image"
                                   ],
-                                  "description": "Content type identifier"
+                                  "description": "Part type: image"
                                 },
                                 "image": {
                                   "type": "string",
-                                  "description": "Base64-encoded image data or URL"
+                                  "description": "Base64-encoded image data"
                                 },
                                 "mimeType": {
                                   "type": "string",
-                                  "description": "MIME type (e.g., image/png)"
+                                  "description": "MIME type of the image"
                                 }
                               },
                               "required": [
                                 "type",
                                 "image"
                               ],
+                              "additionalProperties": false,
                               "description": "Image content part"
                             },
                             {
@@ -20917,15 +20928,15 @@
                                   "enum": [
                                     "file"
                                   ],
-                                  "description": "Content type identifier"
+                                  "description": "Part type: file"
                                 },
                                 "data": {
                                   "type": "string",
-                                  "description": "Base64-encoded file data or URL"
+                                  "description": "Base64-encoded file data"
                                 },
                                 "mimeType": {
                                   "type": "string",
-                                  "description": "MIME type (e.g., application/pdf)"
+                                  "description": "MIME type of the file"
                                 },
                                 "filename": {
                                   "type": "string",
@@ -20937,10 +20948,11 @@
                                 "data",
                                 "mimeType"
                               ],
+                              "additionalProperties": false,
                               "description": "File content part"
                             }
                           ],
-                          "description": "Content part - text, image, or file"
+                          "description": "Request message content part (text, image, or file)"
                         }
                       }
                     ],
