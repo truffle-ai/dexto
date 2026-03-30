@@ -116,7 +116,7 @@ Upgrade/uninstall and migration troubleshooting live in docs:
 ### Run
 
 ```bash
-# Start Dexto (launches setup wizard on first run)
+# Start Dexto
 dexto
 ```
 
@@ -131,6 +131,8 @@ dexto --help                                       # Explore all options
 ```
 
 **Inside the interactive CLI**, type `/` to explore commands—switch models, manage sessions, configure tools, and more.
+
+If Dexto has not been set up yet, the first interactive launch opens the generic `dexto setup` flow before starting. Existing provider keys in your environment are detected there, so you can keep startup simple without inheriting the wrong bundled provider by accident.
 
 ### Manage Settings
 
@@ -595,9 +597,8 @@ Test tools before deploying:
 Usage: dexto [options] [command] [prompt...]
 
 Basic Usage:
-  dexto                    Start web UI (default)
-  dexto "query"            Run one-shot query
-  dexto --mode cli         Interactive CLI
+  dexto or dexto --mode cli  Start interactive CLI (default)
+  dexto "query"              Run one-shot query
 
 Session Management:
   dexto -c                 Continue last conversation

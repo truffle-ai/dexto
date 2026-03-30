@@ -1,7 +1,9 @@
 import chalk from 'chalk';
+import * as p from '@clack/prompts';
 import type { DextoAgent } from '@dexto/core';
 import { logger } from '@dexto/core';
 import { safeExit, ExitSignal } from '../../analytics/wrapper.js';
+import { hasUsableCredentials } from '../../config/cli-overrides.js';
 import type { MainModeContext } from './context.js';
 import { applyWorkspaceToAgent } from '../../utils/workspace.js';
 
@@ -51,34 +53,121 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
         await agent.start();
         await applyWorkspaceToAgent(agent, workspaceRoot);
         const llmConfig = agent.getCurrentLLMConfig();
-        const { requiresApiKey } = await import('@dexto/core');
-        if (requiresApiKey(llmConfig.provider) && !llmConfig.apiKey?.trim()) {
+        if (!hasUsableCredentials(llmConfig.provider, llmConfig)) {
+            const { globalPreferencesExist, loadGlobalPreferences } = await import(
+                '@dexto/agent-management'
+            );
             const { interactiveApiKeySetup } = await import('../utils/api-key-setup.js');
-
-            console.log(
-                chalk.yellow(`\n⚠️  API key required for provider '${llmConfig.provider}'\n`)
+            const { getProviderDisplayName, getProviderEnvVar } = await import(
+                '../utils/provider-setup.js'
             );
 
-            const setupResult = await interactiveApiKeySetup(llmConfig.provider, {
-                exitOnCancel: false,
-                model: llmConfig.model,
-            });
-
-            if (setupResult.cancelled) {
-                safeExit('main', 0, 'api-key-setup-cancelled');
+            let hasCompletedSetup = false;
+            if (globalPreferencesExist()) {
+                try {
+                    const preferences = await loadGlobalPreferences();
+                    hasCompletedSetup = preferences.setup.completed;
+                } catch {
+                    hasCompletedSetup = false;
+                }
             }
 
-            if (setupResult.skipped) {
-                safeExit('main', 0, 'api-key-pending');
+            console.log(
+                chalk.yellow(
+                    `\n⚠️  API key required for provider '${getProviderDisplayName(llmConfig.provider)}'\n`
+                )
+            );
+
+            if (!hasCompletedSetup) {
+                console.log(
+                    chalk.gray(
+                        `Dexto started with the bundled coding-agent defaults. ` +
+                            `Set ${getProviderEnvVar(llmConfig.provider)} or run ${chalk.cyan(
+                                'dexto setup'
+                            )} to choose a different provider.`
+                    )
+                );
             }
 
-            if (setupResult.success && setupResult.apiKey) {
-                await agent.switchLLM({
-                    provider: llmConfig.provider,
+            const runProviderKeySetup = async () => {
+                const setupResult = await interactiveApiKeySetup(llmConfig.provider, {
+                    exitOnCancel: false,
                     model: llmConfig.model,
-                    apiKey: setupResult.apiKey,
                 });
-                logger.info('API key configured successfully, continuing...');
+
+                if (setupResult.cancelled) {
+                    safeExit('main', 0, 'api-key-setup-cancelled');
+                }
+
+                if (setupResult.skipped) {
+                    safeExit('main', 0, 'api-key-pending');
+                }
+
+                if (setupResult.success && setupResult.apiKey) {
+                    await agent.switchLLM({
+                        provider: llmConfig.provider,
+                        model: llmConfig.model,
+                        apiKey: setupResult.apiKey,
+                    });
+                    logger.info('API key configured successfully, continuing...');
+                }
+            };
+
+            if (hasCompletedSetup) {
+                await runProviderKeySetup();
+            } else {
+                const action = await p.select({
+                    message: 'How would you like to continue?',
+                    options: [
+                        {
+                            value: 'key',
+                            label: `Paste a ${getProviderDisplayName(llmConfig.provider)} key`,
+                            hint: 'Continue in this session',
+                        },
+                        {
+                            value: 'setup',
+                            label: 'Run dexto setup',
+                            hint: 'Choose a different provider or save defaults',
+                        },
+                        {
+                            value: 'exit',
+                            label: 'Exit',
+                            hint: 'Configure later',
+                        },
+                    ],
+                });
+
+                if (p.isCancel(action) || action === 'exit') {
+                    safeExit('main', 0, 'api-key-setup-cancelled');
+                }
+
+                if (action === 'setup') {
+                    const { handleSetupCommand } = await import('../commands/setup.js');
+                    await handleSetupCommand({ interactive: true, force: true });
+
+                    let preferences;
+                    try {
+                        preferences = await loadGlobalPreferences();
+                    } catch {
+                        safeExit('main', 0, 'setup-incomplete');
+                    }
+
+                    if (!preferences.setup.completed) {
+                        safeExit('main', 0, 'setup-incomplete');
+                    }
+                    if (preferences.setup.apiKeyPending) {
+                        safeExit('main', 0, 'api-key-pending');
+                    }
+                    await agent.switchLLM({
+                        provider: preferences.llm.provider,
+                        model: preferences.llm.model,
+                        ...(preferences.llm.apiKey && { apiKey: preferences.llm.apiKey }),
+                        ...(preferences.llm.baseURL && { baseURL: preferences.llm.baseURL }),
+                    });
+                    logger.info('Provider configured successfully, continuing...');
+                } else {
+                    await runProviderKeySetup();
+                }
             }
         }
 

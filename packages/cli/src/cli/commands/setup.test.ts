@@ -178,7 +178,7 @@ vi.mock('@dexto/agent-management', () => {
                     llm: llmConfig,
                     defaults: {
                         defaultAgent: options.defaultAgent || 'coding-agent',
-                        defaultMode: options.defaultMode || 'web',
+                        defaultMode: options.defaultMode || 'cli',
                     },
                     setup: { completed: options.setupCompleted ?? true },
                 };
@@ -360,7 +360,7 @@ describe('Setup Command', () => {
                     llm: llmConfig,
                     defaults: {
                         defaultAgent: options.defaultAgent || 'coding-agent',
-                        defaultMode: options.defaultMode || 'web',
+                        defaultMode: options.defaultMode || 'cli',
                     },
                     setup: { completed: options.setupCompleted ?? true },
                 };
@@ -430,6 +430,26 @@ describe('Setup Command', () => {
             });
             expect(mockSaveGlobalPreferences).toHaveBeenCalled();
             expect(mockInteractiveApiKeySetup).not.toHaveBeenCalled();
+        });
+
+        it('forwards defaultMode in non-interactive setup', async () => {
+            const options: CLISetupOptionsInput = {
+                provider: 'openai',
+                model: 'gpt-5',
+                defaultMode: 'server',
+                interactive: false,
+            };
+
+            await handleSetupCommand(options);
+
+            expect(mockCreateInitialPreferences).toHaveBeenCalledWith({
+                provider: 'openai',
+                model: 'gpt-5',
+                apiKeyVar: 'OPENAI_API_KEY',
+                defaultMode: 'server',
+                defaultAgent: 'coding-agent',
+                setupCompleted: true,
+            });
         });
 
         it('uses default model when not specified', async () => {
@@ -896,7 +916,7 @@ describe('Setup Command', () => {
                 },
                 defaults: {
                     defaultAgent: options.defaultAgent || 'coding-agent',
-                    defaultMode: 'web',
+                    defaultMode: 'cli',
                 },
                 setup: { completed: true },
             }));
@@ -920,7 +940,7 @@ describe('Setup Command', () => {
                 },
                 defaults: {
                     defaultAgent: options.defaultAgent || 'coding-agent',
-                    defaultMode: 'web',
+                    defaultMode: 'cli',
                 },
                 setup: { completed: true },
             }));
@@ -993,7 +1013,7 @@ describe('Setup Command', () => {
                 },
                 defaults: {
                     defaultAgent: options.defaultAgent || 'coding-agent',
-                    defaultMode: 'web',
+                    defaultMode: 'cli',
                 },
                 setup: { completed: true },
             }));
