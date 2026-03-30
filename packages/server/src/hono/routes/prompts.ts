@@ -1,5 +1,4 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { DextoAgent } from '@dexto/core';
 import { PromptError } from '@dexto/core';
 import {
     ApiErrorResponseSchema,
@@ -8,8 +7,7 @@ import {
     PromptDefinitionSchema,
     PromptInfoSchema,
 } from '../schemas/responses.js';
-import type { Context } from 'hono';
-type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
+import type { GetAgentFn, OpenAPIRouteSchema } from '../types.js';
 
 const CustomPromptRequestSchema = z
     .object({
@@ -105,125 +103,125 @@ const ResolvePromptResponseSchema = z
     .strict()
     .describe('Resolve prompt response');
 
+const listRoute = createRoute({
+    method: 'get',
+    path: '/prompts',
+    summary: 'List Prompts',
+    description: 'Retrieves all available prompts, including both built-in and custom prompts',
+    tags: ['prompts'],
+    responses: {
+        200: {
+            description: 'List all prompts',
+            content: {
+                'application/json': {
+                    schema: ListPromptsResponseSchema,
+                },
+            },
+        },
+        500: InternalErrorResponse,
+    },
+});
+
+const createCustomRoute = createRoute({
+    method: 'post',
+    path: '/prompts/custom',
+    summary: 'Create Custom Prompt',
+    description:
+        'Creates a new custom prompt with optional resource attachment. Maximum request size: 10MB',
+    tags: ['prompts'],
+    request: {
+        body: {
+            content: {
+                'application/json': {
+                    schema: CustomPromptRequestSchema,
+                },
+            },
+        },
+    },
+    responses: {
+        201: {
+            description: 'Custom prompt created',
+            content: {
+                'application/json': {
+                    schema: CreatePromptResponseSchema,
+                },
+            },
+        },
+        400: BadRequestErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const deleteCustomRoute = createRoute({
+    method: 'delete',
+    path: '/prompts/custom/{name}',
+    summary: 'Delete Custom Prompt',
+    description: 'Permanently deletes a custom prompt. Built-in prompts cannot be deleted',
+    tags: ['prompts'],
+    request: {
+        params: z.object({
+            name: z.string().min(1, 'Prompt name is required').describe('The prompt name'),
+        }),
+    },
+    responses: {
+        204: { description: 'Prompt deleted' },
+    },
+});
+
+const getPromptRoute = createRoute({
+    method: 'get',
+    path: '/prompts/{name}',
+    summary: 'Get Prompt Definition',
+    description: 'Fetches the definition for a specific prompt',
+    tags: ['prompts'],
+    request: {
+        params: PromptNameParamSchema,
+    },
+    responses: {
+        200: {
+            description: 'Prompt definition',
+            content: {
+                'application/json': {
+                    schema: GetPromptDefinitionResponseSchema,
+                },
+            },
+        },
+        404: {
+            description: 'Prompt not found',
+            content: { 'application/json': { schema: ApiErrorResponseSchema } },
+        },
+    },
+});
+
+const resolvePromptRoute = createRoute({
+    method: 'get',
+    path: '/prompts/{name}/resolve',
+    summary: 'Resolve Prompt',
+    description:
+        'Resolves a prompt template with provided arguments and returns the final text with resources',
+    tags: ['prompts'],
+    request: {
+        params: PromptNameParamSchema,
+        query: ResolvePromptQuerySchema,
+    },
+    responses: {
+        200: {
+            description: 'Resolved prompt content',
+            content: {
+                'application/json': {
+                    schema: ResolvePromptResponseSchema,
+                },
+            },
+        },
+        404: {
+            description: 'Prompt not found',
+            content: { 'application/json': { schema: ApiErrorResponseSchema } },
+        },
+    },
+});
+
 export function createPromptsRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
-
-    const listRoute = createRoute({
-        method: 'get',
-        path: '/prompts',
-        summary: 'List Prompts',
-        description: 'Retrieves all available prompts, including both built-in and custom prompts',
-        tags: ['prompts'],
-        responses: {
-            200: {
-                description: 'List all prompts',
-                content: {
-                    'application/json': {
-                        schema: ListPromptsResponseSchema,
-                    },
-                },
-            },
-            500: InternalErrorResponse,
-        },
-    });
-
-    const createCustomRoute = createRoute({
-        method: 'post',
-        path: '/prompts/custom',
-        summary: 'Create Custom Prompt',
-        description:
-            'Creates a new custom prompt with optional resource attachment. Maximum request size: 10MB',
-        tags: ['prompts'],
-        request: {
-            body: {
-                content: {
-                    'application/json': {
-                        schema: CustomPromptRequestSchema,
-                    },
-                },
-            },
-        },
-        responses: {
-            201: {
-                description: 'Custom prompt created',
-                content: {
-                    'application/json': {
-                        schema: CreatePromptResponseSchema,
-                    },
-                },
-            },
-            400: BadRequestErrorResponse,
-            500: InternalErrorResponse,
-        },
-    });
-
-    const deleteCustomRoute = createRoute({
-        method: 'delete',
-        path: '/prompts/custom/{name}',
-        summary: 'Delete Custom Prompt',
-        description: 'Permanently deletes a custom prompt. Built-in prompts cannot be deleted',
-        tags: ['prompts'],
-        request: {
-            params: z.object({
-                name: z.string().min(1, 'Prompt name is required').describe('The prompt name'),
-            }),
-        },
-        responses: {
-            204: { description: 'Prompt deleted' },
-        },
-    });
-
-    const getPromptRoute = createRoute({
-        method: 'get',
-        path: '/prompts/{name}',
-        summary: 'Get Prompt Definition',
-        description: 'Fetches the definition for a specific prompt',
-        tags: ['prompts'],
-        request: {
-            params: PromptNameParamSchema,
-        },
-        responses: {
-            200: {
-                description: 'Prompt definition',
-                content: {
-                    'application/json': {
-                        schema: GetPromptDefinitionResponseSchema,
-                    },
-                },
-            },
-            404: {
-                description: 'Prompt not found',
-                content: { 'application/json': { schema: ApiErrorResponseSchema } },
-            },
-        },
-    });
-
-    const resolvePromptRoute = createRoute({
-        method: 'get',
-        path: '/prompts/{name}/resolve',
-        summary: 'Resolve Prompt',
-        description:
-            'Resolves a prompt template with provided arguments and returns the final text with resources',
-        tags: ['prompts'],
-        request: {
-            params: PromptNameParamSchema,
-            query: ResolvePromptQuerySchema,
-        },
-        responses: {
-            200: {
-                description: 'Resolved prompt content',
-                content: {
-                    'application/json': {
-                        schema: ResolvePromptResponseSchema,
-                    },
-                },
-            },
-            404: {
-                description: 'Prompt not found',
-                content: { 'application/json': { schema: ApiErrorResponseSchema } },
-            },
-        },
-    });
 
     return app
         .openapi(listRoute, async (ctx) => {
@@ -317,3 +315,27 @@ export function createPromptsRouter(getAgent: GetAgentFn) {
             );
         });
 }
+
+type PromptNameParamInput = { param: z.input<typeof PromptNameParamSchema> };
+
+type ListRouteSchema = OpenAPIRouteSchema<typeof listRoute, {}>;
+type CreateCustomRouteSchema = OpenAPIRouteSchema<
+    typeof createCustomRoute,
+    { json: z.input<typeof CustomPromptRequestSchema> }
+>;
+type DeleteCustomRouteSchema = OpenAPIRouteSchema<
+    typeof deleteCustomRoute,
+    { param: { name: string } }
+>;
+type GetPromptRouteSchema = OpenAPIRouteSchema<typeof getPromptRoute, PromptNameParamInput>;
+type ResolvePromptRouteSchema = OpenAPIRouteSchema<
+    typeof resolvePromptRoute,
+    PromptNameParamInput & { query: z.input<typeof ResolvePromptQuerySchema> }
+>;
+
+export type PromptsRouterSchema =
+    | ListRouteSchema
+    | CreateCustomRouteSchema
+    | DeleteCustomRouteSchema
+    | GetPromptRouteSchema
+    | ResolvePromptRouteSchema;
