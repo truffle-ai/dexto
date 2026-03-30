@@ -8,6 +8,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import { client } from '@/lib/client';
+import { parseApiResponse } from '@/lib/api-errors';
 
 /**
  * Fetch installed local GGUF models from state.json.
@@ -17,11 +18,10 @@ export function useLocalModels(options?: { enabled?: boolean }) {
     return useQuery({
         queryKey: queryKeys.models.local,
         queryFn: async () => {
-            const response = await client.api.models.local.$get();
-            if (!response.ok) {
-                throw new Error(`Failed to fetch local models: ${response.status}`);
-            }
-            return await response.json();
+            return await parseApiResponse(
+                client.api.models.local.$get(),
+                'Failed to fetch local models'
+            );
         },
         enabled: options?.enabled ?? true,
         staleTime: 30 * 1000, // 30 seconds - models don't change often
@@ -36,13 +36,12 @@ export function useOllamaModels(options?: { enabled?: boolean; baseURL?: string 
     return useQuery({
         queryKey: queryKeys.models.ollama(options?.baseURL),
         queryFn: async () => {
-            const response = await client.api.models.ollama.$get({
-                query: options?.baseURL ? { baseURL: options.baseURL } : {},
-            });
-            if (!response.ok) {
-                throw new Error(`Failed to fetch Ollama models: ${response.status}`);
-            }
-            return await response.json();
+            return await parseApiResponse(
+                client.api.models.ollama.$get({
+                    query: options?.baseURL ? { baseURL: options.baseURL } : {},
+                }),
+                'Failed to fetch Ollama models'
+            );
         },
         enabled: options?.enabled ?? true,
         staleTime: 30 * 1000, // 30 seconds
@@ -57,13 +56,12 @@ export function useOllamaModels(options?: { enabled?: boolean; baseURL?: string 
 export function useValidateLocalFile() {
     return useMutation({
         mutationFn: async (filePath: string) => {
-            const response = await client.api.models.local.validate.$post({
-                json: { filePath },
-            });
-            if (!response.ok) {
-                throw new Error(`Failed to validate file: ${response.status}`);
-            }
-            return await response.json();
+            return await parseApiResponse(
+                client.api.models.local.validate.$post({
+                    json: { filePath },
+                }),
+                'Failed to validate local model file'
+            );
         },
     });
 }
@@ -83,21 +81,13 @@ export function useDeleteInstalledModel() {
             modelId: string;
             deleteFile?: boolean;
         }) => {
-            const response = await client.api.models.local[':modelId'].$delete({
-                param: { modelId },
-                json: { deleteFile },
-            });
-            if (!response.ok) {
-                let errorMessage = `Failed to delete model: ${response.status}`;
-                try {
-                    const data = await response.json();
-                    if (data.error) errorMessage = data.error;
-                } catch {
-                    // Response body not JSON-parseable (e.g., network error, proxy error), use default message
-                }
-                throw new Error(errorMessage);
-            }
-            return await response.json();
+            return await parseApiResponse(
+                client.api.models.local[':modelId'].$delete({
+                    param: { modelId },
+                    json: { deleteFile },
+                }),
+                'Failed to delete model'
+            );
         },
         onSuccess: () => {
             // Invalidate local models cache to refresh the list
