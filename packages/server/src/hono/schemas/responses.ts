@@ -32,6 +32,7 @@ import {
     LLM_PRICING_STATUSES,
     LLMConfigBaseSchema as CoreLLMConfigBaseSchema,
     LLM_PROVIDERS,
+    type ContentPart as CoreContentPart,
 } from '@dexto/core';
 
 export const IssueSchema = z
@@ -155,6 +156,90 @@ export const ContentPartSchema = z
     ])
     .describe('Message content part (text, image, file, or UI resource)');
 
+export const RequestContentPartSchema = z
+    .discriminatedUnion('type', [TextPartSchema, ImagePartSchema, FilePartSchema])
+    .describe('Request message content part (text, image, or file)');
+
+export const RequestContentSchema = z
+    .union([z.string(), z.array(RequestContentPartSchema)])
+    .describe('Message content - string for text, or ContentPart[] for multimodal');
+
+function serializeBinaryValue(value: string | Uint8Array | Buffer | ArrayBuffer | URL): string {
+    if (typeof value === 'string') {
+        return value;
+    }
+    if (value instanceof URL) {
+        return value.toString();
+    }
+    if (value instanceof ArrayBuffer) {
+        return Buffer.from(new Uint8Array(value)).toString('base64');
+    }
+    return Buffer.from(value).toString('base64');
+}
+
+export function toContentInput(
+    rawContent: z.output<typeof RequestContentSchema>
+): CoreContentPart[] {
+    if (typeof rawContent === 'string') {
+        return [{ type: 'text', text: rawContent }];
+    }
+
+    return rawContent.map((part) => {
+        switch (part.type) {
+            case 'text':
+                return {
+                    type: 'text',
+                    text: part.text,
+                };
+            case 'image':
+                return {
+                    type: 'image',
+                    image: part.image,
+                    ...(part.mimeType !== undefined ? { mimeType: part.mimeType } : {}),
+                };
+            case 'file':
+                return {
+                    type: 'file',
+                    data: part.data,
+                    mimeType: part.mimeType,
+                    ...(part.filename !== undefined ? { filename: part.filename } : {}),
+                };
+        }
+    });
+}
+
+export function toApiContentPart(part: CoreContentPart): z.output<typeof ContentPartSchema> {
+    switch (part.type) {
+        case 'text':
+            return {
+                type: 'text',
+                text: part.text,
+            };
+        case 'image':
+            return {
+                type: 'image',
+                image: serializeBinaryValue(part.image),
+                ...(part.mimeType !== undefined ? { mimeType: part.mimeType } : {}),
+            };
+        case 'file':
+            return {
+                type: 'file',
+                data: serializeBinaryValue(part.data),
+                mimeType: part.mimeType,
+                ...(part.filename !== undefined ? { filename: part.filename } : {}),
+            };
+        case 'ui-resource':
+            return {
+                type: 'ui-resource',
+                uri: part.uri,
+                mimeType: part.mimeType,
+                ...(part.content !== undefined ? { content: part.content } : {}),
+                ...(part.blob !== undefined ? { blob: part.blob } : {}),
+                ...(part.metadata !== undefined ? { metadata: part.metadata } : {}),
+            };
+    }
+}
+
 export const ToolCallSchema = z
     .object({
         id: z.string().describe('Unique identifier for this tool call'),
@@ -248,6 +333,7 @@ export type TextPart = z.output<typeof TextPartSchema>;
 export type ImagePart = z.output<typeof ImagePartSchema>;
 export type FilePart = z.output<typeof FilePartSchema>;
 export type ContentPart = z.output<typeof ContentPartSchema>;
+export type RequestContentPart = z.output<typeof RequestContentPartSchema>;
 export type ToolCall = z.output<typeof ToolCallSchema>;
 export type TokenUsage = z.output<typeof TokenUsageSchema>;
 export type InternalMessage = z.output<typeof InternalMessageSchema>;
