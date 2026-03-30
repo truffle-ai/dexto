@@ -101,6 +101,32 @@ function isKnownJsonErrorResponse(node, objectLiterals) {
         return unwrappedNode.name.endsWith('ErrorResponse');
     }
 
+    if (
+        unwrappedNode.type === 'MemberExpression' &&
+        unwrappedNode.computed &&
+        unwrappedNode.object.type === 'Identifier'
+    ) {
+        const objectLiteral = objectLiterals.get(unwrappedNode.object.name);
+        if (!objectLiteral) {
+            return false;
+        }
+
+        const propertyKey =
+            unwrappedNode.property.type === 'Literal' ? String(unwrappedNode.property.value) : null;
+
+        if (!propertyKey) {
+            return false;
+        }
+
+        const property = objectLiteral.properties.find(
+            (entry) => entry.type === 'Property' && getPropertyName(entry) === propertyKey
+        );
+
+        return property?.type === 'Property'
+            ? isKnownJsonErrorResponse(property.value, objectLiterals)
+            : false;
+    }
+
     return false;
 }
 
@@ -149,6 +175,8 @@ export default {
         messages: {
             successOnlyJsonRoute:
                 'OpenAPI JSON routes must declare at least one non-2xx JSON error response in createRoute(...responses...). Success-only JSON contracts hide real validation/runtime failures. Add explicit error responses like 400/404/409/500, or add an inline eslint-disable with a concrete reason if this route is intentionally success-only.',
+            spreadResponseEntries:
+                'Do not spread shared response maps into createRoute(...responses...). Use direct literal status keys like 400: BadRequestErrorResponse instead. Response spreads look fine in source but can disappear from the emitted Hono client contract.',
         },
     },
 
@@ -203,6 +231,17 @@ export default {
                 const responsesProperty = getObjectProperty(routeConfig, 'responses');
                 if (!responsesProperty || responsesProperty.value.type !== 'ObjectExpression') {
                     return;
+                }
+
+                for (const property of responsesProperty.value.properties) {
+                    if (property.type !== 'SpreadElement') {
+                        continue;
+                    }
+
+                    context.report({
+                        node: property,
+                        messageId: 'spreadResponseEntries',
+                    });
                 }
 
                 let hasJsonRoute = false;

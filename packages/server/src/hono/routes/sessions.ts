@@ -36,24 +36,6 @@ const SessionPromptContributorInfoSchema = z
     .strict()
     .describe('Session-scoped system prompt contributor metadata.');
 
-const SessionCollectionErrorResponses = {
-    400: BadRequestErrorResponse,
-    500: InternalErrorResponse,
-} as const;
-
-const SessionItemErrorResponses = {
-    400: BadRequestErrorResponse,
-    404: NotFoundErrorResponse,
-    500: InternalErrorResponse,
-} as const;
-
-const SessionMutationErrorResponses = {
-    400: BadRequestErrorResponse,
-    404: NotFoundErrorResponse,
-    409: ConflictErrorResponse,
-    500: InternalErrorResponse,
-} as const;
-
 const UpsertSessionPromptContributorSchema = z
     .object({
         id: z.string().min(1).describe('Contributor identifier'),
@@ -163,7 +145,8 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            ...SessionCollectionErrorResponses,
+            400: BadRequestErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -189,7 +172,8 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            ...SessionCollectionErrorResponses,
+            400: BadRequestErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -221,7 +205,9 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            ...SessionItemErrorResponses,
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -290,7 +276,9 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            ...SessionItemErrorResponses,
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -407,7 +395,9 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            ...SessionItemErrorResponses,
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -463,7 +453,10 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            ...SessionMutationErrorResponses,
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            409: ConflictErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -542,7 +535,9 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            ...SessionItemErrorResponses,
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -581,7 +576,9 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            ...SessionItemErrorResponses,
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 

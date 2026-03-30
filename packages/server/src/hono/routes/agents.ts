@@ -244,16 +244,6 @@ export function createAgentsRouter(
     getAgentConfigPath: GetAgentConfigPathFn
 ) {
     const app = new OpenAPIHono();
-    const agentQueryErrorResponses = {
-        400: BadRequestErrorResponse,
-        500: InternalErrorResponse,
-    } as const;
-    const agentMutationErrorResponses = {
-        400: BadRequestErrorResponse,
-        404: NotFoundErrorResponse,
-        409: ConflictErrorResponse,
-        500: InternalErrorResponse,
-    } as const;
     const { switchAgentById, switchAgentByPath, resolveAgentInfo, getActiveAgentId } = context;
     const resolveAgentConfigPath = async (ctx: Context): Promise<string> => {
         const configPath = await getAgentConfigPath(ctx);
@@ -274,7 +264,8 @@ export function createAgentsRouter(
                 description: 'List all agents',
                 content: { 'application/json': { schema: ListAgentsResponseSchema } },
             },
-            ...agentQueryErrorResponses,
+            400: BadRequestErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -289,7 +280,8 @@ export function createAgentsRouter(
                 description: 'Current agent',
                 content: { 'application/json': { schema: AgentInfoNullableSchema } },
             },
-            ...agentQueryErrorResponses,
+            400: BadRequestErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -313,7 +305,10 @@ export function createAgentsRouter(
                 description: 'Agent installed',
                 content: { 'application/json': { schema: InstallAgentResponseSchema } },
             },
-            ...agentMutationErrorResponses,
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            409: ConflictErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -337,7 +332,10 @@ export function createAgentsRouter(
                 description: 'Agent switched',
                 content: { 'application/json': { schema: SwitchAgentResponseSchema } },
             },
-            ...agentMutationErrorResponses,
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            409: ConflictErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -361,7 +359,10 @@ export function createAgentsRouter(
                 description: 'Name validation result',
                 content: { 'application/json': { schema: ValidateNameResponseSchema } },
             },
-            ...agentMutationErrorResponses,
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            409: ConflictErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -386,7 +387,10 @@ export function createAgentsRouter(
                 description: 'Agent uninstalled',
                 content: { 'application/json': { schema: UninstallAgentResponseSchema } },
             },
-            ...agentMutationErrorResponses,
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            409: ConflictErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -420,7 +424,10 @@ export function createAgentsRouter(
                     },
                 },
             },
-            ...agentMutationErrorResponses,
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            409: ConflictErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -439,7 +446,10 @@ export function createAgentsRouter(
                     },
                 },
             },
-            ...agentMutationErrorResponses,
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            409: ConflictErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -458,7 +468,10 @@ export function createAgentsRouter(
                     },
                 },
             },
-            ...agentMutationErrorResponses,
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            409: ConflictErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -525,7 +538,10 @@ export function createAgentsRouter(
                     },
                 },
             },
-            ...agentMutationErrorResponses,
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            409: ConflictErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -553,7 +569,10 @@ export function createAgentsRouter(
                     },
                 },
             },
-            ...agentMutationErrorResponses,
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            409: ConflictErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -955,14 +974,17 @@ export function createAgentsRouter(
 
                 logger.info(`Agent configuration saved and applied: ${agentPath}`);
 
-                return ctx.json({
-                    ok: true as const,
-                    path: agentPath,
-                    reloaded: true,
-                    restarted: true,
-                    changesApplied: ['restart'],
-                    message: 'Configuration saved and applied successfully (agent restarted)',
-                });
+                return ctx.json(
+                    {
+                        ok: true as const,
+                        path: agentPath,
+                        reloaded: true,
+                        restarted: true,
+                        changesApplied: ['restart'],
+                        message: 'Configuration saved and applied successfully (agent restarted)',
+                    },
+                    200
+                );
             } catch (error) {
                 // Restore backup on error
                 await fs.copyFile(backupPath, agentPath).catch(() => {

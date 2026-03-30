@@ -69,15 +69,6 @@ const MemoryDeleteResponseSchema = z
 
 export function createMemoryRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
-    const memoryCollectionErrorResponses = {
-        400: BadRequestErrorResponse,
-        500: InternalErrorResponse,
-    } as const;
-    const memoryItemErrorResponses = {
-        400: BadRequestErrorResponse,
-        404: NotFoundErrorResponse,
-        500: InternalErrorResponse,
-    } as const;
 
     const createMemoryRoute = createRoute({
         method: 'post',
@@ -99,7 +90,8 @@ export function createMemoryRouter(getAgent: GetAgentFn) {
                 description: 'Memory created',
                 content: { 'application/json': { schema: MemoryResponseSchema } },
             },
-            ...memoryCollectionErrorResponses,
+            400: BadRequestErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -115,7 +107,8 @@ export function createMemoryRouter(getAgent: GetAgentFn) {
                 description: 'List memories',
                 content: { 'application/json': { schema: MemoriesListResponseSchema } },
             },
-            ...memoryCollectionErrorResponses,
+            400: BadRequestErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -133,7 +126,9 @@ export function createMemoryRouter(getAgent: GetAgentFn) {
                 description: 'Memory details',
                 content: { 'application/json': { schema: MemoryResponseSchema } },
             },
-            ...memoryItemErrorResponses,
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -158,7 +153,9 @@ export function createMemoryRouter(getAgent: GetAgentFn) {
                 description: 'Memory updated',
                 content: { 'application/json': { schema: MemoryResponseSchema } },
             },
-            ...memoryItemErrorResponses,
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -176,7 +173,9 @@ export function createMemoryRouter(getAgent: GetAgentFn) {
                 description: 'Memory deleted',
                 content: { 'application/json': { schema: MemoryDeleteResponseSchema } },
             },
-            ...memoryItemErrorResponses,
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 

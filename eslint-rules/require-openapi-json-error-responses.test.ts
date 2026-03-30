@@ -122,7 +122,7 @@ ruleTester.run('require-openapi-json-error-responses', rule, {
             `,
         },
         {
-            filename: '/repo/packages/server/src/hono/routes/with-spread.ts',
+            filename: '/repo/packages/server/src/hono/routes/with-indexed-errors.ts',
             code: `
                 import { createRoute, z } from '@hono/zod-openapi';
 
@@ -157,7 +157,8 @@ ruleTester.run('require-openapi-json-error-responses', rule, {
                                 },
                             },
                         },
-                        ...commonErrors,
+                        400: commonErrors[400],
+                        500: commonErrors[500],
                     },
                 });
             `,
@@ -242,6 +243,52 @@ ruleTester.run('require-openapi-json-error-responses', rule, {
             errors: [
                 {
                     messageId: 'successOnlyJsonRoute',
+                },
+            ],
+        },
+        {
+            filename: '/repo/packages/server/src/hono/routes/with-spread.ts',
+            code: `
+                import { createRoute, z } from '@hono/zod-openapi';
+
+                const commonErrors = {
+                    400: {
+                        description: 'Bad request',
+                        content: {
+                            'application/json': {
+                                schema: z.object({ message: z.string() }),
+                            },
+                        },
+                    },
+                    500: {
+                        description: 'Internal error',
+                        content: {
+                            'application/json': {
+                                schema: z.object({ message: z.string() }),
+                            },
+                        },
+                    },
+                } as const;
+
+                const route = createRoute({
+                    method: 'get',
+                    path: '/thing',
+                    responses: {
+                        200: {
+                            description: 'OK',
+                            content: {
+                                'application/json': {
+                                    schema: z.object({ ok: z.boolean() }),
+                                },
+                            },
+                        },
+                        ...commonErrors,
+                    },
+                });
+            `,
+            errors: [
+                {
+                    messageId: 'spreadResponseEntries',
                 },
             ],
         },

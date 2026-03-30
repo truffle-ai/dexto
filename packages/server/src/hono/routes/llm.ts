@@ -187,18 +187,6 @@ const ModelPickerErrorResponses = {
 
 export function createLlmRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
-    const llmQueryErrorResponses = {
-        400: BadRequestErrorResponse,
-        404: NotFoundErrorResponse,
-        500: InternalErrorResponse,
-    } as const;
-    const llmMutationErrorResponses = {
-        400: BadRequestErrorResponse,
-        404: NotFoundErrorResponse,
-        409: ConflictErrorResponse,
-        500: InternalErrorResponse,
-    } as const;
-
     const currentRoute = createRoute({
         method: 'get',
         path: '/llm/current',
@@ -237,7 +225,9 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            ...llmQueryErrorResponses,
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            500: InternalErrorResponse,
         },
     });
     const catalogRoute = createRoute({
@@ -281,7 +271,9 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            ...llmQueryErrorResponses,
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -319,7 +311,10 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            ...llmMutationErrorResponses,
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            409: ConflictErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -341,7 +336,9 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            ...llmQueryErrorResponses,
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -366,7 +363,10 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            ...llmMutationErrorResponses,
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            409: ConflictErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -393,7 +393,9 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            ...llmQueryErrorResponses,
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -485,7 +487,9 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            ...llmQueryErrorResponses,
+            400: BadRequestErrorResponse,
+            404: NotFoundErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -520,7 +524,9 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            ...ModelPickerErrorResponses,
+            400: ModelPickerErrorResponses[400],
+            404: ModelPickerErrorResponses[404],
+            500: ModelPickerErrorResponses[500],
         },
     });
 
@@ -553,7 +559,9 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            ...ModelPickerErrorResponses,
+            400: ModelPickerErrorResponses[400],
+            404: ModelPickerErrorResponses[404],
+            500: ModelPickerErrorResponses[500],
         },
     });
 
@@ -589,7 +597,9 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            ...ModelPickerErrorResponses,
+            400: ModelPickerErrorResponses[400],
+            404: ModelPickerErrorResponses[404],
+            500: ModelPickerErrorResponses[500],
         },
     });
 
@@ -633,7 +643,9 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            ...ModelPickerErrorResponses,
+            400: ModelPickerErrorResponses[400],
+            404: ModelPickerErrorResponses[404],
+            500: ModelPickerErrorResponses[500],
         },
     });
 
