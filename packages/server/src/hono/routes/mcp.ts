@@ -12,7 +12,7 @@ import {
     BadRequestErrorResponse,
     InternalErrorResponse,
 } from '../schemas/responses.js';
-import type { GetAgentConfigPathFn, GetAgentFn } from '../index.js';
+import type { GetAgentConfigPathFn, GetAgentFn } from '../types.js';
 
 const McpServerRequestSchema = z
     .object({
@@ -544,7 +544,7 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
             }
 
             await agent.removeMcpServer(serverId);
-            return ctx.json({ status: 'disconnected', id: serverId }, 200);
+            return ctx.json({ status: 'disconnected' as const, id: serverId }, 200);
         })
         .openapi(restartServerRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -558,7 +558,7 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
             }
 
             await agent.restartMcpServer(serverId);
-            return ctx.json({ status: 'restarted', id: serverId }, 200);
+            return ctx.json({ status: 'restarted' as const, id: serverId }, 200);
         })
         .openapi(execToolRoute, async (ctx) => {
             const agent = await getAgent(ctx);

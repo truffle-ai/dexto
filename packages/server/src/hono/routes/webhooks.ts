@@ -265,7 +265,7 @@ export function createWebhooksRouter(
                 );
             }
             agent.logger.info(`Webhook removed: ${webhookId}`);
-            return ctx.json({ status: 'removed', webhookId }, 200);
+            return ctx.json({ status: 'removed' as const, webhookId }, 200);
         })
         .openapi(testRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -287,7 +287,7 @@ export function createWebhooksRouter(
 
             return ctx.json(
                 {
-                    test: 'completed',
+                    test: 'completed' as const,
                     result: {
                         success: result.success,
                         statusCode: result.statusCode,

@@ -35,6 +35,42 @@ import {
     type ContentPart as CoreContentPart,
 } from '@dexto/core';
 
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+function isJsonValue(value: unknown): value is JsonValue {
+    if (
+        value === null ||
+        typeof value === 'string' ||
+        typeof value === 'number' ||
+        typeof value === 'boolean'
+    ) {
+        return true;
+    }
+    if (Array.isArray(value)) {
+        return value.every(isJsonValue);
+    }
+    if (typeof value !== 'object') {
+        return false;
+    }
+    return Object.values(value).every(isJsonValue);
+}
+
+function isJsonObject(value: unknown): value is { [key: string]: JsonValue } {
+    return (
+        typeof value === 'object' && value !== null && !Array.isArray(value) && isJsonValue(value)
+    );
+}
+
+export const JsonValueSchema = z
+    .custom<JsonValue>(isJsonValue, 'Expected a JSON-serializable value')
+    .describe('Any JSON-serializable value');
+
+export const JsonObjectSchema = z
+    .custom<{
+        [key: string]: JsonValue;
+    }>(isJsonObject, 'Expected a JSON object with serializable values')
+    .describe('JSON object with arbitrary serializable values');
+
 export const IssueSchema = z
     .object({
         code: z.string().describe('Machine-readable issue code'),
@@ -46,7 +82,7 @@ export const IssueSchema = z
             .array(z.union([z.string(), z.number()]))
             .optional()
             .describe('Optional location for the issue'),
-        context: z.unknown().optional().describe('Optional structured issue context'),
+        context: JsonValueSchema.optional().describe('Optional structured issue context'),
     })
     .strict()
     .describe('Structured validation or runtime issue');
@@ -69,7 +105,7 @@ export const ApiErrorResponseSchema = z
             .union([z.string(), z.array(z.string())])
             .optional()
             .describe('Optional recovery guidance'),
-        context: z.unknown().optional().describe('Optional structured error context'),
+        context: JsonValueSchema.optional().describe('Optional structured error context'),
         issues: z.array(IssueSchema).optional().describe('Validation issues when present'),
         errorCount: z.number().int().nonnegative().optional().describe('Number of errors'),
         warningCount: z.number().int().nonnegative().optional().describe('Number of warnings'),
@@ -610,7 +646,7 @@ export type Workspace = z.output<typeof WorkspaceSchema>;
 export const ScheduleTaskSchema = z
     .object({
         instruction: z.string().describe('Instruction to execute'),
-        metadata: z.record(z.unknown()).optional().describe('Optional task metadata'),
+        metadata: JsonObjectSchema.optional().describe('Optional task metadata'),
     })
     .strict()
     .describe('Schedule task definition');
@@ -843,7 +879,7 @@ export const ResourceSchema = z
             .optional()
             .describe('Last modified timestamp (ISO 8601 string)'),
         metadata: z
-            .record(z.unknown())
+            .record(z.string(), JsonValueSchema)
             .optional()
             .describe('Additional metadata specific to the resource type'),
     })
@@ -858,7 +894,7 @@ export const ToolSchema = z
     .object({
         name: z.string().describe('Tool name'),
         description: z.string().describe('Tool description'),
-        inputSchema: z.record(z.unknown()).describe('JSON Schema for tool input parameters'),
+        inputSchema: JsonObjectSchema.describe('JSON Schema for tool input parameters'),
     })
     .strict()
     .describe('Tool metadata');
@@ -903,7 +939,7 @@ export const PromptInfoSchema = z
             .optional()
             .describe('Array of argument definitions'),
         source: z.enum(['mcp', 'config', 'custom']).describe('Source of the prompt'),
-        metadata: z.record(z.unknown()).optional().describe('Additional metadata'),
+        metadata: JsonObjectSchema.optional().describe('Additional metadata'),
     })
     .strict()
     .describe('Enhanced prompt information');
@@ -948,7 +984,7 @@ export const ErrorResponseSchema = z
             .object({
                 message: z.string().describe('Error message'),
                 code: z.string().optional().describe('Error code'),
-                details: z.unknown().optional().describe('Additional error details'),
+                details: JsonValueSchema.optional().describe('Additional error details'),
             })
             .strict()
             .describe('Error details'),
@@ -965,7 +1001,7 @@ export const StandardErrorEnvelopeSchema = z
         message: z.string().describe('Error message'),
         scope: z.string().describe('Error scope'),
         type: z.string().describe('Error type'),
-        context: z.unknown().optional().describe('Error context'),
+        context: JsonValueSchema.optional().describe('Error context'),
         recovery: z
             .union([z.string(), z.array(z.string())])
             .optional()

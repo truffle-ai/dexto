@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { GetAgentFn } from '../index.js';
+import type { GetAgentFn } from '../types.js';
 import {
     ErrorResponseSchema,
     ExecutionLogSchema,
@@ -32,6 +32,46 @@ const CreateScheduleSchema = z
 const UpdateScheduleSchema = CreateScheduleSchema.partial()
     .strict()
     .describe('Request body for updating a schedule');
+
+const ListSchedulesResponseSchema = z
+    .object({
+        schedules: z.array(ScheduleSchema).describe('Schedule list'),
+    })
+    .strict()
+    .describe('List schedules response');
+
+const CreateScheduleResponseSchema = z
+    .object({
+        schedule: ScheduleSchema,
+    })
+    .strict()
+    .describe('Create schedule response');
+
+const UpdateScheduleResponseSchema = z
+    .object({
+        schedule: ScheduleSchema,
+    })
+    .strict()
+    .describe('Update schedule response');
+
+const DeleteScheduleResponseSchema = z
+    .object({
+        deleted: z.boolean().describe('Whether the schedule was deleted'),
+    })
+    .strict()
+    .describe('Delete schedule response');
+
+const TriggerScheduleResponseSchema = z
+    .object({
+        scheduled: z
+            .boolean()
+            .describe('Whether the schedule was queued. Execution is omitted when false.'),
+        execution: ExecutionLogSchema.optional().describe(
+            'Execution log (present when scheduled is true)'
+        ),
+    })
+    .strict()
+    .describe('Trigger schedule response');
 
 const isScheduleNotFoundError = (error: unknown): boolean =>
     error instanceof DextoRuntimeError &&
@@ -87,11 +127,7 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                 description: 'List of schedules',
                 content: {
                     'application/json': {
-                        schema: z
-                            .object({
-                                schedules: z.array(ScheduleSchema).describe('Schedule list'),
-                            })
-                            .strict(),
+                        schema: ListSchedulesResponseSchema,
                     },
                 },
             },
@@ -126,7 +162,7 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                 description: 'Created schedule',
                 content: {
                     'application/json': {
-                        schema: z.object({ schedule: ScheduleSchema }).strict(),
+                        schema: CreateScheduleResponseSchema,
                     },
                 },
             },
@@ -185,7 +221,7 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                 description: 'Updated schedule',
                 content: {
                     'application/json': {
-                        schema: z.object({ schedule: ScheduleSchema }).strict(),
+                        schema: UpdateScheduleResponseSchema,
                     },
                 },
             },
@@ -243,12 +279,7 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                 description: 'Schedule deleted',
                 content: {
                     'application/json': {
-                        schema: z
-                            .object({
-                                deleted: z.boolean().describe('Whether the schedule was deleted'),
-                            })
-                            .strict()
-                            .describe('Delete schedule response'),
+                        schema: DeleteScheduleResponseSchema,
                     },
                 },
             },
@@ -299,19 +330,7 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
                 description: 'Schedule triggered',
                 content: {
                     'application/json': {
-                        schema: z
-                            .object({
-                                scheduled: z
-                                    .boolean()
-                                    .describe(
-                                        'Whether the schedule was queued. Execution is omitted when false.'
-                                    ),
-                                execution: ExecutionLogSchema.optional().describe(
-                                    'Execution log (present when scheduled is true)'
-                                ),
-                            })
-                            .strict()
-                            .describe('Trigger schedule response'),
+                        schema: TriggerScheduleResponseSchema,
                     },
                 },
             },
@@ -353,7 +372,7 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
             }
             try {
                 const schedules = await scheduler.listSchedules();
-                return ctx.json({ schedules }, 200);
+                return ctx.json(ListSchedulesResponseSchema.parse({ schedules }), 200);
             } catch (error) {
                 const message =
                     error instanceof Error ? error.message : String(error ?? 'Unknown error');
@@ -388,7 +407,7 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
             };
             try {
                 const schedule = await scheduler.createSchedule(createPayload);
-                return ctx.json({ schedule }, 201);
+                return ctx.json(CreateScheduleResponseSchema.parse({ schedule }), 201);
             } catch (error) {
                 if (
                     error instanceof DextoRuntimeError &&
@@ -438,7 +457,7 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
             };
             try {
                 const schedule = await scheduler.updateSchedule(scheduleId, updatePayload);
-                return ctx.json({ schedule }, 200);
+                return ctx.json(UpdateScheduleResponseSchema.parse({ schedule }), 200);
             } catch (error) {
                 if (isScheduleNotFoundError(error)) {
                     return ctx.json(
@@ -478,7 +497,7 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
             const { scheduleId } = ctx.req.valid('param');
             try {
                 await scheduler.deleteSchedule(scheduleId);
-                return ctx.json({ deleted: true }, 200);
+                return ctx.json(DeleteScheduleResponseSchema.parse({ deleted: true }), 200);
             } catch (error) {
                 if (isScheduleNotFoundError(error)) {
                     return ctx.json(
@@ -505,7 +524,10 @@ export function createSchedulesRouter(getAgent: GetAgentFn) {
             const { scheduleId } = ctx.req.valid('param');
             try {
                 const execution = await scheduler.triggerScheduleNow(scheduleId);
-                return ctx.json({ scheduled: true, execution }, 200);
+                return ctx.json(
+                    TriggerScheduleResponseSchema.parse({ scheduled: true, execution }),
+                    200
+                );
             } catch (error) {
                 if (isScheduleNotFoundError(error)) {
                     return ctx.json(

@@ -2,10 +2,11 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import {
     BadRequestErrorResponse,
     InternalErrorResponse,
+    JsonObjectSchema,
     NotFoundErrorResponse,
     ResourceSchema,
 } from '../schemas/responses.js';
-import type { GetAgentFn } from '../index.js';
+import type { GetAgentFn } from '../types.js';
 
 const ResourceIdParamSchema = z
     .object({
@@ -50,10 +51,7 @@ const ReadResourceResponseSchema = z
                 contents: z
                     .array(ResourceContentItemSchema)
                     .describe('Array of content items (typically one item)'),
-                _meta: z
-                    .record(z.any())
-                    .optional()
-                    .describe('Optional metadata about the resource'),
+                _meta: JsonObjectSchema.optional().describe('Optional metadata about the resource'),
             })
             .strict()
             .describe('Resource content from MCP ReadResourceResult'),
@@ -120,13 +118,25 @@ export function createResourcesRouter(getAgent: GetAgentFn) {
         .openapi(listRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             const resources = await agent.listResources();
-            return ctx.json({ ok: true, resources: Object.values(resources) }, 200);
+            return ctx.json(
+                ListResourcesResponseSchema.parse({
+                    ok: true as const,
+                    resources: Object.values(resources),
+                }),
+                200
+            );
         })
         .openapi(getContentRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             const { resourceId } = ctx.req.valid('param');
             const content = await agent.readResource(resourceId);
-            return ctx.json({ ok: true, content }, 200);
+            return ctx.json(
+                ReadResourceResponseSchema.parse({
+                    ok: true as const,
+                    content,
+                }),
+                200
+            );
         })
         .openapi(headRoute, async (ctx) => {
             const agent = await getAgent(ctx);

@@ -4,7 +4,7 @@ import {
     InternalErrorResponse,
     WorkspaceSchema,
 } from '../schemas/responses.js';
-import type { GetAgentFn } from '../index.js';
+import type { GetAgentFn } from '../types.js';
 
 const SetWorkspaceSchema = z
     .object({

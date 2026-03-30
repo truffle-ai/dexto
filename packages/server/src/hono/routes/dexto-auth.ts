@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { GetAgentFn } from '../index.js';
 import { InternalErrorResponse } from '../schemas/responses.js';
+import type { GetAgentFn } from '../types.js';
 import {
     isDextoAuthEnabled,
     isDextoAuthenticated,

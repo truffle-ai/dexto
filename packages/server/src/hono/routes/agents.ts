@@ -20,11 +20,11 @@ import {
     BadRequestErrorResponse,
     ConflictErrorResponse,
     InternalErrorResponse,
+    JsonValueSchema,
     NotFoundErrorResponse,
 } from '../schemas/responses.js';
 import type { Context } from 'hono';
-import type { GetAgentConfigPathFn } from '../index.js';
-type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
+import type { GetAgentConfigPathFn, GetAgentFn } from '../types.js';
 
 /**
  * OpenAPI-safe version of AgentConfigSchema
@@ -38,7 +38,7 @@ type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
  * See lines 780 and 854 where AgentConfigSchema.safeParse() is used for actual validation.
  */
 const AgentConfigSchemaForOpenAPI = z
-    .record(z.any())
+    .record(z.string(), JsonValueSchema)
     .describe(
         'Complete agent configuration. See AgentConfig type documentation for full schema details.'
     );
@@ -701,32 +701,43 @@ export function createAgentsRouter(
         })
         .openapi(customCreateRoute, async (ctx) => {
             const { id, name, description, author, tags, config } = ctx.req.valid('json');
+            const configResult = AgentConfigSchema.safeParse(config);
+
+            if (!configResult.success) {
+                throw new DextoValidationError(zodToIssues(configResult.error));
+            }
+
+            const validatedConfig = configResult.data;
 
             // Handle API key: if it's a raw key, store securely and use env var reference
-            const provider: LLMProvider = config.llm.provider;
-            let agentConfig = config;
+            const provider: LLMProvider = validatedConfig.llm.provider;
+            let agentConfig = validatedConfig;
 
-            if (config.llm.apiKey && !config.llm.apiKey.startsWith('$')) {
+            if (validatedConfig.llm.apiKey && !validatedConfig.llm.apiKey.startsWith('$')) {
                 // Raw API key provided - store securely and get env var reference
-                const meta = await saveProviderApiKey(provider, config.llm.apiKey, process.cwd());
+                const meta = await saveProviderApiKey(
+                    provider,
+                    validatedConfig.llm.apiKey,
+                    process.cwd()
+                );
                 const apiKeyRef = `$${meta.envVar}`;
                 logger.info(
                     `Stored API key securely for ${provider}, using env var: ${meta.envVar}`
                 );
                 // Update config with env var reference
                 agentConfig = {
-                    ...config,
+                    ...validatedConfig,
                     llm: {
-                        ...config.llm,
+                        ...validatedConfig.llm,
                         apiKey: apiKeyRef,
                     },
                 };
-            } else if (!config.llm.apiKey) {
+            } else if (!validatedConfig.llm.apiKey) {
                 // No API key provided, use default env var
                 agentConfig = {
-                    ...config,
+                    ...validatedConfig,
                     llm: {
-                        ...config.llm,
+                        ...validatedConfig.llm,
                         apiKey: `$${getPrimaryApiKeyEnvVar(provider)}`,
                     },
                 };

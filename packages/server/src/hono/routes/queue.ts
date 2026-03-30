@@ -3,6 +3,7 @@ import { DextoRuntimeError, ErrorType, type DextoAgent } from '@dexto/core';
 import {
     ApiErrorResponseSchema,
     ContentPartSchema,
+    JsonObjectSchema,
     RequestContentSchema,
     toApiContentPart,
     toContentInput,
@@ -16,7 +17,7 @@ const QueuedMessageSchema = z
         id: z.string().describe('Unique identifier for the queued message'),
         content: z.array(ContentPartSchema).describe('Message content parts'),
         queuedAt: z.number().describe('Unix timestamp when message was queued'),
-        metadata: z.record(z.unknown()).optional().describe('Optional metadata'),
+        metadata: JsonObjectSchema.optional().describe('Optional metadata'),
         kind: z.enum(['default', 'background']).optional().describe('Optional queued message kind'),
     })
     .strict()
@@ -29,6 +30,39 @@ const QueueMessageBodySchema = z
         kind: z.enum(['default', 'background']).optional().describe('Optional queued message kind'),
     })
     .describe('Request body for queueing a message');
+
+const GetQueueResponseSchema = z
+    .object({
+        messages: z.array(QueuedMessageSchema).describe('Queued messages'),
+        count: z.number().describe('Number of messages in queue'),
+    })
+    .strict()
+    .describe('Get queue response');
+
+const QueueMessageResponseSchema = z
+    .object({
+        queued: z.literal(true).describe('Indicates message was queued'),
+        id: z.string().describe('ID of the queued message'),
+        position: z.number().describe('Position in the queue (1-based)'),
+    })
+    .strict()
+    .describe('Queue message response');
+
+const RemoveQueuedMessageResponseSchema = z
+    .object({
+        removed: z.literal(true).describe('Indicates message was removed'),
+        id: z.string().describe('ID of the removed message'),
+    })
+    .strict()
+    .describe('Remove queued message response');
+
+const ClearQueueResponseSchema = z
+    .object({
+        cleared: z.literal(true).describe('Indicates queue was cleared'),
+        count: z.number().describe('Number of messages that were removed'),
+    })
+    .strict()
+    .describe('Clear queue response');
 
 export function createQueueRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
@@ -50,12 +84,7 @@ export function createQueueRouter(getAgent: GetAgentFn) {
                 description: 'List of queued messages',
                 content: {
                     'application/json': {
-                        schema: z
-                            .object({
-                                messages: z.array(QueuedMessageSchema).describe('Queued messages'),
-                                count: z.number().describe('Number of messages in queue'),
-                            })
-                            .strict(),
+                        schema: GetQueueResponseSchema,
                     },
                 },
             },
@@ -87,13 +116,7 @@ export function createQueueRouter(getAgent: GetAgentFn) {
                 description: 'Message queued successfully',
                 content: {
                     'application/json': {
-                        schema: z
-                            .object({
-                                queued: z.literal(true).describe('Indicates message was queued'),
-                                id: z.string().describe('ID of the queued message'),
-                                position: z.number().describe('Position in the queue (1-based)'),
-                            })
-                            .strict(),
+                        schema: QueueMessageResponseSchema,
                     },
                 },
             },
@@ -122,12 +145,7 @@ export function createQueueRouter(getAgent: GetAgentFn) {
                 description: 'Message removed successfully',
                 content: {
                     'application/json': {
-                        schema: z
-                            .object({
-                                removed: z.literal(true).describe('Indicates message was removed'),
-                                id: z.string().describe('ID of the removed message'),
-                            })
-                            .strict(),
+                        schema: RemoveQueuedMessageResponseSchema,
                     },
                 },
             },
@@ -155,12 +173,7 @@ export function createQueueRouter(getAgent: GetAgentFn) {
                 description: 'Queue cleared successfully',
                 content: {
                     'application/json': {
-                        schema: z
-                            .object({
-                                cleared: z.literal(true).describe('Indicates queue was cleared'),
-                                count: z.number().describe('Number of messages that were removed'),
-                            })
-                            .strict(),
+                        schema: ClearQueueResponseSchema,
                     },
                 },
             },
@@ -185,10 +198,10 @@ export function createQueueRouter(getAgent: GetAgentFn) {
                 ...(message.kind !== undefined ? { kind: message.kind } : {}),
             }));
             return ctx.json(
-                {
+                GetQueueResponseSchema.parse({
                     messages: responseMessages,
                     count: responseMessages.length,
-                },
+                }),
                 200
             );
         })
@@ -204,11 +217,11 @@ export function createQueueRouter(getAgent: GetAgentFn) {
                 ...(kind !== undefined && { kind }),
             });
             return ctx.json(
-                {
-                    queued: result.queued,
+                QueueMessageResponseSchema.parse({
+                    queued: true as const,
                     id: result.id,
                     position: result.position,
-                },
+                }),
                 201
             );
         })
@@ -226,13 +239,16 @@ export function createQueueRouter(getAgent: GetAgentFn) {
                     { sessionId, messageId }
                 );
             }
-            return ctx.json({ removed: true, id: messageId }, 200);
+            return ctx.json(
+                RemoveQueuedMessageResponseSchema.parse({ removed: true as const, id: messageId }),
+                200
+            );
         })
         .openapi(clearQueueRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('param');
 
             const count = await agent.clearMessageQueue(sessionId);
-            return ctx.json({ cleared: true, count }, 200);
+            return ctx.json(ClearQueueResponseSchema.parse({ cleared: true as const, count }), 200);
         });
 }

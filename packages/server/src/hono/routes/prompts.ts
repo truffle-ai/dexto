@@ -76,6 +76,35 @@ const ResolvePromptQuerySchema = z
     })
     .describe('Query parameters for resolving prompt templates');
 
+const ListPromptsResponseSchema = z
+    .object({
+        prompts: z.array(PromptInfoSchema).describe('Array of available prompts'),
+    })
+    .strict()
+    .describe('Prompts list response');
+
+const CreatePromptResponseSchema = z
+    .object({
+        prompt: PromptInfoSchema.describe('Created prompt information'),
+    })
+    .strict()
+    .describe('Create prompt response');
+
+const GetPromptDefinitionResponseSchema = z
+    .object({
+        definition: PromptDefinitionSchema.describe('Prompt definition'),
+    })
+    .strict()
+    .describe('Get prompt definition response');
+
+const ResolvePromptResponseSchema = z
+    .object({
+        text: z.string().describe('Resolved prompt text'),
+        resources: z.array(z.string()).describe('Array of resource identifiers'),
+    })
+    .strict()
+    .describe('Resolve prompt response');
+
 export function createPromptsRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
 
@@ -90,14 +119,7 @@ export function createPromptsRouter(getAgent: GetAgentFn) {
                 description: 'List all prompts',
                 content: {
                     'application/json': {
-                        schema: z
-                            .object({
-                                prompts: z
-                                    .array(PromptInfoSchema)
-                                    .describe('Array of available prompts'),
-                            })
-                            .strict()
-                            .describe('Prompts list response'),
+                        schema: ListPromptsResponseSchema,
                     },
                 },
             },
@@ -126,12 +148,7 @@ export function createPromptsRouter(getAgent: GetAgentFn) {
                 description: 'Custom prompt created',
                 content: {
                     'application/json': {
-                        schema: z
-                            .object({
-                                prompt: PromptInfoSchema.describe('Created prompt information'),
-                            })
-                            .strict()
-                            .describe('Create prompt response'),
+                        schema: CreatePromptResponseSchema,
                     },
                 },
             },
@@ -170,12 +187,7 @@ export function createPromptsRouter(getAgent: GetAgentFn) {
                 description: 'Prompt definition',
                 content: {
                     'application/json': {
-                        schema: z
-                            .object({
-                                definition: PromptDefinitionSchema.describe('Prompt definition'),
-                            })
-                            .strict()
-                            .describe('Get prompt definition response'),
+                        schema: GetPromptDefinitionResponseSchema,
                     },
                 },
             },
@@ -202,15 +214,7 @@ export function createPromptsRouter(getAgent: GetAgentFn) {
                 description: 'Resolved prompt content',
                 content: {
                     'application/json': {
-                        schema: z
-                            .object({
-                                text: z.string().describe('Resolved prompt text'),
-                                resources: z
-                                    .array(z.string())
-                                    .describe('Array of resource identifiers'),
-                            })
-                            .strict()
-                            .describe('Resolve prompt response'),
+                        schema: ResolvePromptResponseSchema,
                     },
                 },
             },
@@ -226,7 +230,7 @@ export function createPromptsRouter(getAgent: GetAgentFn) {
             const agent = await getAgent(ctx);
             const prompts = await agent.listPrompts();
             const list = Object.values(prompts);
-            return ctx.json({ prompts: list }, 200);
+            return ctx.json(ListPromptsResponseSchema.parse({ prompts: list }), 200);
         })
         .openapi(createCustomRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -260,7 +264,7 @@ export function createPromptsRouter(getAgent: GetAgentFn) {
                     : {}),
             };
             const prompt = await agent.createCustomPrompt(createPayload);
-            return ctx.json({ prompt }, 201);
+            return ctx.json(CreatePromptResponseSchema.parse({ prompt }), 201);
         })
         .openapi(deleteCustomRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -274,7 +278,7 @@ export function createPromptsRouter(getAgent: GetAgentFn) {
             const { name } = ctx.req.valid('param');
             const definition = await agent.getPromptDefinition(name);
             if (!definition) throw PromptError.notFound(name);
-            return ctx.json({ definition }, 200);
+            return ctx.json(GetPromptDefinitionResponseSchema.parse({ definition }), 200);
         })
         .openapi(resolvePromptRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -304,6 +308,12 @@ export function createPromptsRouter(getAgent: GetAgentFn) {
 
             // Use DextoAgent's resolvePrompt method
             const result = await agent.resolvePrompt(name, options);
-            return ctx.json({ text: result.text, resources: result.resources }, 200);
+            return ctx.json(
+                ResolvePromptResponseSchema.parse({
+                    text: result.text,
+                    resources: result.resources,
+                }),
+                200
+            );
         });
 }

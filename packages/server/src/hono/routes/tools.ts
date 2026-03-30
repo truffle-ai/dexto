@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import type { Context } from 'hono';
-import { InternalErrorResponse } from '../schemas/responses.js';
+import { InternalErrorResponse, JsonObjectSchema, JsonValueSchema } from '../schemas/responses.js';
 type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
 // JSON Schema definition for tool input parameters
@@ -16,7 +16,7 @@ const JsonSchemaProperty = z
             .array(z.union([z.string(), z.number(), z.boolean()]))
             .optional()
             .describe('Enum values'),
-        default: z.any().optional().describe('Default value'),
+        default: JsonValueSchema.optional().describe('Default value'),
     })
     .passthrough()
     .describe('JSON Schema property definition');
@@ -39,7 +39,7 @@ const ToolInfoSchema = z
         serverName: z.string().optional().describe('MCP server name (if source is mcp)'),
         inputSchema: ToolInputSchema.optional().describe('JSON Schema for tool input parameters'),
         _meta: z
-            .record(z.unknown())
+            .record(z.string(), JsonValueSchema)
             .optional()
             .describe('Optional tool metadata (e.g., MCP Apps UI resource info)'),
     })
@@ -112,6 +112,8 @@ export function createToolsRouter(getAgent: GetAgentFn) {
                 localCount++;
             }
 
+            const metadataResult = JsonObjectSchema.safeParse(toolInfo._meta);
+
             toolList.push({
                 id: toolName,
                 name: toolName,
@@ -119,7 +121,7 @@ export function createToolsRouter(getAgent: GetAgentFn) {
                 source,
                 serverName,
                 inputSchema: toolInfo.parameters as z.output<typeof ToolInputSchema> | undefined,
-                _meta: toolInfo._meta as Record<string, unknown> | undefined,
+                _meta: metadataResult.success ? metadataResult.data : undefined,
             });
         }
 

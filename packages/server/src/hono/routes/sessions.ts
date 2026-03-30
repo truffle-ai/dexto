@@ -16,8 +16,8 @@ import {
     ScopedUsageSummarySchema,
     UsageSummarySchema,
 } from '../schemas/responses.js';
-import type { GetAgentFn } from '../index.js';
 import { handleHonoError } from '../middleware/error.js';
+import type { GetAgentFn } from '../types.js';
 
 const CreateSessionSchema = z
     .object({
@@ -781,7 +781,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.param();
             await agent.deleteSession(sessionId);
-            return ctx.json({ status: 'deleted', sessionId }, 200);
+            return ctx.json({ status: 'deleted' as const, sessionId }, 200);
         })
         .openapi(cancelRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -869,7 +869,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('param');
             await agent.clearContext(sessionId);
-            return ctx.json({ status: 'context cleared', sessionId }, 200);
+            return ctx.json({ status: 'context cleared' as const, sessionId }, 200);
         })
         .openapi(patchRoute, async (ctx) => {
             const agent = await getAgent(ctx);

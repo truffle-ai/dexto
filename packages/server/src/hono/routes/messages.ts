@@ -1,5 +1,6 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { OpenAPIHono, createRoute, type RouteConfigToTypedResponse, z } from '@hono/zod-openapi';
 import { streamSSE } from 'hono/streaming';
+import type { ToSchema } from 'hono/types';
 import { LLM_PROVIDERS } from '@dexto/core';
 import type { ApprovalCoordinator } from '../../approval/approval-coordinator.js';
 import {
@@ -12,7 +13,7 @@ import {
     TokenUsageSchema,
     toContentInput,
 } from '../schemas/responses.js';
-import type { GetAgentFn } from '../index.js';
+import type { GetAgentFn } from '../types.js';
 
 const MessageBodySchema = z
     .object({
@@ -33,212 +34,201 @@ const ResetBodySchema = z
     })
     .describe('Request body for resetting a conversation');
 
+const MessageAcceptedResponseSchema = z
+    .object({
+        accepted: z.literal(true).describe('Indicates request was accepted'),
+        sessionId: z.string().describe('Session ID used for this message'),
+    })
+    .strict();
+
+const MessageSyncResponseSchema = z
+    .object({
+        response: z.string().describe('Agent response text'),
+        sessionId: z.string().describe('Session ID used for this message'),
+        tokenUsage: TokenUsageSchema.optional().describe('Token usage statistics'),
+        messageId: z.string().uuid().optional().describe('Assistant message ID for this response'),
+        usageScopeId: z
+            .string()
+            .optional()
+            .describe('Optional usage scope identifier for runtime-scoped metering'),
+        estimatedCost: z
+            .number()
+            .nonnegative()
+            .optional()
+            .describe('Estimated cost in USD for this response'),
+        pricingStatus: PricingStatusSchema.optional().describe(
+            'Whether pricing was resolved for this response'
+        ),
+        reasoning: z
+            .string()
+            .optional()
+            .describe('Extended thinking content from reasoning models'),
+        model: z.string().optional().describe('Model used for this response'),
+        provider: z.enum(LLM_PROVIDERS).optional().describe('LLM provider'),
+    })
+    .strict();
+
+const ResetResponseSchema = z
+    .object({
+        status: z.string().describe('Status message indicating reset was initiated'),
+        sessionId: z.string().describe('Session ID that was reset'),
+    })
+    .strict();
+
+const MessageStreamBusyResponseSchema = z
+    .object({
+        busy: z.literal(true).describe('Indicates session is busy'),
+        sessionId: z.string().describe('The session ID'),
+        queueLength: z.number().describe('Current number of messages in queue'),
+        hint: z.string().describe('Instructions for the client'),
+    })
+    .strict();
+
+const messageRoute = createRoute({
+    method: 'post',
+    path: '/message',
+    summary: 'Send Message (async)',
+    description: 'Sends a message and returns immediately. The full response will be sent over SSE',
+    tags: ['messages'],
+    request: {
+        body: {
+            content: { 'application/json': { schema: MessageBodySchema } },
+        },
+    },
+    responses: {
+        202: {
+            description: 'Message accepted for async processing; subscribe to SSE for results',
+            content: {
+                'application/json': {
+                    schema: MessageAcceptedResponseSchema,
+                },
+            },
+        },
+        400: {
+            description: 'Validation error',
+            content: { 'application/json': { schema: ApiErrorResponseSchema } },
+        },
+        500: InternalErrorResponse,
+    },
+});
+
+const messageSyncRoute = createRoute({
+    method: 'post',
+    path: '/message-sync',
+    summary: 'Send Message (sync)',
+    description: 'Sends a message and waits for the full response',
+    tags: ['messages'],
+    request: {
+        body: { content: { 'application/json': { schema: MessageBodySchema } } },
+    },
+    responses: {
+        200: {
+            description: 'Synchronous response',
+            content: {
+                'application/json': {
+                    schema: MessageSyncResponseSchema,
+                },
+            },
+        },
+        400: {
+            description: 'Validation error',
+            content: { 'application/json': { schema: ApiErrorResponseSchema } },
+        },
+        500: InternalErrorResponse,
+    },
+});
+
+const resetRoute = createRoute({
+    method: 'post',
+    path: '/reset',
+    summary: 'Reset Conversation',
+    description: 'Resets the conversation history for a given session',
+    tags: ['messages'],
+    request: {
+        body: { content: { 'application/json': { schema: ResetBodySchema } } },
+    },
+    responses: {
+        200: {
+            description: 'Reset initiated',
+            content: {
+                'application/json': {
+                    schema: ResetResponseSchema,
+                },
+            },
+        },
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const messageStreamRoute = createRoute({
+    method: 'post',
+    path: '/message-stream',
+    summary: 'Stream message response',
+    description:
+        'Sends a message and streams the response via Server-Sent Events (SSE). Returns SSE stream directly in response. Events include llm:thinking, llm:chunk, llm:tool-call, llm:tool-result, llm:response, and llm:error. Final llm:response events include token usage, assistant message ID, and pricing metadata when available. If the session is busy processing another message, returns 202 with queue information.',
+    tags: ['messages'],
+    request: {
+        body: {
+            content: { 'application/json': { schema: MessageBodySchema } },
+        },
+    },
+    responses: {
+        200: {
+            description:
+                'SSE stream of agent events. Standard SSE format with event type and JSON data.',
+            headers: {
+                'Content-Type': {
+                    description: 'SSE content type',
+                    schema: { type: 'string', example: 'text/event-stream' },
+                },
+                'Cache-Control': {
+                    description: 'Disable caching for stream',
+                    schema: { type: 'string', example: 'no-cache' },
+                },
+                Connection: {
+                    description: 'Keep connection alive for streaming',
+                    schema: { type: 'string', example: 'keep-alive' },
+                },
+                'X-Accel-Buffering': {
+                    description: 'Disable nginx buffering',
+                    schema: { type: 'string', example: 'no' },
+                },
+            },
+            content: {
+                'text/event-stream': {
+                    schema: z
+                        .string()
+                        .describe(
+                            'Server-Sent Events stream. Events: llm:thinking (start), llm:chunk (text fragments), llm:tool-call (tool execution), llm:tool-result (tool output), llm:response (final), llm:error (errors)' +
+                                '. Final llm:response payloads include token usage, assistant message ID, and pricing metadata when available.'
+                        ),
+                },
+            },
+        },
+        202: {
+            description:
+                'Session is busy processing another message. Use the queue endpoints to manage pending messages.',
+            content: {
+                'application/json': {
+                    schema: MessageStreamBusyResponseSchema,
+                },
+            },
+        },
+        400: {
+            description: 'Validation error',
+            content: { 'application/json': { schema: ApiErrorResponseSchema } },
+        },
+        500: InternalErrorResponse,
+    },
+});
+
 export function createMessagesRouter(
     getAgent: GetAgentFn,
     approvalCoordinator?: ApprovalCoordinator
 ) {
     const app = new OpenAPIHono();
-
-    // TODO: Deprecate this endpoint - this async pattern is problematic and should be replaced
-    // with a proper job queue or streaming-only approach. Consider removing in next major version.
-    // Users should use /message/sync for synchronous responses or SSE for streaming.
-    const messageRoute = createRoute({
-        method: 'post',
-        path: '/message',
-        summary: 'Send Message (async)',
-        description:
-            'Sends a message and returns immediately. The full response will be sent over SSE',
-        tags: ['messages'],
-        request: {
-            body: {
-                content: { 'application/json': { schema: MessageBodySchema } },
-            },
-        },
-        responses: {
-            202: {
-                description: 'Message accepted for async processing; subscribe to SSE for results',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                accepted: z
-                                    .literal(true)
-                                    .describe('Indicates request was accepted'),
-                                sessionId: z.string().describe('Session ID used for this message'),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-            400: {
-                description: 'Validation error',
-                content: { 'application/json': { schema: ApiErrorResponseSchema } },
-            },
-            500: InternalErrorResponse,
-        },
-    });
-    const messageSyncRoute = createRoute({
-        method: 'post',
-        path: '/message-sync',
-        summary: 'Send Message (sync)',
-        description: 'Sends a message and waits for the full response',
-        tags: ['messages'],
-        request: {
-            body: { content: { 'application/json': { schema: MessageBodySchema } } },
-        },
-        responses: {
-            200: {
-                description: 'Synchronous response',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                response: z.string().describe('Agent response text'),
-                                sessionId: z.string().describe('Session ID used for this message'),
-                                tokenUsage:
-                                    TokenUsageSchema.optional().describe('Token usage statistics'),
-                                messageId: z
-                                    .string()
-                                    .uuid()
-                                    .optional()
-                                    .describe('Assistant message ID for this response'),
-                                usageScopeId: z
-                                    .string()
-                                    .optional()
-                                    .describe(
-                                        'Optional usage scope identifier for runtime-scoped metering'
-                                    ),
-                                estimatedCost: z
-                                    .number()
-                                    .nonnegative()
-                                    .optional()
-                                    .describe('Estimated cost in USD for this response'),
-                                pricingStatus: PricingStatusSchema.optional().describe(
-                                    'Whether pricing was resolved for this response'
-                                ),
-                                reasoning: z
-                                    .string()
-                                    .optional()
-                                    .describe('Extended thinking content from reasoning models'),
-                                model: z
-                                    .string()
-                                    .optional()
-                                    .describe('Model used for this response'),
-                                provider: z.enum(LLM_PROVIDERS).optional().describe('LLM provider'),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-            400: {
-                description: 'Validation error',
-                content: { 'application/json': { schema: ApiErrorResponseSchema } },
-            },
-            500: InternalErrorResponse,
-        },
-    });
-
-    const resetRoute = createRoute({
-        method: 'post',
-        path: '/reset',
-        summary: 'Reset Conversation',
-        description: 'Resets the conversation history for a given session',
-        tags: ['messages'],
-        request: {
-            body: { content: { 'application/json': { schema: ResetBodySchema } } },
-        },
-        responses: {
-            200: {
-                description: 'Reset initiated',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                status: z
-                                    .string()
-                                    .describe('Status message indicating reset was initiated'),
-                                sessionId: z.string().describe('Session ID that was reset'),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-            400: BadRequestErrorResponse,
-            404: NotFoundErrorResponse,
-            500: InternalErrorResponse,
-        },
-    });
-
-    const messageStreamRoute = createRoute({
-        method: 'post',
-        path: '/message-stream',
-        summary: 'Stream message response',
-        description:
-            'Sends a message and streams the response via Server-Sent Events (SSE). Returns SSE stream directly in response. Events include llm:thinking, llm:chunk, llm:tool-call, llm:tool-result, llm:response, and llm:error. Final llm:response events include token usage, assistant message ID, and pricing metadata when available. If the session is busy processing another message, returns 202 with queue information.',
-        tags: ['messages'],
-        request: {
-            body: {
-                content: { 'application/json': { schema: MessageBodySchema } },
-            },
-        },
-        responses: {
-            200: {
-                description:
-                    'SSE stream of agent events. Standard SSE format with event type and JSON data.',
-                headers: {
-                    'Content-Type': {
-                        description: 'SSE content type',
-                        schema: { type: 'string', example: 'text/event-stream' },
-                    },
-                    'Cache-Control': {
-                        description: 'Disable caching for stream',
-                        schema: { type: 'string', example: 'no-cache' },
-                    },
-                    Connection: {
-                        description: 'Keep connection alive for streaming',
-                        schema: { type: 'string', example: 'keep-alive' },
-                    },
-                    'X-Accel-Buffering': {
-                        description: 'Disable nginx buffering',
-                        schema: { type: 'string', example: 'no' },
-                    },
-                },
-                content: {
-                    'text/event-stream': {
-                        schema: z
-                            .string()
-                            .describe(
-                                'Server-Sent Events stream. Events: llm:thinking (start), llm:chunk (text fragments), llm:tool-call (tool execution), llm:tool-result (tool output), llm:response (final), llm:error (errors)' +
-                                    '. Final llm:response payloads include token usage, assistant message ID, and pricing metadata when available.'
-                            ),
-                    },
-                },
-            },
-            202: {
-                description:
-                    'Session is busy processing another message. Use the queue endpoints to manage pending messages.',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                busy: z.literal(true).describe('Indicates session is busy'),
-                                sessionId: z.string().describe('The session ID'),
-                                queueLength: z
-                                    .number()
-                                    .describe('Current number of messages in queue'),
-                                hint: z.string().describe('Instructions for the client'),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-            400: {
-                description: 'Validation error',
-                content: { 'application/json': { schema: ApiErrorResponseSchema } },
-            },
-            500: InternalErrorResponse,
-        },
-    });
 
     return app
         .openapi(messageRoute, async (ctx) => {
@@ -257,7 +247,7 @@ export function createMessagesRouter(
                 );
             });
 
-            return ctx.json({ accepted: true, sessionId }, 202);
+            return ctx.json({ accepted: true as const, sessionId }, 202);
         })
         .openapi(messageSyncRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -408,3 +398,37 @@ export function createMessagesRouter(
             });
         });
 }
+
+type MessageRouteSchema = ToSchema<
+    'post',
+    '/message',
+    { json: z.input<typeof MessageBodySchema> },
+    RouteConfigToTypedResponse<typeof messageRoute>
+>;
+
+type MessageSyncRouteSchema = ToSchema<
+    'post',
+    '/message-sync',
+    { json: z.input<typeof MessageBodySchema> },
+    RouteConfigToTypedResponse<typeof messageSyncRoute>
+>;
+
+type ResetRouteSchema = ToSchema<
+    'post',
+    '/reset',
+    { json: z.input<typeof ResetBodySchema> },
+    RouteConfigToTypedResponse<typeof resetRoute>
+>;
+
+type MessageStreamRouteSchema = ToSchema<
+    'post',
+    '/message-stream',
+    { json: z.input<typeof MessageBodySchema> },
+    RouteConfigToTypedResponse<typeof messageStreamRoute>
+>;
+
+export type MessagesRouterSchema =
+    | MessageRouteSchema
+    | MessageSyncRouteSchema
+    | ResetRouteSchema
+    | MessageStreamRouteSchema;
