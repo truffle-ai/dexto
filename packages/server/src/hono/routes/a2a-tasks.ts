@@ -337,6 +337,7 @@ export function createA2ATasksRouter(getAgent: GetAgentFn, sseSubscriber: A2ASse
     });
 
     // POST /v1/message:stream - Send message with streaming response
+    // eslint-disable-next-line dexto-custom/require-openapi-route-contract -- SSE transport endpoint is an explicit protocol exception and is not documented as a normal JSON route.
     app.post('/v1/message:stream', async (ctx) => {
         try {
             const body = await ctx.req.json();

@@ -31,6 +31,7 @@ export interface WebUIRuntimeConfig {
  * @param webRoot - Absolute path to the directory containing WebUI build output
  */
 export function createStaticRouter(webRoot: string) {
+    // eslint-disable-next-line dexto-custom/require-openapi-route-contract -- Static asset and SPA fallback serving is a transport concern, not an OpenAPI JSON route.
     const app = new Hono();
 
     // Serve static assets from /assets/

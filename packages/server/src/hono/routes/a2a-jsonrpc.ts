@@ -51,6 +51,7 @@ type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
  * @returns Hono router with /jsonrpc endpoint
  */
 export function createA2AJsonRpcRouter(getAgent: GetAgentFn, sseSubscriber: A2ASseEventSubscriber) {
+    // eslint-disable-next-line dexto-custom/require-openapi-route-contract -- JSON-RPC + SSE is a protocol transport surface, not a normal OpenAPI JSON route.
     const app = new Hono();
 
     /**
