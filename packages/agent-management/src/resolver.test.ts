@@ -587,6 +587,29 @@ describe('Agent Resolver', () => {
             expect(result).toBe(bundledCodingAgentPath);
             expect(mockInstallBundledAgent).toHaveBeenCalledWith('coding-agent');
         });
+
+        it('fails fast when preferences setup is incomplete and auto-install is disabled', async () => {
+            mockGlobalPreferencesExist.mockReturnValue(true);
+            mockLoadGlobalPreferences.mockResolvedValue({
+                setup: { completed: false },
+                defaults: { defaultAgent: 'my-agent' },
+            });
+
+            await expect(resolveAgentPath(undefined, false)).rejects.toThrow(
+                "Agent 'coding-agent' is not installed locally and auto-install is disabled"
+            );
+            expect(mockInstallBundledAgent).not.toHaveBeenCalled();
+        });
+
+        it('fails fast when preferences cannot be read and auto-install is disabled', async () => {
+            mockGlobalPreferencesExist.mockReturnValue(true);
+            mockLoadGlobalPreferences.mockRejectedValue(new Error('Corrupted preferences'));
+
+            await expect(resolveAgentPath(undefined, false)).rejects.toThrow(
+                "Agent 'coding-agent' is not installed locally and auto-install is disabled"
+            );
+            expect(mockInstallBundledAgent).not.toHaveBeenCalled();
+        });
     });
 
     describe('resolveAgentPath - Default Resolution - Global CLI Context', () => {
@@ -693,6 +716,29 @@ describe('Agent Resolver', () => {
 
             expect(result).toBe(bundledCodingAgentPath);
             expect(mockInstallBundledAgent).toHaveBeenCalledWith('coding-agent');
+        });
+
+        it('fails fast when setup is incomplete and auto-install is disabled', async () => {
+            mockGlobalPreferencesExist.mockReturnValue(true);
+            mockLoadGlobalPreferences.mockResolvedValue({
+                setup: { completed: false },
+                defaults: { defaultAgent: 'my-agent' },
+            });
+
+            await expect(resolveAgentPath(undefined, false)).rejects.toThrow(
+                "Agent 'coding-agent' is not installed locally and auto-install is disabled"
+            );
+            expect(mockInstallBundledAgent).not.toHaveBeenCalled();
+        });
+
+        it('fails fast when preferences cannot be read and auto-install is disabled', async () => {
+            mockGlobalPreferencesExist.mockReturnValue(true);
+            mockLoadGlobalPreferences.mockRejectedValue(new Error('Corrupted preferences'));
+
+            await expect(resolveAgentPath(undefined, false)).rejects.toThrow(
+                "Agent 'coding-agent' is not installed locally and auto-install is disabled"
+            );
+            expect(mockInstallBundledAgent).not.toHaveBeenCalled();
         });
     });
 

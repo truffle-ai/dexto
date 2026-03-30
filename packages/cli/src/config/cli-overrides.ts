@@ -201,7 +201,7 @@ function hasExplicitStartupFallbackConfiguration(provider: LLMProvider): boolean
     return false;
 }
 
-function hasUsableCredentials(
+export function hasUsableCredentials(
     provider: LLMProvider,
     llmConfig?: Pick<AgentConfig['llm'], 'apiKey' | 'baseURL'>
 ): boolean {

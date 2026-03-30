@@ -3,6 +3,7 @@ import * as p from '@clack/prompts';
 import type { DextoAgent } from '@dexto/core';
 import { logger } from '@dexto/core';
 import { safeExit, ExitSignal } from '../../analytics/wrapper.js';
+import { hasUsableCredentials } from '../../config/cli-overrides.js';
 import type { MainModeContext } from './context.js';
 
 async function getMostRecentSessionId(agent: DextoAgent): Promise<string | null> {
@@ -43,8 +44,7 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
     await agent.start();
     try {
         const llmConfig = agent.getCurrentLLMConfig();
-        const { requiresApiKey } = await import('@dexto/core');
-        if (requiresApiKey(llmConfig.provider) && !llmConfig.apiKey?.trim()) {
+        if (!hasUsableCredentials(llmConfig.provider, llmConfig)) {
             const { globalPreferencesExist, loadGlobalPreferences } = await import(
                 '@dexto/agent-management'
             );
@@ -136,7 +136,16 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                     const { handleSetupCommand } = await import('../commands/setup.js');
                     await handleSetupCommand({ interactive: true, force: true });
 
-                    const preferences = await loadGlobalPreferences();
+                    let preferences;
+                    try {
+                        preferences = await loadGlobalPreferences();
+                    } catch {
+                        safeExit('main', 0, 'setup-incomplete');
+                    }
+
+                    if (!preferences.setup.completed) {
+                        safeExit('main', 0, 'setup-incomplete');
+                    }
                     if (preferences.setup.apiKeyPending) {
                         safeExit('main', 0, 'api-key-pending');
                     }
