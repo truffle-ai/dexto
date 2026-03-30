@@ -1,6 +1,12 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { DextoAgent, ContentPart } from '@dexto/core';
-import { ContentPartSchema } from '../schemas/responses.js';
+import { DextoRuntimeError, ErrorType, type DextoAgent } from '@dexto/core';
+import {
+    ApiErrorResponseSchema,
+    ContentPartSchema,
+    RequestContentSchema,
+    toApiContentPart,
+    toContentInput,
+} from '../schemas/responses.js';
 import type { Context } from 'hono';
 type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
@@ -16,43 +22,10 @@ const QueuedMessageSchema = z
     .strict()
     .describe('A message waiting in the queue');
 
-// ContentPart schemas matching @dexto/core types
-// TODO: Same as messages.ts - Zod-inferred types don't exactly match core's ContentInput
-// due to exactOptionalPropertyTypes. We cast to ContentPart after validation.
-const TextPartSchema = z
-    .object({
-        type: z.literal('text').describe('Content type identifier'),
-        text: z.string().describe('Text content'),
-    })
-    .describe('Text content part');
-
-const ImagePartSchema = z
-    .object({
-        type: z.literal('image').describe('Content type identifier'),
-        image: z.string().describe('Base64-encoded image data or URL'),
-        mimeType: z.string().optional().describe('MIME type (e.g., image/png)'),
-    })
-    .describe('Image content part');
-
-const FilePartSchema = z
-    .object({
-        type: z.literal('file').describe('Content type identifier'),
-        data: z.string().describe('Base64-encoded file data or URL'),
-        mimeType: z.string().describe('MIME type (e.g., application/pdf)'),
-        filename: z.string().optional().describe('Optional filename'),
-    })
-    .describe('File content part');
-
-const QueueContentPartSchema = z
-    .discriminatedUnion('type', [TextPartSchema, ImagePartSchema, FilePartSchema])
-    .describe('Content part - text, image, or file');
-
 // Schema for queue message request body - matches messages.ts MessageBodySchema
 const QueueMessageBodySchema = z
     .object({
-        content: z
-            .union([z.string(), z.array(QueueContentPartSchema)])
-            .describe('Message content - string for text, or ContentPart[] for multimodal'),
+        content: RequestContentSchema,
         kind: z.enum(['default', 'background']).optional().describe('Optional queued message kind'),
     })
     .describe('Request body for queueing a message');
@@ -86,7 +59,10 @@ export function createQueueRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            404: { description: 'Session not found' },
+            404: {
+                description: 'Session not found',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
 
@@ -121,7 +97,10 @@ export function createQueueRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            404: { description: 'Session not found' },
+            404: {
+                description: 'Session not found',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
 
@@ -152,7 +131,10 @@ export function createQueueRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            404: { description: 'Session or message not found' },
+            404: {
+                description: 'Session or message not found',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
 
@@ -182,7 +164,10 @@ export function createQueueRouter(getAgent: GetAgentFn) {
                     },
                 },
             },
-            404: { description: 'Session not found' },
+            404: {
+                description: 'Session not found',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
 
@@ -192,23 +177,26 @@ export function createQueueRouter(getAgent: GetAgentFn) {
             const { sessionId } = ctx.req.valid('param');
 
             const messages = await agent.getQueuedMessages(sessionId);
-            return ctx.json({
-                messages,
-                count: messages.length,
-            });
+            const responseMessages = messages.map((message) => ({
+                id: message.id,
+                content: message.content.map(toApiContentPart),
+                queuedAt: message.queuedAt,
+                ...(message.metadata !== undefined ? { metadata: message.metadata } : {}),
+                ...(message.kind !== undefined ? { kind: message.kind } : {}),
+            }));
+            return ctx.json(
+                {
+                    messages: responseMessages,
+                    count: responseMessages.length,
+                },
+                200
+            );
         })
         .openapi(queueMessageRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('param');
             const { content: rawContent } = ctx.req.valid('json');
-
-            // Normalize content to array format and cast to ContentPart[]
-            // (same exactOptionalPropertyTypes issue as messages.ts - see TODO there)
-            const content = (
-                typeof rawContent === 'string'
-                    ? [{ type: 'text' as const, text: rawContent }]
-                    : rawContent
-            ) as ContentPart[];
+            const content = toContentInput(rawContent);
 
             const { kind } = ctx.req.valid('json');
             const result = await agent.queueMessage(sessionId, {
@@ -230,15 +218,21 @@ export function createQueueRouter(getAgent: GetAgentFn) {
 
             const removed = await agent.removeQueuedMessage(sessionId, messageId);
             if (!removed) {
-                return ctx.json({ error: 'Message not found in queue' }, 404);
+                throw new DextoRuntimeError(
+                    'queued_message_not_found',
+                    'queue',
+                    ErrorType.NOT_FOUND,
+                    'Message not found in queue',
+                    { sessionId, messageId }
+                );
             }
-            return ctx.json({ removed: true, id: messageId });
+            return ctx.json({ removed: true, id: messageId }, 200);
         })
         .openapi(clearQueueRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('param');
 
             const count = await agent.clearMessageQueue(sessionId);
-            return ctx.json({ cleared: true, count });
+            return ctx.json({ cleared: true, count }, 200);
         });
 }

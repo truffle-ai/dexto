@@ -12,7 +12,7 @@ Before completing significant tasks, prompt the user to ask if they want to run:
 /quality-checks
 ```
 
-This runs `scripts/quality-checks.sh` for build, tests, lint, and typecheck. See `.claude/commands/quality-checks.md`.
+This runs `scripts/quality-checks.sh` for build, tests, lint, typecheck, and Hono client inference. See `.claude/commands/quality-checks.md`.
 
 ## General Rules
 

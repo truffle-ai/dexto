@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { type DextoAgent, DenialReason, ApprovalStatus, ApprovalError } from '@dexto/core';
 import type { ApprovalCoordinator } from '../../approval/approval-coordinator.js';
+import { ApiErrorResponseSchema } from '../schemas/responses.js';
 import type { Context } from 'hono';
 type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
@@ -202,13 +203,20 @@ export function createApprovalsRouter(
             },
             404: {
                 description: 'Approval request not found or expired',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
             },
             400: {
                 description: 'Validation error',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
             },
             503: {
                 description:
                     'Approval coordinator unavailable (server not initialized for approvals)',
+                content: { 'application/json': { schema: ApprovalResponseSchema } },
+            },
+            500: {
+                description: 'Approval processing failed',
+                content: { 'application/json': { schema: ApprovalResponseSchema } },
             },
         },
     });
@@ -306,11 +314,14 @@ export function createApprovalsRouter(
                 // Emit via approval coordinator which ManualApprovalHandler listens to
                 approvalCoordinator.emitResponse(responsePayload);
 
-                return ctx.json({
-                    ok: true,
-                    approvalId,
-                    status,
-                });
+                return ctx.json(
+                    {
+                        ok: true,
+                        approvalId,
+                        status,
+                    },
+                    200
+                );
             } catch (error) {
                 agent.logger.error('Error processing approval', { approvalId, error });
                 return ctx.json({ ok: false as const, approvalId, status }, 500);

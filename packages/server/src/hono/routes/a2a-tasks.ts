@@ -101,6 +101,13 @@ const TaskSchema = z
     })
     .describe('A2A Protocol task');
 
+const TaskErrorResponseSchema = z
+    .object({
+        error: z.string().describe('Task error message'),
+    })
+    .strict()
+    .describe('A2A task error response');
+
 const MessageSendRequestSchema = z
     .object({
         message: MessageSchema.describe('Message to send to the agent'),
@@ -288,6 +295,11 @@ export function createA2ATasksRouter(getAgent: GetAgentFn, sseSubscriber: A2ASse
             },
             404: {
                 description: 'Task not found',
+                content: {
+                    'application/json': {
+                        schema: TaskErrorResponseSchema,
+                    },
+                },
             },
         },
     });
@@ -315,6 +327,11 @@ export function createA2ATasksRouter(getAgent: GetAgentFn, sseSubscriber: A2ASse
             },
             404: {
                 description: 'Task not found',
+                content: {
+                    'application/json': {
+                        schema: TaskErrorResponseSchema,
+                    },
+                },
             },
         },
     });
@@ -400,7 +417,7 @@ export function createA2ATasksRouter(getAgent: GetAgentFn, sseSubscriber: A2ASse
 
             try {
                 const task = await handlers.tasksGet({ id });
-                return ctx.json(task);
+                return ctx.json(task, 200);
             } catch (error) {
                 logger.warn(`Task ${id} not found: ${error}`);
                 return ctx.json({ error: 'Task not found' }, 404);
@@ -414,7 +431,7 @@ export function createA2ATasksRouter(getAgent: GetAgentFn, sseSubscriber: A2ASse
 
             try {
                 const task = await handlers.tasksCancel({ id });
-                return ctx.json(task);
+                return ctx.json(task, 200);
             } catch (error) {
                 logger.error(`Failed to cancel task ${id}: ${error}`);
                 return ctx.json({ error: 'Task not found' }, 404);

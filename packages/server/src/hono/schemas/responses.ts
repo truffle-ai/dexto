@@ -32,20 +32,51 @@ import {
     LLM_PRICING_STATUSES,
     LLMConfigBaseSchema as CoreLLMConfigBaseSchema,
     LLM_PROVIDERS,
+    type ContentPart as CoreContentPart,
 } from '@dexto/core';
 
-// TODO: Implement shared error response schemas for OpenAPI documentation.
-// Currently, 404 and other error responses lack body schemas because @hono/zod-openapi
-// enforces strict type matching between route definitions and handlers. When a 404 schema
-// is defined, TypeScript expects handler return types to be a union of all response types,
-// but the type system tries to match every return against every schema instead of by status code.
-//
-// Solution: Create a typed helper or wrapper that:
-// 1. Defines a shared ErrorResponseSchema (e.g., { error: string, code?: string })
-// 2. Properly types handlers to return discriminated unions by status code
-// 3. Can be reused across all routes for consistent error documentation
-//
-// See: https://github.com/honojs/middleware/tree/main/packages/zod-openapi for patterns
+export const IssueSchema = z
+    .object({
+        code: z.string().describe('Machine-readable issue code'),
+        message: z.string().describe('Human-readable issue message'),
+        scope: z.string().describe('Domain that produced the issue'),
+        type: z.string().describe('Error type used for HTTP status mapping'),
+        severity: z.enum(['error', 'warning']).describe('Issue severity'),
+        path: z
+            .array(z.union([z.string(), z.number()]))
+            .optional()
+            .describe('Optional location for the issue'),
+        context: z.unknown().optional().describe('Optional structured issue context'),
+    })
+    .strict()
+    .describe('Structured validation or runtime issue');
+
+export const ApiErrorResponseSchema = z
+    .object({
+        name: z.string().optional().describe('Optional error class name'),
+        message: z.string().describe('Human-readable error message'),
+        code: z.string().optional().describe('Machine-readable error code'),
+        scope: z.string().optional().describe('Domain that produced the error'),
+        type: z.string().optional().describe('Error type used for HTTP status mapping'),
+        severity: z
+            .enum(['error', 'warning'])
+            .optional()
+            .describe('Optional error severity for lightweight failures'),
+        endpoint: z.string().describe('Request path that failed'),
+        method: z.string().describe('HTTP method for the failed request'),
+        traceId: z.string().optional().describe('Optional trace identifier'),
+        recovery: z
+            .union([z.string(), z.array(z.string())])
+            .optional()
+            .describe('Optional recovery guidance'),
+        context: z.unknown().optional().describe('Optional structured error context'),
+        issues: z.array(IssueSchema).optional().describe('Validation issues when present'),
+        errorCount: z.number().int().nonnegative().optional().describe('Number of errors'),
+        warningCount: z.number().int().nonnegative().optional().describe('Number of warnings'),
+        stack: z.string().optional().describe('Development-only stack trace'),
+    })
+    .strict()
+    .describe('Standard API error response');
 
 // ============================================================================
 // Imports from @dexto/core - Reusable schemas
@@ -124,6 +155,90 @@ export const ContentPartSchema = z
         UIResourcePartSchema,
     ])
     .describe('Message content part (text, image, file, or UI resource)');
+
+export const RequestContentPartSchema = z
+    .discriminatedUnion('type', [TextPartSchema, ImagePartSchema, FilePartSchema])
+    .describe('Request message content part (text, image, or file)');
+
+export const RequestContentSchema = z
+    .union([z.string(), z.array(RequestContentPartSchema)])
+    .describe('Message content - string for text, or ContentPart[] for multimodal');
+
+function serializeBinaryValue(value: string | Uint8Array | Buffer | ArrayBuffer | URL): string {
+    if (typeof value === 'string') {
+        return value;
+    }
+    if (value instanceof URL) {
+        return value.toString();
+    }
+    if (value instanceof ArrayBuffer) {
+        return Buffer.from(new Uint8Array(value)).toString('base64');
+    }
+    return Buffer.from(value).toString('base64');
+}
+
+export function toContentInput(
+    rawContent: z.output<typeof RequestContentSchema>
+): CoreContentPart[] {
+    if (typeof rawContent === 'string') {
+        return [{ type: 'text', text: rawContent }];
+    }
+
+    return rawContent.map((part) => {
+        switch (part.type) {
+            case 'text':
+                return {
+                    type: 'text',
+                    text: part.text,
+                };
+            case 'image':
+                return {
+                    type: 'image',
+                    image: part.image,
+                    ...(part.mimeType !== undefined ? { mimeType: part.mimeType } : {}),
+                };
+            case 'file':
+                return {
+                    type: 'file',
+                    data: part.data,
+                    mimeType: part.mimeType,
+                    ...(part.filename !== undefined ? { filename: part.filename } : {}),
+                };
+        }
+    });
+}
+
+export function toApiContentPart(part: CoreContentPart): z.output<typeof ContentPartSchema> {
+    switch (part.type) {
+        case 'text':
+            return {
+                type: 'text',
+                text: part.text,
+            };
+        case 'image':
+            return {
+                type: 'image',
+                image: serializeBinaryValue(part.image),
+                ...(part.mimeType !== undefined ? { mimeType: part.mimeType } : {}),
+            };
+        case 'file':
+            return {
+                type: 'file',
+                data: serializeBinaryValue(part.data),
+                mimeType: part.mimeType,
+                ...(part.filename !== undefined ? { filename: part.filename } : {}),
+            };
+        case 'ui-resource':
+            return {
+                type: 'ui-resource',
+                uri: part.uri,
+                mimeType: part.mimeType,
+                ...(part.content !== undefined ? { content: part.content } : {}),
+                ...(part.blob !== undefined ? { blob: part.blob } : {}),
+                ...(part.metadata !== undefined ? { metadata: part.metadata } : {}),
+            };
+    }
+}
 
 export const ToolCallSchema = z
     .object({
@@ -218,6 +333,7 @@ export type TextPart = z.output<typeof TextPartSchema>;
 export type ImagePart = z.output<typeof ImagePartSchema>;
 export type FilePart = z.output<typeof FilePartSchema>;
 export type ContentPart = z.output<typeof ContentPartSchema>;
+export type RequestContentPart = z.output<typeof RequestContentPartSchema>;
 export type ToolCall = z.output<typeof ToolCallSchema>;
 export type TokenUsage = z.output<typeof TokenUsageSchema>;
 export type InternalMessage = z.output<typeof InternalMessageSchema>;

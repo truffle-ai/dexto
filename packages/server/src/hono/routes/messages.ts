@@ -1,51 +1,19 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { streamSSE } from 'hono/streaming';
-import type { ContentInput } from '@dexto/core';
 import { LLM_PROVIDERS } from '@dexto/core';
 import type { ApprovalCoordinator } from '../../approval/approval-coordinator.js';
-import { PricingStatusSchema, TokenUsageSchema } from '../schemas/responses.js';
+import {
+    ApiErrorResponseSchema,
+    PricingStatusSchema,
+    RequestContentSchema,
+    TokenUsageSchema,
+    toContentInput,
+} from '../schemas/responses.js';
 import type { GetAgentFn } from '../index.js';
-
-// ContentPart schemas matching @dexto/core types
-// TODO: The Zod-inferred types don't exactly match core's ContentInput due to
-// exactOptionalPropertyTypes (Zod infers `mimeType?: string | undefined` vs core's `mimeType?: string`).
-// We cast to ContentInput after validation. Fix by either:
-// 1. Export Zod schemas from @dexto/core and reuse here
-// 2. Use .transform() to convert to exact types
-// 3. Relax exactOptionalPropertyTypes in tsconfig
-const TextPartSchema = z
-    .object({
-        type: z.literal('text').describe('Content type identifier'),
-        text: z.string().describe('Text content'),
-    })
-    .describe('Text content part');
-
-const ImagePartSchema = z
-    .object({
-        type: z.literal('image').describe('Content type identifier'),
-        image: z.string().describe('Base64-encoded image data or URL'),
-        mimeType: z.string().optional().describe('MIME type (e.g., image/png)'),
-    })
-    .describe('Image content part');
-
-const FilePartSchema = z
-    .object({
-        type: z.literal('file').describe('Content type identifier'),
-        data: z.string().describe('Base64-encoded file data or URL'),
-        mimeType: z.string().describe('MIME type (e.g., application/pdf)'),
-        filename: z.string().optional().describe('Optional filename'),
-    })
-    .describe('File content part');
-
-const ContentPartSchema = z
-    .discriminatedUnion('type', [TextPartSchema, ImagePartSchema, FilePartSchema])
-    .describe('Content part - text, image, or file');
 
 const MessageBodySchema = z
     .object({
-        content: z
-            .union([z.string(), z.array(ContentPartSchema)])
-            .describe('Message content - string for text, or ContentPart[] for multimodal'),
+        content: RequestContentSchema,
         sessionId: z
             .string()
             .min(1, 'Session ID is required')
@@ -99,7 +67,10 @@ export function createMessagesRouter(
                     },
                 },
             },
-            400: { description: 'Validation error' },
+            400: {
+                description: 'Validation error',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
     const messageSyncRoute = createRoute({
@@ -155,7 +126,10 @@ export function createMessagesRouter(
                     },
                 },
             },
-            400: { description: 'Validation error' },
+            400: {
+                description: 'Validation error',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
 
@@ -250,7 +224,10 @@ export function createMessagesRouter(
                     },
                 },
             },
-            400: { description: 'Validation error' },
+            400: {
+                description: 'Validation error',
+                content: { 'application/json': { schema: ApiErrorResponseSchema } },
+            },
         },
     });
 
@@ -258,13 +235,14 @@ export function createMessagesRouter(
         .openapi(messageRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             agent.logger.info('Received message via POST /api/message');
-            const { content, sessionId } = ctx.req.valid('json');
+            const { content: rawContent, sessionId } = ctx.req.valid('json');
+            const content = toContentInput(rawContent);
 
             agent.logger.info(`Message for session: ${sessionId}`);
 
             // Fire and forget - start processing asynchronously
             // Results will be delivered via SSE
-            agent.generate(content as ContentInput, sessionId).catch((error) => {
+            agent.generate(content, sessionId).catch((error) => {
                 agent.logger.error(
                     `Error in async message processing: ${error instanceof Error ? error.message : String(error)}`
                 );
@@ -275,24 +253,28 @@ export function createMessagesRouter(
         .openapi(messageSyncRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             agent.logger.info('Received message via POST /api/message-sync');
-            const { content, sessionId } = ctx.req.valid('json');
+            const { content: rawContent, sessionId } = ctx.req.valid('json');
+            const content = toContentInput(rawContent);
 
             agent.logger.info(`Message for session: ${sessionId}`);
 
-            const result = await agent.generate(content as ContentInput, sessionId);
+            const result = await agent.generate(content, sessionId);
 
-            return ctx.json({
-                response: result.content,
-                sessionId: result.sessionId,
-                tokenUsage: result.usage,
-                messageId: result.messageId,
-                usageScopeId: result.usageScopeId,
-                estimatedCost: result.estimatedCost,
-                pricingStatus: result.pricingStatus,
-                reasoning: result.reasoning,
-                model: result.model,
-                provider: result.provider,
-            });
+            return ctx.json(
+                {
+                    response: result.content,
+                    sessionId: result.sessionId,
+                    tokenUsage: result.usage,
+                    messageId: result.messageId,
+                    usageScopeId: result.usageScopeId,
+                    estimatedCost: result.estimatedCost,
+                    pricingStatus: result.pricingStatus,
+                    reasoning: result.reasoning,
+                    model: result.model,
+                    provider: result.provider,
+                },
+                200
+            );
         })
         .openapi(resetRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -303,7 +285,8 @@ export function createMessagesRouter(
         })
         .openapi(messageStreamRoute, async (ctx) => {
             const agent = await getAgent(ctx);
-            const { content, sessionId } = ctx.req.valid('json');
+            const { content: rawContent, sessionId } = ctx.req.valid('json');
+            const content = toContentInput(rawContent);
 
             // Check if session is busy before starting stream
             const isBusy = await agent.isSessionBusy(sessionId);
@@ -325,7 +308,7 @@ export function createMessagesRouter(
             const { signal } = abortController;
 
             // Start agent streaming
-            const iterator = await agent.stream(content as ContentInput, sessionId, { signal });
+            const iterator = await agent.stream(content, sessionId, { signal });
 
             // Use Hono's streamSSE helper which handles backpressure correctly
             return streamSSE(ctx, async (stream) => {
