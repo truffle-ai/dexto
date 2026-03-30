@@ -10,7 +10,7 @@ import { createMessagesRouter, type MessagesRouterSchema } from './routes/messag
 import { createLlmRouter, type LlmRouterSchema } from './routes/llm.js';
 import { createSessionsRouter, type SessionsRouterSchema } from './routes/sessions.js';
 import { createSearchRouter, type SearchRouterSchema } from './routes/search.js';
-import { createMcpRouter } from './routes/mcp.js';
+import { createMcpRouter, type McpRouterSchema } from './routes/mcp.js';
 import { createA2aRouter } from './routes/a2a.js';
 import { createA2AJsonRpcRouter } from './routes/a2a-jsonrpc.js';
 import { createA2ATasksRouter } from './routes/a2a-tasks.js';
@@ -150,7 +150,7 @@ type ConversationRouterSchema =
     | SearchRouterSchema;
 
 type IntegrationRouterSchema =
-    | ExtractSchema<ReturnType<typeof createMcpRouter>>
+    | McpRouterSchema
     | ExtractSchema<ReturnType<typeof createWebhooksRouter>>
     | ExtractSchema<ReturnType<typeof createPromptsRouter>>
     | ExtractSchema<ReturnType<typeof createResourcesRouter>>
