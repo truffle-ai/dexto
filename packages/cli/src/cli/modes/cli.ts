@@ -137,6 +137,9 @@ export async function runCliMode(context: MainModeContext): Promise<void> {
                     await handleSetupCommand({ interactive: true, force: true });
 
                     const preferences = await loadGlobalPreferences();
+                    if (preferences.setup.apiKeyPending) {
+                        safeExit('main', 0, 'api-key-pending');
+                    }
                     await agent.switchLLM({
                         provider: preferences.llm.provider,
                         model: preferences.llm.model,

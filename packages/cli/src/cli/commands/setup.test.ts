@@ -432,6 +432,26 @@ describe('Setup Command', () => {
             expect(mockInteractiveApiKeySetup).not.toHaveBeenCalled();
         });
 
+        it('forwards defaultMode in non-interactive setup', async () => {
+            const options: CLISetupOptionsInput = {
+                provider: 'openai',
+                model: 'gpt-5',
+                defaultMode: 'server',
+                interactive: false,
+            };
+
+            await handleSetupCommand(options);
+
+            expect(mockCreateInitialPreferences).toHaveBeenCalledWith({
+                provider: 'openai',
+                model: 'gpt-5',
+                apiKeyVar: 'OPENAI_API_KEY',
+                defaultMode: 'server',
+                defaultAgent: 'coding-agent',
+                setupCompleted: true,
+            });
+        });
+
         it('uses default model when not specified', async () => {
             const options = {
                 provider: 'anthropic' as const,

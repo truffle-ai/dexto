@@ -21,7 +21,7 @@ dexto "what is the current time"
 dexto --agent coding-agent --mode cli
 ```
 
-If Dexto has not been set up yet, the first interactive launch enters the generic `dexto setup` flow before the CLI starts. This keeps provider selection explicit and avoids inheriting bundled agent defaults before you have chosen how Dexto should run.
+If Dexto has not been set up yet, bare/default interactive startup enters the generic `dexto setup` flow before the CLI starts. Interactive launches from an explicit agent file or a project-local startup config bypass `dexto setup`, which keeps provider selection explicit without blocking project-owned agent configs.
 
 ## CLI Features
 

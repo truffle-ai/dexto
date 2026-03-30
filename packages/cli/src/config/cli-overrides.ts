@@ -163,7 +163,7 @@ export function applyStartupLLMFallback(
     }
 
     for (const provider of LLM_PROVIDERS) {
-        if (!hasUsableCredentials(provider)) {
+        if (!hasExplicitStartupFallbackConfiguration(provider)) {
             continue;
         }
 
@@ -187,6 +187,18 @@ export function applyStartupLLMFallback(
     }
 
     return mergedConfig;
+}
+
+function hasExplicitStartupFallbackConfiguration(provider: LLMProvider): boolean {
+    if (resolveApiKeyForProvider(provider)?.trim()) {
+        return true;
+    }
+
+    if (requiresBaseURL(provider) && process.env.OPENAI_BASE_URL?.trim()) {
+        return true;
+    }
+
+    return false;
 }
 
 function hasUsableCredentials(

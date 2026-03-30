@@ -688,8 +688,10 @@ program
                     setupRequired = await requiresSetup();
                 }
 
-                if (setupRequired && opts.interactive === false) {
-                    console.error('❌ Setup required but --no-interactive flag is set.');
+                const canRunInteractiveSetup = isInteractiveMode && opts.interactive !== false;
+
+                if (setupRequired && !canRunInteractiveSetup) {
+                    console.error('❌ Setup required before starting in this mode.');
                     console.error(
                         '💡 Run `dexto setup` first, or use --skip-setup to bypass global setup.'
                     );
@@ -697,11 +699,7 @@ program
                 }
 
                 const shouldRunSetupBeforeStartup =
-                    setupRequired &&
-                    isInteractiveMode &&
-                    opts.interactive !== false &&
-                    !opts.provider &&
-                    !opts.model;
+                    setupRequired && canRunInteractiveSetup && !opts.provider && !opts.model;
 
                 if (shouldRunSetupBeforeStartup) {
                     const { handleSetupCommand } = await import('./cli/commands/setup.js');
@@ -856,6 +854,7 @@ program
                                 await handleSetupCommand({ interactive: true, force: true });
                                 // Reload preferences after setup
                                 preferences = await loadGlobalPreferences();
+                                hasCompletedSetup = preferences.setup.completed;
                             } else {
                                 // User cancelled
                                 safeExit('main', 0, 'dexto-auth-check-cancelled');

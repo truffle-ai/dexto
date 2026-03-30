@@ -1,4 +1,5 @@
-import { afterEach, describe, test, expect } from 'vitest';
+import { afterEach, beforeEach, describe, test, expect } from 'vitest';
+import { LLM_PROVIDERS, PROVIDER_API_KEY_MAP } from '@dexto/core';
 import {
     applyCLIOverrides,
     applyStartupLLMFallback,
@@ -235,9 +236,10 @@ describe('applyUserPreferences', () => {
 });
 
 describe('applyStartupLLMFallback', () => {
-    const originalOpenAiKey = process.env.OPENAI_API_KEY;
-    const originalAnthropicKey = process.env.ANTHROPIC_API_KEY;
-    const originalCustomAnthropicKey = process.env.CUSTOM_ANTHROPIC_KEY;
+    const originalProviderEnv = new Map<string, string | undefined>();
+    const fallbackProviderEnvVars = new Set(
+        [...Object.values(PROVIDER_API_KEY_MAP).flat(), 'OPENAI_BASE_URL'].filter(Boolean)
+    );
 
     const bundledCodingAgentConfig: AgentConfig = {
         systemPrompt: 'test agent',
@@ -248,24 +250,23 @@ describe('applyStartupLLMFallback', () => {
         },
     };
 
+    beforeEach(() => {
+        for (const envVar of fallbackProviderEnvVars) {
+            originalProviderEnv.set(envVar, process.env[envVar]);
+            delete process.env[envVar];
+        }
+    });
+
     afterEach(() => {
-        if (originalOpenAiKey === undefined) {
-            delete process.env.OPENAI_API_KEY;
-        } else {
-            process.env.OPENAI_API_KEY = originalOpenAiKey;
+        for (const envVar of fallbackProviderEnvVars) {
+            const originalValue = originalProviderEnv.get(envVar);
+            if (originalValue === undefined) {
+                delete process.env[envVar];
+            } else {
+                process.env[envVar] = originalValue;
+            }
         }
-
-        if (originalAnthropicKey === undefined) {
-            delete process.env.ANTHROPIC_API_KEY;
-        } else {
-            process.env.ANTHROPIC_API_KEY = originalAnthropicKey;
-        }
-
-        if (originalCustomAnthropicKey === undefined) {
-            delete process.env.CUSTOM_ANTHROPIC_KEY;
-        } else {
-            process.env.CUSTOM_ANTHROPIC_KEY = originalCustomAnthropicKey;
-        }
+        originalProviderEnv.clear();
     });
 
     test('switches to an already-configured provider when setup is incomplete', () => {
@@ -342,7 +343,6 @@ describe('applyStartupLLMFallback', () => {
     });
 
     test('keeps agent config when its api key comes from a non-provider env var', () => {
-        delete process.env.ANTHROPIC_API_KEY;
         process.env.CUSTOM_ANTHROPIC_KEY = 'sk-custom-anthropic';
         process.env.OPENAI_API_KEY = 'sk-test-openai';
 
@@ -366,5 +366,19 @@ describe('applyStartupLLMFallback', () => {
         expect(result.llm.provider).toBe('anthropic');
         expect(result.llm.model).toBe('claude-sonnet-4-5-20250929');
         expect(result.llm.apiKey).toBe('$CUSTOM_ANTHROPIC_KEY');
+    });
+
+    test('does not switch to providers without explicit fallback configuration', () => {
+        const result = applyStartupLLMFallback(clone(bundledCodingAgentConfig), {
+            hasCompletedSetup: false,
+            hasExplicitProviderOverride: false,
+            hasExplicitModelOverride: false,
+            hasExplicitApiKeyOverride: false,
+        });
+
+        expect(result.llm.provider).toBe('anthropic');
+        expect(result.llm.model).toBe('claude-sonnet-4-5-20250929');
+        expect(LLM_PROVIDERS).toContain('local');
+        expect(LLM_PROVIDERS).toContain('ollama');
     });
 });

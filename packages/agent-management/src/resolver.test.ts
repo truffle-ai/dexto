@@ -569,6 +569,24 @@ describe('Agent Resolver', () => {
             expect(result).toBe(bundledCodingAgentPath);
             expect(mockInstallBundledAgent).toHaveBeenCalledWith('coding-agent');
         });
+
+        it('falls back to bundled coding-agent when preferences cannot be read', async () => {
+            mockGlobalPreferencesExist.mockReturnValue(true);
+            mockLoadGlobalPreferences.mockRejectedValue(new Error('Corrupted preferences'));
+            const bundledCodingAgentPath = path.join(
+                tempDir,
+                '.dexto',
+                'agents',
+                'coding-agent',
+                'agent.yml'
+            );
+            mockInstallBundledAgent.mockResolvedValue(bundledCodingAgentPath);
+
+            const result = await resolveAgentPath();
+
+            expect(result).toBe(bundledCodingAgentPath);
+            expect(mockInstallBundledAgent).toHaveBeenCalledWith('coding-agent');
+        });
     });
 
     describe('resolveAgentPath - Default Resolution - Global CLI Context', () => {
@@ -644,6 +662,24 @@ describe('Agent Resolver', () => {
                 setup: { completed: false },
                 defaults: { defaultAgent: 'my-agent' },
             });
+            const bundledCodingAgentPath = path.join(
+                tempDir,
+                '.dexto',
+                'agents',
+                'coding-agent',
+                'agent.yml'
+            );
+            mockInstallBundledAgent.mockResolvedValue(bundledCodingAgentPath);
+
+            const result = await resolveAgentPath();
+
+            expect(result).toBe(bundledCodingAgentPath);
+            expect(mockInstallBundledAgent).toHaveBeenCalledWith('coding-agent');
+        });
+
+        it('falls back to bundled coding-agent when preferences cannot be read', async () => {
+            mockGlobalPreferencesExist.mockReturnValue(true);
+            mockLoadGlobalPreferences.mockRejectedValue(new Error('Corrupted preferences'));
             const bundledCodingAgentPath = path.join(
                 tempDir,
                 '.dexto',

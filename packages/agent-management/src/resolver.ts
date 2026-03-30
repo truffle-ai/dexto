@@ -255,10 +255,14 @@ async function resolveDefaultAgentForDextoProject(autoInstall: boolean = true): 
 
     // 3. Use preferences default agent when setup is complete
     if (globalPreferencesExist()) {
-        const preferences = await loadGlobalPreferences();
-        if (preferences.setup.completed && preferences.defaults.defaultAgent) {
-            const preferredAgentName = preferences.defaults.defaultAgent;
-            return await resolveAgentByName(preferredAgentName, autoInstall);
+        try {
+            const preferences = await loadGlobalPreferences();
+            if (preferences.setup.completed && preferences.defaults.defaultAgent) {
+                const preferredAgentName = preferences.defaults.defaultAgent;
+                return await resolveAgentByName(preferredAgentName, autoInstall);
+            }
+        } catch (error) {
+            logger.debug(`Could not load global preferences for project fallback: ${error}`);
         }
     }
 
@@ -272,10 +276,14 @@ async function resolveDefaultAgentForDextoProject(autoInstall: boolean = true): 
 async function resolveDefaultAgentForGlobalCLI(autoInstall: boolean = true): Promise<string> {
     logger.debug('Resolving default agent for global CLI context');
     if (globalPreferencesExist()) {
-        const preferences = await loadGlobalPreferences();
-        if (preferences.setup.completed && preferences.defaults.defaultAgent) {
-            const preferredAgentName = preferences.defaults.defaultAgent;
-            return await resolveAgentByName(preferredAgentName, autoInstall);
+        try {
+            const preferences = await loadGlobalPreferences();
+            if (preferences.setup.completed && preferences.defaults.defaultAgent) {
+                const preferredAgentName = preferences.defaults.defaultAgent;
+                return await resolveAgentByName(preferredAgentName, autoInstall);
+            }
+        } catch (error) {
+            logger.debug(`Could not load global preferences for CLI fallback: ${error}`);
         }
     }
 

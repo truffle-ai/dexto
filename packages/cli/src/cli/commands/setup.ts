@@ -2067,13 +2067,25 @@ async function handleNonInteractiveSetup(options: CLISetupOptions): Promise<void
     const apiKeyVar = getProviderEnvVar(provider);
     const hadApiKeyBefore = Boolean(resolveApiKeyForProvider(provider));
 
-    const preferences = createInitialPreferences({
+    const preferencesOptions: {
+        provider: NonNullable<CLISetupOptions['provider']>;
+        model: string;
+        apiKeyVar: string;
+        defaultAgent: string;
+        setupCompleted: true;
+        defaultMode?: NonNullable<CLISetupOptions['defaultMode']>;
+    } = {
         provider,
         model,
         apiKeyVar,
         defaultAgent: options.defaultAgent,
         setupCompleted: true,
-    });
+    };
+    if (options.defaultMode) {
+        preferencesOptions.defaultMode = options.defaultMode;
+    }
+
+    const preferences = createInitialPreferences(preferencesOptions);
 
     await saveGlobalPreferences(preferences);
 
