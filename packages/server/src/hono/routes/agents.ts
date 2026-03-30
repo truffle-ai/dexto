@@ -1,5 +1,4 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { DextoAgent } from '@dexto/core';
 import { AgentConfigSchema } from '@dexto/agent-config';
 import { AgentError, logger, safeStringify, type LLMProvider, zodToIssues } from '@dexto/core';
 import {

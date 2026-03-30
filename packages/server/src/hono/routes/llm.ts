@@ -190,7 +190,8 @@ const CapabilitiesQuerySchema = z
             .min(1)
             .describe('Model name (supports both native and OpenRouter format)'),
     })
-    .strict();
+    .strict()
+    .describe('Query parameters for model capability lookup');
 
 const SetFavoritesBodySchema = z
     .object({
@@ -198,7 +199,8 @@ const SetFavoritesBodySchema = z
             .array(ModelPickerModelRefSchema)
             .describe('Complete list of favorite model references'),
     })
-    .strict();
+    .strict()
+    .describe('Request body for setting favorite models');
 
 const currentRoute = createRoute({
     method: 'get',

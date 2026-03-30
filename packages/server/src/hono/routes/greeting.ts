@@ -16,7 +16,8 @@ const GreetingResponseSchema = z
     .object({
         greeting: z.string().optional().describe('Greeting message from agent configuration'),
     })
-    .strict();
+    .strict()
+    .describe('Greeting response payload');
 
 const greetingRoute = createRoute({
     method: 'get',

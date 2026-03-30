@@ -1,6 +1,5 @@
 import { OpenAPIHono, createRoute, type RouteConfigToTypedResponse, z } from '@hono/zod-openapi';
 import type { ToSchema } from 'hono/types';
-import type { DextoAgent } from '@dexto/core';
 import {
     BadRequestErrorResponse,
     InternalErrorResponse,

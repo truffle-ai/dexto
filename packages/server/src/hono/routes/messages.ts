@@ -39,7 +39,8 @@ const MessageAcceptedResponseSchema = z
         accepted: z.literal(true).describe('Indicates request was accepted'),
         sessionId: z.string().describe('Session ID used for this message'),
     })
-    .strict();
+    .strict()
+    .describe('Asynchronous message acceptance response');
 
 const MessageSyncResponseSchema = z
     .object({
@@ -66,14 +67,16 @@ const MessageSyncResponseSchema = z
         model: z.string().optional().describe('Model used for this response'),
         provider: z.enum(LLM_PROVIDERS).optional().describe('LLM provider'),
     })
-    .strict();
+    .strict()
+    .describe('Synchronous message response');
 
 const ResetResponseSchema = z
     .object({
         status: z.string().describe('Status message indicating reset was initiated'),
         sessionId: z.string().describe('Session ID that was reset'),
     })
-    .strict();
+    .strict()
+    .describe('Session reset response');
 
 const MessageStreamBusyResponseSchema = z
     .object({
@@ -82,7 +85,8 @@ const MessageStreamBusyResponseSchema = z
         queueLength: z.number().describe('Current number of messages in queue'),
         hint: z.string().describe('Instructions for the client'),
     })
-    .strict();
+    .strict()
+    .describe('Busy response for streaming requests');
 
 const messageRoute = createRoute({
     method: 'post',

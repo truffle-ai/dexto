@@ -1,7 +1,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import type { Context, Hono } from 'hono';
 import type { BlankEnv, ExtractSchema, MergeSchemaPath } from 'hono/types';
-import type { DextoAgent, AgentCard } from '@dexto/core';
+import type { AgentCard } from '@dexto/core';
 import { logger } from '@dexto/core';
 import { getDextoPackageRoot } from '@dexto/agent-management';
 import { createHealthRouter } from './routes/health.js';
@@ -21,8 +21,8 @@ import { createMemoryRouter, type MemoryRouterSchema } from './routes/memory.js'
 import { createWorkspacesRouter, type WorkspacesRouterSchema } from './routes/workspaces.js';
 import { createSchedulesRouter, type SchedulesRouterSchema } from './routes/schedules.js';
 import { createAgentsRouter, type AgentsRouterContext } from './routes/agents.js';
-import { createApprovalsRouter } from './routes/approvals.js';
-import { createQueueRouter } from './routes/queue.js';
+import { createApprovalsRouter, type ApprovalsRouterSchema } from './routes/approvals.js';
+import { createQueueRouter, type QueueRouterSchema } from './routes/queue.js';
 import { createOpenRouterRouter } from './routes/openrouter.js';
 import { createKeyRouter } from './routes/key.js';
 import { createToolsRouter } from './routes/tools.js';
@@ -159,9 +159,9 @@ type IntegrationRouterSchema =
     | SchedulesRouterSchema;
 
 type ManagementRouterSchema =
-    | ExtractSchema<ReturnType<typeof createApprovalsRouter>>
+    | ApprovalsRouterSchema
     | ExtractSchema<ReturnType<typeof createAgentsRouter>>
-    | ExtractSchema<ReturnType<typeof createQueueRouter>>;
+    | QueueRouterSchema;
 
 type SystemRouterSchema =
     | ExtractSchema<ReturnType<typeof createOpenRouterRouter>>
