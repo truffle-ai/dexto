@@ -37,38 +37,21 @@ import {
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
-function isJsonValue(value: unknown): value is JsonValue {
-    if (
-        value === null ||
-        typeof value === 'string' ||
-        typeof value === 'number' ||
-        typeof value === 'boolean'
-    ) {
-        return true;
-    }
-    if (Array.isArray(value)) {
-        return value.every(isJsonValue);
-    }
-    if (typeof value !== 'object') {
-        return false;
-    }
-    return Object.values(value).every(isJsonValue);
-}
-
-function isJsonObject(value: unknown): value is { [key: string]: JsonValue } {
-    return (
-        typeof value === 'object' && value !== null && !Array.isArray(value) && isJsonValue(value)
-    );
-}
-
-export const JsonValueSchema = z
-    .custom<JsonValue>(isJsonValue, 'Expected a JSON-serializable value')
+export const JsonValueSchema: z.ZodType<JsonValue> = z
+    .lazy(() =>
+        z.union([
+            z.string(),
+            z.number(),
+            z.boolean(),
+            z.null(),
+            z.array(JsonValueSchema),
+            z.record(z.string(), JsonValueSchema),
+        ])
+    )
     .describe('Any JSON-serializable value');
 
-export const JsonObjectSchema = z
-    .custom<{
-        [key: string]: JsonValue;
-    }>(isJsonObject, 'Expected a JSON object with serializable values')
+export const JsonObjectSchema: z.ZodType<{ [key: string]: JsonValue }> = z
+    .record(z.string(), JsonValueSchema)
     .describe('JSON object with arbitrary serializable values');
 
 export const IssueSchema = z
@@ -923,6 +906,22 @@ export const PromptDefinitionSchema = z
             .array(PromptArgumentSchema)
             .optional()
             .describe('Array of argument definitions'),
+        disableModelInvocation: z
+            .boolean()
+            .optional()
+            .describe('Exclude from auto-invocation list in system prompt'),
+        userInvocable: z.boolean().optional().describe('Whether to show in slash command menu'),
+        allowedTools: z
+            .array(z.string())
+            .optional()
+            .describe('Tools to auto-approve when this prompt is active'),
+        toolkits: z.array(z.string()).optional().describe('Toolkits to load when invoked'),
+        model: z.string().optional().describe('Model to use when this prompt is invoked'),
+        context: z
+            .enum(['inline', 'fork'])
+            .optional()
+            .describe('Execution context for this prompt'),
+        agent: z.string().optional().describe('Agent ID to use for fork execution'),
     })
     .strict()
     .describe('Prompt definition (MCP-compliant)');
@@ -938,7 +937,25 @@ export const PromptInfoSchema = z
             .array(PromptArgumentSchema)
             .optional()
             .describe('Array of argument definitions'),
+        disableModelInvocation: z
+            .boolean()
+            .optional()
+            .describe('Exclude from auto-invocation list in system prompt'),
+        userInvocable: z.boolean().optional().describe('Whether to show in slash command menu'),
+        allowedTools: z
+            .array(z.string())
+            .optional()
+            .describe('Tools to auto-approve when this prompt is active'),
+        toolkits: z.array(z.string()).optional().describe('Toolkits to load when invoked'),
+        model: z.string().optional().describe('Model to use when this prompt is invoked'),
+        context: z
+            .enum(['inline', 'fork'])
+            .optional()
+            .describe('Execution context for this prompt'),
+        agent: z.string().optional().describe('Agent ID to use for fork execution'),
         source: z.enum(['mcp', 'config', 'custom']).describe('Source of the prompt'),
+        displayName: z.string().optional().describe('Base display name set by provider'),
+        commandName: z.string().optional().describe('Collision-resolved slash command name'),
         metadata: JsonObjectSchema.optional().describe('Additional metadata'),
     })
     .strict()
