@@ -1,35 +1,14 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import type { Context } from 'hono';
-import { InternalErrorResponse, JsonObjectSchema, JsonValueSchema } from '../schemas/responses.js';
+import {
+    InternalErrorResponse,
+    JsonObjectSchema,
+    JsonValueSchema,
+    ToolInputSchema,
+} from '../schemas/responses.js';
 import type { OpenAPIRouteSchema } from '../types.js';
 type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
-
-// JSON Schema definition for tool input parameters
-const JsonSchemaProperty = z
-    .object({
-        type: z
-            .enum(['string', 'number', 'integer', 'boolean', 'object', 'array'])
-            .optional()
-            .describe('Property type'),
-        description: z.string().optional().describe('Property description'),
-        enum: z
-            .array(z.union([z.string(), z.number(), z.boolean()]))
-            .optional()
-            .describe('Enum values'),
-        default: JsonValueSchema.optional().describe('Default value'),
-    })
-    .passthrough()
-    .describe('JSON Schema property definition');
-
-const ToolInputSchema = z
-    .object({
-        type: z.literal('object').optional().describe('Schema type, always "object" when present'),
-        properties: z.record(JsonSchemaProperty).optional().describe('Property definitions'),
-        required: z.array(z.string()).optional().describe('Required property names'),
-    })
-    .passthrough()
-    .describe('JSON Schema for tool input parameters');
 
 const ToolInfoSchema = z
     .object({
@@ -121,7 +100,10 @@ export function createToolsRouter(getAgent: GetAgentFn) {
                 description: toolInfo.description || 'No description available',
                 source,
                 serverName,
-                inputSchema: toolInfo.parameters as z.output<typeof ToolInputSchema> | undefined,
+                inputSchema:
+                    toolInfo.parameters === undefined
+                        ? undefined
+                        : ToolInputSchema.parse(toolInfo.parameters),
                 _meta: metadataResult.success ? metadataResult.data : undefined,
             });
         }

@@ -17,9 +17,21 @@ import { A2AMethodHandlers } from '../../a2a/jsonrpc/methods.js';
 import { logger } from '@dexto/core';
 import type { A2ASseEventSubscriber } from '../../events/a2a-sse-subscriber.js';
 import { a2aToInternalMessage } from '../../a2a/adapters/message.js';
+import type { ListTasksParams, Message, MessageSendParams, Part } from '../../a2a/types.js';
 import type { Context } from 'hono';
-import { BadRequestErrorResponse, InternalErrorResponse } from '../schemas/responses.js';
+import {
+    BadRequestErrorResponse,
+    InternalErrorResponse,
+    JsonObjectSchema,
+} from '../schemas/responses.js';
 type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
+
+// Mount subrouters through a tiny helper so declaration emit does not explode on
+// repeated `app.openapi(...)` / `app.route(...)` generic expansion in this file.
+// See: https://github.com/honojs/hono/issues/2399
+function mountA2ATasksSubrouter(app: OpenAPIHono, router: OpenAPIHono) {
+    app.route('/', router);
+}
 
 // Request/Response Schemas for OpenAPI (using A2A-compliant schema)
 
@@ -28,7 +40,7 @@ const PartSchema = z
         z.object({
             kind: z.literal('text').describe('Part type discriminator'),
             text: z.string().describe('Text content'),
-            metadata: z.record(z.any()).optional().describe('Extension metadata'),
+            metadata: JsonObjectSchema.optional().describe('Extension metadata'),
         }),
         z.object({
             kind: z.literal('file').describe('Part type discriminator'),
@@ -46,12 +58,12 @@ const PartSchema = z
                     }),
                 ])
                 .describe('File data (bytes or URI)'),
-            metadata: z.record(z.any()).optional().describe('Extension metadata'),
+            metadata: JsonObjectSchema.optional().describe('Extension metadata'),
         }),
         z.object({
             kind: z.literal('data').describe('Part type discriminator'),
-            data: z.record(z.any()).describe('Structured JSON data'),
-            metadata: z.record(z.any()).optional().describe('Extension metadata'),
+            data: JsonObjectSchema.describe('Structured JSON data'),
+            metadata: JsonObjectSchema.optional().describe('Extension metadata'),
         }),
     ])
     .describe('Message part (text, file, or data)');
@@ -63,7 +75,7 @@ const MessageSchema = z
         messageId: z.string().describe('Unique message identifier'),
         taskId: z.string().optional().describe('Associated task ID'),
         contextId: z.string().optional().describe('Context identifier'),
-        metadata: z.record(z.any()).optional().describe('Extension metadata'),
+        metadata: JsonObjectSchema.optional().describe('Extension metadata'),
         extensions: z.array(z.string()).optional().describe('Extension identifiers'),
         referenceTaskIds: z.array(z.string()).optional().describe('Referenced task IDs'),
         kind: z.literal('message').describe('Object type discriminator'),
@@ -90,17 +102,43 @@ const TaskStatusSchema = z
     })
     .describe('Task status');
 
+const ArtifactSchema = z
+    .object({
+        artifactId: z.string().describe('Unique artifact ID'),
+        name: z.string().optional().describe('Artifact name'),
+        description: z.string().optional().describe('Artifact description'),
+        parts: z.array(PartSchema).describe('Artifact content parts'),
+        metadata: JsonObjectSchema.optional().describe('Extension metadata'),
+        extensions: z.array(z.string()).optional().describe('Extension identifiers'),
+    })
+    .describe('A2A protocol artifact');
+
 const TaskSchema = z
     .object({
         id: z.string().describe('Unique task identifier'),
         contextId: z.string().describe('Context identifier across related tasks'),
         status: TaskStatusSchema.describe('Current task status'),
         history: z.array(MessageSchema).optional().describe('Conversation history'),
-        artifacts: z.array(z.any()).optional().describe('Task artifacts'),
-        metadata: z.record(z.any()).optional().describe('Extension metadata'),
+        artifacts: z.array(ArtifactSchema).optional().describe('Task artifacts'),
+        metadata: JsonObjectSchema.optional().describe('Extension metadata'),
         kind: z.literal('task').describe('Object type discriminator'),
     })
     .describe('A2A Protocol task');
+
+type TaskResponse = z.output<typeof TaskSchema>;
+type MessageInput = z.output<typeof MessageSchema>;
+type PartInput = z.output<typeof PartSchema>;
+
+const TasksListResponseSchema = z
+    .object({
+        tasks: z.array(TaskSchema).describe('Array of tasks'),
+        totalSize: z.number().describe('Total number of tasks'),
+        pageSize: z.number().describe('Number of tasks in this page'),
+        nextPageToken: z.string().describe('Token for next page'),
+    })
+    .describe('Response body for tasks/list');
+
+type TasksListResponse = z.output<typeof TasksListResponseSchema>;
 
 const TaskErrorResponseSchema = z
     .object({
@@ -108,6 +146,127 @@ const TaskErrorResponseSchema = z
     })
     .strict()
     .describe('A2A task error response');
+
+type TaskErrorResponse = z.output<typeof TaskErrorResponseSchema>;
+type MessageSendRequest = z.output<typeof MessageSendRequestSchema>;
+type TaskListQuery = z.output<typeof TaskListQuerySchema>;
+
+// TODO: Replace these boundary conversion helpers with canonical A2A SDK types once
+// the server and protocol layer share one source of truth for exact optional fields.
+function toA2APart(part: PartInput): Part {
+    switch (part.kind) {
+        case 'text':
+            return {
+                kind: 'text',
+                text: part.text,
+                ...(part.metadata !== undefined ? { metadata: part.metadata } : {}),
+            };
+        case 'file': {
+            const file =
+                'bytes' in part.file
+                    ? {
+                          bytes: part.file.bytes,
+                          ...(part.file.name !== undefined ? { name: part.file.name } : {}),
+                          ...(part.file.mimeType !== undefined
+                              ? { mimeType: part.file.mimeType }
+                              : {}),
+                      }
+                    : {
+                          uri: part.file.uri,
+                          ...(part.file.name !== undefined ? { name: part.file.name } : {}),
+                          ...(part.file.mimeType !== undefined
+                              ? { mimeType: part.file.mimeType }
+                              : {}),
+                      };
+            return {
+                kind: 'file',
+                file,
+                ...(part.metadata !== undefined ? { metadata: part.metadata } : {}),
+            };
+        }
+        case 'data':
+            return {
+                kind: 'data',
+                data: part.data,
+                ...(part.metadata !== undefined ? { metadata: part.metadata } : {}),
+            };
+    }
+}
+
+function toA2AMessage(message: MessageInput): Message {
+    return {
+        role: message.role,
+        parts: message.parts.map(toA2APart),
+        messageId: message.messageId,
+        kind: 'message',
+        ...(message.taskId !== undefined ? { taskId: message.taskId } : {}),
+        ...(message.contextId !== undefined ? { contextId: message.contextId } : {}),
+        ...(message.metadata !== undefined ? { metadata: message.metadata } : {}),
+        ...(message.extensions !== undefined ? { extensions: message.extensions } : {}),
+        ...(message.referenceTaskIds !== undefined
+            ? { referenceTaskIds: message.referenceTaskIds }
+            : {}),
+    };
+}
+
+function toMessageSendParams(body: MessageSendRequest): MessageSendParams {
+    const pushNotificationConfig = body.configuration?.pushNotificationConfig
+        ? {
+              url: body.configuration.pushNotificationConfig.url,
+              ...(body.configuration.pushNotificationConfig.headers !== undefined
+                  ? { headers: body.configuration.pushNotificationConfig.headers }
+                  : {}),
+          }
+        : undefined;
+
+    const configuration = body.configuration
+        ? {
+              ...(body.configuration.acceptedOutputModes !== undefined
+                  ? { acceptedOutputModes: body.configuration.acceptedOutputModes }
+                  : {}),
+              ...(body.configuration.historyLength !== undefined
+                  ? { historyLength: body.configuration.historyLength }
+                  : {}),
+              ...(pushNotificationConfig !== undefined ? { pushNotificationConfig } : {}),
+              ...(body.configuration.blocking !== undefined
+                  ? { blocking: body.configuration.blocking }
+                  : {}),
+          }
+        : undefined;
+
+    return {
+        message: toA2AMessage(body.message),
+        ...(configuration !== undefined ? { configuration } : {}),
+        ...(body.metadata !== undefined ? { metadata: body.metadata } : {}),
+    };
+}
+
+function toListTasksParams(query: TaskListQuery): ListTasksParams {
+    return {
+        ...(query.contextId !== undefined ? { contextId: query.contextId } : {}),
+        ...(query.status !== undefined ? { status: query.status } : {}),
+        ...(query.pageSize !== undefined ? { pageSize: query.pageSize } : {}),
+        ...(query.pageToken !== undefined ? { pageToken: query.pageToken } : {}),
+        ...(query.historyLength !== undefined ? { historyLength: query.historyLength } : {}),
+        ...(query.lastUpdatedAfter !== undefined
+            ? { lastUpdatedAfter: query.lastUpdatedAfter }
+            : {}),
+        ...(query.includeArtifacts !== undefined
+            ? { includeArtifacts: query.includeArtifacts }
+            : {}),
+    };
+}
+
+function readCancelTaskParam(value: object): string | undefined {
+    if (Object.prototype.hasOwnProperty.call(value, 'id')) {
+        return undefined;
+    }
+
+    const raw = Object.entries(value).find(
+        ([key, candidate]) => key === 'id:cancel' && typeof candidate === 'string'
+    )?.[1];
+    return typeof raw === 'string' ? raw : undefined;
+}
 
 const MessageSendRequestSchema = z
     .object({
@@ -133,7 +292,7 @@ const MessageSendRequestSchema = z
             })
             .optional()
             .describe('Optional configuration'),
-        metadata: z.record(z.any()).optional().describe('Optional metadata'),
+        metadata: JsonObjectSchema.optional().describe('Optional metadata'),
     })
     .describe('Request body for message/send');
 
@@ -213,7 +372,10 @@ const TaskListQuerySchema = z
  * @param sseSubscriber SSE event subscriber for streaming
  * @returns OpenAPIHono router with REST task endpoints
  */
-export function createA2ATasksRouter(getAgent: GetAgentFn, sseSubscriber: A2ASseEventSubscriber) {
+export function createA2ATasksRouter(
+    getAgent: GetAgentFn,
+    sseSubscriber: A2ASseEventSubscriber
+): OpenAPIHono {
     const app = new OpenAPIHono();
 
     // POST /v1/message:send - Send message to agent
@@ -261,14 +423,7 @@ export function createA2ATasksRouter(getAgent: GetAgentFn, sseSubscriber: A2ASse
                 description: 'Task list',
                 content: {
                     'application/json': {
-                        schema: z
-                            .object({
-                                tasks: z.array(TaskSchema).describe('Array of tasks'),
-                                totalSize: z.number().describe('Total number of tasks'),
-                                pageSize: z.number().describe('Number of tasks in this page'),
-                                nextPageToken: z.string().describe('Token for next page'),
-                            })
-                            .describe('Response body for tasks/list'),
+                        schema: TasksListResponseSchema,
                     },
                 },
             },
@@ -319,20 +474,13 @@ export function createA2ATasksRouter(getAgent: GetAgentFn, sseSubscriber: A2ASse
         request: {
             params: z.preprocess(
                 (value) => {
-                    if (
-                        value &&
-                        typeof value === 'object' &&
-                        !Array.isArray(value) &&
-                        'id:cancel' in value &&
-                        !('id' in value)
-                    ) {
-                        const raw = (value as Record<string, unknown>)['id:cancel'];
-                        return {
-                            id:
-                                typeof raw === 'string' && raw.endsWith(':cancel')
-                                    ? raw.slice(0, -':cancel'.length)
-                                    : raw,
-                        };
+                    if (value && typeof value === 'object' && !Array.isArray(value)) {
+                        const raw = readCancelTaskParam(value);
+                        if (raw !== undefined) {
+                            return {
+                                id: raw.endsWith(':cancel') ? raw.slice(0, -':cancel'.length) : raw,
+                            };
+                        }
                     }
                     return value;
                 },
@@ -392,7 +540,7 @@ export function createA2ATasksRouter(getAgent: GetAgentFn, sseSubscriber: A2ASse
 
             // Start agent processing in background
             // Note: Errors are automatically broadcast via the event bus (llm:error event)
-            const { text, image, file } = a2aToInternalMessage(validatedBody.message as any);
+            const { text, image, file } = a2aToInternalMessage(toA2AMessage(validatedBody.message));
             agent.run(text, image, file, session.id).catch((error) => {
                 logger.error(`Error in streaming task ${session.id}: ${error}`);
             });
@@ -414,53 +562,63 @@ export function createA2ATasksRouter(getAgent: GetAgentFn, sseSubscriber: A2ASse
         }
     });
 
-    return app
-        .openapi(messageSendRoute, async (ctx) => {
-            const handlers = new A2AMethodHandlers(await getAgent(ctx));
-            const body = ctx.req.valid('json');
+    const messageSendRouter = new OpenAPIHono().openapi(messageSendRoute, async (ctx) => {
+        const handlers = new A2AMethodHandlers(await getAgent(ctx));
+        const body = ctx.req.valid('json');
 
-            logger.info('REST: message/send', { hasMessage: !!body.message });
+        logger.info('REST: message/send', { hasMessage: !!body.message });
 
-            // Type cast required: Zod infers readonly modifiers and exactOptionalPropertyTypes differs
-            // from mutable handler types. Structurally compatible at runtime.
-            const result = await handlers.messageSend(body as any);
+        const result = await handlers.messageSend(toMessageSendParams(body));
+        const response: TaskResponse = result;
+        return ctx.json(response, 200);
+    });
 
-            return ctx.json(result as any, 200);
-        })
-        .openapi(listTasksRoute, async (ctx) => {
-            const handlers = new A2AMethodHandlers(await getAgent(ctx));
-            const query = ctx.req.valid('query');
+    const listTasksRouter = new OpenAPIHono().openapi(listTasksRoute, async (ctx) => {
+        const handlers = new A2AMethodHandlers(await getAgent(ctx));
+        const query = ctx.req.valid('query');
 
-            // Type cast required: Zod infers readonly modifiers and exactOptionalPropertyTypes differs
-            // from mutable handler types. Structurally compatible at runtime.
-            const result = await handlers.tasksList(query as any);
+        const result = await handlers.tasksList(toListTasksParams(query));
 
-            return ctx.json(result, 200);
-        })
-        .openapi(getTaskRoute, async (ctx) => {
-            const handlers = new A2AMethodHandlers(await getAgent(ctx));
-            const { id } = ctx.req.valid('param');
+        const response: TasksListResponse = result;
+        return ctx.json(response, 200);
+    });
 
-            try {
-                const task = await handlers.tasksGet({ id });
-                return ctx.json(task, 200);
-            } catch (error) {
-                logger.warn(`Task ${id} not found: ${error}`);
-                return ctx.json({ error: 'Task not found' }, 404);
-            }
-        })
-        .openapi(cancelTaskRoute, async (ctx) => {
-            const handlers = new A2AMethodHandlers(await getAgent(ctx));
-            const { id } = ctx.req.valid('param');
+    const getTaskRouter = new OpenAPIHono().openapi(getTaskRoute, async (ctx) => {
+        const handlers = new A2AMethodHandlers(await getAgent(ctx));
+        const { id } = ctx.req.valid('param');
 
-            logger.info(`REST: tasks/cancel ${id}`);
+        try {
+            const task = await handlers.tasksGet({ id });
+            const response: TaskResponse = task;
+            return ctx.json(response, 200);
+        } catch (error) {
+            logger.warn(`Task ${id} not found: ${error}`);
+            const response: TaskErrorResponse = { error: 'Task not found' };
+            return ctx.json(response, 404);
+        }
+    });
 
-            try {
-                const task = await handlers.tasksCancel({ id });
-                return ctx.json(task, 200);
-            } catch (error) {
-                logger.error(`Failed to cancel task ${id}: ${error}`);
-                return ctx.json({ error: 'Task not found' }, 404);
-            }
-        });
+    const cancelTaskRouter = new OpenAPIHono().openapi(cancelTaskRoute, async (ctx) => {
+        const handlers = new A2AMethodHandlers(await getAgent(ctx));
+        const { id } = ctx.req.valid('param');
+
+        logger.info(`REST: tasks/cancel ${id}`);
+
+        try {
+            const task = await handlers.tasksCancel({ id });
+            const response: TaskResponse = task;
+            return ctx.json(response, 200);
+        } catch (error) {
+            logger.error(`Failed to cancel task ${id}: ${error}`);
+            const response: TaskErrorResponse = { error: 'Task not found' };
+            return ctx.json(response, 404);
+        }
+    });
+
+    mountA2ATasksSubrouter(app, messageSendRouter);
+    mountA2ATasksSubrouter(app, listTasksRouter);
+    mountA2ATasksSubrouter(app, getTaskRouter);
+    mountA2ATasksSubrouter(app, cancelTaskRouter);
+
+    return app;
 }
