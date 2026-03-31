@@ -209,7 +209,7 @@ async function syncOpenAPISpec() {
         // Parse JSON response
         let spec: JsonValue;
         try {
-            spec = (await res.json()) as JsonValue;
+            spec = await res.json();
         } catch (err) {
             throw new Error(
                 'OpenAPI endpoint returned invalid JSON\n' +
