@@ -26280,15 +26280,9 @@
                           "description": "Webhook description"
                         },
                         "createdAt": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "number"
-                            }
-                          ],
-                          "description": "Creation timestamp (Date or Unix ms)"
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "Creation timestamp (ISO 8601)"
                         }
                       },
                       "required": [
@@ -26645,15 +26639,9 @@
                             "description": "Webhook description"
                           },
                           "createdAt": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "number"
-                              }
-                            ],
-                            "description": "Creation timestamp (Date or Unix ms)"
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "Creation timestamp (ISO 8601)"
                           }
                         },
                         "required": [
@@ -26873,15 +26861,9 @@
                           "description": "Webhook description"
                         },
                         "createdAt": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "number"
-                            }
-                          ],
-                          "description": "Creation timestamp (Date or Unix ms)"
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "Creation timestamp (ISO 8601)"
                         }
                       },
                       "required": [
@@ -42712,8 +42694,310 @@
               }
             }
           },
+          "400": {
+            "description": "Validation or request error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Optional error class name"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable error message"
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Machine-readable error code"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Domain that produced the error"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type used for HTTP status mapping"
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "error",
+                        "warning"
+                      ],
+                      "description": "Optional error severity for lightweight failures"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request path that failed"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method for the failed request"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Optional trace identifier"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Optional recovery guidance"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Optional structured error context"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "description": "Machine-readable issue code"
+                          },
+                          "message": {
+                            "type": "string",
+                            "description": "Human-readable issue message"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "description": "Domain that produced the issue"
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "Error type used for HTTP status mapping"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "error",
+                              "warning"
+                            ],
+                            "description": "Issue severity"
+                          },
+                          "path": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "number"
+                                }
+                              ]
+                            },
+                            "description": "Optional location for the issue"
+                          },
+                          "context": {
+                            "nullable": true,
+                            "description": "Optional structured issue context"
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "message",
+                          "scope",
+                          "type",
+                          "severity"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Structured validation or runtime issue"
+                      },
+                      "description": "Validation issues when present"
+                    },
+                    "errorCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of errors"
+                    },
+                    "warningCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of warnings"
+                    },
+                    "stack": {
+                      "type": "string",
+                      "description": "Development-only stack trace"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard API error response"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Optional error class name"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable error message"
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Machine-readable error code"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Domain that produced the error"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type used for HTTP status mapping"
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "error",
+                        "warning"
+                      ],
+                      "description": "Optional error severity for lightweight failures"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request path that failed"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method for the failed request"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Optional trace identifier"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Optional recovery guidance"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Optional structured error context"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "description": "Machine-readable issue code"
+                          },
+                          "message": {
+                            "type": "string",
+                            "description": "Human-readable issue message"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "description": "Domain that produced the issue"
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "Error type used for HTTP status mapping"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "error",
+                              "warning"
+                            ],
+                            "description": "Issue severity"
+                          },
+                          "path": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "number"
+                                }
+                              ]
+                            },
+                            "description": "Optional location for the issue"
+                          },
+                          "context": {
+                            "nullable": true,
+                            "description": "Optional structured issue context"
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "message",
+                          "scope",
+                          "type",
+                          "severity"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Structured validation or runtime issue"
+                      },
+                      "description": "Validation issues when present"
+                    },
+                    "errorCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of errors"
+                    },
+                    "warningCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of warnings"
+                    },
+                    "stack": {
+                      "type": "string",
+                      "description": "Development-only stack trace"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard API error response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -43037,8 +43321,310 @@
               }
             }
           },
+          "400": {
+            "description": "Validation or request error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Optional error class name"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable error message"
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Machine-readable error code"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Domain that produced the error"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type used for HTTP status mapping"
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "error",
+                        "warning"
+                      ],
+                      "description": "Optional error severity for lightweight failures"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request path that failed"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method for the failed request"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Optional trace identifier"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Optional recovery guidance"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Optional structured error context"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "description": "Machine-readable issue code"
+                          },
+                          "message": {
+                            "type": "string",
+                            "description": "Human-readable issue message"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "description": "Domain that produced the issue"
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "Error type used for HTTP status mapping"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "error",
+                              "warning"
+                            ],
+                            "description": "Issue severity"
+                          },
+                          "path": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "number"
+                                }
+                              ]
+                            },
+                            "description": "Optional location for the issue"
+                          },
+                          "context": {
+                            "nullable": true,
+                            "description": "Optional structured issue context"
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "message",
+                          "scope",
+                          "type",
+                          "severity"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Structured validation or runtime issue"
+                      },
+                      "description": "Validation issues when present"
+                    },
+                    "errorCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of errors"
+                    },
+                    "warningCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of warnings"
+                    },
+                    "stack": {
+                      "type": "string",
+                      "description": "Development-only stack trace"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard API error response"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Optional error class name"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable error message"
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Machine-readable error code"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Domain that produced the error"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type used for HTTP status mapping"
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "error",
+                        "warning"
+                      ],
+                      "description": "Optional error severity for lightweight failures"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request path that failed"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method for the failed request"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Optional trace identifier"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Optional recovery guidance"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Optional structured error context"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "description": "Machine-readable issue code"
+                          },
+                          "message": {
+                            "type": "string",
+                            "description": "Human-readable issue message"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "description": "Domain that produced the issue"
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "Error type used for HTTP status mapping"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "error",
+                              "warning"
+                            ],
+                            "description": "Issue severity"
+                          },
+                          "path": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "number"
+                                }
+                              ]
+                            },
+                            "description": "Optional location for the issue"
+                          },
+                          "context": {
+                            "nullable": true,
+                            "description": "Optional structured issue context"
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "message",
+                          "scope",
+                          "type",
+                          "severity"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Structured validation or runtime issue"
+                      },
+                      "description": "Validation issues when present"
+                    },
+                    "errorCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of errors"
+                    },
+                    "warningCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of warnings"
+                    },
+                    "stack": {
+                      "type": "string",
+                      "description": "Development-only stack trace"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard API error response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -43239,8 +43825,310 @@
               }
             }
           },
+          "400": {
+            "description": "Validation or request error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Optional error class name"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable error message"
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Machine-readable error code"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Domain that produced the error"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type used for HTTP status mapping"
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "error",
+                        "warning"
+                      ],
+                      "description": "Optional error severity for lightweight failures"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request path that failed"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method for the failed request"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Optional trace identifier"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Optional recovery guidance"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Optional structured error context"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "description": "Machine-readable issue code"
+                          },
+                          "message": {
+                            "type": "string",
+                            "description": "Human-readable issue message"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "description": "Domain that produced the issue"
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "Error type used for HTTP status mapping"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "error",
+                              "warning"
+                            ],
+                            "description": "Issue severity"
+                          },
+                          "path": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "number"
+                                }
+                              ]
+                            },
+                            "description": "Optional location for the issue"
+                          },
+                          "context": {
+                            "nullable": true,
+                            "description": "Optional structured issue context"
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "message",
+                          "scope",
+                          "type",
+                          "severity"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Structured validation or runtime issue"
+                      },
+                      "description": "Validation issues when present"
+                    },
+                    "errorCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of errors"
+                    },
+                    "warningCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of warnings"
+                    },
+                    "stack": {
+                      "type": "string",
+                      "description": "Development-only stack trace"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard API error response"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Optional error class name"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable error message"
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Machine-readable error code"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Domain that produced the error"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type used for HTTP status mapping"
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "error",
+                        "warning"
+                      ],
+                      "description": "Optional error severity for lightweight failures"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request path that failed"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method for the failed request"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Optional trace identifier"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Optional recovery guidance"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Optional structured error context"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "description": "Machine-readable issue code"
+                          },
+                          "message": {
+                            "type": "string",
+                            "description": "Human-readable issue message"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "description": "Domain that produced the issue"
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "Error type used for HTTP status mapping"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "error",
+                              "warning"
+                            ],
+                            "description": "Issue severity"
+                          },
+                          "path": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "number"
+                                }
+                              ]
+                            },
+                            "description": "Optional location for the issue"
+                          },
+                          "context": {
+                            "nullable": true,
+                            "description": "Optional structured issue context"
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "message",
+                          "scope",
+                          "type",
+                          "severity"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Structured validation or runtime issue"
+                      },
+                      "description": "Validation issues when present"
+                    },
+                    "errorCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of errors"
+                    },
+                    "warningCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of warnings"
+                    },
+                    "stack": {
+                      "type": "string",
+                      "description": "Development-only stack trace"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard API error response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
@@ -43454,8 +44342,310 @@
               }
             }
           },
+          "400": {
+            "description": "Validation or request error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Optional error class name"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable error message"
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Machine-readable error code"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Domain that produced the error"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type used for HTTP status mapping"
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "error",
+                        "warning"
+                      ],
+                      "description": "Optional error severity for lightweight failures"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request path that failed"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method for the failed request"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Optional trace identifier"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Optional recovery guidance"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Optional structured error context"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "description": "Machine-readable issue code"
+                          },
+                          "message": {
+                            "type": "string",
+                            "description": "Human-readable issue message"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "description": "Domain that produced the issue"
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "Error type used for HTTP status mapping"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "error",
+                              "warning"
+                            ],
+                            "description": "Issue severity"
+                          },
+                          "path": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "number"
+                                }
+                              ]
+                            },
+                            "description": "Optional location for the issue"
+                          },
+                          "context": {
+                            "nullable": true,
+                            "description": "Optional structured issue context"
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "message",
+                          "scope",
+                          "type",
+                          "severity"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Structured validation or runtime issue"
+                      },
+                      "description": "Validation issues when present"
+                    },
+                    "errorCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of errors"
+                    },
+                    "warningCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of warnings"
+                    },
+                    "stack": {
+                      "type": "string",
+                      "description": "Development-only stack trace"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard API error response"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Session or message not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Optional error class name"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable error message"
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Machine-readable error code"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Domain that produced the error"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type used for HTTP status mapping"
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "error",
+                        "warning"
+                      ],
+                      "description": "Optional error severity for lightweight failures"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request path that failed"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method for the failed request"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Optional trace identifier"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Optional recovery guidance"
+                    },
+                    "context": {
+                      "nullable": true,
+                      "description": "Optional structured error context"
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "description": "Machine-readable issue code"
+                          },
+                          "message": {
+                            "type": "string",
+                            "description": "Human-readable issue message"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "description": "Domain that produced the issue"
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "Error type used for HTTP status mapping"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "error",
+                              "warning"
+                            ],
+                            "description": "Issue severity"
+                          },
+                          "path": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "number"
+                                }
+                              ]
+                            },
+                            "description": "Optional location for the issue"
+                          },
+                          "context": {
+                            "nullable": true,
+                            "description": "Optional structured issue context"
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "message",
+                          "scope",
+                          "type",
+                          "severity"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Structured validation or runtime issue"
+                      },
+                      "description": "Validation issues when present"
+                    },
+                    "errorCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of errors"
+                    },
+                    "warningCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of warnings"
+                    },
+                    "stack": {
+                      "type": "string",
+                      "description": "Development-only stack trace"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard API error response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
