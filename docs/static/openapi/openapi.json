@@ -37003,9 +37003,14 @@
                             "description": "ISO timestamp when the request was created"
                           },
                           "metadata": {
-                            "type": "object",
-                            "properties": {},
-                            "description": "Type-specific metadata. Currently empty for pending approvals."
+                            "allOf": [
+                              {
+                                "$ref": "#/components/schemas/JsonObject"
+                              },
+                              {
+                                "description": "Type-specific metadata for the pending approval"
+                              }
+                            ]
                           }
                         },
                         "required": [

@@ -16,19 +16,16 @@ import type { McpTool } from '@/components/hooks/useServers';
 
 // Infer the property schema type from the tool's input schema
 type JsonSchemaProperty = NonNullable<NonNullable<McpTool['inputSchema']>['properties']>[string];
-type ToolInputValue = string | number | boolean | null;
-type ToolInputs = Record<string, ToolInputValue>;
+export type ToolInputValue = string | number | boolean | null;
+export type ToolInputs = Record<string, ToolInputValue>;
+export type ToolInputSchemaType = 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array';
 
 interface ToolInputFormProps {
     tool: McpTool;
     inputs: ToolInputs;
     errors: Record<string, string>;
     isLoading: boolean;
-    onInputChange: (
-        name: string,
-        value: ToolInputValue,
-        type?: 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array'
-    ) => void;
+    onInputChange: (name: string, value: ToolInputValue, type?: ToolInputSchemaType) => void;
     onSubmit: () => void;
     onCopyConfig?: () => void;
     onShareConfig?: () => void;

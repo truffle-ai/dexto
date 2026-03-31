@@ -136,9 +136,7 @@ const PendingApprovalSchema = z
         sessionId: z.string().optional().describe('The session ID if applicable'),
         timeout: z.number().optional().describe('Timeout in milliseconds'),
         timestamp: z.string().describe('ISO timestamp when the request was created'),
-        metadata: z
-            .object({})
-            .describe('Type-specific metadata. Currently empty for pending approvals.'),
+        metadata: JsonObjectSchema.describe('Type-specific metadata for the pending approval'),
     })
     .describe('A pending approval request');
 
@@ -262,18 +260,17 @@ export function createApprovalsRouter(
 
         agent.logger.debug(`Fetching pending approvals for session ${sessionId}`);
 
-        // Get all pending approval IDs from the approval manager
-        const pendingIds = agent.services.approvalManager.getPendingApprovals();
-
-        // For now, return basic approval info
-        // Full metadata would require storing approval requests in the coordinator
-        const approvals = pendingIds.map((approvalId: string) => ({
-            approvalId,
-            type: 'tool_confirmation', // Default type
-            sessionId,
-            timestamp: new Date().toISOString(),
-            metadata: {},
-        }));
+        const approvals = agent.services.approvalManager
+            .getPendingApprovalRequests()
+            .filter((approvalRequest) => approvalRequest.sessionId === sessionId)
+            .map((approvalRequest) => ({
+                approvalId: approvalRequest.approvalId,
+                type: approvalRequest.type,
+                sessionId: approvalRequest.sessionId,
+                timeout: approvalRequest.timeout,
+                timestamp: approvalRequest.timestamp.toISOString(),
+                metadata: JsonObjectSchema.parse(approvalRequest.metadata),
+            }));
 
         return ctx.json(
             {

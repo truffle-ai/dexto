@@ -59,7 +59,7 @@ export class A2AMethodHandlers {
      * Creates a task if taskId not provided in message, or adds to existing task.
      *
      * @param params Message send parameters
-     * @returns Task or Message depending on configuration.blocking
+     * @returns Task containing the agent response
      */
     async messageSend(params: MessageSendParams): Promise<Task> {
         if (!params?.message) {
