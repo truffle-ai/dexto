@@ -1426,6 +1426,43 @@ describe('expandBlobReferences', () => {
             mimeType: 'image/png',
         });
     });
+
+    test('should demote older binary media to placeholders when prompt expansion is disabled', async () => {
+        const resourceManager = {
+            read: vi.fn(async (_uri: string) => {
+                return {
+                    contents: [{ blob: 'imagedata', mimeType: 'image/png' }],
+                    _meta: { size: 2048, originalName: 'older-image.png' },
+                };
+            }),
+        } as unknown as import('../resources/index.js').ResourceManager;
+
+        const result = await expandBlobReferences(
+            [{ type: 'image', image: '@blob:abc123def456', mimeType: 'image/png' }],
+            resourceManager,
+            mockLogger,
+            ['image/*'],
+            false
+        );
+
+        expect(result).toEqual([{ type: 'text', text: '[Image: older-image.png (2 KB)]' }]);
+    });
+
+    test('should still expand text blobs when prompt media expansion is disabled', async () => {
+        const resourceManager = createMockResourceManager({
+            abc123def456: { text: 'Long text attachment', mimeType: 'text/plain' },
+        });
+
+        const result = await expandBlobReferences(
+            [{ type: 'text', text: '@blob:abc123def456' }],
+            resourceManager,
+            mockLogger,
+            ['text/plain'],
+            false
+        );
+
+        expect(result).toEqual([{ type: 'text', text: 'Long text attachment' }]);
+    });
 });
 
 describe('filterCompacted', () => {

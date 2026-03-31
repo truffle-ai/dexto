@@ -6,7 +6,7 @@ import { ToolManager } from '../tools/tool-manager.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { SkillsContributor } from '../systemPrompt/contributors.js';
 import { ResourceManager, expandMessageReferences } from '../resources/index.js';
-import { expandBlobReferences } from '../context/utils.js';
+import { expandBlobReferences, fileTypesToMimePatterns } from '../context/utils.js';
 import { StorageManager } from '../storage/index.js';
 import type { InternalMessage } from '../context/types.js';
 import { PromptManager } from '../prompts/index.js';
@@ -40,6 +40,7 @@ import {
     getDefaultModelForProvider,
     getProviderFromModel,
     getAllModelsForProvider,
+    getSupportedFileTypesForModel,
 } from '../llm/registry/index.js';
 import type { ModelInfo } from '../llm/registry/index.js';
 import type { LLMProvider } from '../llm/types.js';
@@ -1220,11 +1221,24 @@ export class DextoAgent {
                     // Expand @resource mentions - returns ALL images as ContentPart[]
                     if (textContent.includes('@')) {
                         try {
+                            let allowedMediaTypes: string[] | undefined =
+                                llmConfig.allowedMediaTypes;
+                            if (!allowedMediaTypes) {
+                                allowedMediaTypes = fileTypesToMimePatterns(
+                                    getSupportedFileTypesForModel(
+                                        llmConfig.provider,
+                                        llmConfig.model
+                                    ),
+                                    this.logger
+                                );
+                            }
+
                             const resources = await this.resourceManager.list();
                             const expansion = await expandMessageReferences(
                                 textContent,
                                 resources,
-                                (uri) => this.resourceManager.read(uri)
+                                (uri) => this.resourceManager.read(uri),
+                                allowedMediaTypes
                             );
 
                             // Warn about unresolved references
@@ -1258,16 +1272,28 @@ export class DextoAgent {
                                 });
                             }
 
-                            // Add ALL extracted images to content parts
-                            for (const img of expansion.extractedImages) {
-                                contentParts.push({
-                                    type: 'image',
-                                    image: img.image,
-                                    mimeType: img.mimeType,
-                                });
-                                this.logger.debug(
-                                    `Added extracted image: ${img.name} (${img.mimeType})`
-                                );
+                            // Add extracted media to content parts when the model can consume them
+                            for (const media of expansion.extractedMedia) {
+                                if (media.type === 'image') {
+                                    contentParts.push({
+                                        type: 'image',
+                                        image: media.image,
+                                        mimeType: media.mimeType,
+                                    });
+                                    this.logger.debug(
+                                        `Added extracted image: ${media.name} (${media.mimeType})`
+                                    );
+                                } else {
+                                    contentParts.push({
+                                        type: 'file',
+                                        data: media.data,
+                                        mimeType: media.mimeType,
+                                        filename: media.filename,
+                                    });
+                                    this.logger.debug(
+                                        `Added extracted file: ${media.filename} (${media.mimeType})`
+                                    );
+                                }
                             }
                         } catch (error) {
                             this.logger.error(

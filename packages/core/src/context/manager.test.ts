@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ContextManager } from './manager.js';
 import { MemoryHistoryProvider } from '../session/history/memory.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
-import type { ContentPart, SanitizedToolResult } from './types.js';
+import type { ContentPart, InternalMessage, SanitizedToolResult } from './types.js';
 import type { ValidatedLLMConfig } from '../llm/schemas.js';
 import type { VercelMessageFormatter } from '../llm/formatters/vercel.js';
 import type { SystemPromptManager } from '../systemPrompt/manager.js';
@@ -71,12 +71,17 @@ function createMockResourceManager(): ResourceManager {
     } as unknown as ResourceManager;
 }
 
-function createContextManager() {
+function createContextManager(options?: {
+    llmConfig?: ValidatedLLMConfig;
+    formatter?: VercelMessageFormatter;
+    systemPromptManager?: SystemPromptManager;
+    resourceManager?: ResourceManager;
+}) {
     const historyProvider = new MemoryHistoryProvider(mockLogger);
-    const formatter = createMockFormatter();
-    const systemPromptManager = createMockSystemPromptManager();
-    const resourceManager = createMockResourceManager();
-    const llmConfig = createMockLLMConfig();
+    const formatter = options?.formatter ?? createMockFormatter();
+    const systemPromptManager = options?.systemPromptManager ?? createMockSystemPromptManager();
+    const resourceManager = options?.resourceManager ?? createMockResourceManager();
+    const llmConfig = options?.llmConfig ?? createMockLLMConfig();
 
     return new ContextManager(
         llmConfig,
@@ -193,6 +198,83 @@ describe('ContextManager', () => {
             expect(history[0]?.timestamp).toBeDefined();
             expect(typeof history[0]?.id).toBe('string');
             expect(typeof history[0]?.timestamp).toBe('number');
+        });
+    });
+
+    describe('getFormattedMessages', () => {
+        it('should only rehydrate the most recent binary media messages for the LLM', async () => {
+            const formatter = createMockFormatter();
+            const resourceManager = {
+                read: vi.fn(async (uri: string) => {
+                    if (uri === 'blob:old-image') {
+                        return {
+                            contents: [{ blob: 'old-image-data', mimeType: 'image/png' }],
+                            _meta: { size: 1024, originalName: 'old-image.png' },
+                        };
+                    }
+                    if (uri === 'blob:middle-image') {
+                        return {
+                            contents: [{ blob: 'middle-image-data', mimeType: 'image/png' }],
+                            _meta: { size: 2048, originalName: 'middle-image.png' },
+                        };
+                    }
+                    if (uri === 'blob:new-image') {
+                        return {
+                            contents: [{ blob: 'new-image-data', mimeType: 'image/png' }],
+                            _meta: { size: 3072, originalName: 'new-image.png' },
+                        };
+                    }
+                    throw new Error(`Unexpected blob URI: ${uri}`);
+                }),
+                getBlobStore: vi.fn().mockReturnValue(createMockBlobStore()),
+            } as unknown as ResourceManager;
+
+            const contextManager = createContextManager({
+                formatter,
+                resourceManager,
+                llmConfig: {
+                    ...createMockLLMConfig(),
+                    allowedMediaTypes: ['image/*'],
+                } as ValidatedLLMConfig,
+            });
+
+            const history: InternalMessage[] = [
+                {
+                    role: 'user',
+                    content: [{ type: 'image', image: '@blob:old-image', mimeType: 'image/png' }],
+                } as InternalMessage,
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'image', image: '@blob:middle-image', mimeType: 'image/png' },
+                    ],
+                } as InternalMessage,
+                {
+                    role: 'user',
+                    content: [{ type: 'image', image: '@blob:new-image', mimeType: 'image/png' }],
+                } as InternalMessage,
+            ];
+
+            await contextManager.getFormattedMessages(
+                createMockContributorContext(),
+                { provider: 'openai', model: 'gpt-4' },
+                'System prompt',
+                history
+            );
+
+            expect(formatter.format).toHaveBeenCalledTimes(1);
+            const formattedHistory = vi.mocked(formatter.format).mock
+                .calls[0]?.[0] as InternalMessage[];
+            expect(formattedHistory).toBeDefined();
+            expect(formattedHistory[0]?.content).toEqual([
+                { type: 'text', text: '[Image: old-image.png (1 KB)]' },
+            ]);
+            expect(formattedHistory[1]?.content).toEqual([
+                { type: 'image', image: 'middle-image-data', mimeType: 'image/png' },
+            ]);
+            expect(formattedHistory[2]?.content).toEqual([
+                { type: 'image', image: 'new-image-data', mimeType: 'image/png' },
+            ]);
         });
     });
 

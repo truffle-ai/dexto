@@ -112,18 +112,21 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
             }
 
             if (this.isBinaryFile(canonicalPath)) {
+                const mimeType = this.getMimeType(canonicalPath);
+                const content = await fs.readFile(canonicalPath);
                 return {
                     contents: [
                         {
                             uri,
-                            mimeType: 'text/plain',
-                            text: `[Binary file: ${path.basename(canonicalPath)} (${stat.size} bytes)]`,
+                            mimeType,
+                            blob: content.toString('base64'),
                         },
                     ],
                     _meta: {
                         isBinary: true,
                         size: stat.size,
-                        originalMimeType: this.getMimeType(canonicalPath),
+                        originalMimeType: mimeType,
+                        originalName: path.basename(canonicalPath),
                     },
                 };
             }
@@ -137,7 +140,7 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
                         text: content,
                     },
                 ],
-                _meta: { size: stat.size },
+                _meta: { size: stat.size, originalName: path.basename(canonicalPath) },
             };
         } catch (error) {
             throw ResourceError.readFailed(uri, error);
@@ -163,14 +166,24 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
             '.ico',
             '.tiff',
             '.webp',
+            '.svg',
+            '.avif',
             '.mp3',
+            '.wav',
+            '.ogg',
+            '.oga',
+            '.m4a',
+            '.aac',
+            '.flac',
             '.mp4',
+            '.m4v',
             '.avi',
             '.mov',
             '.wmv',
             '.flv',
             '.mkv',
             '.webm',
+            '.ogv',
             '.pdf',
             '.zip',
             '.tar',
@@ -426,6 +439,7 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
             '.tsx': 'text/typescript',
             '.vue': 'text/x-vue',
             '.json': 'application/json',
+            '.jsonc': 'application/json',
             '.xml': 'text/xml',
             '.yaml': 'text/yaml',
             '.yml': 'text/yaml',
@@ -433,6 +447,8 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
             '.ini': 'text/plain',
             '.cfg': 'text/plain',
             '.conf': 'text/plain',
+            '.csv': 'text/csv',
+            '.log': 'text/plain',
             '.py': 'text/x-python',
             '.rb': 'text/x-ruby',
             '.php': 'text/x-php',
@@ -453,6 +469,33 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
             '.rst': 'text/x-rst',
             '.tex': 'text/x-tex',
             '.dockerfile': 'text/x-dockerfile',
+            '.pdf': 'application/pdf',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.gif': 'image/gif',
+            '.bmp': 'image/bmp',
+            '.ico': 'image/x-icon',
+            '.tif': 'image/tiff',
+            '.tiff': 'image/tiff',
+            '.webp': 'image/webp',
+            '.svg': 'image/svg+xml',
+            '.avif': 'image/avif',
+            '.mp3': 'audio/mpeg',
+            '.wav': 'audio/wav',
+            '.ogg': 'audio/ogg',
+            '.oga': 'audio/ogg',
+            '.m4a': 'audio/mp4',
+            '.aac': 'audio/aac',
+            '.flac': 'audio/flac',
+            '.weba': 'audio/webm',
+            '.mp4': 'video/mp4',
+            '.m4v': 'video/mp4',
+            '.webm': 'video/webm',
+            '.mov': 'video/quicktime',
+            '.avi': 'video/x-msvideo',
+            '.mkv': 'video/x-matroska',
+            '.ogv': 'video/ogg',
         };
         return mimeTypes[ext] || 'text/plain';
     }

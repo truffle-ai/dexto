@@ -12,6 +12,7 @@ import { DextoRuntimeError, getDextoPath, Logger, DextoLogComponent } from '@dex
 import {
     FileSystemConfig,
     FileContent,
+    MediaFileContent,
     ReadFileOptions,
     GlobOptions,
     GlobResult,
@@ -36,6 +37,7 @@ import {
 } from './types.js';
 import { PathValidator } from './path-validator.js';
 import { FileSystemError } from './errors.js';
+import { detectMimeType, getMediaFileKind, isLikelyBinary, isTextMimeType } from './mime-utils.js';
 
 const DEFAULT_ENCODING: BufferEncoding = 'utf-8';
 const DEFAULT_MAX_RESULTS = 1000;
@@ -238,7 +240,20 @@ export class FileSystemService {
         // Read file
         try {
             const encoding = options.encoding || DEFAULT_ENCODING;
-            const content = await fs.readFile(normalizedPath, encoding);
+            const rawContent = await fs.readFile(normalizedPath);
+            const mimeType = detectMimeType(normalizedPath, rawContent);
+            const binaryLike = isLikelyBinary(rawContent);
+            const canReadAsText =
+                isTextMimeType(mimeType) || (mimeType === 'image/svg+xml' && !binaryLike);
+
+            if (!canReadAsText) {
+                throw FileSystemError.readFailed(
+                    normalizedPath,
+                    `File is binary (${mimeType}). Use read_media_file instead.`
+                );
+            }
+
+            const content = rawContent.toString(encoding);
             const lines = content.split('\n');
 
             // Handle offset (1-based per types) and limit
@@ -262,6 +277,7 @@ export class FileSystemService {
                 content: returnedContent,
                 lines: selectedLines.length,
                 encoding,
+                mimeType,
                 truncated,
                 size: Buffer.byteLength(returnedContent, encoding),
             };
@@ -284,6 +300,63 @@ export class FileSystemService {
 
         const normalizedPath = await this.validateReadPath(filePath, 'execute');
         return await this.readNormalizedFile(normalizedPath, options);
+    }
+
+    /**
+     * Read a media or binary file and return base64-encoded data with MIME metadata.
+     */
+    async readMediaFile(filePath: string): Promise<MediaFileContent> {
+        await this.ensureInitialized();
+
+        const normalizedPath = await this.validateReadPath(filePath, 'execute');
+
+        try {
+            const stats = await fs.stat(normalizedPath);
+
+            if (!stats.isFile()) {
+                throw FileSystemError.invalidPath(normalizedPath, 'Path is not a file');
+            }
+
+            if (stats.size > this.config.maxFileSize) {
+                throw FileSystemError.fileTooLarge(
+                    normalizedPath,
+                    stats.size,
+                    this.config.maxFileSize
+                );
+            }
+
+            const rawContent = await fs.readFile(normalizedPath);
+            const mimeType = detectMimeType(normalizedPath, rawContent);
+
+            if (isTextMimeType(mimeType) && !isLikelyBinary(rawContent)) {
+                throw FileSystemError.readFailed(
+                    normalizedPath,
+                    `File is text (${mimeType}). Use read_file instead.`
+                );
+            }
+
+            return {
+                data: rawContent.toString('base64'),
+                mimeType,
+                filename: path.basename(normalizedPath),
+                kind: getMediaFileKind(mimeType),
+                size: stats.size,
+            };
+        } catch (error) {
+            if (error instanceof DextoRuntimeError && error.scope === 'filesystem') {
+                throw error;
+            }
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                throw FileSystemError.fileNotFound(normalizedPath);
+            }
+            if ((error as NodeJS.ErrnoException).code === 'EACCES') {
+                throw FileSystemError.permissionDenied(normalizedPath, 'read');
+            }
+            throw FileSystemError.readFailed(
+                normalizedPath,
+                error instanceof Error ? error.message : String(error)
+            );
+        }
     }
 
     /**

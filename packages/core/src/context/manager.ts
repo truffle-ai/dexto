@@ -11,6 +11,7 @@ import {
     filterCompacted,
     estimateContextTokens,
     estimateMessagesTokens,
+    isBinaryMediaMimeType,
 } from './utils.js';
 import type { SanitizedToolResult } from './types.js';
 import { DynamicContributorContext } from '../systemPrompt/types.js';
@@ -35,6 +36,8 @@ import type { ToolPresentationSnapshotV1 } from '../tools/types.js';
  * @template TMessage The message type for the specific LLM provider (e.g., MessageParam, ChatCompletionMessageParam, ModelMessage)
  */
 export class ContextManager<TMessage = unknown> {
+    private static readonly PROMPT_MEDIA_RETENTION_MESSAGES = 2;
+
     /**
      * The validated LLM configuration.
      */
@@ -86,6 +89,28 @@ export class ContextManager<TMessage = unknown> {
     private resourceManager: import('../resources/index.js').ResourceManager;
 
     private logger: Logger;
+
+    private static hasRetainableMedia(message: InternalMessage): boolean {
+        if (!Array.isArray(message.content)) {
+            return false;
+        }
+
+        return message.content.some((part) => {
+            if (part.type === 'image') {
+                return typeof part.image === 'string' && part.image.startsWith('@blob:');
+            }
+
+            if (part.type === 'file') {
+                return (
+                    typeof part.data === 'string' &&
+                    part.data.startsWith('@blob:') &&
+                    isBinaryMediaMimeType(part.mimeType)
+                );
+            }
+
+            return false;
+        });
+    }
 
     /**
      * Creates a new ContextManager instance
@@ -896,18 +921,33 @@ export class ContextManager<TMessage = unknown> {
         // Only user and tool messages can contain blob references (images, files)
         // System and assistant messages have string-only content - no blob expansion needed
         this.logger.debug('Resolving blob references in message history before formatting');
+        const retainedMediaMessageIndexes = new Set<number>();
+        let retainedMediaMessages = 0;
+        for (let index = messageHistory.length - 1; index >= 0; index--) {
+            if (retainedMediaMessages >= ContextManager.PROMPT_MEDIA_RETENTION_MESSAGES) {
+                break;
+            }
+
+            if (ContextManager.hasRetainableMedia(messageHistory[index]!)) {
+                retainedMediaMessageIndexes.add(index);
+                retainedMediaMessages += 1;
+            }
+        }
+
         messageHistory = await Promise.all(
-            messageHistory.map(async (message): Promise<InternalMessage> => {
+            messageHistory.map(async (message, index): Promise<InternalMessage> => {
                 if (isSystemMessage(message) || isAssistantMessage(message)) {
                     // System/assistant messages have string content, no blob refs
                     return message;
                 }
+                const expandMatchingMedia = retainedMediaMessageIndexes.has(index);
                 if (isUserMessage(message)) {
                     const expandedContent = await expandBlobReferences(
                         message.content,
                         this.resourceManager,
                         this.logger,
-                        allowedMediaTypes
+                        allowedMediaTypes,
+                        expandMatchingMedia
                     );
                     return { ...message, content: expandedContent };
                 }
@@ -916,7 +956,8 @@ export class ContextManager<TMessage = unknown> {
                         message.content,
                         this.resourceManager,
                         this.logger,
-                        allowedMediaTypes
+                        allowedMediaTypes,
+                        expandMatchingMedia
                     );
                     return { ...message, content: expandedContent };
                 }
