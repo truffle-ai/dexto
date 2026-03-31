@@ -37,6 +37,15 @@ import {
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
+// zod-to-openapi cannot emit the recursive JsonValue union from ZodLazy directly.
+// We use a generator-safe placeholder here and rewrite it into the accurate
+// recursive OpenAPI component in scripts/generate-openapi-spec.ts.
+const JsonValueOpenApiPlaceholder = {
+    type: 'object' as const,
+    additionalProperties: true,
+    description: 'Any JSON-serializable value',
+};
+
 export const JsonValueSchema: z.ZodType<JsonValue> = z
     .lazy(() =>
         z.union([
@@ -48,15 +57,47 @@ export const JsonValueSchema: z.ZodType<JsonValue> = z
             z.record(z.string(), JsonValueSchema),
         ])
     )
-    .openapi({
-        type: 'object',
-        additionalProperties: true,
-    })
+    .openapi('JsonValue', JsonValueOpenApiPlaceholder)
     .describe('Any JSON-serializable value');
 
 export const JsonObjectSchema: z.ZodType<{ [key: string]: JsonValue }> = z
     .record(z.string(), JsonValueSchema)
+    .openapi('JsonObject', {
+        type: 'object',
+        additionalProperties: true,
+    })
     .describe('JSON object with arbitrary serializable values');
+
+const JsonSchemaPrimitiveTypeSchema = z
+    .enum(['string', 'number', 'integer', 'boolean', 'object', 'array'])
+    .describe('JSON Schema primitive type');
+
+const JsonSchemaEnumValueSchema = z
+    .union([z.string(), z.number(), z.boolean(), z.null()])
+    .describe('Allowed JSON Schema enum value');
+
+export const JsonSchemaPropertySchema = z
+    .object({
+        type: JsonSchemaPrimitiveTypeSchema.optional().describe('Property type'),
+        description: z.string().optional().describe('Property description'),
+        enum: z.array(JsonSchemaEnumValueSchema).optional().describe('Enum values'),
+        default: JsonValueSchema.optional().describe('Default value'),
+        format: z.string().optional().describe('JSON Schema format hint'),
+    })
+    .passthrough()
+    .describe('JSON Schema property definition');
+
+export const ToolInputSchema = z
+    .object({
+        type: z.literal('object').optional().describe('Schema type, always "object" when present'),
+        properties: z
+            .record(z.string(), JsonSchemaPropertySchema)
+            .optional()
+            .describe('Property definitions'),
+        required: z.array(z.string()).optional().describe('Required property names'),
+    })
+    .passthrough()
+    .describe('JSON Schema for tool input parameters');
 
 export const IssueSchema = z
     .object({
@@ -881,7 +922,7 @@ export const ToolSchema = z
     .object({
         name: z.string().describe('Tool name'),
         description: z.string().describe('Tool description'),
-        inputSchema: JsonObjectSchema.describe('JSON Schema for tool input parameters'),
+        inputSchema: ToolInputSchema.describe('JSON Schema for tool input parameters'),
     })
     .strict()
     .describe('Tool metadata');

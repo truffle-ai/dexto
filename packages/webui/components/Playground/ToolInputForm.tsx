@@ -16,37 +16,17 @@ import type { McpTool } from '@/components/hooks/useServers';
 
 // Infer the property schema type from the tool's input schema
 type JsonSchemaProperty = NonNullable<NonNullable<McpTool['inputSchema']>['properties']>[string];
-
-function isJsonSchemaProperty(value: unknown): value is JsonSchemaProperty {
-    if (typeof value !== 'object' || value === null) return false;
-    const record: { type?: unknown; enum?: unknown } = value;
-    const propType = record['type'];
-    if (
-        propType !== undefined &&
-        propType !== 'string' &&
-        propType !== 'number' &&
-        propType !== 'integer' &&
-        propType !== 'boolean' &&
-        propType !== 'object' &&
-        propType !== 'array'
-    ) {
-        return false;
-    }
-    const enumValues = record['enum'];
-    if (enumValues !== undefined && !Array.isArray(enumValues)) {
-        return false;
-    }
-    return true;
-}
+type ToolInputValue = string | number | boolean | null;
+type ToolInputs = Record<string, ToolInputValue>;
 
 interface ToolInputFormProps {
     tool: McpTool;
-    inputs: Record<string, any>;
+    inputs: ToolInputs;
     errors: Record<string, string>;
     isLoading: boolean;
     onInputChange: (
         name: string,
-        value: any,
+        value: ToolInputValue,
         type?: 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array'
     ) => void;
     onSubmit: () => void;
@@ -57,7 +37,7 @@ interface ToolInputFormProps {
 interface ToolTemplate {
     name: string;
     description: string;
-    apply: (tool: McpTool) => Record<string, any>;
+    apply: (tool: McpTool) => ToolInputs;
 }
 
 const toolTemplates: ToolTemplate[] = [
@@ -65,10 +45,10 @@ const toolTemplates: ToolTemplate[] = [
         name: 'Quick Test',
         description: 'Fill with test values',
         apply: (tool: McpTool) => {
-            const defaults: Record<string, any> = {};
+            const defaults: ToolInputs = {};
             if (tool.inputSchema?.properties) {
-                Object.entries(tool.inputSchema.properties).forEach(
-                    ([key, prop]: [string, any]) => {
+                Object.entries<JsonSchemaProperty>(tool.inputSchema.properties).forEach(
+                    ([key, prop]) => {
                         if (prop.type === 'string') defaults[key] = `test-${key}`;
                         else if (prop.type === 'number') defaults[key] = 42;
                         else if (prop.type === 'boolean') defaults[key] = true;
@@ -84,10 +64,14 @@ const toolTemplates: ToolTemplate[] = [
         name: 'Required Only',
         description: 'Fill only required fields',
         apply: (tool: McpTool) => {
-            const defaults: Record<string, any> = {};
-            if (tool.inputSchema?.properties && tool.inputSchema?.required) {
-                tool.inputSchema.required.forEach((key: string) => {
-                    const prop = tool.inputSchema!.properties![key];
+            const defaults: ToolInputs = {};
+            const inputSchema = tool.inputSchema;
+            const inputProperties = inputSchema?.properties;
+            const requiredInputs = inputSchema?.required;
+            if (inputProperties && requiredInputs) {
+                requiredInputs.forEach((key: string) => {
+                    const prop = inputProperties[key];
+                    if (!prop) return;
                     if (prop.type === 'string') defaults[key] = '';
                     else if (prop.type === 'number') defaults[key] = '';
                     else if (prop.type === 'boolean') defaults[key] = false;
@@ -117,12 +101,7 @@ export function ToolInputForm({
 }: ToolInputFormProps) {
     const hasInputs =
         tool.inputSchema?.properties && Object.keys(tool.inputSchema.properties).length > 0;
-    const inputEntries: Array<[string, JsonSchemaProperty]> = [];
-    for (const [key, prop] of Object.entries(tool.inputSchema?.properties ?? {})) {
-        if (isJsonSchemaProperty(prop)) {
-            inputEntries.push([key, prop]);
-        }
-    }
+    const inputEntries = Object.entries<JsonSchemaProperty>(tool.inputSchema?.properties ?? {});
 
     const renderInput = (key: string, prop: JsonSchemaProperty) => {
         const isRequired = tool.inputSchema?.required?.includes(key);
@@ -131,12 +110,9 @@ export function ToolInputForm({
 
         // Enum select
         if (prop.enum && Array.isArray(prop.enum)) {
-            const isEnumBoolean = prop.enum.every(
-                (v: string | number | boolean) => typeof v === 'boolean'
-            );
-            const isEnumNumeric = prop.enum.every(
-                (v: string | number | boolean) => typeof v === 'number'
-            );
+            const isEnumBoolean = prop.enum.every((v) => typeof v === 'boolean');
+            const isEnumNumeric = prop.enum.every((v) => typeof v === 'number');
+            const hasNullEnum = prop.enum.includes(null);
             return (
                 <Select
                     value={
@@ -145,9 +121,10 @@ export function ToolInputForm({
                             : String(inputs[key] || '')
                     }
                     onValueChange={(value) => {
-                        let parsedValue: string | number | boolean = value;
+                        let parsedValue: string | number | boolean | null = value;
                         if (isEnumBoolean) parsedValue = value === 'true';
                         else if (isEnumNumeric) parsedValue = Number(value);
+                        else if (hasNullEnum && value === 'null') parsedValue = null;
                         onInputChange(key, parsedValue, prop.type);
                     }}
                     disabled={isLoading}
@@ -158,7 +135,7 @@ export function ToolInputForm({
                         />
                     </SelectTrigger>
                     <SelectContent>
-                        {prop.enum.map((enumValue: string | number | boolean) => (
+                        {prop.enum.map((enumValue) => (
                             <SelectItem key={String(enumValue)} value={String(enumValue)}>
                                 {String(enumValue)}
                             </SelectItem>
@@ -187,13 +164,16 @@ export function ToolInputForm({
 
         // Object/Array textarea
         if (prop.type === 'object' || prop.type === 'array') {
+            const inputValue = inputs[key];
             return (
                 <Textarea
                     id={key}
                     value={
-                        inputs[key] === undefined && prop.default !== undefined
+                        inputValue === undefined && prop.default !== undefined
                             ? JSON.stringify(prop.default, null, 2)
-                            : inputs[key] || ''
+                            : typeof inputValue === 'string'
+                              ? inputValue
+                              : ''
                     }
                     onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
                         onInputChange(key, e.target.value, prop.type)

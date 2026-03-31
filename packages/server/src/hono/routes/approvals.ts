@@ -5,6 +5,7 @@ import {
     ApiErrorResponseSchema,
     BadRequestErrorResponse,
     InternalErrorResponse,
+    JsonObjectSchema,
 } from '../schemas/responses.js';
 import type { GetAgentFn, OpenAPIRouteSchema } from '../types.js';
 
@@ -13,10 +14,9 @@ const ApprovalBodySchema = z
         status: z
             .enum([ApprovalStatus.APPROVED, ApprovalStatus.DENIED, ApprovalStatus.CANCELLED])
             .describe('The user decision'),
-        formData: z
-            .record(z.unknown())
-            .optional()
-            .describe('Optional form data provided by the user (for elicitation)'),
+        formData: JsonObjectSchema.optional().describe(
+            'Optional form data provided by the user (for elicitation)'
+        ),
         rememberChoice: z
             .boolean()
             .optional()
@@ -121,6 +121,14 @@ const ApprovalResponseSchema = z
     })
     .describe('Response after processing approval');
 
+type ApprovalResponse = z.output<typeof ApprovalResponseSchema>;
+type ApprovalData = {
+    formData?: z.output<typeof JsonObjectSchema>;
+    rememberChoice?: boolean;
+    rememberPattern?: string;
+    rememberDirectory?: boolean;
+};
+
 const PendingApprovalSchema = z
     .object({
         approvalId: z.string().describe('The unique ID of the approval request'),
@@ -128,7 +136,9 @@ const PendingApprovalSchema = z
         sessionId: z.string().optional().describe('The session ID if applicable'),
         timeout: z.number().optional().describe('Timeout in milliseconds'),
         timestamp: z.string().describe('ISO timestamp when the request was created'),
-        metadata: z.record(z.unknown()).describe('Type-specific metadata'),
+        metadata: z
+            .object({})
+            .describe('Type-specific metadata. Currently empty for pending approvals.'),
     })
     .describe('A pending approval request');
 
@@ -138,6 +148,8 @@ const PendingApprovalsResponseSchema = z
         approvals: z.array(PendingApprovalSchema).describe('List of pending approval requests'),
     })
     .describe('Response containing pending approval requests');
+
+type PendingApprovalsResponse = z.output<typeof PendingApprovalsResponseSchema>;
 
 const GetPendingApprovalsQuerySchema = z
     .object({
@@ -225,10 +237,17 @@ const submitApprovalRoute = createRoute({
     },
 });
 
+// Mount subrouters through a tiny helper so declaration emit does not explode on
+// repeated `app.openapi(...)` / `app.route(...)` generic expansion in this file.
+// See: https://github.com/honojs/hono/issues/2399
+function mountApprovalsSubrouter(app: OpenAPIHono, router: OpenAPIHono) {
+    app.route('/', router);
+}
+
 export function createApprovalsRouter(
     getAgent: GetAgentFn,
     approvalCoordinator?: ApprovalCoordinator
-) {
+): OpenAPIHono {
     const app = new OpenAPIHono();
 
     // TODO: Consider adding auth & idempotency for production deployments
@@ -236,115 +255,118 @@ export function createApprovalsRouter(
     // - Auth: Open-source framework should allow flexible auth (reverse proxy, API gateway, etc.)
     // - Idempotency: Already documented in schema; platform can add tracking separately
 
-    return app
-        .openapi(getPendingApprovalsRoute, async (ctx) => {
-            const agent = await getAgent(ctx);
-            const { sessionId } = ctx.req.valid('query');
+    const getPendingApprovalsRouter = new OpenAPIHono();
+    getPendingApprovalsRouter.openapi(getPendingApprovalsRoute, async (ctx) => {
+        const agent = await getAgent(ctx);
+        const { sessionId } = ctx.req.valid('query');
 
-            agent.logger.debug(`Fetching pending approvals for session ${sessionId}`);
+        agent.logger.debug(`Fetching pending approvals for session ${sessionId}`);
 
-            // Get all pending approval IDs from the approval manager
-            const pendingIds = agent.services.approvalManager.getPendingApprovals();
+        // Get all pending approval IDs from the approval manager
+        const pendingIds = agent.services.approvalManager.getPendingApprovals();
 
-            // For now, return basic approval info
-            // Full metadata would require storing approval requests in the coordinator
-            const approvals = pendingIds.map((approvalId: string) => ({
-                approvalId,
-                type: 'tool_confirmation', // Default type
-                sessionId,
-                timestamp: new Date().toISOString(),
-                metadata: {},
-            }));
+        // For now, return basic approval info
+        // Full metadata would require storing approval requests in the coordinator
+        const approvals = pendingIds.map((approvalId: string) => ({
+            approvalId,
+            type: 'tool_confirmation', // Default type
+            sessionId,
+            timestamp: new Date().toISOString(),
+            metadata: {},
+        }));
 
-            return ctx.json(
-                {
-                    ok: true as const,
-                    approvals,
-                },
-                200
-            );
-        })
-        .openapi(submitApprovalRoute, async (ctx) => {
-            const agent = await getAgent(ctx);
-            const { approvalId } = ctx.req.valid('param');
-            const {
-                status,
-                formData,
-                rememberChoice,
-                rememberPattern,
-                rememberDirectory,
-                reason,
-                message,
-            } = ctx.req.valid('json');
+        return ctx.json(
+            {
+                ok: true as const,
+                approvals,
+            } satisfies PendingApprovalsResponse,
+            200
+        );
+    });
 
-            agent.logger.info(`Received approval decision for ${approvalId}: ${status}`);
+    const submitApprovalRouter = new OpenAPIHono();
+    submitApprovalRouter.openapi(submitApprovalRoute, async (ctx) => {
+        const agent = await getAgent(ctx);
+        const { approvalId } = ctx.req.valid('param');
+        const {
+            status,
+            formData,
+            rememberChoice,
+            rememberPattern,
+            rememberDirectory,
+            reason,
+            message,
+        } = ctx.req.valid('json');
 
-            if (!approvalCoordinator) {
-                agent.logger.error('ApprovalCoordinator not available');
-                return ctx.json({ ok: false as const, approvalId, status }, 503);
-            }
+        agent.logger.info(`Received approval decision for ${approvalId}: ${status}`);
 
-            // Validate that the approval exists
-            const pendingApprovals = agent.services.approvalManager.getPendingApprovals();
-            if (!pendingApprovals.includes(approvalId)) {
-                throw ApprovalError.notFound(approvalId);
-            }
+        if (!approvalCoordinator) {
+            agent.logger.error('ApprovalCoordinator not available');
+            const response: ApprovalResponse = { ok: false, approvalId, status };
+            return ctx.json(response, 503);
+        }
 
-            try {
-                // Build data object for approved requests
-                const data: Record<string, unknown> = {};
-                if (status === ApprovalStatus.APPROVED) {
-                    if (formData !== undefined) {
-                        data.formData = formData;
-                    }
-                    if (rememberChoice !== undefined) {
-                        data.rememberChoice = rememberChoice;
-                    }
-                    if (rememberPattern !== undefined) {
-                        data.rememberPattern = rememberPattern;
-                    }
-                    if (rememberDirectory !== undefined) {
-                        data.rememberDirectory = rememberDirectory;
-                    }
+        // Validate that the approval exists
+        const pendingApprovals = agent.services.approvalManager.getPendingApprovals();
+        if (!pendingApprovals.includes(approvalId)) {
+            throw ApprovalError.notFound(approvalId);
+        }
+
+        try {
+            // Build data object for approved requests
+            const data: ApprovalData = {};
+            if (status === ApprovalStatus.APPROVED) {
+                if (formData !== undefined) {
+                    data.formData = formData;
                 }
-
-                // Construct response payload
-                // Get sessionId from coordinator's mapping (stored when request was emitted)
-                const sessionId = approvalCoordinator.getSessionId(approvalId);
-                const responsePayload = {
-                    approvalId,
-                    status,
-                    sessionId, // Attach sessionId for SSE routing to correct client streams
-                    ...(status === ApprovalStatus.DENIED
-                        ? {
-                              reason: reason ?? DenialReason.USER_DENIED,
-                              message: message ?? 'User denied the request via API',
-                          }
-                        : status === ApprovalStatus.CANCELLED
-                          ? {
-                                reason: reason ?? DenialReason.USER_CANCELLED,
-                                message: message ?? 'User cancelled the request via API',
-                            }
-                          : {}),
-                    ...(Object.keys(data).length > 0 ? { data } : {}),
-                };
-
-                // Emit via approval coordinator which ManualApprovalHandler listens to
-                approvalCoordinator.emitResponse(responsePayload);
-
-                return ctx.json(
-                    {
-                        ok: true,
-                        approvalId,
-                        status,
-                    },
-                    200
-                );
-            } catch (error) {
-                agent.logger.error('Error processing approval', { approvalId, error });
-                return ctx.json({ ok: false as const, approvalId, status }, 500);
+                if (rememberChoice !== undefined) {
+                    data.rememberChoice = rememberChoice;
+                }
+                if (rememberPattern !== undefined) {
+                    data.rememberPattern = rememberPattern;
+                }
+                if (rememberDirectory !== undefined) {
+                    data.rememberDirectory = rememberDirectory;
+                }
             }
-        });
+
+            // Construct response payload
+            // Get sessionId from coordinator's mapping (stored when request was emitted)
+            const sessionId = approvalCoordinator.getSessionId(approvalId);
+            const responsePayload = {
+                approvalId,
+                status,
+                sessionId, // Attach sessionId for SSE routing to correct client streams
+                ...(status === ApprovalStatus.DENIED
+                    ? {
+                          reason: reason ?? DenialReason.USER_DENIED,
+                          message: message ?? 'User denied the request via API',
+                      }
+                    : status === ApprovalStatus.CANCELLED
+                      ? {
+                            reason: reason ?? DenialReason.USER_CANCELLED,
+                            message: message ?? 'User cancelled the request via API',
+                        }
+                      : {}),
+                ...(Object.keys(data).length > 0 ? { data } : {}),
+            };
+
+            // Emit via approval coordinator which ManualApprovalHandler listens to
+            approvalCoordinator.emitResponse(responsePayload);
+
+            const response: ApprovalResponse = { ok: true, approvalId, status };
+            return ctx.json(response, 200);
+        } catch (error) {
+            agent.logger.error('Error processing approval', { approvalId, error });
+            const response: ApprovalResponse = { ok: false, approvalId, status };
+            return ctx.json(response, 500);
+        }
+    });
+
+    mountApprovalsSubrouter(app, getPendingApprovalsRouter);
+    mountApprovalsSubrouter(app, submitApprovalRouter);
+
+    return app;
 }
 
 type GetPendingApprovalsRouteSchema = OpenAPIRouteSchema<

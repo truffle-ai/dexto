@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import type { Env } from 'hono';
 import {
     AgentError,
     logger,
@@ -11,6 +12,9 @@ import {
     ApiErrorResponseSchema,
     BadRequestErrorResponse,
     InternalErrorResponse,
+    JsonObjectSchema,
+    JsonValueSchema,
+    ToolInputSchema,
 } from '../schemas/responses.js';
 import type { GetAgentConfigPathFn, GetAgentFn, OpenAPIRouteSchema } from '../types.js';
 
@@ -37,11 +41,9 @@ const McpServerUpdateSchema = z
     .strict()
     .describe('Request body for updating an MCP server');
 
-const ExecuteToolBodySchema = z
-    .record(z.unknown())
-    .describe(
-        "Tool execution parameters as JSON object. The specific fields depend on the tool being executed and are defined by the tool's inputSchema."
-    );
+const ExecuteToolBodySchema = JsonObjectSchema.describe(
+    "Tool execution parameters as JSON object. The specific fields depend on the tool being executed and are defined by the tool's inputSchema."
+);
 
 // Response schemas
 const ServerStatusResponseSchema = z
@@ -68,45 +70,20 @@ const ServersListResponseSchema = z
     .strict()
     .describe('List of MCP servers');
 
-// JSON Schema definition for tool input parameters (based on MCP SDK Tool type)
-const JsonSchemaProperty = z
-    .object({
-        type: z
-            .enum(['string', 'number', 'integer', 'boolean', 'object', 'array'])
-            .optional()
-            .describe('Property type'),
-        description: z.string().optional().describe('Property description'),
-        enum: z
-            .array(z.union([z.string(), z.number(), z.boolean()]))
-            .optional()
-            .describe('Enum values'),
-        default: z.any().optional().describe('Default value'),
-    })
-    .passthrough()
-    .describe('JSON Schema property definition');
-
-const ToolInputSchema = z
-    .object({
-        type: z.literal('object').optional().describe('Schema type, always "object" when present'),
-        properties: z.record(JsonSchemaProperty).optional().describe('Property definitions'),
-        required: z.array(z.string()).optional().describe('Required property names'),
-    })
-    .passthrough()
-    .describe('JSON Schema for tool input parameters');
-
 const ToolInfoSchema = z
     .object({
         id: z.string().describe('Tool identifier'),
         name: z.string().describe('Tool name'),
         description: z.string().describe('Tool description'),
         inputSchema: ToolInputSchema.optional().describe('JSON Schema for tool input parameters'),
-        _meta: z
-            .record(z.unknown())
-            .optional()
-            .describe('Optional tool metadata (e.g., MCP Apps UI resource info)'),
+        _meta: JsonObjectSchema.optional().describe(
+            'Optional tool metadata (e.g., MCP Apps UI resource info)'
+        ),
     })
     .strict()
     .describe('Tool information');
+
+type ToolInfo = z.output<typeof ToolInfoSchema>;
 
 const ToolsListResponseSchema = z
     .object({
@@ -114,6 +91,8 @@ const ToolsListResponseSchema = z
     })
     .strict()
     .describe('List of tools from MCP server');
+
+type ToolsListResponse = z.output<typeof ToolsListResponseSchema>;
 
 const DisconnectResponseSchema = z
     .object({
@@ -123,6 +102,8 @@ const DisconnectResponseSchema = z
     .strict()
     .describe('Server disconnection response');
 
+type DisconnectResponse = z.output<typeof DisconnectResponseSchema>;
+
 const RestartResponseSchema = z
     .object({
         status: z.literal('restarted').describe('Restart status'),
@@ -131,14 +112,18 @@ const RestartResponseSchema = z
     .strict()
     .describe('Server restart response');
 
+type RestartResponse = z.output<typeof RestartResponseSchema>;
+
 const ToolExecutionResponseSchema = z
     .object({
         success: z.boolean().describe('Whether tool execution succeeded'),
-        data: z.any().optional().describe('Tool execution result data'),
+        data: JsonValueSchema.optional().describe('Tool execution result data'),
         error: z.string().optional().describe('Error message if execution failed'),
     })
     .strict()
     .describe('Tool execution response');
+
+type ToolExecutionResponse = z.output<typeof ToolExecutionResponseSchema>;
 
 const ServerConfigResponseSchema = z
     .object({
@@ -166,9 +151,11 @@ const ResourcesListResponseSchema = z
     .strict()
     .describe('List of resources from MCP server');
 
+type ResourcesListResponse = z.output<typeof ResourcesListResponseSchema>;
+
 const ResourceContentSchema = z
     .object({
-        content: z.any().describe('Resource content data'),
+        content: JsonValueSchema.describe('Resource content data'),
     })
     .strict()
     .describe('Resource content wrapper');
@@ -180,6 +167,15 @@ const ResourceContentResponseSchema = z
     })
     .strict()
     .describe('Resource content response');
+
+type ResourceContentResponse = z.output<typeof ResourceContentResponseSchema>;
+
+// Mount subrouters through a tiny helper so declaration emit does not explode on
+// repeated `app.route(...)` generic expansion in this file.
+// See: https://github.com/honojs/hono/issues/2399
+function mountMcpSubrouter(app: OpenAPIHono, router: OpenAPIHono) {
+    app.route('/', router);
+}
 
 const addServerRoute = createRoute({
     method: 'post',
@@ -394,10 +390,15 @@ const getResourceContentRoute = createRoute({
     },
 });
 
-export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAgentConfigPathFn) {
-    const app = new OpenAPIHono();
-
-    return app
+export function createMcpRouter(
+    getAgent: GetAgentFn,
+    getAgentConfigPath: GetAgentConfigPathFn
+): OpenAPIHono<Env, McpRouterSchema> {
+    const app = new OpenAPIHono<Env, McpRouterSchema>();
+    // Keep MCP routes on OpenAPIHono, but split the file into a few mounted subrouters
+    // so declaration emit stays below TS2589 depth limits on larger Hono graphs.
+    // See: https://github.com/honojs/hono/issues/2399
+    const serverRegistrationRouter = new OpenAPIHono()
         .openapi(addServerRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             const { name, config, persistToAgent } = ctx.req.valid('json');
@@ -472,127 +473,147 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
                 throw MCPError.serverNotFound(serverId);
             }
             return ctx.json({ name: serverId, config: McpServerConfigSchema.parse(config) }, 200);
-        })
-        .openapi(updateServerRoute, async (ctx) => {
-            const agent = await getAgent(ctx);
-            const { serverId } = ctx.req.valid('param');
-            const { config, persistToAgent } = ctx.req.valid('json');
+        });
 
-            const existingConfig = agent.getMcpServerConfig(serverId);
-            if (!existingConfig) {
-                throw MCPError.serverNotFound(serverId);
-            }
+    const serverUpdateRouter = new OpenAPIHono().openapi(updateServerRoute, async (ctx) => {
+        const agent = await getAgent(ctx);
+        const { serverId } = ctx.req.valid('param');
+        const { config, persistToAgent } = ctx.req.valid('json');
 
-            await agent.updateMcpServer(serverId, config);
+        const existingConfig = agent.getMcpServerConfig(serverId);
+        if (!existingConfig) {
+            throw MCPError.serverNotFound(serverId);
+        }
 
-            if (persistToAgent === true) {
-                try {
-                    const agentPath = await getAgentConfigPath(ctx);
-                    if (!agentPath) {
-                        throw AgentError.noConfigPath();
-                    }
+        await agent.updateMcpServer(serverId, config);
 
-                    const currentConfig = agent.getEffectiveConfig();
-                    const updates = {
-                        mcpServers: {
-                            ...(currentConfig.mcpServers || {}),
-                            [serverId]: config,
-                        },
-                    };
-
-                    await updateAgentConfigFile(agentPath, updates);
-                    logger.info(`Saved server '${serverId}' to agent configuration file`);
-                } catch (saveError) {
-                    const errorMessage =
-                        saveError instanceof Error ? saveError.message : String(saveError);
-                    logger.warn(
-                        `Failed to persist MCP server '${serverId}' update: ${errorMessage}`,
-                        { error: saveError }
-                    );
-                }
-            }
-
-            const status = config.enabled === false ? 'registered' : 'connected';
-            return ctx.json({ status, name: serverId }, 200);
-        })
-        .openapi(toolsRoute, async (ctx) => {
-            const agent = await getAgent(ctx);
-            const { serverId } = ctx.req.valid('param');
-            const client = agent.getMcpClients().get(serverId);
-            if (!client) {
-                throw MCPError.serverNotFound(serverId);
-            }
-            const toolsMap = await client.getTools();
-            const tools = Object.entries(toolsMap).map(([toolName, toolDef]) => ({
-                id: toolName,
-                name: toolName,
-                description: toolDef.description || '',
-                inputSchema:
-                    toolDef.parameters === undefined
-                        ? undefined
-                        : ToolInputSchema.parse(toolDef.parameters),
-                _meta: toolDef._meta,
-            }));
-            return ctx.json({ tools }, 200);
-        })
-        .openapi(deleteServerRoute, async (ctx) => {
-            const agent = await getAgent(ctx);
-            const { serverId } = ctx.req.valid('param');
-            const clientExists =
-                agent.getMcpClients().has(serverId) || agent.getMcpFailedConnections()[serverId];
-            if (!clientExists) {
-                throw MCPError.serverNotFound(serverId);
-            }
-
-            await agent.removeMcpServer(serverId);
-            return ctx.json({ status: 'disconnected' as const, id: serverId }, 200);
-        })
-        .openapi(restartServerRoute, async (ctx) => {
-            const agent = await getAgent(ctx);
-            const { serverId } = ctx.req.valid('param');
-            logger.info(`Received request to POST /api/mcp/servers/${serverId}/restart`);
-
-            const clientExists = agent.getMcpClients().has(serverId);
-            if (!clientExists) {
-                logger.warn(`Attempted to restart non-existent server: ${serverId}`);
-                throw MCPError.serverNotFound(serverId);
-            }
-
-            await agent.restartMcpServer(serverId);
-            return ctx.json({ status: 'restarted' as const, id: serverId }, 200);
-        })
-        .openapi(execToolRoute, async (ctx) => {
-            const agent = await getAgent(ctx);
-            const { serverId, toolName } = ctx.req.valid('param');
-            const body = ctx.req.valid('json');
-            const client = agent.getMcpClients().get(serverId);
-            if (!client) {
-                throw MCPError.serverNotFound(serverId);
-            }
-            // Execute tool directly on the specified server (matches Express implementation)
+        if (persistToAgent === true) {
             try {
-                const rawResult = await client.callTool(toolName, body);
-                return ctx.json({ success: true, data: rawResult }, 200);
-            } catch (error) {
-                const errorMessage = error instanceof Error ? error.message : String(error);
-                logger.error(
-                    `Tool execution failed for '${toolName}' on server '${serverId}': ${errorMessage}`,
-                    { error }
-                );
-                return ctx.json({ success: false, error: errorMessage }, 200);
+                const agentPath = await getAgentConfigPath(ctx);
+                if (!agentPath) {
+                    throw AgentError.noConfigPath();
+                }
+
+                const currentConfig = agent.getEffectiveConfig();
+                const updates = {
+                    mcpServers: {
+                        ...(currentConfig.mcpServers || {}),
+                        [serverId]: config,
+                    },
+                };
+
+                await updateAgentConfigFile(agentPath, updates);
+                logger.info(`Saved server '${serverId}' to agent configuration file`);
+            } catch (saveError) {
+                const errorMessage =
+                    saveError instanceof Error ? saveError.message : String(saveError);
+                logger.warn(`Failed to persist MCP server '${serverId}' update: ${errorMessage}`, {
+                    error: saveError,
+                });
             }
-        })
-        .openapi(listResourcesRoute, async (ctx) => {
-            const agent = await getAgent(ctx);
-            const { serverId } = ctx.req.valid('param');
-            const client = agent.getMcpClients().get(serverId);
-            if (!client) {
-                throw MCPError.serverNotFound(serverId);
-            }
-            const resources = await agent.listResourcesForServer(serverId);
-            return ctx.json({ success: true, resources }, 200);
-        })
-        .openapi(getResourceContentRoute, async (ctx) => {
+        }
+
+        const status = config.enabled === false ? 'registered' : 'connected';
+        return ctx.json({ status, name: serverId }, 200);
+    });
+
+    const serverToolsRouter = new OpenAPIHono().openapi(toolsRoute, async (ctx) => {
+        const agent = await getAgent(ctx);
+        const { serverId } = ctx.req.valid('param');
+        const client = agent.getMcpClients().get(serverId);
+        if (!client) {
+            throw MCPError.serverNotFound(serverId);
+        }
+        const toolsMap = await client.getTools();
+        const tools: ToolInfo[] = Object.entries(toolsMap).map(([toolName, toolDef]) => ({
+            id: toolName,
+            name: toolName,
+            description: toolDef.description || '',
+            inputSchema:
+                toolDef.parameters === undefined
+                    ? undefined
+                    : ToolInputSchema.parse(toolDef.parameters),
+            _meta: toolDef._meta === undefined ? undefined : JsonObjectSchema.parse(toolDef._meta),
+        }));
+        const response: ToolsListResponse = { tools };
+        return ctx.json(response, 200);
+    });
+
+    const deleteServerRouter = new OpenAPIHono().openapi(deleteServerRoute, async (ctx) => {
+        const agent = await getAgent(ctx);
+        const { serverId } = ctx.req.valid('param');
+        const clientExists =
+            agent.getMcpClients().has(serverId) || agent.getMcpFailedConnections()[serverId];
+        if (!clientExists) {
+            throw MCPError.serverNotFound(serverId);
+        }
+
+        await agent.removeMcpServer(serverId);
+        const response: DisconnectResponse = { status: 'disconnected', id: serverId };
+        return ctx.json(response, 200);
+    });
+
+    const restartServerRouter = new OpenAPIHono().openapi(restartServerRoute, async (ctx) => {
+        const agent = await getAgent(ctx);
+        const { serverId } = ctx.req.valid('param');
+        logger.info(`Received request to POST /api/mcp/servers/${serverId}/restart`);
+
+        const clientExists = agent.getMcpClients().has(serverId);
+        if (!clientExists) {
+            logger.warn(`Attempted to restart non-existent server: ${serverId}`);
+            throw MCPError.serverNotFound(serverId);
+        }
+
+        await agent.restartMcpServer(serverId);
+        const response: RestartResponse = { status: 'restarted', id: serverId };
+        return ctx.json(response, 200);
+    });
+
+    const execToolRouter = new OpenAPIHono().openapi(execToolRoute, async (ctx) => {
+        const agent = await getAgent(ctx);
+        const { serverId, toolName } = ctx.req.valid('param');
+        const body = ctx.req.valid('json');
+        const client = agent.getMcpClients().get(serverId);
+        if (!client) {
+            throw MCPError.serverNotFound(serverId);
+        }
+        // Execute tool directly on the specified server (matches Express implementation)
+        try {
+            const rawResult = await client.callTool(toolName, body);
+            const response: ToolExecutionResponse = {
+                success: true,
+                data: JsonValueSchema.parse(rawResult),
+            };
+            return ctx.json(response, 200);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            logger.error(
+                `Tool execution failed for '${toolName}' on server '${serverId}': ${errorMessage}`,
+                { error }
+            );
+            const response: ToolExecutionResponse = {
+                success: false,
+                error: errorMessage,
+            };
+            return ctx.json(response, 200);
+        }
+    });
+
+    const listResourcesRouter = new OpenAPIHono().openapi(listResourcesRoute, async (ctx) => {
+        const agent = await getAgent(ctx);
+        const { serverId } = ctx.req.valid('param');
+        const client = agent.getMcpClients().get(serverId);
+        if (!client) {
+            throw MCPError.serverNotFound(serverId);
+        }
+        const resources = await agent.listResourcesForServer(serverId);
+        const response: ResourcesListResponse = { success: true, resources };
+        return ctx.json(response, 200);
+    });
+
+    const getResourceContentRouter = new OpenAPIHono().openapi(
+        getResourceContentRoute,
+        async (ctx) => {
             const agent = await getAgent(ctx);
             const { serverId, resourceId } = ctx.req.valid('param');
             const client = agent.getMcpClients().get(serverId);
@@ -601,8 +622,24 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
             }
             const qualifiedUri = `mcp:${serverId}:${resourceId}`;
             const content = await agent.readResource(qualifiedUri);
-            return ctx.json({ success: true, data: { content } }, 200);
-        });
+            const response: ResourceContentResponse = {
+                success: true,
+                data: { content: JsonValueSchema.parse(content) },
+            };
+            return ctx.json(response, 200);
+        }
+    );
+
+    mountMcpSubrouter(app, serverRegistrationRouter);
+    mountMcpSubrouter(app, serverUpdateRouter);
+    mountMcpSubrouter(app, serverToolsRouter);
+    mountMcpSubrouter(app, deleteServerRouter);
+    mountMcpSubrouter(app, restartServerRouter);
+    mountMcpSubrouter(app, execToolRouter);
+    mountMcpSubrouter(app, listResourcesRouter);
+    mountMcpSubrouter(app, getResourceContentRouter);
+
+    return app;
 }
 
 type ServerIdParamInput = { param: { serverId: string } };
