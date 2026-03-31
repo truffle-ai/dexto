@@ -469,6 +469,59 @@ describe('Hono API Integration Tests', () => {
             expect(Array.isArray((res.body as { history: unknown[] }).history)).toBe(true);
         });
 
+        it('GET /api/sessions/:id/history preserves resource parts for media rehydration', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = 'test-session-history-resource-parts';
+
+            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId,
+            });
+
+            const database = testServer.agent.services.storageManager.getDatabase();
+            await database.append(`messages:${sessionId}`, {
+                role: 'tool',
+                toolCallId: 'call-resource-history',
+                name: 'read_media_file',
+                success: true,
+                content: [
+                    { type: 'text', text: 'Loaded local video resource.' },
+                    {
+                        type: 'resource',
+                        uri: '/tmp/demo-video.mp4',
+                        name: 'demo-video.mp4',
+                        mimeType: 'video/mp4',
+                        kind: 'video',
+                    },
+                ],
+            });
+
+            const sessionData = await database.get<
+                { messageCount: number } & Record<string, unknown>
+            >(`session:${sessionId}`);
+            if (!sessionData) {
+                throw new Error(`Expected session '${sessionId}' to exist`);
+            }
+            sessionData.messageCount = 1;
+            await database.set(`session:${sessionId}`, sessionData);
+
+            const res = await httpRequest(
+                testServer.baseUrl,
+                'GET',
+                `/api/sessions/${sessionId}/history`
+            );
+
+            expect(res.status).toBe(200);
+            const history = (res.body as { history: Array<{ content: unknown[] }> }).history;
+            expect(history).toHaveLength(1);
+            expect(history[0]?.content[1]).toEqual({
+                type: 'resource',
+                uri: '/tmp/demo-video.mp4',
+                name: 'demo-video.mp4',
+                mimeType: 'video/mp4',
+                kind: 'video',
+            });
+        });
+
         it('POST /api/sessions/:id/fork creates child with parentSessionId', async () => {
             if (!testServer) throw new Error('Test server not initialized');
             const parentSessionId = 'test-fork-parent';

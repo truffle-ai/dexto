@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { client } from '@/lib/client';
 
@@ -33,11 +33,49 @@ type NormalizedResourceItem =
           filename?: string;
       };
 
+type RawNormalizedResourceItem =
+    | {
+          kind: 'text';
+          text: string;
+          mimeType?: string;
+      }
+    | {
+          kind: 'image';
+          base64: string;
+          mimeType: string;
+          alt?: string;
+      }
+    | {
+          kind: 'audio';
+          base64: string;
+          mimeType: string;
+          filename?: string;
+      }
+    | {
+          kind: 'video';
+          base64: string;
+          mimeType: string;
+          filename?: string;
+      }
+    | {
+          kind: 'file';
+          base64: string;
+          mimeType?: string;
+          filename?: string;
+      };
+
 export interface NormalizedResource {
     uri: string;
     name?: string;
     meta?: Record<string, unknown>;
     items: NormalizedResourceItem[];
+}
+
+interface RawNormalizedResource {
+    uri: string;
+    name?: string;
+    meta?: Record<string, unknown>;
+    items: RawNormalizedResourceItem[];
 }
 
 export interface ResourceState {
@@ -48,11 +86,25 @@ export interface ResourceState {
 
 type ResourceStateMap = Record<string, ResourceState>;
 
-function buildDataUrl(base64: string, mimeType: string): string {
-    return `data:${mimeType};base64,${base64}`;
+function decodeBase64(base64: string): number[] {
+    const normalized = base64.replace(/\s/g, '');
+    const binary = window.atob(normalized);
+    const bytes = new Array<number>(binary.length);
+
+    for (let index = 0; index < binary.length; index++) {
+        bytes[index] = binary.charCodeAt(index);
+    }
+
+    return bytes;
 }
 
-function normalizeResource(uri: string, payload: any): NormalizedResource {
+function createObjectUrl(base64: string, mimeType?: string): string {
+    const bytes = decodeBase64(base64);
+    const blob = new Blob([Uint8Array.from(bytes)], mimeType ? { type: mimeType } : undefined);
+    return URL.createObjectURL(blob);
+}
+
+function normalizeResource(uri: string, payload: any): RawNormalizedResource {
     const contents = Array.isArray(payload?.contents) ? payload.contents : [];
     const meta = (payload?._meta ?? {}) as Record<string, unknown>;
     const name =
@@ -60,7 +112,7 @@ function normalizeResource(uri: string, payload: any): NormalizedResource {
             ? meta.originalName
             : undefined) || uri;
 
-    const items: NormalizedResourceItem[] = [];
+    const items: RawNormalizedResourceItem[] = [];
 
     for (const item of contents) {
         if (!item || typeof item !== 'object') continue;
@@ -81,32 +133,31 @@ function normalizeResource(uri: string, payload: any): NormalizedResource {
 
         if ((blobData || rawData) && mimeType) {
             const base64 = blobData ?? rawData!;
-            const src = buildDataUrl(base64, mimeType);
             if (mimeType.startsWith('image/')) {
                 items.push({
                     kind: 'image',
-                    src,
+                    base64,
                     mimeType,
                     alt: filename || name,
                 });
             } else if (mimeType.startsWith('audio/')) {
                 items.push({
                     kind: 'audio',
-                    src,
+                    base64,
                     mimeType,
                     filename: filename || name,
                 });
             } else if (mimeType.startsWith('video/')) {
                 items.push({
                     kind: 'video',
-                    src,
+                    base64,
                     mimeType,
                     filename: filename || name,
                 });
             } else {
                 items.push({
                     kind: 'file',
-                    src,
+                    base64,
                     mimeType,
                     filename: filename || name,
                 });
@@ -131,7 +182,66 @@ function normalizeResource(uri: string, payload: any): NormalizedResource {
     };
 }
 
-async function fetchResourceContent(uri: string): Promise<NormalizedResource> {
+function materializeResource(raw: RawNormalizedResource): {
+    data: NormalizedResource;
+    objectUrls: string[];
+} {
+    const objectUrls: string[] = [];
+    const items: NormalizedResourceItem[] = raw.items.map((item) => {
+        if (item.kind === 'text') {
+            return item;
+        }
+
+        const src = createObjectUrl(item.base64, item.mimeType);
+        objectUrls.push(src);
+
+        if (item.kind === 'image') {
+            return {
+                kind: 'image',
+                src,
+                mimeType: item.mimeType,
+                alt: item.alt,
+            };
+        }
+
+        if (item.kind === 'audio') {
+            return {
+                kind: 'audio',
+                src,
+                mimeType: item.mimeType,
+                filename: item.filename,
+            };
+        }
+
+        if (item.kind === 'video') {
+            return {
+                kind: 'video',
+                src,
+                mimeType: item.mimeType,
+                filename: item.filename,
+            };
+        }
+
+        return {
+            kind: 'file',
+            src,
+            mimeType: item.mimeType,
+            filename: item.filename,
+        };
+    });
+
+    return {
+        data: {
+            uri: raw.uri,
+            name: raw.name,
+            meta: raw.meta,
+            items,
+        },
+        objectUrls,
+    };
+}
+
+async function fetchResourceContent(uri: string): Promise<RawNormalizedResource> {
     const response = await client.api.resources[':resourceId'].content.$get({
         param: { resourceId: encodeURIComponent(uri) },
     });
@@ -177,8 +287,20 @@ export function useResourceContent(resourceUris: string[]): ResourceStateMap {
         })),
     });
 
-    const resources: ResourceStateMap = useMemo(() => {
+    const querySignature = queries
+        .map((query, index) => {
+            const uri = normalizedUris[index] ?? '';
+            const status = query.status;
+            const dataUpdatedAt = query.dataUpdatedAt ?? 0;
+            const errorUpdatedAt = query.errorUpdatedAt ?? 0;
+            return `${uri}:${status}:${dataUpdatedAt}:${errorUpdatedAt}`;
+        })
+        .join('|');
+
+    const { resources, objectUrls } = useMemo(() => {
         const result: ResourceStateMap = {};
+        const urls: string[] = [];
+
         queries.forEach((query, index) => {
             const uri = normalizedUris[index];
             if (!uri) return;
@@ -191,11 +313,24 @@ export function useResourceContent(resourceUris: string[]): ResourceStateMap {
                     error: query.error instanceof Error ? query.error.message : String(query.error),
                 };
             } else if (query.data) {
-                result[uri] = { status: 'loaded', data: query.data };
+                const materialized = materializeResource(query.data);
+                urls.push(...materialized.objectUrls);
+                result[uri] = { status: 'loaded', data: materialized.data };
             }
         });
-        return result;
-    }, [queries, normalizedUris]);
+
+        return { resources: result, objectUrls: urls };
+        // We intentionally key this memo off querySignature instead of the queries array identity.
+        // useQueries returns a new array reference frequently, which would recreate object URLs on
+        // every render. querySignature changes only when the meaningful query state/data changes.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [normalizedUris, querySignature]);
+
+    useEffect(() => {
+        return () => {
+            objectUrls.forEach((url) => URL.revokeObjectURL(url));
+        };
+    }, [objectUrls]);
 
     return resources;
 }

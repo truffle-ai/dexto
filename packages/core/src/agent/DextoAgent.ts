@@ -1750,14 +1750,17 @@ export class DextoAgent {
      * @returns Promise that resolves to the session's conversation history
      * @throws Error if session doesn't exist
      */
-    public async getSessionHistory(sessionId: string): Promise<InternalMessage[]> {
+    public async getSessionHistory(
+        sessionId: string,
+        options?: { expandBlobReferences?: boolean }
+    ): Promise<InternalMessage[]> {
         this.ensureStarted();
         const session = await this.sessionManager.getSession(sessionId);
         if (!session) {
             throw SessionError.notFound(sessionId);
         }
         const history = await session.getHistory();
-        if (!this.resourceManager) {
+        if (!this.resourceManager || options?.expandBlobReferences !== true) {
             return history;
         }
 

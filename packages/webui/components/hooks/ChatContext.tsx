@@ -206,10 +206,12 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
         if (msg.role === 'tool') {
             const toolCallId = typeof msg.toolCallId === 'string' ? msg.toolCallId : undefined;
             const toolName = typeof msg.name === 'string' ? msg.name : 'unknown';
-            const normalizedContent: Array<TextPart | ImagePart | FilePart> = Array.isArray(
-                msg.content
-            )
-                ? (msg.content as Array<TextPart | ImagePart | FilePart>)
+            const normalizedContent: Array<
+                TextPart | ImagePart | FilePart | ResourcePart | UIResourcePart
+            > = Array.isArray(msg.content)
+                ? (msg.content as Array<
+                      TextPart | ImagePart | FilePart | ResourcePart | UIResourcePart
+                  >)
                 : typeof msg.content === 'string'
                   ? [{ type: 'text', text: msg.content }]
                   : [];
