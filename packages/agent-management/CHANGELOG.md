@@ -1,5 +1,16 @@
 # @dexto/agent-management
 
+## 1.6.21
+
+### Patch Changes
+
+- c51501e: Fix local server smoke regressions in prompt/resource serialization, A2A task cancel handling, and custom agent install/switch registry behavior.
+- 80608eb: Simplify first-run setup and default Dexto to CLI.
+    - @dexto/core@1.6.21
+    - @dexto/agent-config@1.6.21
+    - @dexto/tools-builtins@1.6.21
+    - @dexto/orchestration@1.6.21
+
 ## 1.6.20
 
 ### Patch Changes

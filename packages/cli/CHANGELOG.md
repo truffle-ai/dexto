@@ -1,5 +1,26 @@
 # dexto
 
+## 1.6.21
+
+### Patch Changes
+
+- 80608eb: Simplify first-run setup and default Dexto to CLI.
+- Updated dependencies [f70d03c]
+- Updated dependencies [5123a32]
+- Updated dependencies [c51501e]
+- Updated dependencies [80608eb]
+    - @dexto/server@1.6.21
+    - @dexto/client-sdk@1.6.21
+    - @dexto/agent-management@1.6.21
+    - @dexto/analytics@1.6.21
+    - @dexto/image-local@1.6.21
+    - @dexto/image-logger-agent@1.6.21
+    - @dexto/tui@1.6.21
+    - @dexto/core@1.6.21
+    - @dexto/storage@1.6.21
+    - @dexto/agent-config@1.6.21
+    - @dexto/registry@1.6.21
+
 ## 1.6.20
 
 ### Patch Changes
