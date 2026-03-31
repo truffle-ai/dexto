@@ -15,7 +15,7 @@ const WebhookResponseSchema = z
         id: z.string().describe('Unique webhook identifier'),
         url: z.string().url().describe('Webhook URL'),
         description: z.string().optional().describe('Webhook description'),
-        createdAt: z.union([z.date(), z.number()]).describe('Creation timestamp (Date or Unix ms)'),
+        createdAt: z.string().datetime().describe('Creation timestamp (ISO 8601)'),
     })
     .strict()
     .describe('Webhook response object');
@@ -184,6 +184,13 @@ export function createWebhooksRouter(
 ) {
     const app = new OpenAPIHono();
 
+    const serializeWebhook = (webhook: WebhookConfig) => ({
+        id: webhook.id,
+        url: webhook.url,
+        description: webhook.description,
+        createdAt: webhook.createdAt.toISOString(),
+    });
+
     return app
         .openapi(registerRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -203,23 +210,13 @@ export function createWebhooksRouter(
 
             return ctx.json(
                 {
-                    webhook: {
-                        id: webhook.id,
-                        url: webhook.url,
-                        description: webhook.description,
-                        createdAt: webhook.createdAt,
-                    },
+                    webhook: serializeWebhook(webhook),
                 },
                 201
             );
         })
         .openapi(listRoute, async (ctx) => {
-            const webhooks = webhookSubscriber.getWebhooks().map((webhook) => ({
-                id: webhook.id,
-                url: webhook.url,
-                description: webhook.description,
-                createdAt: webhook.createdAt,
-            }));
+            const webhooks = webhookSubscriber.getWebhooks().map(serializeWebhook);
 
             return ctx.json({ webhooks }, 200);
         })
@@ -238,12 +235,7 @@ export function createWebhooksRouter(
 
             return ctx.json(
                 {
-                    webhook: {
-                        id: webhook.id,
-                        url: webhook.url,
-                        description: webhook.description,
-                        createdAt: webhook.createdAt,
-                    },
+                    webhook: serializeWebhook(webhook),
                 },
                 200
             );

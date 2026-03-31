@@ -42,6 +42,35 @@ ruleTester.run('require-openapi-json-error-responses', rule, {
             `,
         },
         {
+            filename: 'C:\\repo\\packages\\server\\src\\hono\\routes\\messages.ts',
+            code: `
+                import { createRoute, z } from '@hono/zod-openapi';
+
+                const route = createRoute({
+                    method: 'post',
+                    path: '/message',
+                    responses: {
+                        202: {
+                            description: 'Accepted',
+                            content: {
+                                'application/json': {
+                                    schema: z.object({ accepted: z.literal(true) }),
+                                },
+                            },
+                        },
+                        400: {
+                            description: 'Bad request',
+                            content: {
+                                'application/json': {
+                                    schema: z.object({ message: z.string() }),
+                                },
+                            },
+                        },
+                    },
+                });
+            `,
+        },
+        {
             filename: '/repo/packages/server/src/hono/routes/health.ts',
             code: `
                 import { createRoute, z } from '@hono/zod-openapi';
@@ -163,6 +192,72 @@ ruleTester.run('require-openapi-json-error-responses', rule, {
                 });
             `,
         },
+        {
+            filename: '/repo/packages/server/src/hono/routes/hoisted.ts',
+            code: `
+                import { createRoute, z } from '@hono/zod-openapi';
+
+                const responses = {
+                    200: {
+                        description: 'OK',
+                        content: {
+                            'application/json': {
+                                schema: z.object({ ok: z.boolean() }),
+                            },
+                        },
+                    },
+                    400: {
+                        description: 'Bad request',
+                        content: {
+                            'application/json': {
+                                schema: z.object({ message: z.string() }),
+                            },
+                        },
+                    },
+                } as const;
+
+                const routeConfig = {
+                    method: 'get',
+                    path: '/thing',
+                    responses,
+                } satisfies Record<string, unknown>;
+
+                const route = createRoute(routeConfig);
+            `,
+        },
+        {
+            filename: '/repo/packages/server/src/hono/routes/hoisted-responses.ts',
+            code: `
+                import { createRoute, z } from '@hono/zod-openapi';
+
+                const successResponse = {
+                    description: 'OK',
+                    content: {
+                        'application/json': {
+                            schema: z.object({ ok: z.boolean() }),
+                        },
+                    },
+                } as const;
+
+                const errorResponse = {
+                    description: 'Bad request',
+                    content: {
+                        'application/json': {
+                            schema: z.object({ message: z.string() }),
+                        },
+                    },
+                } as const;
+
+                const route = createRoute({
+                    method: 'get',
+                    path: '/thing',
+                    responses: {
+                        200: successResponse,
+                        400: errorResponse,
+                    },
+                });
+            `,
+        },
     ],
     invalid: [
         {
@@ -184,6 +279,36 @@ ruleTester.run('require-openapi-json-error-responses', rule, {
                         },
                     },
                 });
+            `,
+            errors: [
+                {
+                    messageId: 'successOnlyJsonRoute',
+                },
+            ],
+        },
+        {
+            filename: '/repo/packages/server/src/hono/routes/hoisted-invalid.ts',
+            code: `
+                import { createRoute, z } from '@hono/zod-openapi';
+
+                const responses = {
+                    200: {
+                        description: 'Sessions',
+                        content: {
+                            'application/json': {
+                                schema: z.object({ sessions: z.array(z.string()) }),
+                            },
+                        },
+                    },
+                } as const;
+
+                const routeConfig = {
+                    method: 'get',
+                    path: '/sessions',
+                    responses,
+                } satisfies Record<string, unknown>;
+
+                const route = createRoute(routeConfig);
             `,
             errors: [
                 {
@@ -289,6 +414,36 @@ ruleTester.run('require-openapi-json-error-responses', rule, {
             errors: [
                 {
                     messageId: 'spreadResponseEntries',
+                },
+            ],
+        },
+        {
+            filename: '/repo/packages/server/src/hono/routes/hoisted-success-only.ts',
+            code: `
+                import { createRoute, z } from '@hono/zod-openapi';
+
+                const responses = {
+                    200: {
+                        description: 'OK',
+                        content: {
+                            'application/json': {
+                                schema: z.object({ ok: z.boolean() }),
+                            },
+                        },
+                    },
+                } as const;
+
+                const routeConfig = {
+                    method: 'get',
+                    path: '/thing',
+                    responses,
+                } satisfies Record<string, unknown>;
+
+                const route = createRoute(routeConfig);
+            `,
+            errors: [
+                {
+                    messageId: 'successOnlyJsonRoute',
                 },
             ],
         },

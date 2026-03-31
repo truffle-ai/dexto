@@ -1,5 +1,5 @@
 function isRouteFile(filename) {
-    return filename.includes('/packages/server/src/hono/routes/');
+    return filename.replaceAll('\\', '/').includes('/packages/server/src/hono/routes/');
 }
 
 function getPropertyName(property) {
@@ -29,13 +29,30 @@ function unwrapExpression(node) {
     return current;
 }
 
-function getObjectProperty(node, name) {
+function resolveObjectLiteral(node, objectLiterals) {
     const unwrappedNode = unwrapExpression(node);
-    if (!unwrappedNode || unwrappedNode.type !== 'ObjectExpression') {
+    if (!unwrappedNode) {
         return null;
     }
 
-    for (const property of unwrappedNode.properties) {
+    if (unwrappedNode.type === 'ObjectExpression') {
+        return unwrappedNode;
+    }
+
+    if (unwrappedNode.type === 'Identifier') {
+        return objectLiterals.get(unwrappedNode.name) ?? null;
+    }
+
+    return null;
+}
+
+function getObjectProperty(node, name, objectLiterals = new Map()) {
+    const objectLiteral = resolveObjectLiteral(node, objectLiterals);
+    if (!objectLiteral) {
+        return null;
+    }
+
+    for (const property of objectLiteral.properties) {
         if (property.type !== 'Property') {
             continue;
         }
@@ -64,11 +81,12 @@ function parseStatusCode(property) {
 
 function hasJsonContent(responseObject) {
     const contentProperty = getObjectProperty(responseObject, 'content');
-    if (!contentProperty || contentProperty.value.type !== 'ObjectExpression') {
+    const contentObject = resolveObjectLiteral(contentProperty?.value, new Map());
+    if (!contentProperty || !contentObject) {
         return false;
     }
 
-    for (const contentEntry of contentProperty.value.properties) {
+    for (const contentEntry of contentObject.properties) {
         if (contentEntry.type !== 'Property') {
             continue;
         }
@@ -222,18 +240,30 @@ export default {
                 if (
                     node.callee.type !== 'Identifier' ||
                     !createRouteImports.has(node.callee.name) ||
-                    node.arguments[0]?.type !== 'ObjectExpression'
+                    node.arguments.length === 0
                 ) {
                     return;
                 }
 
-                const routeConfig = node.arguments[0];
-                const responsesProperty = getObjectProperty(routeConfig, 'responses');
-                if (!responsesProperty || responsesProperty.value.type !== 'ObjectExpression') {
+                const routeConfig = resolveObjectLiteral(node.arguments[0], objectLiterals);
+                if (!routeConfig) {
                     return;
                 }
 
-                for (const property of responsesProperty.value.properties) {
+                const responsesProperty = getObjectProperty(
+                    routeConfig,
+                    'responses',
+                    objectLiterals
+                );
+                const responsesObject = resolveObjectLiteral(
+                    responsesProperty?.value,
+                    objectLiterals
+                );
+                if (!responsesProperty || !responsesObject) {
+                    return;
+                }
+
+                for (const property of responsesObject.properties) {
                     if (property.type !== 'SpreadElement') {
                         continue;
                     }
@@ -248,7 +278,7 @@ export default {
                 let hasJsonErrorResponse = false;
 
                 for (const responseEntry of collectResponseEntries(
-                    responsesProperty.value,
+                    responsesObject,
                     objectLiterals
                 )) {
                     if (responseEntry.type !== 'Property') {

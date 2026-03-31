@@ -2,7 +2,9 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { DextoRuntimeError, ErrorType } from '@dexto/core';
 import {
     ApiErrorResponseSchema,
+    BadRequestErrorResponse,
     ContentPartSchema,
+    InternalErrorResponse,
     JsonObjectSchema,
     RequestContentSchema,
     toApiContentPart,
@@ -98,6 +100,8 @@ const getQueueRoute = createRoute({
             description: 'Session not found',
             content: { 'application/json': { schema: ApiErrorResponseSchema } },
         },
+        400: BadRequestErrorResponse,
+        500: InternalErrorResponse,
     },
 });
 
@@ -126,6 +130,8 @@ const queueMessageRoute = createRoute({
             description: 'Session not found',
             content: { 'application/json': { schema: ApiErrorResponseSchema } },
         },
+        400: BadRequestErrorResponse,
+        500: InternalErrorResponse,
     },
 });
 
@@ -151,6 +157,8 @@ const removeQueuedMessageRoute = createRoute({
             description: 'Session or message not found',
             content: { 'application/json': { schema: ApiErrorResponseSchema } },
         },
+        400: BadRequestErrorResponse,
+        500: InternalErrorResponse,
     },
 });
 
@@ -176,6 +184,8 @@ const clearQueueRoute = createRoute({
             description: 'Session not found',
             content: { 'application/json': { schema: ApiErrorResponseSchema } },
         },
+        400: BadRequestErrorResponse,
+        500: InternalErrorResponse,
     },
 });
 

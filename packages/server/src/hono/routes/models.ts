@@ -8,6 +8,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { promises as fs } from 'fs';
 import {
+    DextoRuntimeError,
+    ErrorType,
     getLocalModelById,
     listOllamaModels,
     DEFAULT_OLLAMA_URL,
@@ -435,14 +437,12 @@ export function createModelsRouter() {
             // Remove from state.json
             const removed = await removeInstalledModel(modelId);
             if (!removed) {
-                return ctx.json(
-                    {
-                        success: false,
-                        modelId,
-                        fileDeleted,
-                        error: 'Failed to remove model from state',
-                    },
-                    200
+                throw new DextoRuntimeError(
+                    'model_state_remove_failed',
+                    'model',
+                    ErrorType.SYSTEM,
+                    'Failed to remove model from state',
+                    { modelId, fileDeleted }
                 );
             }
 
