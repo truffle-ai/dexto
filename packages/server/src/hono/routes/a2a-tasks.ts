@@ -317,9 +317,29 @@ export function createA2ATasksRouter(getAgent: GetAgentFn, sseSubscriber: A2ASse
         description: 'Cancel a running task (A2A tasks/cancel)',
         tags: ['a2a'],
         request: {
-            params: z.object({
-                id: z.string().describe('Task ID'),
-            }),
+            params: z.preprocess(
+                (value) => {
+                    if (
+                        value &&
+                        typeof value === 'object' &&
+                        !Array.isArray(value) &&
+                        'id:cancel' in value &&
+                        !('id' in value)
+                    ) {
+                        const raw = (value as Record<string, unknown>)['id:cancel'];
+                        return {
+                            id:
+                                typeof raw === 'string' && raw.endsWith(':cancel')
+                                    ? raw.slice(0, -':cancel'.length)
+                                    : raw,
+                        };
+                    }
+                    return value;
+                },
+                z.object({
+                    id: z.string().describe('Task ID'),
+                })
+            ),
         },
         responses: {
             200: {

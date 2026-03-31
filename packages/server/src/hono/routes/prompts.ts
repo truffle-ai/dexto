@@ -103,6 +103,14 @@ const ResolvePromptResponseSchema = z
     .strict()
     .describe('Resolve prompt response');
 
+function serializePromptInfo(prompt: unknown) {
+    return PromptInfoSchema.parse(JSON.parse(JSON.stringify(prompt)));
+}
+
+function serializePromptDefinition(definition: unknown) {
+    return PromptDefinitionSchema.parse(JSON.parse(JSON.stringify(definition)));
+}
+
 const listRoute = createRoute({
     method: 'get',
     path: '/prompts',
@@ -227,7 +235,7 @@ export function createPromptsRouter(getAgent: GetAgentFn) {
         .openapi(listRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             const prompts = await agent.listPrompts();
-            const list = Object.values(prompts);
+            const list = Object.values(prompts).map(serializePromptInfo);
             return ctx.json(ListPromptsResponseSchema.parse({ prompts: list }), 200);
         })
         .openapi(createCustomRoute, async (ctx) => {
@@ -262,7 +270,10 @@ export function createPromptsRouter(getAgent: GetAgentFn) {
                     : {}),
             };
             const prompt = await agent.createCustomPrompt(createPayload);
-            return ctx.json(CreatePromptResponseSchema.parse({ prompt }), 201);
+            return ctx.json(
+                CreatePromptResponseSchema.parse({ prompt: serializePromptInfo(prompt) }),
+                201
+            );
         })
         .openapi(deleteCustomRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -276,7 +287,12 @@ export function createPromptsRouter(getAgent: GetAgentFn) {
             const { name } = ctx.req.valid('param');
             const definition = await agent.getPromptDefinition(name);
             if (!definition) throw PromptError.notFound(name);
-            return ctx.json(GetPromptDefinitionResponseSchema.parse({ definition }), 200);
+            return ctx.json(
+                GetPromptDefinitionResponseSchema.parse({
+                    definition: serializePromptDefinition(definition),
+                }),
+                200
+            );
         })
         .openapi(resolvePromptRoute, async (ctx) => {
             const agent = await getAgent(ctx);

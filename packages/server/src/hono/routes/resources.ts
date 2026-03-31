@@ -111,6 +111,10 @@ const headRoute = createRoute({
     },
 });
 
+function toJsonValue<T>(value: T): T {
+    return JSON.parse(JSON.stringify(value)) as T;
+}
+
 export function createResourcesRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
 
@@ -121,7 +125,7 @@ export function createResourcesRouter(getAgent: GetAgentFn) {
             return ctx.json(
                 ListResourcesResponseSchema.parse({
                     ok: true as const,
-                    resources: Object.values(resources),
+                    resources: toJsonValue(Object.values(resources)),
                 }),
                 200
             );
@@ -133,7 +137,7 @@ export function createResourcesRouter(getAgent: GetAgentFn) {
             return ctx.json(
                 ReadResourceResponseSchema.parse({
                     ok: true as const,
-                    content,
+                    content: toJsonValue(content),
                 }),
                 200
             );

@@ -29,13 +29,8 @@ import type { AgentConfig } from '@dexto/agent-config';
 import type { DextoAgent, DextoAgentConfigInput } from '@dexto/core';
 import { getDextoGlobalPath } from './utils/path.js';
 import { deriveDisplayName } from './registry/types.js';
-import { loadBundledRegistryAgents } from './registry/registry.js';
-import {
-    installBundledAgent,
-    installCustomAgent,
-    uninstallAgent,
-    type InstallOptions,
-} from './installation.js';
+import { getAgentRegistry, loadBundledRegistryAgents } from './registry/registry.js';
+import { installBundledAgent, type InstallOptions } from './installation.js';
 import type { AgentMetadata } from './AgentManager.js';
 import { createDextoAgentFromConfig } from './agent-creation.js';
 
@@ -127,7 +122,18 @@ export const AgentFactory = {
         metadata: Pick<AgentMetadata, 'name' | 'description' | 'author' | 'tags'>,
         options?: InstallOptions
     ): Promise<string> {
-        return installCustomAgent(agentId, sourcePath, metadata, options);
+        if (options?.agentsDir) {
+            throw new Error(
+                'Custom agentsDir overrides are not supported by AgentFactory.installCustomAgent'
+            );
+        }
+
+        return getAgentRegistry().installCustomAgentFromPath(agentId, sourcePath, {
+            name: metadata.name,
+            description: metadata.description,
+            author: metadata.author || 'Custom',
+            tags: metadata.tags ?? [],
+        });
     },
 
     /**
@@ -136,7 +142,7 @@ export const AgentFactory = {
      * @param _force - Deprecated: force parameter is kept for backward compatibility but has no effect
      */
     async uninstallAgent(agentId: string, _force?: boolean): Promise<void> {
-        return uninstallAgent(agentId);
+        return getAgentRegistry().uninstallAgent(agentId, _force);
     },
 
     /**
