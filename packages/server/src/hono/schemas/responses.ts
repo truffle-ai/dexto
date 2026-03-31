@@ -27,7 +27,7 @@
  * See routes/sessions.ts, routes/search.ts for examples with TODO comments.
  */
 
-import { z } from 'zod';
+import { z } from '@hono/zod-openapi';
 import {
     LLM_PRICING_STATUSES,
     LLMConfigBaseSchema as CoreLLMConfigBaseSchema,
@@ -48,6 +48,10 @@ export const JsonValueSchema: z.ZodType<JsonValue> = z
             z.record(z.string(), JsonValueSchema),
         ])
     )
+    .openapi({
+        type: 'object',
+        additionalProperties: true,
+    })
     .describe('Any JSON-serializable value');
 
 export const JsonObjectSchema: z.ZodType<{ [key: string]: JsonValue }> = z
