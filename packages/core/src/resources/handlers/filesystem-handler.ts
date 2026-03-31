@@ -53,7 +53,7 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
     }
 
     canHandle(uri: string): boolean {
-        return uri.startsWith('fs://');
+        return uri.startsWith('fs://') || path.isAbsolute(uri);
     }
 
     private isPathAllowed(canonicalPath: string): boolean {
@@ -91,7 +91,7 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
             throw ResourceError.noSuitableProvider(uri);
         }
 
-        const filePath = uri.replace('fs://', '');
+        const filePath = uri.startsWith('fs://') ? uri.replace('fs://', '') : uri;
         const resolvedPath = path.resolve(filePath);
 
         let canonicalPath: string;
@@ -280,7 +280,7 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
                 if (!this.shouldIncludeFile(canonical, includeExtensions, includeHidden)) return;
 
                 // Use absolute canonical path to ensure readResource resolves correctly
-                const uri = `fs://${canonical.replace(/\\/g, '/')}`;
+                const uri = canonical.replace(/\\/g, '/');
                 this.resourcesCache.set(uri, {
                     uri,
                     name: this.generateCleanFileName(canonical),
@@ -288,6 +288,9 @@ export class FileSystemResourceHandler implements InternalResourceHandler {
                     source: 'internal',
                     size: stat.size,
                     lastModified: stat.mtime,
+                    metadata: {
+                        originalUri: canonical.replace(/\\/g, '/'),
+                    },
                 });
                 this.fileCount++;
                 return;

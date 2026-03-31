@@ -20,6 +20,7 @@ import type { ConversationHistoryProvider } from '../session/history/types.js';
 import { ContextError } from './errors.js';
 import { ValidatedLLMConfig } from '../llm/schemas.js';
 import type { ToolPresentationSnapshotV1 } from '../tools/types.js';
+import { getResourceKind } from './media-helpers.js';
 
 /**
  * Manages conversation history and provides message formatting capabilities for the LLM context.
@@ -90,12 +91,27 @@ export class ContextManager<TMessage = unknown> {
 
     private logger: Logger;
 
+    private static deriveResourceKind(mimeType: string): import('./types.js').ResourcePart['kind'] {
+        if (
+            mimeType.startsWith('text/') ||
+            mimeType === 'application/json' ||
+            mimeType === 'application/xml'
+        ) {
+            return 'text';
+        }
+
+        return getResourceKind(mimeType);
+    }
+
     private static hasRetainableMedia(message: InternalMessage): boolean {
         if (!Array.isArray(message.content)) {
             return false;
         }
 
         return message.content.some((part) => {
+            if (part.type === 'resource') {
+                return isBinaryMediaMimeType(part.mimeType);
+            }
             if (part.type === 'image') {
                 return typeof part.image === 'string' && part.image.startsWith('@blob:');
             }
@@ -110,6 +126,85 @@ export class ContextManager<TMessage = unknown> {
 
             return false;
         });
+    }
+
+    private async persistContentPart(
+        part: import('./types.js').ContentPart,
+        source: 'user' | 'system'
+    ): Promise<import('./types.js').ContentPart | null> {
+        if (part.type === 'text') {
+            return part.text.trim() ? { type: 'text', text: part.text } : null;
+        }
+
+        if (part.type === 'ui-resource') {
+            return part;
+        }
+
+        if (part.type === 'resource') {
+            return {
+                ...part,
+                uri: part.uri.startsWith('@blob:') ? part.uri.substring(1) : part.uri,
+            };
+        }
+
+        if (part.type === 'image') {
+            const mimeType = part.mimeType || 'image/jpeg';
+            const processedImage = await this.processUserInput(part.image, {
+                mimeType,
+                source,
+            });
+
+            if (typeof processedImage === 'string' && processedImage.startsWith('@blob:')) {
+                return {
+                    type: 'resource',
+                    uri: processedImage.substring(1),
+                    name: 'image',
+                    mimeType,
+                    kind: ContextManager.deriveResourceKind(mimeType),
+                    metadata: { source: source === 'user' ? 'upload' : 'tool' },
+                };
+            }
+
+            return {
+                type: 'image',
+                image: processedImage,
+                mimeType,
+            };
+        }
+
+        const metadata: {
+            mimeType: string;
+            originalName?: string;
+            source?: 'user' | 'system';
+        } = {
+            mimeType: part.mimeType,
+            source,
+        };
+        if (part.filename) {
+            metadata.originalName = part.filename;
+        }
+
+        const processedData = await this.processUserInput(part.data, metadata);
+        if (typeof processedData === 'string' && processedData.startsWith('@blob:')) {
+            return {
+                type: 'resource',
+                uri: processedData.substring(1),
+                name: part.filename ?? 'file',
+                mimeType: part.mimeType,
+                kind: ContextManager.deriveResourceKind(part.mimeType),
+                metadata: {
+                    source: source === 'user' ? 'upload' : 'tool',
+                },
+                ...(part.filename ? {} : {}),
+            };
+        }
+
+        return {
+            type: 'file',
+            data: processedData,
+            mimeType: part.mimeType,
+            ...(part.filename && { filename: part.filename }),
+        };
     }
 
     /**
@@ -694,7 +789,9 @@ export class ContextManager<TMessage = unknown> {
 
         // Validate at least one text part or attachment exists
         const hasText = content.some((p) => p.type === 'text' && p.text.trim() !== '');
-        const hasAttachment = content.some((p) => p.type === 'image' || p.type === 'file');
+        const hasAttachment = content.some(
+            (p) => p.type === 'image' || p.type === 'file' || p.type === 'resource'
+        );
 
         if (!hasText && !hasAttachment) {
             throw ContextError.userMessageContentEmpty();
@@ -704,42 +801,9 @@ export class ContextManager<TMessage = unknown> {
         const processedParts: InternalMessage['content'] = [];
 
         for (const part of content) {
-            if (part.type === 'text') {
-                if (part.text.trim()) {
-                    processedParts.push({ type: 'text', text: part.text });
-                }
-            } else if (part.type === 'image') {
-                const processedImage = await this.processUserInput(part.image, {
-                    mimeType: part.mimeType || 'image/jpeg',
-                    source: 'user',
-                });
-
-                processedParts.push({
-                    type: 'image',
-                    image: processedImage,
-                    mimeType: part.mimeType || 'image/jpeg',
-                });
-            } else if (part.type === 'file') {
-                const metadata: {
-                    mimeType: string;
-                    originalName?: string;
-                    source?: 'user' | 'system';
-                } = {
-                    mimeType: part.mimeType,
-                    source: 'user',
-                };
-                if (part.filename) {
-                    metadata.originalName = part.filename;
-                }
-
-                const processedData = await this.processUserInput(part.data, metadata);
-
-                processedParts.push({
-                    type: 'file',
-                    data: processedData,
-                    mimeType: part.mimeType,
-                    ...(part.filename && { filename: part.filename }),
-                });
+            const persisted = await this.persistContentPart(part, 'user');
+            if (persisted) {
+                processedParts.push(persisted);
             }
         }
 
@@ -747,11 +811,13 @@ export class ContextManager<TMessage = unknown> {
         const textParts = processedParts.filter((p) => p.type === 'text');
         const imageParts = processedParts.filter((p) => p.type === 'image');
         const fileParts = processedParts.filter((p) => p.type === 'file');
+        const resourceParts = processedParts.filter((p) => p.type === 'resource');
 
         this.logger.info('User message received', {
             textParts: textParts.length,
             imageParts: imageParts.length,
             fileParts: fileParts.length,
+            resourceParts: resourceParts.length,
             totalParts: processedParts.length,
         });
 
@@ -833,16 +899,26 @@ export class ContextManager<TMessage = unknown> {
                     ? `text(${p.text.length})`
                     : p.type === 'image'
                       ? `image(${p.mimeType || 'image'})`
-                      : p.type === 'ui-resource'
-                        ? `ui-resource(${p.uri})`
-                        : `file(${p.mimeType || 'file'})`
+                      : p.type === 'resource'
+                        ? `resource(${p.uri})`
+                        : p.type === 'ui-resource'
+                          ? `ui-resource(${p.uri})`
+                          : `file(${p.mimeType || 'file'})`
             )
             .join(', ');
         this.logger.debug(`ContextManager: Storing tool result (parts) for ${name}: [${summary}]`);
 
+        const persistedContent: import('./types.js').ContentPart[] = [];
+        for (const part of sanitizedResult.content) {
+            const persisted = await this.persistContentPart(part, 'system');
+            if (persisted) {
+                persistedContent.push(persisted);
+            }
+        }
+
         await this.addMessage({
             role: 'tool',
-            content: sanitizedResult.content,
+            content: persistedContent,
             toolCallId,
             name,
             ...(metadata?.presentationSnapshot !== undefined && {

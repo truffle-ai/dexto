@@ -35,6 +35,21 @@ export interface FilePart {
     filename?: string;
 }
 
+/** Canonical resource reference part */
+export interface ResourcePart {
+    type: 'resource';
+    uri: string;
+    name: string;
+    mimeType: string;
+    kind: 'text' | 'image' | 'audio' | 'video' | 'binary';
+    size?: number;
+    metadata?: {
+        originalPath?: string;
+        mtimeMs?: number;
+        source?: 'filesystem' | 'upload' | 'generated' | 'tool' | 'remote';
+    };
+}
+
 /** Audio content part (base64-encoded) */
 export interface AudioPart {
     type: 'audio';
@@ -77,6 +92,16 @@ export function isFilePart(part: unknown): part is FilePart {
         part !== null &&
         'type' in part &&
         (part as { type: unknown }).type === 'file'
+    );
+}
+
+/** Type guard for resource parts */
+export function isResourcePart(part: unknown): part is ResourcePart {
+    return (
+        typeof part === 'object' &&
+        part !== null &&
+        'type' in part &&
+        (part as { type: unknown }).type === 'resource'
     );
 }
 

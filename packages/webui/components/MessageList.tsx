@@ -10,8 +10,15 @@ import {
     ErrorMessage,
     ToolResult,
 } from './hooks/useChat';
-import { isTextPart, isImagePart, isAudioPart, isFilePart, isUIResourcePart } from '../types';
-import type { TextPart, AudioPart, FilePart, UIResourcePart } from '../types';
+import {
+    isTextPart,
+    isImagePart,
+    isAudioPart,
+    isFilePart,
+    isResourcePart,
+    isUIResourcePart,
+} from '../types';
+import type { TextPart, AudioPart, FilePart, ResourcePart, UIResourcePart } from '../types';
 import { getFileMediaKind } from '@dexto/core';
 import ErrorBanner from './ErrorBanner';
 import {
@@ -202,6 +209,45 @@ function resolveMediaSrc(
             : (part?.data ?? part?.image ?? part?.audio ?? part?.video ?? part?.uri ?? part?.url);
 
     if (typeof dataCandidate === 'string') {
+        const resourceKey = dataCandidate.startsWith('@blob:')
+            ? dataCandidate.substring(1)
+            : dataCandidate;
+        if (resourceStates && resourceKey) {
+            const state = resourceStates[resourceKey];
+            if (state && state.status === 'loaded' && state.data) {
+                const preferKinds: Array<NormalizedResourceItem['kind']> = [];
+                if (part?.type === 'image') preferKinds.push('image');
+                if (part?.type === 'file') {
+                    const mediaKind = getFileMediaKind(part.mimeType);
+                    if (mediaKind === 'audio') preferKinds.push('audio');
+                    else if (mediaKind === 'video') preferKinds.push('video');
+                }
+                if (part?.type === 'resource') {
+                    if (part.kind === 'image') preferKinds.push('image');
+                    if (part.kind === 'audio') preferKinds.push('audio');
+                    if (part.kind === 'video') preferKinds.push('video');
+                }
+                if (part?.mimeType?.startsWith('image/')) preferKinds.push('image');
+                if (part?.mimeType?.startsWith('audio/')) preferKinds.push('audio');
+                if (part?.mimeType?.startsWith('video/')) preferKinds.push('video');
+
+                const preferredItem =
+                    state.data.items.find((item) => preferKinds.includes(item.kind as any)) ??
+                    state.data.items.find((item) => item.kind === 'image') ??
+                    state.data.items.find((item) => item.kind === 'video') ??
+                    state.data.items.find((item) => item.kind === 'audio') ??
+                    state.data.items[0];
+
+                if (
+                    preferredItem &&
+                    'src' in preferredItem &&
+                    typeof preferredItem.src === 'string'
+                ) {
+                    return preferredItem.src;
+                }
+            }
+        }
+
         if (dataCandidate.startsWith('@blob:')) {
             const uri = dataCandidate.substring(1);
             if (resourceStates && uri) {
@@ -830,7 +876,10 @@ export default function MessageList({
                                                                 idx: number;
                                                             }> = [];
                                                             const otherParts: Array<{
-                                                                part: FilePart | AudioPart;
+                                                                part:
+                                                                    | FilePart
+                                                                    | AudioPart
+                                                                    | ResourcePart;
                                                                 idx: number;
                                                             }> = [];
 
@@ -1110,6 +1159,134 @@ export default function MessageList({
                                                                                         </div>
                                                                                     );
                                                                                 }
+                                                                            }
+                                                                            if (
+                                                                                isResourcePart(part)
+                                                                            ) {
+                                                                                const resourcePart =
+                                                                                    part as ResourcePart;
+                                                                                if (
+                                                                                    resourcePart.kind ===
+                                                                                    'image'
+                                                                                ) {
+                                                                                    const src =
+                                                                                        resolveMediaSrc(
+                                                                                            resourcePart,
+                                                                                            toolResourceStates
+                                                                                        );
+                                                                                    return src ? (
+                                                                                        <div
+                                                                                            key={
+                                                                                                partKey
+                                                                                            }
+                                                                                            className="my-2"
+                                                                                        >
+                                                                                            <img
+                                                                                                src={
+                                                                                                    src
+                                                                                                }
+                                                                                                alt={
+                                                                                                    resourcePart.name
+                                                                                                }
+                                                                                                className="max-w-full max-h-[300px] rounded-lg shadow-sm"
+                                                                                            />
+                                                                                        </div>
+                                                                                    ) : null;
+                                                                                }
+
+                                                                                if (
+                                                                                    resourcePart.kind ===
+                                                                                    'audio'
+                                                                                ) {
+                                                                                    const src =
+                                                                                        resolveMediaSrc(
+                                                                                            resourcePart,
+                                                                                            toolResourceStates
+                                                                                        );
+                                                                                    return (
+                                                                                        <div
+                                                                                            key={
+                                                                                                partKey
+                                                                                            }
+                                                                                            className="my-2 flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50"
+                                                                                        >
+                                                                                            <FileAudio className="h-5 w-5" />
+                                                                                            <audio
+                                                                                                controls
+                                                                                                src={
+                                                                                                    src
+                                                                                                }
+                                                                                                className="flex-1 h-8"
+                                                                                            />
+                                                                                            <span className="text-sm truncate max-w-[120px]">
+                                                                                                {
+                                                                                                    resourcePart.name
+                                                                                                }
+                                                                                            </span>
+                                                                                        </div>
+                                                                                    );
+                                                                                }
+
+                                                                                if (
+                                                                                    resourcePart.kind ===
+                                                                                    'video'
+                                                                                ) {
+                                                                                    const src =
+                                                                                        resolveMediaSrc(
+                                                                                            resourcePart,
+                                                                                            toolResourceStates
+                                                                                        );
+                                                                                    return src ? (
+                                                                                        <div
+                                                                                            key={
+                                                                                                partKey
+                                                                                            }
+                                                                                            className="my-2 space-y-2"
+                                                                                        >
+                                                                                            <video
+                                                                                                controls
+                                                                                                src={
+                                                                                                    src
+                                                                                                }
+                                                                                                className="w-full max-h-[360px] rounded-lg bg-black"
+                                                                                                preload="metadata"
+                                                                                            />
+                                                                                            <div className="flex flex-col text-xs">
+                                                                                                <span className="truncate">
+                                                                                                    {
+                                                                                                        resourcePart.name
+                                                                                                    }
+                                                                                                </span>
+                                                                                                <span className="text-muted-foreground/80">
+                                                                                                    {
+                                                                                                        resourcePart.mimeType
+                                                                                                    }
+                                                                                                </span>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ) : null;
+                                                                                }
+
+                                                                                return (
+                                                                                    <div
+                                                                                        key={
+                                                                                            partKey
+                                                                                        }
+                                                                                        className="my-2 flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50"
+                                                                                    >
+                                                                                        <File className="h-5 w-5" />
+                                                                                        <span className="text-sm font-medium">
+                                                                                            {
+                                                                                                resourcePart.name
+                                                                                            }
+                                                                                        </span>
+                                                                                        <span className="text-xs text-muted-foreground">
+                                                                                            {
+                                                                                                resourcePart.mimeType
+                                                                                            }
+                                                                                        </span>
+                                                                                    </div>
+                                                                                );
                                                                             }
                                                                             return null;
                                                                         }

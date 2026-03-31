@@ -16,11 +16,13 @@ export interface ResourceExpansionResult {
     expandedMessage: string;
     expandedReferences: ResourceReference[];
     unresolvedReferences: ResourceReference[];
-    extractedMedia: Array<
-        | { type: 'image'; image: string; mimeType: string; name: string }
-        | { type: 'file'; data: string; mimeType: string; filename: string }
-    >;
-    extractedImages: Array<{ image: string; mimeType: string; name: string }>;
+    extractedResources: Array<{
+        uri: string;
+        mimeType: string;
+        name: string;
+        kind: 'image' | 'audio' | 'video' | 'binary';
+        size?: number;
+    }>;
 }
 
 function matchesMimePattern(mimeType: string | undefined, pattern: string): boolean {
@@ -48,6 +50,25 @@ function matchesAnyMimePattern(mimeType: string | undefined, patterns: string[])
 
 function escapeRegExp(literal: string): string {
     return literal.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+}
+
+function deriveExtractedKind(mimeType: string): 'image' | 'audio' | 'video' | 'binary' {
+    if (mimeType.startsWith('image/')) return 'image';
+    if (mimeType.startsWith('audio/')) return 'audio';
+    if (mimeType.startsWith('video/')) return 'video';
+    return 'binary';
+}
+
+function getCanonicalResourceReference(
+    resourceUri: string,
+    resource?: ResourceSet[string]
+): string {
+    const originalUri =
+        typeof resource?.metadata?.originalUri === 'string'
+            ? resource.metadata.originalUri
+            : undefined;
+    const candidate = originalUri ?? resourceUri;
+    return candidate.startsWith('fs://') ? candidate.replace('fs://', '') : candidate;
 }
 
 /**
@@ -253,8 +274,7 @@ export async function expandMessageReferences(
             expandedMessage: message,
             expandedReferences: [],
             unresolvedReferences: [],
-            extractedMedia: [],
-            extractedImages: [],
+            extractedResources: [],
         };
     }
 
@@ -264,14 +284,13 @@ export async function expandMessageReferences(
 
     let expandedMessage = message;
     const failedRefs: ResourceReference[] = [];
-    const extractedMedia: ResourceExpansionResult['extractedMedia'] = [];
-    const extractedImages: Array<{ image: string; mimeType: string; name: string }> = [];
+    const extractedResources: ResourceExpansionResult['extractedResources'] = [];
 
     for (const ref of expandedReferences) {
         try {
             const content = await resourceReader(ref.resourceUri!);
             const resource = availableResources[ref.resourceUri!];
-            const extractedFromResource: ResourceExpansionResult['extractedMedia'] = [];
+            const extractedFromResource: ResourceExpansionResult['extractedResources'] = [];
 
             for (const item of content.contents) {
                 if ('blob' in item && item.blob && item.mimeType && typeof item.blob === 'string') {
@@ -282,42 +301,20 @@ export async function expandMessageReferences(
                         continue;
                     }
 
-                    if (item.mimeType.startsWith('image/')) {
-                        extractedFromResource.push({
-                            type: 'image',
-                            image: item.blob,
-                            mimeType: item.mimeType,
-                            name: resource?.name || ref.identifier,
-                        });
-                    } else {
-                        extractedFromResource.push({
-                            type: 'file',
-                            data: item.blob,
-                            mimeType: item.mimeType,
-                            filename: resource?.name || ref.identifier,
-                        });
-                    }
+                    extractedFromResource.push({
+                        uri: getCanonicalResourceReference(ref.resourceUri!, resource),
+                        mimeType: item.mimeType,
+                        name: resource?.name || ref.identifier,
+                        kind: deriveExtractedKind(item.mimeType),
+                        ...(typeof content._meta?.size === 'number'
+                            ? { size: content._meta.size }
+                            : {}),
+                    });
                 }
             }
 
             if (extractedFromResource.length > 0) {
-                extractedMedia.push(...extractedFromResource);
-                extractedImages.push(
-                    ...extractedFromResource
-                        .filter(
-                            (
-                                item
-                            ): item is Extract<
-                                ResourceExpansionResult['extractedMedia'][number],
-                                { type: 'image' }
-                            > => item.type === 'image'
-                        )
-                        .map((item) => ({
-                            image: item.image,
-                            mimeType: item.mimeType,
-                            name: item.name,
-                        }))
-                );
+                extractedResources.push(...extractedFromResource);
 
                 // Remove the reference from the message for extracted media
                 const pattern = new RegExp(escapeRegExp(ref.originalRef), 'g');
@@ -348,7 +345,6 @@ export async function expandMessageReferences(
         expandedMessage,
         expandedReferences: finalExpandedReferences,
         unresolvedReferences,
-        extractedMedia,
-        extractedImages,
+        extractedResources,
     };
 }

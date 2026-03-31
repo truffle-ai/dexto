@@ -1218,7 +1218,7 @@ export class DextoAgent {
                         ensureOk(fileValidation, this.logger);
                     }
 
-                    // Expand @resource mentions - returns ALL images as ContentPart[]
+                    // Expand @resource mentions into canonical resource references for prompt projection
                     if (textContent.includes('@')) {
                         try {
                             let allowedMediaTypes: string[] | undefined =
@@ -1272,28 +1272,26 @@ export class DextoAgent {
                                 });
                             }
 
-                            // Add extracted media to content parts when the model can consume them
-                            for (const media of expansion.extractedMedia) {
-                                if (media.type === 'image') {
-                                    contentParts.push({
-                                        type: 'image',
-                                        image: media.image,
-                                        mimeType: media.mimeType,
-                                    });
-                                    this.logger.debug(
-                                        `Added extracted image: ${media.name} (${media.mimeType})`
-                                    );
-                                } else {
-                                    contentParts.push({
-                                        type: 'file',
-                                        data: media.data,
-                                        mimeType: media.mimeType,
-                                        filename: media.filename,
-                                    });
-                                    this.logger.debug(
-                                        `Added extracted file: ${media.filename} (${media.mimeType})`
-                                    );
-                                }
+                            for (const resource of expansion.extractedResources) {
+                                contentParts.push({
+                                    type: 'resource',
+                                    uri: resource.uri,
+                                    name: resource.name,
+                                    mimeType: resource.mimeType,
+                                    kind: resource.kind,
+                                    ...(resource.size !== undefined ? { size: resource.size } : {}),
+                                    metadata: {
+                                        ...(resource.uri.startsWith('/')
+                                            ? {
+                                                  originalPath: resource.uri,
+                                                  source: 'filesystem' as const,
+                                              }
+                                            : { source: 'tool' as const }),
+                                    },
+                                });
+                                this.logger.debug(
+                                    `Added extracted resource: ${resource.name} (${resource.mimeType})`
+                                );
                             }
                         } catch (error) {
                             this.logger.error(

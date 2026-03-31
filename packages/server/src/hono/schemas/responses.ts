@@ -88,6 +88,32 @@ export const FilePartSchema = z
     .strict()
     .describe('File content part');
 
+export const ResourcePartSchema = z
+    .object({
+        type: z.literal('resource').describe('Part type: resource'),
+        uri: z.string().describe('Canonical resource reference'),
+        name: z.string().describe('Display name for the resource'),
+        mimeType: z.string().describe('MIME type of the resource'),
+        kind: z
+            .enum(['text', 'image', 'audio', 'video', 'binary'])
+            .describe('Resource kind for rendering and prompt projection'),
+        size: z.number().int().nonnegative().optional().describe('Size in bytes'),
+        metadata: z
+            .object({
+                originalPath: z.string().optional().describe('Original filesystem path'),
+                mtimeMs: z.number().int().nonnegative().optional().describe('mtime in ms'),
+                source: z
+                    .enum(['filesystem', 'upload', 'generated', 'tool', 'remote'])
+                    .optional()
+                    .describe('How the resource was created'),
+            })
+            .strict()
+            .optional()
+            .describe('Optional resource metadata'),
+    })
+    .strict()
+    .describe('Canonical resource reference part');
+
 export const UIResourcePartSchema = z
     .object({
         type: z.literal('ui-resource').describe('Part type: ui-resource'),
@@ -121,9 +147,10 @@ export const ContentPartSchema = z
         TextPartSchema,
         ImagePartSchema,
         FilePartSchema,
+        ResourcePartSchema,
         UIResourcePartSchema,
     ])
-    .describe('Message content part (text, image, file, or UI resource)');
+    .describe('Message content part (text, image, file, resource, or UI resource)');
 
 export const ToolCallSchema = z
     .object({

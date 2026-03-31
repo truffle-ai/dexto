@@ -105,7 +105,11 @@ export class VercelMessageFormatter {
                             typeof msg.content === 'string'
                                 ? msg.content
                                 : msg.content
-                                      .filter((part) => part.type !== 'ui-resource')
+                                      .filter(
+                                          (part) =>
+                                              part.type !== 'ui-resource' &&
+                                              part.type !== 'resource'
+                                      )
                                       .map((part) => {
                                           if (part.type === 'file') {
                                               return {

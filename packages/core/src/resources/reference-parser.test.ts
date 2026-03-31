@@ -271,7 +271,7 @@ describe('expandMessageReferences', () => {
         expect(result.expandedMessage).toContain('contact@email.com');
     });
 
-    it('should extract supported non-image media into file content parts', async () => {
+    it('should extract supported non-image media into canonical resource refs', async () => {
         const result = await expandMessageReferences(
             'Check @<fs:///demo.mp4> and @<fs:///voice.mp3>',
             mockResourceSet,
@@ -280,18 +280,20 @@ describe('expandMessageReferences', () => {
         );
 
         expect(result.expandedMessage).toBe('Check and');
-        expect(result.extractedMedia).toEqual([
+        expect(result.extractedResources).toEqual([
             {
-                type: 'file',
-                data: 'videodata',
+                uri: '/demo.mp4',
                 mimeType: 'video/mp4',
-                filename: 'demo.mp4',
+                name: 'demo.mp4',
+                kind: 'video',
+                size: 4096,
             },
             {
-                type: 'file',
-                data: 'audiodata',
+                uri: '/voice.mp3',
                 mimeType: 'audio/mpeg',
-                filename: 'voice.mp3',
+                name: 'voice.mp3',
+                kind: 'audio',
+                size: 2048,
             },
         ]);
     });
@@ -304,7 +306,7 @@ describe('expandMessageReferences', () => {
             ['image/*']
         );
 
-        expect(result.extractedMedia).toEqual([]);
+        expect(result.extractedResources).toEqual([]);
         expect(result.expandedMessage).toContain('[Binary content: video/mp4');
     });
 });

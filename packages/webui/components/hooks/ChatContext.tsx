@@ -12,7 +12,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useChat, Message, UIUserMessage, UIAssistantMessage, UIToolMessage } from './useChat';
 import { useApproval } from './ApprovalContext';
 import { usePendingApprovals } from './useApprovals';
-import type { FilePart, ImagePart, TextPart, UIResourcePart } from '../../types';
+import type { FilePart, ImagePart, ResourcePart, TextPart, UIResourcePart } from '../../types';
 import type { SanitizedToolResult, ApprovalRequest } from '@dexto/core';
 import { getResourceKind } from '@dexto/core';
 import { useAnalytics } from '@/lib/analytics/index.js';
@@ -84,7 +84,7 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
         }
 
         const deriveResources = (
-            content: Array<TextPart | ImagePart | FilePart | UIResourcePart>
+            content: Array<TextPart | ImagePart | FilePart | ResourcePart | UIResourcePart>
         ): SanitizedToolResult['resources'] => {
             const resources: NonNullable<SanitizedToolResult['resources']> = [];
 
@@ -116,6 +116,15 @@ function convertHistoryToMessages(history: HistoryMessage[], sessionId: string):
                         kind,
                         mimeType,
                         ...(part.filename ? { filename: part.filename } : {}),
+                    });
+                }
+
+                if (part.type === 'resource') {
+                    resources.push({
+                        uri: part.uri,
+                        kind: getResourceKind(part.mimeType),
+                        mimeType: part.mimeType,
+                        ...(part.name ? { filename: part.name } : {}),
                     });
                 }
             }

@@ -3,6 +3,7 @@ import {
     TextPart,
     ImagePart,
     FilePart,
+    ResourcePart,
     UIResourcePart,
     ContentPart,
     SanitizedToolResult,
@@ -142,9 +143,42 @@ function coerceContentToParts(
                 cloned.filename = item.filename;
             }
             normalized.push(cloned);
+        } else if (item.type === 'resource') {
+            continue;
         }
     }
     return normalized;
+}
+
+function normalizeResourceUriForRead(uri: string): string {
+    if (
+        uri.startsWith('blob:') ||
+        uri.startsWith('mcp:') ||
+        uri.startsWith('fs://') ||
+        uri.startsWith('http://') ||
+        uri.startsWith('https://')
+    ) {
+        return uri;
+    }
+
+    if (uri.startsWith('/') || /^[A-Za-z]:[\\/]/.test(uri)) {
+        return `fs://${uri.replace(/\\/g, '/')}`;
+    }
+
+    return uri;
+}
+
+function buildResourceAnchorText(part: ResourcePart): string {
+    const label =
+        part.kind === 'image'
+            ? 'Attached image'
+            : part.kind === 'audio'
+              ? 'Attached audio'
+              : part.kind === 'video'
+                ? 'Attached video'
+                : 'Attached file';
+    const nameSuffix = part.name && part.name !== part.uri ? ` (${part.name})` : '';
+    return `${label}: ${part.uri}${nameSuffix}`;
 }
 
 function detectInlineMedia(
@@ -304,7 +338,7 @@ async function resolveBlobReferenceToParts(
     expandMatchingMedia = true
 ): Promise<Array<TextPart | ImagePart | FilePart>> {
     try {
-        const result = await resourceManager.read(resourceUri);
+        const result = await resourceManager.read(normalizeResourceUriForRead(resourceUri));
         const mimeType = result.contents[0]?.mimeType;
         const metadata = result._meta as { size?: number; originalName?: string } | undefined;
 
@@ -457,6 +491,9 @@ export function estimateContentPartTokens(part: ContentPart): number {
         // 2. This only affects the "new messages" delta and /context display
         // 3. File attachments in tool results are relatively rare
         return 1000;
+    }
+    if (part.type === 'resource') {
+        return part.kind === 'text' ? 250 : 1000;
     }
     return 0;
 }
@@ -881,6 +918,21 @@ export async function expandBlobReferences(
             continue;
         }
 
+        if (part.type === 'resource') {
+            const resolved = await resolveBlobReferenceToParts(
+                part.uri,
+                resourceManager,
+                logger,
+                allowedMediaTypes,
+                expandMatchingMedia
+            );
+            expandedParts.push({ type: 'text', text: buildResourceAnchorText(part) });
+            if (resolved.length > 0) {
+                expandedParts.push(...resolved.map((p) => ({ ...p })));
+            }
+            continue;
+        }
+
         if (part.type === 'text' && part.text.includes('@blob:')) {
             // Expand blob references in text part using helper
             const expanded = await expandBlobsInText(
@@ -983,6 +1035,10 @@ export function filterMessagesByLLMCapabilities(
                         logger.warn(
                             `Could not validate file support for ${config.model}: ${validation.error}`
                         );
+                        return [part];
+                    }
+
+                    if (part.type === 'resource') {
                         return [part];
                     }
 
