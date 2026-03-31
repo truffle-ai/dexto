@@ -36,7 +36,7 @@
     "hono": "^4.12.9",
     "ws": "^8.18.1",
     "yaml": "^2.8.3",
-    "@modelcontextprotocol/sdk": "^1.28.0"
+    "@modelcontextprotocol/sdk": "^1.29.0"
   },
   "scripts": {
     "build": "cross-env NODE_OPTIONS=--max-old-space-size=8192 tsup && node ../../scripts/clean-tsbuildinfo.mjs && cross-env NODE_OPTIONS=--max-old-space-size=8192 tsc -b tsconfig.json --emitDeclarationOnly",
