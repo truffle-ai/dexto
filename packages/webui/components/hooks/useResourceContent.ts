@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { client } from '@/lib/client';
+import { parseApiResponse } from '@/lib/api-errors';
 
 type NormalizedResourceItem =
     | {
@@ -132,15 +133,13 @@ function normalizeResource(uri: string, payload: any): NormalizedResource {
 }
 
 async function fetchResourceContent(uri: string): Promise<NormalizedResource> {
-    const response = await client.api.resources[':resourceId'].content.$get({
-        param: { resourceId: encodeURIComponent(uri) },
-    });
-    const body = await response.json();
-    const contentPayload = body?.content;
-    if (!contentPayload) {
-        throw new Error('No content returned for resource');
-    }
-    return normalizeResource(uri, contentPayload);
+    const body = await parseApiResponse(
+        client.api.resources[':resourceId'].content.$get({
+            param: { resourceId: encodeURIComponent(uri) },
+        }),
+        'Failed to load resource content'
+    );
+    return normalizeResource(uri, body.content);
 }
 
 export function useResourceContent(resourceUris: string[]): ResourceStateMap {

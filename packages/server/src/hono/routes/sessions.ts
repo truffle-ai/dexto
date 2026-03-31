@@ -7,14 +7,17 @@ import {
     type SessionMetadata as CoreSessionMetadata,
 } from '@dexto/core';
 import {
+    BadRequestErrorResponse,
+    ConflictErrorResponse,
+    InternalErrorResponse,
     SessionMetadataSchema,
     InternalMessageSchema,
+    NotFoundErrorResponse,
     ScopedUsageSummarySchema,
-    StandardErrorEnvelopeSchema,
     UsageSummarySchema,
 } from '../schemas/responses.js';
-import type { GetAgentFn } from '../index.js';
 import { handleHonoError } from '../middleware/error.js';
+import type { GetAgentFn, OpenAPIRouteSchema } from '../types.js';
 
 const CreateSessionSchema = z
     .object({
@@ -101,6 +104,492 @@ function mapSessionMetadata(
     };
 }
 
+const listRoute = createRoute({
+    method: 'get',
+    path: '/sessions',
+    summary: 'List Sessions',
+    description: 'Retrieves a list of all active sessions',
+    tags: ['sessions'],
+    responses: {
+        200: {
+            description: 'List of all active sessions',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            sessions: z
+                                .array(SessionMetadataSchema)
+                                .describe('Array of session metadata objects'),
+                        })
+                        .strict(),
+                },
+            },
+        },
+        400: BadRequestErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const createRouteDef = createRoute({
+    method: 'post',
+    path: '/sessions',
+    summary: 'Create Session',
+    description: 'Creates a new session',
+    tags: ['sessions'],
+    request: { body: { content: { 'application/json': { schema: CreateSessionSchema } } } },
+    responses: {
+        201: {
+            description: 'Session created successfully',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            session: SessionMetadataSchema.describe(
+                                'Newly created session metadata'
+                            ),
+                        })
+                        .strict(),
+                },
+            },
+        },
+        400: BadRequestErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const getRoute = createRoute({
+    method: 'get',
+    path: '/sessions/{sessionId}',
+    summary: 'Get Session Details',
+    description: 'Fetches details for a specific session',
+    tags: ['sessions'],
+    request: { params: z.object({ sessionId: z.string().describe('Session identifier') }) },
+    responses: {
+        200: {
+            description: 'Session details with metadata',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            session: SessionMetadataSchema.extend({
+                                history: z
+                                    .number()
+                                    .int()
+                                    .nonnegative()
+                                    .describe('Number of messages in history'),
+                            })
+                                .strict()
+                                .describe('Session metadata with history count'),
+                        })
+                        .strict(),
+                },
+            },
+        },
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const forkRoute = createRoute({
+    method: 'post',
+    path: '/sessions/{sessionId}/fork',
+    summary: 'Fork Session',
+    description:
+        'Creates a new child session by cloning the specified parent session history and metadata lineage.',
+    tags: ['sessions'],
+    request: {
+        params: z.object({
+            sessionId: z.string().describe('Parent session identifier'),
+        }),
+    },
+    responses: {
+        201: {
+            description: 'Forked session created successfully',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            session: SessionMetadataSchema.describe(
+                                'Newly created child session metadata'
+                            ),
+                        })
+                        .strict(),
+                },
+            },
+        },
+        400: {
+            ...BadRequestErrorResponse,
+        },
+        404: {
+            ...NotFoundErrorResponse,
+        },
+        500: InternalErrorResponse,
+    },
+});
+
+const historyRoute = createRoute({
+    method: 'get',
+    path: '/sessions/{sessionId}/history',
+    summary: 'Get Session History',
+    description: 'Retrieves the conversation history for a session along with processing status',
+    tags: ['sessions'],
+    request: { params: z.object({ sessionId: z.string().describe('Session identifier') }) },
+    responses: {
+        200: {
+            description: 'Session conversation history',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            history: z
+                                .array(InternalMessageSchema)
+                                .describe('Array of messages in conversation history'),
+                            isBusy: z
+                                .boolean()
+                                .describe('Whether the session is currently processing a message'),
+                        })
+                        .strict(),
+                },
+            },
+        },
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const listSessionPromptContributorsRoute = createRoute({
+    method: 'get',
+    path: '/sessions/{sessionId}/system-prompt/contributors',
+    summary: 'List Session System Prompt Contributors',
+    description:
+        'Lists static system prompt contributors that apply only to the specified session.',
+    tags: ['sessions', 'config'],
+    request: { params: z.object({ sessionId: z.string().describe('Session identifier') }) },
+    responses: {
+        200: {
+            description: 'Current session contributor list',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            contributors: z
+                                .array(SessionPromptContributorInfoSchema)
+                                .describe('Registered session prompt contributors.'),
+                        })
+                        .strict(),
+                },
+            },
+        },
+        404: {
+            ...NotFoundErrorResponse,
+        },
+        500: InternalErrorResponse,
+    },
+});
+
+const upsertSessionPromptContributorRoute = createRoute({
+    method: 'post',
+    path: '/sessions/{sessionId}/system-prompt/contributors',
+    summary: 'Upsert Session System Prompt Contributor',
+    description:
+        'Adds or updates a static system prompt contributor that applies only to the specified session. Set enabled=false to remove it.',
+    tags: ['sessions', 'config'],
+    request: {
+        params: z.object({ sessionId: z.string().describe('Session identifier') }),
+        body: {
+            required: true,
+            content: {
+                'application/json': {
+                    schema: UpsertSessionPromptContributorSchema,
+                },
+            },
+        },
+    },
+    responses: {
+        200: {
+            description: 'Session contributor upsert result',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            id: z.string().describe('Contributor identifier'),
+                            enabled: z
+                                .boolean()
+                                .describe('Whether the contributor remains enabled'),
+                            priority: z.number().optional().describe('Contributor priority'),
+                            replaced: z
+                                .boolean()
+                                .optional()
+                                .describe('Whether an existing contributor was replaced'),
+                            removed: z
+                                .boolean()
+                                .optional()
+                                .describe('Whether the contributor was removed'),
+                            contentLength: z
+                                .number()
+                                .optional()
+                                .describe('Stored content length in characters'),
+                            truncated: z
+                                .boolean()
+                                .optional()
+                                .describe('Whether the submitted content was truncated'),
+                        })
+                        .strict(),
+                },
+            },
+        },
+        400: {
+            ...BadRequestErrorResponse,
+        },
+        404: {
+            ...NotFoundErrorResponse,
+        },
+        500: InternalErrorResponse,
+    },
+});
+
+const deleteRoute = createRoute({
+    method: 'delete',
+    path: '/sessions/{sessionId}',
+    summary: 'Delete Session',
+    description:
+        'Permanently deletes a session and all its conversation history. This action cannot be undone',
+    tags: ['sessions'],
+    request: { params: z.object({ sessionId: z.string().describe('Session identifier') }) },
+    responses: {
+        200: {
+            description: 'Session deleted successfully',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            status: z.literal('deleted').describe('Deletion status'),
+                            sessionId: z.string().describe('ID of the deleted session'),
+                        })
+                        .strict(),
+                },
+            },
+        },
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const cancelRoute = createRoute({
+    method: 'post',
+    path: '/sessions/{sessionId}/cancel',
+    summary: 'Cancel Session Run',
+    description:
+        'Cancels an in-flight agent run for the specified session. ' +
+        'By default (soft cancel), only the current LLM call is cancelled and queued messages continue processing. ' +
+        'Set clearQueue=true for hard cancel to also clear any queued messages.',
+    tags: ['sessions'],
+    request: {
+        params: z.object({ sessionId: z.string().describe('Session identifier') }),
+        body: {
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            clearQueue: z
+                                .boolean()
+                                .optional()
+                                .default(false)
+                                .describe(
+                                    'If true (hard cancel), clears queued messages. If false (soft cancel, default), queued messages continue processing.'
+                                ),
+                        })
+                        .strict(),
+                },
+            },
+            required: false,
+        },
+    },
+    responses: {
+        200: {
+            description: 'Cancel operation result',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            cancelled: z.boolean().describe('Whether a run was cancelled'),
+                            sessionId: z.string().describe('Session ID'),
+                            queueCleared: z
+                                .boolean()
+                                .describe('Whether queued messages were cleared'),
+                            clearedCount: z
+                                .number()
+                                .describe('Number of queued messages cleared (0 if soft cancel)'),
+                        })
+                        .strict(),
+                },
+            },
+        },
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        409: ConflictErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const loadRoute = createRoute({
+    method: 'get',
+    path: '/sessions/{sessionId}/load',
+    summary: 'Load Session',
+    description:
+        'Validates and retrieves session information including processing status. The client should track the active session.',
+    tags: ['sessions'],
+    request: {
+        params: z.object({ sessionId: z.string().describe('Session identifier') }),
+    },
+    responses: {
+        200: {
+            description: 'Session information retrieved successfully',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            session: SessionMetadataSchema.extend({
+                                isBusy: z
+                                    .boolean()
+                                    .describe(
+                                        'Whether the session is currently processing a message'
+                                    ),
+                                usageSummary: UsageSummarySchema.describe(
+                                    'Exact usage summary derived from assistant message history'
+                                ),
+                                activeUsageScopeId: z
+                                    .string()
+                                    .nullable()
+                                    .describe(
+                                        'Current runtime usage scope identifier, if configured'
+                                    ),
+                                activeUsageScope: ScopedUsageSummarySchema.nullable().describe(
+                                    'Usage summary for the current runtime scope, if configured'
+                                ),
+                            }).describe('Session metadata with processing status'),
+                        })
+                        .strict(),
+                },
+            },
+        },
+        404: {
+            ...NotFoundErrorResponse,
+        },
+        400: BadRequestErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const clearContextRoute = createRoute({
+    method: 'post',
+    path: '/sessions/{sessionId}/clear-context',
+    summary: 'Clear Session Context',
+    description:
+        'Clears the model context window for a session while preserving conversation history for review.',
+    tags: ['sessions'],
+    request: {
+        params: z.object({ sessionId: z.string().describe('Session identifier') }),
+    },
+    responses: {
+        200: {
+            description: 'Session context cleared successfully',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            status: z.literal('context cleared').describe('Context clear status'),
+                            sessionId: z.string().describe('Session ID'),
+                        })
+                        .strict(),
+                },
+            },
+        },
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const patchRoute = createRoute({
+    method: 'patch',
+    path: '/sessions/{sessionId}',
+    summary: 'Update Session Title',
+    description: 'Updates the title of an existing session',
+    tags: ['sessions'],
+    request: {
+        params: z.object({ sessionId: z.string().describe('Session identifier') }),
+        body: {
+            content: {
+                'application/json': {
+                    schema: z.object({
+                        title: z
+                            .string()
+                            .min(1, 'Title is required')
+                            .max(120, 'Title too long')
+                            .describe('New title for the session (maximum 120 characters)'),
+                    }),
+                },
+            },
+        },
+    },
+    responses: {
+        200: {
+            description: 'Session updated successfully',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            session: SessionMetadataSchema.describe('Updated session metadata'),
+                        })
+                        .strict(),
+                },
+            },
+        },
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const generateTitleRoute = createRoute({
+    method: 'post',
+    path: '/sessions/{sessionId}/generate-title',
+    summary: 'Generate Session Title',
+    description:
+        'Generates a descriptive title for the session using the first user message. Returns existing title if already set.',
+    tags: ['sessions'],
+    request: {
+        params: z.object({ sessionId: z.string().describe('Session identifier') }),
+    },
+    responses: {
+        200: {
+            description: 'Title generated successfully',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            title: z
+                                .string()
+                                .nullable()
+                                .describe('Generated title, or null if generation failed'),
+                            sessionId: z.string().describe('Session ID'),
+                        })
+                        .strict(),
+                },
+            },
+        },
+        404: {
+            ...NotFoundErrorResponse,
+        },
+        400: BadRequestErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
 export function createSessionsRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono({
         defaultHook: (result, ctx) => {
@@ -121,508 +610,6 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
     });
     app.onError((err, ctx) => handleHonoError(ctx, err));
 
-    const listRoute = createRoute({
-        method: 'get',
-        path: '/sessions',
-        summary: 'List Sessions',
-        description: 'Retrieves a list of all active sessions',
-        tags: ['sessions'],
-        responses: {
-            200: {
-                description: 'List of all active sessions',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                sessions: z
-                                    .array(SessionMetadataSchema)
-                                    .describe('Array of session metadata objects'),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-        },
-    });
-
-    const createRouteDef = createRoute({
-        method: 'post',
-        path: '/sessions',
-        summary: 'Create Session',
-        description: 'Creates a new session',
-        tags: ['sessions'],
-        request: { body: { content: { 'application/json': { schema: CreateSessionSchema } } } },
-        responses: {
-            201: {
-                description: 'Session created successfully',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                session: SessionMetadataSchema.describe(
-                                    'Newly created session metadata'
-                                ),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-        },
-    });
-
-    const getRoute = createRoute({
-        method: 'get',
-        path: '/sessions/{sessionId}',
-        summary: 'Get Session Details',
-        description: 'Fetches details for a specific session',
-        tags: ['sessions'],
-        request: { params: z.object({ sessionId: z.string().describe('Session identifier') }) },
-        responses: {
-            200: {
-                description: 'Session details with metadata',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                session: SessionMetadataSchema.extend({
-                                    history: z
-                                        .number()
-                                        .int()
-                                        .nonnegative()
-                                        .describe('Number of messages in history'),
-                                })
-                                    .strict()
-                                    .describe('Session metadata with history count'),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-        },
-    });
-
-    const forkRoute = createRoute({
-        method: 'post',
-        path: '/sessions/{sessionId}/fork',
-        summary: 'Fork Session',
-        description:
-            'Creates a new child session by cloning the specified parent session history and metadata lineage.',
-        tags: ['sessions'],
-        request: {
-            params: z.object({
-                sessionId: z.string().describe('Parent session identifier'),
-            }),
-        },
-        responses: {
-            201: {
-                description: 'Forked session created successfully',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                session: SessionMetadataSchema.describe(
-                                    'Newly created child session metadata'
-                                ),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-            400: {
-                description: 'Invalid fork request (for example, max session limit reached)',
-                content: {
-                    'application/json': {
-                        schema: StandardErrorEnvelopeSchema,
-                    },
-                },
-            },
-            404: {
-                description: 'Parent session not found',
-                content: {
-                    'application/json': {
-                        schema: StandardErrorEnvelopeSchema,
-                    },
-                },
-            },
-        },
-    });
-
-    const historyRoute = createRoute({
-        method: 'get',
-        path: '/sessions/{sessionId}/history',
-        summary: 'Get Session History',
-        description:
-            'Retrieves the conversation history for a session along with processing status',
-        tags: ['sessions'],
-        request: { params: z.object({ sessionId: z.string().describe('Session identifier') }) },
-        responses: {
-            200: {
-                description: 'Session conversation history',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                history: z
-                                    .array(InternalMessageSchema)
-                                    .describe('Array of messages in conversation history'),
-                                isBusy: z
-                                    .boolean()
-                                    .describe(
-                                        'Whether the session is currently processing a message'
-                                    ),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-        },
-    });
-
-    const listSessionPromptContributorsRoute = createRoute({
-        method: 'get',
-        path: '/sessions/{sessionId}/system-prompt/contributors',
-        summary: 'List Session System Prompt Contributors',
-        description:
-            'Lists static system prompt contributors that apply only to the specified session.',
-        tags: ['sessions', 'config'],
-        request: { params: z.object({ sessionId: z.string().describe('Session identifier') }) },
-        responses: {
-            200: {
-                description: 'Current session contributor list',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                contributors: z
-                                    .array(SessionPromptContributorInfoSchema)
-                                    .describe('Registered session prompt contributors.'),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-            404: {
-                description: 'Session not found',
-                content: {
-                    'application/json': {
-                        schema: StandardErrorEnvelopeSchema,
-                    },
-                },
-            },
-        },
-    });
-
-    const upsertSessionPromptContributorRoute = createRoute({
-        method: 'post',
-        path: '/sessions/{sessionId}/system-prompt/contributors',
-        summary: 'Upsert Session System Prompt Contributor',
-        description:
-            'Adds or updates a static system prompt contributor that applies only to the specified session. Set enabled=false to remove it.',
-        tags: ['sessions', 'config'],
-        request: {
-            params: z.object({ sessionId: z.string().describe('Session identifier') }),
-            body: {
-                required: true,
-                content: {
-                    'application/json': {
-                        schema: UpsertSessionPromptContributorSchema,
-                    },
-                },
-            },
-        },
-        responses: {
-            200: {
-                description: 'Session contributor upsert result',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                id: z.string().describe('Contributor identifier'),
-                                enabled: z
-                                    .boolean()
-                                    .describe('Whether the contributor remains enabled'),
-                                priority: z.number().optional().describe('Contributor priority'),
-                                replaced: z
-                                    .boolean()
-                                    .optional()
-                                    .describe('Whether an existing contributor was replaced'),
-                                removed: z
-                                    .boolean()
-                                    .optional()
-                                    .describe('Whether the contributor was removed'),
-                                contentLength: z
-                                    .number()
-                                    .optional()
-                                    .describe('Stored content length in characters'),
-                                truncated: z
-                                    .boolean()
-                                    .optional()
-                                    .describe('Whether the submitted content was truncated'),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-            400: {
-                description: 'Invalid session contributor request',
-                content: {
-                    'application/json': {
-                        schema: StandardErrorEnvelopeSchema,
-                    },
-                },
-            },
-            404: {
-                description: 'Session not found',
-                content: {
-                    'application/json': {
-                        schema: StandardErrorEnvelopeSchema,
-                    },
-                },
-            },
-        },
-    });
-
-    const deleteRoute = createRoute({
-        method: 'delete',
-        path: '/sessions/{sessionId}',
-        summary: 'Delete Session',
-        description:
-            'Permanently deletes a session and all its conversation history. This action cannot be undone',
-        tags: ['sessions'],
-        request: { params: z.object({ sessionId: z.string().describe('Session identifier') }) },
-        responses: {
-            200: {
-                description: 'Session deleted successfully',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                status: z.literal('deleted').describe('Deletion status'),
-                                sessionId: z.string().describe('ID of the deleted session'),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-        },
-    });
-
-    const cancelRoute = createRoute({
-        method: 'post',
-        path: '/sessions/{sessionId}/cancel',
-        summary: 'Cancel Session Run',
-        description:
-            'Cancels an in-flight agent run for the specified session. ' +
-            'By default (soft cancel), only the current LLM call is cancelled and queued messages continue processing. ' +
-            'Set clearQueue=true for hard cancel to also clear any queued messages.',
-        tags: ['sessions'],
-        request: {
-            params: z.object({ sessionId: z.string().describe('Session identifier') }),
-            body: {
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                clearQueue: z
-                                    .boolean()
-                                    .optional()
-                                    .default(false)
-                                    .describe(
-                                        'If true (hard cancel), clears queued messages. If false (soft cancel, default), queued messages continue processing.'
-                                    ),
-                            })
-                            .strict(),
-                    },
-                },
-                required: false,
-            },
-        },
-        responses: {
-            200: {
-                description: 'Cancel operation result',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                cancelled: z.boolean().describe('Whether a run was cancelled'),
-                                sessionId: z.string().describe('Session ID'),
-                                queueCleared: z
-                                    .boolean()
-                                    .describe('Whether queued messages were cleared'),
-                                clearedCount: z
-                                    .number()
-                                    .describe(
-                                        'Number of queued messages cleared (0 if soft cancel)'
-                                    ),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-        },
-    });
-
-    const loadRoute = createRoute({
-        method: 'get',
-        path: '/sessions/{sessionId}/load',
-        summary: 'Load Session',
-        description:
-            'Validates and retrieves session information including processing status. The client should track the active session.',
-        tags: ['sessions'],
-        request: {
-            params: z.object({ sessionId: z.string().describe('Session identifier') }),
-        },
-        responses: {
-            200: {
-                description: 'Session information retrieved successfully',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                session: SessionMetadataSchema.extend({
-                                    isBusy: z
-                                        .boolean()
-                                        .describe(
-                                            'Whether the session is currently processing a message'
-                                        ),
-                                    usageSummary: UsageSummarySchema.describe(
-                                        'Exact usage summary derived from assistant message history'
-                                    ),
-                                    activeUsageScopeId: z
-                                        .string()
-                                        .nullable()
-                                        .describe(
-                                            'Current runtime usage scope identifier, if configured'
-                                        ),
-                                    activeUsageScope: ScopedUsageSummarySchema.nullable().describe(
-                                        'Usage summary for the current runtime scope, if configured'
-                                    ),
-                                }).describe('Session metadata with processing status'),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-            404: {
-                description: 'Session not found',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                error: z.string().describe('Error message'),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-        },
-    });
-
-    const clearContextRoute = createRoute({
-        method: 'post',
-        path: '/sessions/{sessionId}/clear-context',
-        summary: 'Clear Session Context',
-        description:
-            'Clears the model context window for a session while preserving conversation history for review.',
-        tags: ['sessions'],
-        request: {
-            params: z.object({ sessionId: z.string().describe('Session identifier') }),
-        },
-        responses: {
-            200: {
-                description: 'Session context cleared successfully',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                status: z
-                                    .literal('context cleared')
-                                    .describe('Context clear status'),
-                                sessionId: z.string().describe('Session ID'),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-        },
-    });
-
-    const patchRoute = createRoute({
-        method: 'patch',
-        path: '/sessions/{sessionId}',
-        summary: 'Update Session Title',
-        description: 'Updates the title of an existing session',
-        tags: ['sessions'],
-        request: {
-            params: z.object({ sessionId: z.string().describe('Session identifier') }),
-            body: {
-                content: {
-                    'application/json': {
-                        schema: z.object({
-                            title: z
-                                .string()
-                                .min(1, 'Title is required')
-                                .max(120, 'Title too long')
-                                .describe('New title for the session (maximum 120 characters)'),
-                        }),
-                    },
-                },
-            },
-        },
-        responses: {
-            200: {
-                description: 'Session updated successfully',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                session: SessionMetadataSchema.describe('Updated session metadata'),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-        },
-    });
-
-    const generateTitleRoute = createRoute({
-        method: 'post',
-        path: '/sessions/{sessionId}/generate-title',
-        summary: 'Generate Session Title',
-        description:
-            'Generates a descriptive title for the session using the first user message. Returns existing title if already set.',
-        tags: ['sessions'],
-        request: {
-            params: z.object({ sessionId: z.string().describe('Session identifier') }),
-        },
-        responses: {
-            200: {
-                description: 'Title generated successfully',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                title: z
-                                    .string()
-                                    .nullable()
-                                    .describe('Generated title, or null if generation failed'),
-                                sessionId: z.string().describe('Session ID'),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-            404: {
-                description: 'Session not found',
-                content: {
-                    'application/json': {
-                        schema: StandardErrorEnvelopeSchema,
-                    },
-                },
-            },
-        },
-    });
-
     return app
         .openapi(listRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -638,7 +625,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                     }
                 })
             );
-            return ctx.json({ sessions });
+            return ctx.json({ sessions }, 200);
         })
         .openapi(createRouteDef, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -672,12 +659,15 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             const { sessionId } = ctx.req.param();
             const metadata = await agent.getSessionMetadata(sessionId);
             const history = await agent.getSessionHistory(sessionId);
-            return ctx.json({
-                session: {
-                    ...mapSessionMetadata(sessionId, metadata),
-                    history: history.length,
+            return ctx.json(
+                {
+                    session: {
+                        ...mapSessionMetadata(sessionId, metadata),
+                        history: history.length,
+                    },
                 },
-            });
+                200
+            );
         })
         .openapi(historyRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -689,10 +679,13 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             // TODO: Improve type alignment between core and server schemas.
             // Core's InternalMessage has union types (string | Uint8Array | Buffer | URL)
             // for binary data, but JSON responses are always base64 strings.
-            return ctx.json({
-                history: history as z.output<typeof InternalMessageSchema>[],
-                isBusy,
-            });
+            return ctx.json(
+                {
+                    history: history as z.output<typeof InternalMessageSchema>[],
+                    isBusy,
+                },
+                200
+            );
         })
         .openapi(listSessionPromptContributorsRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -781,7 +774,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.param();
             await agent.deleteSession(sessionId);
-            return ctx.json({ status: 'deleted', sessionId });
+            return ctx.json({ status: 'deleted' as const, sessionId }, 200);
         })
         .openapi(cancelRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -815,12 +808,15 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                 agent.logger.debug(`No in-flight run to cancel for session: ${sessionId}`);
             }
 
-            return ctx.json({
-                cancelled,
-                sessionId,
-                queueCleared: clearQueue,
-                clearedCount,
-            });
+            return ctx.json(
+                {
+                    cancelled,
+                    sessionId,
+                    queueCleared: clearQueue,
+                    clearedCount,
+                },
+                200
+            );
         })
         .openapi(loadRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -829,7 +825,13 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             // Validate that session exists
             const sessionIds = await agent.listSessions();
             if (!sessionIds.includes(sessionId)) {
-                return ctx.json({ error: `Session not found: ${sessionId}` }, 404);
+                throw new DextoRuntimeError(
+                    'session_not_found',
+                    ErrorScope.SESSION,
+                    ErrorType.NOT_FOUND,
+                    `Session not found: ${sessionId}`,
+                    { sessionId }
+                );
             }
 
             // Return session metadata with processing status
@@ -860,7 +862,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('param');
             await agent.clearContext(sessionId);
-            return ctx.json({ status: 'context cleared', sessionId });
+            return ctx.json({ status: 'context cleared' as const, sessionId }, 200);
         })
         .openapi(patchRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -868,9 +870,12 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             const { title } = ctx.req.valid('json');
             await agent.setSessionTitle(sessionId, title);
             const metadata = await agent.getSessionMetadata(sessionId);
-            return ctx.json({
-                session: mapSessionMetadata(sessionId, metadata, { title }),
-            });
+            return ctx.json(
+                {
+                    session: mapSessionMetadata(sessionId, metadata, { title }),
+                },
+                200
+            );
         })
         .openapi(generateTitleRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -879,3 +884,49 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             return ctx.json({ title, sessionId }, 200);
         });
 }
+
+type SessionIdParamInput = { param: { sessionId: string } };
+
+type ListRouteSchema = OpenAPIRouteSchema<typeof listRoute, {}>;
+type CreateRouteSchema = OpenAPIRouteSchema<
+    typeof createRouteDef,
+    { json: z.input<typeof CreateSessionSchema> }
+>;
+type GetRouteSchema = OpenAPIRouteSchema<typeof getRoute, SessionIdParamInput>;
+type ForkRouteSchema = OpenAPIRouteSchema<typeof forkRoute, SessionIdParamInput>;
+type HistoryRouteSchema = OpenAPIRouteSchema<typeof historyRoute, SessionIdParamInput>;
+type ListSessionPromptContributorsRouteSchema = OpenAPIRouteSchema<
+    typeof listSessionPromptContributorsRoute,
+    SessionIdParamInput
+>;
+type UpsertSessionPromptContributorRouteSchema = OpenAPIRouteSchema<
+    typeof upsertSessionPromptContributorRoute,
+    SessionIdParamInput & { json: z.input<typeof UpsertSessionPromptContributorSchema> }
+>;
+type DeleteRouteSchema = OpenAPIRouteSchema<typeof deleteRoute, SessionIdParamInput>;
+type CancelRouteSchema = OpenAPIRouteSchema<
+    typeof cancelRoute,
+    SessionIdParamInput & { json?: { clearQueue?: boolean } }
+>;
+type LoadRouteSchema = OpenAPIRouteSchema<typeof loadRoute, SessionIdParamInput>;
+type ClearContextRouteSchema = OpenAPIRouteSchema<typeof clearContextRoute, SessionIdParamInput>;
+type PatchRouteSchema = OpenAPIRouteSchema<
+    typeof patchRoute,
+    SessionIdParamInput & { json: { title: string } }
+>;
+type GenerateTitleRouteSchema = OpenAPIRouteSchema<typeof generateTitleRoute, SessionIdParamInput>;
+
+export type SessionsRouterSchema =
+    | ListRouteSchema
+    | CreateRouteSchema
+    | GetRouteSchema
+    | ForkRouteSchema
+    | HistoryRouteSchema
+    | ListSessionPromptContributorsRouteSchema
+    | UpsertSessionPromptContributorRouteSchema
+    | DeleteRouteSchema
+    | CancelRouteSchema
+    | LoadRouteSchema
+    | ClearContextRouteSchema
+    | PatchRouteSchema
+    | GenerateTitleRouteSchema;

@@ -1,13 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { client } from '@/lib/client.js';
+import { parseApiResponse } from '@/lib/api-errors.js';
 import { queryKeys } from '@/lib/queryKeys.js';
 
 async function fetchResources() {
-    const response = await client.api.resources.$get();
-    const data = await response.json();
-    if (!data.ok || !Array.isArray(data.resources)) {
-        throw new Error('Invalid response shape');
-    }
+    const data = await parseApiResponse(client.api.resources.$get(), 'Failed to load resources');
     return data.resources;
 }
 

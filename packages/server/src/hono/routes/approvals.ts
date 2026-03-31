@@ -1,9 +1,12 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import { type DextoAgent, DenialReason, ApprovalStatus, ApprovalError } from '@dexto/core';
+import { DenialReason, ApprovalStatus, ApprovalError } from '@dexto/core';
 import type { ApprovalCoordinator } from '../../approval/approval-coordinator.js';
-import { ApiErrorResponseSchema } from '../schemas/responses.js';
-import type { Context } from 'hono';
-type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
+import {
+    ApiErrorResponseSchema,
+    BadRequestErrorResponse,
+    InternalErrorResponse,
+} from '../schemas/responses.js';
+import type { GetAgentFn, OpenAPIRouteSchema } from '../types.js';
 
 const ApprovalBodySchema = z
     .object({
@@ -136,90 +139,102 @@ const PendingApprovalsResponseSchema = z
     })
     .describe('Response containing pending approval requests');
 
+const GetPendingApprovalsQuerySchema = z
+    .object({
+        sessionId: z.string().describe('The session ID to fetch pending approvals for'),
+    })
+    .describe('Query parameters for fetching pending approvals');
+
+const ApprovalIdParamSchema = z
+    .object({
+        approvalId: z.string().describe('The ID of the approval request'),
+    })
+    .describe('Approval identifier params');
+
+const ApprovalHeadersSchema = z
+    .object({
+        'Idempotency-Key': z
+            .string()
+            .optional()
+            .describe('Optional key to ensure idempotent processing'),
+    })
+    .describe('Approval request headers');
+
+const getPendingApprovalsRoute = createRoute({
+    method: 'get',
+    path: '/approvals',
+    summary: 'Get Pending Approvals',
+    description:
+        'Fetch all pending approval requests for a session. Use this to restore UI state after page refresh.',
+    tags: ['approvals'],
+    request: {
+        query: GetPendingApprovalsQuerySchema,
+    },
+    responses: {
+        200: {
+            description: 'List of pending approval requests',
+            content: {
+                'application/json': {
+                    schema: PendingApprovalsResponseSchema,
+                },
+            },
+        },
+        400: BadRequestErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const submitApprovalRoute = createRoute({
+    method: 'post',
+    path: '/approvals/{approvalId}',
+    summary: 'Submit Approval Decision',
+    description: 'Submit a user decision for a pending approval request',
+    tags: ['approvals'],
+    request: {
+        params: ApprovalIdParamSchema,
+        body: {
+            content: { 'application/json': { schema: ApprovalBodySchema } },
+        },
+        headers: ApprovalHeadersSchema,
+    },
+    responses: {
+        200: {
+            description: 'Approval processed successfully',
+            content: {
+                'application/json': {
+                    schema: ApprovalResponseSchema,
+                },
+            },
+        },
+        404: {
+            description: 'Approval request not found or expired',
+            content: { 'application/json': { schema: ApiErrorResponseSchema } },
+        },
+        400: {
+            description: 'Validation error',
+            content: { 'application/json': { schema: ApiErrorResponseSchema } },
+        },
+        503: {
+            description: 'Approval coordinator unavailable (server not initialized for approvals)',
+            content: { 'application/json': { schema: ApprovalResponseSchema } },
+        },
+        500: {
+            description: 'Approval processing failed',
+            content: { 'application/json': { schema: ApprovalResponseSchema } },
+        },
+    },
+});
+
 export function createApprovalsRouter(
     getAgent: GetAgentFn,
     approvalCoordinator?: ApprovalCoordinator
 ) {
     const app = new OpenAPIHono();
 
-    // GET /approvals - Fetch pending approval requests
-    // Useful for restoring UI state after page refresh
-    const getPendingApprovalsRoute = createRoute({
-        method: 'get',
-        path: '/approvals',
-        summary: 'Get Pending Approvals',
-        description:
-            'Fetch all pending approval requests for a session. Use this to restore UI state after page refresh.',
-        tags: ['approvals'],
-        request: {
-            query: z.object({
-                sessionId: z.string().describe('The session ID to fetch pending approvals for'),
-            }),
-        },
-        responses: {
-            200: {
-                description: 'List of pending approval requests',
-                content: {
-                    'application/json': {
-                        schema: PendingApprovalsResponseSchema,
-                    },
-                },
-            },
-        },
-    });
-
     // TODO: Consider adding auth & idempotency for production deployments
     // See: https://github.com/truffle-ai/dexto/pull/450#discussion_r2545039760
     // - Auth: Open-source framework should allow flexible auth (reverse proxy, API gateway, etc.)
     // - Idempotency: Already documented in schema; platform can add tracking separately
-    const submitApprovalRoute = createRoute({
-        method: 'post',
-        path: '/approvals/{approvalId}',
-        summary: 'Submit Approval Decision',
-        description: 'Submit a user decision for a pending approval request',
-        tags: ['approvals'],
-        request: {
-            params: z.object({
-                approvalId: z.string().describe('The ID of the approval request'),
-            }),
-            body: {
-                content: { 'application/json': { schema: ApprovalBodySchema } },
-            },
-            headers: z.object({
-                'Idempotency-Key': z
-                    .string()
-                    .optional()
-                    .describe('Optional key to ensure idempotent processing'),
-            }),
-        },
-        responses: {
-            200: {
-                description: 'Approval processed successfully',
-                content: {
-                    'application/json': {
-                        schema: ApprovalResponseSchema,
-                    },
-                },
-            },
-            404: {
-                description: 'Approval request not found or expired',
-                content: { 'application/json': { schema: ApiErrorResponseSchema } },
-            },
-            400: {
-                description: 'Validation error',
-                content: { 'application/json': { schema: ApiErrorResponseSchema } },
-            },
-            503: {
-                description:
-                    'Approval coordinator unavailable (server not initialized for approvals)',
-                content: { 'application/json': { schema: ApprovalResponseSchema } },
-            },
-            500: {
-                description: 'Approval processing failed',
-                content: { 'application/json': { schema: ApprovalResponseSchema } },
-            },
-        },
-    });
 
     return app
         .openapi(getPendingApprovalsRoute, async (ctx) => {
@@ -241,10 +256,13 @@ export function createApprovalsRouter(
                 metadata: {},
             }));
 
-            return ctx.json({
-                ok: true as const,
-                approvals,
-            });
+            return ctx.json(
+                {
+                    ok: true as const,
+                    approvals,
+                },
+                200
+            );
         })
         .openapi(submitApprovalRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -328,3 +346,19 @@ export function createApprovalsRouter(
             }
         });
 }
+
+type GetPendingApprovalsRouteSchema = OpenAPIRouteSchema<
+    typeof getPendingApprovalsRoute,
+    { query: z.input<typeof GetPendingApprovalsQuerySchema> }
+>;
+
+type SubmitApprovalRouteSchema = OpenAPIRouteSchema<
+    typeof submitApprovalRoute,
+    {
+        param: z.input<typeof ApprovalIdParamSchema>;
+        json: z.input<typeof ApprovalBodySchema>;
+        header: z.input<typeof ApprovalHeadersSchema>;
+    }
+>;
+
+export type ApprovalsRouterSchema = GetPendingApprovalsRouteSchema | SubmitApprovalRouteSchema;

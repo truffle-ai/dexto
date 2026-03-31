@@ -7,8 +7,12 @@ import {
     MCP_CONNECTION_STATUSES,
 } from '@dexto/core';
 import { updateAgentConfigFile } from '@dexto/agent-management';
-import { ApiErrorResponseSchema } from '../schemas/responses.js';
-import type { GetAgentConfigPathFn, GetAgentFn } from '../index.js';
+import {
+    ApiErrorResponseSchema,
+    BadRequestErrorResponse,
+    InternalErrorResponse,
+} from '../schemas/responses.js';
+import type { GetAgentConfigPathFn, GetAgentFn, OpenAPIRouteSchema } from '../types.js';
 
 const McpServerRequestSchema = z
     .object({
@@ -177,217 +181,221 @@ const ResourceContentResponseSchema = z
     .strict()
     .describe('Resource content response');
 
+const addServerRoute = createRoute({
+    method: 'post',
+    path: '/mcp/servers',
+    summary: 'Add MCP Server',
+    description: 'Connects a new MCP server dynamically',
+    tags: ['mcp'],
+    request: { body: { content: { 'application/json': { schema: McpServerRequestSchema } } } },
+    responses: {
+        200: {
+            description: 'Server connected',
+            content: { 'application/json': { schema: ServerStatusResponseSchema } },
+        },
+        400: BadRequestErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const listServersRoute = createRoute({
+    method: 'get',
+    path: '/mcp/servers',
+    summary: 'List MCP Servers',
+    description: 'Gets a list of all connected and failed MCP servers',
+    tags: ['mcp'],
+    responses: {
+        200: {
+            description: 'Servers list',
+            content: { 'application/json': { schema: ServersListResponseSchema } },
+        },
+        500: InternalErrorResponse,
+    },
+});
+
+const getServerConfigRoute = createRoute({
+    method: 'get',
+    path: '/mcp/servers/{serverId}/config',
+    summary: 'Get MCP Server Config',
+    description: 'Retrieves the configuration for a specific MCP server',
+    tags: ['mcp'],
+    request: {
+        params: z.object({ serverId: z.string().describe('The ID of the MCP server') }),
+    },
+    responses: {
+        200: {
+            description: 'Server configuration',
+            content: { 'application/json': { schema: ServerConfigResponseSchema } },
+        },
+        404: {
+            description: 'Not found',
+            content: { 'application/json': { schema: ApiErrorResponseSchema } },
+        },
+    },
+});
+
+const updateServerRoute = createRoute({
+    method: 'put',
+    path: '/mcp/servers/{serverId}',
+    summary: 'Update MCP Server',
+    description: 'Updates configuration for an existing MCP server',
+    tags: ['mcp'],
+    request: {
+        params: z.object({ serverId: z.string().describe('The ID of the MCP server') }),
+        body: { content: { 'application/json': { schema: McpServerUpdateSchema } } },
+    },
+    responses: {
+        200: {
+            description: 'Server updated',
+            content: { 'application/json': { schema: ServerStatusResponseSchema } },
+        },
+        404: {
+            description: 'Not found',
+            content: { 'application/json': { schema: ApiErrorResponseSchema } },
+        },
+    },
+});
+
+const toolsRoute = createRoute({
+    method: 'get',
+    path: '/mcp/servers/{serverId}/tools',
+    summary: 'List Server Tools',
+    description: 'Retrieves the list of tools available on a specific MCP server',
+    tags: ['mcp'],
+    request: {
+        params: z.object({ serverId: z.string().describe('The ID of the MCP server') }),
+    },
+    responses: {
+        200: {
+            description: 'Tools list',
+            content: { 'application/json': { schema: ToolsListResponseSchema } },
+        },
+        404: {
+            description: 'Not found',
+            content: { 'application/json': { schema: ApiErrorResponseSchema } },
+        },
+    },
+});
+
+const deleteServerRoute = createRoute({
+    method: 'delete',
+    path: '/mcp/servers/{serverId}',
+    summary: 'Remove MCP Server',
+    description: 'Disconnects and removes an MCP server',
+    tags: ['mcp'],
+    request: {
+        params: z.object({ serverId: z.string().describe('The ID of the MCP server') }),
+    },
+    responses: {
+        200: {
+            description: 'Disconnected',
+            content: { 'application/json': { schema: DisconnectResponseSchema } },
+        },
+        404: {
+            description: 'Not found',
+            content: { 'application/json': { schema: ApiErrorResponseSchema } },
+        },
+    },
+});
+
+const restartServerRoute = createRoute({
+    method: 'post',
+    path: '/mcp/servers/{serverId}/restart',
+    summary: 'Restart MCP Server',
+    description: 'Restarts a connected MCP server',
+    tags: ['mcp'],
+    request: {
+        params: z.object({ serverId: z.string().describe('The ID of the MCP server') }),
+    },
+    responses: {
+        200: {
+            description: 'Server restarted',
+            content: { 'application/json': { schema: RestartResponseSchema } },
+        },
+        404: {
+            description: 'Not found',
+            content: { 'application/json': { schema: ApiErrorResponseSchema } },
+        },
+    },
+});
+
+const execToolRoute = createRoute({
+    method: 'post',
+    path: '/mcp/servers/{serverId}/tools/{toolName}/execute',
+    summary: 'Execute MCP Tool',
+    description: 'Executes a tool on an MCP server directly',
+    tags: ['mcp'],
+    request: {
+        params: z.object({
+            serverId: z.string().describe('The ID of the MCP server'),
+            toolName: z.string().describe('The name of the tool to execute'),
+        }),
+        body: { content: { 'application/json': { schema: ExecuteToolBodySchema } } },
+    },
+    responses: {
+        200: {
+            description: 'Tool executed',
+            content: { 'application/json': { schema: ToolExecutionResponseSchema } },
+        },
+        404: {
+            description: 'Not found',
+            content: { 'application/json': { schema: ApiErrorResponseSchema } },
+        },
+    },
+});
+
+const listResourcesRoute = createRoute({
+    method: 'get',
+    path: '/mcp/servers/{serverId}/resources',
+    summary: 'List Server Resources',
+    description: 'Retrieves all resources available from a specific MCP server',
+    tags: ['mcp'],
+    request: {
+        params: z.object({ serverId: z.string().describe('The ID of the MCP server') }),
+    },
+    responses: {
+        200: {
+            description: 'Server resources',
+            content: { 'application/json': { schema: ResourcesListResponseSchema } },
+        },
+        404: {
+            description: 'Not found',
+            content: { 'application/json': { schema: ApiErrorResponseSchema } },
+        },
+    },
+});
+
+const getResourceContentRoute = createRoute({
+    method: 'get',
+    path: '/mcp/servers/{serverId}/resources/{resourceId}/content',
+    summary: 'Read Server Resource Content',
+    description:
+        'Reads content from a specific resource on an MCP server. This endpoint automatically constructs the qualified URI format (mcp:serverId:resourceId)',
+    tags: ['mcp'],
+    request: {
+        params: z.object({
+            serverId: z.string().describe('The ID of the MCP server'),
+            resourceId: z
+                .string()
+                .min(1, 'Resource ID is required')
+                .transform((encoded) => decodeURIComponent(encoded))
+                .describe('The URI-encoded resource identifier on that server'),
+        }),
+    },
+    responses: {
+        200: {
+            description: 'Resource content',
+            content: { 'application/json': { schema: ResourceContentResponseSchema } },
+        },
+        404: {
+            description: 'Not found',
+            content: { 'application/json': { schema: ApiErrorResponseSchema } },
+        },
+    },
+});
+
 export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAgentConfigPathFn) {
     const app = new OpenAPIHono();
-
-    const addServerRoute = createRoute({
-        method: 'post',
-        path: '/mcp/servers',
-        summary: 'Add MCP Server',
-        description: 'Connects a new MCP server dynamically',
-        tags: ['mcp'],
-        request: { body: { content: { 'application/json': { schema: McpServerRequestSchema } } } },
-        responses: {
-            200: {
-                description: 'Server connected',
-                content: { 'application/json': { schema: ServerStatusResponseSchema } },
-            },
-        },
-    });
-    const listServersRoute = createRoute({
-        method: 'get',
-        path: '/mcp/servers',
-        summary: 'List MCP Servers',
-        description: 'Gets a list of all connected and failed MCP servers',
-        tags: ['mcp'],
-        responses: {
-            200: {
-                description: 'Servers list',
-                content: { 'application/json': { schema: ServersListResponseSchema } },
-            },
-        },
-    });
-
-    const getServerConfigRoute = createRoute({
-        method: 'get',
-        path: '/mcp/servers/{serverId}/config',
-        summary: 'Get MCP Server Config',
-        description: 'Retrieves the configuration for a specific MCP server',
-        tags: ['mcp'],
-        request: {
-            params: z.object({ serverId: z.string().describe('The ID of the MCP server') }),
-        },
-        responses: {
-            200: {
-                description: 'Server configuration',
-                content: { 'application/json': { schema: ServerConfigResponseSchema } },
-            },
-            404: {
-                description: 'Not found',
-                content: { 'application/json': { schema: ApiErrorResponseSchema } },
-            },
-        },
-    });
-
-    const updateServerRoute = createRoute({
-        method: 'put',
-        path: '/mcp/servers/{serverId}',
-        summary: 'Update MCP Server',
-        description: 'Updates configuration for an existing MCP server',
-        tags: ['mcp'],
-        request: {
-            params: z.object({ serverId: z.string().describe('The ID of the MCP server') }),
-            body: { content: { 'application/json': { schema: McpServerUpdateSchema } } },
-        },
-        responses: {
-            200: {
-                description: 'Server updated',
-                content: { 'application/json': { schema: ServerStatusResponseSchema } },
-            },
-            404: {
-                description: 'Not found',
-                content: { 'application/json': { schema: ApiErrorResponseSchema } },
-            },
-        },
-    });
-
-    const toolsRoute = createRoute({
-        method: 'get',
-        path: '/mcp/servers/{serverId}/tools',
-        summary: 'List Server Tools',
-        description: 'Retrieves the list of tools available on a specific MCP server',
-        tags: ['mcp'],
-        request: {
-            params: z.object({ serverId: z.string().describe('The ID of the MCP server') }),
-        },
-        responses: {
-            200: {
-                description: 'Tools list',
-                content: { 'application/json': { schema: ToolsListResponseSchema } },
-            },
-            404: {
-                description: 'Not found',
-                content: { 'application/json': { schema: ApiErrorResponseSchema } },
-            },
-        },
-    });
-
-    const deleteServerRoute = createRoute({
-        method: 'delete',
-        path: '/mcp/servers/{serverId}',
-        summary: 'Remove MCP Server',
-        description: 'Disconnects and removes an MCP server',
-        tags: ['mcp'],
-        request: {
-            params: z.object({ serverId: z.string().describe('The ID of the MCP server') }),
-        },
-        responses: {
-            200: {
-                description: 'Disconnected',
-                content: { 'application/json': { schema: DisconnectResponseSchema } },
-            },
-            404: {
-                description: 'Not found',
-                content: { 'application/json': { schema: ApiErrorResponseSchema } },
-            },
-        },
-    });
-
-    const restartServerRoute = createRoute({
-        method: 'post',
-        path: '/mcp/servers/{serverId}/restart',
-        summary: 'Restart MCP Server',
-        description: 'Restarts a connected MCP server',
-        tags: ['mcp'],
-        request: {
-            params: z.object({ serverId: z.string().describe('The ID of the MCP server') }),
-        },
-        responses: {
-            200: {
-                description: 'Server restarted',
-                content: { 'application/json': { schema: RestartResponseSchema } },
-            },
-            404: {
-                description: 'Not found',
-                content: { 'application/json': { schema: ApiErrorResponseSchema } },
-            },
-        },
-    });
-
-    const execToolRoute = createRoute({
-        method: 'post',
-        path: '/mcp/servers/{serverId}/tools/{toolName}/execute',
-        summary: 'Execute MCP Tool',
-        description: 'Executes a tool on an MCP server directly',
-        tags: ['mcp'],
-        request: {
-            params: z.object({
-                serverId: z.string().describe('The ID of the MCP server'),
-                toolName: z.string().describe('The name of the tool to execute'),
-            }),
-            body: { content: { 'application/json': { schema: ExecuteToolBodySchema } } },
-        },
-        responses: {
-            200: {
-                description: 'Tool executed',
-                content: { 'application/json': { schema: ToolExecutionResponseSchema } },
-            },
-            404: {
-                description: 'Not found',
-                content: { 'application/json': { schema: ApiErrorResponseSchema } },
-            },
-        },
-    });
-
-    const listResourcesRoute = createRoute({
-        method: 'get',
-        path: '/mcp/servers/{serverId}/resources',
-        summary: 'List Server Resources',
-        description: 'Retrieves all resources available from a specific MCP server',
-        tags: ['mcp'],
-        request: {
-            params: z.object({ serverId: z.string().describe('The ID of the MCP server') }),
-        },
-        responses: {
-            200: {
-                description: 'Server resources',
-                content: { 'application/json': { schema: ResourcesListResponseSchema } },
-            },
-            404: {
-                description: 'Not found',
-                content: { 'application/json': { schema: ApiErrorResponseSchema } },
-            },
-        },
-    });
-
-    const getResourceContentRoute = createRoute({
-        method: 'get',
-        path: '/mcp/servers/{serverId}/resources/{resourceId}/content',
-        summary: 'Read Server Resource Content',
-        description:
-            'Reads content from a specific resource on an MCP server. This endpoint automatically constructs the qualified URI format (mcp:serverId:resourceId)',
-        tags: ['mcp'],
-        request: {
-            params: z.object({
-                serverId: z.string().describe('The ID of the MCP server'),
-                resourceId: z
-                    .string()
-                    .min(1, 'Resource ID is required')
-                    .transform((encoded) => decodeURIComponent(encoded))
-                    .describe('The URI-encoded resource identifier on that server'),
-            }),
-        },
-        responses: {
-            200: {
-                description: 'Resource content',
-                content: { 'application/json': { schema: ResourceContentResponseSchema } },
-            },
-            404: {
-                description: 'Not found',
-                content: { 'application/json': { schema: ApiErrorResponseSchema } },
-            },
-        },
-    });
 
     return app
         .openapi(addServerRoute, async (ctx) => {
@@ -537,7 +545,7 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
             }
 
             await agent.removeMcpServer(serverId);
-            return ctx.json({ status: 'disconnected', id: serverId }, 200);
+            return ctx.json({ status: 'disconnected' as const, id: serverId }, 200);
         })
         .openapi(restartServerRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -551,7 +559,7 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
             }
 
             await agent.restartMcpServer(serverId);
-            return ctx.json({ status: 'restarted', id: serverId }, 200);
+            return ctx.json({ status: 'restarted' as const, id: serverId }, 200);
         })
         .openapi(execToolRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -596,3 +604,43 @@ export function createMcpRouter(getAgent: GetAgentFn, getAgentConfigPath: GetAge
             return ctx.json({ success: true, data: { content } }, 200);
         });
 }
+
+type ServerIdParamInput = { param: { serverId: string } };
+
+type AddServerRouteSchema = OpenAPIRouteSchema<
+    typeof addServerRoute,
+    { json: z.input<typeof McpServerRequestSchema> }
+>;
+type ListServersRouteSchema = OpenAPIRouteSchema<typeof listServersRoute, {}>;
+type GetServerConfigRouteSchema = OpenAPIRouteSchema<
+    typeof getServerConfigRoute,
+    ServerIdParamInput
+>;
+type UpdateServerRouteSchema = OpenAPIRouteSchema<
+    typeof updateServerRoute,
+    ServerIdParamInput & { json: z.input<typeof McpServerUpdateSchema> }
+>;
+type ToolsRouteSchema = OpenAPIRouteSchema<typeof toolsRoute, ServerIdParamInput>;
+type DeleteServerRouteSchema = OpenAPIRouteSchema<typeof deleteServerRoute, ServerIdParamInput>;
+type RestartServerRouteSchema = OpenAPIRouteSchema<typeof restartServerRoute, ServerIdParamInput>;
+type ExecToolRouteSchema = OpenAPIRouteSchema<
+    typeof execToolRoute,
+    { param: { serverId: string; toolName: string }; json: z.input<typeof ExecuteToolBodySchema> }
+>;
+type ListResourcesRouteSchema = OpenAPIRouteSchema<typeof listResourcesRoute, ServerIdParamInput>;
+type GetResourceContentRouteSchema = OpenAPIRouteSchema<
+    typeof getResourceContentRoute,
+    { param: { serverId: string; resourceId: string } }
+>;
+
+export type McpRouterSchema =
+    | AddServerRouteSchema
+    | ListServersRouteSchema
+    | GetServerConfigRouteSchema
+    | UpdateServerRouteSchema
+    | ToolsRouteSchema
+    | DeleteServerRouteSchema
+    | RestartServerRouteSchema
+    | ExecToolRouteSchema
+    | ListResourcesRouteSchema
+    | GetResourceContentRouteSchema;

@@ -1,3 +1,5 @@
+import { parseResponse, type ClientResponse } from '@dexto/client-sdk';
+
 /**
  * API Error Handling Utilities
  *
@@ -175,4 +177,49 @@ export function extractErrorDetails(errorData: Partial<DextoErrorResponse>): {
         endpoint,
         method,
     };
+}
+
+export class ApiError extends Error {
+    constructor(
+        message: string,
+        public status: number
+    ) {
+        super(message);
+        this.name = 'ApiError';
+    }
+}
+
+export async function throwApiError(
+    response: Response,
+    fallbackMessage = `Request failed (${response.status})`
+): Promise<never> {
+    const bodyText = await response.text().catch(() => '');
+
+    if (bodyText.trim().length === 0) {
+        throw new ApiError(fallbackMessage, response.status);
+    }
+
+    try {
+        const parsed = JSON.parse(bodyText) as Partial<DextoErrorResponse>;
+        throw new ApiError(extractErrorMessage(parsed, fallbackMessage), response.status);
+    } catch (error) {
+        if (error instanceof ApiError) {
+            throw error;
+        }
+    }
+
+    throw new ApiError(bodyText, response.status);
+}
+
+export async function parseApiResponse<TResponse extends ClientResponse<unknown>>(
+    responseOrPromise: TResponse | Promise<TResponse>,
+    fallbackMessage?: string
+): ReturnType<typeof parseResponse<TResponse>> {
+    const response = await responseOrPromise;
+
+    if (!response.ok) {
+        return await throwApiError(response, fallbackMessage);
+    }
+
+    return parseResponse(response);
 }
