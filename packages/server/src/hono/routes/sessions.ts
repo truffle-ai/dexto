@@ -143,8 +143,10 @@ async function expandBlobHistoryContentForApi(
                     break;
                 }
                 if (resolved) continue;
-            } catch {
-                // Preserve original part if blob expansion fails.
+            } catch (error) {
+                agent.logger.warn(
+                    `Failed to expand image blob for session history: ${error instanceof Error ? error.message : String(error)}`
+                );
             }
         }
 
@@ -178,8 +180,10 @@ async function expandBlobHistoryContentForApi(
                     break;
                 }
                 if (resolved) continue;
-            } catch {
-                // Preserve original part if blob expansion fails.
+            } catch (error) {
+                agent.logger.warn(
+                    `Failed to expand file blob for session history: ${error instanceof Error ? error.message : String(error)}`
+                );
             }
         }
 

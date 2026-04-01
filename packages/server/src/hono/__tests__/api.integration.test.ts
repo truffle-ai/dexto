@@ -587,6 +587,64 @@ describe('Hono API Integration Tests', () => {
             });
         });
 
+        it('GET /api/sessions/:id/history preserves blob refs when API expansion fails', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = 'test-session-history-failed-blob-expansion';
+
+            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId,
+            });
+
+            const database = testServer.agent.services.storageManager.getDatabase();
+            await database.append(`messages:${sessionId}`, {
+                role: 'tool',
+                toolCallId: 'call-history-missing-blob',
+                name: 'read_media_file',
+                success: true,
+                content: [
+                    {
+                        type: 'file',
+                        data: '@blob:missing-history-blob',
+                        mimeType: 'application/pdf',
+                        filename: 'missing.pdf',
+                    },
+                ],
+            });
+
+            const sessionData = await database.get<
+                { messageCount: number } & Record<string, unknown>
+            >(`session:${sessionId}`);
+            if (!sessionData) {
+                throw new Error(`Expected session '${sessionId}' to exist`);
+            }
+            sessionData.messageCount = 1;
+            await database.set(`session:${sessionId}`, sessionData);
+
+            const readSpy = vi
+                .spyOn(testServer.agent.resourceManager, 'read')
+                .mockRejectedValueOnce(new Error('blob missing'));
+
+            try {
+                const res = await httpRequest(
+                    testServer.baseUrl,
+                    'GET',
+                    `/api/sessions/${sessionId}/history`
+                );
+
+                expect(res.status).toBe(200);
+                const history = (res.body as { history: Array<{ content: unknown[] }> }).history;
+                expect(history).toHaveLength(1);
+                expect(history[0]?.content[0]).toEqual({
+                    type: 'file',
+                    data: '@blob:missing-history-blob',
+                    mimeType: 'application/pdf',
+                    filename: 'missing.pdf',
+                });
+            } finally {
+                readSpy.mockRestore();
+            }
+        });
+
         it('POST /api/sessions/:id/fork creates child with parentSessionId', async () => {
             if (!testServer) throw new Error('Test server not initialized');
             const parentSessionId = 'test-fork-parent';

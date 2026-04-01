@@ -13,6 +13,7 @@ import type { AgentServices } from '../utils/service-initializer.js';
 import { DextoRuntimeError } from '../errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '../errors/types.js';
 import { AgentErrorCode } from './error-codes.js';
+import { LLMErrorCode } from '../llm/error-codes.js';
 import { createLogger } from '../logger/factory.js';
 import {
     createInMemoryBlobStore,
@@ -106,7 +107,9 @@ describe('DextoAgent Lifecycle Management', () => {
             sessionManager: {
                 cleanup: vi.fn(),
                 init: vi.fn().mockResolvedValue(undefined),
+                getSession: vi.fn().mockResolvedValue(undefined),
                 createSession: vi.fn().mockResolvedValue({ id: 'test-session' }),
+                incrementMessageCount: vi.fn().mockResolvedValue(undefined),
             } as any,
             workspaceManager: {
                 setWorkspace: vi.fn(),
@@ -428,6 +431,61 @@ describe('DextoAgent Lifecycle Management', () => {
     });
 
     describe('Integration Tests', () => {
+        test('should validate extracted @resource media before session stream', async () => {
+            const settingsWithExpandedVideo: AgentRuntimeSettings = {
+                ...mockValidatedConfig,
+                llm: LLMConfigSchema.parse({
+                    ...mockValidatedConfig.llm,
+                    allowedMediaTypes: ['video/*'],
+                }),
+            };
+            mockValidatedConfig = settingsWithExpandedVideo;
+            (mockServices.stateManager.getRuntimeConfig as any).mockReturnValue(
+                settingsWithExpandedVideo
+            );
+            (mockServices.stateManager.getLLMConfig as any).mockReturnValue(
+                settingsWithExpandedVideo.llm
+            );
+
+            const sessionStream = vi.fn().mockResolvedValue(undefined);
+            mockServices.sessionManager.getSession = vi.fn().mockResolvedValue(undefined);
+            mockServices.sessionManager.createSession = vi.fn().mockResolvedValue({
+                id: 'test-session',
+                stream: sessionStream,
+            });
+
+            mockServices.resourceManager = {
+                list: vi.fn().mockResolvedValue({
+                    'blob:video-1': {
+                        uri: 'blob:video-1',
+                        name: 'clip.mp4',
+                        mimeType: 'video/mp4',
+                        source: 'internal',
+                    },
+                }),
+                read: vi.fn().mockResolvedValue({
+                    contents: [{ blob: 'AAAA', mimeType: 'video/mp4' }],
+                }),
+                cleanup: vi.fn(),
+            } as any;
+
+            const agent = createTestAgent(settingsWithExpandedVideo);
+            await agent.start();
+
+            await expect(agent.generate('Analyze @clip.mp4', 'test-session')).rejects.toMatchObject(
+                {
+                    issues: expect.arrayContaining([
+                        expect.objectContaining({
+                            code: LLMErrorCode.INPUT_FILE_UNSUPPORTED,
+                        }),
+                    ]),
+                }
+            );
+
+            expect(mockServices.sessionManager.createSession).not.toHaveBeenCalled();
+            expect(sessionStream).not.toHaveBeenCalled();
+        });
+
         test('should handle complete lifecycle without errors', async () => {
             const agent = createTestAgent(mockValidatedConfig);
 

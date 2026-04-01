@@ -1173,50 +1173,61 @@ export class DextoAgent {
                         `DextoAgent.stream: sessionId=${sessionId}, textLength=${textContent?.length ?? 0}, imageCount=${imageParts.length}, fileCount=${fileParts.length}`
                     );
 
-                    // Validate ALL inputs early using session-specific config
-                    // Validate text first (once)
-                    const textValidation = validateInputForLLM(
-                        { text: textContent },
-                        { provider: llmConfig.provider, model: llmConfig.model },
-                        this.logger
-                    );
-                    ensureOk(textValidation, this.logger);
+                    const validatePromptContentParts = (
+                        parts: import('./types.js').ContentPart[]
+                    ) => {
+                        const currentTextParts = parts.filter(
+                            (part): part is import('./types.js').TextPart => part.type === 'text'
+                        );
+                        const currentText = currentTextParts.map((part) => part.text).join('\n');
+                        const currentImageParts = parts.filter(
+                            (part): part is import('./types.js').ImagePart => part.type === 'image'
+                        );
+                        const currentFileParts = parts.filter(
+                            (part): part is import('./types.js').FilePart => part.type === 'file'
+                        );
 
-                    // Validate each image
-                    for (const imagePart of imageParts) {
-                        const imageValidation = validateInputForLLM(
-                            {
-                                imageData: {
-                                    image:
-                                        typeof imagePart.image === 'string'
-                                            ? imagePart.image
-                                            : imagePart.image.toString(),
-                                    mimeType: imagePart.mimeType || 'image/png',
-                                },
-                            },
+                        const textValidation = validateInputForLLM(
+                            { text: currentText },
                             { provider: llmConfig.provider, model: llmConfig.model },
                             this.logger
                         );
-                        ensureOk(imageValidation, this.logger);
-                    }
+                        ensureOk(textValidation, this.logger);
 
-                    // Validate each file
-                    for (const filePart of fileParts) {
-                        const fileValidation = validateInputForLLM(
-                            {
-                                fileData: {
-                                    data:
-                                        typeof filePart.data === 'string'
-                                            ? filePart.data
-                                            : filePart.data.toString(),
-                                    mimeType: filePart.mimeType,
+                        for (const imagePart of currentImageParts) {
+                            const imageValidation = validateInputForLLM(
+                                {
+                                    imageData: {
+                                        image:
+                                            typeof imagePart.image === 'string'
+                                                ? imagePart.image
+                                                : imagePart.image.toString(),
+                                        mimeType: imagePart.mimeType || 'image/png',
+                                    },
                                 },
-                            },
-                            { provider: llmConfig.provider, model: llmConfig.model },
-                            this.logger
-                        );
-                        ensureOk(fileValidation, this.logger);
-                    }
+                                { provider: llmConfig.provider, model: llmConfig.model },
+                                this.logger
+                            );
+                            ensureOk(imageValidation, this.logger);
+                        }
+
+                        for (const filePart of currentFileParts) {
+                            const fileValidation = validateInputForLLM(
+                                {
+                                    fileData: {
+                                        data:
+                                            typeof filePart.data === 'string'
+                                                ? filePart.data
+                                                : filePart.data.toString(),
+                                        mimeType: filePart.mimeType,
+                                    },
+                                },
+                                { provider: llmConfig.provider, model: llmConfig.model },
+                                this.logger
+                            );
+                            ensureOk(fileValidation, this.logger);
+                        }
+                    };
 
                     // Expand @resource mentions into canonical resource references for prompt projection
                     if (textContent.includes('@')) {
@@ -1311,6 +1322,9 @@ export class DextoAgent {
                         );
                         contentParts = [{ type: 'text', text: textContent }];
                     }
+
+                    // Validate the final prompt projection after any @resource expansion.
+                    validatePromptContentParts(contentParts);
 
                     // Get or create session
                     const session: ChatSession =
@@ -1772,64 +1786,75 @@ export class DextoAgent {
                 try {
                     const expandedContent = await Promise.all(
                         message.content.map(async (part): Promise<ContentPart> => {
-                            if (
-                                part.type === 'image' &&
-                                typeof part.image === 'string' &&
-                                part.image.startsWith('@blob:')
-                            ) {
-                                const result = await this.resourceManager.read(part.image.slice(1));
-                                for (const item of result.contents) {
-                                    if (
-                                        typeof item === 'object' &&
-                                        item !== null &&
-                                        'blob' in item &&
-                                        typeof item.blob === 'string'
-                                    ) {
-                                        return {
-                                            type: 'image',
-                                            image: item.blob,
-                                            ...(typeof item.mimeType === 'string'
-                                                ? { mimeType: item.mimeType }
-                                                : part.mimeType !== undefined
-                                                  ? { mimeType: part.mimeType }
-                                                  : {}),
-                                        };
+                            try {
+                                if (
+                                    part.type === 'image' &&
+                                    typeof part.image === 'string' &&
+                                    part.image.startsWith('@blob:')
+                                ) {
+                                    const result = await this.resourceManager.read(
+                                        part.image.slice(1)
+                                    );
+                                    for (const item of result.contents) {
+                                        if (
+                                            typeof item === 'object' &&
+                                            item !== null &&
+                                            'blob' in item &&
+                                            typeof item.blob === 'string'
+                                        ) {
+                                            return {
+                                                type: 'image',
+                                                image: item.blob,
+                                                ...(typeof item.mimeType === 'string'
+                                                    ? { mimeType: item.mimeType }
+                                                    : part.mimeType !== undefined
+                                                      ? { mimeType: part.mimeType }
+                                                      : {}),
+                                            };
+                                        }
                                     }
                                 }
-                            }
 
-                            if (
-                                part.type === 'file' &&
-                                typeof part.data === 'string' &&
-                                part.data.startsWith('@blob:')
-                            ) {
-                                const result = await this.resourceManager.read(part.data.slice(1));
-                                for (const item of result.contents) {
-                                    if (
-                                        typeof item === 'object' &&
-                                        item !== null &&
-                                        'blob' in item &&
-                                        typeof item.blob === 'string'
-                                    ) {
-                                        return {
-                                            type: 'file',
-                                            data: item.blob,
-                                            mimeType:
-                                                typeof item.mimeType === 'string'
-                                                    ? item.mimeType
-                                                    : part.mimeType,
-                                            ...('filename' in item &&
-                                            typeof item.filename === 'string'
-                                                ? { filename: item.filename }
-                                                : part.filename !== undefined
-                                                  ? { filename: part.filename }
-                                                  : {}),
-                                        };
+                                if (
+                                    part.type === 'file' &&
+                                    typeof part.data === 'string' &&
+                                    part.data.startsWith('@blob:')
+                                ) {
+                                    const result = await this.resourceManager.read(
+                                        part.data.slice(1)
+                                    );
+                                    for (const item of result.contents) {
+                                        if (
+                                            typeof item === 'object' &&
+                                            item !== null &&
+                                            'blob' in item &&
+                                            typeof item.blob === 'string'
+                                        ) {
+                                            return {
+                                                type: 'file',
+                                                data: item.blob,
+                                                mimeType:
+                                                    typeof item.mimeType === 'string'
+                                                        ? item.mimeType
+                                                        : part.mimeType,
+                                                ...('filename' in item &&
+                                                typeof item.filename === 'string'
+                                                    ? { filename: item.filename }
+                                                    : part.filename !== undefined
+                                                      ? { filename: part.filename }
+                                                      : {}),
+                                            };
+                                        }
                                     }
                                 }
-                            }
 
-                            return part;
+                                return part;
+                            } catch (error) {
+                                this.logger.warn(
+                                    `Failed to expand blob content part in message: ${error instanceof Error ? error.message : String(error)}`
+                                );
+                                return part;
+                            }
                         })
                     );
 
