@@ -15,6 +15,7 @@ import {
     NotFoundErrorResponse,
     ScopedUsageSummarySchema,
     UsageSummarySchema,
+    toApiInternalMessage,
 } from '../schemas/responses.js';
 import { handleHonoError } from '../middleware/error.js';
 import type { GetAgentFn, OpenAPIRouteSchema } from '../types.js';
@@ -681,7 +682,7 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             // for binary data, but JSON responses are always base64 strings.
             return ctx.json(
                 {
-                    history: history as z.output<typeof InternalMessageSchema>[],
+                    history: history.map((message) => toApiInternalMessage(message)),
                     isBusy,
                 },
                 200

@@ -1,6 +1,7 @@
 // src/agent/DextoAgent.ts
 import { randomUUID } from 'crypto';
 import { setMaxListeners } from 'events';
+import path from 'node:path';
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
@@ -1281,12 +1282,9 @@ export class DextoAgent {
                                     kind: resource.kind,
                                     ...(resource.size !== undefined ? { size: resource.size } : {}),
                                     metadata: {
-                                        ...(resource.uri.startsWith('/')
-                                            ? {
-                                                  originalPath: resource.uri,
-                                                  source: 'filesystem' as const,
-                                              }
-                                            : { source: 'tool' as const }),
+                                        source: path.isAbsolute(resource.uri)
+                                            ? ('filesystem' as const)
+                                            : ('tool' as const),
                                     },
                                 });
                                 this.logger.debug(

@@ -34,6 +34,7 @@ import {
     LLM_PROVIDERS,
     SUPPORTED_FILE_TYPES,
     type ContentPart as CoreContentPart,
+    type InternalMessage as CoreInternalMessage,
 } from '@dexto/core';
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
@@ -277,8 +278,7 @@ export const ResourcePartSchema = z
         size: z.number().int().nonnegative().optional().describe('Size in bytes'),
         metadata: z
             .object({
-                originalPath: z.string().optional().describe('Original filesystem path'),
-                mtimeMs: z.number().int().nonnegative().optional().describe('mtime in ms'),
+                mtimeMs: z.number().nonnegative().optional().describe('mtime in ms'),
                 source: z
                     .enum(['filesystem', 'upload', 'generated', 'tool', 'remote'])
                     .optional()
@@ -350,6 +350,32 @@ function serializeBinaryValue(value: string | Uint8Array | Buffer | ArrayBuffer 
     return Buffer.from(value).toString('base64');
 }
 
+function toApiResourceMetadata(
+    metadata: Extract<CoreContentPart, { type: 'resource' }>['metadata'] | undefined
+) {
+    if (!metadata) {
+        return undefined;
+    }
+
+    const sanitized = {
+        ...(metadata.mtimeMs !== undefined ? { mtimeMs: metadata.mtimeMs } : {}),
+        ...(metadata.source !== undefined ? { source: metadata.source } : {}),
+    };
+
+    return Object.keys(sanitized).length > 0 ? sanitized : undefined;
+}
+
+export function toApiInternalMessage(
+    message: CoreInternalMessage
+): z.output<typeof InternalMessageSchema> {
+    return {
+        ...message,
+        content: Array.isArray(message.content)
+            ? message.content.map((part) => toApiContentPart(part))
+            : message.content,
+    };
+}
+
 export function toContentInput(
     rawContent: z.output<typeof RequestContentSchema>
 ): CoreContentPart[] {
@@ -409,7 +435,9 @@ export function toApiContentPart(part: CoreContentPart): z.output<typeof Content
                 mimeType: part.mimeType,
                 kind: part.kind,
                 ...(part.size !== undefined ? { size: part.size } : {}),
-                ...(part.metadata !== undefined ? { metadata: part.metadata } : {}),
+                ...(toApiResourceMetadata(part.metadata) !== undefined
+                    ? { metadata: toApiResourceMetadata(part.metadata) }
+                    : {}),
             };
         case 'ui-resource':
             return {

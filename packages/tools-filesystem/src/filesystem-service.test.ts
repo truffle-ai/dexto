@@ -92,6 +92,29 @@ describe('FileSystemService', () => {
             );
         });
 
+        it('rejects binary-like content even when the extension looks textual', async () => {
+            const fileSystemService = new FileSystemService(
+                {
+                    allowedPaths: [tempDir],
+                    blockedPaths: [],
+                    blockedExtensions: [],
+                    maxFileSize: 10 * 1024 * 1024,
+                    workingDirectory: tempDir,
+                    enableBackups: false,
+                    backupRetentionDays: 7,
+                },
+                mockLogger as any
+            );
+            await fileSystemService.initialize();
+
+            const testFile = path.join(tempDir, 'data.json');
+            await fs.writeFile(testFile, Buffer.from([0x7b, 0x00, 0x22, 0x78, 0x22, 0x7d]));
+
+            await expect(fileSystemService.readFile(testFile)).rejects.toThrow(
+                /Use read_media_file instead/
+            );
+        });
+
         it('reads media files as base64 with MIME-aware kind metadata', async () => {
             const fileSystemService = new FileSystemService(
                 {

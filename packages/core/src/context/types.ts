@@ -59,7 +59,6 @@ export interface ResourcePart {
     kind: 'text' | 'image' | 'audio' | 'video' | 'binary';
     size?: number;
     metadata?: {
-        originalPath?: string;
         mtimeMs?: number;
         source?: 'filesystem' | 'upload' | 'generated' | 'tool' | 'remote';
     };

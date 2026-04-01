@@ -209,22 +209,26 @@ export async function throwApiError(
     throw new ApiError(bodyText, response.status);
 }
 
-type ApiResponseLike<TJson> = {
-    ok: boolean;
-    status: number;
-    text(): Promise<string>;
-    json(): Promise<TJson>;
+type ApiResponseLike = Response & {
+    json(): Promise<unknown>;
 };
 
-export async function parseApiResponse<TJson>(
-    responseOrPromise: ApiResponseLike<TJson> | Promise<ApiResponseLike<TJson>>,
+type SuccessResponse<TResponse extends ApiResponseLike> =
+    Extract<TResponse, { ok: true }> extends never ? TResponse : Extract<TResponse, { ok: true }>;
+
+type SuccessResponseJson<TResponse extends ApiResponseLike> = Awaited<
+    ReturnType<SuccessResponse<TResponse>['json']>
+>;
+
+export async function parseApiResponse<TResponse extends ApiResponseLike>(
+    responseOrPromise: TResponse | Promise<TResponse>,
     fallbackMessage?: string
-): Promise<TJson> {
+): Promise<SuccessResponseJson<TResponse>> {
     const response = await responseOrPromise;
 
     if (!response.ok) {
-        return await throwApiError(response as Response, fallbackMessage);
+        return await throwApiError(response, fallbackMessage);
     }
 
-    return response.json();
+    return (await response.json()) as SuccessResponseJson<TResponse>;
 }

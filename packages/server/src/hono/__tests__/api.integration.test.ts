@@ -491,6 +491,11 @@ describe('Hono API Integration Tests', () => {
                         name: 'demo-video.mp4',
                         mimeType: 'video/mp4',
                         kind: 'video',
+                        metadata: {
+                            originalPath: '/tmp/demo-video.mp4',
+                            mtimeMs: 1234.5,
+                            source: 'filesystem',
+                        },
                     },
                 ],
             });
@@ -519,6 +524,10 @@ describe('Hono API Integration Tests', () => {
                 name: 'demo-video.mp4',
                 mimeType: 'video/mp4',
                 kind: 'video',
+                metadata: {
+                    mtimeMs: 1234.5,
+                    source: 'filesystem',
+                },
             });
         });
 

@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Dexto API",
-    "version": "1.6.20",
+    "version": "1.6.21",
     "description": "OpenAPI spec for the Dexto REST API server"
   },
   "servers": [
@@ -18911,12 +18911,8 @@
                                         "metadata": {
                                           "type": "object",
                                           "properties": {
-                                            "originalPath": {
-                                              "type": "string",
-                                              "description": "Original filesystem path"
-                                            },
                                             "mtimeMs": {
-                                              "type": "integer",
+                                              "type": "number",
                                               "minimum": 0,
                                               "description": "mtime in ms"
                                             },
@@ -23721,12 +23717,8 @@
                                             "metadata": {
                                               "type": "object",
                                               "properties": {
-                                                "originalPath": {
-                                                  "type": "string",
-                                                  "description": "Original filesystem path"
-                                                },
                                                 "mtimeMs": {
-                                                  "type": "integer",
+                                                  "type": "number",
                                                   "minimum": 0,
                                                   "description": "mtime in ms"
                                                 },
@@ -24568,12 +24560,8 @@
                                                 "metadata": {
                                                   "type": "object",
                                                   "properties": {
-                                                    "originalPath": {
-                                                      "type": "string",
-                                                      "description": "Original filesystem path"
-                                                    },
                                                     "mtimeMs": {
-                                                      "type": "integer",
+                                                      "type": "number",
                                                       "minimum": 0,
                                                       "description": "mtime in ms"
                                                     },
@@ -45848,12 +45836,8 @@
                                     "metadata": {
                                       "type": "object",
                                       "properties": {
-                                        "originalPath": {
-                                          "type": "string",
-                                          "description": "Original filesystem path"
-                                        },
                                         "mtimeMs": {
-                                          "type": "integer",
+                                          "type": "number",
                                           "minimum": 0,
                                           "description": "mtime in ms"
                                         },

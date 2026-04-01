@@ -244,7 +244,7 @@ export class FileSystemService {
             const mimeType = detectMimeType(normalizedPath, rawContent);
             const binaryLike = isLikelyBinary(rawContent);
             const canReadAsText =
-                isTextMimeType(mimeType) || (mimeType === 'image/svg+xml' && !binaryLike);
+                !binaryLike && (isTextMimeType(mimeType) || mimeType === 'image/svg+xml');
 
             if (!canReadAsText) {
                 throw FileSystemError.readFailed(

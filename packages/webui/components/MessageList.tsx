@@ -87,6 +87,16 @@ const formatTimestamp = (timestamp: number) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
+function handleInteractiveImageKeyDown(
+    event: React.KeyboardEvent<HTMLElement>,
+    onActivate: () => void
+) {
+    if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        onActivate();
+    }
+}
+
 // Helper to validate data URIs to prevent XSS
 function isValidDataUri(src: string, expectedType?: 'image' | 'video' | 'audio'): boolean {
     const typePattern = expectedType ? `${expectedType}/` : '[a-z0-9.+-]+/';
@@ -1115,6 +1125,29 @@ export default function MessageList({
                                                                                     <div
                                                                                         key={`${msgKey}-img-${idx}`}
                                                                                         className="relative group"
+                                                                                        role="button"
+                                                                                        tabIndex={0}
+                                                                                        aria-label={`Open image attachment ${idx + 1}`}
+                                                                                        onClick={() =>
+                                                                                            openImageModal(
+                                                                                                src,
+                                                                                                `Attachment ${idx + 1}`,
+                                                                                                filename
+                                                                                            )
+                                                                                        }
+                                                                                        onKeyDown={(
+                                                                                            event
+                                                                                        ) =>
+                                                                                            handleInteractiveImageKeyDown(
+                                                                                                event,
+                                                                                                () =>
+                                                                                                    openImageModal(
+                                                                                                        src,
+                                                                                                        `Attachment ${idx + 1}`,
+                                                                                                        filename
+                                                                                                    )
+                                                                                            )
+                                                                                        }
                                                                                     >
                                                                                         <img
                                                                                             src={
@@ -1122,13 +1155,6 @@ export default function MessageList({
                                                                                             }
                                                                                             alt={`Attachment ${idx + 1}`}
                                                                                             className="rounded-lg border border-border object-cover cursor-pointer w-full h-32 sm:h-40"
-                                                                                            onClick={() =>
-                                                                                                openImageModal(
-                                                                                                    src,
-                                                                                                    `Attachment ${idx + 1}`,
-                                                                                                    filename
-                                                                                                )
-                                                                                            }
                                                                                         />
                                                                                         <DownloadAction
                                                                                             href={
@@ -1378,6 +1404,31 @@ export default function MessageList({
                                                                                                 partKey
                                                                                             }
                                                                                             className="my-2 relative group"
+                                                                                            role="button"
+                                                                                            tabIndex={
+                                                                                                0
+                                                                                            }
+                                                                                            aria-label={`Open image ${resourcePart.name}`}
+                                                                                            onClick={() =>
+                                                                                                openImageModal(
+                                                                                                    src,
+                                                                                                    resourcePart.name,
+                                                                                                    resourcePart.name
+                                                                                                )
+                                                                                            }
+                                                                                            onKeyDown={(
+                                                                                                event
+                                                                                            ) =>
+                                                                                                handleInteractiveImageKeyDown(
+                                                                                                    event,
+                                                                                                    () =>
+                                                                                                        openImageModal(
+                                                                                                            src,
+                                                                                                            resourcePart.name,
+                                                                                                            resourcePart.name
+                                                                                                        )
+                                                                                                )
+                                                                                            }
                                                                                         >
                                                                                             <img
                                                                                                 src={
@@ -1387,13 +1438,6 @@ export default function MessageList({
                                                                                                     resourcePart.name
                                                                                                 }
                                                                                                 className="max-w-full max-h-[300px] rounded-lg shadow-sm"
-                                                                                                onClick={() =>
-                                                                                                    openImageModal(
-                                                                                                        src,
-                                                                                                        resourcePart.name,
-                                                                                                        resourcePart.name
-                                                                                                    )
-                                                                                                }
                                                                                             />
                                                                                             <DownloadAction
                                                                                                 href={
@@ -1760,8 +1804,16 @@ export default function MessageList({
                                 <div key={`${msgKey}-image-${imageIndex}`} className="mt-3 pl-9">
                                     <div
                                         className="relative group inline-block"
+                                        role="button"
+                                        tabIndex={0}
+                                        aria-label={`Open image ${image.alt}`}
                                         onClick={() =>
                                             openImageModal(image.src, image.alt, image.filename)
+                                        }
+                                        onKeyDown={(event) =>
+                                            handleInteractiveImageKeyDown(event, () =>
+                                                openImageModal(image.src, image.alt, image.filename)
+                                            )
                                         }
                                     >
                                         <img

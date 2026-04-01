@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { client } from '@/lib/client';
 import { parseApiResponse } from '@/lib/api-errors';
@@ -87,6 +87,10 @@ export interface ResourceState {
 
 type ResourceStateMap = Record<string, ResourceState>;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+}
+
 function decodeBase64(base64: string): number[] {
     const normalized = base64.replace(/\s/g, '');
     const binary = window.atob(normalized);
@@ -105,9 +109,10 @@ function createObjectUrl(base64: string, mimeType?: string): string {
     return URL.createObjectURL(blob);
 }
 
-function normalizeResource(uri: string, payload: any): RawNormalizedResource {
-    const contents = Array.isArray(payload?.contents) ? payload.contents : [];
-    const meta = (payload?._meta ?? {}) as Record<string, unknown>;
+function normalizeResource(uri: string, payload: unknown): RawNormalizedResource {
+    const payloadRecord = isRecord(payload) ? payload : null;
+    const contents = Array.isArray(payloadRecord?.contents) ? payloadRecord.contents : [];
+    const meta = isRecord(payloadRecord?._meta) ? payloadRecord._meta : {};
     const name =
         (typeof meta.originalName === 'string' && meta.originalName.trim().length > 0
             ? meta.originalName
@@ -116,12 +121,12 @@ function normalizeResource(uri: string, payload: any): RawNormalizedResource {
     const items: RawNormalizedResourceItem[] = [];
 
     for (const item of contents) {
-        if (!item || typeof item !== 'object') continue;
+        if (!isRecord(item)) continue;
 
-        if (typeof (item as { text?: unknown }).text === 'string') {
+        if (typeof item.text === 'string') {
             items.push({
                 kind: 'text',
-                text: (item as { text: string }).text,
+                text: item.text,
                 mimeType: typeof item.mimeType === 'string' ? item.mimeType : undefined,
             });
             continue;
@@ -133,7 +138,10 @@ function normalizeResource(uri: string, payload: any): RawNormalizedResource {
         const filename = typeof item.filename === 'string' ? item.filename : undefined;
 
         if ((blobData || rawData) && mimeType) {
-            const base64 = blobData ?? rawData!;
+            const base64 = blobData ?? rawData;
+            if (!base64) {
+                continue;
+            }
             if (mimeType.startsWith('image/')) {
                 items.push({
                     kind: 'image',
@@ -296,9 +304,12 @@ export function useResourceContent(resourceUris: string[]): ResourceStateMap {
         })
         .join('|');
 
-    const { resources, objectUrls } = useMemo(() => {
-        const result: ResourceStateMap = {};
-        const urls: string[] = [];
+    const rawResources = useMemo(() => {
+        const result: Record<
+            string,
+            | { status: 'loading' | 'error'; error?: string }
+            | { status: 'loaded'; data: RawNormalizedResource }
+        > = {};
 
         queries.forEach((query, index) => {
             const uri = normalizedUris[index];
@@ -312,24 +323,40 @@ export function useResourceContent(resourceUris: string[]): ResourceStateMap {
                     error: query.error instanceof Error ? query.error.message : String(query.error),
                 };
             } else if (query.data) {
-                const materialized = materializeResource(query.data);
-                urls.push(...materialized.objectUrls);
-                result[uri] = { status: 'loaded', data: materialized.data };
+                result[uri] = { status: 'loaded', data: query.data };
             }
         });
 
-        return { resources: result, objectUrls: urls };
+        return result;
         // We intentionally key this memo off querySignature instead of the queries array identity.
-        // useQueries returns a new array reference frequently, which would recreate object URLs on
-        // every render. querySignature changes only when the meaningful query state/data changes.
+        // useQueries returns a new array reference frequently, so we derive a stable snapshot from
+        // the query state and materialize resource URLs later in an effect.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [normalizedUris, querySignature]);
 
+    const [resources, setResources] = useState<ResourceStateMap>({});
+
     useEffect(() => {
+        const nextResources: ResourceStateMap = {};
+        const objectUrls: string[] = [];
+
+        Object.entries(rawResources).forEach(([uri, resource]) => {
+            if (resource.status !== 'loaded') {
+                nextResources[uri] = resource;
+                return;
+            }
+
+            const materialized = materializeResource(resource.data);
+            objectUrls.push(...materialized.objectUrls);
+            nextResources[uri] = { status: 'loaded', data: materialized.data };
+        });
+
+        setResources(nextResources);
+
         return () => {
             objectUrls.forEach((url) => URL.revokeObjectURL(url));
         };
-    }, [objectUrls]);
+    }, [rawResources]);
 
     return resources;
 }

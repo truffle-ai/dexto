@@ -44,14 +44,21 @@ export function useCreatePrompt() {
 }
 
 type ResolvePromptParams = Parameters<(typeof client.api.prompts)[':name']['resolve']['$get']>[0];
+type ResolvePromptResponse = { text: string };
 
 export function useResolvePrompt() {
-    return useMutation({
+    return useMutation<
+        ResolvePromptResponse,
+        Error,
+        {
+            name: string;
+        } & ResolvePromptParams['query']
+    >({
         mutationFn: async (
             payload: {
                 name: string;
             } & ResolvePromptParams['query']
-        ) => {
+        ): Promise<ResolvePromptResponse> => {
             const { name, ...query } = payload;
             return await parseApiResponse(
                 client.api.prompts[':name'].resolve.$get({
