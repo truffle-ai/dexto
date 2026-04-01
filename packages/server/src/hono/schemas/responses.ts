@@ -32,7 +32,9 @@ import {
     LLM_PRICING_STATUSES,
     LLMConfigBaseSchema as CoreLLMConfigBaseSchema,
     LLM_PROVIDERS,
+    SUPPORTED_FILE_TYPES,
     type ContentPart as CoreContentPart,
+    type InternalMessage as CoreInternalMessage,
 } from '@dexto/core';
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
@@ -264,6 +266,31 @@ export const FilePartSchema = z
     .strict()
     .describe('File content part');
 
+export const ResourcePartSchema = z
+    .object({
+        type: z.literal('resource').describe('Part type: resource'),
+        uri: z.string().describe('Canonical resource reference'),
+        name: z.string().describe('Display name for the resource'),
+        mimeType: z.string().describe('MIME type of the resource'),
+        kind: z
+            .enum(['text', 'image', 'audio', 'video', 'binary'])
+            .describe('Resource kind for rendering and prompt projection'),
+        size: z.number().int().nonnegative().optional().describe('Size in bytes'),
+        metadata: z
+            .object({
+                mtimeMs: z.number().nonnegative().optional().describe('mtime in ms'),
+                source: z
+                    .enum(['filesystem', 'upload', 'generated', 'tool', 'remote'])
+                    .optional()
+                    .describe('How the resource was created'),
+            })
+            .strict()
+            .optional()
+            .describe('Optional resource metadata'),
+    })
+    .strict()
+    .describe('Canonical resource reference part');
+
 export const UIResourcePartSchema = z
     .object({
         type: z.literal('ui-resource').describe('Part type: ui-resource'),
@@ -297,9 +324,10 @@ export const ContentPartSchema = z
         TextPartSchema,
         ImagePartSchema,
         FilePartSchema,
+        ResourcePartSchema,
         UIResourcePartSchema,
     ])
-    .describe('Message content part (text, image, file, or UI resource)');
+    .describe('Message content part (text, image, file, resource, or UI resource)');
 
 export const RequestContentPartSchema = z
     .discriminatedUnion('type', [TextPartSchema, ImagePartSchema, FilePartSchema])
@@ -320,6 +348,63 @@ function serializeBinaryValue(value: string | Uint8Array | Buffer | ArrayBuffer 
         return Buffer.from(new Uint8Array(value)).toString('base64');
     }
     return Buffer.from(value).toString('base64');
+}
+
+function toApiResourceMetadata(
+    metadata: Extract<CoreContentPart, { type: 'resource' }>['metadata'] | undefined
+) {
+    if (!metadata) {
+        return undefined;
+    }
+
+    const sanitized = {
+        ...(metadata.mtimeMs !== undefined ? { mtimeMs: metadata.mtimeMs } : {}),
+        ...(metadata.source !== undefined ? { source: metadata.source } : {}),
+    };
+
+    return Object.keys(sanitized).length > 0 ? sanitized : undefined;
+}
+
+export function toApiInternalMessage(
+    message: CoreInternalMessage
+): z.output<typeof InternalMessageSchema> {
+    return {
+        ...(message.id !== undefined ? { id: message.id } : {}),
+        role: message.role,
+        ...(message.timestamp !== undefined ? { timestamp: message.timestamp } : {}),
+        content: Array.isArray(message.content)
+            ? message.content.map((part) => toApiContentPart(part))
+            : message.content,
+        ...('reasoning' in message && message.reasoning !== undefined
+            ? { reasoning: message.reasoning }
+            : {}),
+        ...('tokenUsage' in message && message.tokenUsage !== undefined
+            ? { tokenUsage: message.tokenUsage }
+            : {}),
+        ...('estimatedCost' in message && message.estimatedCost !== undefined
+            ? { estimatedCost: message.estimatedCost }
+            : {}),
+        ...('pricingStatus' in message && message.pricingStatus !== undefined
+            ? { pricingStatus: message.pricingStatus }
+            : {}),
+        ...('usageScopeId' in message && message.usageScopeId !== undefined
+            ? { usageScopeId: message.usageScopeId }
+            : {}),
+        ...('model' in message && message.model !== undefined ? { model: message.model } : {}),
+        ...('provider' in message && message.provider !== undefined
+            ? { provider: message.provider }
+            : {}),
+        ...('toolCalls' in message && message.toolCalls !== undefined
+            ? { toolCalls: message.toolCalls }
+            : {}),
+        ...('toolCallId' in message && message.toolCallId !== undefined
+            ? { toolCallId: message.toolCallId }
+            : {}),
+        ...('name' in message && message.name !== undefined ? { name: message.name } : {}),
+        ...('success' in message && message.success !== undefined
+            ? { success: message.success }
+            : {}),
+    };
 }
 
 export function toContentInput(
@@ -372,6 +457,18 @@ export function toApiContentPart(part: CoreContentPart): z.output<typeof Content
                 data: serializeBinaryValue(part.data),
                 mimeType: part.mimeType,
                 ...(part.filename !== undefined ? { filename: part.filename } : {}),
+            };
+        case 'resource':
+            return {
+                type: 'resource',
+                uri: part.uri,
+                name: part.name,
+                mimeType: part.mimeType,
+                kind: part.kind,
+                ...(part.size !== undefined ? { size: part.size } : {}),
+                ...(toApiResourceMetadata(part.metadata) !== undefined
+                    ? { metadata: toApiResourceMetadata(part.metadata) }
+                    : {}),
             };
         case 'ui-resource':
             return {
@@ -820,7 +917,7 @@ export const CatalogModelInfoSchema = z
         maxInputTokens: z.number().int().positive().describe('Maximum input tokens'),
         default: z.boolean().optional().describe('Whether this is a default model'),
         supportedFileTypes: z
-            .array(z.enum(['audio', 'pdf', 'image']))
+            .array(z.enum(SUPPORTED_FILE_TYPES))
             .describe('File types this model supports'),
         displayName: z.string().optional().describe('Human-readable display name'),
         pricing: z
@@ -852,7 +949,7 @@ export const ProviderCatalogSchema = z
         supportsBaseURL: z.boolean().describe('Whether custom base URLs are supported'),
         models: z.array(CatalogModelInfoSchema).describe('Models available from this provider'),
         supportedFileTypes: z
-            .array(z.enum(['audio', 'pdf', 'image']))
+            .array(z.enum(SUPPORTED_FILE_TYPES))
             .describe('Provider-level file type support'),
     })
     .strict()

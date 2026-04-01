@@ -1,5 +1,3 @@
-import { parseResponse, type ClientResponse } from '@dexto/client-sdk';
-
 /**
  * API Error Handling Utilities
  *
@@ -211,15 +209,26 @@ export async function throwApiError(
     throw new ApiError(bodyText, response.status);
 }
 
-export async function parseApiResponse<TResponse extends ClientResponse<unknown>>(
+type ApiResponseLike = Response & {
+    json(): Promise<unknown>;
+};
+
+type SuccessResponse<TResponse extends ApiResponseLike> =
+    Extract<TResponse, { ok: true }> extends never ? TResponse : Extract<TResponse, { ok: true }>;
+
+type SuccessResponseJson<TResponse extends ApiResponseLike> = Awaited<
+    ReturnType<SuccessResponse<TResponse>['json']>
+>;
+
+export async function parseApiResponse<TResponse extends ApiResponseLike>(
     responseOrPromise: TResponse | Promise<TResponse>,
     fallbackMessage?: string
-): ReturnType<typeof parseResponse<TResponse>> {
+): Promise<SuccessResponseJson<TResponse>> {
     const response = await responseOrPromise;
 
     if (!response.ok) {
         return await throwApiError(response, fallbackMessage);
     }
 
-    return parseResponse(response);
+    return (await response.json()) as SuccessResponseJson<TResponse>;
 }

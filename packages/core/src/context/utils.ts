@@ -3,6 +3,7 @@ import {
     TextPart,
     ImagePart,
     FilePart,
+    ResourcePart,
     UIResourcePart,
     ContentPart,
     SanitizedToolResult,
@@ -142,9 +143,42 @@ function coerceContentToParts(
                 cloned.filename = item.filename;
             }
             normalized.push(cloned);
+        } else if (item.type === 'resource') {
+            continue;
         }
     }
     return normalized;
+}
+
+function normalizeResourceUriForRead(uri: string): string {
+    if (
+        uri.startsWith('blob:') ||
+        uri.startsWith('mcp:') ||
+        uri.startsWith('fs://') ||
+        uri.startsWith('http://') ||
+        uri.startsWith('https://')
+    ) {
+        return uri;
+    }
+
+    if (uri.startsWith('/') || /^[A-Za-z]:[\\/]/.test(uri)) {
+        return `fs://${uri.replace(/\\/g, '/')}`;
+    }
+
+    return uri;
+}
+
+function buildResourceAnchorText(part: ResourcePart): string {
+    const label =
+        part.kind === 'image'
+            ? 'Attached image'
+            : part.kind === 'audio'
+              ? 'Attached audio'
+              : part.kind === 'video'
+                ? 'Attached video'
+                : 'Attached file';
+    const nameSuffix = part.name && part.name !== part.uri ? ` (${part.name})` : '';
+    return `${label}: ${part.uri}${nameSuffix}`;
 }
 
 function detectInlineMedia(
@@ -300,32 +334,38 @@ async function resolveBlobReferenceToParts(
     resourceUri: string,
     resourceManager: import('../resources/index.js').ResourceManager,
     logger: Logger,
-    allowedMediaTypes?: string[]
+    allowedMediaTypes?: string[],
+    expandMatchingMedia = true
 ): Promise<Array<TextPart | ImagePart | FilePart>> {
     try {
-        const result = await resourceManager.read(resourceUri);
+        const result = await resourceManager.read(normalizeResourceUriForRead(resourceUri));
+        const mimeType = result.contents[0]?.mimeType;
+        const metadata = result._meta as { size?: number; originalName?: string } | undefined;
 
-        // Check if this blob type is allowed (if filtering is enabled)
-        if (allowedMediaTypes) {
-            const mimeType = result.contents[0]?.mimeType;
-            const metadata = result._meta as { size?: number; originalName?: string } | undefined;
+        const shouldPlaceholderForUnsupportedMedia =
+            mimeType !== undefined &&
+            allowedMediaTypes !== undefined &&
+            !matchesAnyMimePattern(mimeType, allowedMediaTypes);
+        const shouldPlaceholderForRetainedHistoryMedia =
+            mimeType !== undefined && isBinaryMediaMimeType(mimeType) && !expandMatchingMedia;
 
-            if (mimeType && !matchesAnyMimePattern(mimeType, allowedMediaTypes)) {
-                // Generate placeholder for filtered media
-                const placeholderMetadata: {
-                    mimeType: string;
-                    size: number;
-                    originalName?: string;
-                } = {
-                    mimeType,
-                    size: metadata?.size ?? 0,
-                };
-                if (metadata?.originalName) {
-                    placeholderMetadata.originalName = metadata.originalName;
-                }
-                const placeholder = generateMediaPlaceholder(placeholderMetadata);
-                return [{ type: 'text', text: placeholder }];
+        if (
+            mimeType &&
+            (shouldPlaceholderForUnsupportedMedia || shouldPlaceholderForRetainedHistoryMedia)
+        ) {
+            const placeholderMetadata: {
+                mimeType: string;
+                size: number;
+                originalName?: string;
+            } = {
+                mimeType,
+                size: metadata?.size ?? 0,
+            };
+            if (metadata?.originalName) {
+                placeholderMetadata.originalName = metadata.originalName;
             }
+            const placeholder = generateMediaPlaceholder(placeholderMetadata);
+            return [{ type: 'text', text: placeholder }];
         }
 
         const parts: Array<TextPart | ImagePart | FilePart> = [];
@@ -451,6 +491,9 @@ export function estimateContentPartTokens(part: ContentPart): number {
         // 2. This only affects the "new messages" delta and /context display
         // 3. File attachments in tool results are relatively rare
         return 1000;
+    }
+    if (part.type === 'resource') {
+        return part.kind === 'text' ? 250 : 1000;
     }
     return 0;
 }
@@ -700,13 +743,14 @@ async function expandBlobsInText(
     text: string,
     resourceManager: import('../resources/index.js').ResourceManager,
     logger: Logger,
-    allowedMediaTypes?: string[]
+    allowedMediaTypes?: string[],
+    expandMatchingMedia = true
 ): Promise<Array<TextPart | ImagePart | FilePart>> {
     if (!text.includes('@blob:')) {
         return [{ type: 'text', text }];
     }
 
-    const blobRefPattern = /@blob:[a-f0-9]+/g;
+    const blobRefPattern = /@blob:[a-f0-9-]+/g;
     const matches = [...text.matchAll(blobRefPattern)];
 
     if (matches.length === 0) {
@@ -736,7 +780,8 @@ async function expandBlobsInText(
                 resourceUri,
                 resourceManager,
                 logger,
-                allowedMediaTypes
+                allowedMediaTypes,
+                expandMatchingMedia
             );
             resolvedCache.set(resourceUri, resolvedParts);
         }
@@ -764,6 +809,7 @@ async function expandBlobsInText(
  * Resolves blob references in message content to actual data.
  * Expands @blob:id references to their actual base64 content for LLM consumption.
  * Can optionally filter by MIME type patterns - unsupported types are replaced with descriptive placeholders.
+ * Older binary media can also be demoted to placeholders while preserving text/blob expansion.
  *
  * @param content The message content that may contain blob references
  * @param resourceManager Resource manager for resolving blob references
@@ -777,28 +823,32 @@ export async function expandBlobReferences(
     content: null,
     resourceManager: import('../resources/index.js').ResourceManager,
     logger: Logger,
-    allowedMediaTypes?: string[]
+    allowedMediaTypes?: string[],
+    expandMatchingMedia?: boolean
 ): Promise<ContentPart[]>;
 // Overload: ContentPart[] returns ContentPart[]
 export async function expandBlobReferences(
     content: ContentPart[],
     resourceManager: import('../resources/index.js').ResourceManager,
     logger: Logger,
-    allowedMediaTypes?: string[]
+    allowedMediaTypes?: string[],
+    expandMatchingMedia?: boolean
 ): Promise<ContentPart[]>;
 // Overload: ContentPart[] | null (for InternalMessage['content'])
 export async function expandBlobReferences(
     content: ContentPart[] | null,
     resourceManager: import('../resources/index.js').ResourceManager,
     logger: Logger,
-    allowedMediaTypes?: string[]
+    allowedMediaTypes?: string[],
+    expandMatchingMedia?: boolean
 ): Promise<ContentPart[]>;
 // Implementation
 export async function expandBlobReferences(
     content: ContentPart[] | null,
     resourceManager: import('../resources/index.js').ResourceManager,
     logger: Logger,
-    allowedMediaTypes?: string[]
+    allowedMediaTypes?: string[],
+    expandMatchingMedia = true
 ): Promise<ContentPart[]> {
     // Handle null/undefined content
     if (content == null || !Array.isArray(content)) {
@@ -825,7 +875,8 @@ export async function expandBlobReferences(
                 resourceUri,
                 resourceManager,
                 logger,
-                allowedMediaTypes
+                allowedMediaTypes,
+                expandMatchingMedia
             );
             if (resolved.length > 0) {
                 expandedParts.push(...resolved.map((p) => ({ ...p })));
@@ -846,7 +897,8 @@ export async function expandBlobReferences(
                 resourceUri,
                 resourceManager,
                 logger,
-                allowedMediaTypes
+                allowedMediaTypes,
+                expandMatchingMedia
             );
             if (resolved.length > 0) {
                 expandedParts.push(...resolved.map((p) => ({ ...p })));
@@ -866,13 +918,29 @@ export async function expandBlobReferences(
             continue;
         }
 
+        if (part.type === 'resource') {
+            const resolved = await resolveBlobReferenceToParts(
+                part.uri,
+                resourceManager,
+                logger,
+                allowedMediaTypes,
+                expandMatchingMedia
+            );
+            expandedParts.push({ type: 'text', text: buildResourceAnchorText(part) });
+            if (resolved.length > 0) {
+                expandedParts.push(...resolved.map((p) => ({ ...p })));
+            }
+            continue;
+        }
+
         if (part.type === 'text' && part.text.includes('@blob:')) {
             // Expand blob references in text part using helper
             const expanded = await expandBlobsInText(
                 part.text,
                 resourceManager,
                 logger,
-                allowedMediaTypes
+                allowedMediaTypes,
+                expandMatchingMedia
             );
             expandedParts.push(...expanded);
             continue;
@@ -967,6 +1035,10 @@ export function filterMessagesByLLMCapabilities(
                         logger.warn(
                             `Could not validate file support for ${config.model}: ${validation.error}`
                         );
+                        return [part];
+                    }
+
+                    if (part.type === 'resource') {
                         return [part];
                     }
 
@@ -1119,12 +1191,36 @@ export function fileTypesToMimePatterns(fileTypes: string[], logger: Logger): st
             case 'video':
                 patterns.push('video/*');
                 break;
+            case 'document':
+                patterns.push(
+                    'text/*',
+                    'application/json',
+                    'application/xml',
+                    'application/msword',
+                    'application/rtf',
+                    'application/vnd.oasis.opendocument.text',
+                    'application/vnd.ms-powerpoint',
+                    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                    'application/vnd.ms-excel',
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                );
+                break;
             default:
                 // Unknown file type - skip it
                 logger.warn(`Unknown file type in registry: ${fileType}`);
         }
     }
     return patterns;
+}
+
+export function isBinaryMediaMimeType(mimeType: string): boolean {
+    return (
+        mimeType.startsWith('image/') ||
+        mimeType.startsWith('audio/') ||
+        mimeType.startsWith('video/') ||
+        mimeType === 'application/pdf'
+    );
 }
 
 /**

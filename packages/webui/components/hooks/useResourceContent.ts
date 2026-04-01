@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { client } from '@/lib/client';
 import { parseApiResponse } from '@/lib/api-errors';
@@ -34,11 +34,55 @@ type NormalizedResourceItem =
           filename?: string;
       };
 
+type RawNormalizedResourceItem =
+    | {
+          kind: 'text';
+          text: string;
+          mimeType?: string;
+      }
+    | {
+          kind: 'image';
+          base64: string;
+          mimeType: string;
+          alt?: string;
+      }
+    | {
+          kind: 'audio';
+          base64: string;
+          mimeType: string;
+          filename?: string;
+      }
+    | {
+          kind: 'video';
+          base64: string;
+          mimeType: string;
+          filename?: string;
+      }
+    | {
+          kind: 'file';
+          base64: string;
+          mimeType?: string;
+          filename?: string;
+      };
+
 export interface NormalizedResource {
     uri: string;
     name?: string;
     meta?: Record<string, unknown>;
     items: NormalizedResourceItem[];
+}
+
+interface RawNormalizedResource {
+    uri: string;
+    name?: string;
+    meta?: Record<string, unknown>;
+    items: RawNormalizedResourceItem[];
+}
+
+interface MaterializedCacheEntry {
+    version: string;
+    data: NormalizedResource;
+    objectUrls: string[];
 }
 
 export interface ResourceState {
@@ -49,27 +93,51 @@ export interface ResourceState {
 
 type ResourceStateMap = Record<string, ResourceState>;
 
-function buildDataUrl(base64: string, mimeType: string): string {
-    return `data:${mimeType};base64,${base64}`;
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
 }
 
-function normalizeResource(uri: string, payload: any): NormalizedResource {
-    const contents = Array.isArray(payload?.contents) ? payload.contents : [];
-    const meta = (payload?._meta ?? {}) as Record<string, unknown>;
+function decodeBase64(base64: string): number[] | null {
+    try {
+        const normalized = base64.replace(/\s/g, '');
+        const binary = window.atob(normalized);
+        const bytes = new Array<number>(binary.length);
+
+        for (let index = 0; index < binary.length; index++) {
+            bytes[index] = binary.charCodeAt(index);
+        }
+
+        return bytes;
+    } catch {
+        return null;
+    }
+}
+
+function createObjectUrl(base64: string, mimeType?: string): string | null {
+    const bytes = decodeBase64(base64);
+    if (!bytes) return null;
+    const blob = new Blob([Uint8Array.from(bytes)], mimeType ? { type: mimeType } : undefined);
+    return URL.createObjectURL(blob);
+}
+
+function normalizeResource(uri: string, payload: unknown): RawNormalizedResource {
+    const payloadRecord = isRecord(payload) ? payload : null;
+    const contents = Array.isArray(payloadRecord?.contents) ? payloadRecord.contents : [];
+    const meta = isRecord(payloadRecord?._meta) ? payloadRecord._meta : {};
     const name =
         (typeof meta.originalName === 'string' && meta.originalName.trim().length > 0
             ? meta.originalName
             : undefined) || uri;
 
-    const items: NormalizedResourceItem[] = [];
+    const items: RawNormalizedResourceItem[] = [];
 
     for (const item of contents) {
-        if (!item || typeof item !== 'object') continue;
+        if (!isRecord(item)) continue;
 
-        if (typeof (item as { text?: unknown }).text === 'string') {
+        if (typeof item.text === 'string') {
             items.push({
                 kind: 'text',
-                text: (item as { text: string }).text,
+                text: item.text,
                 mimeType: typeof item.mimeType === 'string' ? item.mimeType : undefined,
             });
             continue;
@@ -81,33 +149,35 @@ function normalizeResource(uri: string, payload: any): NormalizedResource {
         const filename = typeof item.filename === 'string' ? item.filename : undefined;
 
         if ((blobData || rawData) && mimeType) {
-            const base64 = blobData ?? rawData!;
-            const src = buildDataUrl(base64, mimeType);
+            const base64 = blobData ?? rawData;
+            if (!base64) {
+                continue;
+            }
             if (mimeType.startsWith('image/')) {
                 items.push({
                     kind: 'image',
-                    src,
+                    base64,
                     mimeType,
                     alt: filename || name,
                 });
             } else if (mimeType.startsWith('audio/')) {
                 items.push({
                     kind: 'audio',
-                    src,
+                    base64,
                     mimeType,
                     filename: filename || name,
                 });
             } else if (mimeType.startsWith('video/')) {
                 items.push({
                     kind: 'video',
-                    src,
+                    base64,
                     mimeType,
                     filename: filename || name,
                 });
             } else {
                 items.push({
                     kind: 'file',
-                    src,
+                    base64,
                     mimeType,
                     filename: filename || name,
                 });
@@ -132,7 +202,84 @@ function normalizeResource(uri: string, payload: any): NormalizedResource {
     };
 }
 
-async function fetchResourceContent(uri: string): Promise<NormalizedResource> {
+function materializeResource(raw: RawNormalizedResource): {
+    data: NormalizedResource;
+    objectUrls: string[];
+} {
+    const objectUrls: string[] = [];
+    const items: NormalizedResourceItem[] = [];
+
+    for (const item of raw.items) {
+        if (item.kind === 'text') {
+            items.push(item);
+            continue;
+        }
+
+        const src = createObjectUrl(item.base64, item.mimeType);
+        if (!src) {
+            continue;
+        }
+        objectUrls.push(src);
+
+        if (item.kind === 'image') {
+            items.push({
+                kind: 'image',
+                src,
+                mimeType: item.mimeType,
+                alt: item.alt,
+            });
+            continue;
+        }
+
+        if (item.kind === 'audio') {
+            items.push({
+                kind: 'audio',
+                src,
+                mimeType: item.mimeType,
+                filename: item.filename,
+            });
+            continue;
+        }
+
+        if (item.kind === 'video') {
+            items.push({
+                kind: 'video',
+                src,
+                mimeType: item.mimeType,
+                filename: item.filename,
+            });
+            continue;
+        }
+
+        items.push({
+            kind: 'file',
+            src,
+            mimeType: item.mimeType,
+            filename: item.filename,
+        });
+    }
+
+    return {
+        data: {
+            uri: raw.uri,
+            name: raw.name,
+            meta: raw.meta,
+            items,
+        },
+        objectUrls,
+    };
+}
+
+function getRawResourceVersion(raw: RawNormalizedResource): string {
+    return JSON.stringify({
+        uri: raw.uri,
+        name: raw.name,
+        meta: raw.meta,
+        items: raw.items,
+    });
+}
+
+async function fetchResourceContent(uri: string): Promise<RawNormalizedResource> {
     const body = await parseApiResponse(
         client.api.resources[':resourceId'].content.$get({
             param: { resourceId: encodeURIComponent(uri) },
@@ -176,8 +323,23 @@ export function useResourceContent(resourceUris: string[]): ResourceStateMap {
         })),
     });
 
-    const resources: ResourceStateMap = useMemo(() => {
-        const result: ResourceStateMap = {};
+    const querySignature = queries
+        .map((query, index) => {
+            const uri = normalizedUris[index] ?? '';
+            const status = query.status;
+            const dataUpdatedAt = query.dataUpdatedAt ?? 0;
+            const errorUpdatedAt = query.errorUpdatedAt ?? 0;
+            return `${uri}:${status}:${dataUpdatedAt}:${errorUpdatedAt}`;
+        })
+        .join('|');
+
+    const rawResources = useMemo(() => {
+        const result: Record<
+            string,
+            | { status: 'loading' | 'error'; error?: string }
+            | { status: 'loaded'; data: RawNormalizedResource }
+        > = {};
+
         queries.forEach((query, index) => {
             const uri = normalizedUris[index];
             if (!uri) return;
@@ -193,8 +355,68 @@ export function useResourceContent(resourceUris: string[]): ResourceStateMap {
                 result[uri] = { status: 'loaded', data: query.data };
             }
         });
+
         return result;
-    }, [queries, normalizedUris]);
+        // We intentionally key this memo off querySignature instead of the queries array identity.
+        // useQueries returns a new array reference frequently, so we derive a stable snapshot from
+        // the query state and materialize resource URLs later in an effect.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [normalizedUris, querySignature]);
+
+    const [resources, setResources] = useState<ResourceStateMap>({});
+    const materializedCacheRef = useRef<Map<string, MaterializedCacheEntry>>(new Map());
+
+    useEffect(() => {
+        const nextResources: ResourceStateMap = {};
+        const nextCache = new Map<string, MaterializedCacheEntry>();
+        const previousCache = materializedCacheRef.current;
+
+        Object.entries(rawResources).forEach(([uri, resource]) => {
+            if (resource.status !== 'loaded') {
+                nextResources[uri] = resource;
+                return;
+            }
+
+            const version = getRawResourceVersion(resource.data);
+            const cached = previousCache.get(uri);
+            if (cached && cached.version === version) {
+                nextCache.set(uri, cached);
+                nextResources[uri] = { status: 'loaded', data: cached.data };
+                return;
+            }
+
+            const materialized = materializeResource(resource.data);
+            if (cached) {
+                cached.objectUrls.forEach((url) => URL.revokeObjectURL(url));
+            }
+
+            const nextEntry: MaterializedCacheEntry = {
+                version,
+                data: materialized.data,
+                objectUrls: materialized.objectUrls,
+            };
+            nextCache.set(uri, nextEntry);
+            nextResources[uri] = { status: 'loaded', data: materialized.data };
+        });
+
+        previousCache.forEach((cached, uri) => {
+            if (!nextCache.has(uri)) {
+                cached.objectUrls.forEach((url) => URL.revokeObjectURL(url));
+            }
+        });
+
+        materializedCacheRef.current = nextCache;
+        setResources(nextResources);
+    }, [rawResources]);
+
+    useEffect(() => {
+        return () => {
+            materializedCacheRef.current.forEach((cached) => {
+                cached.objectUrls.forEach((url) => URL.revokeObjectURL(url));
+            });
+            materializedCacheRef.current = new Map();
+        };
+    }, []);
 
     return resources;
 }

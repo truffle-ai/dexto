@@ -750,4 +750,179 @@ describe('Session Integration: Multi-Model Token Tracking', () => {
         expect(metadata?.modelStats?.[0]?.messageCount).toBe(10);
         expect(metadata?.estimatedCost).toBeCloseTo(0.01, 5); // 10 * 0.001
     });
+
+    test('getSessionHistory expands valid blobs even when another blob in the same message fails', async () => {
+        const sessionId = 'history-partial-blob-expansion';
+        await agent.createSession(sessionId);
+
+        const storedBlob = await agent.services.storageManager
+            .getBlobStore()
+            .store('aW1hZ2UtZGF0YQ==', {
+                mimeType: 'image/png',
+                originalName: 'demo.png',
+                source: 'tool',
+            });
+
+        const database = agent.services.storageManager.getDatabase();
+        await database.append(`messages:${sessionId}`, {
+            id: 'tool-message-1',
+            role: 'tool',
+            toolCallId: 'call-1',
+            name: 'read_media_file',
+            success: true,
+            content: [
+                {
+                    type: 'image',
+                    image: `@${storedBlob.uri}`,
+                    mimeType: 'image/png',
+                },
+                {
+                    type: 'file',
+                    data: '@blob:missing-blob-id',
+                    mimeType: 'application/pdf',
+                    filename: 'missing.pdf',
+                },
+            ],
+        });
+
+        const sessionData = await database.get<SessionData>(`session:${sessionId}`);
+        if (!sessionData) {
+            throw new Error(`Expected session '${sessionId}' to exist`);
+        }
+        sessionData.messageCount = 1;
+        await database.set(`session:${sessionId}`, sessionData);
+        await agent.endSession(sessionId);
+
+        const history = await agent.getSessionHistory(sessionId);
+
+        expect(history).toHaveLength(1);
+        const [message] = history;
+        if (!message || !Array.isArray(message.content)) {
+            throw new Error('Expected message with array content');
+        }
+
+        expect(message.content[0]).toEqual({
+            type: 'image',
+            image: 'aW1hZ2UtZGF0YQ==',
+            mimeType: 'image/png',
+        });
+        expect(message.content[1]).toEqual({
+            type: 'file',
+            data: '@blob:missing-blob-id',
+            mimeType: 'application/pdf',
+            filename: 'missing.pdf',
+        });
+    });
+
+    test('getSessionHistory expands persisted resource parts backed by blobs', async () => {
+        const sessionId = 'history-resource-blob-expansion';
+        await agent.createSession(sessionId);
+
+        const storedBlob = await agent.services.storageManager
+            .getBlobStore()
+            .store('aW1hZ2UtZGF0YQ==', {
+                mimeType: 'image/png',
+                originalName: 'demo.png',
+                source: 'tool',
+            });
+
+        const database = agent.services.storageManager.getDatabase();
+        await database.append(`messages:${sessionId}`, {
+            id: 'tool-message-resource-blob',
+            role: 'tool',
+            toolCallId: 'call-resource-blob',
+            name: 'read_media_file',
+            success: true,
+            content: [
+                {
+                    type: 'resource',
+                    uri: storedBlob.uri,
+                    name: 'image',
+                    mimeType: 'image/png',
+                    kind: 'image',
+                    metadata: { source: 'tool' },
+                },
+            ],
+        });
+
+        const sessionData = await database.get<SessionData>(`session:${sessionId}`);
+        if (!sessionData) {
+            throw new Error(`Expected session '${sessionId}' to exist`);
+        }
+        sessionData.messageCount = 1;
+        await database.set(`session:${sessionId}`, sessionData);
+        await agent.endSession(sessionId);
+
+        const history = await agent.getSessionHistory(sessionId);
+
+        expect(history).toHaveLength(1);
+        const [message] = history;
+        if (!message || !Array.isArray(message.content)) {
+            throw new Error('Expected message with array content');
+        }
+
+        expect(message.content[0]).toEqual({
+            type: 'text',
+            text: `Attached image: ${storedBlob.uri} (image)`,
+        });
+        expect(message.content[1]).toEqual({
+            type: 'image',
+            image: 'aW1hZ2UtZGF0YQ==',
+            mimeType: 'image/png',
+        });
+    });
+
+    test('getSessionHistory expands blob references embedded in text parts', async () => {
+        const sessionId = 'history-text-blob-expansion';
+        await agent.createSession(sessionId);
+
+        const storedBlob = await agent.services.storageManager
+            .getBlobStore()
+            .store('Very large persisted text payload', {
+                mimeType: 'text/plain',
+                originalName: 'payload.txt',
+                source: 'tool',
+            });
+
+        const database = agent.services.storageManager.getDatabase();
+        await database.append(`messages:${sessionId}`, {
+            id: 'tool-message-text-blob',
+            role: 'tool',
+            toolCallId: 'call-text-blob',
+            name: 'read_file',
+            success: true,
+            content: [
+                {
+                    type: 'text',
+                    text: `Expanded content: @${storedBlob.uri}`,
+                },
+            ],
+        });
+
+        const sessionData = await database.get<SessionData>(`session:${sessionId}`);
+        if (!sessionData) {
+            throw new Error(`Expected session '${sessionId}' to exist`);
+        }
+        sessionData.messageCount = 1;
+        await database.set(`session:${sessionId}`, sessionData);
+        await agent.endSession(sessionId);
+
+        const history = await agent.getSessionHistory(sessionId);
+
+        expect(history).toHaveLength(1);
+        const [message] = history;
+        if (!message || !Array.isArray(message.content)) {
+            throw new Error('Expected message with array content');
+        }
+
+        expect(message.content[0]).toEqual({ type: 'text', text: 'Expanded content: ' });
+        expect(message.content[1]).toMatchObject({
+            type: 'file',
+            mimeType: 'text/plain',
+            filename: 'payload.txt',
+        });
+        expect(message.content[1]).not.toEqual(
+            expect.objectContaining({ data: `@${storedBlob.uri}` })
+        );
+    });
 });

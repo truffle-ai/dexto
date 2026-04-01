@@ -169,13 +169,45 @@ export const MIME_TYPE_TO_FILE_TYPE: Record<string, SupportedFileType> = {
     'audio/ogg': 'audio',
     'audio/m4a': 'audio',
     'audio/aac': 'audio',
+    'video/mp4': 'video',
+    'video/webm': 'video',
+    'video/ogg': 'video',
+    'video/quicktime': 'video',
+    'video/x-msvideo': 'video',
+    'video/x-matroska': 'video',
     // Common image MIME types
     'image/jpeg': 'image',
     'image/jpg': 'image',
     'image/png': 'image',
     'image/webp': 'image',
     'image/gif': 'image',
+    // Common document, presentation, and spreadsheet MIME types
+    'text/plain': 'document',
+    'text/markdown': 'document',
+    'text/html': 'document',
+    'text/xml': 'document',
+    'text/csv': 'document',
+    'text/tab-separated-values': 'document',
+    'application/json': 'document',
+    'application/xml': 'document',
+    'application/msword': 'document',
+    'application/rtf': 'document',
+    'text/rtf': 'document',
+    'application/vnd.oasis.opendocument.text': 'document',
+    'application/vnd.ms-powerpoint': 'document',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'document',
+    'application/vnd.ms-excel': 'document',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'document',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'document',
 };
+
+const GENERIC_UPLOAD_FILE_TYPES: SupportedFileType[] = [
+    'pdf',
+    'image',
+    'audio',
+    'video',
+    'document',
+];
 
 // Helper function to get array of allowed MIME types
 export function getAllowedMimeTypes(): string[] {
@@ -220,7 +252,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     'openai-compatible': {
         models: [], // Empty - accepts any model name for custom endpoints
         baseURLSupport: 'required',
-        supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types for custom endpoints
+        supportedFileTypes: GENERIC_UPLOAD_FILE_TYPES, // Allow all generic file categories for custom endpoints
         supportsCustomModels: true,
     },
     anthropic: {
@@ -279,7 +311,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     openrouter: {
         models: MODELS_BY_PROVIDER.openrouter,
         baseURLSupport: 'none', // Fixed endpoint - baseURL auto-injected in resolver, no user override allowed
-        supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types - user assumes responsibility
+        supportedFileTypes: GENERIC_UPLOAD_FILE_TYPES, // Allow all generic file categories - user assumes responsibility
         supportsCustomModels: true,
         supportsAllRegistryModels: true, // Can serve models from all other providers
         modelsDev: MODELS_DEV_PROVIDER_METADATA_BY_PROVIDER.openrouter,
@@ -290,7 +322,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     litellm: {
         models: [],
         baseURLSupport: 'required',
-        supportedFileTypes: ['pdf', 'image', 'audio'],
+        supportedFileTypes: GENERIC_UPLOAD_FILE_TYPES,
         supportsCustomModels: true,
     },
     // https://glama.ai/
@@ -299,7 +331,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
     glama: {
         models: [],
         baseURLSupport: 'none',
-        supportedFileTypes: ['pdf', 'image', 'audio'],
+        supportedFileTypes: GENERIC_UPLOAD_FILE_TYPES,
         supportsCustomModels: true,
     },
     // https://cloud.google.com/vertex-ai
@@ -387,7 +419,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'openai/gpt-5.2',
                 displayName: 'GPT-5.2',
                 maxInputTokens: 400000,
-                supportedFileTypes: ['pdf', 'image'],
+                supportedFileTypes: ['pdf', 'image', 'document'],
                 pricing: {
                     inputPerM: 1.75,
                     outputPerM: 14.0,
@@ -400,7 +432,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'openai/gpt-5.2-codex',
                 displayName: 'GPT-5.2 Codex',
                 maxInputTokens: 400000,
-                supportedFileTypes: ['pdf', 'image'],
+                supportedFileTypes: ['pdf', 'image', 'document'],
                 pricing: {
                     inputPerM: 1.75,
                     outputPerM: 14.0,
@@ -414,13 +446,13 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
                 name: 'google/gemini-3-pro-preview',
                 displayName: 'Gemini 3 Pro',
                 maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'image', 'audio'],
+                supportedFileTypes: ['pdf', 'image', 'audio', 'video', 'document'],
             },
             {
                 name: 'google/gemini-3-flash-preview',
                 displayName: 'Gemini 3 Flash',
                 maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'image', 'audio'],
+                supportedFileTypes: ['pdf', 'image', 'audio', 'video', 'document'],
             },
             // Free models (via OpenRouter)
             {
@@ -474,7 +506,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = {
             },
         ],
         baseURLSupport: 'none',
-        supportedFileTypes: ['pdf', 'image', 'audio'],
+        supportedFileTypes: GENERIC_UPLOAD_FILE_TYPES,
         supportsCustomModels: true,
         supportsAllRegistryModels: true,
     },

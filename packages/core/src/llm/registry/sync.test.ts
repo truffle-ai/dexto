@@ -3,6 +3,7 @@ import { DextoValidationError } from '../../errors/DextoValidationError.js';
 import { buildModelsByProviderFromParsedSources, parseModelsDevApi } from './sync.js';
 
 type FixtureModelOverrides = Partial<{
+    attachment: boolean;
     reasoning: boolean;
     temperature: boolean;
     tool_call: boolean;
@@ -34,7 +35,7 @@ function buildFixtureModel(
     return {
         id,
         name,
-        attachment: false,
+        attachment: overrides?.attachment ?? false,
         reasoning: overrides?.reasoning ?? true,
         temperature: overrides?.temperature ?? true,
         tool_call: overrides?.tool_call ?? true,
@@ -212,6 +213,7 @@ describe('models.dev sync mapping', () => {
         const parsed = parseModelsDevApi(
             buildFixtureApi({
                 openaiModelOverrides: {
+                    attachment: true,
                     status: 'deprecated',
                     interleaved: { field: 'reasoning_content' },
                     provider: { npm: '@ai-sdk/openai', api: 'https://api.openai.com/v1' },
@@ -238,6 +240,7 @@ describe('models.dev sync mapping', () => {
         expect(model?.releaseDate).toBe('2026-01-01');
         expect(model?.status).toBe('deprecated');
         expect(model?.modalities).toEqual({ input: ['text', 'image'], output: ['text'] });
+        expect(model?.supportedFileTypes).toEqual(['pdf', 'image', 'document']);
         expect(model?.providerMetadata).toEqual({
             npm: '@ai-sdk/openai',
             api: 'https://api.openai.com/v1',

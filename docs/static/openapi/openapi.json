@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Dexto API",
-    "version": "1.6.20",
+    "version": "1.6.21",
     "description": "OpenAPI spec for the Dexto REST API server"
   },
   "servers": [
@@ -6906,12 +6906,14 @@
               "enum": [
                 "pdf",
                 "image",
-                "audio"
+                "audio",
+                "video",
+                "document"
               ],
-              "description": "Filter by supported file type (audio, pdf, or image)"
+              "description": "Filter by supported file type (audio, pdf, image, video, or document)"
             },
             "required": false,
-            "description": "Filter by supported file type (audio, pdf, or image)",
+            "description": "Filter by supported file type (audio, pdf, image, video, or document)",
             "name": "fileType",
             "in": "query"
           },
@@ -7022,9 +7024,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -7089,9 +7093,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -7151,9 +7157,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -7218,9 +7226,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -7280,9 +7290,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -7347,9 +7359,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -7409,9 +7423,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -7476,9 +7492,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -7538,9 +7556,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -7605,9 +7625,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -7667,9 +7689,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -7734,9 +7758,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -7796,9 +7822,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -7863,9 +7891,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -7925,9 +7955,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -7992,9 +8024,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -8054,9 +8088,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -8121,9 +8157,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -8183,9 +8221,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -8250,9 +8290,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -8312,9 +8354,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -8379,9 +8423,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -8441,9 +8487,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -8508,9 +8556,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -8570,9 +8620,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -8637,9 +8689,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -8699,9 +8753,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -8766,9 +8822,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -8828,9 +8886,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -8895,9 +8955,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -8957,9 +9019,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -9024,9 +9088,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -9086,9 +9152,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -9153,9 +9221,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -9209,9 +9279,11 @@
                                 "items": {
                                   "type": "string",
                                   "enum": [
-                                    "audio",
                                     "pdf",
-                                    "image"
+                                    "image",
+                                    "audio",
+                                    "video",
+                                    "document"
                                   ]
                                 },
                                 "description": "File types this model supports"
@@ -12691,7 +12763,9 @@
                               "enum": [
                                 "pdf",
                                 "image",
-                                "audio"
+                                "audio",
+                                "video",
+                                "document"
                               ]
                             },
                             "description": "File types supported by this model"
@@ -12765,7 +12839,9 @@
                               "enum": [
                                 "pdf",
                                 "image",
-                                "audio"
+                                "audio",
+                                "video",
+                                "document"
                               ]
                             },
                             "description": "File types supported by this model"
@@ -12839,7 +12915,9 @@
                               "enum": [
                                 "pdf",
                                 "image",
-                                "audio"
+                                "audio",
+                                "video",
+                                "document"
                               ]
                             },
                             "description": "File types supported by this model"
@@ -12913,7 +12991,9 @@
                               "enum": [
                                 "pdf",
                                 "image",
-                                "audio"
+                                "audio",
+                                "video",
+                                "document"
                               ]
                             },
                             "description": "File types supported by this model"
@@ -14225,7 +14305,9 @@
                         "enum": [
                           "pdf",
                           "image",
-                          "audio"
+                          "audio",
+                          "video",
+                          "document"
                         ]
                       },
                       "description": "File types supported by this model"
@@ -18794,6 +18876,78 @@
                                         "type": {
                                           "type": "string",
                                           "enum": [
+                                            "resource"
+                                          ],
+                                          "description": "Part type: resource"
+                                        },
+                                        "uri": {
+                                          "type": "string",
+                                          "description": "Canonical resource reference"
+                                        },
+                                        "name": {
+                                          "type": "string",
+                                          "description": "Display name for the resource"
+                                        },
+                                        "mimeType": {
+                                          "type": "string",
+                                          "description": "MIME type of the resource"
+                                        },
+                                        "kind": {
+                                          "type": "string",
+                                          "enum": [
+                                            "text",
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "binary"
+                                          ],
+                                          "description": "Resource kind for rendering and prompt projection"
+                                        },
+                                        "size": {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "description": "Size in bytes"
+                                        },
+                                        "metadata": {
+                                          "type": "object",
+                                          "properties": {
+                                            "mtimeMs": {
+                                              "type": "number",
+                                              "minimum": 0,
+                                              "description": "mtime in ms"
+                                            },
+                                            "source": {
+                                              "type": "string",
+                                              "enum": [
+                                                "filesystem",
+                                                "upload",
+                                                "generated",
+                                                "tool",
+                                                "remote"
+                                              ],
+                                              "description": "How the resource was created"
+                                            }
+                                          },
+                                          "additionalProperties": false,
+                                          "description": "Optional resource metadata"
+                                        }
+                                      },
+                                      "required": [
+                                        "type",
+                                        "uri",
+                                        "name",
+                                        "mimeType",
+                                        "kind"
+                                      ],
+                                      "additionalProperties": false,
+                                      "description": "Canonical resource reference part"
+                                    },
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "type": {
+                                          "type": "string",
+                                          "enum": [
                                             "ui-resource"
                                           ],
                                           "description": "Part type: ui-resource"
@@ -18854,7 +19008,7 @@
                                       "description": "UI Resource content part for MCP-UI interactive components"
                                     }
                                   ],
-                                  "description": "Message content part (text, image, file, or UI resource)"
+                                  "description": "Message content part (text, image, file, resource, or UI resource)"
                                 }
                               },
                               {
@@ -23528,6 +23682,78 @@
                                             "type": {
                                               "type": "string",
                                               "enum": [
+                                                "resource"
+                                              ],
+                                              "description": "Part type: resource"
+                                            },
+                                            "uri": {
+                                              "type": "string",
+                                              "description": "Canonical resource reference"
+                                            },
+                                            "name": {
+                                              "type": "string",
+                                              "description": "Display name for the resource"
+                                            },
+                                            "mimeType": {
+                                              "type": "string",
+                                              "description": "MIME type of the resource"
+                                            },
+                                            "kind": {
+                                              "type": "string",
+                                              "enum": [
+                                                "text",
+                                                "image",
+                                                "audio",
+                                                "video",
+                                                "binary"
+                                              ],
+                                              "description": "Resource kind for rendering and prompt projection"
+                                            },
+                                            "size": {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "description": "Size in bytes"
+                                            },
+                                            "metadata": {
+                                              "type": "object",
+                                              "properties": {
+                                                "mtimeMs": {
+                                                  "type": "number",
+                                                  "minimum": 0,
+                                                  "description": "mtime in ms"
+                                                },
+                                                "source": {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "filesystem",
+                                                    "upload",
+                                                    "generated",
+                                                    "tool",
+                                                    "remote"
+                                                  ],
+                                                  "description": "How the resource was created"
+                                                }
+                                              },
+                                              "additionalProperties": false,
+                                              "description": "Optional resource metadata"
+                                            }
+                                          },
+                                          "required": [
+                                            "type",
+                                            "uri",
+                                            "name",
+                                            "mimeType",
+                                            "kind"
+                                          ],
+                                          "additionalProperties": false,
+                                          "description": "Canonical resource reference part"
+                                        },
+                                        {
+                                          "type": "object",
+                                          "properties": {
+                                            "type": {
+                                              "type": "string",
+                                              "enum": [
                                                 "ui-resource"
                                               ],
                                               "description": "Part type: ui-resource"
@@ -23588,7 +23814,7 @@
                                           "description": "UI Resource content part for MCP-UI interactive components"
                                         }
                                       ],
-                                      "description": "Message content part (text, image, file, or UI resource)"
+                                      "description": "Message content part (text, image, file, resource, or UI resource)"
                                     }
                                   },
                                   {
@@ -24299,6 +24525,78 @@
                                                 "type": {
                                                   "type": "string",
                                                   "enum": [
+                                                    "resource"
+                                                  ],
+                                                  "description": "Part type: resource"
+                                                },
+                                                "uri": {
+                                                  "type": "string",
+                                                  "description": "Canonical resource reference"
+                                                },
+                                                "name": {
+                                                  "type": "string",
+                                                  "description": "Display name for the resource"
+                                                },
+                                                "mimeType": {
+                                                  "type": "string",
+                                                  "description": "MIME type of the resource"
+                                                },
+                                                "kind": {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "text",
+                                                    "image",
+                                                    "audio",
+                                                    "video",
+                                                    "binary"
+                                                  ],
+                                                  "description": "Resource kind for rendering and prompt projection"
+                                                },
+                                                "size": {
+                                                  "type": "integer",
+                                                  "minimum": 0,
+                                                  "description": "Size in bytes"
+                                                },
+                                                "metadata": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "mtimeMs": {
+                                                      "type": "number",
+                                                      "minimum": 0,
+                                                      "description": "mtime in ms"
+                                                    },
+                                                    "source": {
+                                                      "type": "string",
+                                                      "enum": [
+                                                        "filesystem",
+                                                        "upload",
+                                                        "generated",
+                                                        "tool",
+                                                        "remote"
+                                                      ],
+                                                      "description": "How the resource was created"
+                                                    }
+                                                  },
+                                                  "additionalProperties": false,
+                                                  "description": "Optional resource metadata"
+                                                }
+                                              },
+                                              "required": [
+                                                "type",
+                                                "uri",
+                                                "name",
+                                                "mimeType",
+                                                "kind"
+                                              ],
+                                              "additionalProperties": false,
+                                              "description": "Canonical resource reference part"
+                                            },
+                                            {
+                                              "type": "object",
+                                              "properties": {
+                                                "type": {
+                                                  "type": "string",
+                                                  "enum": [
                                                     "ui-resource"
                                                   ],
                                                   "description": "Part type: ui-resource"
@@ -24359,7 +24657,7 @@
                                               "description": "UI Resource content part for MCP-UI interactive components"
                                             }
                                           ],
-                                          "description": "Message content part (text, image, file, or UI resource)"
+                                          "description": "Message content part (text, image, file, resource, or UI resource)"
                                         }
                                       },
                                       {
@@ -45503,6 +45801,78 @@
                                     "type": {
                                       "type": "string",
                                       "enum": [
+                                        "resource"
+                                      ],
+                                      "description": "Part type: resource"
+                                    },
+                                    "uri": {
+                                      "type": "string",
+                                      "description": "Canonical resource reference"
+                                    },
+                                    "name": {
+                                      "type": "string",
+                                      "description": "Display name for the resource"
+                                    },
+                                    "mimeType": {
+                                      "type": "string",
+                                      "description": "MIME type of the resource"
+                                    },
+                                    "kind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "text",
+                                        "image",
+                                        "audio",
+                                        "video",
+                                        "binary"
+                                      ],
+                                      "description": "Resource kind for rendering and prompt projection"
+                                    },
+                                    "size": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "description": "Size in bytes"
+                                    },
+                                    "metadata": {
+                                      "type": "object",
+                                      "properties": {
+                                        "mtimeMs": {
+                                          "type": "number",
+                                          "minimum": 0,
+                                          "description": "mtime in ms"
+                                        },
+                                        "source": {
+                                          "type": "string",
+                                          "enum": [
+                                            "filesystem",
+                                            "upload",
+                                            "generated",
+                                            "tool",
+                                            "remote"
+                                          ],
+                                          "description": "How the resource was created"
+                                        }
+                                      },
+                                      "additionalProperties": false,
+                                      "description": "Optional resource metadata"
+                                    }
+                                  },
+                                  "required": [
+                                    "type",
+                                    "uri",
+                                    "name",
+                                    "mimeType",
+                                    "kind"
+                                  ],
+                                  "additionalProperties": false,
+                                  "description": "Canonical resource reference part"
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "type": {
+                                      "type": "string",
+                                      "enum": [
                                         "ui-resource"
                                       ],
                                       "description": "Part type: ui-resource"
@@ -45563,7 +45933,7 @@
                                   "description": "UI Resource content part for MCP-UI interactive components"
                                 }
                               ],
-                              "description": "Message content part (text, image, file, or UI resource)"
+                              "description": "Message content part (text, image, file, resource, or UI resource)"
                             },
                             "description": "Message content parts"
                           },

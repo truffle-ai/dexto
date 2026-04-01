@@ -15,6 +15,7 @@ import {
     NotFoundErrorResponse,
     ScopedUsageSummarySchema,
     UsageSummarySchema,
+    toApiInternalMessage,
 } from '../schemas/responses.js';
 import { handleHonoError } from '../middleware/error.js';
 import type { GetAgentFn, OpenAPIRouteSchema } from '../types.js';
@@ -679,9 +680,22 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             // TODO: Improve type alignment between core and server schemas.
             // Core's InternalMessage has union types (string | Uint8Array | Buffer | URL)
             // for binary data, but JSON responses are always base64 strings.
+            const apiHistory = history.map((message) => toApiInternalMessage(message));
+            for (const [index, message] of apiHistory.entries()) {
+                const parsed = InternalMessageSchema.safeParse(message);
+                if (!parsed.success) {
+                    throw new DextoRuntimeError(
+                        'session_history_serialization_failed',
+                        ErrorScope.SESSION,
+                        ErrorType.SYSTEM,
+                        'Failed to serialize session history',
+                        { sessionId, index, issues: zodToIssues(parsed.error) }
+                    );
+                }
+            }
             return ctx.json(
                 {
-                    history: history as z.output<typeof InternalMessageSchema>[],
+                    history: apiHistory,
                     isBusy,
                 },
                 200

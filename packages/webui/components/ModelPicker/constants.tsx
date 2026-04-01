@@ -95,7 +95,9 @@ export const CAPABILITY_ICONS = {
     // File type capabilities (what we currently use)
     image: <span className="text-sm">🖼️</span>,
     audio: <span className="text-sm">🎵</span>,
+    video: <span className="text-sm">🎬</span>,
     pdf: <span className="text-sm">📄</span>,
+    document: <span className="text-sm">📝</span>,
 
     // Other capabilities we currently have
     reasoning: <span className="text-sm">🧠</span>,

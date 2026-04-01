@@ -48,6 +48,23 @@ export interface FilePart extends FileData {
 }
 
 /**
+ * Canonical resource reference part.
+ * Persists stable identity for local files, blobs, and other resource-backed assets.
+ */
+export interface ResourcePart {
+    type: 'resource';
+    uri: string;
+    name: string;
+    mimeType: string;
+    kind: 'text' | 'image' | 'audio' | 'video' | 'binary';
+    size?: number;
+    metadata?: {
+        mtimeMs?: number;
+        source?: 'filesystem' | 'upload' | 'generated' | 'tool' | 'remote';
+    };
+}
+
+/**
  * UI Resource content part for MCP-UI interactive components.
  * Enables MCP servers to return rich, interactive UI (live streams, dashboards, forms).
  * @see https://mcpui.dev/ for MCP-UI specification
@@ -75,7 +92,7 @@ export interface UIResourcePart {
  * Union of all content part types.
  * Discriminated by the `type` field.
  */
-export type ContentPart = TextPart | ImagePart | FilePart | UIResourcePart;
+export type ContentPart = TextPart | ImagePart | FilePart | ResourcePart | UIResourcePart;
 
 // =============================================================================
 // Content Part Type Guards
@@ -100,6 +117,13 @@ export function isImagePart(part: ContentPart): part is ImagePart {
  */
 export function isFilePart(part: ContentPart): part is FilePart {
     return part.type === 'file';
+}
+
+/**
+ * Type guard for ResourcePart.
+ */
+export function isResourcePart(part: ContentPart): part is ResourcePart {
+    return part.type === 'resource';
 }
 
 /**

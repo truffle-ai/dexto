@@ -109,7 +109,7 @@ export function ToolInputForm({
         if (prop.enum && Array.isArray(prop.enum)) {
             const isEnumBoolean = prop.enum.every((v) => typeof v === 'boolean');
             const isEnumNumeric = prop.enum.every((v) => typeof v === 'number');
-            const hasNullEnum = prop.enum.includes(null);
+            const hasNullEnum = prop.enum.some((value) => value === null);
             return (
                 <Select
                     value={

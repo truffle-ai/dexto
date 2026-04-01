@@ -10,8 +10,15 @@ import {
     ErrorMessage,
     ToolResult,
 } from './hooks/useChat';
-import { isTextPart, isImagePart, isAudioPart, isFilePart, isUIResourcePart } from '../types';
-import type { TextPart, AudioPart, FilePart, UIResourcePart } from '../types';
+import {
+    isTextPart,
+    isImagePart,
+    isAudioPart,
+    isFilePart,
+    isResourcePart,
+    isUIResourcePart,
+} from '../types';
+import type { TextPart, AudioPart, FilePart, ResourcePart, UIResourcePart } from '../types';
 import { getFileMediaKind } from '@dexto/core';
 import ErrorBanner from './ErrorBanner';
 import {
@@ -26,6 +33,7 @@ import {
     X,
     ZoomIn,
     FileVideo,
+    Download,
 } from 'lucide-react';
 import { Tooltip, TooltipTrigger, TooltipContent } from './ui/tooltip';
 import { MarkdownText } from './ui/markdown-text';
@@ -64,11 +72,30 @@ interface MessageListProps {
     sessionId?: string | null;
 }
 
+interface DownloadActionProps {
+    href: string;
+    filename?: string;
+    label?: string;
+    className?: string;
+    onClick?: React.MouseEventHandler<HTMLAnchorElement>;
+    iconOnly?: boolean;
+}
+
 // Helper to format timestamp from createdAt
 const formatTimestamp = (timestamp: number) => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
+
+function handleInteractiveImageKeyDown(
+    event: React.KeyboardEvent<HTMLElement>,
+    onActivate: () => void
+) {
+    if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        onActivate();
+    }
+}
 
 // Helper to validate data URIs to prevent XSS
 function isValidDataUri(src: string, expectedType?: 'image' | 'video' | 'audio'): boolean {
@@ -189,37 +216,145 @@ function isSafeAudioUrl(src: string): boolean {
     return isSafeMediaUrl(src, 'audio');
 }
 
+function inferDownloadFilename(mimeType?: string, fallbackBase: string = 'download'): string {
+    if (!mimeType) return fallbackBase;
+
+    const knownExtensions: Record<string, string> = {
+        'image/png': 'png',
+        'image/jpeg': 'jpg',
+        'image/webp': 'webp',
+        'image/gif': 'gif',
+        'audio/mpeg': 'mp3',
+        'audio/mp3': 'mp3',
+        'audio/wav': 'wav',
+        'audio/webm': 'webm',
+        'audio/ogg': 'ogg',
+        'video/mp4': 'mp4',
+        'video/webm': 'webm',
+        'video/ogg': 'ogv',
+        'application/pdf': 'pdf',
+        'application/zip': 'zip',
+    };
+
+    const exact = knownExtensions[mimeType];
+    if (exact) {
+        return `${fallbackBase}.${exact}`;
+    }
+
+    const subtype = mimeType.split('/')[1];
+    if (!subtype) return fallbackBase;
+
+    const normalizedSubtype = subtype.split(';')[0]?.split('+')[0]?.trim();
+    return normalizedSubtype ? `${fallbackBase}.${normalizedSubtype}` : fallbackBase;
+}
+
+function DownloadAction({
+    href,
+    filename,
+    label = 'Download',
+    className,
+    onClick,
+    iconOnly = true,
+}: DownloadActionProps) {
+    if (!href) return null;
+
+    return (
+        <a
+            href={href}
+            download={filename}
+            onClick={onClick}
+            aria-label={label}
+            title={label}
+            className={cn(
+                'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border/70 bg-background/75 text-muted-foreground backdrop-blur-sm transition-colors hover:bg-background hover:text-foreground',
+                className
+            )}
+        >
+            <Download className="h-3.5 w-3.5" />
+            {!iconOnly && <span>{label}</span>}
+        </a>
+    );
+}
+
 function resolveMediaSrc(
-    part: any,
+    part: unknown,
     resourceStates?: Record<string, ResourceState | undefined>
 ): string {
     if (!part) return '';
 
-    const mimeType: string | undefined = part?.mimeType;
+    const partObject =
+        typeof part === 'object' && part !== null ? (part as Record<string, unknown>) : undefined;
+    const partType = typeof partObject?.type === 'string' ? partObject.type : undefined;
+    const partKind = typeof partObject?.kind === 'string' ? partObject.kind : undefined;
+    const mimeType = typeof partObject?.mimeType === 'string' ? partObject.mimeType : undefined;
     const dataCandidate: unknown =
         typeof part === 'string'
             ? part
-            : (part?.data ?? part?.image ?? part?.audio ?? part?.video ?? part?.uri ?? part?.url);
+            : (partObject?.data ??
+              partObject?.image ??
+              partObject?.audio ??
+              partObject?.video ??
+              partObject?.uri ??
+              partObject?.url);
 
     if (typeof dataCandidate === 'string') {
+        const resourceKey = dataCandidate.startsWith('@blob:')
+            ? dataCandidate.substring(1)
+            : dataCandidate;
+        if (resourceStates && resourceKey) {
+            const state = resourceStates[resourceKey];
+            if (state && state.status === 'loaded' && state.data) {
+                const preferKinds: Array<NormalizedResourceItem['kind']> = [];
+                if (partType === 'image') preferKinds.push('image');
+                if (partType === 'file') {
+                    const mediaKind = getFileMediaKind(mimeType);
+                    if (mediaKind === 'audio') preferKinds.push('audio');
+                    else if (mediaKind === 'video') preferKinds.push('video');
+                }
+                if (partType === 'resource') {
+                    if (partKind === 'image') preferKinds.push('image');
+                    if (partKind === 'audio') preferKinds.push('audio');
+                    if (partKind === 'video') preferKinds.push('video');
+                }
+                if (mimeType?.startsWith('image/')) preferKinds.push('image');
+                if (mimeType?.startsWith('audio/')) preferKinds.push('audio');
+                if (mimeType?.startsWith('video/')) preferKinds.push('video');
+
+                const preferredItem =
+                    state.data.items.find((item) => preferKinds.includes(item.kind)) ??
+                    state.data.items.find((item) => item.kind === 'image') ??
+                    state.data.items.find((item) => item.kind === 'video') ??
+                    state.data.items.find((item) => item.kind === 'audio') ??
+                    state.data.items[0];
+
+                if (
+                    preferredItem &&
+                    'src' in preferredItem &&
+                    typeof preferredItem.src === 'string'
+                ) {
+                    return preferredItem.src;
+                }
+            }
+        }
+
         if (dataCandidate.startsWith('@blob:')) {
             const uri = dataCandidate.substring(1);
             if (resourceStates && uri) {
                 const state = resourceStates[uri];
                 if (state && state.status === 'loaded' && state.data) {
                     const preferKinds: Array<NormalizedResourceItem['kind']> = [];
-                    if (part?.type === 'image') preferKinds.push('image');
-                    if (part?.type === 'file') {
-                        const mediaKind = getFileMediaKind(part.mimeType);
+                    if (partType === 'image') preferKinds.push('image');
+                    if (partType === 'file') {
+                        const mediaKind = getFileMediaKind(mimeType);
                         if (mediaKind === 'audio') preferKinds.push('audio');
                         else if (mediaKind === 'video') preferKinds.push('video');
                     }
-                    if (part?.mimeType?.startsWith('image/')) preferKinds.push('image');
-                    if (part?.mimeType?.startsWith('audio/')) preferKinds.push('audio');
-                    if (part?.mimeType?.startsWith('video/')) preferKinds.push('video');
+                    if (mimeType?.startsWith('image/')) preferKinds.push('image');
+                    if (mimeType?.startsWith('audio/')) preferKinds.push('audio');
+                    if (mimeType?.startsWith('video/')) preferKinds.push('video');
 
                     const preferredItem =
-                        state.data.items.find((item) => preferKinds.includes(item.kind as any)) ??
+                        state.data.items.find((item) => preferKinds.includes(item.kind)) ??
                         state.data.items.find((item) => item.kind === 'image') ??
                         state.data.items.find((item) => item.kind === 'video') ??
                         state.data.items.find((item) => item.kind === 'audio') ??
@@ -250,7 +385,12 @@ function resolveMediaSrc(
         }
     }
 
-    const urlSrc = part?.url ?? part?.image ?? part?.audio ?? part?.video ?? part?.uri;
+    const urlSrc =
+        partObject?.url ??
+        partObject?.image ??
+        partObject?.audio ??
+        partObject?.video ??
+        partObject?.uri;
     return typeof urlSrc === 'string' ? urlSrc : '';
 }
 
@@ -266,20 +406,33 @@ function getVideoInfo(
 ): VideoInfo | null {
     if (!part || typeof part !== 'object') return null;
 
-    const anyPart = part as Record<string, any>;
-    const mimeType = anyPart.mimeType || anyPart.mediaType;
-    const filename = anyPart.filename || anyPart.name;
+    const candidate = part as Record<string, unknown>;
+    const mimeType =
+        typeof candidate.mimeType === 'string'
+            ? candidate.mimeType
+            : typeof candidate.mediaType === 'string'
+              ? candidate.mediaType
+              : undefined;
+    const filename =
+        typeof candidate.filename === 'string'
+            ? candidate.filename
+            : typeof candidate.name === 'string'
+              ? candidate.name
+              : undefined;
 
-    const mediaKind = anyPart.type === 'file' ? getFileMediaKind(anyPart.mimeType) : null;
+    const mediaKind =
+        candidate.type === 'file' && typeof candidate.mimeType === 'string'
+            ? getFileMediaKind(candidate.mimeType)
+            : null;
     const isVideo =
         mimeType?.startsWith('video/') ||
         mediaKind === 'video' ||
-        anyPart.type === 'video' ||
+        candidate.type === 'video' ||
         filename?.match(/\.(mp4|webm|mov|m4v|avi|mkv)$/i);
 
     if (!isVideo) return null;
 
-    const src = resolveMediaSrc(anyPart, resourceStates);
+    const src = resolveMediaSrc(candidate, resourceStates);
     return src && isSafeMediaUrl(src, 'video') ? { src, filename, mimeType } : null;
 }
 
@@ -338,10 +491,16 @@ export default function MessageList({
     const endRef = useRef<HTMLDivElement>(null);
     const [manuallyExpanded, setManuallyExpanded] = useState<Record<string, boolean>>({});
     const [reasoningExpanded, setReasoningExpanded] = useState<Record<string, boolean>>({});
-    const [imageModal, setImageModal] = useState<{ isOpen: boolean; src: string; alt: string }>({
+    const [imageModal, setImageModal] = useState<{
+        isOpen: boolean;
+        src: string;
+        alt: string;
+        filename?: string;
+    }>({
         isOpen: false,
         src: '',
         alt: '',
+        filename: undefined,
     });
     const { resources: availableResources } = useResources();
     const resourceSet = useMemo<Record<string, ResourceMetadata>>(() => {
@@ -360,7 +519,13 @@ export default function MessageList({
         const addUri = (value: unknown) => {
             if (typeof value !== 'string') return;
             const trimmed = value.startsWith('@') ? value.substring(1) : value;
-            if (trimmed.startsWith('blob:')) {
+            if (
+                trimmed.startsWith('blob:') ||
+                trimmed.startsWith('fs://') ||
+                trimmed.startsWith('mcp:') ||
+                trimmed.startsWith('/') ||
+                /^[A-Za-z]:[\\/]/.test(trimmed)
+            ) {
                 uris.add(trimmed);
             }
         };
@@ -388,16 +553,24 @@ export default function MessageList({
             if (typeof anyPart.video === 'string') {
                 addUri(anyPart.video as string);
             }
+            if (typeof anyPart.uri === 'string') {
+                addUri(anyPart.uri as string);
+            }
         };
 
         for (const msg of messages) {
+            if (Array.isArray(msg.content)) {
+                msg.content.forEach((part) => collectFromPart(part));
+            }
+
             if (!isToolMessage(msg)) continue;
+
             const toolResult = msg.toolResult;
             if (!toolResult) continue;
             if (isToolResultContent(toolResult)) {
                 toolResult.resources?.forEach((res) => {
-                    if (res?.uri?.startsWith('blob:')) {
-                        uris.add(res.uri);
+                    if (res?.uri) {
+                        addUri(res.uri);
                     }
                 });
                 toolResult.content?.forEach((part) => collectFromPart(part));
@@ -434,12 +607,12 @@ export default function MessageList({
         };
     }, []);
 
-    const openImageModal = (src: string, alt: string) => {
-        setImageModal({ isOpen: true, src, alt });
+    const openImageModal = (src: string, alt: string, filename?: string) => {
+        setImageModal({ isOpen: true, src, alt, filename });
     };
 
     const closeImageModal = () => {
-        setImageModal({ isOpen: false, src: '', alt: '' });
+        setImageModal({ isOpen: false, src: '', alt: '', filename: undefined });
     };
 
     // NOTE: Autoscroll is now delegated to the parent (ChatApp) which
@@ -582,13 +755,24 @@ export default function MessageList({
                 const _isExpanded = (isToolRelated && isLastMessage) || !!manuallyExpanded[msgKey];
 
                 // Extract media parts from tool results for separate rendering
-                const toolResultImages: Array<{ src: string; alt: string; index: number }> = [];
+                const toolResultImages: Array<{
+                    src: string;
+                    alt: string;
+                    filename?: string;
+                    index: number;
+                }> = [];
                 const toolResultAudios: Array<{ src: string; filename?: string; index: number }> =
                     [];
                 const toolResultVideos: Array<{
                     src: string;
                     filename?: string;
                     mimeType?: string;
+                    index: number;
+                }> = [];
+                const toolResultFiles: Array<{
+                    filename?: string;
+                    mimeType?: string;
+                    src?: string;
                     index: number;
                 }> = [];
                 const toolResultUIResources: Array<{ resource: UIResourcePart; index: number }> =
@@ -608,6 +792,10 @@ export default function MessageList({
                                 toolResultImages.push({
                                     src,
                                     alt: `Tool result image ${index + 1}`,
+                                    filename: inferDownloadFilename(
+                                        part.mimeType,
+                                        `image-${index + 1}`
+                                    ),
                                     index,
                                 });
                             }
@@ -635,6 +823,52 @@ export default function MessageList({
                                     index,
                                 });
                             }
+                        } else if (isResourcePart(part)) {
+                            const resource = part as ResourcePart;
+                            const src = resolveMediaSrc(resource, toolResourceStates);
+
+                            if (resource.kind === 'image' && src && isSafeMediaUrl(src, 'image')) {
+                                toolResultImages.push({
+                                    src,
+                                    alt: resource.name || `Tool result image ${index + 1}`,
+                                    filename:
+                                        resource.name ||
+                                        inferDownloadFilename(
+                                            resource.mimeType,
+                                            `image-${index + 1}`
+                                        ),
+                                    index,
+                                });
+                                return;
+                            }
+
+                            if (resource.kind === 'audio' && src && isSafeMediaUrl(src, 'audio')) {
+                                toolResultAudios.push({
+                                    src,
+                                    filename: resource.name,
+                                    index,
+                                });
+                                return;
+                            }
+
+                            if (resource.kind === 'video') {
+                                const videoInfo = getVideoInfo(resource, toolResourceStates);
+                                if (videoInfo) {
+                                    toolResultVideos.push({
+                                        ...videoInfo,
+                                        index,
+                                    });
+                                }
+                                return;
+                            }
+
+                            toolResultFiles.push({
+                                filename: resource.name,
+                                mimeType: resource.mimeType,
+                                src: src || undefined,
+                                index,
+                            });
+                            return;
                         } else {
                             const videoInfo = getVideoInfo(part, toolResourceStates);
                             if (videoInfo) {
@@ -823,6 +1057,8 @@ export default function MessageList({
                                                             }> = [];
                                                             const imageParts: Array<{
                                                                 src: string;
+                                                                mimeType?: string;
+                                                                filename?: string;
                                                                 idx: number;
                                                             }> = [];
                                                             const uiResourceParts: Array<{
@@ -830,7 +1066,10 @@ export default function MessageList({
                                                                 idx: number;
                                                             }> = [];
                                                             const otherParts: Array<{
-                                                                part: FilePart | AudioPart;
+                                                                part:
+                                                                    | FilePart
+                                                                    | AudioPart
+                                                                    | ResourcePart;
                                                                 idx: number;
                                                             }> = [];
 
@@ -856,6 +1095,12 @@ export default function MessageList({
                                                                     ) {
                                                                         imageParts.push({
                                                                             src,
+                                                                            mimeType: part.mimeType,
+                                                                            filename:
+                                                                                inferDownloadFilename(
+                                                                                    part.mimeType,
+                                                                                    `attachment-${idx + 1}`
+                                                                                ),
                                                                             idx,
                                                                         });
                                                                     }
@@ -898,19 +1143,60 @@ export default function MessageList({
                                                                             )}
                                                                         >
                                                                             {imageParts.map(
-                                                                                ({ src, idx }) => (
-                                                                                    <img
+                                                                                ({
+                                                                                    src,
+                                                                                    idx,
+                                                                                    mimeType,
+                                                                                    filename,
+                                                                                }) => (
+                                                                                    <div
                                                                                         key={`${msgKey}-img-${idx}`}
-                                                                                        src={src}
-                                                                                        alt={`Attachment ${idx + 1}`}
-                                                                                        className="rounded-lg border border-border object-cover cursor-pointer w-full h-32 sm:h-40"
+                                                                                        className="relative group"
+                                                                                        role="button"
+                                                                                        tabIndex={0}
+                                                                                        aria-label={`Open image attachment ${idx + 1}`}
                                                                                         onClick={() =>
                                                                                             openImageModal(
                                                                                                 src,
-                                                                                                `Attachment ${idx + 1}`
+                                                                                                `Attachment ${idx + 1}`,
+                                                                                                filename
                                                                                             )
                                                                                         }
-                                                                                    />
+                                                                                        onKeyDown={(
+                                                                                            event
+                                                                                        ) =>
+                                                                                            handleInteractiveImageKeyDown(
+                                                                                                event,
+                                                                                                () =>
+                                                                                                    openImageModal(
+                                                                                                        src,
+                                                                                                        `Attachment ${idx + 1}`,
+                                                                                                        filename
+                                                                                                    )
+                                                                                            )
+                                                                                        }
+                                                                                    >
+                                                                                        <img
+                                                                                            src={
+                                                                                                src
+                                                                                            }
+                                                                                            alt={`Attachment ${idx + 1}`}
+                                                                                            className="rounded-lg border border-border object-cover cursor-pointer w-full h-32 sm:h-40"
+                                                                                        />
+                                                                                        <DownloadAction
+                                                                                            href={
+                                                                                                src
+                                                                                            }
+                                                                                            filename={
+                                                                                                filename ||
+                                                                                                inferDownloadFilename(
+                                                                                                    mimeType,
+                                                                                                    `attachment-${idx + 1}`
+                                                                                                )
+                                                                                            }
+                                                                                            className="absolute right-2 top-2 opacity-0 shadow-sm group-hover:opacity-100 focus-visible:opacity-100"
+                                                                                        />
+                                                                                    </div>
                                                                                 )
                                                                             )}
                                                                         </div>
@@ -1107,9 +1393,194 @@ export default function MessageList({
                                                                                                     filePart.mimeType
                                                                                                 }
                                                                                             </span>
+                                                                                            <div className="ml-auto" />
+                                                                                            <DownloadAction
+                                                                                                href={resolveMediaSrc(
+                                                                                                    filePart,
+                                                                                                    toolResourceStates
+                                                                                                )}
+                                                                                                filename={
+                                                                                                    filePart.filename ||
+                                                                                                    inferDownloadFilename(
+                                                                                                        filePart.mimeType,
+                                                                                                        'file'
+                                                                                                    )
+                                                                                                }
+                                                                                            />
                                                                                         </div>
                                                                                     );
                                                                                 }
+                                                                            }
+                                                                            if (
+                                                                                isResourcePart(part)
+                                                                            ) {
+                                                                                const resourcePart =
+                                                                                    part as ResourcePart;
+                                                                                const src =
+                                                                                    resolveMediaSrc(
+                                                                                        resourcePart,
+                                                                                        toolResourceStates
+                                                                                    );
+                                                                                if (
+                                                                                    resourcePart.kind ===
+                                                                                    'image'
+                                                                                ) {
+                                                                                    return src ? (
+                                                                                        <div
+                                                                                            key={
+                                                                                                partKey
+                                                                                            }
+                                                                                            className="my-2 relative group"
+                                                                                            role="button"
+                                                                                            tabIndex={
+                                                                                                0
+                                                                                            }
+                                                                                            aria-label={`Open image ${resourcePart.name}`}
+                                                                                            onClick={() =>
+                                                                                                openImageModal(
+                                                                                                    src,
+                                                                                                    resourcePart.name,
+                                                                                                    resourcePart.name
+                                                                                                )
+                                                                                            }
+                                                                                            onKeyDown={(
+                                                                                                event
+                                                                                            ) =>
+                                                                                                handleInteractiveImageKeyDown(
+                                                                                                    event,
+                                                                                                    () =>
+                                                                                                        openImageModal(
+                                                                                                            src,
+                                                                                                            resourcePart.name,
+                                                                                                            resourcePart.name
+                                                                                                        )
+                                                                                                )
+                                                                                            }
+                                                                                        >
+                                                                                            <img
+                                                                                                src={
+                                                                                                    src
+                                                                                                }
+                                                                                                alt={
+                                                                                                    resourcePart.name
+                                                                                                }
+                                                                                                className="max-w-full max-h-[300px] rounded-lg shadow-sm"
+                                                                                            />
+                                                                                            <DownloadAction
+                                                                                                href={
+                                                                                                    src
+                                                                                                }
+                                                                                                filename={
+                                                                                                    resourcePart.name ||
+                                                                                                    inferDownloadFilename(
+                                                                                                        resourcePart.mimeType,
+                                                                                                        'image'
+                                                                                                    )
+                                                                                                }
+                                                                                                className="absolute right-2 top-2 opacity-0 shadow-sm group-hover:opacity-100 focus-visible:opacity-100"
+                                                                                            />
+                                                                                        </div>
+                                                                                    ) : null;
+                                                                                }
+
+                                                                                if (
+                                                                                    resourcePart.kind ===
+                                                                                    'audio'
+                                                                                ) {
+                                                                                    return (
+                                                                                        <div
+                                                                                            key={
+                                                                                                partKey
+                                                                                            }
+                                                                                            className="my-2 flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50"
+                                                                                        >
+                                                                                            <FileAudio className="h-5 w-5" />
+                                                                                            <audio
+                                                                                                controls
+                                                                                                src={
+                                                                                                    src
+                                                                                                }
+                                                                                                className="flex-1 h-8"
+                                                                                            />
+                                                                                            <span className="text-sm truncate max-w-[120px]">
+                                                                                                {
+                                                                                                    resourcePart.name
+                                                                                                }
+                                                                                            </span>
+                                                                                        </div>
+                                                                                    );
+                                                                                }
+
+                                                                                if (
+                                                                                    resourcePart.kind ===
+                                                                                    'video'
+                                                                                ) {
+                                                                                    return src ? (
+                                                                                        <div
+                                                                                            key={
+                                                                                                partKey
+                                                                                            }
+                                                                                            className="my-2 space-y-2"
+                                                                                        >
+                                                                                            <video
+                                                                                                controls
+                                                                                                src={
+                                                                                                    src
+                                                                                                }
+                                                                                                className="w-full max-h-[360px] rounded-lg bg-black"
+                                                                                                preload="metadata"
+                                                                                            />
+                                                                                            <div className="flex flex-col text-xs">
+                                                                                                <span className="truncate">
+                                                                                                    {
+                                                                                                        resourcePart.name
+                                                                                                    }
+                                                                                                </span>
+                                                                                                <span className="text-muted-foreground/80">
+                                                                                                    {
+                                                                                                        resourcePart.mimeType
+                                                                                                    }
+                                                                                                </span>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ) : null;
+                                                                                }
+
+                                                                                return (
+                                                                                    <div
+                                                                                        key={
+                                                                                            partKey
+                                                                                        }
+                                                                                        className="my-2 flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50"
+                                                                                    >
+                                                                                        <File className="h-5 w-5" />
+                                                                                        <span className="text-sm font-medium">
+                                                                                            {
+                                                                                                resourcePart.name
+                                                                                            }
+                                                                                        </span>
+                                                                                        <span className="text-xs text-muted-foreground">
+                                                                                            {
+                                                                                                resourcePart.mimeType
+                                                                                            }
+                                                                                        </span>
+                                                                                        <div className="ml-auto" />
+                                                                                        {src && (
+                                                                                            <DownloadAction
+                                                                                                href={
+                                                                                                    src
+                                                                                                }
+                                                                                                filename={
+                                                                                                    resourcePart.name ||
+                                                                                                    inferDownloadFilename(
+                                                                                                        resourcePart.mimeType,
+                                                                                                        'file'
+                                                                                                    )
+                                                                                                }
+                                                                                            />
+                                                                                        )}
+                                                                                    </div>
+                                                                                );
                                                                             }
                                                                             return null;
                                                                         }
@@ -1127,11 +1598,24 @@ export default function MessageList({
                                                                 return null;
                                                             }
                                                             return (
-                                                                <img
-                                                                    src={src}
-                                                                    alt="attachment"
-                                                                    className="mt-2 max-h-60 w-full rounded-lg border border-border object-contain"
-                                                                />
+                                                                <>
+                                                                    <div className="relative mt-2 group">
+                                                                        <img
+                                                                            src={src}
+                                                                            alt="attachment"
+                                                                            className="max-h-60 w-full rounded-lg border border-border object-contain"
+                                                                        />
+                                                                        <DownloadAction
+                                                                            href={src}
+                                                                            filename={inferDownloadFilename(
+                                                                                msg.imageData
+                                                                                    .mimeType,
+                                                                                'image'
+                                                                            )}
+                                                                            className="absolute right-2 top-2 opacity-0 shadow-sm group-hover:opacity-100 focus-visible:opacity-100"
+                                                                        />
+                                                                    </div>
+                                                                </>
                                                             );
                                                         })()}
                                                     {/* Display fileData attachments if not already in content array */}
@@ -1217,6 +1701,19 @@ export default function MessageList({
                                                                         <span className="text-xs text-primary-foreground/70">
                                                                             {msg.fileData.mimeType}
                                                                         </span>
+                                                                        <div className="ml-auto" />
+                                                                        <DownloadAction
+                                                                            href={`data:${msg.fileData.mimeType};base64,${msg.fileData.data}`}
+                                                                            filename={
+                                                                                msg.fileData
+                                                                                    .filename ||
+                                                                                inferDownloadFilename(
+                                                                                    msg.fileData
+                                                                                        .mimeType,
+                                                                                    'file'
+                                                                                )
+                                                                            }
+                                                                        />
                                                                     </div>
                                                                 )}
                                                             </div>
@@ -1333,17 +1830,33 @@ export default function MessageList({
                             {toolResultImages.map((image, imageIndex) => (
                                 <div key={`${msgKey}-image-${imageIndex}`} className="mt-3 pl-9">
                                     <div
-                                        className="relative group cursor-pointer inline-block"
-                                        onClick={() => openImageModal(image.src, image.alt)}
+                                        className="relative group inline-block"
+                                        role="button"
+                                        tabIndex={0}
+                                        aria-label={`Open image ${image.alt}`}
+                                        onClick={() =>
+                                            openImageModal(image.src, image.alt, image.filename)
+                                        }
+                                        onKeyDown={(event) =>
+                                            handleInteractiveImageKeyDown(event, () =>
+                                                openImageModal(image.src, image.alt, image.filename)
+                                            )
+                                        }
                                     >
                                         <img
                                             src={image.src}
                                             alt={image.alt}
-                                            className="max-h-80 max-w-full w-auto rounded-lg object-contain transition-transform group-hover:scale-[1.01]"
+                                            className="max-h-80 max-w-full w-auto cursor-pointer rounded-lg object-contain transition-transform group-hover:scale-[1.01]"
                                         />
                                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors rounded-lg flex items-center justify-center">
                                             <ZoomIn className="h-6 w-6 text-white opacity-0 group-hover:opacity-80 transition-opacity drop-shadow-lg" />
                                         </div>
+                                        <DownloadAction
+                                            href={image.src}
+                                            filename={image.filename}
+                                            className="absolute right-2 top-2 opacity-0 shadow-sm group-hover:opacity-100 focus-visible:opacity-100"
+                                            onClick={(event) => event.stopPropagation()}
+                                        />
                                     </div>
                                 </div>
                             ))}
@@ -1351,17 +1864,19 @@ export default function MessageList({
                             {/* Render tool result videos inline */}
                             {toolResultVideos.map((video, videoIndex) => (
                                 <div key={`${msgKey}-video-${videoIndex}`} className="mt-3 pl-9">
+                                    <div className="mt-1 flex items-center gap-3">
+                                        {video.filename && (
+                                            <div className="text-xs text-muted-foreground truncate">
+                                                {video.filename}
+                                            </div>
+                                        )}
+                                    </div>
                                     <video
                                         controls
                                         src={video.src}
                                         className="max-w-full max-h-[360px] rounded-lg bg-black"
                                         preload="metadata"
                                     />
-                                    {video.filename && (
-                                        <div className="text-xs text-muted-foreground mt-1 truncate">
-                                            {video.filename}
-                                        </div>
-                                    )}
                                 </div>
                             ))}
 
@@ -1374,11 +1889,13 @@ export default function MessageList({
                                         className="max-w-full rounded-lg"
                                         preload="metadata"
                                     />
-                                    {audio.filename && (
-                                        <div className="text-xs text-muted-foreground mt-1 truncate">
-                                            {audio.filename}
-                                        </div>
-                                    )}
+                                    <div className="mt-1 flex items-center gap-3">
+                                        {audio.filename && (
+                                            <div className="text-xs text-muted-foreground truncate">
+                                                {audio.filename}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             ))}
 
@@ -1401,6 +1918,32 @@ export default function MessageList({
                                         <div className="text-xs text-muted-foreground mt-1 px-1">
                                             <span>{timestampStr}</span>
                                         </div>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {/* Render generic tool result files inline */}
+                            {toolResultFiles.map((file, fileIndex) => (
+                                <div key={`${msgKey}-file-${fileIndex}`} className="mt-3 pl-9">
+                                    <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/50">
+                                        <File className="h-5 w-5 shrink-0" />
+                                        <div className="min-w-0 flex-1">
+                                            <div className="text-sm font-medium truncate">
+                                                {file.filename || 'File'}
+                                            </div>
+                                            {file.mimeType && (
+                                                <div className="text-xs text-muted-foreground truncate">
+                                                    {file.mimeType}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="ml-auto" />
+                                        {file.src && (
+                                            <DownloadAction
+                                                href={file.src}
+                                                filename={file.filename || 'resource.bin'}
+                                            />
+                                        )}
                                     </div>
                                 </div>
                             ))}
@@ -1441,6 +1984,13 @@ export default function MessageList({
                     >
                         <X className="h-6 w-6" />
                     </button>
+                    <DownloadAction
+                        href={imageModal.src}
+                        filename={imageModal.filename || inferDownloadFilename(undefined, 'image')}
+                        label="Save image"
+                        className="absolute top-4 left-4 border-white/15 bg-black/60 text-white hover:bg-black/75 hover:text-white"
+                        onClick={(event) => event.stopPropagation()}
+                    />
                     <img
                         src={imageModal.src}
                         alt={imageModal.alt}
@@ -1503,7 +2053,7 @@ function MessageContentWithResources({
 }: {
     text: string;
     isUser: boolean;
-    onOpenImage: (src: string, alt: string) => void;
+    onOpenImage: (src: string, alt: string, filename?: string) => void;
     resourceSet: Record<string, ResourceMetadata>;
 }) {
     const { cleanedText, uris } = useMemo(
@@ -1546,7 +2096,7 @@ function ResourceAttachment({
 }: {
     uri: string;
     state?: ResourceState;
-    onOpenImage: (src: string, alt: string) => void;
+    onOpenImage: (src: string, alt: string, filename?: string) => void;
 }) {
     if (!state || state.status === 'loading') {
         return (
@@ -1611,7 +2161,7 @@ function renderNormalizedItem({
 }: {
     item: NormalizedResourceItem;
     index: number;
-    onOpenImage: (src: string, alt: string) => void;
+    onOpenImage: (src: string, alt: string, filename?: string) => void;
 }) {
     const key = `resource-item-${index}`;
 
@@ -1642,13 +2192,25 @@ function renderNormalizedItem({
                 );
             }
             return (
-                <img
-                    key={key}
-                    src={item.src}
-                    alt={item.alt || 'Resource image'}
-                    onClick={() => onOpenImage(item.src, item.alt || 'Resource image')}
-                    className="max-h-60 w-full cursor-zoom-in rounded-lg border border-border object-contain"
-                />
+                <div key={key} className="relative group">
+                    <img
+                        src={item.src}
+                        alt={item.alt || 'Resource image'}
+                        onClick={() =>
+                            onOpenImage(
+                                item.src,
+                                item.alt || 'Resource image',
+                                item.alt || inferDownloadFilename(item.mimeType, 'image')
+                            )
+                        }
+                        className="max-h-60 w-full cursor-zoom-in rounded-lg border border-border object-contain"
+                    />
+                    <DownloadAction
+                        href={item.src}
+                        filename={item.alt || inferDownloadFilename(item.mimeType, 'image')}
+                        className="absolute right-2 top-2 opacity-0 shadow-sm group-hover:opacity-100 focus-visible:opacity-100"
+                    />
+                </div>
             );
         }
         case 'audio': {
@@ -1722,14 +2284,12 @@ function renderNormalizedItem({
                             </span>
                         )}
                     </div>
+                    <div className="ml-auto" />
                     {item.src && (
-                        <a
+                        <DownloadAction
                             href={item.src}
-                            download={item.filename || 'resource.bin'}
-                            className="text-xs font-medium text-primary underline-offset-2 hover:underline"
-                        >
-                            Download
-                        </a>
+                            filename={item.filename || 'resource.bin'}
+                        />
                     )}
                 </div>
             );

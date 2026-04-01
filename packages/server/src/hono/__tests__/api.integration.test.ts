@@ -469,6 +469,183 @@ describe('Hono API Integration Tests', () => {
             expect(Array.isArray((res.body as { history: unknown[] }).history)).toBe(true);
         });
 
+        it('GET /api/sessions/:id/history preserves resource parts for media rehydration', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = 'test-session-history-resource-parts';
+
+            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId,
+            });
+
+            const database = testServer.agent.services.storageManager.getDatabase();
+            await database.append(`messages:${sessionId}`, {
+                role: 'tool',
+                toolCallId: 'call-resource-history',
+                name: 'read_media_file',
+                success: true,
+                content: [
+                    { type: 'text', text: 'Loaded local video resource.' },
+                    {
+                        type: 'resource',
+                        uri: '/tmp/demo-video.mp4',
+                        name: 'demo-video.mp4',
+                        mimeType: 'video/mp4',
+                        kind: 'video',
+                        metadata: {
+                            originalPath: '/tmp/demo-video.mp4',
+                            mtimeMs: 1234.5,
+                            source: 'filesystem',
+                        },
+                    },
+                ],
+            });
+
+            const sessionData = await database.get<
+                { messageCount: number } & Record<string, unknown>
+            >(`session:${sessionId}`);
+            if (!sessionData) {
+                throw new Error(`Expected session '${sessionId}' to exist`);
+            }
+            sessionData.messageCount = 1;
+            await database.set(`session:${sessionId}`, sessionData);
+            await testServer.agent.endSession(sessionId);
+
+            const res = await httpRequest(
+                testServer.baseUrl,
+                'GET',
+                `/api/sessions/${sessionId}/history`
+            );
+
+            expect(res.status).toBe(200);
+            const history = (res.body as { history: Array<{ content: unknown[] }> }).history;
+            expect(history).toHaveLength(1);
+            expect(history[0]?.content[1]).toEqual({
+                type: 'resource',
+                uri: '/tmp/demo-video.mp4',
+                name: 'demo-video.mp4',
+                mimeType: 'video/mp4',
+                kind: 'video',
+                metadata: {
+                    mtimeMs: 1234.5,
+                    source: 'filesystem',
+                },
+            });
+        });
+
+        it('GET /api/sessions/:id/history expands blob-backed media parts by default', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = 'test-session-history-expanded-blobs';
+
+            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId,
+            });
+
+            const blobStore = testServer.agent.services.storageManager.getBlobStore();
+            const storedBlob = await blobStore.store('iVBORw0KGgo=', {
+                mimeType: 'image/png',
+                originalName: 'demo-image.png',
+                source: 'tool',
+            });
+
+            const database = testServer.agent.services.storageManager.getDatabase();
+            await database.append(`messages:${sessionId}`, {
+                role: 'tool',
+                toolCallId: 'call-history-blob',
+                name: 'read_media_file',
+                success: true,
+                content: [
+                    {
+                        type: 'image',
+                        image: `@${storedBlob.uri}`,
+                        mimeType: 'image/png',
+                    },
+                ],
+            });
+
+            const sessionData = await database.get<
+                { messageCount: number } & Record<string, unknown>
+            >(`session:${sessionId}`);
+            if (!sessionData) {
+                throw new Error(`Expected session '${sessionId}' to exist`);
+            }
+            sessionData.messageCount = 1;
+            await database.set(`session:${sessionId}`, sessionData);
+
+            const res = await httpRequest(
+                testServer.baseUrl,
+                'GET',
+                `/api/sessions/${sessionId}/history`
+            );
+
+            expect(res.status).toBe(200);
+            const history = (res.body as { history: Array<{ content: unknown[] }> }).history;
+            expect(history).toHaveLength(1);
+            expect(history[0]?.content[0]).toEqual({
+                type: 'image',
+                image: 'iVBORw0KGgo=',
+                mimeType: 'image/png',
+            });
+        });
+
+        it('GET /api/sessions/:id/history preserves blob refs when API expansion fails', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = 'test-session-history-failed-blob-expansion';
+
+            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId,
+            });
+
+            const database = testServer.agent.services.storageManager.getDatabase();
+            await database.append(`messages:${sessionId}`, {
+                role: 'tool',
+                toolCallId: 'call-history-missing-blob',
+                name: 'read_media_file',
+                success: true,
+                content: [
+                    {
+                        type: 'file',
+                        data: '@blob:missing-history-blob',
+                        mimeType: 'application/pdf',
+                        filename: 'missing.pdf',
+                    },
+                ],
+            });
+
+            const sessionData = await database.get<
+                { messageCount: number } & Record<string, unknown>
+            >(`session:${sessionId}`);
+            if (!sessionData) {
+                throw new Error(`Expected session '${sessionId}' to exist`);
+            }
+            sessionData.messageCount = 1;
+            await database.set(`session:${sessionId}`, sessionData);
+
+            const readSpy = vi
+                .spyOn(testServer.agent.resourceManager, 'read')
+                .mockRejectedValueOnce(new Error('blob missing'));
+
+            try {
+                const res = await httpRequest(
+                    testServer.baseUrl,
+                    'GET',
+                    `/api/sessions/${sessionId}/history`
+                );
+
+                expect(res.status).toBe(200);
+                const history = (res.body as { history: Array<{ content: unknown[] }> }).history;
+                expect(history).toHaveLength(1);
+                expect(history[0]?.content[0]).toEqual({
+                    type: 'file',
+                    data: '@blob:missing-history-blob',
+                    mimeType: 'application/pdf',
+                    filename: 'missing.pdf',
+                });
+                expect(readSpy).toHaveBeenCalledTimes(1);
+            } finally {
+                readSpy.mockRestore();
+            }
+        });
+
         it('POST /api/sessions/:id/fork creates child with parentSessionId', async () => {
             if (!testServer) throw new Error('Test server not initialized');
             const parentSessionId = 'test-fork-parent';

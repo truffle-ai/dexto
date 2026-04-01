@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from './ui/button';
-import { X, FileAudio, File } from 'lucide-react';
+import { X, FileAudio, FileVideo, File } from 'lucide-react';
 import type { Attachment } from '../lib/attachment-types.js';
 import { formatFileSize } from '../lib/attachment-utils.js';
 
@@ -31,7 +31,7 @@ export default function AttachmentPreview({ attachment, onRemove }: AttachmentPr
         );
     }
 
-    // File attachment (PDF, audio, etc.)
+    // Audio attachment
     if (attachment.mimeType?.startsWith('audio')) {
         return (
             <div className="relative border border-border rounded-lg p-2 bg-muted/50 flex items-center gap-2 group min-w-[200px]">
@@ -54,6 +54,36 @@ export default function AttachmentPreview({ attachment, onRemove }: AttachmentPr
                     size="icon"
                     onClick={onRemove}
                     className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-150 shadow-md flex-shrink-0"
+                    aria-label="Remove attachment"
+                >
+                    <X className="h-3 w-3" />
+                </Button>
+            </div>
+        );
+    }
+
+    // Video attachment
+    if (attachment.mimeType?.startsWith('video/')) {
+        return (
+            <div className="relative border border-border rounded-lg p-2 bg-muted/50 group min-w-[240px]">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                    <FileVideo className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">{attachment.filename || 'video file'}</span>
+                </div>
+                <video
+                    controls
+                    src={`data:${attachment.mimeType};base64,${attachment.data}`}
+                    className="max-h-40 w-full rounded-md bg-black"
+                    preload="metadata"
+                />
+                <div className="text-xs text-muted-foreground mt-2">
+                    {formatFileSize(attachment.size)}
+                </div>
+                <Button
+                    variant="destructive"
+                    size="icon"
+                    onClick={onRemove}
+                    className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-150 shadow-md"
                     aria-label="Remove attachment"
                 >
                     <X className="h-3 w-3" />
