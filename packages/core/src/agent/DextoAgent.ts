@@ -1875,6 +1875,9 @@ export class DextoAgent {
                                         typeof part.uri === 'string' &&
                                         part.uri.startsWith('blob:')
                                     ) {
+                                        // Keep filesystem resources path-backed for UI rehydration.
+                                        // Blob resources are already owned by the runtime, so expand
+                                        // them here to avoid requiring a second resource fetch.
                                         return await expandBlobReferences(
                                             [part],
                                             this.resourceManager,
