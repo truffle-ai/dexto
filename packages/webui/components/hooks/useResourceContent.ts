@@ -97,20 +97,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null;
 }
 
-function decodeBase64(base64: string): number[] {
-    const normalized = base64.replace(/\s/g, '');
-    const binary = window.atob(normalized);
-    const bytes = new Array<number>(binary.length);
+function decodeBase64(base64: string): number[] | null {
+    try {
+        const normalized = base64.replace(/\s/g, '');
+        const binary = window.atob(normalized);
+        const bytes = new Array<number>(binary.length);
 
-    for (let index = 0; index < binary.length; index++) {
-        bytes[index] = binary.charCodeAt(index);
+        for (let index = 0; index < binary.length; index++) {
+            bytes[index] = binary.charCodeAt(index);
+        }
+
+        return bytes;
+    } catch {
+        return null;
     }
-
-    return bytes;
 }
 
-function createObjectUrl(base64: string, mimeType?: string): string {
+function createObjectUrl(base64: string, mimeType?: string): string | null {
     const bytes = decodeBase64(base64);
+    if (!bytes) return null;
     const blob = new Blob([Uint8Array.from(bytes)], mimeType ? { type: mimeType } : undefined);
     return URL.createObjectURL(blob);
 }
@@ -202,48 +207,57 @@ function materializeResource(raw: RawNormalizedResource): {
     objectUrls: string[];
 } {
     const objectUrls: string[] = [];
-    const items: NormalizedResourceItem[] = raw.items.map((item) => {
+    const items: NormalizedResourceItem[] = [];
+
+    for (const item of raw.items) {
         if (item.kind === 'text') {
-            return item;
+            items.push(item);
+            continue;
         }
 
         const src = createObjectUrl(item.base64, item.mimeType);
+        if (!src) {
+            continue;
+        }
         objectUrls.push(src);
 
         if (item.kind === 'image') {
-            return {
+            items.push({
                 kind: 'image',
                 src,
                 mimeType: item.mimeType,
                 alt: item.alt,
-            };
+            });
+            continue;
         }
 
         if (item.kind === 'audio') {
-            return {
+            items.push({
                 kind: 'audio',
                 src,
                 mimeType: item.mimeType,
                 filename: item.filename,
-            };
+            });
+            continue;
         }
 
         if (item.kind === 'video') {
-            return {
+            items.push({
                 kind: 'video',
                 src,
                 mimeType: item.mimeType,
                 filename: item.filename,
-            };
+            });
+            continue;
         }
 
-        return {
+        items.push({
             kind: 'file',
             src,
             mimeType: item.mimeType,
             filename: item.filename,
-        };
-    });
+        });
+    }
 
     return {
         data: {

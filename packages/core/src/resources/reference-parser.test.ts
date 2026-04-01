@@ -212,6 +212,40 @@ describe('expandMessageReferences', () => {
         expect(result.expandedMessage).toContain('user@example.com');
     });
 
+    it('should derive extracted media kind case-insensitively from mime type', async () => {
+        const mixedCaseReader = async (uri: string): Promise<ReadResourceResult> => {
+            if (uri !== 'fs:///demo.mp4') {
+                throw new Error(`Resource not found: ${uri}`);
+            }
+
+            return {
+                contents: [
+                    {
+                        uri,
+                        mimeType: 'VIDEO/MP4',
+                        blob: 'videodata',
+                    },
+                ],
+                _meta: {
+                    size: 4096,
+                    originalName: 'demo.mp4',
+                },
+            };
+        };
+
+        const result = await expandMessageReferences(
+            'Check @<fs:///demo.mp4>',
+            mockResourceSet,
+            mixedCaseReader
+        );
+
+        expect(result.extractedResources).toHaveLength(1);
+        expect(result.extractedResources[0]).toMatchObject({
+            mimeType: 'VIDEO/MP4',
+            kind: 'video',
+        });
+    });
+
     it('should preserve multiple email addresses', async () => {
         const result = await expandMessageReferences(
             'Contact user@example.com or admin@test.com',

@@ -508,6 +508,7 @@ describe('Hono API Integration Tests', () => {
             }
             sessionData.messageCount = 1;
             await database.set(`session:${sessionId}`, sessionData);
+            await testServer.agent.endSession(sessionId);
 
             const res = await httpRequest(
                 testServer.baseUrl,
@@ -528,6 +529,61 @@ describe('Hono API Integration Tests', () => {
                     mtimeMs: 1234.5,
                     source: 'filesystem',
                 },
+            });
+        });
+
+        it('GET /api/sessions/:id/history expands blob-backed media parts by default', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+            const sessionId = 'test-session-history-expanded-blobs';
+
+            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', {
+                sessionId,
+            });
+
+            const blobStore = testServer.agent.services.storageManager.getBlobStore();
+            const storedBlob = await blobStore.store('iVBORw0KGgo=', {
+                mimeType: 'image/png',
+                originalName: 'demo-image.png',
+                source: 'tool',
+            });
+
+            const database = testServer.agent.services.storageManager.getDatabase();
+            await database.append(`messages:${sessionId}`, {
+                role: 'tool',
+                toolCallId: 'call-history-blob',
+                name: 'read_media_file',
+                success: true,
+                content: [
+                    {
+                        type: 'image',
+                        image: `@${storedBlob.uri}`,
+                        mimeType: 'image/png',
+                    },
+                ],
+            });
+
+            const sessionData = await database.get<
+                { messageCount: number } & Record<string, unknown>
+            >(`session:${sessionId}`);
+            if (!sessionData) {
+                throw new Error(`Expected session '${sessionId}' to exist`);
+            }
+            sessionData.messageCount = 1;
+            await database.set(`session:${sessionId}`, sessionData);
+
+            const res = await httpRequest(
+                testServer.baseUrl,
+                'GET',
+                `/api/sessions/${sessionId}/history`
+            );
+
+            expect(res.status).toBe(200);
+            const history = (res.body as { history: Array<{ content: unknown[] }> }).history;
+            expect(history).toHaveLength(1);
+            expect(history[0]?.content[0]).toEqual({
+                type: 'image',
+                image: 'iVBORw0KGgo=',
+                mimeType: 'image/png',
             });
         });
 

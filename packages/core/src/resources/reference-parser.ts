@@ -54,9 +54,10 @@ function escapeRegExp(literal: string): string {
 }
 
 function deriveExtractedKind(mimeType: string): 'image' | 'audio' | 'video' | 'binary' {
-    if (mimeType.startsWith('image/')) return 'image';
-    if (mimeType.startsWith('audio/')) return 'audio';
-    if (mimeType.startsWith('video/')) return 'video';
+    const normalizedMimeType = mimeType.trim().toLowerCase();
+    if (normalizedMimeType.startsWith('image/')) return 'image';
+    if (normalizedMimeType.startsWith('audio/')) return 'audio';
+    if (normalizedMimeType.startsWith('video/')) return 'video';
     return 'binary';
 }
 

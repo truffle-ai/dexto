@@ -6,9 +6,9 @@ import { ToolManager } from '../tools/tool-manager.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { SkillsContributor } from '../systemPrompt/contributors.js';
 import { ResourceManager, expandMessageReferences } from '../resources/index.js';
-import { expandBlobReferences, fileTypesToMimePatterns } from '../context/utils.js';
+import { fileTypesToMimePatterns } from '../context/utils.js';
 import { StorageManager } from '../storage/index.js';
-import type { InternalMessage } from '../context/types.js';
+import type { ContentPart, InternalMessage } from '../context/types.js';
 import { PromptManager } from '../prompts/index.js';
 import type { PromptsConfig } from '../prompts/schemas.js';
 import { AgentStateManager } from './state-manager.js';
@@ -1758,24 +1758,92 @@ export class DextoAgent {
             throw SessionError.notFound(sessionId);
         }
         const history = await session.getHistory();
-        if (!this.resourceManager || options?.expandBlobReferences !== true) {
+        const expandBlobReferencesByDefault = options?.expandBlobReferences ?? true;
+        if (!this.resourceManager || !expandBlobReferencesByDefault) {
             return history;
         }
 
         return (await Promise.all(
-            history.map(async (message) => ({
-                ...message,
-                content: await expandBlobReferences(
-                    message.content,
-                    this.resourceManager,
-                    this.logger
-                ).catch((error) => {
+            history.map(async (message): Promise<InternalMessage> => {
+                if (!Array.isArray(message.content)) {
+                    return message;
+                }
+
+                try {
+                    const expandedContent = await Promise.all(
+                        message.content.map(async (part): Promise<ContentPart> => {
+                            if (
+                                part.type === 'image' &&
+                                typeof part.image === 'string' &&
+                                part.image.startsWith('@blob:')
+                            ) {
+                                const result = await this.resourceManager.read(part.image.slice(1));
+                                for (const item of result.contents) {
+                                    if (
+                                        typeof item === 'object' &&
+                                        item !== null &&
+                                        'blob' in item &&
+                                        typeof item.blob === 'string'
+                                    ) {
+                                        return {
+                                            type: 'image',
+                                            image: item.blob,
+                                            ...(typeof item.mimeType === 'string'
+                                                ? { mimeType: item.mimeType }
+                                                : part.mimeType !== undefined
+                                                  ? { mimeType: part.mimeType }
+                                                  : {}),
+                                        };
+                                    }
+                                }
+                            }
+
+                            if (
+                                part.type === 'file' &&
+                                typeof part.data === 'string' &&
+                                part.data.startsWith('@blob:')
+                            ) {
+                                const result = await this.resourceManager.read(part.data.slice(1));
+                                for (const item of result.contents) {
+                                    if (
+                                        typeof item === 'object' &&
+                                        item !== null &&
+                                        'blob' in item &&
+                                        typeof item.blob === 'string'
+                                    ) {
+                                        return {
+                                            type: 'file',
+                                            data: item.blob,
+                                            mimeType:
+                                                typeof item.mimeType === 'string'
+                                                    ? item.mimeType
+                                                    : part.mimeType,
+                                            ...('filename' in item &&
+                                            typeof item.filename === 'string'
+                                                ? { filename: item.filename }
+                                                : part.filename !== undefined
+                                                  ? { filename: part.filename }
+                                                  : {}),
+                                        };
+                                    }
+                                }
+                            }
+
+                            return part;
+                        })
+                    );
+
+                    return {
+                        ...message,
+                        content: expandedContent,
+                    } as InternalMessage;
+                } catch (error) {
                     this.logger.warn(
                         `Failed to expand blob references in message: ${error instanceof Error ? error.message : String(error)}`
                     );
-                    return message.content; // Return original content on error
-                }),
-            }))
+                    return message;
+                }
+            })
         )) as InternalMessage[];
     }
 
