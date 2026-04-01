@@ -369,10 +369,41 @@ export function toApiInternalMessage(
     message: CoreInternalMessage
 ): z.output<typeof InternalMessageSchema> {
     return {
-        ...message,
+        ...(message.id !== undefined ? { id: message.id } : {}),
+        role: message.role,
+        ...(message.timestamp !== undefined ? { timestamp: message.timestamp } : {}),
         content: Array.isArray(message.content)
             ? message.content.map((part) => toApiContentPart(part))
             : message.content,
+        ...('reasoning' in message && message.reasoning !== undefined
+            ? { reasoning: message.reasoning }
+            : {}),
+        ...('tokenUsage' in message && message.tokenUsage !== undefined
+            ? { tokenUsage: message.tokenUsage }
+            : {}),
+        ...('estimatedCost' in message && message.estimatedCost !== undefined
+            ? { estimatedCost: message.estimatedCost }
+            : {}),
+        ...('pricingStatus' in message && message.pricingStatus !== undefined
+            ? { pricingStatus: message.pricingStatus }
+            : {}),
+        ...('usageScopeId' in message && message.usageScopeId !== undefined
+            ? { usageScopeId: message.usageScopeId }
+            : {}),
+        ...('model' in message && message.model !== undefined ? { model: message.model } : {}),
+        ...('provider' in message && message.provider !== undefined
+            ? { provider: message.provider }
+            : {}),
+        ...('toolCalls' in message && message.toolCalls !== undefined
+            ? { toolCalls: message.toolCalls }
+            : {}),
+        ...('toolCallId' in message && message.toolCallId !== undefined
+            ? { toolCallId: message.toolCallId }
+            : {}),
+        ...('name' in message && message.name !== undefined ? { name: message.name } : {}),
+        ...('success' in message && message.success !== undefined
+            ? { success: message.success }
+            : {}),
     };
 }
 

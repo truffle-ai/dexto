@@ -79,6 +79,17 @@ const CUSTOM_PROVIDER_SUPPORTED_FILE_TYPES: Partial<
     local: [],
 };
 
+function resolveSupportedFileTypes(
+    provider: LLMProvider,
+    providers: Partial<Record<LLMProvider, ProviderCatalog>>
+): ModelInfo['supportedFileTypes'] {
+    return (
+        providers[provider]?.supportedFileTypes ??
+        CUSTOM_PROVIDER_SUPPORTED_FILE_TYPES[provider] ??
+        []
+    );
+}
+
 export default function ModelPickerModal() {
     const [open, setOpen] = useState(false);
     const [providers, setProviders] = useState<Partial<Record<LLMProvider, ProviderCatalog>>>({});
@@ -682,10 +693,7 @@ export default function ModelPickerModal() {
                 name: customModel.name,
                 displayName: customModel.displayName || customModel.name,
                 maxInputTokens: customModel.maxInputTokens || 128000,
-                supportedFileTypes:
-                    providers[provider]?.supportedFileTypes ??
-                    CUSTOM_PROVIDER_SUPPORTED_FILE_TYPES[provider] ??
-                    [],
+                supportedFileTypes: resolveSupportedFileTypes(provider, providers),
             };
             // Skip API key check for custom models - user already configured them.
             // If they didn't add an API key, it's intentional (self-hosted, local, or env var).
@@ -792,10 +800,7 @@ export default function ModelPickerModal() {
                     name: customModel.name,
                     displayName: customModel.displayName || customModel.name,
                     maxInputTokens: customModel.maxInputTokens || 128000,
-                    supportedFileTypes:
-                        providers[entry.provider]?.supportedFileTypes ??
-                        CUSTOM_PROVIDER_SUPPORTED_FILE_TYPES[entry.provider] ??
-                        [],
+                    supportedFileTypes: resolveSupportedFileTypes(entry.provider, providers),
                 };
             }
 
@@ -1405,11 +1410,11 @@ export default function ModelPickerModal() {
                                                                     cm.displayName || cm.name,
                                                                 maxInputTokens:
                                                                     cm.maxInputTokens || 128000,
-                                                                supportedFileTypes: [
-                                                                    'pdf',
-                                                                    'image',
-                                                                    'audio',
-                                                                ],
+                                                                supportedFileTypes:
+                                                                    resolveSupportedFileTypes(
+                                                                        cmProvider,
+                                                                        providers
+                                                                    ),
                                                             }}
                                                             isFavorite={isFavorite(
                                                                 cmProvider,

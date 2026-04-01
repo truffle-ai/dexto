@@ -9,18 +9,29 @@ import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import { FileSystemService } from './filesystem-service.js';
+import type { Logger } from '@dexto/core';
 
 // Create mock logger
-const createMockLogger = () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    createChild: vi.fn().mockReturnThis(),
-});
+const createMockLogger = (): Logger => {
+    const logger: Logger = {
+        debug: vi.fn(),
+        silly: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        trackException: vi.fn(),
+        createChild: vi.fn(() => logger),
+        createFileOnlyChild: vi.fn(() => logger),
+        setLevel: vi.fn(),
+        getLevel: vi.fn(() => 'debug' as const),
+        getLogFilePath: vi.fn(() => null),
+        destroy: vi.fn(async () => undefined),
+    };
+    return logger;
+};
 
 describe('FileSystemService', () => {
-    let mockLogger: ReturnType<typeof createMockLogger>;
+    let mockLogger: Logger;
     let tempDir: string;
     let backupDir: string;
 
@@ -56,7 +67,7 @@ describe('FileSystemService', () => {
                     enableBackups: false,
                     backupRetentionDays: 7,
                 },
-                mockLogger as any
+                mockLogger
             );
             await fileSystemService.initialize();
 
@@ -80,7 +91,7 @@ describe('FileSystemService', () => {
                     enableBackups: false,
                     backupRetentionDays: 7,
                 },
-                mockLogger as any
+                mockLogger
             );
             await fileSystemService.initialize();
 
@@ -103,7 +114,7 @@ describe('FileSystemService', () => {
                     enableBackups: false,
                     backupRetentionDays: 7,
                 },
-                mockLogger as any
+                mockLogger
             );
             await fileSystemService.initialize();
 
@@ -126,7 +137,7 @@ describe('FileSystemService', () => {
                     enableBackups: false,
                     backupRetentionDays: 7,
                 },
-                mockLogger as any
+                mockLogger
             );
             await fileSystemService.initialize();
 
@@ -154,7 +165,7 @@ describe('FileSystemService', () => {
                     enableBackups: false,
                     backupRetentionDays: 7,
                 },
-                mockLogger as any
+                mockLogger
             );
             await fileSystemService.initialize();
 
@@ -181,7 +192,7 @@ describe('FileSystemService', () => {
                         backupPath: backupDir,
                         backupRetentionDays: 7,
                     },
-                    mockLogger as any
+                    mockLogger
                 );
                 await fileSystemService.initialize();
 
@@ -216,7 +227,7 @@ describe('FileSystemService', () => {
                         backupPath: backupDir,
                         backupRetentionDays: 7,
                     },
-                    mockLogger as any
+                    mockLogger
                 );
                 await fileSystemService.initialize();
 
@@ -253,7 +264,7 @@ describe('FileSystemService', () => {
                         backupPath: backupDir,
                         backupRetentionDays: 7,
                     },
-                    mockLogger as any
+                    mockLogger
                 );
                 await fileSystemService.initialize();
 
@@ -279,7 +290,7 @@ describe('FileSystemService', () => {
                         backupPath: backupDir,
                         backupRetentionDays: 7,
                     },
-                    mockLogger as any
+                    mockLogger
                 );
                 await fileSystemService.initialize();
 
@@ -310,7 +321,7 @@ describe('FileSystemService', () => {
                         backupPath: backupDir,
                         backupRetentionDays: 7,
                     },
-                    mockLogger as any
+                    mockLogger
                 );
                 await fileSystemService.initialize();
 
@@ -344,7 +355,7 @@ describe('FileSystemService', () => {
                         backupPath: backupDir,
                         backupRetentionDays: 7,
                     },
-                    mockLogger as any
+                    mockLogger
                 );
                 await fileSystemService.initialize();
 
@@ -382,7 +393,7 @@ describe('FileSystemService', () => {
                         backupPath: backupDir,
                         backupRetentionDays: 7,
                     },
-                    mockLogger as any
+                    mockLogger
                 );
                 await fileSystemService.initialize();
 

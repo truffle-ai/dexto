@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { client } from '@/lib/client';
 import { parseApiResponse } from '@/lib/api-errors';
@@ -77,6 +77,12 @@ interface RawNormalizedResource {
     name?: string;
     meta?: Record<string, unknown>;
     items: RawNormalizedResourceItem[];
+}
+
+interface MaterializedCacheEntry {
+    version: string;
+    data: NormalizedResource;
+    objectUrls: string[];
 }
 
 export interface ResourceState {
@@ -250,6 +256,15 @@ function materializeResource(raw: RawNormalizedResource): {
     };
 }
 
+function getRawResourceVersion(raw: RawNormalizedResource): string {
+    return JSON.stringify({
+        uri: raw.uri,
+        name: raw.name,
+        meta: raw.meta,
+        items: raw.items,
+    });
+}
+
 async function fetchResourceContent(uri: string): Promise<RawNormalizedResource> {
     const body = await parseApiResponse(
         client.api.resources[':resourceId'].content.$get({
@@ -335,10 +350,12 @@ export function useResourceContent(resourceUris: string[]): ResourceStateMap {
     }, [normalizedUris, querySignature]);
 
     const [resources, setResources] = useState<ResourceStateMap>({});
+    const materializedCacheRef = useRef<Map<string, MaterializedCacheEntry>>(new Map());
 
     useEffect(() => {
         const nextResources: ResourceStateMap = {};
-        const objectUrls: string[] = [];
+        const nextCache = new Map<string, MaterializedCacheEntry>();
+        const previousCache = materializedCacheRef.current;
 
         Object.entries(rawResources).forEach(([uri, resource]) => {
             if (resource.status !== 'loaded') {
@@ -346,17 +363,46 @@ export function useResourceContent(resourceUris: string[]): ResourceStateMap {
                 return;
             }
 
+            const version = getRawResourceVersion(resource.data);
+            const cached = previousCache.get(uri);
+            if (cached && cached.version === version) {
+                nextCache.set(uri, cached);
+                nextResources[uri] = { status: 'loaded', data: cached.data };
+                return;
+            }
+
             const materialized = materializeResource(resource.data);
-            objectUrls.push(...materialized.objectUrls);
+            if (cached) {
+                cached.objectUrls.forEach((url) => URL.revokeObjectURL(url));
+            }
+
+            const nextEntry: MaterializedCacheEntry = {
+                version,
+                data: materialized.data,
+                objectUrls: materialized.objectUrls,
+            };
+            nextCache.set(uri, nextEntry);
             nextResources[uri] = { status: 'loaded', data: materialized.data };
         });
 
-        setResources(nextResources);
+        previousCache.forEach((cached, uri) => {
+            if (!nextCache.has(uri)) {
+                cached.objectUrls.forEach((url) => URL.revokeObjectURL(url));
+            }
+        });
 
-        return () => {
-            objectUrls.forEach((url) => URL.revokeObjectURL(url));
-        };
+        materializedCacheRef.current = nextCache;
+        setResources(nextResources);
     }, [rawResources]);
+
+    useEffect(() => {
+        return () => {
+            materializedCacheRef.current.forEach((cached) => {
+                cached.objectUrls.forEach((url) => URL.revokeObjectURL(url));
+            });
+            materializedCacheRef.current = new Map();
+        };
+    }, []);
 
     return resources;
 }

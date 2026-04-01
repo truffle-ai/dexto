@@ -283,6 +283,7 @@ describe('expandMessageReferences', () => {
         expect(result.extractedResources).toEqual([
             {
                 uri: '/demo.mp4',
+                data: 'videodata',
                 mimeType: 'video/mp4',
                 name: 'demo.mp4',
                 kind: 'video',
@@ -290,6 +291,7 @@ describe('expandMessageReferences', () => {
             },
             {
                 uri: '/voice.mp3',
+                data: 'audiodata',
                 mimeType: 'audio/mpeg',
                 name: 'voice.mp3',
                 kind: 'audio',

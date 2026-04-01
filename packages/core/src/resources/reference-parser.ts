@@ -18,6 +18,7 @@ export interface ResourceExpansionResult {
     unresolvedReferences: ResourceReference[];
     extractedResources: Array<{
         uri: string;
+        data: string;
         mimeType: string;
         name: string;
         kind: 'image' | 'audio' | 'video' | 'binary';
@@ -303,6 +304,7 @@ export async function expandMessageReferences(
 
                     extractedFromResource.push({
                         uri: getCanonicalResourceReference(ref.resourceUri!, resource),
+                        data: item.blob,
                         mimeType: item.mimeType,
                         name: resource?.name || ref.identifier,
                         kind: deriveExtractedKind(item.mimeType),

@@ -277,16 +277,25 @@ function DownloadAction({
 }
 
 function resolveMediaSrc(
-    part: any,
+    part: unknown,
     resourceStates?: Record<string, ResourceState | undefined>
 ): string {
     if (!part) return '';
 
-    const mimeType: string | undefined = part?.mimeType;
+    const partObject =
+        typeof part === 'object' && part !== null ? (part as Record<string, unknown>) : undefined;
+    const partType = typeof partObject?.type === 'string' ? partObject.type : undefined;
+    const partKind = typeof partObject?.kind === 'string' ? partObject.kind : undefined;
+    const mimeType = typeof partObject?.mimeType === 'string' ? partObject.mimeType : undefined;
     const dataCandidate: unknown =
         typeof part === 'string'
             ? part
-            : (part?.data ?? part?.image ?? part?.audio ?? part?.video ?? part?.uri ?? part?.url);
+            : (partObject?.data ??
+              partObject?.image ??
+              partObject?.audio ??
+              partObject?.video ??
+              partObject?.uri ??
+              partObject?.url);
 
     if (typeof dataCandidate === 'string') {
         const resourceKey = dataCandidate.startsWith('@blob:')
@@ -296,23 +305,23 @@ function resolveMediaSrc(
             const state = resourceStates[resourceKey];
             if (state && state.status === 'loaded' && state.data) {
                 const preferKinds: Array<NormalizedResourceItem['kind']> = [];
-                if (part?.type === 'image') preferKinds.push('image');
-                if (part?.type === 'file') {
-                    const mediaKind = getFileMediaKind(part.mimeType);
+                if (partType === 'image') preferKinds.push('image');
+                if (partType === 'file') {
+                    const mediaKind = getFileMediaKind(mimeType);
                     if (mediaKind === 'audio') preferKinds.push('audio');
                     else if (mediaKind === 'video') preferKinds.push('video');
                 }
-                if (part?.type === 'resource') {
-                    if (part.kind === 'image') preferKinds.push('image');
-                    if (part.kind === 'audio') preferKinds.push('audio');
-                    if (part.kind === 'video') preferKinds.push('video');
+                if (partType === 'resource') {
+                    if (partKind === 'image') preferKinds.push('image');
+                    if (partKind === 'audio') preferKinds.push('audio');
+                    if (partKind === 'video') preferKinds.push('video');
                 }
-                if (part?.mimeType?.startsWith('image/')) preferKinds.push('image');
-                if (part?.mimeType?.startsWith('audio/')) preferKinds.push('audio');
-                if (part?.mimeType?.startsWith('video/')) preferKinds.push('video');
+                if (mimeType?.startsWith('image/')) preferKinds.push('image');
+                if (mimeType?.startsWith('audio/')) preferKinds.push('audio');
+                if (mimeType?.startsWith('video/')) preferKinds.push('video');
 
                 const preferredItem =
-                    state.data.items.find((item) => preferKinds.includes(item.kind as any)) ??
+                    state.data.items.find((item) => preferKinds.includes(item.kind)) ??
                     state.data.items.find((item) => item.kind === 'image') ??
                     state.data.items.find((item) => item.kind === 'video') ??
                     state.data.items.find((item) => item.kind === 'audio') ??
@@ -334,18 +343,18 @@ function resolveMediaSrc(
                 const state = resourceStates[uri];
                 if (state && state.status === 'loaded' && state.data) {
                     const preferKinds: Array<NormalizedResourceItem['kind']> = [];
-                    if (part?.type === 'image') preferKinds.push('image');
-                    if (part?.type === 'file') {
-                        const mediaKind = getFileMediaKind(part.mimeType);
+                    if (partType === 'image') preferKinds.push('image');
+                    if (partType === 'file') {
+                        const mediaKind = getFileMediaKind(mimeType);
                         if (mediaKind === 'audio') preferKinds.push('audio');
                         else if (mediaKind === 'video') preferKinds.push('video');
                     }
-                    if (part?.mimeType?.startsWith('image/')) preferKinds.push('image');
-                    if (part?.mimeType?.startsWith('audio/')) preferKinds.push('audio');
-                    if (part?.mimeType?.startsWith('video/')) preferKinds.push('video');
+                    if (mimeType?.startsWith('image/')) preferKinds.push('image');
+                    if (mimeType?.startsWith('audio/')) preferKinds.push('audio');
+                    if (mimeType?.startsWith('video/')) preferKinds.push('video');
 
                     const preferredItem =
-                        state.data.items.find((item) => preferKinds.includes(item.kind as any)) ??
+                        state.data.items.find((item) => preferKinds.includes(item.kind)) ??
                         state.data.items.find((item) => item.kind === 'image') ??
                         state.data.items.find((item) => item.kind === 'video') ??
                         state.data.items.find((item) => item.kind === 'audio') ??
@@ -376,7 +385,12 @@ function resolveMediaSrc(
         }
     }
 
-    const urlSrc = part?.url ?? part?.image ?? part?.audio ?? part?.video ?? part?.uri;
+    const urlSrc =
+        partObject?.url ??
+        partObject?.image ??
+        partObject?.audio ??
+        partObject?.video ??
+        partObject?.uri;
     return typeof urlSrc === 'string' ? urlSrc : '';
 }
 
@@ -392,20 +406,33 @@ function getVideoInfo(
 ): VideoInfo | null {
     if (!part || typeof part !== 'object') return null;
 
-    const anyPart = part as Record<string, any>;
-    const mimeType = anyPart.mimeType || anyPart.mediaType;
-    const filename = anyPart.filename || anyPart.name;
+    const candidate = part as Record<string, unknown>;
+    const mimeType =
+        typeof candidate.mimeType === 'string'
+            ? candidate.mimeType
+            : typeof candidate.mediaType === 'string'
+              ? candidate.mediaType
+              : undefined;
+    const filename =
+        typeof candidate.filename === 'string'
+            ? candidate.filename
+            : typeof candidate.name === 'string'
+              ? candidate.name
+              : undefined;
 
-    const mediaKind = anyPart.type === 'file' ? getFileMediaKind(anyPart.mimeType) : null;
+    const mediaKind =
+        candidate.type === 'file' && typeof candidate.mimeType === 'string'
+            ? getFileMediaKind(candidate.mimeType)
+            : null;
     const isVideo =
         mimeType?.startsWith('video/') ||
         mediaKind === 'video' ||
-        anyPart.type === 'video' ||
+        candidate.type === 'video' ||
         filename?.match(/\.(mp4|webm|mov|m4v|avi|mkv)$/i);
 
     if (!isVideo) return null;
 
-    const src = resolveMediaSrc(anyPart, resourceStates);
+    const src = resolveMediaSrc(candidate, resourceStates);
     return src && isSafeMediaUrl(src, 'video') ? { src, filename, mimeType } : null;
 }
 

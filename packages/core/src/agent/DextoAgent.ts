@@ -1,7 +1,6 @@
 // src/agent/DextoAgent.ts
 import { randomUUID } from 'crypto';
 import { setMaxListeners } from 'events';
-import path from 'node:path';
 import { MCPManager } from '../mcp/manager.js';
 import { ToolManager } from '../tools/tool-manager.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
@@ -1274,19 +1273,20 @@ export class DextoAgent {
                             }
 
                             for (const resource of expansion.extractedResources) {
-                                contentParts.push({
-                                    type: 'resource',
-                                    uri: resource.uri,
-                                    name: resource.name,
-                                    mimeType: resource.mimeType,
-                                    kind: resource.kind,
-                                    ...(resource.size !== undefined ? { size: resource.size } : {}),
-                                    metadata: {
-                                        source: path.isAbsolute(resource.uri)
-                                            ? ('filesystem' as const)
-                                            : ('tool' as const),
-                                    },
-                                });
+                                if (resource.kind === 'image') {
+                                    contentParts.push({
+                                        type: 'image',
+                                        image: resource.data,
+                                        mimeType: resource.mimeType,
+                                    });
+                                } else {
+                                    contentParts.push({
+                                        type: 'file',
+                                        data: resource.data,
+                                        mimeType: resource.mimeType,
+                                        filename: resource.name,
+                                    });
+                                }
                                 this.logger.debug(
                                     `Added extracted resource: ${resource.name} (${resource.mimeType})`
                                 );
