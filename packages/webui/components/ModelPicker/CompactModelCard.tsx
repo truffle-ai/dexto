@@ -5,7 +5,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/
 import type { LLMProvider } from '@dexto/core';
 import { PROVIDER_LOGOS, needsDarkModeInversion, formatPricingLines } from './constants';
 import { CapabilityIcons } from './CapabilityIcons';
-import type { ModelInfo, ProviderCatalog } from './types';
+import { getModelDisplayName, type ModelInfo, type ProviderCatalog } from './types';
 
 interface CompactModelCardProps {
     provider: LLMProvider;
@@ -56,7 +56,7 @@ export function CompactModelCard({
     onClick,
     onToggleFavorite,
 }: CompactModelCardProps) {
-    const displayName = model.displayName || model.name;
+    const displayName = getModelDisplayName(model);
     const hasApiKey = providerInfo.hasApiKey;
     const providerName = PROVIDER_DISPLAY_NAMES[provider] || provider;
 

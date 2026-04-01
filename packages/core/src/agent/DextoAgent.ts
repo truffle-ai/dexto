@@ -907,6 +907,7 @@ export class DextoAgent {
         }
 
         const signal = options?.signal;
+        const disconnectSignal = options?.disconnectSignal ?? signal;
 
         // Normalize content: string -> [{ type: 'text', text: string }]
         let contentParts: import('./types.js').ContentPart[] =
@@ -950,12 +951,12 @@ export class DextoAgent {
         };
 
         // Wire external signal to trigger cleanup
-        if (signal) {
+        if (disconnectSignal) {
             const abortHandler = () => {
                 cleanupListeners();
                 controller.abort();
             };
-            signal.addEventListener('abort', abortHandler, { once: true });
+            disconnectSignal.addEventListener('abort', abortHandler, { once: true });
         }
 
         // TODO: Simplify these explicit subscriptions while keeping full type safety.
@@ -1380,8 +1381,8 @@ export class DextoAgent {
                 while (!completed && eventQueue.length === 0) {
                     await new Promise((resolve) => setTimeout(resolve, 0));
 
-                    // Check for abort (external signal OR internal via cancel())
-                    if (signal?.aborted || cleanupSignal.aborted) {
+                    // Check for disconnect/cancel (external disconnect signal OR internal cleanup)
+                    if (disconnectSignal?.aborted || cleanupSignal.aborted) {
                         cleanupListeners();
                         controller.abort();
                         return { done: true, value: undefined };

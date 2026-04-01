@@ -90,6 +90,7 @@ export interface TestServer {
     app: DextoApp;
     bridge: NodeBridgeResult;
     agent: DextoAgent;
+    approvalCoordinator: import('../../approval/approval-coordinator.js').ApprovalCoordinator;
     agentCard: AgentCard;
     baseUrl: string;
     port: number;
@@ -132,11 +133,17 @@ export async function startTestServer(
     // Create event subscribers and approval coordinator for test
     const { WebhookEventSubscriber } = await import('../../events/webhook-subscriber.js');
     const { A2ASseEventSubscriber } = await import('../../events/a2a-sse-subscriber.js');
+    const { SessionSseEventSubscriber } = await import('../../events/session-sse-subscriber.js');
     const { ApprovalCoordinator } = await import('../../approval/approval-coordinator.js');
+    const { wireApprovalCoordinatorToAgent } = await import(
+        '../../approval/wire-approval-events.js'
+    );
 
     const webhookSubscriber = new WebhookEventSubscriber();
     const sseSubscriber = new A2ASseEventSubscriber();
+    const sessionSseSubscriber = new SessionSseEventSubscriber();
     const approvalCoordinator = new ApprovalCoordinator();
+    const approvalEventBridge = wireApprovalCoordinatorToAgent(agent, approvalCoordinator);
 
     // Register subscribers (agent handles re-subscription on restart)
     agent.registerSubscriber(webhookSubscriber);
@@ -150,6 +157,7 @@ export async function startTestServer(
         approvalCoordinator,
         webhookSubscriber,
         sseSubscriber,
+        sessionSseSubscriber,
         ...(agentsContext ? { agentsContext } : {}), // Include agentsContext only if provided
     });
 
@@ -181,6 +189,7 @@ export async function startTestServer(
         app,
         bridge,
         agent,
+        approvalCoordinator,
         agentCard: updatedAgentCard,
         baseUrl,
         port: serverPort,
@@ -188,6 +197,8 @@ export async function startTestServer(
             // Cleanup subscribers to prevent memory leaks
             webhookSubscriber.cleanup();
             sseSubscriber.cleanup();
+            sessionSseSubscriber.cleanup();
+            approvalEventBridge.abort();
             approvalCoordinator.removeAllListeners();
 
             await new Promise<void>((resolve, reject) => {

@@ -50,6 +50,7 @@ import {
     ProviderCatalog,
     ModelInfo,
     favKey,
+    getModelDisplayName,
     validateBaseURL,
 } from './types';
 import { cn } from '../../lib/utils';
@@ -576,11 +577,12 @@ export default function ModelPickerModal() {
         (providerId: LLMProvider, model: ModelInfo): boolean => {
             const q = search.trim().toLowerCase();
             if (!q) return true;
+            const providerName = (providers[providerId]?.name ?? '').toLowerCase();
             return (
                 model.name.toLowerCase().includes(q) ||
                 (model.displayName?.toLowerCase().includes(q) ?? false) ||
                 providerId.toLowerCase().includes(q) ||
-                (providers[providerId]?.name.toLowerCase().includes(q) ?? false)
+                providerName.includes(q)
             );
         },
         [search, providers]
@@ -606,12 +608,13 @@ export default function ModelPickerModal() {
                 }
             }
 
-            // Dexto Nova provider requires OAuth login via CLI, not manual API key entry
-            // Check canUse from auth status API (requires both authentication AND API key)
+            // Dexto Nova provider requires CLI-backed auth state, not manual API key entry.
             if (!skipApiKeyCheck && providerId === 'dexto-nova') {
                 if (!dextoAuthStatus?.canUse) {
                     setError(
-                        'Run `dexto login` or `/login` from the CLI to authenticate with Dexto'
+                        dextoAuthStatus?.authenticated
+                            ? 'Your Dexto login was found, but no usable Dexto API key is available. Run `dexto login` again to refresh your Dexto access.'
+                            : 'Run `dexto login` or `/login` from the CLI to authenticate with Dexto'
                     );
                     return;
                 }
@@ -856,7 +859,7 @@ export default function ModelPickerModal() {
             const q = search.trim().toLowerCase();
             if (!q) return true;
 
-            const providerName = providers[entry.provider]?.name.toLowerCase() ?? '';
+            const providerName = (providers[entry.provider]?.name ?? '').toLowerCase();
             return (
                 entry.model.toLowerCase().includes(q) ||
                 (entry.displayName?.toLowerCase().includes(q) ?? false) ||
@@ -978,7 +981,7 @@ export default function ModelPickerModal() {
         return installedLocalModels.filter(
             (model: LocalModel) =>
                 model.id.toLowerCase().includes(q) ||
-                model.displayName.toLowerCase().includes(q) ||
+                getModelDisplayName(model, model.id).toLowerCase().includes(q) ||
                 'local'.includes(q)
         );
     }, [providerFilter, search, installedLocalModels]);

@@ -328,6 +328,67 @@ describe('Event Handler Registry', () => {
             expect(agentState.status).toBe('awaiting_approval');
             expect(agentState.activeSessionId).toBe(TEST_SESSION_ID);
         });
+
+        it('should create a pending tool message when approval arrives before tool call', () => {
+            const event: Extract<StreamingEvent, { name: 'approval:request' }> = {
+                name: 'approval:request',
+                sessionId: TEST_SESSION_ID,
+                approvalId: 'approval-1',
+                type: ApprovalType.TOOL_APPROVAL,
+                metadata: {
+                    toolName: 'dangerous-tool',
+                    toolCallId: 'call-dangerous-1',
+                    args: { path: '/tmp/test.txt' },
+                },
+                timeout: 30000,
+                timestamp: new Date(),
+            };
+
+            handleApprovalRequest(event);
+
+            const message = useChatStore
+                .getState()
+                .getMessage(TEST_SESSION_ID, 'approval-approval-1');
+            expect(message?.role).toBe('tool');
+            expect(message?.toolName).toBe('dangerous-tool');
+            expect(message?.toolArgs).toEqual({ path: '/tmp/test.txt' });
+            expect(message?.toolCallId).toBe('approval-1');
+            expect(message?.requireApproval).toBe(true);
+            expect(message?.approvalStatus).toBe('pending');
+        });
+
+        it('should update an unfinished tool message and clear stale failed state', () => {
+            useChatStore.getState().addMessage(TEST_SESSION_ID, {
+                id: 'tool-msg',
+                role: 'tool',
+                content: null,
+                toolName: 'dangerous-tool',
+                toolCallId: 'call-dangerous-1',
+                toolResultSuccess: false,
+                createdAt: Date.now(),
+            });
+
+            const event: Extract<StreamingEvent, { name: 'approval:request' }> = {
+                name: 'approval:request',
+                sessionId: TEST_SESSION_ID,
+                approvalId: 'approval-1',
+                type: ApprovalType.TOOL_APPROVAL,
+                metadata: {
+                    toolName: 'dangerous-tool',
+                    toolCallId: 'call-dangerous-1',
+                    args: {},
+                },
+                timeout: 30000,
+                timestamp: new Date(),
+            };
+
+            handleApprovalRequest(event);
+
+            const message = useChatStore.getState().getMessage(TEST_SESSION_ID, 'tool-msg');
+            expect(message?.requireApproval).toBe(true);
+            expect(message?.approvalStatus).toBe('pending');
+            expect(message?.toolResultSuccess).toBeUndefined();
+        });
     });
 
     describe('handleApprovalResponse', () => {

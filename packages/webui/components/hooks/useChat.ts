@@ -247,6 +247,82 @@ export function useChat(
         [isForActiveSession, analyticsRef, updateSessionActivity, updateSessionTitle, queryClient]
     );
 
+    const consumeSessionEventStream = useCallback(
+        async (
+            sessionId: string,
+            abortController: AbortController,
+            responsePromise: Promise<Response>
+        ) => {
+            try {
+                const iterator = createMessageStream(responsePromise, {
+                    signal: abortController.signal,
+                });
+
+                for await (const event of iterator) {
+                    processEvent(event);
+                }
+            } finally {
+                const current = abortControllersRef.current.get(sessionId);
+                if (current === abortController) {
+                    abortControllersRef.current.delete(sessionId);
+                }
+            }
+        },
+        [abortControllersRef, processEvent]
+    );
+
+    const attachSessionStream = useCallback(
+        async (sessionId: string) => {
+            if (!sessionId) {
+                return;
+            }
+
+            if (abortControllersRef.current.has(sessionId)) {
+                return;
+            }
+
+            const abortController = new AbortController();
+            abortControllersRef.current.set(sessionId, abortController);
+
+            const eventsEndpoint = client.api.sessions[':sessionId'] as unknown as {
+                events: {
+                    $get: (args: { param: { sessionId: string } }) => Promise<Response>;
+                };
+            };
+            const response = await eventsEndpoint.events.$get({
+                param: { sessionId },
+            });
+
+            try {
+                if (!response.ok) {
+                    throw new Error(`Failed to attach to session stream: ${response.status}`);
+                }
+
+                void consumeSessionEventStream(
+                    sessionId,
+                    abortController,
+                    Promise.resolve(response)
+                ).catch((error: unknown) => {
+                    if (error instanceof Error && error.name === 'AbortError') {
+                        return;
+                    }
+                    console.error(
+                        `Session stream error: ${
+                            error instanceof Error ? error.message : String(error)
+                        }`
+                    );
+                });
+            } catch (error) {
+                const current = abortControllersRef.current.get(sessionId);
+                if (current === abortController) {
+                    abortControllersRef.current.delete(sessionId);
+                }
+                throw error;
+            }
+        },
+        [abortControllersRef, consumeSessionEventStream]
+    );
+
     const sendMessage = useCallback(
         async (content: string, attachments?: Attachment[], sessionId?: string) => {
             if (!sessionId) {
@@ -290,13 +366,7 @@ export function useChat(
                     },
                 });
 
-                const iterator = createMessageStream(responsePromise, {
-                    signal: abortController.signal,
-                });
-
-                for await (const event of iterator) {
-                    processEvent(event);
-                }
+                await consumeSessionEventStream(sessionId, abortController, responsePromise);
             } catch (error: unknown) {
                 // Handle abort gracefully
                 if (error instanceof Error && error.name === 'AbortError') {
@@ -321,7 +391,7 @@ export function useChat(
                 });
             }
         },
-        [processEvent, abortSession, getAbortController, updateSessionActivity]
+        [abortSession, getAbortController, updateSessionActivity, consumeSessionEventStream]
     );
 
     const reset = useCallback(async (sessionId?: string) => {
@@ -343,27 +413,33 @@ export function useChat(
         useChatStore.getState().setProcessing(sessionId, false);
     }, []);
 
-    const cancel = useCallback(async (sessionId?: string, clearQueue: boolean = false) => {
-        if (!sessionId) return;
+    const cancel = useCallback(
+        async (sessionId?: string, clearQueue: boolean = false) => {
+            if (!sessionId) return;
 
-        // Tell server to cancel the LLM stream
-        // Soft cancel (default): Only cancel current response, queued messages continue
-        // Hard cancel (clearQueue=true): Cancel current response AND clear all queued messages
-        try {
-            await client.api.sessions[':sessionId'].cancel.$post({
-                param: { sessionId },
-                json: { clearQueue },
-            });
-        } catch (err) {
-            // Server cancel is best-effort - log but don't throw
-            console.warn('Failed to cancel server-side:', err);
-        }
+            // Tell server to cancel the LLM stream
+            // Soft cancel (default): Only cancel current response, queued messages continue
+            // Hard cancel (clearQueue=true): Cancel current response AND clear all queued messages
+            try {
+                await client.api.sessions[':sessionId'].cancel.$post({
+                    param: { sessionId },
+                    json: { clearQueue },
+                });
+            } catch (err) {
+                // Server cancel is best-effort - log but don't throw
+                console.warn('Failed to cancel server-side:', err);
+            }
 
-        // UI state will be updated when server sends run:complete event
-        pendingToolCallsRef.current.clear();
-    }, []);
+            abortSession(sessionId);
+
+            // UI state will be updated when server sends run:complete event
+            pendingToolCallsRef.current.clear();
+        },
+        [abortSession]
+    );
 
     return {
+        attachSessionStream,
         sendMessage,
         reset,
         cancel,

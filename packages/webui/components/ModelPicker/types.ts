@@ -38,6 +38,27 @@ export type CurrentLLMConfigResponse = {
     };
 };
 
+export function getModelDisplayName(
+    model: {
+        name?: string | null;
+        displayName?: string | null;
+    },
+    fallback: string = 'Unknown model'
+): string {
+    const displayName =
+        typeof model.displayName === 'string' ? model.displayName.trim() : undefined;
+    if (displayName) {
+        return displayName;
+    }
+
+    const name = typeof model.name === 'string' ? model.name.trim() : undefined;
+    if (name) {
+        return name;
+    }
+
+    return fallback;
+}
+
 export function favKey(provider: string, model: string, baseURL?: string) {
     const key = `${provider}|${model}`;
     return baseURL ? `${key}|${baseURL}` : key;

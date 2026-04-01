@@ -23,7 +23,9 @@ import {
     createManualApprovalHandler,
     WebhookEventSubscriber,
     A2ASseEventSubscriber,
+    SessionSseEventSubscriber,
     ApprovalCoordinator,
+    wireApprovalCoordinatorToAgent,
     type McpTransportType,
     type WebUIRuntimeConfig,
 } from '@dexto/server';
@@ -173,7 +175,9 @@ export async function initializeHonoApi(
     // Create event subscribers and approval coordinator (shared across agent switches)
     const webhookSubscriber = new WebhookEventSubscriber();
     const sseSubscriber = new A2ASseEventSubscriber();
+    const sessionSseSubscriber = new SessionSseEventSubscriber();
     const approvalCoordinator = new ApprovalCoordinator();
+    let approvalEventBridge: AbortController | null = null;
 
     /**
      * Wire services (SSE subscribers) to an agent.
@@ -183,11 +187,13 @@ export async function initializeHonoApi(
     async function wireServicesToAgent(agent: DextoAgent): Promise<void> {
         logger.debug('Wiring services to agent...');
 
+        approvalEventBridge?.abort();
+        approvalEventBridge = wireApprovalCoordinatorToAgent(agent, approvalCoordinator);
+
         // Register subscribers (DextoAgent handles (re-)subscription on start/restart)
         agent.registerSubscriber(webhookSubscriber);
         agent.registerSubscriber(sseSubscriber);
-        // Note: ApprovalCoordinator doesn't subscribe to agent event bus
-        // It's a separate coordination channel between handler and server
+        agent.registerSubscriber(sessionSseSubscriber);
     }
 
     /**
@@ -434,6 +440,7 @@ export async function initializeHonoApi(
         approvalCoordinator,
         webhookSubscriber,
         sseSubscriber,
+        sessionSseSubscriber,
         ...(webRoot ? { webRoot } : {}),
         ...(webUIConfig ? { webUIConfig } : {}),
         agentsContext: {

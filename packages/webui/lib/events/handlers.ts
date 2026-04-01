@@ -478,6 +478,7 @@ function handleApprovalRequest(event: EventByName<'approval:request'>): void {
         chatStore.updateMessage(sessionId, existingToolMessage.id, {
             requireApproval: true,
             approvalStatus: 'pending',
+            toolResultSuccess: undefined,
             ...(presentationSnapshot !== undefined && { presentationSnapshot }),
         });
         console.debug(

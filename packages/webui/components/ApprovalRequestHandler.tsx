@@ -4,6 +4,7 @@ import type { ApprovalRequest } from '@dexto/core';
 import { ApprovalStatus } from '@dexto/core';
 import { useSessionStore } from '@/lib/stores/sessionStore';
 import { useApprovalStore } from '@/lib/stores/approvalStore';
+import { useChatContext } from './hooks/ChatContext';
 
 // Re-export ApprovalRequest as ApprovalEvent for consumers (e.g., InlineApprovalCard, MessageList)
 export type ApprovalEvent = ApprovalRequest;
@@ -33,7 +34,7 @@ export function ApprovalRequestHandler({
 }: ApprovalRequestHandlerProps) {
     const currentSessionId = useSessionStore((s) => s.currentSessionId);
     const pendingApproval = useApprovalStore((s) => s.pendingApproval);
-    const clearApproval = useApprovalStore((s) => s.clearApproval);
+    const { ensureSessionEventStream } = useChatContext();
     const { mutateAsync: submitApproval } = useSubmitApproval();
 
     // Filter approvals by current session
@@ -69,6 +70,7 @@ export function ApprovalRequestHandler({
             }
 
             try {
+                await ensureSessionEventStream(sessionId);
                 await submitApproval({
                     approvalId,
                     sessionId,
@@ -81,11 +83,8 @@ export function ApprovalRequestHandler({
                 console.error(`[WebUI] Failed to send approval response: ${message}`);
                 return;
             }
-
-            // Clear current approval (processes queue automatically)
-            clearApproval();
         },
-        [currentApproval, currentSessionId, submitApproval, clearApproval]
+        [currentApproval, currentSessionId, submitApproval, ensureSessionEventStream]
     );
 
     const handleApprove = useCallback(
