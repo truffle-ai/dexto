@@ -105,6 +105,22 @@ describe('read_media_file tool', () => {
                 bytes: Buffer.from('%PDF-1.7'),
                 mimeType: 'application/pdf',
             },
+            {
+                filename: 'slides.pptx',
+                bytes: Buffer.from([0x50, 0x4b, 0x03, 0x04]),
+                mimeType:
+                    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            },
+            {
+                filename: 'sheet.xlsx',
+                bytes: Buffer.from([0x50, 0x4b, 0x03, 0x04]),
+                mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            },
+            {
+                filename: 'report.docx',
+                bytes: Buffer.from([0x50, 0x4b, 0x03, 0x04]),
+                mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            },
         ] as const;
 
         for (const testCase of cases) {

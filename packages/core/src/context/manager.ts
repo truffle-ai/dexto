@@ -149,6 +149,17 @@ export class ContextManager<TMessage = unknown> {
 
         if (part.type === 'image') {
             const mimeType = part.mimeType || 'image/jpeg';
+            if (typeof part.image === 'string' && part.image.startsWith('@blob:')) {
+                return {
+                    type: 'resource',
+                    uri: part.image.substring(1),
+                    name: 'image',
+                    mimeType,
+                    kind: ContextManager.deriveResourceKind(mimeType),
+                    metadata: { source: source === 'user' ? 'upload' : 'tool' },
+                };
+            }
+
             const processedImage = await this.processUserInput(part.image, {
                 mimeType,
                 source,
@@ -182,6 +193,19 @@ export class ContextManager<TMessage = unknown> {
         };
         if (part.filename) {
             metadata.originalName = part.filename;
+        }
+
+        if (typeof part.data === 'string' && part.data.startsWith('@blob:')) {
+            return {
+                type: 'resource',
+                uri: part.data.substring(1),
+                name: part.filename ?? 'file',
+                mimeType: part.mimeType,
+                kind: ContextManager.deriveResourceKind(part.mimeType),
+                metadata: {
+                    source: source === 'user' ? 'upload' : 'tool',
+                },
+            };
         }
 
         const processedData = await this.processUserInput(part.data, metadata);

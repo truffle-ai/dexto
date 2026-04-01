@@ -750,7 +750,7 @@ async function expandBlobsInText(
         return [{ type: 'text', text }];
     }
 
-    const blobRefPattern = /@blob:[a-f0-9]+/g;
+    const blobRefPattern = /@blob:[a-f0-9-]+/g;
     const matches = [...text.matchAll(blobRefPattern)];
 
     if (matches.length === 0) {

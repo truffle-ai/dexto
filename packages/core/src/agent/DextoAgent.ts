@@ -1789,79 +1789,109 @@ export class DextoAgent {
                 }
 
                 try {
-                    const expandedContent = await Promise.all(
-                        message.content.map(async (part): Promise<ContentPart> => {
-                            try {
-                                if (
-                                    part.type === 'image' &&
-                                    typeof part.image === 'string' &&
-                                    part.image.startsWith('@blob:')
-                                ) {
-                                    const result = await this.resourceManager.read(
-                                        part.image.slice(1)
-                                    );
-                                    for (const item of result.contents) {
-                                        if (
-                                            typeof item === 'object' &&
-                                            item !== null &&
-                                            'blob' in item &&
-                                            typeof item.blob === 'string'
-                                        ) {
-                                            return {
-                                                type: 'image',
-                                                image: item.blob,
-                                                ...(typeof item.mimeType === 'string'
-                                                    ? { mimeType: item.mimeType }
-                                                    : part.mimeType !== undefined
-                                                      ? { mimeType: part.mimeType }
-                                                      : {}),
-                                            };
+                    const expandedContent = (
+                        await Promise.all(
+                            message.content.map(async (part): Promise<ContentPart[]> => {
+                                try {
+                                    if (
+                                        part.type === 'text' &&
+                                        typeof part.text === 'string' &&
+                                        part.text.includes('@blob:')
+                                    ) {
+                                        return await expandBlobReferences(
+                                            [part],
+                                            this.resourceManager,
+                                            this.logger
+                                        );
+                                    }
+
+                                    if (
+                                        part.type === 'image' &&
+                                        typeof part.image === 'string' &&
+                                        part.image.startsWith('@blob:')
+                                    ) {
+                                        const result = await this.resourceManager.read(
+                                            part.image.slice(1)
+                                        );
+                                        for (const item of result.contents) {
+                                            if (
+                                                typeof item === 'object' &&
+                                                item !== null &&
+                                                'blob' in item &&
+                                                typeof item.blob === 'string'
+                                            ) {
+                                                return [
+                                                    {
+                                                        type: 'image',
+                                                        image: item.blob,
+                                                        ...(typeof item.mimeType === 'string'
+                                                            ? { mimeType: item.mimeType }
+                                                            : part.mimeType !== undefined
+                                                              ? { mimeType: part.mimeType }
+                                                              : {}),
+                                                    } satisfies ContentPart,
+                                                ];
+                                            }
                                         }
                                     }
-                                }
 
-                                if (
-                                    part.type === 'file' &&
-                                    typeof part.data === 'string' &&
-                                    part.data.startsWith('@blob:')
-                                ) {
-                                    const result = await this.resourceManager.read(
-                                        part.data.slice(1)
-                                    );
-                                    for (const item of result.contents) {
-                                        if (
-                                            typeof item === 'object' &&
-                                            item !== null &&
-                                            'blob' in item &&
-                                            typeof item.blob === 'string'
-                                        ) {
-                                            return {
-                                                type: 'file',
-                                                data: item.blob,
-                                                mimeType:
-                                                    typeof item.mimeType === 'string'
-                                                        ? item.mimeType
-                                                        : part.mimeType,
-                                                ...('filename' in item &&
-                                                typeof item.filename === 'string'
-                                                    ? { filename: item.filename }
-                                                    : part.filename !== undefined
-                                                      ? { filename: part.filename }
-                                                      : {}),
-                                            };
+                                    if (
+                                        part.type === 'file' &&
+                                        typeof part.data === 'string' &&
+                                        part.data.startsWith('@blob:')
+                                    ) {
+                                        const result = await this.resourceManager.read(
+                                            part.data.slice(1)
+                                        );
+                                        for (const item of result.contents) {
+                                            if (
+                                                typeof item === 'object' &&
+                                                item !== null &&
+                                                'blob' in item &&
+                                                typeof item.blob === 'string'
+                                            ) {
+                                                return [
+                                                    {
+                                                        type: 'file',
+                                                        data: item.blob,
+                                                        mimeType:
+                                                            typeof item.mimeType === 'string'
+                                                                ? item.mimeType
+                                                                : part.mimeType,
+                                                        ...('filename' in item &&
+                                                        typeof item.filename === 'string'
+                                                            ? { filename: item.filename }
+                                                            : part.filename !== undefined
+                                                              ? { filename: part.filename }
+                                                              : {}),
+                                                    } satisfies ContentPart,
+                                                ];
+                                            }
                                         }
                                     }
-                                }
 
-                                return part;
-                            } catch (error) {
-                                this.logger.warn(
-                                    `Failed to expand blob content part in message: ${error instanceof Error ? error.message : String(error)}`
-                                );
-                                return part;
-                            }
-                        })
-                    );
+                                    if (
+                                        part.type === 'resource' &&
+                                        typeof part.uri === 'string' &&
+                                        part.uri.startsWith('blob:')
+                                    ) {
+                                        return await expandBlobReferences(
+                                            [part],
+                                            this.resourceManager,
+                                            this.logger
+                                        );
+                                    }
+
+                                    return [part];
+                                } catch (error) {
+                                    this.logger.warn(
+                                        `Failed to expand blob content part in message: ${error instanceof Error ? error.message : String(error)}`
+                                    );
+                                    return [part];
+                                }
+                            })
+                        )
+                    ).flat();
 
                     return {
                         ...message,

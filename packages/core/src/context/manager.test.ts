@@ -469,6 +469,42 @@ describe('ContextManager', () => {
             expect((history[0] as any).success).toBe(false);
         });
 
+        it('should preserve existing blob-backed tool files as resource refs', async () => {
+            const sanitizedResult: SanitizedToolResult = {
+                content: [
+                    {
+                        type: 'file',
+                        data: '@blob:existing-tool-file',
+                        mimeType: 'application/pdf',
+                        filename: 'report.pdf',
+                    },
+                ],
+                meta: {
+                    toolName: 'read_media_file',
+                    toolCallId: 'call-existing-blob',
+                    success: true,
+                },
+            };
+
+            await contextManager.addToolResult(
+                'call-existing-blob',
+                'read_media_file',
+                sanitizedResult
+            );
+
+            const history = await contextManager.getHistory();
+            expect(history[0]?.content).toEqual([
+                {
+                    type: 'resource',
+                    uri: 'blob:existing-tool-file',
+                    name: 'report.pdf',
+                    mimeType: 'application/pdf',
+                    kind: 'binary',
+                    metadata: { source: 'tool' },
+                },
+            ]);
+        });
+
         it('should include approval metadata', async () => {
             const sanitizedResult: SanitizedToolResult = {
                 content: [{ type: 'text', text: 'Approved result' }],
