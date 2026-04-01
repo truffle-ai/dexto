@@ -6,7 +6,7 @@ import { ToolManager } from '../tools/tool-manager.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { SkillsContributor } from '../systemPrompt/contributors.js';
 import { ResourceManager, expandMessageReferences } from '../resources/index.js';
-import { fileTypesToMimePatterns } from '../context/utils.js';
+import { expandBlobReferences, fileTypesToMimePatterns } from '../context/utils.js';
 import { StorageManager } from '../storage/index.js';
 import type { ContentPart, InternalMessage } from '../context/types.js';
 import { PromptManager } from '../prompts/index.js';
@@ -1229,21 +1229,26 @@ export class DextoAgent {
                         }
                     };
 
+                    let allowedMediaTypes: string[] | undefined = llmConfig.allowedMediaTypes;
+                    if (!allowedMediaTypes) {
+                        allowedMediaTypes = fileTypesToMimePatterns(
+                            getSupportedFileTypesForModel(llmConfig.provider, llmConfig.model),
+                            this.logger
+                        );
+                    }
+
+                    if (contentParts.some((part) => part.type === 'resource')) {
+                        contentParts = await expandBlobReferences(
+                            contentParts,
+                            this.resourceManager,
+                            this.logger,
+                            allowedMediaTypes
+                        );
+                    }
+
                     // Expand @resource mentions into canonical resource references for prompt projection
                     if (textContent.includes('@')) {
                         try {
-                            let allowedMediaTypes: string[] | undefined =
-                                llmConfig.allowedMediaTypes;
-                            if (!allowedMediaTypes) {
-                                allowedMediaTypes = fileTypesToMimePatterns(
-                                    getSupportedFileTypesForModel(
-                                        llmConfig.provider,
-                                        llmConfig.model
-                                    ),
-                                    this.logger
-                                );
-                            }
-
                             const resources = await this.resourceManager.list();
                             const expansion = await expandMessageReferences(
                                 textContent,
@@ -1314,7 +1319,7 @@ export class DextoAgent {
                         (p) => p.type === 'text' && p.text.trim()
                     );
                     const hasMediaContent = contentParts.some(
-                        (p) => p.type === 'image' || p.type === 'file'
+                        (p) => p.type === 'image' || p.type === 'file' || p.type === 'resource'
                     );
                     if (!hasTextContent && !hasMediaContent) {
                         this.logger.warn(

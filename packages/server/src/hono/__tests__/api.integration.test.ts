@@ -640,6 +640,7 @@ describe('Hono API Integration Tests', () => {
                     mimeType: 'application/pdf',
                     filename: 'missing.pdf',
                 });
+                expect(readSpy).toHaveBeenCalledTimes(1);
             } finally {
                 readSpy.mockRestore();
             }

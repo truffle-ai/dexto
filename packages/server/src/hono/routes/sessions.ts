@@ -4,8 +4,6 @@ import {
     ErrorScope,
     ErrorType,
     zodToIssues,
-    type ContentPart as CoreContentPart,
-    type InternalMessage as CoreInternalMessage,
     type SessionMetadata as CoreSessionMetadata,
 } from '@dexto/core';
 import {
@@ -105,92 +103,6 @@ function mapSessionMetadata(
         workspaceId: metadata?.workspaceId ?? defaults?.workspaceId ?? null,
         parentSessionId: metadata?.parentSessionId ?? defaults?.parentSessionId ?? null,
     };
-}
-
-async function expandBlobHistoryContentForApi(
-    content: CoreContentPart[],
-    agent: Awaited<ReturnType<GetAgentFn>>
-): Promise<CoreContentPart[]> {
-    const expanded: CoreContentPart[] = [];
-
-    for (const part of content) {
-        if (
-            part.type === 'image' &&
-            typeof part.image === 'string' &&
-            part.image.startsWith('@blob:')
-        ) {
-            try {
-                const result = await agent.resourceManager.read(part.image.slice(1));
-                let resolved = false;
-                for (const item of result.contents) {
-                    if (typeof item !== 'object' || item === null || !('blob' in item)) {
-                        continue;
-                    }
-                    if (typeof item.blob !== 'string') {
-                        continue;
-                    }
-
-                    expanded.push({
-                        type: 'image',
-                        image: item.blob,
-                        ...(typeof item.mimeType === 'string'
-                            ? { mimeType: item.mimeType }
-                            : part.mimeType !== undefined
-                              ? { mimeType: part.mimeType }
-                              : {}),
-                    });
-                    resolved = true;
-                    break;
-                }
-                if (resolved) continue;
-            } catch (error) {
-                agent.logger.warn(
-                    `Failed to expand image blob for session history: ${error instanceof Error ? error.message : String(error)}`
-                );
-            }
-        }
-
-        if (
-            part.type === 'file' &&
-            typeof part.data === 'string' &&
-            part.data.startsWith('@blob:')
-        ) {
-            try {
-                const result = await agent.resourceManager.read(part.data.slice(1));
-                let resolved = false;
-                for (const item of result.contents) {
-                    if (typeof item !== 'object' || item === null || !('blob' in item)) {
-                        continue;
-                    }
-                    if (typeof item.blob !== 'string') {
-                        continue;
-                    }
-
-                    expanded.push({
-                        type: 'file',
-                        data: item.blob,
-                        mimeType: typeof item.mimeType === 'string' ? item.mimeType : part.mimeType,
-                        ...('filename' in item && typeof item.filename === 'string'
-                            ? { filename: item.filename }
-                            : part.filename !== undefined
-                              ? { filename: part.filename }
-                              : {}),
-                    });
-                    resolved = true;
-                    break;
-                }
-                if (resolved) continue;
-            } catch (error) {
-                agent.logger.warn(
-                    `Failed to expand file blob for session history: ${error instanceof Error ? error.message : String(error)}`
-                );
-            }
-        }
-
-        expanded.push(part);
-    }
-
-    return expanded;
 }
 
 const listRoute = createRoute({
@@ -762,25 +674,13 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
             const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.param();
             const [history, isBusy] = await Promise.all([
-                agent.getSessionHistory(sessionId, { expandBlobReferences: false }),
+                agent.getSessionHistory(sessionId),
                 agent.isSessionBusy(sessionId),
             ]);
-            const expandedHistory: CoreInternalMessage[] = await Promise.all(
-                history.map(async (message): Promise<CoreInternalMessage> => {
-                    if (!Array.isArray(message.content)) {
-                        return message;
-                    }
-
-                    return {
-                        ...message,
-                        content: await expandBlobHistoryContentForApi(message.content, agent),
-                    } as CoreInternalMessage;
-                })
-            );
             // TODO: Improve type alignment between core and server schemas.
             // Core's InternalMessage has union types (string | Uint8Array | Buffer | URL)
             // for binary data, but JSON responses are always base64 strings.
-            const apiHistory = expandedHistory.map((message) => toApiInternalMessage(message));
+            const apiHistory = history.map((message) => toApiInternalMessage(message));
             for (const [index, message] of apiHistory.entries()) {
                 const parsed = InternalMessageSchema.safeParse(message);
                 if (!parsed.success) {

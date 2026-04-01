@@ -486,6 +486,65 @@ describe('DextoAgent Lifecycle Management', () => {
             expect(sessionStream).not.toHaveBeenCalled();
         });
 
+        test('should validate resource-only media input before session stream', async () => {
+            const settingsWithExpandedVideo: AgentRuntimeSettings = {
+                ...mockValidatedConfig,
+                llm: LLMConfigSchema.parse({
+                    ...mockValidatedConfig.llm,
+                    allowedMediaTypes: ['video/*'],
+                }),
+            };
+            mockValidatedConfig = settingsWithExpandedVideo;
+            (mockServices.stateManager.getRuntimeConfig as any).mockReturnValue(
+                settingsWithExpandedVideo
+            );
+            (mockServices.stateManager.getLLMConfig as any).mockReturnValue(
+                settingsWithExpandedVideo.llm
+            );
+
+            const sessionStream = vi.fn().mockResolvedValue(undefined);
+            mockServices.sessionManager.getSession = vi.fn().mockResolvedValue(undefined);
+            mockServices.sessionManager.createSession = vi.fn().mockResolvedValue({
+                id: 'test-session',
+                stream: sessionStream,
+            });
+
+            mockServices.resourceManager = {
+                read: vi.fn().mockResolvedValue({
+                    contents: [{ blob: 'AAAA', mimeType: 'video/mp4' }],
+                }),
+                cleanup: vi.fn(),
+            } as any;
+
+            const agent = createTestAgent(settingsWithExpandedVideo);
+            await agent.start();
+
+            await expect(
+                agent.generate(
+                    [
+                        {
+                            type: 'resource',
+                            uri: 'blob:video-1',
+                            name: 'clip.mp4',
+                            mimeType: 'video/mp4',
+                            kind: 'video',
+                        },
+                    ],
+                    'test-session'
+                )
+            ).rejects.toMatchObject({
+                issues: expect.arrayContaining([
+                    expect.objectContaining({
+                        code: LLMErrorCode.INPUT_FILE_UNSUPPORTED,
+                    }),
+                ]),
+            });
+
+            expect(mockServices.resourceManager.read).toHaveBeenCalledWith('blob:video-1');
+            expect(mockServices.sessionManager.createSession).not.toHaveBeenCalled();
+            expect(sessionStream).not.toHaveBeenCalled();
+        });
+
         test('should handle complete lifecycle without errors', async () => {
             const agent = createTestAgent(mockValidatedConfig);
 
