@@ -1,5 +1,45 @@
 # @dexto/tui
 
+## 1.6.21
+
+### Patch Changes
+
+- Updated dependencies [c51501e]
+- Updated dependencies [80608eb]
+    - @dexto/agent-management@1.6.21
+    - @dexto/core@1.6.21
+    - @dexto/registry@1.6.21
+
+## 1.6.20
+
+### Patch Changes
+
+- Updated dependencies [059b3d1]
+    - @dexto/agent-management@1.6.20
+    - @dexto/core@1.6.20
+    - @dexto/registry@1.6.20
+
+## 1.6.19
+
+### Patch Changes
+
+- Updated dependencies [aa54df6]
+- Updated dependencies [015dd4f]
+    - @dexto/core@1.6.19
+    - @dexto/agent-management@1.6.19
+    - @dexto/registry@1.6.19
+
+## 1.6.18
+
+### Patch Changes
+
+- Updated dependencies [29bd887]
+- Updated dependencies [3d4fb3d]
+- Updated dependencies [beb8efa]
+    - @dexto/agent-management@1.6.18
+    - @dexto/core@1.6.18
+    - @dexto/registry@1.6.18
+
 ## 1.6.17
 
 ### Patch Changes

@@ -86,7 +86,11 @@ import {
 } from '@dexto/agent-management';
 import { validateCliOptions, handleCliOptionsError } from './cli/utils/options.js';
 import { validateAgentConfig } from './cli/utils/config-validation.js';
-import { applyCLIOverrides, applyUserPreferences } from './config/cli-overrides.js';
+import {
+    applyCLIOverrides,
+    applyStartupLLMFallback,
+    applyUserPreferences,
+} from './config/cli-overrides.js';
 import { registerRunCommand } from './cli/commands/run/register.js';
 import { registerSessionCommand } from './cli/commands/session/register.js';
 import { registerSearchCommand } from './cli/commands/search/register.js';
@@ -169,7 +173,7 @@ program
     .option(
         '--mode <mode>',
         'The application in which dexto should talk to you - web | cli | server | mcp',
-        'web'
+        'cli'
     )
     .option('--port <port>', 'port for the server (default: 3000 for web, 3001 for server mode)')
     .option('--no-auto-install', 'Disable automatic installation of missing agents from registry')
@@ -467,6 +471,7 @@ async function bootstrapAgentFromGlobalOpts(options: {
         })
     );
     await agent.start();
+    await (await import('./utils/workspace.js')).applyWorkspaceToAgent(agent, workspaceRoot);
 
     // Register graceful shutdown
     const shutdown = async () => {
@@ -502,8 +507,8 @@ program
     .description(
         'Dexto CLI - AI-powered assistant with session management.\n\n' +
             'Basic Usage:\n' +
-            '  dexto                    Start web UI (default)\n' +
-            '  dexto --mode cli         Start interactive CLI\n' +
+            '  dexto or dexto --mode cli  Start interactive CLI (default)\n' +
+            '  dexto --mode web         Start web UI\n' +
             '  dexto --prompt "query"   Start interactive CLI and run the prompt\n' +
             '  dexto run "query"        Run one-off headless task\n\n' +
             'Session Management Commands:\n' +
@@ -541,6 +546,7 @@ program
                 }
 
                 const opts = program.opts();
+                const workspaceRoot = findDextoProjectRoot(process.cwd()) ?? process.cwd();
 
                 // Set dev mode early to use local repo agents instead of ~/.dexto
                 if (opts.dev) {
@@ -582,10 +588,10 @@ program
 
                 // ——— FORCE CLI MODE FOR PROMPT/SESSION FLAGS ———
                 // If a prompt or session flag was provided, force CLI mode.
-                if (
-                    (initialPrompt || opts.continue || opts.resume || opts.cloudAgent) &&
-                    opts.mode !== 'cli'
-                ) {
+                const modeForcedByChatFlags = Boolean(
+                    initialPrompt || opts.continue || opts.resume || opts.cloudAgent
+                );
+                if (modeForcedByChatFlags && opts.mode !== 'cli') {
                     console.error(
                         `ℹ️  Forcing CLI mode due to --prompt/--continue/--resume/--cloud-agent.`
                     );
@@ -674,7 +680,44 @@ program
                 // Determine validation mode early - used throughout config loading and agent creation
                 // Use relaxed validation for interactive modes (web/cli) where users can configure later
                 // Use strict validation for non-interactive modes (server/mcp) that need full config upfront
-                const isInteractiveMode = opts.mode === 'web' || opts.mode === 'cli';
+                let isInteractiveMode = opts.mode === 'web' || opts.mode === 'cli';
+                const shouldCheckSetupState =
+                    !opts.skipSetup && !(opts.agent && isPath(opts.agent));
+                let setupRequired = false;
+
+                if (shouldCheckSetupState) {
+                    const { requiresSetup } = await import('./cli/utils/setup-utils.js');
+                    setupRequired = await requiresSetup();
+                }
+
+                const canRunInteractiveSetup = isInteractiveMode && opts.interactive !== false;
+
+                if (setupRequired && !canRunInteractiveSetup) {
+                    console.error('❌ Setup required before starting in this mode.');
+                    console.error(
+                        '💡 Run `dexto setup` first, or use --skip-setup to bypass global setup.'
+                    );
+                    safeExit('main', 1, 'setup-required-non-interactive');
+                }
+
+                const shouldRunSetupBeforeStartup =
+                    setupRequired && canRunInteractiveSetup && !opts.provider && !opts.model;
+
+                if (shouldRunSetupBeforeStartup) {
+                    const { handleSetupCommand } = await import('./cli/commands/setup.js');
+                    await handleSetupCommand({
+                        interactive: true,
+                        defaultMode: opts.mode === 'cli' ? 'cli' : undefined,
+                    });
+
+                    if (!explicitModeProvided && !modeForcedByChatFlags) {
+                        const preferences = await loadGlobalPreferences();
+                        if (preferences.defaults.defaultMode) {
+                            opts.mode = preferences.defaults.defaultMode;
+                        }
+                        isInteractiveMode = opts.mode === 'web' || opts.mode === 'cli';
+                    }
+                }
 
                 try {
                     // Case 1: File path - skip all validation and setup
@@ -718,39 +761,9 @@ program
                             }
                         }
 
-                        // Check setup state and auto-trigger if needed
-                        // Skip if --skip-setup flag is set (for MCP mode, automation, etc.)
-                        const { requiresSetup } = await import('./cli/utils/setup-utils.js');
-                        if (!opts.skipSetup && (await requiresSetup())) {
-                            if (opts.interactive === false) {
-                                console.error(
-                                    '❌ Setup required but --no-interactive flag is set.'
-                                );
-                                console.error(
-                                    '💡 Run `dexto setup` first, or use --skip-setup to bypass global setup.'
-                                );
-                                safeExit('main', 1, 'setup-required-non-interactive');
-                            }
-
-                            const { handleSetupCommand } = await import('./cli/commands/setup.js');
-                            await handleSetupCommand({ interactive: true });
-
-                            // Reload preferences after setup to get the newly selected default mode
-                            // (setup may have just saved a different mode than the default 'web')
-                            try {
-                                const newPreferences = await loadGlobalPreferences();
-                                if (newPreferences.defaults?.defaultMode) {
-                                    opts.mode = newPreferences.defaults.defaultMode;
-                                    logger.debug(
-                                        `Updated mode from setup preferences: ${opts.mode}`
-                                    );
-                                }
-                            } catch {
-                                // Ignore errors - will use default mode
-                            }
-                        }
-
-                        // Now resolve agent (will auto-install since setup is complete)
+                        // Resolve the configured agent after setup has been established for
+                        // interactive startup. This keeps provider selection generic instead of
+                        // letting bundled agent defaults decide first-run behavior.
                         resolvedPath = await resolveAgentPath(
                             opts.agent,
                             opts.autoInstall !== false
@@ -791,10 +804,12 @@ program
                     const agentId = opts.agent ?? 'coding-agent';
                     let preferences: Awaited<ReturnType<typeof loadGlobalPreferences>> | null =
                         null;
+                    let hasCompletedSetup = false;
 
                     if (globalPreferencesExist()) {
                         try {
                             preferences = await loadGlobalPreferences();
+                            hasCompletedSetup = preferences.setup.completed;
                         } catch {
                             // Preferences exist but couldn't load - continue without them
                             logger.debug('Could not load preferences, continuing without them');
@@ -841,6 +856,7 @@ program
                                 await handleSetupCommand({ interactive: true, force: true });
                                 // Reload preferences after setup
                                 preferences = await loadGlobalPreferences();
+                                hasCompletedSetup = preferences.setup.completed;
                             } else {
                                 // User cancelled
                                 safeExit('main', 0, 'dexto-auth-check-cancelled');
@@ -896,7 +912,18 @@ program
                     // See feature-plans/auto-update.md section 8.11 - Three-Layer LLM Resolution:
                     //   local.llm ?? preferences.llm ?? bundled.llm
                     // The preferences.llm acts as a "global .local.yml" for LLM settings
-                    if (preferences?.llm?.provider && preferences?.llm?.model) {
+                    mergedConfig = applyStartupLLMFallback(mergedConfig, {
+                        hasCompletedSetup,
+                        hasExplicitProviderOverride: Boolean(opts.provider),
+                        hasExplicitModelOverride: Boolean(opts.model),
+                        hasExplicitApiKeyOverride: Boolean(opts.apiKey),
+                    });
+
+                    if (
+                        hasCompletedSetup &&
+                        preferences?.llm?.provider &&
+                        preferences?.llm?.model
+                    ) {
                         mergedConfig = applyUserPreferences(mergedConfig, preferences);
                         logger.debug(`Applied user preferences to ${agentId}`, {
                             provider: preferences.llm.provider,
@@ -938,7 +965,6 @@ program
                     // Enrichment adds filesystem paths to storage (schema has in-memory defaults)
                     // Interactive CLI mode: only log to file (console would interfere with chat UI)
                     const isInteractiveCli = opts.mode === 'cli';
-                    const workspaceRoot = findDextoProjectRoot(process.cwd()) ?? process.cwd();
                     const enrichedConfig = enrichAgentConfig(
                         configWithImageDefaults,
                         resolvedPath,
@@ -1085,6 +1111,9 @@ program
                     // - other modes: start immediately (no approval support)
                     if (opts.mode !== 'web' && opts.mode !== 'server' && opts.mode !== 'cli') {
                         await agent.start();
+                        await (
+                            await import('./utils/workspace.js')
+                        ).applyWorkspaceToAgent(agent, workspaceRoot);
                     }
 
                     // Derive a concise agent ID for display purposes (used by API/UI)
@@ -1110,6 +1139,7 @@ program
                 await dispatchMainMode({
                     agent,
                     opts: mainModeOpts,
+                    workspaceRoot,
                     validatedConfig,
                     resolvedPath,
                     derivedAgentId,

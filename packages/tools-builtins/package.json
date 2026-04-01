@@ -1,6 +1,6 @@
 {
     "name": "@dexto/tools-builtins",
-    "version": "1.6.17",
+    "version": "1.6.21",
     "description": "Built-in tools factory for Dexto agents",
     "type": "module",
     "main": "./dist/index.js",
@@ -24,7 +24,7 @@
     "dependencies": {
         "@dexto/agent-config": "workspace:*",
         "@dexto/core": "workspace:*",
-        "undici": "^7.24.0",
+        "undici": "^7.24.6",
         "zod": "^3.25.0"
     },
     "devDependencies": {

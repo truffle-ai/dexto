@@ -1,6 +1,6 @@
 {
   "name": "@dexto/agent-management",
-  "version": "1.6.17",
+  "version": "1.6.21",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -8,6 +8,7 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
@@ -18,7 +19,7 @@
     "@dexto/core": "workspace:*",
     "@dexto/orchestration": "workspace:*",
     "@dexto/tools-builtins": "workspace:*",
-    "yaml": "^2.7.1",
+    "yaml": "^2.8.3",
     "zod": "^3.25.0"
   },
   "devDependencies": {

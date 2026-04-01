@@ -1,5 +1,53 @@
 # @dexto/agent-management
 
+## 1.6.21
+
+### Patch Changes
+
+- c51501e: Fix local server smoke regressions in prompt/resource serialization, A2A task cancel handling, and custom agent install/switch registry behavior.
+- 80608eb: Simplify first-run setup and default Dexto to CLI.
+    - @dexto/core@1.6.21
+    - @dexto/agent-config@1.6.21
+    - @dexto/tools-builtins@1.6.21
+    - @dexto/orchestration@1.6.21
+
+## 1.6.20
+
+### Patch Changes
+
+- 059b3d1: Patch release for the recent Hono contract cleanup and package export fix.
+    - `@dexto/server`: publish the Hono inference contract/schema cleanup so downstream typed clients stop seeing opaque response shapes.
+    - `@dexto/agent-management`: publish the `exports["."].types` fix so NodeNext consumers resolve declarations correctly.
+    - @dexto/core@1.6.20
+    - @dexto/agent-config@1.6.20
+    - @dexto/tools-builtins@1.6.20
+    - @dexto/orchestration@1.6.20
+
+## 1.6.19
+
+### Patch Changes
+
+- Updated dependencies [aa54df6]
+- Updated dependencies [015dd4f]
+    - @dexto/core@1.6.19
+    - @dexto/agent-config@1.6.19
+    - @dexto/orchestration@1.6.19
+    - @dexto/tools-builtins@1.6.19
+
+## 1.6.18
+
+### Patch Changes
+
+- 29bd887: Update create-skill and formalized convention for new skill bundles in workspaces. Updated `dexto init` to initialize with create-skill default.
+- 3d4fb3d: Pass explicit usage scope IDs through agent creation, LLM execution, and session load responses.
+- Updated dependencies [29bd887]
+- Updated dependencies [3d4fb3d]
+- Updated dependencies [beb8efa]
+    - @dexto/tools-builtins@1.6.18
+    - @dexto/core@1.6.18
+    - @dexto/agent-config@1.6.18
+    - @dexto/orchestration@1.6.18
+
 ## 1.6.17
 
 ### Patch Changes

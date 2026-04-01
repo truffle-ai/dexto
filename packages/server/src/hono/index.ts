@@ -1,34 +1,40 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
-import type { Context } from 'hono';
-import type { DextoAgent, AgentCard } from '@dexto/core';
+import type { Context, Hono } from 'hono';
+import type { BlankEnv, ExtractSchema, MergeSchemaPath } from 'hono/types';
+import type { Env, Schema } from 'hono/types';
+import type { AgentCard } from '@dexto/core';
 import { logger } from '@dexto/core';
 import { getDextoPackageRoot } from '@dexto/agent-management';
 import { createHealthRouter } from './routes/health.js';
-import { createGreetingRouter } from './routes/greeting.js';
-import { createMessagesRouter } from './routes/messages.js';
-import { createLlmRouter } from './routes/llm.js';
-import { createSessionsRouter } from './routes/sessions.js';
-import { createSearchRouter } from './routes/search.js';
-import { createMcpRouter } from './routes/mcp.js';
+import { createGreetingRouter, type GreetingRouterSchema } from './routes/greeting.js';
+import { createMessagesRouter, type MessagesRouterSchema } from './routes/messages.js';
+import { createLlmRouter, type LlmRouterSchema } from './routes/llm.js';
+import { createSessionsRouter, type SessionsRouterSchema } from './routes/sessions.js';
+import { createSearchRouter, type SearchRouterSchema } from './routes/search.js';
+import { createMcpRouter, type McpRouterSchema } from './routes/mcp.js';
 import { createA2aRouter } from './routes/a2a.js';
 import { createA2AJsonRpcRouter } from './routes/a2a-jsonrpc.js';
 import { createA2ATasksRouter } from './routes/a2a-tasks.js';
-import { createWebhooksRouter } from './routes/webhooks.js';
-import { createPromptsRouter } from './routes/prompts.js';
-import { createResourcesRouter } from './routes/resources.js';
-import { createMemoryRouter } from './routes/memory.js';
-import { createWorkspacesRouter } from './routes/workspaces.js';
-import { createSchedulesRouter } from './routes/schedules.js';
-import { createAgentsRouter, type AgentsRouterContext } from './routes/agents.js';
-import { createApprovalsRouter } from './routes/approvals.js';
-import { createQueueRouter } from './routes/queue.js';
-import { createOpenRouterRouter } from './routes/openrouter.js';
-import { createKeyRouter } from './routes/key.js';
-import { createToolsRouter } from './routes/tools.js';
-import { createDiscoveryRouter } from './routes/discovery.js';
-import { createModelsRouter } from './routes/models.js';
-import { createDextoAuthRouter } from './routes/dexto-auth.js';
-import { createSystemPromptRouter } from './routes/system-prompt.js';
+import { createWebhooksRouter, type WebhooksRouterSchema } from './routes/webhooks.js';
+import { createPromptsRouter, type PromptsRouterSchema } from './routes/prompts.js';
+import { createResourcesRouter, type ResourcesRouterSchema } from './routes/resources.js';
+import { createMemoryRouter, type MemoryRouterSchema } from './routes/memory.js';
+import { createWorkspacesRouter, type WorkspacesRouterSchema } from './routes/workspaces.js';
+import { createSchedulesRouter, type SchedulesRouterSchema } from './routes/schedules.js';
+import {
+    createAgentsRouter,
+    type AgentsRouterContext,
+    type AgentsRouterSchema,
+} from './routes/agents.js';
+import { createApprovalsRouter, type ApprovalsRouterSchema } from './routes/approvals.js';
+import { createQueueRouter, type QueueRouterSchema } from './routes/queue.js';
+import { createOpenRouterRouter, type OpenRouterRouterSchema } from './routes/openrouter.js';
+import { createKeyRouter, type KeyRouterSchema } from './routes/key.js';
+import { createToolsRouter, type ToolsRouterSchema } from './routes/tools.js';
+import { createDiscoveryRouter, type DiscoveryRouterSchema } from './routes/discovery.js';
+import { createModelsRouter, type ModelsRouterSchema } from './routes/models.js';
+import { createDextoAuthRouter, type DextoAuthRouterSchema } from './routes/dexto-auth.js';
+import { createSystemPromptRouter, type SystemPromptRouterSchema } from './routes/system-prompt.js';
 import {
     createStaticRouter,
     createSpaFallbackHandler,
@@ -44,6 +50,7 @@ import { ApprovalCoordinator } from '../approval/approval-coordinator.js';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import type { DextoApp, GetAgentConfigPathFn, GetAgentFn } from './types.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -104,12 +111,6 @@ const dummyAgentsContext: AgentsRouterContext = {
     getActiveAgentId: () => undefined,
 };
 
-// Type for async getAgent with context support
-export type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
-export type GetAgentConfigPathFn = (
-    ctx: Context
-) => string | undefined | Promise<string | undefined>;
-
 export type CreateDextoAppOptions = {
     /**
      * Prefix for API routes. Defaults to '/api'.
@@ -139,7 +140,56 @@ export type CreateDextoAppOptions = {
 // Default API prefix as a const literal for type inference
 const DEFAULT_API_PREFIX = '/api' as const;
 
-export function createDextoApp(options: CreateDextoAppOptions) {
+type HealthSchema = MergeSchemaPath<
+    ExtractSchema<ReturnType<typeof createHealthRouter>>,
+    '/health'
+>;
+type DiscoverySchema = MergeSchemaPath<ExtractSchema<ReturnType<typeof createA2aRouter>>, '/'>;
+type JsonRpcSchema = MergeSchemaPath<ExtractSchema<ReturnType<typeof createA2AJsonRpcRouter>>, '/'>;
+
+type ConversationRouterSchema =
+    | GreetingRouterSchema
+    | MessagesRouterSchema
+    | LlmRouterSchema
+    | SessionsRouterSchema
+    | SearchRouterSchema;
+
+type IntegrationRouterSchema =
+    | McpRouterSchema
+    | WebhooksRouterSchema
+    | PromptsRouterSchema
+    | ResourcesRouterSchema
+    | MemoryRouterSchema
+    | WorkspacesRouterSchema
+    | SchedulesRouterSchema;
+
+type ManagementRouterSchema = ApprovalsRouterSchema | AgentsRouterSchema | QueueRouterSchema;
+
+type SystemRouterSchema =
+    | OpenRouterRouterSchema
+    | KeyRouterSchema
+    | ToolsRouterSchema
+    | DiscoveryRouterSchema
+    | ModelsRouterSchema
+    | SystemPromptRouterSchema
+    | DextoAuthRouterSchema;
+
+type DefaultApiRouterSchema =
+    | ConversationRouterSchema
+    | IntegrationRouterSchema
+    | ManagementRouterSchema
+    | SystemRouterSchema;
+
+type DefaultApiSchema = MergeSchemaPath<DefaultApiRouterSchema, typeof DEFAULT_API_PREFIX>;
+
+// Keep the protocol-style A2A tasks routes out of the exported client type surface for now.
+// They still exist at runtime and in OpenAPI docs, but including them here triggers TS2589 in
+// declaration emit for the entire server package. Track narrowing/follow-up against:
+// https://github.com/honojs/hono/issues/2399
+type PublicApiSchema = HealthSchema | DiscoverySchema | JsonRpcSchema;
+type AppSchema = PublicApiSchema | DefaultApiSchema;
+
+export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
     const {
         apiPrefix,
         getAgent,
@@ -189,43 +239,51 @@ export function createDextoApp(options: CreateDextoAppOptions) {
     // Mount all API routers at the configured prefix for proper type inference
     // Each router is mounted individually so Hono can properly track route types
     const resolvedGetAgentConfigPath = getAgentConfigPath ?? ((_ctx: Context) => undefined);
-    const fullApp = app
-        // Public health endpoint
-        .route('/health', createHealthRouter(getAgent))
-        // Follows A2A discovery protocol
-        .route('/', createA2aRouter(getAgentCard))
-        .route('/', createA2AJsonRpcRouter(getAgent, sseSubscriber))
-        .route('/', createA2ATasksRouter(getAgent, sseSubscriber))
-        // Add agent-specific routes
-        .route(routePrefix, createGreetingRouter(getAgent))
-        .route(routePrefix, createMessagesRouter(getAgent, approvalCoordinator))
-        .route(routePrefix, createLlmRouter(getAgent))
-        .route(routePrefix, createSessionsRouter(getAgent))
-        .route(routePrefix, createSearchRouter(getAgent))
-        .route(routePrefix, createMcpRouter(getAgent, resolvedGetAgentConfigPath))
-        .route(routePrefix, createWebhooksRouter(getAgent, webhookSubscriber))
-        .route(routePrefix, createPromptsRouter(getAgent))
-        .route(routePrefix, createResourcesRouter(getAgent))
-        .route(routePrefix, createMemoryRouter(getAgent))
-        .route(routePrefix, createWorkspacesRouter(getAgent))
-        .route(routePrefix, createSchedulesRouter(getAgent))
-        .route(routePrefix, createApprovalsRouter(getAgent, approvalCoordinator))
-        .route(
+    const fullApp: DextoApp = app;
+
+    // Keep route contracts in the route files themselves and avoid re-instantiating the entire
+    // composed router graph during declaration emit. Hono tracks the exported AppType from the
+    // explicit AppSchema above; erasing child router types here only affects this mount list.
+    // See: https://github.com/honojs/hono/issues/2399
+    const mountedRouters: Array<readonly [string, Hono<Env, Schema, string>]> = [
+        ['/health', createHealthRouter(getAgent)],
+        ['/', createA2aRouter(getAgentCard)],
+        ['/', createA2AJsonRpcRouter(getAgent, sseSubscriber)],
+        ['/', createA2ATasksRouter(getAgent, sseSubscriber)],
+        [routePrefix, createGreetingRouter(getAgent)],
+        [routePrefix, createMessagesRouter(getAgent, approvalCoordinator)],
+        [routePrefix, createLlmRouter(getAgent)],
+        [routePrefix, createSessionsRouter(getAgent)],
+        [routePrefix, createSearchRouter(getAgent)],
+        [routePrefix, createMcpRouter(getAgent, resolvedGetAgentConfigPath)],
+        [routePrefix, createWebhooksRouter(getAgent, webhookSubscriber)],
+        [routePrefix, createPromptsRouter(getAgent)],
+        [routePrefix, createResourcesRouter(getAgent)],
+        [routePrefix, createMemoryRouter(getAgent)],
+        [routePrefix, createWorkspacesRouter(getAgent)],
+        [routePrefix, createSchedulesRouter(getAgent)],
+        [routePrefix, createApprovalsRouter(getAgent, approvalCoordinator)],
+        [
             routePrefix,
             createAgentsRouter(
                 getAgent,
                 agentsContext || dummyAgentsContext,
                 resolvedGetAgentConfigPath
-            )
-        )
-        .route(routePrefix, createQueueRouter(getAgent))
-        .route(routePrefix, createOpenRouterRouter())
-        .route(routePrefix, createKeyRouter())
-        .route(routePrefix, createToolsRouter(getAgent))
-        .route(routePrefix, createDiscoveryRouter(resolvedGetAgentConfigPath))
-        .route(routePrefix, createModelsRouter())
-        .route(routePrefix, createSystemPromptRouter(getAgent))
-        .route(routePrefix, createDextoAuthRouter(getAgent));
+            ),
+        ],
+        [routePrefix, createQueueRouter(getAgent)],
+        [routePrefix, createOpenRouterRouter()],
+        [routePrefix, createKeyRouter()],
+        [routePrefix, createToolsRouter(getAgent)],
+        [routePrefix, createDiscoveryRouter(resolvedGetAgentConfigPath)],
+        [routePrefix, createModelsRouter()],
+        [routePrefix, createSystemPromptRouter(getAgent)],
+        [routePrefix, createDextoAuthRouter(getAgent)],
+    ];
+
+    for (const [path, router] of mountedRouters) {
+        fullApp.route(path, router);
+    }
 
     // Expose OpenAPI document
     // Current approach uses @hono/zod-openapi's .doc() method for OpenAPI spec generation
@@ -360,9 +418,7 @@ export function createDextoApp(options: CreateDextoAppOptions) {
     return fullApp;
 }
 
-// Export inferred AppType
-// Routes are now properly typed since they're all mounted directly
-export type AppType = ReturnType<typeof createDextoApp>;
+export type AppType = Hono<BlankEnv, AppSchema, '/'>;
 
 // Re-export types needed by CLI
 export type { WebUIRuntimeConfig } from './routes/static.js';

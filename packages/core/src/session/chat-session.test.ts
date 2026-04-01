@@ -171,6 +171,9 @@ describe('ChatSession', () => {
                 accumulateTokenUsage: vi.fn().mockResolvedValue(undefined),
                 markUntrackedChatGPTLoginUsage: vi.fn().mockResolvedValue(undefined),
             },
+            workspaceManager: {
+                getWorkspace: vi.fn().mockResolvedValue(undefined),
+            },
         };
 
         // Set up factory mocks
@@ -203,6 +206,31 @@ describe('ChatSession', () => {
                 mockDatabase,
                 sessionId,
                 expect.any(Object) // Logger object
+            );
+        });
+
+        test('passes the active workspace path to createLLMService when one is set', async () => {
+            mockServices.workspaceManager.getWorkspace.mockResolvedValue({
+                id: 'workspace-1',
+                path: '/tmp/dexto-cloud',
+                createdAt: 1,
+                lastActiveAt: 1,
+            });
+
+            await chatSession.init();
+
+            expect(mockCreateLLMService).toHaveBeenCalledWith(
+                mockLLMConfig,
+                mockServices.toolManager,
+                mockServices.systemPromptManager,
+                mockHistoryProvider,
+                chatSession.eventBus,
+                sessionId,
+                mockServices.resourceManager,
+                expect.any(Object),
+                expect.objectContaining({
+                    cwd: '/tmp/dexto-cloud',
+                })
             );
         });
 

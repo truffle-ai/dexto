@@ -87,6 +87,10 @@ const SetupCommandSchema = z
             .boolean()
             .default(false)
             .describe('Overwrite existing setup when already configured'),
+        defaultMode: z
+            .enum(['cli', 'web', 'server', 'discord', 'telegram', 'mcp'])
+            .optional()
+            .describe('Preferred default mode for interactive setup flows'),
         quickStart: z
             .boolean()
             .default(false)
@@ -186,6 +190,7 @@ interface SetupWizardState {
     reasoningPreset?: ReasoningVariant | undefined;
     apiKeySkipped?: boolean | undefined;
     defaultMode?: 'cli' | 'web' | 'server' | 'discord' | 'telegram' | 'mcp' | undefined;
+    preferredDefaultMode?: 'cli' | 'web' | 'server' | 'discord' | 'telegram' | 'mcp' | undefined;
     /** Quick start handles its own preferences saving */
     quickStartHandled?: boolean | undefined;
 }
@@ -302,7 +307,10 @@ export async function handleSetupCommand(options: Partial<CLISetupOptionsInput>)
 
     // Handle quick start
     if (validated.quickStart) {
-        await handleQuickStart({ onCancel: 'exit' });
+        await handleQuickStart({
+            onCancel: 'exit',
+            preferredDefaultMode: validated.defaultMode,
+        });
         return;
     }
 
@@ -323,6 +331,7 @@ type QuickStartCancelBehavior = 'exit' | 'back';
 
 interface QuickStartOptions {
     onCancel: QuickStartCancelBehavior;
+    preferredDefaultMode?: CLISetupOptions['defaultMode'];
 }
 
 async function handleQuickStart(
@@ -394,7 +403,9 @@ async function handleQuickStart(
                 continue;
             }
 
-            const defaultMode = useCli ? 'cli' : await selectDefaultMode();
+            const defaultMode = useCli
+                ? 'cli'
+                : await selectDefaultMode(options.preferredDefaultMode);
             if (defaultMode === null) {
                 if (options.onCancel === 'exit') {
                     p.cancel('Setup cancelled');
@@ -534,7 +545,7 @@ async function handleQuickStart(
             continue;
         }
 
-        const defaultMode = useCli ? 'cli' : await selectDefaultMode();
+        const defaultMode = useCli ? 'cli' : await selectDefaultMode(options.preferredDefaultMode);
 
         // Handle cancellation
         if (defaultMode === null) {
@@ -1208,13 +1219,16 @@ async function getCreditsBalance(): Promise<number | null> {
  * Full interactive setup flow with wizard navigation.
  * Users can go back to previous steps to change their selections.
  */
-async function handleInteractiveSetup(_options: CLISetupOptions): Promise<void> {
+async function handleInteractiveSetup(options: CLISetupOptions): Promise<void> {
     console.log(chalk.cyan('\nDexto Setup\n'));
 
     p.intro(chalk.cyan("Let's configure your AI agent"));
 
     // Initialize wizard state
-    let state: SetupWizardState = { step: 'setupType' };
+    let state: SetupWizardState = {
+        step: 'setupType',
+        preferredDefaultMode: options.defaultMode,
+    };
 
     // Wizard loop - process steps until complete
     while (state.step !== 'complete') {
@@ -1306,7 +1320,10 @@ async function wizardStepSetupType(state: SetupWizardState): Promise<SetupWizard
 
     if (setupType === 'quick') {
         // Quick start bypasses the wizard - handle it directly
-        const result = await handleQuickStart({ onCancel: 'back' });
+        const result = await handleQuickStart({
+            onCancel: 'back',
+            preferredDefaultMode: state.preferredDefaultMode,
+        });
         if (result === 'cancelled') {
             return { ...state, step: 'setupType' };
         }
@@ -1476,7 +1493,7 @@ async function wizardStepMode(state: SetupWizardState): Promise<SetupWizardState
     const hasReasoningStep = getReasoningProfile(provider, model).capable;
     showStepProgress('mode', provider, model);
 
-    const mode = await selectDefaultModeWithBack();
+    const mode = await selectDefaultModeWithBack(state.preferredDefaultMode);
 
     if (mode === '_back') {
         // Go back to the previous *interactive* step. Some steps (like apiKey) may be
@@ -1937,9 +1954,9 @@ async function promptCustomModelValues(
     };
 }
 
-async function selectDefaultModeWithBack(): Promise<
-    'cli' | 'web' | 'server' | 'discord' | 'telegram' | 'mcp' | '_back'
-> {
+async function selectDefaultModeWithBack(
+    preferredDefaultMode?: CLISetupOptions['defaultMode']
+): Promise<'cli' | 'web' | 'server' | 'discord' | 'telegram' | 'mcp' | '_back'> {
     const result = await p.select({
         message: 'How do you want to use Dexto by default?',
         options: [
@@ -1960,6 +1977,7 @@ async function selectDefaultModeWithBack(): Promise<
             },
             { value: '_back' as const, label: chalk.gray('← Back'), hint: 'Go to previous step' },
         ],
+        ...(preferredDefaultMode ? { initialValue: preferredDefaultMode } : {}),
     });
 
     if (p.isCancel(result)) {
@@ -2049,13 +2067,25 @@ async function handleNonInteractiveSetup(options: CLISetupOptions): Promise<void
     const apiKeyVar = getProviderEnvVar(provider);
     const hadApiKeyBefore = Boolean(resolveApiKeyForProvider(provider));
 
-    const preferences = createInitialPreferences({
+    const preferencesOptions: {
+        provider: NonNullable<CLISetupOptions['provider']>;
+        model: string;
+        apiKeyVar: string;
+        defaultAgent: string;
+        setupCompleted: true;
+        defaultMode?: NonNullable<CLISetupOptions['defaultMode']>;
+    } = {
         provider,
         model,
         apiKeyVar,
         defaultAgent: options.defaultAgent,
         setupCompleted: true,
-    });
+    };
+    if (options.defaultMode) {
+        preferencesOptions.defaultMode = options.defaultMode;
+    }
+
+    const preferences = createInitialPreferences(preferencesOptions);
 
     await saveGlobalPreferences(preferences);
 
@@ -2147,7 +2177,7 @@ async function showSettingsMenu(): Promise<void> {
             {
                 value: 'mode',
                 label: 'Change default mode',
-                hint: `Currently: ${currentPrefs?.defaults.defaultMode || 'web'}`,
+                hint: `Currently: ${currentPrefs?.defaults.defaultMode || 'cli'}`,
             },
             {
                 value: 'auth',
@@ -2583,9 +2613,9 @@ function showPreferencesFilePath(): void {
  * Select default mode interactively
  * Returns null if user cancels
  */
-async function selectDefaultMode(): Promise<
-    'cli' | 'web' | 'server' | 'discord' | 'telegram' | 'mcp' | null
-> {
+async function selectDefaultMode(
+    preferredDefaultMode?: CLISetupOptions['defaultMode']
+): Promise<'cli' | 'web' | 'server' | 'discord' | 'telegram' | 'mcp' | null> {
     const mode = await p.select({
         message: 'How do you want to use Dexto by default?',
         options: [
@@ -2605,6 +2635,7 @@ async function selectDefaultMode(): Promise<
                 hint: 'REST API for integrations',
             },
         ],
+        ...(preferredDefaultMode ? { initialValue: preferredDefaultMode } : {}),
     });
 
     if (p.isCancel(mode)) {

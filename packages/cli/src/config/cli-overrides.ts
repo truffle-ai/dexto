@@ -20,7 +20,16 @@
  */
 
 import type { AgentConfig } from '@dexto/agent-config';
-import type { LLMConfig, LLMProvider } from '@dexto/core';
+import {
+    EnvExpandedString,
+    LLM_PROVIDERS,
+    getDefaultModelForProvider,
+    requiresApiKey,
+    requiresBaseURL,
+    resolveApiKeyForProvider,
+    type LLMConfig,
+    type LLMProvider,
+} from '@dexto/core';
 import type { GlobalPreferences } from '@dexto/agent-management';
 
 /**
@@ -32,6 +41,13 @@ export interface CLIConfigOverrides
     autoApprove?: boolean;
     /** When false (via --no-elicitation), disables elicitation */
     elicitation?: boolean;
+}
+
+export interface StartupLLMFallbackOptions {
+    hasCompletedSetup: boolean;
+    hasExplicitProviderOverride: boolean;
+    hasExplicitModelOverride: boolean;
+    hasExplicitApiKeyOverride: boolean;
 }
 
 /**
@@ -125,6 +141,85 @@ export function applyUserPreferences(
     }
 
     return mergedConfig;
+}
+
+export function applyStartupLLMFallback(
+    baseConfig: AgentConfig,
+    options: StartupLLMFallbackOptions
+): AgentConfig {
+    const mergedConfig = JSON.parse(JSON.stringify(baseConfig)) as AgentConfig;
+
+    if (
+        options.hasCompletedSetup ||
+        options.hasExplicitProviderOverride ||
+        options.hasExplicitModelOverride ||
+        options.hasExplicitApiKeyOverride
+    ) {
+        return mergedConfig;
+    }
+
+    if (hasUsableCredentials(mergedConfig.llm.provider, mergedConfig.llm)) {
+        return mergedConfig;
+    }
+
+    for (const provider of LLM_PROVIDERS) {
+        if (!hasExplicitStartupFallbackConfiguration(provider)) {
+            continue;
+        }
+
+        const model = getDefaultModelForProvider(provider);
+        if (!model) {
+            continue;
+        }
+
+        mergedConfig.llm.provider = provider;
+        mergedConfig.llm.model = model;
+        delete mergedConfig.llm.baseURL;
+
+        const apiKey = resolveApiKeyForProvider(provider);
+        if (apiKey) {
+            mergedConfig.llm.apiKey = apiKey;
+        } else {
+            delete mergedConfig.llm.apiKey;
+        }
+
+        return mergedConfig;
+    }
+
+    return mergedConfig;
+}
+
+function hasExplicitStartupFallbackConfiguration(provider: LLMProvider): boolean {
+    if (resolveApiKeyForProvider(provider)?.trim()) {
+        return true;
+    }
+
+    if (requiresBaseURL(provider) && process.env.OPENAI_BASE_URL?.trim()) {
+        return true;
+    }
+
+    return false;
+}
+
+export function hasUsableCredentials(
+    provider: LLMProvider,
+    llmConfig?: Pick<AgentConfig['llm'], 'apiKey' | 'baseURL'>
+): boolean {
+    const baseURL = llmConfig?.baseURL ? EnvExpandedString().parse(llmConfig.baseURL) : undefined;
+    if (requiresBaseURL(provider) && !baseURL?.trim()) {
+        return false;
+    }
+
+    if (!requiresApiKey(provider)) {
+        return true;
+    }
+
+    const inlineApiKey = llmConfig?.apiKey ? EnvExpandedString().parse(llmConfig.apiKey) : '';
+    if (inlineApiKey.trim()) {
+        return true;
+    }
+
+    return Boolean(resolveApiKeyForProvider(provider)?.trim());
 }
 
 /**

@@ -5,6 +5,8 @@
 
 // Core client
 export { createDextoClient } from './client.js';
+export { parseResponse } from 'hono/client';
+export type { ClientResponse, InferResponseType } from 'hono/client';
 
 // SSE streaming
 export { stream, createStream, createMessageStream, SSEError } from './streaming.js';

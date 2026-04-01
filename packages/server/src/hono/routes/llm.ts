@@ -1,5 +1,4 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { DextoAgent } from '@dexto/core';
 import { DextoRuntimeError, ErrorScope, ErrorType, logger } from '@dexto/core';
 import {
     LLM_REGISTRY,
@@ -33,15 +32,17 @@ import {
     CustomModelSchema,
     isDextoAuthEnabled,
 } from '@dexto/agent-management';
-import type { Context } from 'hono';
 import {
+    BadRequestErrorResponse,
+    ConflictErrorResponse,
+    InternalErrorResponse,
     ProviderCatalogSchema,
     ModelFlatSchema,
     LLMConfigResponseSchema,
+    NotFoundErrorResponse,
     StandardErrorEnvelopeSchema,
 } from '../schemas/responses.js';
-
-type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
+import type { GetAgentFn, OpenAPIRouteSchema } from '../types.js';
 const MODEL_PICKER_FEATURED_LIMIT = 8;
 
 const CurrentQuerySchema = z
@@ -181,450 +182,471 @@ const ModelPickerErrorResponses = {
     },
 } as const;
 
-export function createLlmRouter(getAgent: GetAgentFn) {
-    const app = new OpenAPIHono();
+const CapabilitiesQuerySchema = z
+    .object({
+        provider: z.enum(LLM_PROVIDERS).describe('LLM provider name'),
+        model: z
+            .string()
+            .min(1)
+            .describe('Model name (supports both native and OpenRouter format)'),
+    })
+    .strict()
+    .describe('Query parameters for model capability lookup');
 
-    const currentRoute = createRoute({
-        method: 'get',
-        path: '/llm/current',
-        summary: 'Get Current LLM Config',
-        description: 'Retrieves the current LLM configuration for the agent or a specific session',
-        tags: ['llm'],
-        request: { query: CurrentQuerySchema },
-        responses: {
-            200: {
-                description: 'Current LLM config',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                config: LLMConfigResponseSchema.partial({
-                                    maxIterations: true,
-                                }).extend({
-                                    displayName: z
-                                        .string()
-                                        .optional()
-                                        .describe('Human-readable model display name'),
-                                }),
-                                routing: z
-                                    .object({
-                                        viaDexto: z
-                                            .boolean()
-                                            .describe(
-                                                'Whether requests route through Dexto gateway'
-                                            ),
-                                    })
-                                    .describe(
-                                        'Routing information for the current LLM configuration'
-                                    ),
-                            })
-                            .describe('Response containing current LLM configuration'),
-                    },
-                },
-            },
-        },
-    });
-    const catalogRoute = createRoute({
-        method: 'get',
-        path: '/llm/catalog',
-        summary: 'LLM Catalog',
-        description: 'Providers, models, capabilities, and API key status',
-        tags: ['llm'],
-        request: { query: CatalogQuerySchema },
-        responses: {
-            200: {
-                description: 'LLM catalog',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .union([
-                                z
-                                    .object({
-                                        providers: z
-                                            .record(z.enum(LLM_PROVIDERS), ProviderCatalogSchema)
-                                            .describe(
-                                                'Providers grouped by ID with their models and capabilities'
-                                            ),
-                                    })
-                                    .strict()
-                                    .describe('Grouped catalog response (mode=grouped)'),
-                                z
-                                    .object({
-                                        models: z
-                                            .array(ModelFlatSchema)
-                                            .describe(
-                                                'Flat list of all models with provider information'
-                                            ),
-                                    })
-                                    .strict()
-                                    .describe('Flat catalog response (mode=flat)'),
-                            ])
-                            .describe(
-                                'LLM catalog in grouped or flat format based on mode query parameter'
-                            ),
-                    },
-                },
-            },
-        },
-    });
+const SetFavoritesBodySchema = z
+    .object({
+        favorites: z
+            .array(ModelPickerModelRefSchema)
+            .describe('Complete list of favorite model references'),
+    })
+    .strict()
+    .describe('Request body for setting favorite models');
 
-    const switchRoute = createRoute({
-        method: 'post',
-        path: '/llm/switch',
-        summary: 'Switch LLM',
-        description: 'Switches the LLM configuration for the agent or a specific session',
-        tags: ['llm'],
-        request: {
-            body: {
-                content: {
-                    'application/json': {
-                        schema: SwitchLLMBodySchema,
-                    },
-                },
-            },
-        },
-        responses: {
-            200: {
-                description: 'LLM switch result',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                config: LLMConfigResponseSchema.describe(
-                                    'New LLM configuration with all defaults applied (apiKey omitted)'
-                                ),
-                                sessionId: z
+const currentRoute = createRoute({
+    method: 'get',
+    path: '/llm/current',
+    summary: 'Get Current LLM Config',
+    description: 'Retrieves the current LLM configuration for the agent or a specific session',
+    tags: ['llm'],
+    request: { query: CurrentQuerySchema },
+    responses: {
+        200: {
+            description: 'Current LLM config',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            config: LLMConfigResponseSchema.partial({
+                                maxIterations: true,
+                            }).extend({
+                                displayName: z
                                     .string()
                                     .optional()
-                                    .describe('Session ID if session-specific switch'),
-                            })
-                            .describe('LLM switch result'),
-                    },
-                },
-            },
-        },
-    });
-
-    // Custom models routes
-    const listCustomModelsRoute = createRoute({
-        method: 'get',
-        path: '/llm/custom-models',
-        summary: 'List Custom Models',
-        description: 'Returns all saved custom openai-compatible model configurations',
-        tags: ['llm'],
-        responses: {
-            200: {
-                description: 'List of custom models',
-                content: {
-                    'application/json': {
-                        schema: z.object({
-                            models: z.array(CustomModelSchema).describe('List of custom models'),
-                        }),
-                    },
-                },
-            },
-        },
-    });
-
-    const createCustomModelRoute = createRoute({
-        method: 'post',
-        path: '/llm/custom-models',
-        summary: 'Create Custom Model',
-        description: 'Saves a new custom openai-compatible model configuration',
-        tags: ['llm'],
-        request: {
-            body: { content: { 'application/json': { schema: CustomModelSchema } } },
-        },
-        responses: {
-            200: {
-                description: 'Custom model saved',
-                content: {
-                    'application/json': {
-                        schema: z.object({
-                            ok: z.literal(true).describe('Success indicator'),
-                            model: CustomModelSchema,
-                        }),
-                    },
-                },
-            },
-        },
-    });
-
-    const deleteCustomModelRoute = createRoute({
-        method: 'delete',
-        path: '/llm/custom-models/{name}',
-        summary: 'Delete Custom Model',
-        description: 'Deletes a custom model by name',
-        tags: ['llm'],
-        request: {
-            params: z.object({
-                name: z.string().min(1).describe('Model name to delete'),
-            }),
-        },
-        responses: {
-            200: {
-                description: 'Custom model deleted',
-                content: {
-                    'application/json': {
-                        schema: z.object({
-                            ok: z.literal(true).describe('Success indicator'),
-                            deleted: z.string().describe('Name of the deleted model'),
-                        }),
-                    },
-                },
-            },
-            404: {
-                description: 'Custom model not found',
-                content: {
-                    'application/json': {
-                        schema: z.object({
-                            ok: z.literal(false).describe('Failure indicator'),
-                            error: z.string().describe('Error message'),
-                        }),
-                    },
-                },
-            },
-        },
-    });
-
-    // Model capabilities endpoint - resolves gateway providers to underlying model capabilities
-    const capabilitiesRoute = createRoute({
-        method: 'get',
-        path: '/llm/capabilities',
-        summary: 'Get Model Capabilities',
-        description:
-            'Returns the capabilities (supported file types) for a specific provider/model combination. ' +
-            'Handles gateway providers (dexto-nova, openrouter) by resolving to the underlying model capabilities.',
-        tags: ['llm'],
-        request: {
-            query: z.object({
-                provider: z.enum(LLM_PROVIDERS).describe('LLM provider name'),
-                model: z
-                    .string()
-                    .min(1)
-                    .describe('Model name (supports both native and OpenRouter format)'),
-            }),
-        },
-        responses: {
-            200: {
-                description: 'Model capabilities',
-                content: {
-                    'application/json': {
-                        schema: z.object({
-                            provider: z.enum(LLM_PROVIDERS).describe('Provider name'),
-                            model: z.string().describe('Model name as provided'),
-                            supportedFileTypes: z
-                                .array(z.enum(SUPPORTED_FILE_TYPES))
-                                .describe('File types supported by this model'),
-                            reasoning: z
+                                    .describe('Human-readable model display name'),
+                            }),
+                            routing: z
                                 .object({
-                                    capable: z
+                                    viaDexto: z
                                         .boolean()
+                                        .describe('Whether requests route through Dexto gateway'),
+                                })
+                                .describe('Routing information for the current LLM configuration'),
+                        })
+                        .describe('Response containing current LLM configuration'),
+                },
+            },
+        },
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const catalogRoute = createRoute({
+    method: 'get',
+    path: '/llm/catalog',
+    summary: 'LLM Catalog',
+    description: 'Providers, models, capabilities, and API key status',
+    tags: ['llm'],
+    request: { query: CatalogQuerySchema },
+    responses: {
+        200: {
+            description: 'LLM catalog',
+            content: {
+                'application/json': {
+                    schema: z
+                        .union([
+                            z
+                                .object({
+                                    providers: z
+                                        .record(z.enum(LLM_PROVIDERS), ProviderCatalogSchema)
                                         .describe(
-                                            'Whether Dexto considers this provider/model reasoning-capable (derived from registry metadata plus explicit provider/model rules)'
-                                        ),
-                                    paradigm: z
-                                        .enum([
-                                            'effort',
-                                            'adaptive-effort',
-                                            'thinking-level',
-                                            'budget',
-                                            'none',
-                                        ])
-                                        .describe('Reasoning control paradigm for this model'),
-                                    variants: z
-                                        .array(
-                                            z
-                                                .object({
-                                                    id: z
-                                                        .string()
-                                                        .describe(
-                                                            'Native reasoning variant identifier'
-                                                        ),
-                                                    label: z
-                                                        .string()
-                                                        .describe(
-                                                            'Display label for the native reasoning variant'
-                                                        ),
-                                                })
-                                                .strict()
-                                        )
-                                        .describe('Native reasoning variants exposed to users'),
-                                    supportedVariants: z
-                                        .array(z.string())
-                                        .describe(
-                                            'Native reasoning variant IDs supported for this model/provider'
-                                        ),
-                                    defaultVariant: z
-                                        .string()
-                                        .optional()
-                                        .describe(
-                                            'Default reasoning variant used when no explicit override is set'
-                                        ),
-                                    supportsBudgetTokens: z
-                                        .boolean()
-                                        .describe(
-                                            'Whether this provider/model supports a budgetTokens-style escape hatch'
+                                            'Providers grouped by ID with their models and capabilities'
                                         ),
                                 })
                                 .strict()
-                                .describe(
-                                    'Reasoning tuning capabilities derived from registry metadata and explicit provider/model rules'
-                                ),
-                        }),
-                    },
+                                .describe('Grouped catalog response (mode=grouped)'),
+                            z
+                                .object({
+                                    models: z
+                                        .array(ModelFlatSchema)
+                                        .describe(
+                                            'Flat list of all models with provider information'
+                                        ),
+                                })
+                                .strict()
+                                .describe('Flat catalog response (mode=flat)'),
+                        ])
+                        .describe(
+                            'LLM catalog in grouped or flat format based on mode query parameter'
+                        ),
                 },
             },
         },
-    });
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
 
-    const modelPickerStateRoute = createRoute({
-        method: 'get',
-        path: '/llm/model-picker-state',
-        summary: 'Model Picker State',
-        description:
-            'Returns hydrated Featured, Recents, Favorites, and Custom sections for the model picker.',
-        tags: ['llm'],
-        responses: {
-            200: {
-                description: 'Hydrated model picker sections',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                featured: z
-                                    .array(ModelPickerEntrySchema)
-                                    .describe('Curated featured models'),
-                                recents: z
-                                    .array(ModelPickerEntrySchema)
-                                    .describe('Most recently used models'),
-                                favorites: z
-                                    .array(ModelPickerEntrySchema)
-                                    .describe('User favorited models'),
-                                custom: z
-                                    .array(ModelPickerEntrySchema)
-                                    .describe('User-defined custom models'),
-                            })
-                            .strict(),
-                    },
+const switchRoute = createRoute({
+    method: 'post',
+    path: '/llm/switch',
+    summary: 'Switch LLM',
+    description: 'Switches the LLM configuration for the agent or a specific session',
+    tags: ['llm'],
+    request: {
+        body: {
+            content: {
+                'application/json': {
+                    schema: SwitchLLMBodySchema,
                 },
             },
-            ...ModelPickerErrorResponses,
         },
-    });
+    },
+    responses: {
+        200: {
+            description: 'LLM switch result',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            config: LLMConfigResponseSchema.describe(
+                                'New LLM configuration with all defaults applied (apiKey omitted)'
+                            ),
+                            sessionId: z
+                                .string()
+                                .optional()
+                                .describe('Session ID if session-specific switch'),
+                        })
+                        .describe('LLM switch result'),
+                },
+            },
+        },
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        409: ConflictErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
 
-    const recordRecentModelRoute = createRoute({
-        method: 'post',
-        path: '/llm/model-picker-state/recents',
-        summary: 'Record Recent Model',
-        description: 'Records a model selection in recents.',
-        tags: ['llm'],
-        request: {
-            body: {
-                required: true,
-                content: {
-                    'application/json': {
-                        schema: ModelPickerModelRefSchema,
-                    },
+const listCustomModelsRoute = createRoute({
+    method: 'get',
+    path: '/llm/custom-models',
+    summary: 'List Custom Models',
+    description: 'Returns all saved custom openai-compatible model configurations',
+    tags: ['llm'],
+    responses: {
+        200: {
+            description: 'List of custom models',
+            content: {
+                'application/json': {
+                    schema: z.object({
+                        models: z.array(CustomModelSchema).describe('List of custom models'),
+                    }),
                 },
             },
         },
-        responses: {
-            200: {
-                description: 'Recent model recorded',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                ok: z.literal(true).describe('Success indicator'),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-            ...ModelPickerErrorResponses,
-        },
-    });
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
 
-    const toggleFavoriteModelRoute = createRoute({
-        method: 'post',
-        path: '/llm/model-picker-state/favorites/toggle',
-        summary: 'Toggle Favorite Model',
-        description: 'Adds or removes a model from favorites.',
-        tags: ['llm'],
-        request: {
-            body: {
-                required: true,
-                content: {
-                    'application/json': {
-                        schema: ModelPickerModelRefSchema,
-                    },
+const createCustomModelRoute = createRoute({
+    method: 'post',
+    path: '/llm/custom-models',
+    summary: 'Create Custom Model',
+    description: 'Saves a new custom openai-compatible model configuration',
+    tags: ['llm'],
+    request: {
+        body: { content: { 'application/json': { schema: CustomModelSchema } } },
+    },
+    responses: {
+        200: {
+            description: 'Custom model saved',
+            content: {
+                'application/json': {
+                    schema: z.object({
+                        ok: z.literal(true).describe('Success indicator'),
+                        model: CustomModelSchema,
+                    }),
                 },
             },
         },
-        responses: {
-            200: {
-                description: 'Favorite toggled',
-                content: {
-                    'application/json': {
-                        schema: z
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        409: ConflictErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const deleteCustomModelRoute = createRoute({
+    method: 'delete',
+    path: '/llm/custom-models/{name}',
+    summary: 'Delete Custom Model',
+    description: 'Deletes a custom model by name',
+    tags: ['llm'],
+    request: {
+        params: z.object({
+            name: z.string().min(1).describe('Model name to delete'),
+        }),
+    },
+    responses: {
+        200: {
+            description: 'Custom model deleted',
+            content: {
+                'application/json': {
+                    schema: z.object({
+                        ok: z.literal(true).describe('Success indicator'),
+                        deleted: z.string().describe('Name of the deleted model'),
+                    }),
+                },
+            },
+        },
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const capabilitiesRoute = createRoute({
+    method: 'get',
+    path: '/llm/capabilities',
+    summary: 'Get Model Capabilities',
+    description:
+        'Returns the capabilities (supported file types) for a specific provider/model combination. ' +
+        'Handles gateway providers (dexto-nova, openrouter) by resolving to the underlying model capabilities.',
+    tags: ['llm'],
+    request: {
+        query: CapabilitiesQuerySchema,
+    },
+    responses: {
+        200: {
+            description: 'Model capabilities',
+            content: {
+                'application/json': {
+                    schema: z.object({
+                        provider: z.enum(LLM_PROVIDERS).describe('Provider name'),
+                        model: z.string().describe('Model name as provided'),
+                        supportedFileTypes: z
+                            .array(z.enum(SUPPORTED_FILE_TYPES))
+                            .describe('File types supported by this model'),
+                        reasoning: z
                             .object({
-                                ok: z.literal(true).describe('Success indicator'),
-                                isFavorite: z
+                                capable: z
                                     .boolean()
-                                    .describe('Whether the model is now favorited'),
+                                    .describe(
+                                        'Whether Dexto considers this provider/model reasoning-capable (derived from registry metadata plus explicit provider/model rules)'
+                                    ),
+                                paradigm: z
+                                    .enum([
+                                        'effort',
+                                        'adaptive-effort',
+                                        'thinking-level',
+                                        'budget',
+                                        'none',
+                                    ])
+                                    .describe('Reasoning control paradigm for this model'),
+                                variants: z
+                                    .array(
+                                        z
+                                            .object({
+                                                id: z
+                                                    .string()
+                                                    .describe(
+                                                        'Native reasoning variant identifier'
+                                                    ),
+                                                label: z
+                                                    .string()
+                                                    .describe(
+                                                        'Display label for the native reasoning variant'
+                                                    ),
+                                            })
+                                            .strict()
+                                    )
+                                    .describe('Native reasoning variants exposed to users'),
+                                supportedVariants: z
+                                    .array(z.string())
+                                    .describe(
+                                        'Native reasoning variant IDs supported for this model/provider'
+                                    ),
+                                defaultVariant: z
+                                    .string()
+                                    .optional()
+                                    .describe(
+                                        'Default reasoning variant used when no explicit override is set'
+                                    ),
+                                supportsBudgetTokens: z
+                                    .boolean()
+                                    .describe(
+                                        'Whether this provider/model supports a budgetTokens-style escape hatch'
+                                    ),
                             })
-                            .strict(),
-                    },
+                            .strict()
+                            .describe(
+                                'Reasoning tuning capabilities derived from registry metadata and explicit provider/model rules'
+                            ),
+                    }),
                 },
             },
-            ...ModelPickerErrorResponses,
         },
-    });
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
 
-    const setFavoritesRoute = createRoute({
-        method: 'put',
-        path: '/llm/model-picker-state/favorites',
-        summary: 'Set Favorite Models',
-        description: 'Replaces favorite models list. Used by migration or bulk updates.',
-        tags: ['llm'],
-        request: {
-            body: {
-                required: true,
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                favorites: z
-                                    .array(ModelPickerModelRefSchema)
-                                    .describe('Complete list of favorite model references'),
-                            })
-                            .strict(),
-                    },
+const modelPickerStateRoute = createRoute({
+    method: 'get',
+    path: '/llm/model-picker-state',
+    summary: 'Model Picker State',
+    description:
+        'Returns hydrated Featured, Recents, Favorites, and Custom sections for the model picker.',
+    tags: ['llm'],
+    responses: {
+        200: {
+            description: 'Hydrated model picker sections',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            featured: z
+                                .array(ModelPickerEntrySchema)
+                                .describe('Curated featured models'),
+                            recents: z
+                                .array(ModelPickerEntrySchema)
+                                .describe('Most recently used models'),
+                            favorites: z
+                                .array(ModelPickerEntrySchema)
+                                .describe('User favorited models'),
+                            custom: z
+                                .array(ModelPickerEntrySchema)
+                                .describe('User-defined custom models'),
+                        })
+                        .strict(),
                 },
             },
         },
-        responses: {
-            200: {
-                description: 'Favorites updated',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                ok: z.literal(true).describe('Success indicator'),
-                                count: z
-                                    .number()
-                                    .int()
-                                    .nonnegative()
-                                    .describe('Number of favorites persisted'),
-                            })
-                            .strict(),
-                    },
+        400: ModelPickerErrorResponses[400],
+        404: ModelPickerErrorResponses[404],
+        500: ModelPickerErrorResponses[500],
+    },
+});
+
+const recordRecentModelRoute = createRoute({
+    method: 'post',
+    path: '/llm/model-picker-state/recents',
+    summary: 'Record Recent Model',
+    description: 'Records a model selection in recents.',
+    tags: ['llm'],
+    request: {
+        body: {
+            required: true,
+            content: {
+                'application/json': {
+                    schema: ModelPickerModelRefSchema,
                 },
             },
-            ...ModelPickerErrorResponses,
         },
-    });
+    },
+    responses: {
+        200: {
+            description: 'Recent model recorded',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            ok: z.literal(true).describe('Success indicator'),
+                        })
+                        .strict(),
+                },
+            },
+        },
+        400: ModelPickerErrorResponses[400],
+        404: ModelPickerErrorResponses[404],
+        500: ModelPickerErrorResponses[500],
+    },
+});
+
+const toggleFavoriteModelRoute = createRoute({
+    method: 'post',
+    path: '/llm/model-picker-state/favorites/toggle',
+    summary: 'Toggle Favorite Model',
+    description: 'Adds or removes a model from favorites.',
+    tags: ['llm'],
+    request: {
+        body: {
+            required: true,
+            content: {
+                'application/json': {
+                    schema: ModelPickerModelRefSchema,
+                },
+            },
+        },
+    },
+    responses: {
+        200: {
+            description: 'Favorite toggled',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            ok: z.literal(true).describe('Success indicator'),
+                            isFavorite: z.boolean().describe('Whether the model is now favorited'),
+                        })
+                        .strict(),
+                },
+            },
+        },
+        400: ModelPickerErrorResponses[400],
+        404: ModelPickerErrorResponses[404],
+        500: ModelPickerErrorResponses[500],
+    },
+});
+
+const setFavoritesRoute = createRoute({
+    method: 'put',
+    path: '/llm/model-picker-state/favorites',
+    summary: 'Set Favorite Models',
+    description: 'Replaces favorite models list. Used by migration or bulk updates.',
+    tags: ['llm'],
+    request: {
+        body: {
+            required: true,
+            content: {
+                'application/json': {
+                    schema: SetFavoritesBodySchema,
+                },
+            },
+        },
+    },
+    responses: {
+        200: {
+            description: 'Favorites updated',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            ok: z.literal(true).describe('Success indicator'),
+                            count: z
+                                .number()
+                                .int()
+                                .nonnegative()
+                                .describe('Number of favorites persisted'),
+                        })
+                        .strict(),
+                },
+            },
+        },
+        400: ModelPickerErrorResponses[400],
+        404: ModelPickerErrorResponses[404],
+        500: ModelPickerErrorResponses[500],
+    },
+});
+
+export function createLlmRouter(getAgent: GetAgentFn) {
+    const app = new OpenAPIHono();
 
     const isProviderEnabled = (provider: LLMProvider): boolean =>
         provider !== 'dexto-nova' || isDextoAuthEnabled();
@@ -826,16 +848,19 @@ export function createLlmRouter(getAgent: GetAgentFn) {
             // Only report viaDexto when the feature is enabled
             const viaDexto = isDextoAuthEnabled() && currentConfig.provider === 'dexto-nova';
 
-            return ctx.json({
-                config: {
-                    ...configWithoutKey,
-                    hasApiKey: !!apiKey,
-                    ...(displayName && { displayName }),
+            return ctx.json(
+                {
+                    config: {
+                        ...configWithoutKey,
+                        hasApiKey: !!apiKey,
+                        ...(displayName && { displayName }),
+                    },
+                    routing: {
+                        viaDexto,
+                    },
                 },
-                routing: {
-                    viaDexto,
-                },
-            });
+                200
+            );
         })
         .openapi(catalogRoute, (ctx) => {
             type ProviderCatalog = Pick<ProviderInfo, 'models' | 'supportedFileTypes'> & {
@@ -950,10 +975,10 @@ export function createLlmRouter(getAgent: GetAgentFn) {
                         flat.push({ provider: id as LLMProvider, ...model });
                     }
                 }
-                return ctx.json({ models: flat });
+                return ctx.json({ models: flat }, 200);
             }
 
-            return ctx.json({ providers: filtered });
+            return ctx.json({ providers: filtered }, 200);
         })
         .openapi(switchRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -974,22 +999,25 @@ export function createLlmRouter(getAgent: GetAgentFn) {
 
             // Omit apiKey from response for security
             const { apiKey, ...configWithoutKey } = config;
-            return ctx.json({
-                config: {
-                    ...configWithoutKey,
-                    hasApiKey: !!apiKey,
+            return ctx.json(
+                {
+                    config: {
+                        ...configWithoutKey,
+                        hasApiKey: !!apiKey,
+                    },
+                    sessionId,
                 },
-                sessionId,
-            });
+                200
+            );
         })
         .openapi(listCustomModelsRoute, async (ctx) => {
             const models = await loadCustomModels();
-            return ctx.json({ models });
+            return ctx.json({ models }, 200);
         })
         .openapi(createCustomModelRoute, async (ctx) => {
             const model = ctx.req.valid('json');
             await saveCustomModel(model);
-            return ctx.json({ ok: true as const, model });
+            return ctx.json({ ok: true as const, model }, 200);
         })
         .openapi(deleteCustomModelRoute, async (ctx) => {
             const { name: encodedName } = ctx.req.valid('param');
@@ -1009,30 +1037,36 @@ export function createLlmRouter(getAgent: GetAgentFn) {
         })
         .openapi(modelPickerStateRoute, async (ctx) => {
             const sections = await buildModelPickerSections();
-            return ctx.json(sections);
+            return ctx.json(sections, 200);
         })
         .openapi(recordRecentModelRoute, async (ctx) => {
             const modelRef = ctx.req.valid('json');
             await recordRecentModel(modelRef);
-            return ctx.json({ ok: true as const });
+            return ctx.json({ ok: true as const }, 200);
         })
         .openapi(toggleFavoriteModelRoute, async (ctx) => {
             const modelRef = ctx.req.valid('json');
             const result = await toggleFavoriteModel(modelRef);
-            return ctx.json({
-                ok: true as const,
-                isFavorite: result.isFavorite,
-            });
+            return ctx.json(
+                {
+                    ok: true as const,
+                    isFavorite: result.isFavorite,
+                },
+                200
+            );
         })
         .openapi(setFavoritesRoute, async (ctx) => {
             const payload = ctx.req.valid('json');
             const state = await setFavoriteModels({
                 favorites: payload.favorites,
             });
-            return ctx.json({
-                ok: true as const,
-                count: state.favorites.length,
-            });
+            return ctx.json(
+                {
+                    ok: true as const,
+                    count: state.favorites.length,
+                },
+                200
+            );
         })
         .openapi(capabilitiesRoute, (ctx) => {
             const { provider, model } = ctx.req.valid('query');
@@ -1053,11 +1087,66 @@ export function createLlmRouter(getAgent: GetAgentFn) {
 
             const reasoning = getReasoningProfile(provider, model);
 
-            return ctx.json({
-                provider,
-                model,
-                supportedFileTypes,
-                reasoning,
-            });
+            return ctx.json(
+                {
+                    provider,
+                    model,
+                    supportedFileTypes,
+                    reasoning,
+                },
+                200
+            );
         });
 }
+
+type CurrentRouteSchema = OpenAPIRouteSchema<
+    typeof currentRoute,
+    { query: z.input<typeof CurrentQuerySchema> }
+>;
+type CatalogRouteSchema = OpenAPIRouteSchema<
+    typeof catalogRoute,
+    { query: z.input<typeof CatalogQuerySchema> }
+>;
+type SwitchRouteSchema = OpenAPIRouteSchema<
+    typeof switchRoute,
+    { json: z.input<typeof SwitchLLMBodySchema> }
+>;
+type ListCustomModelsRouteSchema = OpenAPIRouteSchema<typeof listCustomModelsRoute, {}>;
+type CreateCustomModelRouteSchema = OpenAPIRouteSchema<
+    typeof createCustomModelRoute,
+    { json: z.input<typeof CustomModelSchema> }
+>;
+type DeleteCustomModelRouteSchema = OpenAPIRouteSchema<
+    typeof deleteCustomModelRoute,
+    { param: { name: string } }
+>;
+type CapabilitiesRouteSchema = OpenAPIRouteSchema<
+    typeof capabilitiesRoute,
+    { query: z.input<typeof CapabilitiesQuerySchema> }
+>;
+type ModelPickerStateRouteSchema = OpenAPIRouteSchema<typeof modelPickerStateRoute, {}>;
+type RecordRecentModelRouteSchema = OpenAPIRouteSchema<
+    typeof recordRecentModelRoute,
+    { json: z.input<typeof ModelPickerModelRefSchema> }
+>;
+type ToggleFavoriteModelRouteSchema = OpenAPIRouteSchema<
+    typeof toggleFavoriteModelRoute,
+    { json: z.input<typeof ModelPickerModelRefSchema> }
+>;
+type SetFavoritesRouteSchema = OpenAPIRouteSchema<
+    typeof setFavoritesRoute,
+    { json: z.input<typeof SetFavoritesBodySchema> }
+>;
+
+export type LlmRouterSchema =
+    | CurrentRouteSchema
+    | CatalogRouteSchema
+    | SwitchRouteSchema
+    | ListCustomModelsRouteSchema
+    | CreateCustomModelRouteSchema
+    | DeleteCustomModelRouteSchema
+    | CapabilitiesRouteSchema
+    | ModelPickerStateRouteSchema
+    | RecordRecentModelRouteSchema
+    | ToggleFavoriteModelRouteSchema
+    | SetFavoritesRouteSchema;

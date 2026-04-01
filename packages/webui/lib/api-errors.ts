@@ -176,3 +176,55 @@ export function extractErrorDetails(errorData: Partial<DextoErrorResponse>): {
         method,
     };
 }
+
+export class ApiError extends Error {
+    constructor(
+        message: string,
+        public status: number
+    ) {
+        super(message);
+        this.name = 'ApiError';
+    }
+}
+
+export async function throwApiError(
+    response: Response,
+    fallbackMessage = `Request failed (${response.status})`
+): Promise<never> {
+    const bodyText = await response.text().catch(() => '');
+
+    if (bodyText.trim().length === 0) {
+        throw new ApiError(fallbackMessage, response.status);
+    }
+
+    try {
+        const parsed = JSON.parse(bodyText) as Partial<DextoErrorResponse>;
+        throw new ApiError(extractErrorMessage(parsed, fallbackMessage), response.status);
+    } catch (error) {
+        if (error instanceof ApiError) {
+            throw error;
+        }
+    }
+
+    throw new ApiError(bodyText, response.status);
+}
+
+type ApiResponseLike<TJson> = {
+    ok: boolean;
+    status: number;
+    text(): Promise<string>;
+    json(): Promise<TJson>;
+};
+
+export async function parseApiResponse<TJson>(
+    responseOrPromise: ApiResponseLike<TJson> | Promise<ApiResponseLike<TJson>>,
+    fallbackMessage?: string
+): Promise<TJson> {
+    const response = await responseOrPromise;
+
+    if (!response.ok) {
+        return await throwApiError(response as Response, fallbackMessage);
+    }
+
+    return response.json();
+}

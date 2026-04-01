@@ -23,7 +23,14 @@ export type {
 // Internal types - not exported to avoid naming conflicts with tools module
 // ToolApprovalMetadata, ToolApprovalRequest, ToolApprovalResponse, ToolApprovalResponseData
 
-export { ApprovalType, ApprovalStatus, DenialReason } from './types.js';
+export {
+    APPROVAL_TYPES,
+    APPROVAL_STATUSES,
+    DENIAL_REASONS,
+    ApprovalType,
+    ApprovalStatus,
+    DenialReason,
+} from './types.js';
 
 // Schemas
 export {

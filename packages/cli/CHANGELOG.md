@@ -1,5 +1,84 @@
 # dexto
 
+## 1.6.21
+
+### Patch Changes
+
+- 80608eb: Simplify first-run setup and default Dexto to CLI.
+- Updated dependencies [f70d03c]
+- Updated dependencies [5123a32]
+- Updated dependencies [c51501e]
+- Updated dependencies [80608eb]
+    - @dexto/server@1.6.21
+    - @dexto/client-sdk@1.6.21
+    - @dexto/agent-management@1.6.21
+    - @dexto/analytics@1.6.21
+    - @dexto/image-local@1.6.21
+    - @dexto/image-logger-agent@1.6.21
+    - @dexto/tui@1.6.21
+    - @dexto/core@1.6.21
+    - @dexto/storage@1.6.21
+    - @dexto/agent-config@1.6.21
+    - @dexto/registry@1.6.21
+
+## 1.6.20
+
+### Patch Changes
+
+- Updated dependencies [059b3d1]
+    - @dexto/server@1.6.20
+    - @dexto/agent-management@1.6.20
+    - @dexto/client-sdk@1.6.20
+    - @dexto/analytics@1.6.20
+    - @dexto/image-local@1.6.20
+    - @dexto/image-logger-agent@1.6.20
+    - @dexto/tui@1.6.20
+    - @dexto/core@1.6.20
+    - @dexto/storage@1.6.20
+    - @dexto/agent-config@1.6.20
+    - @dexto/registry@1.6.20
+
+## 1.6.19
+
+### Patch Changes
+
+- aa54df6: Replace browser-facing approval enums with const-list exports and string-union types.
+- 015dd4f: Align workspace root resolution across Dexto and Codex, and ensure the CLI always stops the agent if workspace setup fails during startup.
+- Updated dependencies [aa54df6]
+- Updated dependencies [015dd4f]
+    - @dexto/core@1.6.19
+    - @dexto/agent-config@1.6.19
+    - @dexto/agent-management@1.6.19
+    - @dexto/analytics@1.6.19
+    - @dexto/client-sdk@1.6.19
+    - @dexto/image-local@1.6.19
+    - @dexto/image-logger-agent@1.6.19
+    - @dexto/server@1.6.19
+    - @dexto/storage@1.6.19
+    - @dexto/tui@1.6.19
+    - @dexto/registry@1.6.19
+
+## 1.6.18
+
+### Patch Changes
+
+- 29bd887: Update create-skill and formalized convention for new skill bundles in workspaces. Updated `dexto init` to initialize with create-skill default.
+- 3d4fb3d: Pass explicit usage scope IDs through agent creation, LLM execution, and session load responses.
+- Updated dependencies [29bd887]
+- Updated dependencies [3d4fb3d]
+- Updated dependencies [beb8efa]
+    - @dexto/agent-management@1.6.18
+    - @dexto/core@1.6.18
+    - @dexto/agent-config@1.6.18
+    - @dexto/server@1.6.18
+    - @dexto/analytics@1.6.18
+    - @dexto/image-local@1.6.18
+    - @dexto/image-logger-agent@1.6.18
+    - @dexto/tui@1.6.18
+    - @dexto/client-sdk@1.6.18
+    - @dexto/storage@1.6.18
+    - @dexto/registry@1.6.18
+
 ## 1.6.17
 
 ### Patch Changes

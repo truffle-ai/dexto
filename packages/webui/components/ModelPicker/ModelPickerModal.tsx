@@ -961,7 +961,7 @@ export default function ModelPickerModal() {
 
     // Filtered installed local models (downloaded via CLI/Interactive CLI)
     // Shown when no filter or 'local' filter is active
-    const filteredInstalledModels = useMemo(() => {
+    const filteredInstalledModels = useMemo<LocalModel[]>(() => {
         const hasLocalFilter = providerFilter.includes('local');
         const noFilter = providerFilter.length === 0;
 
@@ -1353,30 +1353,43 @@ export default function ModelPickerModal() {
                                                     )
                                                 )}
                                                 {/* Installed local models (downloaded via CLI) - shown before custom models */}
-                                                {filteredInstalledModels.map((model) => (
-                                                    <ModelCard
-                                                        key={`local|${model.id}`}
-                                                        provider="local"
-                                                        model={{
-                                                            name: model.id,
-                                                            displayName: model.displayName,
-                                                            maxInputTokens:
-                                                                model.contextLength || 8192,
-                                                            supportedFileTypes: [],
-                                                        }}
-                                                        isFavorite={isFavorite('local', model.id)}
-                                                        isActive={isCurrentModel('local', model.id)}
-                                                        onClick={() => onPickInstalledModel(model)}
-                                                        onToggleFavorite={() => {
-                                                            void toggleFavorite('local', model.id);
-                                                        }}
-                                                        onDelete={() =>
-                                                            deleteInstalledModel(model.id)
-                                                        }
-                                                        size="sm"
-                                                        isInstalled
-                                                    />
-                                                ))}
+                                                {filteredInstalledModels.map(
+                                                    (model: LocalModel) => (
+                                                        <ModelCard
+                                                            key={`local|${model.id}`}
+                                                            provider="local"
+                                                            model={{
+                                                                name: model.id,
+                                                                displayName: model.displayName,
+                                                                maxInputTokens:
+                                                                    model.contextLength || 8192,
+                                                                supportedFileTypes: [],
+                                                            }}
+                                                            isFavorite={isFavorite(
+                                                                'local',
+                                                                model.id
+                                                            )}
+                                                            isActive={isCurrentModel(
+                                                                'local',
+                                                                model.id
+                                                            )}
+                                                            onClick={() =>
+                                                                onPickInstalledModel(model)
+                                                            }
+                                                            onToggleFavorite={() => {
+                                                                void toggleFavorite(
+                                                                    'local',
+                                                                    model.id
+                                                                );
+                                                            }}
+                                                            onDelete={() =>
+                                                                deleteInstalledModel(model.id)
+                                                            }
+                                                            size="sm"
+                                                            isInstalled
+                                                        />
+                                                    )
+                                                )}
                                                 {/* Custom models (user-configured) */}
                                                 {filteredCustomModels.map((cm: CustomModel) => {
                                                     const cmProvider = (cm.provider ??

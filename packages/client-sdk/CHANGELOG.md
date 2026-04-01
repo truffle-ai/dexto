@@ -1,5 +1,19 @@
 # @dexto/client-sdk
 
+## 1.6.21
+
+### Patch Changes
+
+- f70d03c: Fix recursive JSON OpenAPI docs to match runtime contracts and tighten MCP tool input typing.
+- 5123a32: Tighten OpenAPI route contracts and preserve emitted Hono client response types for non-2xx JSON branches.
+- c51501e: Fix local server smoke regressions in prompt/resource serialization, A2A task cancel handling, and custom agent install/switch registry behavior.
+
+## 1.6.20
+
+## 1.6.19
+
+## 1.6.18
+
 ## 1.6.17
 
 ## 1.6.16

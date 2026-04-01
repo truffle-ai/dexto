@@ -26,6 +26,7 @@ import {
     type CodexRateLimitSnapshot,
 } from '../providers/codex-app-server.js';
 import { isCodexBaseURL } from '../providers/codex-base-url.js';
+import { findDextoProjectRoot } from '../../utils/execution-context.js';
 import {
     ANTHROPIC_BETA_HEADER,
     ANTHROPIC_INTERLEAVED_THINKING_BETA,
@@ -58,6 +59,8 @@ export interface DextoProviderContext {
     sessionId?: string;
     /** Client source for usage attribution (cli, web, sdk) */
     clientSource?: 'cli' | 'web' | 'sdk';
+    /** Working directory for providers that need an explicit workspace root. */
+    cwd?: string;
     /** Optional callback for ChatGPT Login rate-limit status updates from Codex. */
     onCodexRateLimitStatus?: (snapshot: CodexRateLimitSnapshot) => void;
 }
@@ -65,6 +68,15 @@ export interface DextoProviderContext {
 export interface CreateLLMServiceOptions {
     usageScopeId?: string | undefined;
     compactionStrategy?: CompactionStrategy | null | undefined;
+    cwd?: string | undefined;
+}
+
+function resolveProviderWorkingDirectory(explicitCwd?: string): string {
+    if (explicitCwd && explicitCwd.trim().length > 0) {
+        return explicitCwd;
+    }
+
+    return findDextoProjectRoot(process.cwd()) ?? process.cwd();
 }
 
 /**
@@ -107,6 +119,7 @@ export function createVercelModel(
                 return createCodexLanguageModel({
                     modelId: model,
                     baseURL: compatibleBaseURL,
+                    cwd: resolveProviderWorkingDirectory(context?.cwd),
                     ...(context?.onCodexRateLimitStatus
                         ? { onRateLimitStatus: context.onCodexRateLimitStatus }
                         : {}),
@@ -344,6 +357,7 @@ export function createLLMService(
 
     const model = createVercelModel(config, {
         sessionId,
+        ...(options.cwd !== undefined ? { cwd: options.cwd } : {}),
         onCodexRateLimitStatus: (snapshot) => {
             sessionEventBus.emit('llm:rate-limit-status', {
                 provider: config.provider,

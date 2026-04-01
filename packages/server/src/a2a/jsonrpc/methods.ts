@@ -15,7 +15,6 @@
 import type { DextoAgent } from '@dexto/core';
 import type {
     Task,
-    Message,
     MessageSendParams,
     TaskQueryParams,
     ListTasksParams,
@@ -24,6 +23,14 @@ import type {
 } from '../types.js';
 import { TaskView } from '../adapters/task-view.js';
 import { a2aToInternalMessage } from '../adapters/message.js';
+
+type MethodMap = {
+    'message/send': (params: MessageSendParams) => Promise<Task>;
+    'message/stream': (params: MessageSendParams) => Promise<{ taskId: string }>;
+    'tasks/get': (params: TaskQueryParams) => Promise<Task>;
+    'tasks/list': (params?: ListTasksParams) => Promise<ListTasksResult>;
+    'tasks/cancel': (params: TaskIdParams) => Promise<Task>;
+};
 
 /**
  * A2A Method Handlers
@@ -52,9 +59,9 @@ export class A2AMethodHandlers {
      * Creates a task if taskId not provided in message, or adds to existing task.
      *
      * @param params Message send parameters
-     * @returns Task or Message depending on configuration.blocking
+     * @returns Task containing the agent response
      */
-    async messageSend(params: MessageSendParams): Promise<Task | Message> {
+    async messageSend(params: MessageSendParams): Promise<Task> {
         if (!params?.message) {
             throw new Error('message is required');
         }
@@ -75,9 +82,6 @@ export class A2AMethodHandlers {
         const taskView = new TaskView(session);
         const task = await taskView.toA2ATask();
 
-        // If blocking=false, return just the message (non-blocking)
-        // For now, always return task (blocking behavior)
-        // TODO: Implement non-blocking mode that returns Message
         return task;
     }
 
@@ -233,7 +237,7 @@ export class A2AMethodHandlers {
      *
      * @returns Map of method names to handlers
      */
-    getMethods(): Record<string, (params: any) => Promise<any>> {
+    getMethods(): MethodMap {
         return {
             'message/send': this.messageSend.bind(this),
             'message/stream': this.messageStream.bind(this),

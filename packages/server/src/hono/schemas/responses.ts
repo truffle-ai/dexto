@@ -27,26 +27,202 @@
  * See routes/sessions.ts, routes/search.ts for examples with TODO comments.
  */
 
-import { z } from 'zod';
+import { z } from '@hono/zod-openapi';
 import {
     LLM_PRICING_STATUSES,
     LLMConfigBaseSchema as CoreLLMConfigBaseSchema,
     LLM_PROVIDERS,
     SUPPORTED_FILE_TYPES,
+    type ContentPart as CoreContentPart,
 } from '@dexto/core';
 
-// TODO: Implement shared error response schemas for OpenAPI documentation.
-// Currently, 404 and other error responses lack body schemas because @hono/zod-openapi
-// enforces strict type matching between route definitions and handlers. When a 404 schema
-// is defined, TypeScript expects handler return types to be a union of all response types,
-// but the type system tries to match every return against every schema instead of by status code.
-//
-// Solution: Create a typed helper or wrapper that:
-// 1. Defines a shared ErrorResponseSchema (e.g., { error: string, code?: string })
-// 2. Properly types handlers to return discriminated unions by status code
-// 3. Can be reused across all routes for consistent error documentation
-//
-// See: https://github.com/honojs/middleware/tree/main/packages/zod-openapi for patterns
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+// zod-to-openapi cannot emit the recursive JsonValue union from ZodLazy directly.
+// We use a generator-safe placeholder here and rewrite it into the accurate
+// recursive OpenAPI component in scripts/generate-openapi-spec.ts.
+const JsonValueOpenApiPlaceholder = {
+    type: 'object' as const,
+    additionalProperties: true,
+    description: 'Any JSON-serializable value',
+};
+
+export const JsonValueSchema: z.ZodType<JsonValue> = z
+    .lazy(() =>
+        z.union([
+            z.string(),
+            z.number(),
+            z.boolean(),
+            z.null(),
+            z.array(JsonValueSchema),
+            z.record(z.string(), JsonValueSchema),
+        ])
+    )
+    .openapi('JsonValue', JsonValueOpenApiPlaceholder)
+    .describe('Any JSON-serializable value');
+
+export const JsonObjectSchema: z.ZodType<{ [key: string]: JsonValue }> = z
+    .record(z.string(), JsonValueSchema)
+    .openapi('JsonObject', {
+        type: 'object',
+        additionalProperties: true,
+    })
+    .describe('JSON object with arbitrary serializable values');
+
+const JsonSchemaPrimitiveTypeSchema = z
+    .enum(['string', 'number', 'integer', 'boolean', 'object', 'array'])
+    .describe('JSON Schema primitive type');
+
+const JsonSchemaEnumValueSchema = z
+    .union([z.string(), z.number(), z.boolean(), z.null()])
+    .describe('Allowed JSON Schema enum value');
+
+export const JsonSchemaPropertySchema = z
+    .object({
+        type: JsonSchemaPrimitiveTypeSchema.optional().describe('Property type'),
+        description: z.string().optional().describe('Property description'),
+        enum: z.array(JsonSchemaEnumValueSchema).optional().describe('Enum values'),
+        default: JsonValueSchema.optional().describe('Default value'),
+        format: z.string().optional().describe('JSON Schema format hint'),
+    })
+    .passthrough()
+    .describe('JSON Schema property definition');
+
+export const ToolInputSchema = z
+    .object({
+        type: z.literal('object').optional().describe('Schema type, always "object" when present'),
+        properties: z
+            .record(z.string(), JsonSchemaPropertySchema)
+            .optional()
+            .describe('Property definitions'),
+        required: z.array(z.string()).optional().describe('Required property names'),
+    })
+    .passthrough()
+    .describe('JSON Schema for tool input parameters');
+
+export const IssueSchema = z
+    .object({
+        code: z.string().describe('Machine-readable issue code'),
+        message: z.string().describe('Human-readable issue message'),
+        scope: z.string().describe('Domain that produced the issue'),
+        type: z.string().describe('Error type used for HTTP status mapping'),
+        severity: z.enum(['error', 'warning']).describe('Issue severity'),
+        path: z
+            .array(z.union([z.string(), z.number()]))
+            .optional()
+            .describe('Optional location for the issue'),
+        context: JsonValueSchema.optional().describe('Optional structured issue context'),
+    })
+    .strict()
+    .describe('Structured validation or runtime issue');
+
+export const ApiErrorResponseSchema = z
+    .object({
+        name: z.string().optional().describe('Optional error class name'),
+        message: z.string().describe('Human-readable error message'),
+        code: z.string().optional().describe('Machine-readable error code'),
+        scope: z.string().optional().describe('Domain that produced the error'),
+        type: z.string().optional().describe('Error type used for HTTP status mapping'),
+        severity: z
+            .enum(['error', 'warning'])
+            .optional()
+            .describe('Optional error severity for lightweight failures'),
+        endpoint: z.string().describe('Request path that failed'),
+        method: z.string().describe('HTTP method for the failed request'),
+        traceId: z.string().optional().describe('Optional trace identifier'),
+        recovery: z
+            .union([z.string(), z.array(z.string())])
+            .optional()
+            .describe('Optional recovery guidance'),
+        context: JsonValueSchema.optional().describe('Optional structured error context'),
+        issues: z.array(IssueSchema).optional().describe('Validation issues when present'),
+        errorCount: z.number().int().nonnegative().optional().describe('Number of errors'),
+        warningCount: z.number().int().nonnegative().optional().describe('Number of warnings'),
+        stack: z.string().optional().describe('Development-only stack trace'),
+    })
+    .strict()
+    .describe('Standard API error response');
+
+export const BadRequestErrorResponse = {
+    description: 'Validation or request error',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
+
+export const PaymentRequiredErrorResponse = {
+    description: 'Payment required',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
+
+export const ForbiddenErrorResponse = {
+    description: 'Forbidden',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
+
+export const NotFoundErrorResponse = {
+    description: 'Resource not found',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
+
+export const TimeoutErrorResponse = {
+    description: 'Request timed out',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
+
+export const ConflictErrorResponse = {
+    description: 'Conflict',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
+
+export const RateLimitErrorResponse = {
+    description: 'Rate limited',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
+
+export const InternalErrorResponse = {
+    description: 'Internal server error',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
+
+export const UpstreamErrorResponse = {
+    description: 'Upstream service failure',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
 
 // ============================================================================
 // Imports from @dexto/core - Reusable schemas
@@ -153,6 +329,100 @@ export const ContentPartSchema = z
     ])
     .describe('Message content part (text, image, file, resource, or UI resource)');
 
+export const RequestContentPartSchema = z
+    .discriminatedUnion('type', [TextPartSchema, ImagePartSchema, FilePartSchema])
+    .describe('Request message content part (text, image, or file)');
+
+export const RequestContentSchema = z
+    .union([z.string(), z.array(RequestContentPartSchema)])
+    .describe('Message content - string for text, or ContentPart[] for multimodal');
+
+function serializeBinaryValue(value: string | Uint8Array | Buffer | ArrayBuffer | URL): string {
+    if (typeof value === 'string') {
+        return value;
+    }
+    if (value instanceof URL) {
+        return value.toString();
+    }
+    if (value instanceof ArrayBuffer) {
+        return Buffer.from(new Uint8Array(value)).toString('base64');
+    }
+    return Buffer.from(value).toString('base64');
+}
+
+export function toContentInput(
+    rawContent: z.output<typeof RequestContentSchema>
+): CoreContentPart[] {
+    if (typeof rawContent === 'string') {
+        return [{ type: 'text', text: rawContent }];
+    }
+
+    return rawContent.map((part) => {
+        switch (part.type) {
+            case 'text':
+                return {
+                    type: 'text',
+                    text: part.text,
+                };
+            case 'image':
+                return {
+                    type: 'image',
+                    image: part.image,
+                    ...(part.mimeType !== undefined ? { mimeType: part.mimeType } : {}),
+                };
+            case 'file':
+                return {
+                    type: 'file',
+                    data: part.data,
+                    mimeType: part.mimeType,
+                    ...(part.filename !== undefined ? { filename: part.filename } : {}),
+                };
+        }
+    });
+}
+
+export function toApiContentPart(part: CoreContentPart): z.output<typeof ContentPartSchema> {
+    switch (part.type) {
+        case 'text':
+            return {
+                type: 'text',
+                text: part.text,
+            };
+        case 'image':
+            return {
+                type: 'image',
+                image: serializeBinaryValue(part.image),
+                ...(part.mimeType !== undefined ? { mimeType: part.mimeType } : {}),
+            };
+        case 'file':
+            return {
+                type: 'file',
+                data: serializeBinaryValue(part.data),
+                mimeType: part.mimeType,
+                ...(part.filename !== undefined ? { filename: part.filename } : {}),
+            };
+        case 'resource':
+            return {
+                type: 'resource',
+                uri: part.uri,
+                name: part.name,
+                mimeType: part.mimeType,
+                kind: part.kind,
+                ...(part.size !== undefined ? { size: part.size } : {}),
+                ...(part.metadata !== undefined ? { metadata: part.metadata } : {}),
+            };
+        case 'ui-resource':
+            return {
+                type: 'ui-resource',
+                uri: part.uri,
+                mimeType: part.mimeType,
+                ...(part.content !== undefined ? { content: part.content } : {}),
+                ...(part.blob !== undefined ? { blob: part.blob } : {}),
+                ...(part.metadata !== undefined ? { metadata: part.metadata } : {}),
+            };
+    }
+}
+
 export const ToolCallSchema = z
     .object({
         id: z.string().describe('Unique identifier for this tool call'),
@@ -246,6 +516,7 @@ export type TextPart = z.output<typeof TextPartSchema>;
 export type ImagePart = z.output<typeof ImagePartSchema>;
 export type FilePart = z.output<typeof FilePartSchema>;
 export type ContentPart = z.output<typeof ContentPartSchema>;
+export type RequestContentPart = z.output<typeof RequestContentPartSchema>;
 export type ToolCall = z.output<typeof ToolCallSchema>;
 export type TokenUsage = z.output<typeof TokenUsageSchema>;
 export type InternalMessage = z.output<typeof InternalMessageSchema>;
@@ -441,7 +712,7 @@ export type Workspace = z.output<typeof WorkspaceSchema>;
 export const ScheduleTaskSchema = z
     .object({
         instruction: z.string().describe('Instruction to execute'),
-        metadata: z.record(z.unknown()).optional().describe('Optional task metadata'),
+        metadata: JsonObjectSchema.optional().describe('Optional task metadata'),
     })
     .strict()
     .describe('Schedule task definition');
@@ -674,7 +945,7 @@ export const ResourceSchema = z
             .optional()
             .describe('Last modified timestamp (ISO 8601 string)'),
         metadata: z
-            .record(z.unknown())
+            .record(z.string(), JsonValueSchema)
             .optional()
             .describe('Additional metadata specific to the resource type'),
     })
@@ -689,7 +960,7 @@ export const ToolSchema = z
     .object({
         name: z.string().describe('Tool name'),
         description: z.string().describe('Tool description'),
-        inputSchema: z.record(z.unknown()).describe('JSON Schema for tool input parameters'),
+        inputSchema: ToolInputSchema.describe('JSON Schema for tool input parameters'),
     })
     .strict()
     .describe('Tool metadata');
@@ -718,6 +989,22 @@ export const PromptDefinitionSchema = z
             .array(PromptArgumentSchema)
             .optional()
             .describe('Array of argument definitions'),
+        disableModelInvocation: z
+            .boolean()
+            .optional()
+            .describe('Exclude from auto-invocation list in system prompt'),
+        userInvocable: z.boolean().optional().describe('Whether to show in slash command menu'),
+        allowedTools: z
+            .array(z.string())
+            .optional()
+            .describe('Tools to auto-approve when this prompt is active'),
+        toolkits: z.array(z.string()).optional().describe('Toolkits to load when invoked'),
+        model: z.string().optional().describe('Model to use when this prompt is invoked'),
+        context: z
+            .enum(['inline', 'fork'])
+            .optional()
+            .describe('Execution context for this prompt'),
+        agent: z.string().optional().describe('Agent ID to use for fork execution'),
     })
     .strict()
     .describe('Prompt definition (MCP-compliant)');
@@ -733,8 +1020,26 @@ export const PromptInfoSchema = z
             .array(PromptArgumentSchema)
             .optional()
             .describe('Array of argument definitions'),
+        disableModelInvocation: z
+            .boolean()
+            .optional()
+            .describe('Exclude from auto-invocation list in system prompt'),
+        userInvocable: z.boolean().optional().describe('Whether to show in slash command menu'),
+        allowedTools: z
+            .array(z.string())
+            .optional()
+            .describe('Tools to auto-approve when this prompt is active'),
+        toolkits: z.array(z.string()).optional().describe('Toolkits to load when invoked'),
+        model: z.string().optional().describe('Model to use when this prompt is invoked'),
+        context: z
+            .enum(['inline', 'fork'])
+            .optional()
+            .describe('Execution context for this prompt'),
+        agent: z.string().optional().describe('Agent ID to use for fork execution'),
         source: z.enum(['mcp', 'config', 'custom']).describe('Source of the prompt'),
-        metadata: z.record(z.unknown()).optional().describe('Additional metadata'),
+        displayName: z.string().optional().describe('Base display name set by provider'),
+        commandName: z.string().optional().describe('Collision-resolved slash command name'),
+        metadata: JsonObjectSchema.optional().describe('Additional metadata'),
     })
     .strict()
     .describe('Enhanced prompt information');
@@ -779,7 +1084,7 @@ export const ErrorResponseSchema = z
             .object({
                 message: z.string().describe('Error message'),
                 code: z.string().optional().describe('Error code'),
-                details: z.unknown().optional().describe('Additional error details'),
+                details: JsonValueSchema.optional().describe('Additional error details'),
             })
             .strict()
             .describe('Error details'),
@@ -796,7 +1101,7 @@ export const StandardErrorEnvelopeSchema = z
         message: z.string().describe('Error message'),
         scope: z.string().describe('Error scope'),
         type: z.string().describe('Error type'),
-        context: z.unknown().optional().describe('Error context'),
+        context: JsonValueSchema.optional().describe('Error context'),
         recovery: z
             .union([z.string(), z.array(z.string())])
             .optional()

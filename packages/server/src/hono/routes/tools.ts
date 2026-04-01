@@ -1,33 +1,14 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import type { Context } from 'hono';
+import {
+    InternalErrorResponse,
+    JsonObjectSchema,
+    JsonValueSchema,
+    ToolInputSchema,
+} from '../schemas/responses.js';
+import type { OpenAPIRouteSchema } from '../types.js';
 type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
-
-// JSON Schema definition for tool input parameters
-const JsonSchemaProperty = z
-    .object({
-        type: z
-            .enum(['string', 'number', 'integer', 'boolean', 'object', 'array'])
-            .optional()
-            .describe('Property type'),
-        description: z.string().optional().describe('Property description'),
-        enum: z
-            .array(z.union([z.string(), z.number(), z.boolean()]))
-            .optional()
-            .describe('Enum values'),
-        default: z.any().optional().describe('Default value'),
-    })
-    .passthrough()
-    .describe('JSON Schema property definition');
-
-const ToolInputSchema = z
-    .object({
-        type: z.literal('object').optional().describe('Schema type, always "object" when present'),
-        properties: z.record(JsonSchemaProperty).optional().describe('Property definitions'),
-        required: z.array(z.string()).optional().describe('Required property names'),
-    })
-    .passthrough()
-    .describe('JSON Schema for tool input parameters');
 
 const ToolInfoSchema = z
     .object({
@@ -38,7 +19,7 @@ const ToolInfoSchema = z
         serverName: z.string().optional().describe('MCP server name (if source is mcp)'),
         inputSchema: ToolInputSchema.optional().describe('JSON Schema for tool input parameters'),
         _meta: z
-            .record(z.unknown())
+            .record(z.string(), JsonValueSchema)
             .optional()
             .describe('Optional tool metadata (e.g., MCP Apps UI resource info)'),
     })
@@ -55,22 +36,23 @@ const AllToolsResponseSchema = z
     .strict()
     .describe('All available tools from all sources');
 
+const allToolsRoute = createRoute({
+    method: 'get',
+    path: '/tools',
+    summary: 'List All Tools',
+    description: 'Retrieves all available tools from all sources (local and MCP)',
+    tags: ['tools'],
+    responses: {
+        200: {
+            description: 'All tools',
+            content: { 'application/json': { schema: AllToolsResponseSchema } },
+        },
+        500: InternalErrorResponse,
+    },
+});
+
 export function createToolsRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
-
-    const allToolsRoute = createRoute({
-        method: 'get',
-        path: '/tools',
-        summary: 'List All Tools',
-        description: 'Retrieves all available tools from all sources (local and MCP)',
-        tags: ['tools'],
-        responses: {
-            200: {
-                description: 'All tools',
-                content: { 'application/json': { schema: AllToolsResponseSchema } },
-            },
-        },
-    });
 
     return app.openapi(allToolsRoute, async (ctx) => {
         const agent = await getAgent(ctx);
@@ -110,14 +92,19 @@ export function createToolsRouter(getAgent: GetAgentFn) {
                 localCount++;
             }
 
+            const metadataResult = JsonObjectSchema.safeParse(toolInfo._meta);
+
             toolList.push({
                 id: toolName,
                 name: toolName,
                 description: toolInfo.description || 'No description available',
                 source,
                 serverName,
-                inputSchema: toolInfo.parameters as z.output<typeof ToolInputSchema> | undefined,
-                _meta: toolInfo._meta as Record<string, unknown> | undefined,
+                inputSchema:
+                    toolInfo.parameters === undefined
+                        ? undefined
+                        : ToolInputSchema.parse(toolInfo.parameters),
+                _meta: metadataResult.success ? metadataResult.data : undefined,
             });
         }
 
@@ -130,11 +117,18 @@ export function createToolsRouter(getAgent: GetAgentFn) {
             return a.name.localeCompare(b.name);
         });
 
-        return ctx.json({
-            tools: toolList,
-            totalCount: toolList.length,
-            localCount,
-            mcpCount,
-        });
+        return ctx.json(
+            {
+                tools: toolList,
+                totalCount: toolList.length,
+                localCount,
+                mcpCount,
+            },
+            200
+        );
     });
 }
+
+type AllToolsRouteSchema = OpenAPIRouteSchema<typeof allToolsRoute, {}>;
+
+export type ToolsRouterSchema = AllToolsRouteSchema;

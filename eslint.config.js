@@ -4,6 +4,17 @@ import js from '@eslint/js';
 import prettier from 'eslint-config-prettier';
 import requireZodDescribe from './eslint-rules/require-zod-describe.js';
 import noOptionalLoggerInConstructor from './eslint-rules/no-optional-logger-in-constructor.js';
+import requireOpenApiRouteContract from './eslint-rules/require-openapi-route-contract.js';
+import requireOpenApiJsonErrorResponses from './eslint-rules/require-openapi-json-error-responses.js';
+
+const dextoCustomPlugin = {
+    rules: {
+        'require-zod-describe': requireZodDescribe,
+        'no-optional-logger-in-constructor': noOptionalLoggerInConstructor,
+        'require-openapi-route-contract': requireOpenApiRouteContract,
+        'require-openapi-json-error-responses': requireOpenApiJsonErrorResponses,
+    },
+};
 
 export default [
     // Base config for all files
@@ -60,6 +71,7 @@ export default [
         },
         plugins: {
             '@typescript-eslint': tseslint,
+            'dexto-custom': dextoCustomPlugin,
         },
         rules: {
             'no-console': 'off',
@@ -98,13 +110,6 @@ export default [
     // Zod .describe() enforcement for API route files only
     {
         files: ['**/server/src/**/*.ts', '**/api/routes/**/*.ts'],
-        plugins: {
-            'dexto-custom': {
-                rules: {
-                    'require-zod-describe': requireZodDescribe,
-                },
-            },
-        },
         rules: {
             // Enforce .describe() on Zod schemas for OpenAPI documentation
             // Only applies to API route files where OpenAPI docs are generated
@@ -120,16 +125,18 @@ export default [
         },
     },
 
+    // Enforce OpenAPIHono + createRoute for server JSON routes
+    {
+        files: ['packages/server/src/hono/routes/**/*.ts'],
+        rules: {
+            'dexto-custom/require-openapi-route-contract': 'error',
+            'dexto-custom/require-openapi-json-error-responses': 'warn',
+        },
+    },
+
     // Prevent optional logger parameters in class constructors
     {
         files: ['packages/core/src/**/*.ts'],
-        plugins: {
-            'dexto-custom': {
-                rules: {
-                    'no-optional-logger-in-constructor': noOptionalLoggerInConstructor,
-                },
-            },
-        },
         rules: {
             // Enforce required logger parameters in class constructors
             // Logger is a critical dependency that should always be provided

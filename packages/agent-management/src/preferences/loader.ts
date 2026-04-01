@@ -339,7 +339,7 @@ export function createInitialPreferences(options: CreatePreferencesOptions): Glo
         llm: llmConfig,
         defaults: {
             defaultAgent: options.defaultAgent || 'coding-agent',
-            defaultMode: options.defaultMode || 'web',
+            defaultMode: options.defaultMode || 'cli',
         },
         setup: {
             completed: options.setupCompleted ?? true,

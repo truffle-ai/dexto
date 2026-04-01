@@ -5,11 +5,14 @@ The Dexto CLI provides an interactive terminal interface for conversing with AI 
 ## Quick Start
 
 ```bash
-# Start web UI (default)
+# Start interactive CLI (default)
 dexto
 
-# Start interactive CLI
+# Start interactive CLI explicitly
 dexto --mode cli
+
+# Start web UI
+dexto --mode web
 
 # Run one-shot query
 dexto "what is the current time"
@@ -17,6 +20,8 @@ dexto "what is the current time"
 # Run with specific agent
 dexto --agent coding-agent --mode cli
 ```
+
+If Dexto has not been set up yet, bare/default interactive startup enters the generic `dexto setup` flow before the CLI starts. Interactive launches from an explicit agent file or a project-local startup config bypass `dexto setup`, which keeps provider selection explicit without blocking project-owned agent configs.
 
 ## CLI Features
 
