@@ -3417,12 +3417,14 @@
               "enum": [
                 "pdf",
                 "image",
-                "audio"
+                "audio",
+                "video",
+                "document"
               ],
-              "description": "Filter by supported file type (audio, pdf, or image)"
+              "description": "Filter by supported file type (audio, pdf, image, video, or document)"
             },
             "required": false,
-            "description": "Filter by supported file type (audio, pdf, or image)",
+            "description": "Filter by supported file type (audio, pdf, image, video, or document)",
             "name": "fileType",
             "in": "query"
           },
@@ -3533,9 +3535,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -3600,9 +3604,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -3662,9 +3668,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -3729,9 +3737,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -3791,9 +3801,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -3858,9 +3870,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -3920,9 +3934,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -3987,9 +4003,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -4049,9 +4067,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -4116,9 +4136,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -4178,9 +4200,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -4245,9 +4269,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -4307,9 +4333,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -4374,9 +4402,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -4436,9 +4466,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -4503,9 +4535,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -4565,9 +4599,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -4632,9 +4668,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -4694,9 +4732,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -4761,9 +4801,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -4823,9 +4865,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -4890,9 +4934,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -4952,9 +4998,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -5019,9 +5067,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -5081,9 +5131,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -5148,9 +5200,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -5210,9 +5264,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -5277,9 +5333,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -5339,9 +5397,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -5406,9 +5466,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -5468,9 +5530,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -5535,9 +5599,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -5597,9 +5663,11 @@
                                         "items": {
                                           "type": "string",
                                           "enum": [
-                                            "audio",
                                             "pdf",
-                                            "image"
+                                            "image",
+                                            "audio",
+                                            "video",
+                                            "document"
                                           ]
                                         },
                                         "description": "File types this model supports"
@@ -5664,9 +5732,11 @@
                                   "items": {
                                     "type": "string",
                                     "enum": [
-                                      "audio",
                                       "pdf",
-                                      "image"
+                                      "image",
+                                      "audio",
+                                      "video",
+                                      "document"
                                     ]
                                   },
                                   "description": "Provider-level file type support"
@@ -5720,9 +5790,11 @@
                                 "items": {
                                   "type": "string",
                                   "enum": [
-                                    "audio",
                                     "pdf",
-                                    "image"
+                                    "image",
+                                    "audio",
+                                    "video",
+                                    "document"
                                   ]
                                 },
                                 "description": "File types this model supports"
@@ -6458,7 +6530,9 @@
                               "enum": [
                                 "pdf",
                                 "image",
-                                "audio"
+                                "audio",
+                                "video",
+                                "document"
                               ]
                             },
                             "description": "File types supported by this model"
@@ -6532,7 +6606,9 @@
                               "enum": [
                                 "pdf",
                                 "image",
-                                "audio"
+                                "audio",
+                                "video",
+                                "document"
                               ]
                             },
                             "description": "File types supported by this model"
@@ -6606,7 +6682,9 @@
                               "enum": [
                                 "pdf",
                                 "image",
-                                "audio"
+                                "audio",
+                                "video",
+                                "document"
                               ]
                             },
                             "description": "File types supported by this model"
@@ -6680,7 +6758,9 @@
                               "enum": [
                                 "pdf",
                                 "image",
-                                "audio"
+                                "audio",
+                                "video",
+                                "document"
                               ]
                             },
                             "description": "File types supported by this model"
@@ -7919,7 +7999,9 @@
                         "enum": [
                           "pdf",
                           "image",
-                          "audio"
+                          "audio",
+                          "video",
+                          "document"
                         ]
                       },
                       "description": "File types supported by this model"

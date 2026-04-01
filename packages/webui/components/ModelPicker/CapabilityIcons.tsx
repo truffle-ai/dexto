@@ -1,5 +1,5 @@
 import React from 'react';
-import { Lock, Eye, FileText, Mic, Brain } from 'lucide-react';
+import { Lock, Eye, FileText, Mic, Brain, File, Film } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { cn } from '../../lib/utils';
 import type { ModelInfo } from './types';
@@ -78,6 +78,22 @@ export function CapabilityIcons({
                 <CapabilityBadge
                     icon={<Mic className={iconSize} />}
                     label="Audio support"
+                    variant="info"
+                />
+            )}
+
+            {supportedFileTypes?.includes('video') && (
+                <CapabilityBadge
+                    icon={<Film className={iconSize} />}
+                    label="Video support"
+                    variant="info"
+                />
+            )}
+
+            {supportedFileTypes?.includes('document') && (
+                <CapabilityBadge
+                    icon={<File className={iconSize} />}
+                    label="Document support"
                     variant="info"
                 />
             )}

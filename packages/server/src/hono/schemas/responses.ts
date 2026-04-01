@@ -32,6 +32,7 @@ import {
     LLM_PRICING_STATUSES,
     LLMConfigBaseSchema as CoreLLMConfigBaseSchema,
     LLM_PROVIDERS,
+    SUPPORTED_FILE_TYPES,
 } from '@dexto/core';
 
 // TODO: Implement shared error response schemas for OpenAPI documentation.
@@ -586,7 +587,7 @@ export const CatalogModelInfoSchema = z
         maxInputTokens: z.number().int().positive().describe('Maximum input tokens'),
         default: z.boolean().optional().describe('Whether this is a default model'),
         supportedFileTypes: z
-            .array(z.enum(['audio', 'pdf', 'image']))
+            .array(z.enum(SUPPORTED_FILE_TYPES))
             .describe('File types this model supports'),
         displayName: z.string().optional().describe('Human-readable display name'),
         pricing: z
@@ -618,7 +619,7 @@ export const ProviderCatalogSchema = z
         supportsBaseURL: z.boolean().describe('Whether custom base URLs are supported'),
         models: z.array(CatalogModelInfoSchema).describe('Models available from this provider'),
         supportedFileTypes: z
-            .array(z.enum(['audio', 'pdf', 'image']))
+            .array(z.enum(SUPPORTED_FILE_TYPES))
             .describe('Provider-level file type support'),
     })
     .strict()

@@ -49,4 +49,4 @@ export const ATTACHMENT_LIMITS = {
  * This provides a security baseline - all uploads are validated against this list
  * even if model-specific capabilities are unavailable.
  */
-export const DEFAULT_SAFE_FILE_TYPES = ['image', 'pdf', 'audio'] as const;
+export const DEFAULT_SAFE_FILE_TYPES = ['image', 'pdf', 'audio', 'video', 'document'] as const;

@@ -94,7 +94,7 @@ const CatalogQuerySchema = z
         fileType: z
             .enum(SUPPORTED_FILE_TYPES)
             .optional()
-            .describe('Filter by supported file type (audio, pdf, or image)'),
+            .describe('Filter by supported file type (audio, pdf, image, video, or document)'),
         defaultOnly: z
             .union([z.literal('true'), z.literal('false'), z.literal('1'), z.literal('0')])
             .optional()

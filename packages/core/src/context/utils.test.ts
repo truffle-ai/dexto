@@ -1177,11 +1177,41 @@ describe('fileTypesToMimePatterns', () => {
         expect(fileTypesToMimePatterns(['video'], mockLogger)).toEqual(['video/*']);
     });
 
+    test('should convert document file type', () => {
+        expect(fileTypesToMimePatterns(['document'], mockLogger)).toEqual([
+            'text/*',
+            'application/json',
+            'application/xml',
+            'application/msword',
+            'application/rtf',
+            'application/vnd.oasis.opendocument.text',
+            'application/vnd.ms-powerpoint',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ]);
+    });
+
     test('should convert multiple file types', () => {
-        expect(fileTypesToMimePatterns(['image', 'pdf', 'audio'], mockLogger)).toEqual([
+        expect(
+            fileTypesToMimePatterns(['image', 'pdf', 'audio', 'video', 'document'], mockLogger)
+        ).toEqual([
             'image/*',
             'application/pdf',
             'audio/*',
+            'video/*',
+            'text/*',
+            'application/json',
+            'application/xml',
+            'application/msword',
+            'application/rtf',
+            'application/vnd.oasis.opendocument.text',
+            'application/vnd.ms-powerpoint',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         ]);
     });
 

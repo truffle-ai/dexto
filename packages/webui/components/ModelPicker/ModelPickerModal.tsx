@@ -58,6 +58,27 @@ import { LLM_PROVIDERS } from '@dexto/core';
 import { PROVIDER_LOGOS, needsDarkModeInversion, hasLogo } from './constants';
 import { useAnalytics } from '@/lib/analytics/index.js';
 
+const GENERIC_UPLOAD_FILE_TYPES: ModelInfo['supportedFileTypes'] = [
+    'pdf',
+    'image',
+    'audio',
+    'video',
+    'document',
+];
+
+const CUSTOM_PROVIDER_SUPPORTED_FILE_TYPES: Partial<
+    Record<LLMProvider, ModelInfo['supportedFileTypes']>
+> = {
+    'openai-compatible': GENERIC_UPLOAD_FILE_TYPES,
+    openrouter: GENERIC_UPLOAD_FILE_TYPES,
+    litellm: GENERIC_UPLOAD_FILE_TYPES,
+    glama: GENERIC_UPLOAD_FILE_TYPES,
+    'dexto-nova': GENERIC_UPLOAD_FILE_TYPES,
+    bedrock: [],
+    ollama: ['image'],
+    local: [],
+};
+
 export default function ModelPickerModal() {
     const [open, setOpen] = useState(false);
     const [providers, setProviders] = useState<Partial<Record<LLMProvider, ProviderCatalog>>>({});
@@ -661,14 +682,17 @@ export default function ModelPickerModal() {
                 name: customModel.name,
                 displayName: customModel.displayName || customModel.name,
                 maxInputTokens: customModel.maxInputTokens || 128000,
-                supportedFileTypes: ['pdf', 'image', 'audio'],
+                supportedFileTypes:
+                    providers[provider]?.supportedFileTypes ??
+                    CUSTOM_PROVIDER_SUPPORTED_FILE_TYPES[provider] ??
+                    [],
             };
             // Skip API key check for custom models - user already configured them.
             // If they didn't add an API key, it's intentional (self-hosted, local, or env var).
             // Pass the custom model's apiKey for per-model override if present.
             onPickModel(provider, modelInfo, customModel.baseURL, true, customModel.apiKey);
         },
-        [onPickModel]
+        [onPickModel, providers]
     );
 
     const onPickInstalledModel = useCallback(
@@ -768,7 +792,10 @@ export default function ModelPickerModal() {
                     name: customModel.name,
                     displayName: customModel.displayName || customModel.name,
                     maxInputTokens: customModel.maxInputTokens || 128000,
-                    supportedFileTypes: ['pdf', 'image', 'audio'],
+                    supportedFileTypes:
+                        providers[entry.provider]?.supportedFileTypes ??
+                        CUSTOM_PROVIDER_SUPPORTED_FILE_TYPES[entry.provider] ??
+                        [],
                 };
             }
 
@@ -782,7 +809,7 @@ export default function ModelPickerModal() {
                 supportedFileTypes: entry.supportedFileTypes ?? [],
             };
         },
-        [customModelsByKey, installedLocalModelsById, providerModelsByKey]
+        [customModelsByKey, installedLocalModelsById, providerModelsByKey, providers]
     );
 
     const onPickSectionEntry = useCallback(

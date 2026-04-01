@@ -287,7 +287,7 @@ type DextoProvider =
     | 'ollama'
     | 'dexto-nova';
 
-type DextoSupportedFileType = 'pdf' | 'image' | 'audio';
+type DextoSupportedFileType = 'pdf' | 'image' | 'audio' | 'video' | 'document';
 
 type GeneratedModelPricing = {
     inputPerM: number;
@@ -355,6 +355,28 @@ function getSupportedFileTypesFromModel(
     if (inputModalities.includes('pdf')) fileTypes.push('pdf');
     if (inputModalities.includes('image')) fileTypes.push('image');
     if (inputModalities.includes('audio')) fileTypes.push('audio');
+    if (inputModalities.includes('video')) fileTypes.push('video');
+
+    const supportsDocumentInputs =
+        (provider === 'openai' &&
+            (inputModalities.includes('image') || inputModalities.includes('pdf'))) ||
+        ((provider === 'google' || provider === 'vertex') &&
+            (inputModalities.includes('image') ||
+                inputModalities.includes('audio') ||
+                inputModalities.includes('video') ||
+                inputModalities.includes('pdf'))) ||
+        (provider === 'openrouter' &&
+            ((model.id.startsWith('openai/') &&
+                (inputModalities.includes('image') || inputModalities.includes('pdf'))) ||
+                (model.id.startsWith('google/') &&
+                    (inputModalities.includes('image') ||
+                        inputModalities.includes('audio') ||
+                        inputModalities.includes('video') ||
+                        inputModalities.includes('pdf')))));
+
+    if (supportsDocumentInputs && !fileTypes.includes('document')) {
+        fileTypes.push('document');
+    }
 
     // models.dev currently under-reports PDF support for OpenAI.
     // Dexto historically treats OpenAI vision-capable models as supporting PDFs too.

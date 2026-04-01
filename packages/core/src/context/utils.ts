@@ -1191,6 +1191,21 @@ export function fileTypesToMimePatterns(fileTypes: string[], logger: Logger): st
             case 'video':
                 patterns.push('video/*');
                 break;
+            case 'document':
+                patterns.push(
+                    'text/*',
+                    'application/json',
+                    'application/xml',
+                    'application/msword',
+                    'application/rtf',
+                    'application/vnd.oasis.opendocument.text',
+                    'application/vnd.ms-powerpoint',
+                    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                    'application/vnd.ms-excel',
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                );
+                break;
             default:
                 // Unknown file type - skip it
                 logger.warn(`Unknown file type in registry: ${fileType}`);
