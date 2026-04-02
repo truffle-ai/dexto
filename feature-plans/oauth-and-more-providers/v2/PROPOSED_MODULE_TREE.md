@@ -1,14 +1,17 @@
-# Proposed Module Tree - Current Layout and V2 Refactor
+# Proposed Module Tree - Final V2 Shape
 
 Date: **2026-04-02**
 
-This note updates the earlier writeup after re-reading the actual `packages/core/src/llm` layout.
+This note is aligned with the finalized [`PLAN.md`](./PLAN.md).
+Its purpose is to make the module boundaries concrete enough to guide implementation without pretending that every filename below is already locked forever.
+
 The goal is to make it obvious:
 
 - what structure already exists today
 - what should stay as-is
-- what should be split differently
+- what should move
 - what belongs in `core` versus `agent-management`
+- where the finalized plan deliberately chose smaller helpers over bigger abstractions
 
 ---
 
@@ -18,39 +21,44 @@ The goal is to make it obvious:
 
 Owns execution-time truth:
 
-- provider identity used by configs and model execution
-- model registry and model-origin resolution
-- transport/API-kind registry
-- reasoning semantics and request translation contracts
-- stream normalization contracts
-- runtime model factory and executor integration
+- provider identity used by config and runtime
+- generated provider and model registry data
+- `runtime.family` / `runtime.category` semantics
+- model-origin helpers
+- reasoning semantics
+- runtime-family-specific execution helpers
+- model factory, executor, and `StreamProcessor`
 
 ### `packages/agent-management`
 
-Owns user-managed credential state:
+Owns user-managed auth state:
 
-- credential/profile persistence
-- connect catalog and method definitions
-- auth flows that acquire credentials
-- refresh logic and runtime auth resolution
-- default-profile selection
+- provider-grouped auth definitions
+- auth method definitions
+- profile persistence and defaults
+- OAuth protocol modules
+- refresh logic
+- runtime auth resolution
 
 ### `packages/cli`
 
 Owns terminal UX:
 
 - interactive `/connect`
-- presentation of provider/method lists
-- prompts, browser/device-code flow UX, and feedback
+- provider and method selection UI
+- prompts
+- spinners
+- browser/device-code flow UX
+- replace/delete/default actions
 
 ### `packages/server`
 
 Owns API exposure:
 
-- `/llm/connect/*`
 - `/llm/catalog`
 - `/llm/capabilities`
-- future inspection endpoints if we want to expose transport/auth metadata
+- `/llm/connect/*`
+- any future inspection endpoints for connect/runtime metadata
 
 ### `packages/webui`
 
@@ -64,8 +72,8 @@ Owns browser UX only:
 
 ## 2. Current Layout Today
 
-There is already a real architecture here. The problem is not "there is no structure."
-The problem is "provider identity, auth method, API family, and model semantics are partially mixed together."
+There is already real structure here. The main problem is not "there is no architecture."
+The problem is that provider identity, auth method behavior, request family, and model semantics are only partially separated.
 
 ### Current core layout
 
@@ -119,6 +127,7 @@ packages/core/src/llm/
     index.ts
 
   curation.ts
+  providers.generated.ts
   resolver.ts
   schemas.ts
   types.ts
@@ -132,6 +141,11 @@ packages/agent-management/src/auth/
   connect-catalog.ts
   llm-profiles.ts
   runtime-auth-resolver.ts
+
+packages/cli/src/cli/commands/connect/
+  index.ts
+  openai-codex.ts
+  minimax-portal.ts
 ```
 
 ### Current runtime control flow
@@ -157,232 +171,282 @@ flowchart TD
     STORE --> AUTH
 ```
 
-### What this current structure already gets right
+### What the current structure already gets right
 
 - `StreamProcessor` is already the normalization and persistence boundary.
 - `TurnExecutor` is already the orchestration loop.
+- `reasoning/` already contains real family-specific semantics.
 - `registry/` already owns a lot of capability truth.
-- `reasoning/` already has real family-specific logic.
 - `agent-management` already owns credential storage and runtime auth resolution.
 
 ### What is still mixed together
 
 - `services/factory.ts`
-  - mixes provider identity, API-family selection, endpoint presets, and some auth-dependent behavior
+  - mixes provider identity, runtime-family selection, endpoint presets, and auth-dependent behavior
 - `executor/provider-options.ts`
-  - mixes provider IDs with API-family reasoning translation
+  - mixes provider IDs with request-family reasoning translation
 - `reasoning/profile.ts`
-  - mixes native providers and gateway-origin inference
-- unknown reasoning semantics
-  - often collapse into the same shape as known "not supported"
+  - mixes native providers with gateway-origin inference
+- generated provider metadata
+  - still lives partly outside `registry/`
+- auth method behavior
+  - is split across connect catalog metadata, CLI flow branches, and resolver branches
 
 ---
 
-## 3. Main Pieces
+## 3. Final V2 Pieces
 
-### `ProviderDefinition` in `core`
+### `ProviderInfo` plus runtime metadata in `core/registry`
 
-This is the execution-facing definition of a provider.
+The finalized plan does **not** add a new `ProviderDefinition` registry in phase 1.
 
-It answers:
+Instead, `ProviderInfo` remains the provider metadata surface, and generation adds Dexto-owned runtime metadata to it:
 
-- what provider ID does config use?
-- is this direct, gateway, cloud, or self-hosted?
-- which API family does it run through?
-- how should model-origin resolution work?
+- `runtime.family`
+- `runtime.category`
 
-### `ConnectMethodDefinition` in `agent-management`
+This answers:
 
-This is the user-facing auth/connect definition.
+- what provider ID config uses
+- what runtime family Dexto actually executes through
+- what high-level category the provider belongs to
+- where generated provider metadata lives
 
-It answers:
+### `ProviderAuthDefinition` / `AuthMethodDefinition` in `agent-management`
 
-- what methods can the user choose in `/connect`?
-- what credential shape is stored?
-- how is it refreshed?
-- how does it project into runtime auth overrides?
-
-### API-family mapping and helpers in `core`
-
-This is a responsibility, not necessarily a large abstraction.
-
-Examples:
-
-- OpenAI Responses family
-- Anthropic Messages family
-- Google GenAI family
-- Bedrock family
-- OpenRouter gateway family
+The finalized auth surface is provider-grouped and explicit.
 
 It answers:
 
-- how do we build the SDK/client?
-- how do we translate reasoning controls for this family?
-- what family-specific request rules exist?
+- what methods the user can choose in `/connect`
+- how those methods are displayed
+- how credentials are stored
+- how OAuth methods start, refresh, and project into runtime auth
 
-At first, this can stay as helper modules or functions used by:
+Important shape rules from the finalized plan:
+
+- methods are a discriminated union by `kind`
+- `api_key`, `token`, and `guidance` stay lightweight
+- only `oauth` methods get nested hooks:
+  - `oauth.start(...)`
+  - `oauth.refresh(...)`
+  - `oauth.resolveRuntimeAuth(...)`
+
+### Runtime-family helpers in `core`
+
+This is a responsibility first, not a large framework.
+
+Phase 1 runtime families:
+
+- `openai-responses`
+- `openai-completions`
+- `anthropic-messages`
+- `google-generative-ai`
+- `google-vertex`
+- `google-vertex-anthropic`
+- `bedrock-converse-stream`
+- `openrouter`
+- `cohere`
+- `local-native`
+
+These family helpers answer:
+
+- how to build the SDK/client
+- how to translate reasoning controls
+- what request quirks exist for the family
+
+At first, this can stay as small modules used by:
 
 - `services/factory.ts`
 - `executor/provider-options.ts`
 
-### model-origin helpers in `core`
+### Model-origin helpers in `core/registry`
 
-This is also a responsibility first, not a required class.
+This stays as helper logic, not a large abstraction.
 
 It answers:
 
-- for a gateway or proxy model ID, what upstream family/model semantics should we borrow?
+- for a gateway or proxy model ID, what upstream semantic family/model should Dexto borrow?
 
 Examples:
 
-- `openrouter` or `dexto-nova` model -> upstream Anthropic/OpenAI/Google family
-- future self-hosted or compatibility endpoints that need semantic mapping
+- `openrouter` or `dexto-nova` model -> upstream Anthropic/OpenAI/Google semantics
+- future compatibility/self-hosted endpoints that need semantic mapping
 
 ---
 
 ## 4. Proposed V2 Shape
 
-This is not a one-shot move. It is the target shape to grow toward.
+This section should be read as implementation guidance, not as a required package-wide move/rename program.
+
+The finalized plan intentionally commits to:
+
+- registry-backed provider metadata plus `runtime.family` / `runtime.category`
+- one explicit provider-grouped auth definition surface
+- provider-specific OAuth modules where needed
+- hotspot-driven helper extraction for runtime families
+
+It does **not** require a blanket one-file-per-family or one-folder-per-concept split in phase 1.
+
+### Phase 1 committed direction
+
+- Move `providers.generated.ts` under `core/llm/registry/`.
+- Emit `runtime.family` and `runtime.category` during generation.
+- Add `registry/model-origin.ts` for gateway/proxy semantic mapping.
+- Introduce one explicit auth definition surface in `agent-management`.
+- Move provider-specific OAuth protocol modules out of the CLI and into `agent-management`.
+- Extract family helpers from `factory.ts` / `provider-options.ts` only where branch density is already painful.
+- Keep method-specific extras in `credential.metadata` for phase 1.
+- Do **not** introduce typed per-method persisted schemas in phase 1.
 
 ### Proposed control flow
 
 ```mermaid
 flowchart TD
-    CFG["validated llm config"] --> PDEF["ProviderDefinition"]
-    CFG --> AUTHIN["runtime auth input"]
+    CFG["validated llm config"] --> REG["core registry<br/>ProviderInfo + runtime metadata"]
+    CFG --> AUTHIN["runtime auth input<br/>provider + model"]
+
+    REG --> ORIGIN["registry/model-origin.ts"]
+    REG --> FAMILY["runtime.family"]
+    REG --> REASON["reasoning/profile.ts"]
+
+    ORIGIN --> REASON
+    FAMILY --> OPTS["provider-options + hotspot-driven family helpers"]
+    FAMILY --> FACTORY["slimmer factory + optional family helpers"]
+    OPTS --> FACTORY
 
     AUTHIN --> AUTH["agent-management runtime auth resolver"]
-    AUTH --> FACTORY["slimmer factory"]
+    AUTH --> FACTORY
 
-    PDEF --> ORIGIN["model-origin helpers"]
-    PDEF --> REASON["reasoning profile / semantics"]
-    ORIGIN --> REASON
-    REASON --> OPTS["provider-options + request helpers"]
-    PDEF --> OPTS
-
-    OPTS --> FACTORY
     FACTORY --> SERVICE["services/vercel.ts"]
     SERVICE --> EXEC["executor/turn-executor.ts"]
     EXEC --> PROCESSOR["executor/stream-processor.ts"]
 
-    CONNECT["/connect"] --> CMETH["ConnectMethodDefinition"]
-    CMETH --> STORE["profile store"]
+    CONNECT["/connect"] --> AUTHDEF["ProviderAuthDefinition / AuthMethodDefinition"]
+    AUTHDEF --> STORE["profiles + defaults"]
     STORE --> AUTH
 ```
 
-### Proposed file layout
+### Low-churn likely file shape
+
+This is the smallest likely module shape that still matches the finalized plan.
+It is intentionally less specific than the earlier draft.
 
 ```text
 packages/
   core/
     src/
       llm/
-        provider-definitions/
-          index.ts
+        auth/
           types.ts
-          builtins/
-            openai.ts
-            anthropic.ts
-            google.ts
-            google-vertex.ts
-            google-vertex-anthropic.ts
-            amazon-bedrock.ts
-            openrouter.ts
-            dexto-nova.ts
-            openai-compatible.ts
-            litellm.ts
-
-        reasoning/
-          profile.ts
-          profiles/
-            ...
-          status.ts
-
-        registry/
-          index.ts
-          models.generated.ts
-          models.manual.ts
-          providers.generated.ts
-          sync.ts
-          auto-update.ts
-          model-origin.ts
 
         executor/
           provider-options.ts
           stream-processor.ts
+          tool-output-truncator.ts
           turn-executor.ts
           types.ts
+
+        reasoning/
+          profile.ts
+          profiles/
+            anthropic.ts
+            bedrock.ts
+            google.ts
+            openai.ts
+            openai-compatible.ts
+            openrouter.ts
+            shared.ts
+            vertex.ts
+          anthropic-betas.ts
+          anthropic-thinking.ts
+          openai-reasoning-effort.ts
+
+        registry/
+          index.ts
+          providers.generated.ts
+          models.generated.ts
+          models.manual.ts
+          model-origin.ts
+          sync.ts
+          auto-update.ts
 
         services/
           factory.ts
           vercel.ts
           index.ts
-          families/
+          families/              # optional: add only for proven hotspots
             openai.ts
             anthropic.ts
-            google.ts
-            bedrock.ts
             openrouter.ts
 
-        auth/
-          types.ts
+        curation.ts
+        resolver.ts
+        schemas.ts
+        types.ts
+        validation.ts
 
   agent-management/
     src/
       auth/
-        profiles/
-          store.ts
-          types.ts
-        connect/
-          catalog.ts
-          types.ts
-          providers/
-            openai.ts
-            anthropic.ts
-            minimax.ts
-            openrouter.ts
-            vertex.ts
-            bedrock.ts
-          methods/
-            api-key.ts
-            oauth.ts
-            setup-token.ts
-            guidance.ts
-        runtime/
-          auth-resolver.ts
-          refresh.ts
-          types.ts
+        definitions.ts          # or a small definitions/ folder if it grows
+
+        oauth/
+          openai-codex.ts
+          minimax-portal.ts
+          shared.ts             # optional: only if common oauth helpers actually emerge
+
+        profiles.ts             # or profiles/{store,types}.ts if split helps
+
+        runtime-auth-resolver.ts
 ```
 
-### Current -> proposed mapping
+### Optional later extractions
+
+These are allowed end states, not phase 1 requirements:
+
+- broader `services/families/*` coverage if `factory.ts` remains too branch-heavy
+- splitting auth definitions into `definitions/providers/*` if the catalog grows enough to justify it
+- splitting `runtime-auth-resolver.ts` into smaller runtime/refresh helpers if the file becomes too large
+- splitting `profiles.ts` into `profiles/store.ts` and `profiles/types.ts` if that improves clarity
+
+Anti-goal reminder:
+
+- do not add typed per-method persisted auth schemas in phase 1
+- keep method-specific extras in `credential.metadata`
+
+### Current -> likely low-churn mapping
 
 ```mermaid
 flowchart LR
-    A["agent-management/auth/connect-catalog.ts"] --> A2["agent-management/auth/connect/catalog.ts + providers/*"]
-    B["agent-management/auth/llm-profiles.ts"] --> B2["agent-management/auth/profiles/store.ts + types.ts"]
-    C["agent-management/auth/runtime-auth-resolver.ts"] --> C2["agent-management/auth/runtime/auth-resolver.ts + refresh.ts"]
+    A["core/llm/providers.generated.ts"] --> A2["core/llm/registry/providers.generated.ts"]
 
-    D["core/llm/services/factory.ts"] --> D2["slimmer factory.ts + provider-definitions + services/families/*"]
-    E["core/llm/executor/provider-options.ts"] --> E2["provider-options.ts delegating to small family helpers where needed"]
-    F["core/llm/reasoning/profile.ts"] --> F2["reasoning/profile.ts + registry/model-origin.ts + provider-definitions"]
-    G["core/llm/registry/index.ts"] --> G2["registry/index.ts staying central, with model-origin helpers nearby"]
-    H["core/llm/executor/stream-processor.ts"] --> H2["stays as the stream/event normalization boundary"]
+    B["agent-management/auth/connect-catalog.ts"] --> B2["one explicit auth definition surface in agent-management"]
+    C["agent-management/auth/llm-profiles.ts"] --> C2["same persistence surface, possibly split later if needed"]
+    D["agent-management/auth/runtime-auth-resolver.ts"] --> D2["same runtime auth surface, possibly split later if needed"]
+
+    E["cli/commands/connect/openai-codex.ts + minimax-portal.ts"] --> E2["agent-management/auth/oauth/*"]
+
+    F["core/llm/services/factory.ts"] --> F2["slimmer factory.ts + family helpers only where hotspots justify"]
+    G["core/llm/executor/provider-options.ts"] --> G2["provider-options.ts delegating to small helpers where needed"]
+    H["core/llm/reasoning/profile.ts"] --> H2["reasoning/profile.ts + registry/model-origin.ts"]
+    I["core/llm/executor/stream-processor.ts"] --> I2["stays as the shared stream/event normalization boundary"]
 ```
 
 ---
 
-## 5. What Each V2 Abstraction Actually Owns
+## 5. What Each Piece Owns
 
-### `ProviderDefinition` in `core`
+### `ProviderInfo` plus runtime metadata in `core/registry`
 
 Owns:
 
-- provider ID and label
-- category: direct / gateway / self-hosted / cloud
-- base URL expectations
-- API-family selection
-- model-origin rules when needed
-- provider-level capability quirks
+- provider ID and display-facing registry metadata
+- `runtime.family`
+- `runtime.category`
+- generated upstream metadata
+- support-gating inputs
+- where model-origin helpers attach
 
 Should not own:
 
@@ -390,28 +454,29 @@ Should not own:
 - profile persistence
 - prompt UX
 
-### `ConnectMethodDefinition` in `agent-management`
+### `ProviderAuthDefinition` / `AuthMethodDefinition` in `agent-management`
 
-Owns:
+Own:
 
-- method ID and label
-- credential schema
-- acquisition flow
-- refresh support
-- redaction rules
+- provider-grouped auth definitions
+- method ID, kind, label, and hint
+- OAuth-specific nested hooks
+- how credentials map into stored profile data
 - how saved credentials become `LlmRuntimeAuthOverrides`
+- phase 1 use of `credential.metadata` for method-specific extras
 
 Should not own:
 
 - reasoning semantics
-- model registry
+- model registry truth
 - low-level execution
+- typed per-method persisted auth schemas in phase 1
 
-### API-family helpers in `core`
+### Runtime-family helpers in `core`
 
 Own:
 
-- SDK/client construction rules for one request family
+- SDK/client construction rules for one runtime family
 - request-shape translation
 - family-specific reasoning option translation
 - family-level request quirks
@@ -421,24 +486,24 @@ Should stay small and local:
 - plain functions or small modules are enough at first
 - only grow into a heavier abstraction if the helper surface becomes large and stable
 
-### model-origin helpers in `core`
+### Model-origin helpers in `core/registry`
 
 Own:
 
 - mapping gateway/proxy model IDs to upstream semantic families
-- stripping or normalizing model IDs when the registry needs it
-- giving reasoning/capability code a safer target model/provider when one exists
+- normalizing model IDs where needed
+- giving reasoning/capability code a safer upstream target when one exists
 
 Should stay simple:
 
 - start as stateless functions in `registry/model-origin.ts`
-- do not introduce a class unless we eventually need multiple implementations, shared state, or explicit dependency injection
+- do not introduce a class unless multiple implementations or explicit shared state become necessary
 
 ---
 
 ## 6. Why There Is No New `StreamNormalizer`
 
-After reading the current code, I do not think we need a new abstraction here.
+After re-reading the current code and finalizing the plan, I still do not think we need a new abstraction here.
 
 `executor/stream-processor.ts` already does the important work:
 
@@ -451,111 +516,51 @@ After reading the current code, I do not think we need a new abstraction here.
 So the right framing is:
 
 - keep `StreamProcessor`
-- let API-family modules shape request behavior
+- let runtime-family helpers shape request behavior
 - keep stream/event normalization centralized unless a concrete family proves it cannot fit
 
 In other words:
 
-- small API-family helpers handle request-time translation
+- small family helpers handle request-time translation
 - `StreamProcessor` remains the shared response/event boundary
 
-That is much closer to the current architecture.
-
 ---
 
-## 7. Why There Is No Generic `Edge Hook`
+## 7. Unknown vs Unsupported Reasoning Semantics
 
-The earlier "edge hook" wording was too vague.
-
-I do not think we should introduce a generic hook abstraction yet.
-
-The real exceptions already have narrower homes:
-
-- auth-dependent URL/header rewriting
-  - belongs in runtime auth resolution or its fetch wrapper
-  - example: Codex-style OAuth request rewriting
-- provider identity quirks
-  - belong in `ProviderDefinition` or registry/model-origin helpers
-- API-family request quirks
-  - belong in family helper modules near `services/` or `executor/`
-
-So the better rule is:
-
-- do not invent a plugin seam just because some cases are awkward
-- first try to place each awkward case in the narrowest existing layer
-
-If, later, a truly cross-cutting exception appears, we can add a narrow helper then.
-I would not design around it up front.
-
----
-
-## 8. Unknown Or Unsupported Reasoning Semantics
-
-This is an important distinction and the current code is stricter than the earlier writeup implied.
-
-### Current behavior
+This distinction is now part of the finalized direction.
 
 Today, when Dexto cannot confidently determine reasoning semantics, it usually falls back to:
 
 - `nonCapableProfile()`
 - no explicit reasoning options sent
 
-Example:
-
-- `reasoning/profiles/openrouter.ts`
-  - `getOpenRouterReasoningTarget()` returns `null` for families we do not allowlist or do not understand
-- `reasoning/profile.ts`
-  - maps that to `nonCapableProfile()`
-
-That means "unknown" and "known unsupported" are too close together today.
-
-### Better V2 behavior
-
-I think the profile/result should explicitly separate:
+The v2 direction makes that clearer by explicitly separating:
 
 - `supported`
-  - we know the semantics and can surface controls
 - `unsupported`
-  - we know this model/family does not expose Dexto-usable reasoning controls
 - `unknown`
-  - the model can still run, but Dexto should not guess reasoning controls
 
-### Safe fallback for unknown models
-
-For things like a random OpenRouter model with unclear semantics:
+Safe fallback for unknown models stays:
 
 - let the model run
-- do not send guessed reasoning params
-- do not offer false precision in the UI
-- still accept streamed reasoning output if the underlying SDK emits it
+- do not guess reasoning params
+- do not offer false precision in capability reporting
+- still accept streamed reasoning output if the SDK emits it
 
-So the fallback is:
-
-- execution: yes
-- explicit reasoning controls: no
-- guessed semantic mapping: no
-
-That is the safest default.
-
-Current behavior already does the runtime-safe fallback.
-What the proposed refinement adds is mostly semantic clarity, not a new runtime fallback:
-
-- clearer UI/API/debugging output
-- cleaner capability reporting
-- a real distinction between `unsupported` and `unknown`
-- less chance of future code accidentally treating those cases as identical
+So the change is mostly semantic clarity, not a new runtime fallback.
 
 ---
 
-## 9. Recommended Dependency Direction
+## 8. Recommended Dependency Direction
 
 ```mermaid
 flowchart TD
-    A["core: ProviderDefinition + reasoning + registry + executor + family helpers"] --> B["server"]
+    A["core: registry + reasoning + executor + family helpers"] --> B["server"]
     A --> C["cli"]
     A --> D["webui"]
 
-    E["agent-management: ConnectMethodDefinition + profiles + runtime auth resolver"] --> B
+    E["agent-management: auth definitions + profiles + oauth + runtime auth resolver"] --> B
     E --> C
     E --> D
 
@@ -571,34 +576,24 @@ Instead:
 
 - `core` exposes runtime auth override contracts in `llm/auth/types.ts`
 - `agent-management` implements the runtime auth resolver
-- `cli` and `server` wire that resolver into runtime model creation
+- CLI and server wire that resolver into runtime model creation
 
 That matches the current layering and keeps `core` reusable.
 
 ---
 
-## 10. Minimal First Refactor Path
+## 9. Minimal First Refactor Path
 
-If we want the smallest high-value next move, I would do it in this order:
+If we want the smallest high-value next move consistent with the finalized plan, the path is:
 
-1. Introduce `ProviderDefinition` in `core`.
-   - thin at first
-   - mostly provider ID -> category + API family + model-origin policy
+1. Move `providers.generated.ts` under `core/llm/registry/` and emit `runtime.family` / `runtime.category`.
+2. Add family-first support gating plus a small exception layer.
+3. Introduce `ProviderAuthDefinition` / `AuthMethodDefinition` in `agent-management`.
+4. Move provider-specific OAuth protocol modules out of the CLI and into `agent-management/auth/oauth/`.
+5. Slim `services/factory.ts` by extracting only the family-specific hotspots that clearly improve readability.
+6. If `provider-options.ts` is still too branch-heavy, split small family-specific helpers there too.
+7. Add `ReasoningProfile.status` and update capability/reporting surfaces.
+8. Keep `StreamProcessor` and align `/connect` with the existing `switchLLM` path rather than inventing a parallel runtime flow.
+9. Only split more folders/files if the hotspot-driven extractions above still leave unacceptable sprawl.
 
-2. Slim `services/factory.ts` by pushing family-specific branches into small helper modules.
-   - move family selection out of provider-brand switch sprawl
-
-3. Keep `executor/stream-processor.ts` as-is.
-   - do not invent a parallel response-normalization layer
-
-4. Separate "unknown reasoning" from "unsupported reasoning."
-   - keep the current safe fallback
-   - improve semantic clarity in UI/runtime/reporting
-
-5. Split `agent-management` auth files into `profiles/`, `connect/`, and `runtime/`.
-   - keep behavior
-   - make the surfaces easier to extend
-
-6. Fold the Codex-specific auth path into the same connect/runtime-auth structure.
-
-That gives the biggest architectural improvement while respecting the code that already exists.
+That gives the biggest architectural improvement while staying close to the code that already exists.

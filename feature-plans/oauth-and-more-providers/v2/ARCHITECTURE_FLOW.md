@@ -2,7 +2,7 @@
 
 Date: **2026-04-02**
 
-This note explains the current end-to-end flow in Dexto and the target refactor shape.
+This note explains the current end-to-end flow in Dexto and the finalized v2 refactor shape.
 It is intentionally focused on:
 
 - how `/connect` fits into the system
@@ -13,7 +13,7 @@ It is intentionally focused on:
 
 Related notes:
 
-- [`PLAN.md`](../PLAN.md)
+- [`PLAN.md`](./PLAN.md)
 - [`UPDATED_DIRECTION.md`](../UPDATED_DIRECTION.md)
 
 ---
@@ -147,6 +147,14 @@ A provider can be:
 - in the registry but not in `/connect`
 - in `/connect` and in the registry
 - in the registry with env/cloud-credential-only setup and no `/connect` method
+
+### Phase 1 auth persistence simplification
+
+The finalized plan keeps auth persistence intentionally simple:
+
+- method-specific extras stay in `credential.metadata`
+- phase 1 does **not** introduce typed per-method persisted auth schemas
+- the main change is consolidating behavior ownership, not redesigning the stored profile model
 
 ---
 
@@ -338,7 +346,7 @@ Providers that are in the registry but not in `/connect` still matter for:
 
 ---
 
-## 8. How New Things Get Added Today vs Target Shape
+## 8. How New Things Get Added Today vs Final Shape
 
 ### Today
 
@@ -355,25 +363,37 @@ flowchart TD
 
 This is why the current shape feels branch-heavy.
 
-### Target
+### Final phase 1 shape
 
 ```mermaid
 flowchart TD
-    A["Add provider"] --> B["ProviderDefinition"]
-    B --> C{"existing apiKind?"}
-    C -->|yes| D["reuse ApiFamilyRuntime"]
-    C -->|no| E["add ApiFamilyRuntime"]
+    A["Add provider"] --> B["models.dev sync + registry/providers.generated.ts"]
+    B --> C["infer runtime.family + runtime.category"]
+    C --> D{"existing runtime family?"}
+    D -->|yes| E["reuse family helpers + support gating"]
+    D -->|no| F["add tiny override + new family helper only if truly needed"]
 
-    A2["Add auth method"] --> F["ConnectMethodDefinition"]
-    F --> G["connect flow + credential schema + refresh + runtime auth"]
+    A2["Add auth method"] --> G["ProviderAuthDefinition / AuthMethodDefinition"]
+    G --> H{"method kind"}
+    H -->|api_key / token / guidance| I["reuse lightweight shared helper"]
+    H -->|oauth| J["add oauth.start / refresh / resolveRuntimeAuth"]
 
-    A3["Add model"] --> H["registry metadata / model-origin mapping"]
+    A3["Add model"] --> K["registry metadata + model-origin helper if needed"]
 
-    D --> I["runtime execution"]
-    E --> I
-    G --> I
-    H --> I
+    E --> L["runtime execution"]
+    F --> L
+    I --> L
+    J --> L
+    K --> L
 ```
+
+### What changed from the earlier draft
+
+- Provider identity stays centered on the registry / `ProviderInfo` surface, not a new `ProviderDefinition` registry in phase 1.
+- Runtime behavior is localized mainly through `runtime.family` plus small family helpers, not through a generic `ApiFamilyRuntime` abstraction.
+- Auth stays provider-grouped and explicit, with OAuth-specific nested hooks only where OAuth actually needs them.
+- These docs should not be read as requiring one file per runtime family or a package-wide move/rename program in phase 1.
+- Method-specific auth extras remain in `credential.metadata`; there is no typed per-method storage redesign in phase 1.
 
 ---
 
@@ -382,6 +402,7 @@ flowchart TD
 - `/connect` should be thought of as a curated auth surface, not the universal provider registry.
 - Gateway reasoning already partially reuses upstream model semantics; this is worth preserving.
 - `StreamProcessor` already exists as the shared event/output boundary; we should build on it rather than inventing a parallel normalization layer.
+- The finalized phase 1 shape keeps provider identity in the registry and adds Dexto-owned `runtime.family` / `runtime.category` metadata there.
 - The main refactor need is to separate:
   - provider identity
   - auth method
