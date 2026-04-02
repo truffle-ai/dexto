@@ -21386,6 +21386,722 @@
         }
       }
     },
+    "/api/sessions/{sessionId}/events": {
+      "get": {
+        "summary": "Attach Session Event Stream",
+        "description": "Attaches to the live SSE event stream for an already-running session without starting a new run. Use this to reattach after a page reload or connection interruption.",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Session identifier"
+            },
+            "required": true,
+            "description": "Session identifier",
+            "name": "sessionId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE stream of live session events",
+            "headers": {
+              "Content-Type": {
+                "description": "SSE content type",
+                "schema": {
+                  "type": "string",
+                  "example": "text/event-stream"
+                }
+              },
+              "Cache-Control": {
+                "description": "Disable caching for stream",
+                "schema": {
+                  "type": "string",
+                  "example": "no-cache"
+                }
+              },
+              "Connection": {
+                "description": "Keep connection alive for streaming",
+                "schema": {
+                  "type": "string",
+                  "example": "keep-alive"
+                }
+              },
+              "X-Accel-Buffering": {
+                "description": "Disable nginx buffering",
+                "schema": {
+                  "type": "string",
+                  "example": "no"
+                }
+              }
+            },
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "Server-Sent Events stream for an active session. Events use the same payloads as /message-stream."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or request error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Optional error class name"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable error message"
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Machine-readable error code"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Domain that produced the error"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type used for HTTP status mapping"
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "error",
+                        "warning"
+                      ],
+                      "description": "Optional error severity for lightweight failures"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request path that failed"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method for the failed request"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Optional trace identifier"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Optional recovery guidance"
+                    },
+                    "context": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/JsonValue"
+                        },
+                        {
+                          "nullable": true
+                        }
+                      ]
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "description": "Machine-readable issue code"
+                          },
+                          "message": {
+                            "type": "string",
+                            "description": "Human-readable issue message"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "description": "Domain that produced the issue"
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "Error type used for HTTP status mapping"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "error",
+                              "warning"
+                            ],
+                            "description": "Issue severity"
+                          },
+                          "path": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "number"
+                                }
+                              ]
+                            },
+                            "description": "Optional location for the issue"
+                          },
+                          "context": {
+                            "allOf": [
+                              {
+                                "$ref": "#/components/schemas/JsonValue"
+                              },
+                              {
+                                "nullable": true
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "message",
+                          "scope",
+                          "type",
+                          "severity"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Structured validation or runtime issue"
+                      },
+                      "description": "Validation issues when present"
+                    },
+                    "errorCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of errors"
+                    },
+                    "warningCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of warnings"
+                    },
+                    "stack": {
+                      "type": "string",
+                      "description": "Development-only stack trace"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard API error response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Optional error class name"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable error message"
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Machine-readable error code"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Domain that produced the error"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type used for HTTP status mapping"
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "error",
+                        "warning"
+                      ],
+                      "description": "Optional error severity for lightweight failures"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request path that failed"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method for the failed request"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Optional trace identifier"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Optional recovery guidance"
+                    },
+                    "context": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/JsonValue"
+                        },
+                        {
+                          "nullable": true
+                        }
+                      ]
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "description": "Machine-readable issue code"
+                          },
+                          "message": {
+                            "type": "string",
+                            "description": "Human-readable issue message"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "description": "Domain that produced the issue"
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "Error type used for HTTP status mapping"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "error",
+                              "warning"
+                            ],
+                            "description": "Issue severity"
+                          },
+                          "path": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "number"
+                                }
+                              ]
+                            },
+                            "description": "Optional location for the issue"
+                          },
+                          "context": {
+                            "allOf": [
+                              {
+                                "$ref": "#/components/schemas/JsonValue"
+                              },
+                              {
+                                "nullable": true
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "message",
+                          "scope",
+                          "type",
+                          "severity"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Structured validation or runtime issue"
+                      },
+                      "description": "Validation issues when present"
+                    },
+                    "errorCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of errors"
+                    },
+                    "warningCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of warnings"
+                    },
+                    "stack": {
+                      "type": "string",
+                      "description": "Development-only stack trace"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard API error response"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Optional error class name"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable error message"
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Machine-readable error code"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Domain that produced the error"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type used for HTTP status mapping"
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "error",
+                        "warning"
+                      ],
+                      "description": "Optional error severity for lightweight failures"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request path that failed"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method for the failed request"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Optional trace identifier"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Optional recovery guidance"
+                    },
+                    "context": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/JsonValue"
+                        },
+                        {
+                          "nullable": true
+                        }
+                      ]
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "description": "Machine-readable issue code"
+                          },
+                          "message": {
+                            "type": "string",
+                            "description": "Human-readable issue message"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "description": "Domain that produced the issue"
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "Error type used for HTTP status mapping"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "error",
+                              "warning"
+                            ],
+                            "description": "Issue severity"
+                          },
+                          "path": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "number"
+                                }
+                              ]
+                            },
+                            "description": "Optional location for the issue"
+                          },
+                          "context": {
+                            "allOf": [
+                              {
+                                "$ref": "#/components/schemas/JsonValue"
+                              },
+                              {
+                                "nullable": true
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "message",
+                          "scope",
+                          "type",
+                          "severity"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Structured validation or runtime issue"
+                      },
+                      "description": "Validation issues when present"
+                    },
+                    "errorCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of errors"
+                    },
+                    "warningCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of warnings"
+                    },
+                    "stack": {
+                      "type": "string",
+                      "description": "Development-only stack trace"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard API error response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Optional error class name"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable error message"
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Machine-readable error code"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "description": "Domain that produced the error"
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Error type used for HTTP status mapping"
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "error",
+                        "warning"
+                      ],
+                      "description": "Optional error severity for lightweight failures"
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "description": "Request path that failed"
+                    },
+                    "method": {
+                      "type": "string",
+                      "description": "HTTP method for the failed request"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "Optional trace identifier"
+                    },
+                    "recovery": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      ],
+                      "description": "Optional recovery guidance"
+                    },
+                    "context": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/JsonValue"
+                        },
+                        {
+                          "nullable": true
+                        }
+                      ]
+                    },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "description": "Machine-readable issue code"
+                          },
+                          "message": {
+                            "type": "string",
+                            "description": "Human-readable issue message"
+                          },
+                          "scope": {
+                            "type": "string",
+                            "description": "Domain that produced the issue"
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "Error type used for HTTP status mapping"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "error",
+                              "warning"
+                            ],
+                            "description": "Issue severity"
+                          },
+                          "path": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "number"
+                                }
+                              ]
+                            },
+                            "description": "Optional location for the issue"
+                          },
+                          "context": {
+                            "allOf": [
+                              {
+                                "$ref": "#/components/schemas/JsonValue"
+                              },
+                              {
+                                "nullable": true
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "message",
+                          "scope",
+                          "type",
+                          "severity"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Structured validation or runtime issue"
+                      },
+                      "description": "Validation issues when present"
+                    },
+                    "errorCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of errors"
+                    },
+                    "warningCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Number of warnings"
+                    },
+                    "stack": {
+                      "type": "string",
+                      "description": "Development-only stack trace"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "endpoint",
+                    "method"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Standard API error response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sessions/{sessionId}/load": {
       "get": {
         "summary": "Load Session",
