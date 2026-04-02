@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, test, expect } from 'vitest';
-import { LLM_PROVIDERS, PROVIDER_API_KEY_MAP } from '@dexto/core';
+import {
+    getDefaultModelForProvider,
+    LLM_PROVIDERS,
+    PROVIDER_API_KEY_MAP,
+    resolveApiKeyForProvider,
+} from '@dexto/core';
 import {
     applyCLIOverrides,
     applyStartupLLMFallback,
@@ -376,9 +381,19 @@ describe('applyStartupLLMFallback', () => {
             hasExplicitApiKeyOverride: false,
         });
 
-        expect(result.llm.provider).toBe('anthropic');
-        expect(result.llm.model).toBe('claude-sonnet-4-5-20250929');
+        const dextoNovaApiKey = resolveApiKeyForProvider('dexto-nova');
+        if (dextoNovaApiKey) {
+            expect(result.llm.provider).toBe('dexto-nova');
+            expect(result.llm.model).toBe(getDefaultModelForProvider('dexto-nova'));
+            expect(result.llm.apiKey).toBe(dextoNovaApiKey);
+        } else {
+            expect(result.llm.provider).toBe('anthropic');
+            expect(result.llm.model).toBe('claude-sonnet-4-5-20250929');
+        }
+
         expect(LLM_PROVIDERS).toContain('local');
         expect(LLM_PROVIDERS).toContain('ollama');
+        expect(result.llm.provider).not.toBe('local');
+        expect(result.llm.provider).not.toBe('ollama');
     });
 });

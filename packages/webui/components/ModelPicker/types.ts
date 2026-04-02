@@ -64,6 +64,25 @@ export function favKey(provider: string, model: string, baseURL?: string) {
     return baseURL ? `${key}|${baseURL}` : key;
 }
 
+export function parseFavoriteKey(
+    value: string
+): { provider: string; model: string; baseURL?: string } | null {
+    if (typeof value !== 'string') {
+        return null;
+    }
+
+    const [providerRaw, modelRaw, ...baseURLParts] = value.split('|');
+    const provider = providerRaw?.trim();
+    const model = modelRaw?.trim();
+
+    if (!provider || !model) {
+        return null;
+    }
+
+    const baseURL = baseURLParts.join('|').trim();
+    return baseURL ? { provider, model, baseURL } : { provider, model };
+}
+
 export function validateBaseURL(url: string): { isValid: boolean; error?: string } {
     const str = url.trim();
     if (!str.length) return { isValid: true };

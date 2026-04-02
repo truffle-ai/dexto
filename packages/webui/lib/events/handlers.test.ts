@@ -352,7 +352,7 @@ describe('Event Handler Registry', () => {
             expect(message?.role).toBe('tool');
             expect(message?.toolName).toBe('dangerous-tool');
             expect(message?.toolArgs).toEqual({ path: '/tmp/test.txt' });
-            expect(message?.toolCallId).toBe('approval-1');
+            expect(message?.toolCallId).toBe('call-dangerous-1');
             expect(message?.requireApproval).toBe(true);
             expect(message?.approvalStatus).toBe('pending');
         });
@@ -388,6 +388,47 @@ describe('Event Handler Registry', () => {
             expect(message?.requireApproval).toBe(true);
             expect(message?.approvalStatus).toBe('pending');
             expect(message?.toolResultSuccess).toBeUndefined();
+        });
+
+        it('should match approvals by toolCallId before falling back to tool name', () => {
+            useChatStore.getState().addMessage(TEST_SESSION_ID, {
+                id: 'tool-msg-1',
+                role: 'tool',
+                content: null,
+                toolName: 'dangerous-tool',
+                toolCallId: 'call-dangerous-1',
+                createdAt: Date.now(),
+            });
+            useChatStore.getState().addMessage(TEST_SESSION_ID, {
+                id: 'tool-msg-2',
+                role: 'tool',
+                content: null,
+                toolName: 'dangerous-tool',
+                toolCallId: 'call-dangerous-2',
+                createdAt: Date.now() + 1,
+            });
+
+            const event: Extract<StreamingEvent, { name: 'approval:request' }> = {
+                name: 'approval:request',
+                sessionId: TEST_SESSION_ID,
+                approvalId: 'approval-2',
+                type: ApprovalType.TOOL_APPROVAL,
+                metadata: {
+                    toolName: 'dangerous-tool',
+                    toolCallId: 'call-dangerous-2',
+                    args: { path: '/tmp/second.txt' },
+                },
+                timeout: 30000,
+                timestamp: new Date(),
+            };
+
+            handleApprovalRequest(event);
+
+            const firstMessage = useChatStore.getState().getMessage(TEST_SESSION_ID, 'tool-msg-1');
+            const secondMessage = useChatStore.getState().getMessage(TEST_SESSION_ID, 'tool-msg-2');
+            expect(firstMessage?.requireApproval).toBeUndefined();
+            expect(secondMessage?.requireApproval).toBe(true);
+            expect(secondMessage?.approvalStatus).toBe('pending');
         });
     });
 

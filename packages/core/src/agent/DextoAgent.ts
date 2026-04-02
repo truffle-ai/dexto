@@ -2395,11 +2395,10 @@ export class DextoAgent {
         validatedConfig: ValidatedLLMConfig,
         sessionScope?: string
     ): Promise<void> {
-        // Update state manager (no validation needed - already validated)
-        this.stateManager.updateLLM(validatedConfig, sessionScope);
-
         // Switch LLM in session(s)
         if (sessionScope === '*') {
+            // Update state manager (no validation needed - already validated)
+            this.stateManager.updateLLM(validatedConfig, sessionScope);
             await this.sessionManager.switchLLMForAllSessions(validatedConfig);
         } else if (sessionScope) {
             // Verify session exists before switching LLM
@@ -2407,10 +2406,12 @@ export class DextoAgent {
             if (!session) {
                 throw SessionError.notFound(sessionScope);
             }
+            this.stateManager.updateLLM(validatedConfig, sessionScope);
             await this.sessionManager.switchLLMForSpecificSession(validatedConfig, sessionScope);
         } else {
             // No sessionScope provided - this is a configuration-level switch only
             // State manager has been updated, individual sessions will pick up changes when created
+            this.stateManager.updateLLM(validatedConfig, sessionScope);
             this.logger.debug('LLM config updated at agent level (no active session switches)');
         }
     }

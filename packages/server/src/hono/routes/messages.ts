@@ -312,7 +312,7 @@ export function createMessagesRouter(getAgent: GetAgentFn, _approvalCoordinator?
             // TODO: This only preserves resumability while the current agent process stays
             // alive. To survive agent/server restarts, persist a resumable run checkpoint
             // for approval-blocked turns and resume from storage after approval.
-            const streamWithDisconnectSignal = agent.stream as (
+            const streamWithDisconnectSignal = agent.stream.bind(agent) as (
                 content: Parameters<typeof agent.stream>[0],
                 sessionId: string,
                 options: Parameters<typeof agent.stream>[2] & { disconnectSignal?: AbortSignal }

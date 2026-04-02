@@ -28,6 +28,7 @@ import {
     useSessionMessages,
 } from '@/lib/stores/index.js';
 import type { Attachment } from '../../lib/attachment-types.js';
+import { mergeSessionProcessingState } from './session-processing.js';
 
 // Helper to get history endpoint type (workaround for string literal path)
 type HistoryEndpoint = (typeof client.api.sessions)[':sessionId']['history'];
@@ -556,11 +557,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             const currentMessages = useChatStore.getState().getMessages(currentSessionId);
             const hasSessionMsgs = currentMessages.some((m) => m.sessionId === currentSessionId);
             if (!hasSessionMsgs) {
-                useChatStore
-                    .getState()
-                    .setMessages(currentSessionId, sessionHistoryData.messages as any);
+                useChatStore.getState().setMessages(currentSessionId, sessionHistoryData.messages);
             }
-            useChatStore.getState().setProcessing(currentSessionId, sessionHistoryData.isBusy);
+            const currentProcessing = useChatStore
+                .getState()
+                .getSessionState(currentSessionId).processing;
+            useChatStore
+                .getState()
+                .setProcessing(
+                    currentSessionId,
+                    mergeSessionProcessingState(sessionHistoryData.isBusy, currentProcessing)
+                );
             if (sessionHistoryData.isBusy) {
                 if (!pendingApprovalsData?.approvals.length) {
                     useAgentStore.getState().setThinking(currentSessionId);
@@ -589,11 +596,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 const currentMessages = useChatStore.getState().getMessages(sessionId);
                 const hasSessionMsgs = currentMessages.some((m) => m.sessionId === sessionId);
                 if (!hasSessionMsgs) {
-                    // Populate chatStore with history (cast to compatible type)
-                    useChatStore.getState().initFromHistory(sessionId, result.messages as any);
+                    useChatStore.getState().initFromHistory(sessionId, result.messages);
                 }
 
-                useChatStore.getState().setProcessing(sessionId, result.isBusy);
+                const currentProcessing = useChatStore
+                    .getState()
+                    .getSessionState(sessionId).processing;
+                useChatStore
+                    .getState()
+                    .setProcessing(
+                        sessionId,
+                        mergeSessionProcessingState(result.isBusy, currentProcessing)
+                    );
                 if (result.isBusy) {
                     void ensureSessionEventStream(sessionId);
                 }

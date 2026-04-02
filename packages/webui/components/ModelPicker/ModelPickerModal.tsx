@@ -51,6 +51,7 @@ import {
     ModelInfo,
     favKey,
     getModelDisplayName,
+    parseFavoriteKey,
     validateBaseURL,
 } from './types';
 import { cn } from '../../lib/utils';
@@ -214,20 +215,21 @@ export default function ModelPickerModal() {
                 const favorites = Array.isArray(parsed)
                     ? parsed
                           .map((value) => {
-                              if (typeof value !== 'string') return null;
-                              const [providerRaw, ...modelParts] = value.split('|');
-                              const model = modelParts.join('|').trim();
+                              const parsedFavorite =
+                                  typeof value === 'string' ? parseFavoriteKey(value) : null;
                               if (
-                                  !providerRaw ||
-                                  !model ||
-                                  !LLM_PROVIDERS.includes(providerRaw as LLMProvider)
+                                  !parsedFavorite ||
+                                  !LLM_PROVIDERS.includes(parsedFavorite.provider as LLMProvider)
                               ) {
                                   return null;
                               }
 
                               return {
-                                  provider: providerRaw as LLMProvider,
-                                  model,
+                                  provider: parsedFavorite.provider as LLMProvider,
+                                  model: parsedFavorite.model,
+                                  ...(parsedFavorite.baseURL
+                                      ? { baseURL: parsedFavorite.baseURL }
+                                      : {}),
                               };
                           })
                           .filter(
@@ -236,6 +238,7 @@ export default function ModelPickerModal() {
                               ): value is {
                                   provider: LLMProvider;
                                   model: string;
+                                  baseURL?: string;
                               } => Boolean(value)
                           )
                     : [];

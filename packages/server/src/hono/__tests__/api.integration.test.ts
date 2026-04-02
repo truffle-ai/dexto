@@ -1102,9 +1102,11 @@ describe('Hono API Integration Tests', () => {
             ];
 
             agent.stream = async function (
+                this: typeof agent,
                 _message: string,
                 _options
             ): Promise<AsyncIterableIterator<StreamingEvent>> {
+                expect(this).toBe(agent);
                 async function* generator() {
                     for (const event of fakeEvents) {
                         yield event;
@@ -1181,10 +1183,12 @@ describe('Hono API Integration Tests', () => {
             };
 
             agent.stream = async function (
+                this: typeof agent,
                 _message: string,
                 _sessionId: string,
                 _options
             ): Promise<AsyncIterableIterator<StreamingEvent>> {
+                expect(this).toBe(agent);
                 let emitted = false;
                 const iterator: AsyncIterableIterator<StreamingEvent> = {
                     [Symbol.asyncIterator]() {

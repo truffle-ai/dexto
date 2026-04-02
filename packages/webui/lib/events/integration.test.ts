@@ -291,7 +291,7 @@ describe('EventBus Integration', () => {
                 timestamp: new Date(),
                 metadata: {
                     toolName: 'write_file',
-                    toolCallId: 'approval-789',
+                    toolCallId: 'call-write-789',
                     args: { path: '/test.txt' },
                 },
             });
