@@ -281,6 +281,37 @@ describe('EventBus Integration', () => {
             expect(useAgentStore.getState().activeSessionId).toBe('test-session');
         });
 
+        it('should reuse the approval message when the tool call arrives later', () => {
+            bus.dispatch({
+                name: 'approval:request',
+                sessionId: 'test-session',
+                type: ApprovalType.TOOL_APPROVAL,
+                approvalId: 'approval-789',
+                timeout: 30000,
+                timestamp: new Date(),
+                metadata: {
+                    toolName: 'write_file',
+                    toolCallId: 'call-write-789',
+                    args: { path: '/test.txt' },
+                },
+            });
+
+            bus.dispatch({
+                name: 'llm:tool-call',
+                sessionId: 'test-session',
+                toolName: 'write_file',
+                args: { path: '/test.txt' },
+                callId: 'call-write-789',
+            });
+
+            const sessionState = useChatStore.getState().getSessionState('test-session');
+            expect(sessionState.messages).toHaveLength(1);
+            expect(sessionState.messages[0]?.id).toBe('approval-approval-789');
+            expect(sessionState.messages[0]?.toolCallId).toBe('call-write-789');
+            expect(sessionState.messages[0]?.requireApproval).toBe(true);
+            expect(sessionState.messages[0]?.approvalStatus).toBe('pending');
+        });
+
         it('should process approval:response with approved status', () => {
             // Set awaiting approval
             bus.dispatch({

@@ -907,6 +907,7 @@ export class DextoAgent {
         }
 
         const signal = options?.signal;
+        const disconnectSignal = options?.disconnectSignal ?? signal;
 
         // Normalize content: string -> [{ type: 'text', text: string }]
         let contentParts: import('./types.js').ContentPart[] =
@@ -932,9 +933,13 @@ export class DextoAgent {
             event: StreamingEventName;
             listener: Function;
         }> = [];
+        let detachDisconnectAbortListener: (() => void) | undefined;
 
         // Cleanup function to remove all listeners and stream controller
         const cleanupListeners = () => {
+            detachDisconnectAbortListener?.();
+            detachDisconnectAbortListener = undefined;
+
             if (listeners.length === 0) {
                 return; // Already cleaned up
             }
@@ -950,12 +955,14 @@ export class DextoAgent {
         };
 
         // Wire external signal to trigger cleanup
-        if (signal) {
+        if (disconnectSignal) {
             const abortHandler = () => {
                 cleanupListeners();
                 controller.abort();
             };
-            signal.addEventListener('abort', abortHandler, { once: true });
+            disconnectSignal.addEventListener('abort', abortHandler, { once: true });
+            detachDisconnectAbortListener = () =>
+                disconnectSignal.removeEventListener('abort', abortHandler);
         }
 
         // TODO: Simplify these explicit subscriptions while keeping full type safety.
@@ -1380,8 +1387,8 @@ export class DextoAgent {
                 while (!completed && eventQueue.length === 0) {
                     await new Promise((resolve) => setTimeout(resolve, 0));
 
-                    // Check for abort (external signal OR internal via cancel())
-                    if (signal?.aborted || cleanupSignal.aborted) {
+                    // Check for disconnect/cancel (external disconnect signal OR internal cleanup)
+                    if (disconnectSignal?.aborted || cleanupSignal.aborted) {
                         cleanupListeners();
                         controller.abort();
                         return { done: true, value: undefined };
@@ -2394,11 +2401,10 @@ export class DextoAgent {
         validatedConfig: ValidatedLLMConfig,
         sessionScope?: string
     ): Promise<void> {
-        // Update state manager (no validation needed - already validated)
-        this.stateManager.updateLLM(validatedConfig, sessionScope);
-
         // Switch LLM in session(s)
         if (sessionScope === '*') {
+            // Update state manager (no validation needed - already validated)
+            this.stateManager.updateLLM(validatedConfig, sessionScope);
             await this.sessionManager.switchLLMForAllSessions(validatedConfig);
         } else if (sessionScope) {
             // Verify session exists before switching LLM
@@ -2406,10 +2412,12 @@ export class DextoAgent {
             if (!session) {
                 throw SessionError.notFound(sessionScope);
             }
+            this.stateManager.updateLLM(validatedConfig, sessionScope);
             await this.sessionManager.switchLLMForSpecificSession(validatedConfig, sessionScope);
         } else {
             // No sessionScope provided - this is a configuration-level switch only
             // State manager has been updated, individual sessions will pick up changes when created
+            this.stateManager.updateLLM(validatedConfig, sessionScope);
             this.logger.debug('LLM config updated at agent level (no active session switches)');
         }
     }

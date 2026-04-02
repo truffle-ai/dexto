@@ -19,6 +19,7 @@ import {
 } from '../schemas/responses.js';
 import { handleHonoError } from '../middleware/error.js';
 import type { GetAgentFn, OpenAPIRouteSchema } from '../types.js';
+import type { SessionSseEventSubscriber } from '../../events/session-sse-subscriber.js';
 
 const CreateSessionSchema = z
     .object({
@@ -436,6 +437,54 @@ const cancelRoute = createRoute({
     },
 });
 
+const eventsRoute = createRoute({
+    method: 'get',
+    path: '/sessions/{sessionId}/events',
+    summary: 'Attach Session Event Stream',
+    description:
+        'Attaches to the live SSE event stream for an already-running session without starting a new run. Use this to reattach after a page reload or connection interruption.',
+    tags: ['sessions'],
+    request: {
+        params: z.object({ sessionId: z.string().describe('Session identifier') }),
+    },
+    responses: {
+        200: {
+            description: 'SSE stream of live session events',
+            headers: {
+                'Content-Type': {
+                    description: 'SSE content type',
+                    schema: { type: 'string', example: 'text/event-stream' },
+                },
+                'Cache-Control': {
+                    description: 'Disable caching for stream',
+                    schema: { type: 'string', example: 'no-cache' },
+                },
+                Connection: {
+                    description: 'Keep connection alive for streaming',
+                    schema: { type: 'string', example: 'keep-alive' },
+                },
+                'X-Accel-Buffering': {
+                    description: 'Disable nginx buffering',
+                    schema: { type: 'string', example: 'no' },
+                },
+            },
+            content: {
+                'text/event-stream': {
+                    schema: z
+                        .string()
+                        .describe(
+                            'Server-Sent Events stream for an active session. Events use the same payloads as /message-stream.'
+                        ),
+                },
+            },
+        },
+        400: BadRequestErrorResponse,
+        404: NotFoundErrorResponse,
+        409: ConflictErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
 const loadRoute = createRoute({
     method: 'get',
     path: '/sessions/{sessionId}/load',
@@ -591,7 +640,10 @@ const generateTitleRoute = createRoute({
     },
 });
 
-export function createSessionsRouter(getAgent: GetAgentFn) {
+export function createSessionsRouter(
+    getAgent: GetAgentFn,
+    sessionSseSubscriber: SessionSseEventSubscriber
+) {
     const app = new OpenAPIHono({
         defaultHook: (result, ctx) => {
             if (!result.success) {
@@ -832,6 +884,45 @@ export function createSessionsRouter(getAgent: GetAgentFn) {
                 200
             );
         })
+        .openapi(eventsRoute, async (ctx) => {
+            const agent = await getAgent(ctx);
+            const { sessionId } = ctx.req.valid('param');
+
+            const sessionIds = await agent.listSessions();
+            if (!sessionIds.includes(sessionId)) {
+                throw new DextoRuntimeError(
+                    'session_not_found',
+                    ErrorScope.SESSION,
+                    ErrorType.NOT_FOUND,
+                    `Session not found: ${sessionId}`,
+                    { sessionId }
+                );
+            }
+
+            const isBusy = await agent.isSessionBusy(sessionId);
+            if (!isBusy) {
+                throw new DextoRuntimeError(
+                    'session_not_busy',
+                    ErrorScope.SESSION,
+                    ErrorType.CONFLICT,
+                    `Session is not running: ${sessionId}`,
+                    { sessionId }
+                );
+            }
+
+            const eventStream = sessionSseSubscriber.createStream(
+                sessionId
+            ) as unknown as globalThis.BodyInit;
+
+            return new Response(eventStream, {
+                headers: {
+                    'Content-Type': 'text/event-stream',
+                    'Cache-Control': 'no-cache',
+                    Connection: 'keep-alive',
+                    'X-Accel-Buffering': 'no',
+                },
+            });
+        })
         .openapi(loadRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             const { sessionId } = ctx.req.valid('param');
@@ -922,6 +1013,7 @@ type CancelRouteSchema = OpenAPIRouteSchema<
     typeof cancelRoute,
     SessionIdParamInput & { json?: { clearQueue?: boolean } }
 >;
+type EventsRouteSchema = OpenAPIRouteSchema<typeof eventsRoute, SessionIdParamInput>;
 type LoadRouteSchema = OpenAPIRouteSchema<typeof loadRoute, SessionIdParamInput>;
 type ClearContextRouteSchema = OpenAPIRouteSchema<typeof clearContextRoute, SessionIdParamInput>;
 type PatchRouteSchema = OpenAPIRouteSchema<
@@ -940,6 +1032,7 @@ export type SessionsRouterSchema =
     | UpsertSessionPromptContributorRouteSchema
     | DeleteRouteSchema
     | CancelRouteSchema
+    | EventsRouteSchema
     | LoadRouteSchema
     | ClearContextRouteSchema
     | PatchRouteSchema

@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+    loadProjectRegistry,
     readProjectRegistry,
     resolveDefaultProjectRegistryAgentPath,
     resolveProjectRegistryAgentPath,
@@ -119,6 +120,58 @@ describe('project registry', () => {
             name: 'ProjectRegistryError',
             code: 'PROJECT_REGISTRY_INVALID_CONFIG_PATH',
             agentId: 'review-agent',
+        });
+    });
+
+    it('ignores bundled agent-registry.json files when searching for a project registry', async () => {
+        const workspaceRoot = await createWorkspace({
+            'agents/agent-registry.json': JSON.stringify({
+                version: '1.0.0',
+                agents: {
+                    'coding-agent': {
+                        id: 'coding-agent',
+                        name: 'Coding Agent',
+                        description: 'Bundled registry entry',
+                        author: 'Truffle AI',
+                        tags: ['coding'],
+                        source: 'coding-agent/',
+                        main: 'coding-agent.yml',
+                    },
+                },
+            }),
+        });
+
+        await expect(loadProjectRegistry(workspaceRoot)).resolves.toBeNull();
+        await expect(resolveDefaultProjectRegistryAgentPath(workspaceRoot)).resolves.toBeNull();
+    });
+
+    it('still supports legacy project agent-registry.json fallback with array entries', async () => {
+        const workspaceRoot = await createWorkspace({
+            'agents/agent-registry.json': JSON.stringify({
+                primaryAgent: 'review-agent',
+                agents: [
+                    {
+                        id: 'review-agent',
+                        name: 'Review Agent',
+                        description: 'Primary workspace agent',
+                        configPath: './review-agent/review-agent.yml',
+                    },
+                ],
+            }),
+            'agents/review-agent/review-agent.yml': 'llm:\n  provider: openai\n  model: gpt-5',
+        });
+
+        await expect(loadProjectRegistry(workspaceRoot)).resolves.toMatchObject({
+            registry: {
+                primaryAgent: 'review-agent',
+                allowGlobalAgents: false,
+                agents: [
+                    expect.objectContaining({
+                        id: 'review-agent',
+                        configPath: './review-agent/review-agent.yml',
+                    }),
+                ],
+            },
         });
     });
 });

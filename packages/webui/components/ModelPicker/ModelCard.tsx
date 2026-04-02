@@ -5,7 +5,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/
 import type { LLMProvider } from '@dexto/core';
 import { PROVIDER_LOGOS, needsDarkModeInversion, formatPricingLines, hasLogo } from './constants';
 import { CapabilityIcons } from './CapabilityIcons';
-import type { ModelInfo, ProviderCatalog } from './types';
+import { getModelDisplayName, type ModelInfo, type ProviderCatalog } from './types';
 
 interface ModelCardProps {
     provider: LLMProvider;
@@ -47,25 +47,30 @@ function parseModelName(
     displayName: string,
     provider: string
 ): { providerName: string; modelName: string; suffix?: string } {
-    const providerName = PROVIDER_DISPLAY_NAMES[provider] || provider;
+    const safeProvider =
+        typeof provider === 'string' && provider.trim() ? provider.trim() : 'Model';
+    const providerName = PROVIDER_DISPLAY_NAMES[safeProvider] || safeProvider;
+    const safeDisplayName = displayName.trim() || providerName;
 
     // For multi-vendor or custom model providers, show the full display name without parsing
     if (
-        provider === 'openrouter' ||
-        provider === 'dexto-nova' ||
-        provider === 'openai-compatible' ||
-        provider === 'litellm' ||
-        provider === 'glama' ||
-        provider === 'bedrock' ||
-        provider === 'vertex'
+        safeProvider === 'openrouter' ||
+        safeProvider === 'dexto-nova' ||
+        safeProvider === 'openai-compatible' ||
+        safeProvider === 'litellm' ||
+        safeProvider === 'glama' ||
+        safeProvider === 'bedrock' ||
+        safeProvider === 'vertex'
     ) {
-        return { providerName, modelName: displayName };
+        return { providerName, modelName: safeDisplayName };
     }
 
     // Extract suffix like (Reasoning) if present
-    const suffixMatch = displayName.match(/\(([^)]+)\)$/);
+    const suffixMatch = safeDisplayName.match(/\(([^)]+)\)$/);
     const suffix = suffixMatch ? suffixMatch[1] : undefined;
-    const nameWithoutSuffix = suffix ? displayName.replace(/\s*\([^)]+\)$/, '') : displayName;
+    const nameWithoutSuffix = suffix
+        ? safeDisplayName.replace(/\s*\([^)]+\)$/, '')
+        : safeDisplayName;
 
     // Try to extract model variant (remove provider prefix if present)
     let modelName = nameWithoutSuffix;
@@ -96,7 +101,7 @@ export function ModelCard({
     isCustom = false,
     isInstalled = false,
 }: ModelCardProps) {
-    const displayName = model.displayName || model.name;
+    const displayName = getModelDisplayName(model);
     // Local/ollama/installed models don't need API keys
     // Custom models are user-configured, so don't show lock (they handle their own auth)
     const noApiKeyNeeded = isInstalled || isCustom || provider === 'local' || provider === 'ollama';

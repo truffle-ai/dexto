@@ -1,8 +1,7 @@
 import { OpenAPIHono, createRoute, type RouteConfigToTypedResponse, z } from '@hono/zod-openapi';
 import { streamSSE } from 'hono/streaming';
 import type { ToSchema } from 'hono/types';
-import { LLM_PROVIDERS } from '@dexto/core';
-import type { ApprovalCoordinator } from '../../approval/approval-coordinator.js';
+import { LLM_PROVIDERS, type StreamingEvent } from '@dexto/core';
 import {
     ApiErrorResponseSchema,
     BadRequestErrorResponse,
@@ -228,10 +227,7 @@ const messageStreamRoute = createRoute({
     },
 });
 
-export function createMessagesRouter(
-    getAgent: GetAgentFn,
-    approvalCoordinator?: ApprovalCoordinator
-) {
+export function createMessagesRouter(getAgent: GetAgentFn, _approvalCoordinator?: unknown) {
     const app = new OpenAPIHono();
 
     return app
@@ -309,56 +305,64 @@ export function createMessagesRouter(
             // Create abort controller for cleanup
             const abortController = new AbortController();
             const { signal } = abortController;
+            const requestDisconnectSignal = ctx.req.raw.signal;
 
-            // Start agent streaming
-            const iterator = await agent.stream(content, sessionId, { signal });
+            // Keep the underlying run alive if the browser disconnects so approvals and
+            // completion can survive reloads. The disconnect signal only stops relaying
+            // events to this SSE response.
+            // TODO: This only preserves resumability while the current agent process stays
+            // alive. To survive agent/server restarts, persist a resumable run checkpoint
+            // for approval-blocked turns and resume from storage after approval.
+            const streamWithDisconnectSignal = agent.stream.bind(agent) as (
+                content: Parameters<typeof agent.stream>[0],
+                sessionId: string,
+                options: Parameters<typeof agent.stream>[2] & { disconnectSignal?: AbortSignal }
+            ) => Promise<AsyncIterableIterator<StreamingEvent>>;
+            const iterator = await streamWithDisconnectSignal(content, sessionId, {
+                disconnectSignal: signal,
+            });
 
             // Use Hono's streamSSE helper which handles backpressure correctly
             return streamSSE(ctx, async (stream) => {
-                // Store pending approval events to be written to stream (only if coordinator available)
-                const pendingApprovalEvents: Array<{ event: string; data: unknown }> = [];
-
-                // Subscribe to approval events from coordinator (if available)
-                if (approvalCoordinator) {
-                    approvalCoordinator.onRequest(
-                        (request) => {
-                            if (request.sessionId === sessionId) {
-                                // No transformation needed - SSE uses 'name' discriminant, payload keeps 'type'
-                                pendingApprovalEvents.push({
-                                    event: 'approval:request',
-                                    data: request,
-                                });
-                            }
-                        },
-                        { signal }
-                    );
-
-                    approvalCoordinator.onResponse(
-                        (response) => {
-                            if (response.sessionId === sessionId) {
-                                pendingApprovalEvents.push({
-                                    event: 'approval:response',
-                                    data: response,
-                                });
-                            }
-                        },
-                        { signal }
-                    );
+                const abortOnDisconnect = () => {
+                    abortController.abort();
+                };
+                stream.onAbort(abortOnDisconnect);
+                requestDisconnectSignal.addEventListener('abort', abortOnDisconnect, {
+                    once: true,
+                });
+                if (requestDisconnectSignal.aborted) {
+                    abortOnDisconnect();
                 }
+
+                let writeChain = Promise.resolve();
+                const enqueueSSEWrite = (event: string, data: unknown) => {
+                    writeChain = writeChain
+                        .then(async () => {
+                            if (signal.aborted) {
+                                return;
+                            }
+                            await stream.writeSSE({
+                                event,
+                                data: JSON.stringify(data),
+                            });
+                        })
+                        .catch((error) => {
+                            if (!signal.aborted) {
+                                agent.logger.warn(
+                                    `Failed to write SSE event '${event}': ${
+                                        error instanceof Error ? error.message : String(error)
+                                    }`
+                                );
+                            }
+                        });
+
+                    return writeChain;
+                };
 
                 try {
                     // Stream LLM/tool events from iterator
                     for await (const event of iterator) {
-                        // First, write any pending approval events
-                        while (pendingApprovalEvents.length > 0) {
-                            const approvalEvent = pendingApprovalEvents.shift()!;
-                            await stream.writeSSE({
-                                event: approvalEvent.event,
-                                data: JSON.stringify(approvalEvent.data),
-                            });
-                        }
-
-                        // Then write the LLM/tool event
                         // Serialize errors properly since Error objects don't JSON.stringify well
                         const eventData =
                             event.name === 'llm:error' && event.error instanceof Error
@@ -371,33 +375,20 @@ export function createMessagesRouter(
                                       },
                                   }
                                 : event;
-                        await stream.writeSSE({
-                            event: event.name,
-                            data: JSON.stringify(eventData),
-                        });
-                    }
-
-                    // Write any remaining approval events
-                    while (pendingApprovalEvents.length > 0) {
-                        const approvalEvent = pendingApprovalEvents.shift()!;
-                        await stream.writeSSE({
-                            event: approvalEvent.event,
-                            data: JSON.stringify(approvalEvent.data),
-                        });
+                        await enqueueSSEWrite(event.name, eventData);
                     }
                 } catch (error) {
-                    await stream.writeSSE({
-                        event: 'llm:error',
-                        data: JSON.stringify({
-                            error: {
-                                message: error instanceof Error ? error.message : String(error),
-                            },
-                            recoverable: false,
-                            sessionId,
-                        }),
+                    await enqueueSSEWrite('llm:error', {
+                        error: {
+                            message: error instanceof Error ? error.message : String(error),
+                        },
+                        recoverable: false,
+                        sessionId,
                     });
                 } finally {
+                    requestDisconnectSignal.removeEventListener('abort', abortOnDisconnect);
                     abortController.abort(); // Cleanup subscriptions
+                    await writeChain;
                 }
             });
         });

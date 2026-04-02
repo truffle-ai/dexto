@@ -12,7 +12,12 @@
  * @see packages/webui/components/hooks/useChat.ts (original implementation)
  */
 
-import type { StreamingEvent, StreamingEventName, ApprovalStatus } from '@dexto/core';
+import type {
+    ApprovalStatus,
+    StreamingEvent,
+    StreamingEventName,
+    ToolPresentationSnapshotV1,
+} from '@dexto/core';
 import { useChatStore, generateMessageId } from '../stores/chatStore.js';
 import { useAgentStore } from '../stores/agentStore.js';
 import { useApprovalStore } from '../stores/approvalStore.js';
@@ -79,6 +84,41 @@ function stripToolNameForMatching(name: string): string {
         return parts.length >= 2 ? parts.slice(1).join('--') : trimmed;
     }
     return name;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isToolPresentationSnapshotV1(value: unknown): value is ToolPresentationSnapshotV1 {
+    return isRecord(value) && value.version === 1;
+}
+
+function getApprovalRequestToolContext(event: EventByName<'approval:request'>): {
+    approvalId: string;
+    toolCallId?: string;
+    toolName: string;
+    toolArgs: Record<string, unknown>;
+    presentationSnapshot?: EventByName<'llm:tool-call'>['presentationSnapshot'];
+    approvalType: EventByName<'approval:request'>['type'];
+} {
+    const metadata: Record<string, unknown> = isRecord(event.metadata) ? event.metadata : {};
+    const toolName = typeof metadata['toolName'] === 'string' ? metadata['toolName'] : 'unknown';
+    const toolCallId =
+        typeof metadata['toolCallId'] === 'string' ? metadata['toolCallId'] : undefined;
+    const presentationSnapshot = isToolPresentationSnapshotV1(metadata['presentationSnapshot'])
+        ? metadata['presentationSnapshot']
+        : undefined;
+    const toolArgs = isRecord(metadata['args']) ? metadata['args'] : {};
+
+    return {
+        approvalId: event.approvalId,
+        toolCallId,
+        toolName,
+        toolArgs,
+        presentationSnapshot,
+        approvalType: event.type,
+    };
 }
 
 // =============================================================================
@@ -288,8 +328,7 @@ function handleToolCall(event: EventByName<'llm:tool-call'>): void {
 
     const messages = chatStore.getMessages(sessionId);
 
-    // Check if there's already a message for this tool call (from approval:request)
-    // The approval message uses the approvalId which may equal callId
+    // Check if there's already a message for this exact tool call.
     const existingMessage = messages.find(
         (m) => m.role === 'tool' && m.toolCallId === callId && m.toolResult === undefined
     );
@@ -311,6 +350,7 @@ function handleToolCall(event: EventByName<'llm:tool-call'>): void {
     const pendingApprovalMessage = messages.find((m) => {
         if (m.role !== 'tool' || m.toolResult !== undefined) return false;
         if (m.requireApproval !== true || m.approvalStatus !== 'pending') return false;
+        if (m.toolCallId === callId) return true;
 
         // Match by toolName (exact or stripped)
         if (m.toolName === toolName) return true;
@@ -451,33 +491,40 @@ function handleApprovalRequest(event: EventByName<'approval:request'>): void {
     // The event IS the approval request
     useApprovalStore.getState().addApproval(event);
 
-    // Extract tool info from the approval event
-    const approvalId = (event as any).approvalId;
-    const toolName = (event as any).metadata?.toolName || (event as any).toolName || 'unknown';
-    const toolArgs = (event as any).metadata?.args || (event as any).args || {};
-    const presentationSnapshot = (event as any).metadata?.presentationSnapshot;
-    const approvalType = (event as any).type;
+    const { approvalId, toolCallId, toolName, toolArgs, presentationSnapshot, approvalType } =
+        getApprovalRequestToolContext(event);
 
     // Helper to strip prefixes for matching
     const cleanToolName = stripToolNameForMatching(toolName);
 
     // Check if there's already a tool message for this approval
     const messages = chatStore.getMessages(sessionId);
-    const existingToolMessage = messages.find((m) => {
-        if (m.role !== 'tool' || m.toolResult !== undefined) return false;
-        // Already has approval - skip
-        if (m.requireApproval === true) return false;
-        // Match by toolName (exact or stripped)
-        if (m.toolName === toolName) return true;
-        if (m.toolName && stripToolNameForMatching(m.toolName) === cleanToolName) return true;
-        return false;
-    });
+    const existingToolMessage = toolCallId
+        ? messages.find(
+              (m) =>
+                  m.role === 'tool' &&
+                  m.toolResult === undefined &&
+                  m.requireApproval !== true &&
+                  m.toolCallId === toolCallId
+          )
+        : messages.find((m) => {
+              if (m.role !== 'tool' || m.toolResult !== undefined) return false;
+              // Already has approval - skip
+              if (m.requireApproval === true) return false;
+              // Match by toolName (exact or stripped)
+              if (m.toolName === toolName) return true;
+              if (m.toolName && stripToolNameForMatching(m.toolName) === cleanToolName) {
+                  return true;
+              }
+              return false;
+          });
 
     if (existingToolMessage) {
         // Update existing tool message with approval info
         chatStore.updateMessage(sessionId, existingToolMessage.id, {
             requireApproval: true,
             approvalStatus: 'pending',
+            toolResultSuccess: undefined,
             ...(presentationSnapshot !== undefined && { presentationSnapshot }),
         });
         console.debug(
@@ -486,15 +533,24 @@ function handleApprovalRequest(event: EventByName<'approval:request'>): void {
         );
     } else if (sessionId) {
         // Check if there's already a pending approval message to avoid duplicates
-        const existingApprovalMessage = messages.find(
-            (m) =>
-                m.role === 'tool' &&
-                m.requireApproval === true &&
-                m.approvalStatus === 'pending' &&
-                m.toolResult === undefined &&
-                (m.toolName === toolName ||
-                    (m.toolName && stripToolNameForMatching(m.toolName) === cleanToolName))
-        );
+        const existingApprovalMessage = toolCallId
+            ? messages.find(
+                  (m) =>
+                      m.role === 'tool' &&
+                      m.requireApproval === true &&
+                      m.approvalStatus === 'pending' &&
+                      m.toolResult === undefined &&
+                      m.toolCallId === toolCallId
+              )
+            : messages.find(
+                  (m) =>
+                      m.role === 'tool' &&
+                      m.requireApproval === true &&
+                      m.approvalStatus === 'pending' &&
+                      m.toolResult === undefined &&
+                      (m.toolName === toolName ||
+                          (m.toolName && stripToolNameForMatching(m.toolName) === cleanToolName))
+              );
 
         if (existingApprovalMessage) {
             console.debug(
@@ -510,7 +566,7 @@ function handleApprovalRequest(event: EventByName<'approval:request'>): void {
                 toolName,
                 ...(presentationSnapshot !== undefined && { presentationSnapshot }),
                 toolArgs,
-                toolCallId: approvalId, // Use approvalId as callId for correlation
+                toolCallId: toolCallId ?? approvalId,
                 createdAt: Date.now(),
                 sessionId,
                 requireApproval: true,
@@ -534,8 +590,8 @@ function handleApprovalRequest(event: EventByName<'approval:request'>): void {
  */
 function handleApprovalResponse(event: EventByName<'approval:response'>): void {
     const { status } = event;
-    const sessionId = (event as any).sessionId || '';
-    const approvalId = (event as any).approvalId;
+    const sessionId = event.sessionId || '';
+    const approvalId = event.approvalId;
 
     // The event IS the approval response
     useApprovalStore.getState().processResponse(event);

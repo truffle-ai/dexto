@@ -4,12 +4,12 @@ import type { ApprovalRequest } from '@dexto/core';
 import { ApprovalStatus } from '@dexto/core';
 import { useSessionStore } from '@/lib/stores/sessionStore';
 import { useApprovalStore } from '@/lib/stores/approvalStore';
+import { useChatContext } from './hooks/ChatContext';
 
 // Re-export ApprovalRequest as ApprovalEvent for consumers (e.g., InlineApprovalCard, MessageList)
 export type ApprovalEvent = ApprovalRequest;
 
 interface ApprovalRequestHandlerProps {
-    onApprovalRequest?: (approval: ApprovalEvent | null) => void;
     onApprove?: (formData?: Record<string, unknown>, rememberChoice?: boolean) => void;
     onDeny?: () => void;
     onHandlersReady?: (handlers: ApprovalHandlers) => void;
@@ -26,14 +26,13 @@ export interface ApprovalHandlers {
  * Sends responses back through API via useSubmitApproval
  */
 export function ApprovalRequestHandler({
-    onApprovalRequest,
     onApprove: externalOnApprove,
     onDeny: externalOnDeny,
     onHandlersReady,
 }: ApprovalRequestHandlerProps) {
     const currentSessionId = useSessionStore((s) => s.currentSessionId);
     const pendingApproval = useApprovalStore((s) => s.pendingApproval);
-    const clearApproval = useApprovalStore((s) => s.clearApproval);
+    const { ensureSessionEventStream } = useChatContext();
     const { mutateAsync: submitApproval } = useSubmitApproval();
 
     // Filter approvals by current session
@@ -44,11 +43,6 @@ export function ApprovalRequestHandler({
             pendingApproval.sessionId === currentSessionId)
             ? pendingApproval
             : null;
-
-    // Notify parent component when approval state changes
-    useEffect(() => {
-        onApprovalRequest?.(currentApproval);
-    }, [currentApproval, onApprovalRequest]);
 
     // Send approval response via API
     const sendResponse = useCallback(
@@ -69,6 +63,7 @@ export function ApprovalRequestHandler({
             }
 
             try {
+                await ensureSessionEventStream(sessionId);
                 await submitApproval({
                     approvalId,
                     sessionId,
@@ -81,11 +76,8 @@ export function ApprovalRequestHandler({
                 console.error(`[WebUI] Failed to send approval response: ${message}`);
                 return;
             }
-
-            // Clear current approval (processes queue automatically)
-            clearApproval();
         },
-        [currentApproval, currentSessionId, submitApproval, clearApproval]
+        [currentApproval, currentSessionId, submitApproval, ensureSessionEventStream]
     );
 
     const handleApprove = useCallback(

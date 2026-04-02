@@ -13,23 +13,29 @@ const AUTH_CONFIG_FILE = 'auth.json';
 
 /**
  * Minimal schema for checking auth status.
- * We only need to verify token exists and hasn't expired.
+ * We only need enough state to tell whether Dexto auth is still usable.
  */
-const AuthConfigSchema = z.object({
-    token: z.string().min(1),
-    expiresAt: z.number().optional(),
-    dextoApiKey: z.string().optional(),
-});
+const AuthConfigSchema = z
+    .object({
+        token: z.string().min(1).optional(),
+        refreshToken: z.string().optional(),
+        expiresAt: z.number().optional(),
+        createdAt: z.number().optional(),
+        dextoApiKey: z.string().optional(),
+        dextoKeyId: z.string().optional(),
+        dextoApiKeySource: z.enum(['provisioned', 'user-supplied']).optional(),
+    })
+    .refine((data) => data.token || data.dextoApiKey, {
+        message: 'Either token or dextoApiKey is required',
+    });
 
-/**
- * Check if user is authenticated with Dexto.
- * Returns true if auth.json exists with valid (non-expired) token.
- */
-export async function isDextoAuthenticated(): Promise<boolean> {
+type AuthConfig = z.output<typeof AuthConfigSchema>;
+
+async function loadAuthConfig(): Promise<AuthConfig | null> {
     const authPath = getDextoGlobalPath('', AUTH_CONFIG_FILE);
 
     if (!existsSync(authPath)) {
-        return false;
+        return null;
     }
 
     try {
@@ -38,49 +44,55 @@ export async function isDextoAuthenticated(): Promise<boolean> {
         const validated = AuthConfigSchema.safeParse(config);
 
         if (!validated.success) {
-            return false;
+            return null;
         }
 
-        // Check if token has expired
-        if (validated.data.expiresAt && validated.data.expiresAt < Date.now()) {
-            return false;
+        const auth = validated.data;
+
+        // Match CLI semantics more closely: an expired access token can still back
+        // a usable login when we also have a refresh token or a persisted Dexto API key.
+        if (auth.expiresAt && auth.expiresAt < Date.now()) {
+            if (!auth.refreshToken && !auth.dextoApiKey) {
+                return null;
+            }
         }
 
-        return true;
+        return auth;
     } catch {
-        return false;
+        return null;
     }
+}
+
+/**
+ * Check if user is authenticated with Dexto.
+ * Returns true when auth.json contains usable Dexto auth state.
+ */
+export async function isDextoAuthenticated(): Promise<boolean> {
+    return (await loadAuthConfig()) !== null;
 }
 
 /**
  * Get the dexto API key from auth config or environment.
  */
 export async function getDextoApiKeyFromAuth(): Promise<string | null> {
-    // Check environment variable first
-    if (process.env.DEXTO_API_KEY) {
+    const auth = await loadAuthConfig();
+    if (auth?.dextoApiKey?.trim()) {
+        const apiKey = auth.dextoApiKey.trim();
+        process.env.DEXTO_API_KEY = apiKey;
+        return apiKey;
+    }
+
+    if (process.env.DEXTO_API_KEY?.trim()) {
         return process.env.DEXTO_API_KEY;
     }
 
-    // Check auth config
-    const authPath = getDextoGlobalPath('', AUTH_CONFIG_FILE);
-
-    if (!existsSync(authPath)) {
-        return null;
-    }
-
-    try {
-        const content = await fs.readFile(authPath, 'utf-8');
-        const config = JSON.parse(content);
-        return config.dextoApiKey || null;
-    } catch {
-        return null;
-    }
+    return null;
 }
 
 /**
  * Check if user can use Dexto provider.
  * Requires BOTH:
- * 1. User is authenticated (valid auth token)
+ * 1. User has usable Dexto auth state (token, refresh-backed login, or stored API key)
  * 2. Has DEXTO_API_KEY (from auth config or environment)
  */
 export async function canUseDextoProvider(): Promise<boolean> {

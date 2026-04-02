@@ -1,5 +1,18 @@
-import { afterEach, beforeEach, describe, test, expect } from 'vitest';
-import { LLM_PROVIDERS, PROVIDER_API_KEY_MAP } from '@dexto/core';
+import { afterEach, beforeEach, describe, test, expect, vi } from 'vitest';
+const { mockResolveApiKeyForProvider } = vi.hoisted(() => ({
+    mockResolveApiKeyForProvider: vi.fn<typeof import('@dexto/core').resolveApiKeyForProvider>(),
+}));
+
+vi.mock('@dexto/core', async () => {
+    const actual = await vi.importActual<typeof import('@dexto/core')>('@dexto/core');
+
+    return {
+        ...actual,
+        resolveApiKeyForProvider: mockResolveApiKeyForProvider,
+    };
+});
+
+import { getDefaultModelForProvider, LLM_PROVIDERS, PROVIDER_API_KEY_MAP } from '@dexto/core';
 import {
     applyCLIOverrides,
     applyStartupLLMFallback,
@@ -250,7 +263,11 @@ describe('applyStartupLLMFallback', () => {
         },
     };
 
-    beforeEach(() => {
+    beforeEach(async () => {
+        const actualCore = await vi.importActual<typeof import('@dexto/core')>('@dexto/core');
+        mockResolveApiKeyForProvider.mockReset();
+        mockResolveApiKeyForProvider.mockImplementation(actualCore.resolveApiKeyForProvider);
+
         for (const envVar of fallbackProviderEnvVars) {
             originalProviderEnv.set(envVar, process.env[envVar]);
             delete process.env[envVar];
@@ -368,7 +385,28 @@ describe('applyStartupLLMFallback', () => {
         expect(result.llm.apiKey).toBe('$CUSTOM_ANTHROPIC_KEY');
     });
 
+    test('falls back to dexto-nova when its startup credentials are available', () => {
+        mockResolveApiKeyForProvider.mockImplementation((provider) =>
+            provider === 'dexto-nova' ? 'dxt_test_key' : undefined
+        );
+
+        const result = applyStartupLLMFallback(clone(bundledCodingAgentConfig), {
+            hasCompletedSetup: false,
+            hasExplicitProviderOverride: false,
+            hasExplicitModelOverride: false,
+            hasExplicitApiKeyOverride: false,
+        });
+
+        expect(result.llm.provider).toBe('dexto-nova');
+        expect(result.llm.model).toBe(getDefaultModelForProvider('dexto-nova'));
+        expect(result.llm.apiKey).toBe('dxt_test_key');
+        expect(result.llm.provider).not.toBe('local');
+        expect(result.llm.provider).not.toBe('ollama');
+    });
+
     test('does not switch to providers without explicit fallback configuration', () => {
+        mockResolveApiKeyForProvider.mockReturnValue(undefined);
+
         const result = applyStartupLLMFallback(clone(bundledCodingAgentConfig), {
             hasCompletedSetup: false,
             hasExplicitProviderOverride: false,
@@ -378,7 +416,10 @@ describe('applyStartupLLMFallback', () => {
 
         expect(result.llm.provider).toBe('anthropic');
         expect(result.llm.model).toBe('claude-sonnet-4-5-20250929');
+
         expect(LLM_PROVIDERS).toContain('local');
         expect(LLM_PROVIDERS).toContain('ollama');
+        expect(result.llm.provider).not.toBe('local');
+        expect(result.llm.provider).not.toBe('ollama');
     });
 });

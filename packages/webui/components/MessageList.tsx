@@ -48,7 +48,6 @@ import {
 import { useResources } from './hooks/useResources';
 import type { ResourceMetadata } from '@dexto/core';
 import { parseResourceReferences, resolveResourceReferences } from '@dexto/core';
-import { type ApprovalEvent } from './ApprovalRequestHandler';
 import { ToolCallTimeline } from './ToolCallTimeline';
 import { TodoPanel } from './TodoPanel';
 
@@ -59,7 +58,6 @@ interface MessageListProps {
     currentToolName?: string | null;
     activeError?: ErrorMessage | null;
     onDismissError?: () => void;
-    pendingApproval?: ApprovalEvent | null;
     onApprovalApprove?: (formData?: Record<string, any>, rememberChoice?: boolean) => void;
     onApprovalDeny?: () => void;
     /**
@@ -483,7 +481,6 @@ export default function MessageList({
     activeError,
     onDismissError,
     outerRef,
-    pendingApproval: _pendingApproval,
     onApprovalApprove,
     onApprovalDeny,
     sessionId,

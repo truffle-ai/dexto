@@ -25,7 +25,7 @@ import ServerRegistryModal from './ServerRegistryModal';
 import ServersPanel from './ServersPanel';
 import SessionPanel from './SessionPanel';
 import MemoryPanel from './MemoryPanel';
-import { ApprovalRequestHandler, type ApprovalEvent } from './ApprovalRequestHandler';
+import { ApprovalRequestHandler, type ApprovalHandlers } from './ApprovalRequestHandler';
 import GlobalSearchModal from './GlobalSearchModal';
 import CustomizePanel from './AgentEditor/CustomizePanel';
 import { Button } from './ui/button';
@@ -137,12 +137,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
     // Conversation management states
     const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-    // Approval state (for inline rendering in message stream)
-    const [pendingApproval, setPendingApproval] = useState<ApprovalEvent | null>(null);
-    const [approvalHandlers, setApprovalHandlers] = useState<{
-        onApprove: (formData?: Record<string, any>, rememberChoice?: boolean) => void;
-        onDeny: () => void;
-    } | null>(null);
+    const [approvalHandlers, setApprovalHandlers] = useState<ApprovalHandlers | null>(null);
 
     const deleteSessionMutation = useDeleteSession();
 
@@ -1202,7 +1197,6 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
                                                 activeError={activeError}
                                                 onDismissError={clearError}
                                                 outerRef={listContentRef}
-                                                pendingApproval={pendingApproval}
                                                 onApprovalApprove={approvalHandlers?.onApprove}
                                                 onApprovalDeny={approvalHandlers?.onDeny}
                                                 sessionId={currentSessionId}
@@ -1523,10 +1517,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
             />
 
             {/* Approval Handler */}
-            <ApprovalRequestHandler
-                onApprovalRequest={setPendingApproval}
-                onHandlersReady={setApprovalHandlers}
-            />
+            <ApprovalRequestHandler onHandlersReady={setApprovalHandlers} />
         </div>
     );
 }
