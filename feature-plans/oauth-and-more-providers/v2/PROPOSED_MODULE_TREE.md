@@ -7,18 +7,8 @@ The goal is to make it obvious:
 
 - what structure already exists today
 - what should stay as-is
-- what should be renamed or split differently
+- what should be split differently
 - what belongs in `core` versus `agent-management`
-
-The abstraction names below are intentionally changed from the earlier draft:
-
-- `ProviderDescriptor` -> `ProviderDefinition`
-- `AuthMethodDefinition` -> `ConnectMethodDefinition`
-- `TransportAdapter` -> `ApiFamilyRuntime`
-- no new `StreamNormalizer`
-  - keep and build on the existing `executor/stream-processor.ts`
-- no generic `edge hook`
-  - keep exceptions in narrower homes instead of inventing a plugin seam early
 
 ---
 
@@ -188,9 +178,7 @@ flowchart TD
 
 ---
 
-## 3. Better Names For The Main Pieces
-
-These names are still editable, but they express the intent much more clearly.
+## 3. Main Pieces
 
 ### `ProviderDefinition` in `core`
 
@@ -203,11 +191,6 @@ It answers:
 - which API family does it run through?
 - how should model-origin resolution work?
 
-Why this name is better:
-
-- it sounds like the source of truth for provider behavior
-- it is less vague than "descriptor"
-
 ### `ConnectMethodDefinition` in `agent-management`
 
 This is the user-facing auth/connect definition.
@@ -219,14 +202,9 @@ It answers:
 - how is it refreshed?
 - how does it project into runtime auth overrides?
 
-Why this name is better:
+### API-family mapping and helpers in `core`
 
-- it ties directly to `/connect`
-- it makes clear this is about connection/auth, not runtime execution
-
-### `ApiFamilyRuntime` in `core`
-
-This is the runtime for one request family.
+This is a responsibility, not necessarily a large abstraction.
 
 Examples:
 
@@ -242,14 +220,14 @@ It answers:
 - how do we translate reasoning controls for this family?
 - what family-specific request rules exist?
 
-Why this name is better:
+At first, this can stay as helper modules or functions used by:
 
-- the scaling problem is really API-family routing, not brand routing
-- "runtime" is clearer than "adapter"
+- `services/factory.ts`
+- `executor/provider-options.ts`
 
-### `ModelOriginResolver` in `core`
+### model-origin helpers in `core`
 
-This is not necessarily a standalone top-level type yet, but the responsibility is real.
+This is also a responsibility first, not a required class.
 
 It answers:
 
@@ -276,12 +254,13 @@ flowchart TD
     AUTHIN --> AUTH["agent-management runtime auth resolver"]
     AUTH --> FACTORY["slimmer factory"]
 
-    PDEF --> ORIGIN["ModelOriginResolver"]
-    PDEF --> FAMILY["ApiFamilyRuntime"]
-    ORIGIN --> REASON["reasoning profile / semantics"]
-    REASON --> FAMILY
+    PDEF --> ORIGIN["model-origin helpers"]
+    PDEF --> REASON["reasoning profile / semantics"]
+    ORIGIN --> REASON
+    REASON --> OPTS["provider-options + request helpers"]
+    PDEF --> OPTS
 
-    FAMILY --> FACTORY
+    OPTS --> FACTORY
     FACTORY --> SERVICE["services/vercel.ts"]
     SERVICE --> EXEC["executor/turn-executor.ts"]
     EXEC --> PROCESSOR["executor/stream-processor.ts"]
@@ -313,25 +292,6 @@ packages/
             openai-compatible.ts
             litellm.ts
 
-        api-families/
-          index.ts
-          types.ts
-          openai-responses/
-            runtime.ts
-            reasoning.ts
-          anthropic-messages/
-            runtime.ts
-            reasoning.ts
-          google-genai/
-            runtime.ts
-            reasoning.ts
-          bedrock/
-            runtime.ts
-            reasoning.ts
-          openrouter-gateway/
-            runtime.ts
-            reasoning.ts
-
         reasoning/
           profile.ts
           profiles/
@@ -357,6 +317,12 @@ packages/
           factory.ts
           vercel.ts
           index.ts
+          families/
+            openai.ts
+            anthropic.ts
+            google.ts
+            bedrock.ts
+            openrouter.ts
 
         auth/
           types.ts
@@ -396,8 +362,8 @@ flowchart LR
     B["agent-management/auth/llm-profiles.ts"] --> B2["agent-management/auth/profiles/store.ts + types.ts"]
     C["agent-management/auth/runtime-auth-resolver.ts"] --> C2["agent-management/auth/runtime/auth-resolver.ts + refresh.ts"]
 
-    D["core/llm/services/factory.ts"] --> D2["slimmer factory.ts + provider-definitions + api-families"]
-    E["core/llm/executor/provider-options.ts"] --> E2["provider-options.ts delegating to api-families/*/reasoning.ts"]
+    D["core/llm/services/factory.ts"] --> D2["slimmer factory.ts + provider-definitions + services/families/*"]
+    E["core/llm/executor/provider-options.ts"] --> E2["provider-options.ts delegating to small family helpers where needed"]
     F["core/llm/reasoning/profile.ts"] --> F2["reasoning/profile.ts + registry/model-origin.ts + provider-definitions"]
     G["core/llm/registry/index.ts"] --> G2["registry/index.ts staying central, with model-origin helpers nearby"]
     H["core/llm/executor/stream-processor.ts"] --> H2["stays as the stream/event normalization boundary"]
@@ -441,19 +407,32 @@ Should not own:
 - model registry
 - low-level execution
 
-### `ApiFamilyRuntime` in `core`
+### API-family helpers in `core`
 
-Owns:
+Own:
 
-- SDK/client construction for one request family
+- SDK/client construction rules for one request family
 - request-shape translation
 - family-specific reasoning option translation
-- any family-level request rules
+- family-level request quirks
 
-Should not own:
+Should stay small and local:
 
-- where credentials are stored
-- `/connect` UX
+- plain functions or small modules are enough at first
+- only grow into a heavier abstraction if the helper surface becomes large and stable
+
+### model-origin helpers in `core`
+
+Own:
+
+- mapping gateway/proxy model IDs to upstream semantic families
+- stripping or normalizing model IDs when the registry needs it
+- giving reasoning/capability code a safer target model/provider when one exists
+
+Should stay simple:
+
+- start as stateless functions in `registry/model-origin.ts`
+- do not introduce a class unless we eventually need multiple implementations, shared state, or explicit dependency injection
 
 ---
 
@@ -477,7 +456,7 @@ So the right framing is:
 
 In other words:
 
-- `ApiFamilyRuntime` handles request-time translation
+- small API-family helpers handle request-time translation
 - `StreamProcessor` remains the shared response/event boundary
 
 That is much closer to the current architecture.
@@ -498,7 +477,7 @@ The real exceptions already have narrower homes:
 - provider identity quirks
   - belong in `ProviderDefinition` or registry/model-origin helpers
 - API-family request quirks
-  - belong in `ApiFamilyRuntime`
+  - belong in family helper modules near `services/` or `executor/`
 
 So the better rule is:
 
@@ -558,13 +537,21 @@ So the fallback is:
 
 That is the safest default.
 
+Current behavior already does the runtime-safe fallback.
+What the proposed refinement adds is mostly semantic clarity, not a new runtime fallback:
+
+- clearer UI/API/debugging output
+- cleaner capability reporting
+- a real distinction between `unsupported` and `unknown`
+- less chance of future code accidentally treating those cases as identical
+
 ---
 
 ## 9. Recommended Dependency Direction
 
 ```mermaid
 flowchart TD
-    A["core: ProviderDefinition + ApiFamilyRuntime + registry + reasoning + executor"] --> B["server"]
+    A["core: ProviderDefinition + reasoning + registry + executor + family helpers"] --> B["server"]
     A --> C["cli"]
     A --> D["webui"]
 
@@ -598,14 +585,15 @@ If we want the smallest high-value next move, I would do it in this order:
    - thin at first
    - mostly provider ID -> category + API family + model-origin policy
 
-2. Slim `services/factory.ts` by routing through `ApiFamilyRuntime`.
+2. Slim `services/factory.ts` by pushing family-specific branches into small helper modules.
    - move family selection out of provider-brand switch sprawl
 
 3. Keep `executor/stream-processor.ts` as-is.
    - do not invent a parallel response-normalization layer
 
 4. Separate "unknown reasoning" from "unsupported reasoning."
-   - make the fallback explicit and safe
+   - keep the current safe fallback
+   - improve semantic clarity in UI/runtime/reporting
 
 5. Split `agent-management` auth files into `profiles/`, `connect/`, and `runtime/`.
    - keep behavior
