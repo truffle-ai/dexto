@@ -7,12 +7,7 @@
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useStdout } from 'ink';
-import {
-    getModelDisplayName,
-    isUserMessage,
-    type DextoAgent,
-    type QueuedMessage,
-} from '@dexto/core';
+import { getModelDisplayName, isUserMessage, type QueuedMessage } from '@dexto/core';
 import type {
     Message,
     StartupInfo,
@@ -28,12 +23,13 @@ import { InputService, MessageService } from '../services/index.js';
 import { convertHistoryToUIMessages } from '../utils/messageFormatting.js';
 import type { OverlayContainerHandle } from '../containers/OverlayContainer.js';
 import { useTextBuffer, type TextBuffer } from '../components/shared/text-buffer.js';
+import type { TuiAgentBackend } from '../agent-backend.js';
 
 // Re-export types for backwards compatibility
 export type { UIState, InputState, SessionState, TodoItem } from '../state/types.js';
 
 export interface UseCLIStateProps {
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
     initialSessionId: string | null;
     startupInfo: StartupInfo;
     initialBypassPermissions?: boolean;
@@ -83,7 +79,7 @@ export interface CLIStateReturn {
     visibleMessages: Message[];
 
     // Agent reference
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
     startupInfo: StartupInfo;
 }
 

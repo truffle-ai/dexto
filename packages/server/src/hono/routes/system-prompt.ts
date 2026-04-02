@@ -1,8 +1,9 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { DextoAgent } from '@dexto/core';
 import { DextoRuntimeError, ErrorScope, ErrorType } from '@dexto/core';
-import { StandardErrorEnvelopeSchema } from '../schemas/responses.js';
+import { BadRequestErrorResponse, InternalErrorResponse } from '../schemas/responses.js';
 import type { Context } from 'hono';
+import type { OpenAPIRouteSchema } from '../types.js';
 
 type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
 
@@ -33,10 +34,6 @@ const UpsertSystemPromptContributorSchema = z
     .strict()
     .describe('System prompt contributor update payload.');
 
-const SystemPromptContributorErrorSchema = StandardErrorEnvelopeSchema.describe(
-    'System prompt contributor error response.'
-);
-
 function sanitizeContributorId(value: string): string {
     return value
         .trim()
@@ -52,94 +49,81 @@ function resolveContributorPriority(value: number | undefined): number {
     return DEFAULT_SYSTEM_PROMPT_CONTRIBUTOR_PRIORITY;
 }
 
+const ListContributorsResponseSchema = z
+    .object({
+        contributors: z
+            .array(ContributorInfoSchema)
+            .describe('Registered system prompt contributors.'),
+    })
+    .strict()
+    .describe('System prompt contributors list response.');
+
+const UpsertContributorResponseSchema = z
+    .object({
+        id: z.string().describe('Contributor identifier'),
+        enabled: z.boolean().describe('Whether the contributor remains enabled'),
+        priority: z.number().optional().describe('Contributor priority'),
+        replaced: z.boolean().optional().describe('Whether an existing contributor was replaced'),
+        removed: z.boolean().optional().describe('Whether the contributor was removed'),
+        contentLength: z.number().optional().describe('Stored content length in characters'),
+        truncated: z.boolean().optional().describe('Whether the submitted content was truncated'),
+    })
+    .strict()
+    .describe('System prompt contributor upsert response.');
+
+const listContributorsRoute = createRoute({
+    method: 'get',
+    path: '/system-prompt/contributors',
+    summary: 'List System Prompt Contributors',
+    description: 'Lists currently registered system prompt contributors.',
+    tags: ['config'],
+    responses: {
+        200: {
+            description: 'Current contributor list',
+            content: {
+                'application/json': {
+                    schema: ListContributorsResponseSchema,
+                },
+            },
+        },
+        500: InternalErrorResponse,
+    },
+});
+
+const upsertContributorRoute = createRoute({
+    method: 'post',
+    path: '/system-prompt/contributors',
+    summary: 'Upsert System Prompt Contributor',
+    description:
+        'Adds or updates a static system prompt contributor. Set enabled=false (or empty content) to remove.',
+    tags: ['config'],
+    request: {
+        body: {
+            content: {
+                'application/json': {
+                    schema: UpsertSystemPromptContributorSchema,
+                },
+            },
+        },
+    },
+    responses: {
+        200: {
+            description: 'Contributor upsert result',
+            content: {
+                'application/json': {
+                    schema: UpsertContributorResponseSchema,
+                },
+            },
+        },
+        400: {
+            ...BadRequestErrorResponse,
+        },
+        500: InternalErrorResponse,
+    },
+});
+
 export function createSystemPromptRouter(getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
-
-    const listContributorsRoute = createRoute({
-        method: 'get',
-        path: '/system-prompt/contributors',
-        summary: 'List System Prompt Contributors',
-        description: 'Lists currently registered system prompt contributors.',
-        tags: ['config'],
-        responses: {
-            200: {
-                description: 'Current contributor list',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                contributors: z
-                                    .array(ContributorInfoSchema)
-                                    .describe('Registered system prompt contributors.'),
-                            })
-                            .strict()
-                            .describe('System prompt contributors list response.'),
-                    },
-                },
-            },
-        },
-    });
-
-    const upsertContributorRoute = createRoute({
-        method: 'post',
-        path: '/system-prompt/contributors',
-        summary: 'Upsert System Prompt Contributor',
-        description:
-            'Adds or updates a static system prompt contributor. Set enabled=false (or empty content) to remove.',
-        tags: ['config'],
-        request: {
-            body: {
-                content: {
-                    'application/json': {
-                        schema: UpsertSystemPromptContributorSchema,
-                    },
-                },
-            },
-        },
-        responses: {
-            200: {
-                description: 'Contributor upsert result',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                id: z.string().describe('Contributor identifier'),
-                                enabled: z
-                                    .boolean()
-                                    .describe('Whether the contributor remains enabled'),
-                                priority: z.number().optional().describe('Contributor priority'),
-                                replaced: z
-                                    .boolean()
-                                    .optional()
-                                    .describe('Whether an existing contributor was replaced'),
-                                removed: z
-                                    .boolean()
-                                    .optional()
-                                    .describe('Whether the contributor was removed'),
-                                contentLength: z
-                                    .number()
-                                    .optional()
-                                    .describe('Stored content length in characters'),
-                                truncated: z
-                                    .boolean()
-                                    .optional()
-                                    .describe('Whether the submitted content was truncated'),
-                            })
-                            .strict()
-                            .describe('System prompt contributor upsert response.'),
-                    },
-                },
-            },
-            400: {
-                description: 'Invalid contributor update request',
-                content: {
-                    'application/json': {
-                        schema: SystemPromptContributorErrorSchema,
-                    },
-                },
-            },
-        },
-    });
 
     return app
         .openapi(listContributorsRoute, async (ctx) => {
@@ -148,7 +132,7 @@ export function createSystemPromptRouter(getAgent: GetAgentFn) {
                 id: contributor.id,
                 priority: contributor.priority,
             }));
-            return ctx.json({ contributors });
+            return ctx.json({ contributors }, 200);
         })
         .openapi(upsertContributorRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -217,3 +201,11 @@ export function createSystemPromptRouter(getAgent: GetAgentFn) {
             );
         });
 }
+
+type ListContributorsRouteSchema = OpenAPIRouteSchema<typeof listContributorsRoute, {}>;
+type UpsertContributorRouteSchema = OpenAPIRouteSchema<
+    typeof upsertContributorRoute,
+    { json: z.input<typeof UpsertSystemPromptContributorSchema> }
+>;
+
+export type SystemPromptRouterSchema = ListContributorsRouteSchema | UpsertContributorRouteSchema;

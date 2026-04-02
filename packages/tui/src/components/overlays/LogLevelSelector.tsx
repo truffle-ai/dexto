@@ -6,14 +6,14 @@
 import React, { useState, useEffect, forwardRef, useRef, useImperativeHandle } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import type { DextoAgent } from '@dexto/core';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
+import type { TuiAgentBackend } from '../../agent-backend.js';
 
 interface LogLevelSelectorProps {
     isVisible: boolean;
     onSelect: (level: string) => void;
     onClose: () => void;
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
     sessionId: string | null;
 }
 

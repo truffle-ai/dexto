@@ -12,7 +12,7 @@
 
 import chalk from 'chalk';
 import { spawn } from 'child_process';
-import { parseCodexBaseURL, type DextoAgent } from '@dexto/core';
+import { parseCodexBaseURL } from '@dexto/core';
 import type { CommandDefinition, CommandHandlerResult, CommandContext } from './command-parser.js';
 import { formatForInkCli } from './utils/format-output.js';
 import { CommandOutputHelper } from './utils/command-output.js';
@@ -20,6 +20,7 @@ import type { HelpStyledData, ShortcutsStyledData } from '../state/types.js';
 import { writeToClipboard } from '../utils/clipboardUtils.js';
 import { hasMeaningfulTokenUsage, setExitStats } from './exit-stats.js';
 import { triggerExit } from './exit-handler.js';
+import type { TuiAgentBackend } from '../agent-backend.js';
 
 /**
  * Get the shell rc file path for the given shell
@@ -61,7 +62,7 @@ function wrapCommandWithRcSource(command: string, shell: string): string {
     return `source "${rcFile}" 2>/dev/null; eval '${escapedCommand}'`;
 }
 
-function isChatGPTLoginConfig(agent: DextoAgent, sessionId: string): boolean {
+function isChatGPTLoginConfig(agent: TuiAgentBackend, sessionId: string): boolean {
     const llmConfig = agent.getCurrentLLMConfig(sessionId);
     return (
         llmConfig.provider === 'openai-compatible' &&
@@ -122,7 +123,9 @@ async function executeShellCommand(
 /**
  * Creates the help command with access to all commands for display
  */
-export function createHelpCommand(getAllCommands: () => CommandDefinition[]): CommandDefinition {
+export function createHelpCommand(
+    getAvailableCommandsForAgent: (agent: TuiAgentBackend) => CommandDefinition[]
+): CommandDefinition {
     return {
         name: 'help',
         description: 'Show help information',
@@ -131,10 +134,10 @@ export function createHelpCommand(getAllCommands: () => CommandDefinition[]): Co
         aliases: ['h', '?'],
         handler: async (
             _args: string[],
-            _agent: DextoAgent,
+            agent: TuiAgentBackend,
             _ctx: CommandContext
         ): Promise<CommandHandlerResult> => {
-            const allCommands = getAllCommands();
+            const allCommands = getAvailableCommandsForAgent(agent);
 
             // Build styled data for help
             const styledData: HelpStyledData = {
@@ -168,7 +171,7 @@ export const generalCommands: CommandDefinition[] = [
         category: 'General',
         handler: async (
             args: string[],
-            agent: DextoAgent,
+            agent: TuiAgentBackend,
             _ctx: CommandContext
         ): Promise<boolean | string> => {
             const command = args.join(' ').trim();
@@ -209,7 +212,7 @@ export const generalCommands: CommandDefinition[] = [
         aliases: ['quit', 'q'],
         handler: async (
             _args: string[],
-            agent: DextoAgent,
+            agent: TuiAgentBackend,
             ctx: CommandContext
         ): Promise<boolean | string> => {
             // Store session stats to be displayed after Ink exits
@@ -294,7 +297,7 @@ export const generalCommands: CommandDefinition[] = [
         category: 'General',
         handler: async (
             _args: string[],
-            agent: DextoAgent,
+            agent: TuiAgentBackend,
             _ctx: CommandContext
         ): Promise<boolean | string> => {
             try {
@@ -325,7 +328,7 @@ export const generalCommands: CommandDefinition[] = [
         category: 'General',
         handler: async (
             _args: string[],
-            agent: DextoAgent,
+            agent: TuiAgentBackend,
             ctx: CommandContext
         ): Promise<boolean | string> => {
             try {
@@ -356,7 +359,7 @@ export const generalCommands: CommandDefinition[] = [
         aliases: ['summarize'],
         handler: async (
             _args: string[],
-            agent: DextoAgent,
+            agent: TuiAgentBackend,
             ctx: CommandContext
         ): Promise<boolean | string> => {
             try {
@@ -393,7 +396,7 @@ export const generalCommands: CommandDefinition[] = [
         aliases: ['ctx', 'tokens'],
         handler: async (
             _args: string[],
-            agent: DextoAgent,
+            agent: TuiAgentBackend,
             ctx: CommandContext
         ): Promise<boolean | string> => {
             try {
@@ -501,7 +504,7 @@ export const generalCommands: CommandDefinition[] = [
         aliases: ['cp'],
         handler: async (
             _args: string[],
-            agent: DextoAgent,
+            agent: TuiAgentBackend,
             ctx: CommandContext
         ): Promise<boolean | string> => {
             try {
@@ -571,7 +574,7 @@ export const generalCommands: CommandDefinition[] = [
         aliases: ['keys', 'hotkeys'],
         handler: async (
             _args: string[],
-            _agent: DextoAgent,
+            _agent: TuiAgentBackend,
             _ctx: CommandContext
         ): Promise<CommandHandlerResult> => {
             const styledData: ShortcutsStyledData = {

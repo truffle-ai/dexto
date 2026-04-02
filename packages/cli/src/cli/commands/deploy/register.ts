@@ -15,6 +15,10 @@ export function registerDeployCommand({ program }: DeployCommandRegisterContext)
         `
 Examples:
   $ dexto deploy
+  $ dexto deploy list
+  $ dexto deploy chat
+  $ dexto deploy chat sbx_123
+  $ dexto deploy open
   $ dexto deploy status
   $ dexto deploy stop
   $ dexto deploy delete
@@ -34,6 +38,61 @@ Examples:
             }
         })
     );
+
+    deployCommand
+        .command('chat')
+        .description('Start Ink CLI chat against a selected or explicit cloud agent')
+        .argument(
+            '[cloudAgentId]',
+            'Cloud agent ID (omit to choose from your available cloud agents)'
+        )
+        .action(
+            withAnalytics('deploy chat', async (cloudAgentId?: string) => {
+                try {
+                    const { handleDeployChatCommand } = await import('./index.js');
+                    await handleDeployChatCommand(cloudAgentId);
+                    safeExit('deploy chat', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto deploy chat command failed: ${err}`);
+                    safeExit('deploy chat', 1, 'error');
+                }
+            })
+        );
+
+    deployCommand
+        .command('list')
+        .description('List cloud deployments for your account')
+        .action(
+            withAnalytics('deploy list', async () => {
+                try {
+                    const { handleDeployListCommand } = await import('./index.js');
+                    await handleDeployListCommand();
+                    safeExit('deploy list', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto deploy list command failed: ${err}`);
+                    safeExit('deploy list', 1, 'error');
+                }
+            })
+        );
+
+    deployCommand
+        .command('open')
+        .description('Open the linked cloud deployment in the dashboard')
+        .action(
+            withAnalytics('deploy open', async () => {
+                try {
+                    const { handleDeployOpenCommand } = await import('./index.js');
+                    await handleDeployOpenCommand();
+                    safeExit('deploy open', 0);
+                } catch (err) {
+                    if (err instanceof ExitSignal) throw err;
+                    console.error(`❌ dexto deploy open command failed: ${err}`);
+                    safeExit('deploy open', 1, 'error');
+                }
+            })
+        );
 
     deployCommand
         .command('status')

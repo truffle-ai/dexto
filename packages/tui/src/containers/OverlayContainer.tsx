@@ -6,7 +6,7 @@
 import React, { useCallback, useRef, useImperativeHandle, forwardRef, useState } from 'react';
 import { Box } from 'ink';
 import path from 'path';
-import type { DextoAgent, McpServerConfig, McpServerStatus, McpServerType } from '@dexto/core';
+import type { McpServerConfig, McpServerStatus, McpServerType } from '@dexto/core';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
 import type { Key } from '../hooks/useInputOrchestrator.js';
 import { ApprovalStatus, DenialReason, isUserMessage } from '@dexto/core';
@@ -111,6 +111,7 @@ import PromptDeleteSelector, {
 import SessionRenameOverlay, {
     type SessionRenameOverlayHandle,
 } from '../components/overlays/SessionRenameOverlay.js';
+import type { TuiAgentBackend } from '../agent-backend.js';
 import ContextStatsOverlay, {
     type ContextStatsOverlayHandle,
 } from '../components/overlays/ContextStatsOverlay.js';
@@ -208,7 +209,7 @@ interface OverlayContainerProps {
     setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
     setApproval: React.Dispatch<React.SetStateAction<ApprovalRequest | null>>;
     setApprovalQueue: React.Dispatch<React.SetStateAction<ApprovalRequest[]>>;
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
     inputService: InputService;
     buffer: TextBuffer;
     /** Source agent config file path (if available) */
@@ -1312,7 +1313,7 @@ export const OverlayContainer = forwardRef<OverlayContainerHandle, OverlayContai
             async (command: string) => {
                 // Check if this command has an interactive overlay
                 const { getCommandOverlay } = await import('../utils/commandOverlays.js');
-                const overlay = getCommandOverlay(command, []);
+                const overlay = getCommandOverlay(command, [], agent);
                 if (overlay) {
                     buffer.setText('');
                     setInput((prev) => ({ ...prev, historyIndex: -1 }));

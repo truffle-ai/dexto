@@ -41,12 +41,13 @@ export interface FilePromptEntry {
 /**
  * Discovers command prompts from commands/ directories.
  *
+ * @param searchRoot Optional workspace root to scope discovery to
  * @returns Array of file prompt entries for discovered .md files
  */
-export function discoverCommandPrompts(): FilePromptEntry[] {
+export function discoverCommandPrompts(searchRoot?: string): FilePromptEntry[] {
     const prompts: FilePromptEntry[] = [];
     const seenFiles = new Set<string>();
-    const cwd = process.cwd();
+    const cwd = path.resolve(searchRoot ?? process.cwd());
     const homeDir = process.env.HOME || process.env.USERPROFILE || '';
 
     // Helper to scan a directory and add unique files
@@ -64,7 +65,7 @@ export function discoverCommandPrompts(): FilePromptEntry[] {
     };
 
     // Determine local commands/ directory based on context (dexto-native projects only)
-    const context = getExecutionContext();
+    const context = getExecutionContext(cwd);
     let localCommandsDir: string | null = null;
 
     switch (context) {
@@ -72,7 +73,7 @@ export function discoverCommandPrompts(): FilePromptEntry[] {
             // Only use local commands in dev mode
             const isDevMode = process.env.DEXTO_DEV_MODE === 'true';
             if (isDevMode) {
-                const sourceRoot = findDextoSourceRoot();
+                const sourceRoot = findDextoSourceRoot(cwd);
                 if (sourceRoot) {
                     localCommandsDir = path.join(sourceRoot, 'commands');
                 }
@@ -80,7 +81,7 @@ export function discoverCommandPrompts(): FilePromptEntry[] {
             break;
         }
         case 'dexto-project': {
-            const projectRoot = findDextoProjectRoot();
+            const projectRoot = findDextoProjectRoot(cwd);
             if (projectRoot) {
                 localCommandsDir = path.join(projectRoot, 'commands');
             }
@@ -159,7 +160,7 @@ function scanCommandsDirectory(dir: string): string[] {
 const AGENT_INSTRUCTION_FILES = ['agents.md', 'claude.md', 'gemini.md'] as const;
 
 /**
- * Discovers agent instruction files from the current working directory.
+ * Discovers agent instruction files from the provided directory.
  *
  * Looks for files in this order of priority (case-insensitive):
  * 1. AGENTS.md (or agents.md, Agents.md, etc.)
@@ -168,10 +169,11 @@ const AGENT_INSTRUCTION_FILES = ['agents.md', 'claude.md', 'gemini.md'] as const
  *
  * Only the first found file is returned (we don't want multiple instruction files).
  *
+ * @param searchDir Directory to search
  * @returns The absolute path to the first found instruction file, or null if none found
  */
-export function discoverAgentInstructionFile(): string | null {
-    const cwd = process.cwd();
+export function discoverAgentInstructionFile(searchDir: string): string | null {
+    const cwd = path.resolve(searchDir);
 
     // Read directory once for case-insensitive matching
     let dirEntries: string[];

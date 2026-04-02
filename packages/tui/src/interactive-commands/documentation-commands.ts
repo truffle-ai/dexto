@@ -8,9 +8,9 @@
  * - /docs, /doc - Open Dexto documentation in browser
  */
 
-import type { DextoAgent } from '@dexto/core';
 import type { CommandDefinition, CommandContext } from './command-parser.js';
 import { CommandOutputHelper } from './utils/command-output.js';
+import type { TuiAgentBackend } from '../agent-backend.js';
 
 /**
  * Documentation commands
@@ -24,7 +24,7 @@ export const documentationCommands: CommandDefinition[] = [
         aliases: ['doc'],
         handler: async (
             _args: string[],
-            _agent: DextoAgent,
+            _agent: TuiAgentBackend,
             _ctx: CommandContext
         ): Promise<boolean | string> => {
             const docsUrl = 'https://docs.dexto.ai/docs/category/getting-started';

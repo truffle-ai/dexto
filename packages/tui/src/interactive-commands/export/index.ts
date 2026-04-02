@@ -6,7 +6,7 @@
  */
 
 import type { CommandDefinition, CommandContext, CommandHandlerResult } from '../command-parser.js';
-import type { DextoAgent } from '@dexto/core';
+import type { TuiAgentBackend } from '../../agent-backend.js';
 
 /**
  * Export command definition
@@ -19,7 +19,7 @@ export const exportCommand: CommandDefinition = {
     category: 'Session',
     handler: async (
         _args: string[],
-        _agent: DextoAgent,
+        _agent: TuiAgentBackend,
         _ctx: CommandContext
     ): Promise<CommandHandlerResult> => {
         // This handler is never called - export is in ALWAYS_OVERLAY

@@ -8,7 +8,7 @@ import { Box, Text } from 'ink';
 import fs from 'fs/promises';
 import path from 'path';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import type { DextoAgent } from '@dexto/core';
+import type { TuiAgentBackend } from '../../agent-backend.js';
 
 type ExportFormat = 'markdown' | 'json';
 
@@ -22,7 +22,7 @@ type WizardStep = 'format' | 'toolCalls' | 'filename' | 'confirm' | 'exporting' 
 
 interface ExportWizardProps {
     isVisible: boolean;
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
     sessionId: string | null;
     onClose: () => void;
 }

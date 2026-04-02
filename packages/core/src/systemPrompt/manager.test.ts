@@ -520,6 +520,44 @@ You can help with:
             expect(mockGenerator1).toHaveBeenCalledWith(customContext);
             expect(mockGenerator2).toHaveBeenCalledWith(customContext);
         });
+
+        it('includes session contributors only for the matching session', async () => {
+            const config = SystemPromptConfigSchema.parse({
+                contributors: [
+                    { id: 'base', type: 'static', priority: 10, content: 'Base prompt' },
+                ],
+            });
+
+            const manager = new SystemPromptManager(
+                config,
+                mockMemoryManager,
+                undefined,
+                mockLogger
+            );
+
+            const withSession = await manager.build({
+                mcpManager: {} as any,
+                session: {
+                    id: 'session-1',
+                    systemPromptContributors: [
+                        {
+                            id: 'peer-origin',
+                            priority: 0,
+                            content: 'Session-only prompt',
+                        },
+                    ],
+                },
+            });
+            const withoutSession = await manager.build({
+                mcpManager: {} as any,
+                session: {
+                    id: 'session-2',
+                },
+            });
+
+            expect(withSession).toBe('Session-only prompt\nBase prompt');
+            expect(withoutSession).toBe('Base prompt');
+        });
     });
 
     describe('Error Handling', () => {

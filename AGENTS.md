@@ -12,7 +12,7 @@ Before completing significant tasks, prompt the user to ask if they want to run:
 /quality-checks
 ```
 
-This runs `scripts/quality-checks.sh` for build, tests, lint, and typecheck. See `.claude/commands/quality-checks.md`.
+This runs `scripts/quality-checks.sh` for build, tests, lint, typecheck, and Hono client inference. See `.claude/commands/quality-checks.md`.
 
 ## General Rules
 
@@ -39,6 +39,7 @@ These rules are intended to prevent stack fragmentation and review churn.
 
 - HTTP API: **Hono** routes live in `packages/server/src/hono/routes/*.ts`.
 - Error mapping middleware: `packages/server/src/hono/middleware/error.ts`.
+- JSON API routes under `packages/server/src/hono/routes/*.ts` must use **`OpenAPIHono` + `createRoute(...)`** so they participate in generated OpenAPI docs and typed clients. Plain `Hono` is only for explicit transport/protocol/static exceptions, and those exceptions must carry an inline lint disable with a concrete reason.
 
 ### Core (`packages/core`)
 

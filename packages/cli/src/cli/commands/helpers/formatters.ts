@@ -94,6 +94,7 @@ export function formatHistoryMessage(message: InternalMessage, index: number): s
                 if (part.type === 'text') return part.text;
                 if (part.type === 'image') return '[Image]';
                 if (part.type === 'file') return `[File: ${part.filename || 'unknown'}]`;
+                if (part.type === 'resource') return `[Resource: ${part.name || part.uri}]`;
                 return '[Unknown content]';
             })
             .join(' ');

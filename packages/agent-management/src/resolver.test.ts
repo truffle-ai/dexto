@@ -383,23 +383,113 @@ describe('Agent Resolver', () => {
             mockFindDextoProjectRoot.mockReturnValue(tempDir);
         });
 
+        it('uses primaryAgent from the project registry when present', async () => {
+            const registryPath = path.join(tempDir, 'agents', 'registry.json');
+            const projectDefault = path.join(tempDir, 'agents', 'custom-primary', 'main.yml');
+            await fs.mkdir(path.dirname(registryPath), { recursive: true });
+            await fs.mkdir(path.dirname(projectDefault), { recursive: true });
+            await fs.writeFile(projectDefault, 'test: config');
+            await fs.writeFile(
+                registryPath,
+                JSON.stringify({
+                    primaryAgent: 'review-agent',
+                    agents: [
+                        {
+                            id: 'review-agent',
+                            name: 'Review Agent',
+                            description: 'Primary workspace agent',
+                            configPath: './custom-primary/main.yml',
+                        },
+                    ],
+                })
+            );
+
+            const result = await resolveAgentPath();
+            expect(result).toBe(projectDefault);
+        });
+
+        it('uses the single registry agent when no primaryAgent is set', async () => {
+            const registryPath = path.join(tempDir, 'agents', 'registry.json');
+            const projectDefault = path.join(tempDir, 'agents', 'review-agent', 'review-agent.yml');
+            await fs.mkdir(path.dirname(registryPath), { recursive: true });
+            await fs.mkdir(path.dirname(projectDefault), { recursive: true });
+            await fs.writeFile(projectDefault, 'test: config');
+            await fs.writeFile(
+                registryPath,
+                JSON.stringify({
+                    agents: [
+                        {
+                            id: 'review-agent',
+                            name: 'Review Agent',
+                            description: 'Primary workspace agent',
+                            configPath: './review-agent/review-agent.yml',
+                        },
+                    ],
+                })
+            );
+
+            const result = await resolveAgentPath();
+            expect(result).toBe(projectDefault);
+        });
+
+        it('supports legacy project agent-registry.json as fallback', async () => {
+            const registryPath = path.join(tempDir, 'agents', 'agent-registry.json');
+            const projectDefault = path.join(tempDir, 'agents', 'legacy-primary', 'main.yml');
+            await fs.mkdir(path.dirname(registryPath), { recursive: true });
+            await fs.mkdir(path.dirname(projectDefault), { recursive: true });
+            await fs.writeFile(projectDefault, 'test: config');
+            await fs.writeFile(
+                registryPath,
+                JSON.stringify({
+                    agents: [
+                        {
+                            id: 'coding-agent',
+                            name: 'Coding Agent',
+                            description: 'Primary workspace agent',
+                            configPath: './legacy-primary/main.yml',
+                        },
+                    ],
+                })
+            );
+
+            const result = await resolveAgentPath();
+            expect(result).toBe(projectDefault);
+        });
+
+        it('uses project-local agents/coding-agent/coding-agent.yml when exists', async () => {
+            const projectDefault = path.join(tempDir, 'agents', 'coding-agent', 'coding-agent.yml');
+            await fs.mkdir(path.dirname(projectDefault), { recursive: true });
+            await fs.writeFile(projectDefault, 'test: config');
+
+            const result = await resolveAgentPath();
+            expect(result).toBe(projectDefault);
+        });
+
+        it('throws when primaryAgent points to a missing registry entry', async () => {
+            const registryPath = path.join(tempDir, 'agents', 'registry.json');
+            await fs.mkdir(path.dirname(registryPath), { recursive: true });
+            await fs.writeFile(
+                registryPath,
+                JSON.stringify({
+                    primaryAgent: 'review-agent',
+                    agents: [],
+                })
+            );
+
+            await expect(resolveAgentPath()).rejects.toMatchObject({
+                code: ConfigErrorCode.INVALID_PROJECT_PRIMARY,
+                scope: ErrorScope.CONFIG,
+                type: ErrorType.USER,
+            });
+        });
+
         it('uses project-local src/dexto/agents/coding-agent.yml when exists', async () => {
             const projectDefault = path.join(tempDir, 'src', 'dexto', 'agents', 'coding-agent.yml');
             await fs.mkdir(path.join(tempDir, 'src', 'dexto', 'agents'), { recursive: true });
             await fs.writeFile(projectDefault, 'test: config');
 
-            // Mock fs.access to succeed for the project default file
-            const mockAccess = vi.spyOn(fs, 'access').mockImplementation(async (filePath) => {
-                if (filePath === projectDefault) {
-                    return Promise.resolve();
-                }
-                throw new Error('File not found');
-            });
-
             const result = await resolveAgentPath();
             expect(result).toBe(projectDefault);
-
-            mockAccess.mockRestore();
         });
 
         it('falls back to preferences when no project default', async () => {
@@ -442,32 +532,83 @@ describe('Agent Resolver', () => {
             expect(result).toBe(agentConfigPath);
         });
 
-        it('throws ConfigError.noProjectDefault when no project default and no preferences', async () => {
-            // No project default file
+        it('falls back to bundled coding-agent when no project default and no preferences', async () => {
             mockGlobalPreferencesExist.mockReturnValue(false);
-
-            await expect(resolveAgentPath()).rejects.toThrow(
-                expect.objectContaining({
-                    code: ConfigErrorCode.NO_PROJECT_DEFAULT,
-                })
+            const bundledCodingAgentPath = path.join(
+                tempDir,
+                '.dexto',
+                'agents',
+                'coding-agent',
+                'agent.yml'
             );
+            mockInstallBundledAgent.mockResolvedValue(bundledCodingAgentPath);
+
+            const result = await resolveAgentPath();
+
+            expect(result).toBe(bundledCodingAgentPath);
+            expect(mockInstallBundledAgent).toHaveBeenCalledWith('coding-agent');
         });
 
-        it('throws ConfigError.setupIncomplete when preferences setup incomplete', async () => {
-            // No project default file
+        it('falls back to bundled coding-agent when preferences setup is incomplete', async () => {
+            mockGlobalPreferencesExist.mockReturnValue(true);
+            mockLoadGlobalPreferences.mockResolvedValue({
+                setup: { completed: false },
+                defaults: { defaultAgent: 'my-agent' },
+            });
+            const bundledCodingAgentPath = path.join(
+                tempDir,
+                '.dexto',
+                'agents',
+                'coding-agent',
+                'agent.yml'
+            );
+            mockInstallBundledAgent.mockResolvedValue(bundledCodingAgentPath);
+
+            const result = await resolveAgentPath();
+
+            expect(result).toBe(bundledCodingAgentPath);
+            expect(mockInstallBundledAgent).toHaveBeenCalledWith('coding-agent');
+        });
+
+        it('falls back to bundled coding-agent when preferences cannot be read', async () => {
+            mockGlobalPreferencesExist.mockReturnValue(true);
+            mockLoadGlobalPreferences.mockRejectedValue(new Error('Corrupted preferences'));
+            const bundledCodingAgentPath = path.join(
+                tempDir,
+                '.dexto',
+                'agents',
+                'coding-agent',
+                'agent.yml'
+            );
+            mockInstallBundledAgent.mockResolvedValue(bundledCodingAgentPath);
+
+            const result = await resolveAgentPath();
+
+            expect(result).toBe(bundledCodingAgentPath);
+            expect(mockInstallBundledAgent).toHaveBeenCalledWith('coding-agent');
+        });
+
+        it('fails fast when preferences setup is incomplete and auto-install is disabled', async () => {
             mockGlobalPreferencesExist.mockReturnValue(true);
             mockLoadGlobalPreferences.mockResolvedValue({
                 setup: { completed: false },
                 defaults: { defaultAgent: 'my-agent' },
             });
 
-            await expect(resolveAgentPath()).rejects.toThrow(
-                expect.objectContaining({
-                    code: ConfigErrorCode.SETUP_INCOMPLETE,
-                    scope: ErrorScope.CONFIG,
-                    type: ErrorType.USER,
-                })
+            await expect(resolveAgentPath(undefined, false)).rejects.toThrow(
+                "Agent 'coding-agent' is not installed locally and auto-install is disabled"
             );
+            expect(mockInstallBundledAgent).not.toHaveBeenCalled();
+        });
+
+        it('fails fast when preferences cannot be read and auto-install is disabled', async () => {
+            mockGlobalPreferencesExist.mockReturnValue(true);
+            mockLoadGlobalPreferences.mockRejectedValue(new Error('Corrupted preferences'));
+
+            await expect(resolveAgentPath(undefined, false)).rejects.toThrow(
+                "Agent 'coding-agent' is not installed locally and auto-install is disabled"
+            );
+            expect(mockInstallBundledAgent).not.toHaveBeenCalled();
         });
     });
 
@@ -521,32 +662,83 @@ describe('Agent Resolver', () => {
             expect(result).toBe(agentConfigPath);
         });
 
-        it('throws ConfigError.noGlobalPreferences when no preferences exist', async () => {
+        it('falls back to bundled coding-agent when no preferences exist', async () => {
             mockGlobalPreferencesExist.mockReturnValue(false);
-
-            await expect(resolveAgentPath()).rejects.toThrow(
-                expect.objectContaining({
-                    code: ConfigErrorCode.NO_GLOBAL_PREFERENCES,
-                    scope: ErrorScope.CONFIG,
-                    type: ErrorType.USER,
-                })
+            const bundledCodingAgentPath = path.join(
+                tempDir,
+                '.dexto',
+                'agents',
+                'coding-agent',
+                'agent.yml'
             );
+            mockInstallBundledAgent.mockResolvedValue(bundledCodingAgentPath);
+
+            const result = await resolveAgentPath();
+
+            expect(result).toBe(bundledCodingAgentPath);
+            expect(mockInstallBundledAgent).toHaveBeenCalledWith('coding-agent');
         });
 
-        it('throws ConfigError.setupIncomplete when setup incomplete', async () => {
+        it('falls back to bundled coding-agent when setup is incomplete', async () => {
+            mockGlobalPreferencesExist.mockReturnValue(true);
+            mockLoadGlobalPreferences.mockResolvedValue({
+                setup: { completed: false },
+                defaults: { defaultAgent: 'my-agent' },
+            });
+            const bundledCodingAgentPath = path.join(
+                tempDir,
+                '.dexto',
+                'agents',
+                'coding-agent',
+                'agent.yml'
+            );
+            mockInstallBundledAgent.mockResolvedValue(bundledCodingAgentPath);
+
+            const result = await resolveAgentPath();
+
+            expect(result).toBe(bundledCodingAgentPath);
+            expect(mockInstallBundledAgent).toHaveBeenCalledWith('coding-agent');
+        });
+
+        it('falls back to bundled coding-agent when preferences cannot be read', async () => {
+            mockGlobalPreferencesExist.mockReturnValue(true);
+            mockLoadGlobalPreferences.mockRejectedValue(new Error('Corrupted preferences'));
+            const bundledCodingAgentPath = path.join(
+                tempDir,
+                '.dexto',
+                'agents',
+                'coding-agent',
+                'agent.yml'
+            );
+            mockInstallBundledAgent.mockResolvedValue(bundledCodingAgentPath);
+
+            const result = await resolveAgentPath();
+
+            expect(result).toBe(bundledCodingAgentPath);
+            expect(mockInstallBundledAgent).toHaveBeenCalledWith('coding-agent');
+        });
+
+        it('fails fast when setup is incomplete and auto-install is disabled', async () => {
             mockGlobalPreferencesExist.mockReturnValue(true);
             mockLoadGlobalPreferences.mockResolvedValue({
                 setup: { completed: false },
                 defaults: { defaultAgent: 'my-agent' },
             });
 
-            await expect(resolveAgentPath()).rejects.toThrow(
-                expect.objectContaining({
-                    code: ConfigErrorCode.SETUP_INCOMPLETE,
-                    scope: ErrorScope.CONFIG,
-                    type: ErrorType.USER,
-                })
+            await expect(resolveAgentPath(undefined, false)).rejects.toThrow(
+                "Agent 'coding-agent' is not installed locally and auto-install is disabled"
             );
+            expect(mockInstallBundledAgent).not.toHaveBeenCalled();
+        });
+
+        it('fails fast when preferences cannot be read and auto-install is disabled', async () => {
+            mockGlobalPreferencesExist.mockReturnValue(true);
+            mockLoadGlobalPreferences.mockRejectedValue(new Error('Corrupted preferences'));
+
+            await expect(resolveAgentPath(undefined, false)).rejects.toThrow(
+                "Agent 'coding-agent' is not installed locally and auto-install is disabled"
+            );
+            expect(mockInstallBundledAgent).not.toHaveBeenCalled();
         });
     });
 

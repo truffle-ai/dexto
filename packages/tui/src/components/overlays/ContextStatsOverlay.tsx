@@ -10,12 +10,12 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import type { DextoAgent } from '@dexto/core';
+import type { TuiAgentBackend } from '../../agent-backend.js';
 
 interface ContextStatsOverlayProps {
     isVisible: boolean;
     onClose: () => void;
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
     sessionId: string;
 }
 

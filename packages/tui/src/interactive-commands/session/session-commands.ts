@@ -14,8 +14,8 @@
  * see src/cli/commands/session-commands.ts
  */
 
-import type { DextoAgent } from '@dexto/core';
 import type { CommandDefinition, CommandContext } from '../command-parser.js';
+import type { TuiAgentBackend } from '../../agent-backend.js';
 
 /**
  * Resume command - shows interactive session selector
@@ -30,7 +30,7 @@ export const resumeCommand: CommandDefinition = {
     aliases: ['r'],
     handler: async (
         _args: string[],
-        _agent: DextoAgent,
+        _agent: TuiAgentBackend,
         _ctx: CommandContext
     ): Promise<boolean | string> => {
         // In interactive CLI, /resume always triggers the interactive selector
@@ -56,7 +56,7 @@ export const searchCommand: CommandDefinition = {
     aliases: ['find'],
     handler: async (
         _args: string[],
-        _agent: DextoAgent,
+        _agent: TuiAgentBackend,
         _ctx: CommandContext
     ): Promise<boolean> => {
         // Interactive overlay handles everything - just return success
@@ -76,7 +76,7 @@ export const renameCommand: CommandDefinition = {
     category: 'General',
     handler: async (
         _args: string[],
-        _agent: DextoAgent,
+        _agent: TuiAgentBackend,
         _ctx: CommandContext
     ): Promise<boolean> => {
         // Interactive overlay handles everything - just return success
@@ -92,7 +92,11 @@ export const forkCommand: CommandDefinition = {
     description: 'Fork a session and create a child session with copied history',
     usage: '/fork',
     category: 'General',
-    handler: async (_args: string[], agent: DextoAgent, ctx: CommandContext): Promise<string> => {
+    handler: async (
+        _args: string[],
+        agent: TuiAgentBackend,
+        ctx: CommandContext
+    ): Promise<string> => {
         const parentSessionId = ctx.sessionId;
 
         if (!parentSessionId) {

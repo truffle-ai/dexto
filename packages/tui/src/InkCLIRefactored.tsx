@@ -10,9 +10,9 @@
 
 import React, { useCallback, useState } from 'react';
 import { render } from 'ink';
-import type { DextoAgent } from '@dexto/core';
 import { registerGracefulShutdown } from './host/index.js';
 import { enableBracketedPaste, disableBracketedPaste } from './utils/bracketedPaste.js';
+import type { TuiAgentBackend } from './agent-backend.js';
 
 // Types
 import type { StartupInfo } from './state/types.js';
@@ -50,7 +50,7 @@ function formatCost(c: number): string {
 }
 
 interface InkCLIProps {
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
     initialSessionId: string | null;
     initialPrompt?: string | undefined;
     startupInfo: StartupInfo;
@@ -173,7 +173,7 @@ export interface InkCLIOptions {
  * Start the modern Ink-based CLI
  */
 export async function startInkCliRefactored(
-    agent: DextoAgent,
+    agent: TuiAgentBackend,
     initialSessionId: string | null,
     options: InkCLIOptions = {}
 ): Promise<void> {

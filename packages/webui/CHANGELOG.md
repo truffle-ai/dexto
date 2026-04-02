@@ -1,5 +1,105 @@
 # @dexto/webui
 
+## 1.6.21
+
+### Patch Changes
+
+- f70d03c: Fix recursive JSON OpenAPI docs to match runtime contracts and tighten MCP tool input typing.
+- Updated dependencies [f70d03c]
+- Updated dependencies [5123a32]
+- Updated dependencies [c51501e]
+    - @dexto/client-sdk@1.6.21
+    - @dexto/analytics@1.6.21
+    - @dexto/core@1.6.21
+    - @dexto/storage@1.6.21
+    - @dexto/agent-config@1.6.21
+    - @dexto/registry@1.6.21
+
+## 1.6.20
+
+### Patch Changes
+
+- @dexto/client-sdk@1.6.20
+- @dexto/analytics@1.6.20
+- @dexto/core@1.6.20
+- @dexto/storage@1.6.20
+- @dexto/agent-config@1.6.20
+- @dexto/registry@1.6.20
+
+## 1.6.19
+
+### Patch Changes
+
+- Updated dependencies [aa54df6]
+- Updated dependencies [015dd4f]
+    - @dexto/core@1.6.19
+    - @dexto/agent-config@1.6.19
+    - @dexto/analytics@1.6.19
+    - @dexto/client-sdk@1.6.19
+    - @dexto/storage@1.6.19
+    - @dexto/registry@1.6.19
+
+## 1.6.18
+
+### Patch Changes
+
+- Updated dependencies [29bd887]
+- Updated dependencies [3d4fb3d]
+- Updated dependencies [beb8efa]
+    - @dexto/core@1.6.18
+    - @dexto/agent-config@1.6.18
+    - @dexto/analytics@1.6.18
+    - @dexto/client-sdk@1.6.18
+    - @dexto/storage@1.6.18
+    - @dexto/registry@1.6.18
+
+## 1.6.17
+
+### Patch Changes
+
+- Updated dependencies [302d1c3]
+    - @dexto/core@1.6.17
+    - @dexto/client-sdk@1.6.17
+    - @dexto/agent-config@1.6.17
+    - @dexto/analytics@1.6.17
+    - @dexto/storage@1.6.17
+    - @dexto/registry@1.6.17
+
+## 1.6.16
+
+### Patch Changes
+
+- Updated dependencies [11acdc1]
+    - @dexto/core@1.6.16
+    - @dexto/agent-config@1.6.16
+    - @dexto/analytics@1.6.16
+    - @dexto/client-sdk@1.6.16
+    - @dexto/storage@1.6.16
+    - @dexto/registry@1.6.16
+
+## 1.6.15
+
+### Patch Changes
+
+- Updated dependencies [6a490b0]
+    - @dexto/core@1.6.15
+    - @dexto/analytics@1.6.15
+    - @dexto/agent-config@1.6.15
+    - @dexto/client-sdk@1.6.15
+    - @dexto/storage@1.6.15
+    - @dexto/registry@1.6.15
+
+## 1.6.14
+
+### Patch Changes
+
+- @dexto/core@1.6.14
+- @dexto/storage@1.6.14
+- @dexto/agent-config@1.6.14
+- @dexto/client-sdk@1.6.14
+- @dexto/analytics@1.6.14
+- @dexto/registry@1.6.14
+
 ## 1.6.13
 
 ### Patch Changes

@@ -96,8 +96,16 @@ export class SystemPromptManager {
      * Build the full system prompt by invoking each contributor and concatenating.
      */
     async build(ctx: DynamicContributorContext): Promise<string> {
+        const sessionContributors =
+            ctx.session?.systemPromptContributors?.map(
+                (contributor) =>
+                    new StaticContributor(contributor.id, contributor.priority, contributor.content)
+            ) ?? [];
+        const contributors = [...this.contributors, ...sessionContributors].sort(
+            (a, b) => a.priority - b.priority
+        );
         const parts = await Promise.all(
-            this.contributors.map(async (contributor) => {
+            contributors.map(async (contributor) => {
                 const content = await contributor.getContent(ctx);
                 this.logger.debug(
                     `[SystemPrompt] Contributor "${contributor.id}" provided content: ${content.substring(0, 50)}${content.length > 50 ? '...' : ''}`

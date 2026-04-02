@@ -7,15 +7,16 @@
 import React, { useState, useEffect, forwardRef, useRef, useImperativeHandle } from 'react';
 import { Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import type { DextoAgent, SessionMetadata } from '@dexto/core';
+import type { SessionMetadata } from '@dexto/core';
 import { logger } from '@dexto/core';
 import { BaseSelector, type BaseSelectorHandle } from '../base/BaseSelector.js';
+import type { TuiAgentBackend } from '../../agent-backend.js';
 
 interface SessionSelectorProps {
     isVisible: boolean;
     onSelectSession: (sessionId: string) => void;
     onClose: () => void;
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
     currentSessionId?: string | undefined;
 }
 

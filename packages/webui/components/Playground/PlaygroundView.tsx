@@ -6,7 +6,12 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import ConnectServerModal from '../ConnectServerModal';
 import { ServersList } from './ServersList';
 import { ToolsList } from './ToolsList';
-import { ToolInputForm } from './ToolInputForm';
+import {
+    ToolInputForm,
+    type ToolInputSchemaType,
+    type ToolInputs,
+    type ToolInputValue,
+} from './ToolInputForm';
 import { ToolResult } from './ToolResult';
 import { ExecutionHistory, type ExecutionHistoryItem } from './ExecutionHistory';
 import type { ToolResult as ToolResultType } from '@dexto/core';
@@ -15,10 +20,34 @@ import { client } from '@/lib/client';
 import { useServers, useServerTools } from '../hooks/useServers';
 import type { McpServer, McpTool } from '../hooks/useServers';
 
+type ToolRequestValue = ToolInputValue | { [key: string]: ToolRequestValue } | ToolRequestValue[];
+
+type ToolRequestInputs = Record<string, ToolRequestValue>;
+type ToolExecutionValue = ToolRequestValue | undefined;
+
+function isToolRequestValue(
+    value: string | number | boolean | null | object
+): value is ToolRequestValue {
+    if (
+        value === null ||
+        typeof value === 'string' ||
+        typeof value === 'number' ||
+        typeof value === 'boolean'
+    ) {
+        return true;
+    }
+
+    if (Array.isArray(value)) {
+        return value.every(isToolRequestValue);
+    }
+
+    return Object.values(value).every(isToolRequestValue);
+}
+
 export default function PlaygroundView() {
     const [selectedServer, setSelectedServer] = useState<McpServer | null>(null);
     const [selectedTool, setSelectedTool] = useState<McpTool | null>(null);
-    const [toolInputs, setToolInputs] = useState<Record<string, any>>({});
+    const [toolInputs, setToolInputs] = useState<ToolInputs>({});
     const [toolResult, setToolResult] = useState<ToolResultType | null>(null);
     const [currentError, setCurrentError] = useState<string | null>(null);
     const [inputErrors, setInputErrors] = useState<Record<string, string>>({});
@@ -76,12 +105,21 @@ export default function PlaygroundView() {
         setToolResult(null);
         setCurrentError(null);
         setInputErrors({});
-        const defaultInputs: Record<string, any> = {};
+        const defaultInputs: ToolInputs = {};
         if (tool.inputSchema && tool.inputSchema.properties) {
             for (const key in tool.inputSchema.properties) {
                 const prop = tool.inputSchema.properties[key];
                 if (prop.default !== undefined) {
-                    defaultInputs[key] = prop.default;
+                    if (
+                        typeof prop.default === 'string' ||
+                        typeof prop.default === 'number' ||
+                        typeof prop.default === 'boolean' ||
+                        prop.default === null
+                    ) {
+                        defaultInputs[key] = prop.default;
+                    } else {
+                        defaultInputs[key] = JSON.stringify(prop.default);
+                    }
                 } else {
                     if (prop.type === 'boolean') defaultInputs[key] = false;
                     else if (prop.type === 'number' || prop.type === 'integer')
@@ -96,18 +134,14 @@ export default function PlaygroundView() {
     }, []);
 
     const handleInputChange = useCallback(
-        (
-            inputName: string,
-            value: any,
-            type?: 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array'
-        ) => {
+        (inputName: string, value: ToolInputValue, type?: ToolInputSchemaType) => {
             setToolInputs((prev) => ({ ...prev, [inputName]: value }));
             if (inputErrors[inputName]) {
                 setInputErrors((prev) => ({ ...prev, [inputName]: '' }));
             }
 
             if (type === 'object' || type === 'array') {
-                if (value === '') return;
+                if (typeof value !== 'string' || value === '') return;
                 try {
                     JSON.parse(value);
                 } catch {
@@ -151,9 +185,13 @@ export default function PlaygroundView() {
                 allValid = false;
             }
 
-            if ((prop.type === 'object' || prop.type === 'array') && value !== '') {
+            if (
+                (prop.type === 'object' || prop.type === 'array') &&
+                typeof value === 'string' &&
+                value !== ''
+            ) {
                 try {
-                    JSON.parse(value as string);
+                    JSON.parse(value);
                 } catch {
                     currentInputErrors[key] = 'Invalid JSON format.';
                     allValid = false;
@@ -185,11 +223,11 @@ export default function PlaygroundView() {
 
         setExecutionLoading(true);
         try {
-            const processedInputs: Record<string, any> = {};
+            const processedInputs: ToolRequestInputs = {};
             if (selectedTool.inputSchema && selectedTool.inputSchema.properties) {
                 for (const key in selectedTool.inputSchema.properties) {
                     const prop = selectedTool.inputSchema.properties[key];
-                    let value = toolInputs[key];
+                    let value: ToolExecutionValue = toolInputs[key];
                     if (prop.type === 'number') {
                         value = value === '' ? undefined : Number(value);
                     } else if (prop.type === 'integer') {
@@ -219,7 +257,16 @@ export default function PlaygroundView() {
                         value.trim() !== ''
                     ) {
                         try {
-                            value = JSON.parse(value);
+                            const parsedValue = JSON.parse(value);
+                            if (!isToolRequestValue(parsedValue)) {
+                                setInputErrors((prev) => ({
+                                    ...prev,
+                                    [key]: 'JSON value must be a valid JSON primitive, array, or object.',
+                                }));
+                                setExecutionLoading(false);
+                                return;
+                            }
+                            value = parsedValue;
                         } catch {
                             setInputErrors((prev) => ({
                                 ...prev,
@@ -272,15 +319,16 @@ export default function PlaygroundView() {
                 },
                 ...prev.slice(0, 9),
             ]);
-        } catch (err: any) {
-            if (err.name !== 'AbortError') {
+        } catch (err) {
+            if (!(err instanceof Error && err.name === 'AbortError')) {
                 const duration = Date.now() - executionStart;
-                handleError(err.message, 'execution');
+                const message = err instanceof Error ? err.message : 'Tool execution failed';
+                handleError(message, 'execution');
                 if (
-                    err.message &&
-                    (!toolResult || toolResult.success || toolResult.error !== err.message)
+                    message &&
+                    (!toolResult || toolResult.success || toolResult.error !== message)
                 ) {
-                    setToolResult({ success: false, error: err.message });
+                    setToolResult({ success: false, error: message });
                 }
 
                 setExecutionHistory((prev) => [

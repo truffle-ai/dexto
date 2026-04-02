@@ -139,10 +139,17 @@ export class A2ASseEventSubscriber {
                         role: 'agent',
                         content: [{ type: 'text', text: payload.content }],
                         timestamp: new Date().toISOString(),
+                        ...(payload.messageId && { messageId: payload.messageId }),
                     },
                     tokenUsage: payload.tokenUsage,
                     provider: payload.provider,
                     model: payload.model,
+                    ...(payload.messageId && { messageId: payload.messageId }),
+                    ...(payload.usageScopeId && { usageScopeId: payload.usageScopeId }),
+                    ...(payload.estimatedCost !== undefined && {
+                        estimatedCost: payload.estimatedCost,
+                    }),
+                    ...(payload.pricingStatus && { pricingStatus: payload.pricingStatus }),
                 });
             },
             { signal }

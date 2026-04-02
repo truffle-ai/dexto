@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { GetAgentFn } from '../index.js';
+import type { GetAgentFn } from '../types.js';
 
 /**
  * NOTE: If we introduce a transport-agnostic handler layer later, the logic in this module can move

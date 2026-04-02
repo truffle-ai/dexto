@@ -32,6 +32,17 @@ export interface FileContent {
 }
 
 /**
+ * Media or binary file content with metadata.
+ */
+export interface MediaFileContent {
+    data: string;
+    mimeType: string;
+    filename: string;
+    kind: 'image' | 'audio' | 'video' | 'file';
+    size: number;
+}
+
+/**
  * Options for reading files
  */
 export interface ReadFileOptions {

@@ -12,7 +12,7 @@
 
 import React, { useMemo, useCallback, useRef, useState, useEffect } from 'react';
 import { Box, Text, type DOMElement } from 'ink';
-import type { DextoAgent } from '@dexto/core';
+import type { TuiAgentBackend } from '../../agent-backend.js';
 
 // Types
 import type { Message, StartupInfo } from '../../state/types.js';
@@ -47,7 +47,7 @@ import { shouldHideStatusChrome } from '../../utils/overlayPresentation.js';
 type ListItem = { type: 'header' } | { type: 'message'; message: Message };
 
 interface AlternateBufferCLIProps {
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
     initialSessionId: string | null;
     initialPrompt?: string | undefined;
     startupInfo: StartupInfo;

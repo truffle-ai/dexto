@@ -10,7 +10,7 @@ import {
 import type { ToolDisplayData } from './display-types.js';
 import { ToolError } from './errors.js';
 import { ToolErrorCode } from './error-codes.js';
-import { DextoRuntimeError } from '../errors/index.js';
+import { DextoRuntimeError, ErrorScope, ErrorType } from '../errors/index.js';
 import type { Logger } from '../logger/v2/types.js';
 import { DextoLogComponent } from '../logger/v2/types.js';
 import { convertZodSchemaToJsonSchema } from '../utils/schema.js';
@@ -239,9 +239,8 @@ export class ToolManager {
     /**
      * Set workspace manager for tool execution context propagation.
      */
-    setWorkspaceManager(workspaceManager: WorkspaceManager): void {
+    async setWorkspaceManager(workspaceManager: WorkspaceManager): Promise<void> {
         this.workspaceManager = workspaceManager;
-        void this.refreshWorkspace();
 
         if (!this.workspaceListenerAttached) {
             this.workspaceListenerAttached = true;
@@ -249,6 +248,7 @@ export class ToolManager {
                 'workspace:changed',
                 (payload) => {
                     this.currentWorkspace = payload.workspace ?? undefined;
+                    this.invalidateCache();
                 },
                 { signal: this.workspaceListenerAbort.signal }
             );
@@ -259,6 +259,7 @@ export class ToolManager {
             });
         }
 
+        await this.refreshWorkspace();
         this.logger.debug('WorkspaceManager reference configured for ToolManager');
     }
 
@@ -268,7 +269,11 @@ export class ToolManager {
         }
 
         try {
+            const previousWorkspacePath = this.currentWorkspace?.path;
             this.currentWorkspace = await this.workspaceManager.getWorkspace();
+            if (previousWorkspacePath !== this.currentWorkspace?.path) {
+                this.invalidateCache();
+            }
         } catch (error) {
             this.logger.debug(
                 `Failed to refresh workspace context: ${error instanceof Error ? error.message : String(error)}`
@@ -520,6 +525,39 @@ export class ToolManager {
     private invalidateCache(): void {
         this.cacheValid = false;
         this.toolsCache = {};
+    }
+
+    private async refreshDynamicToolDescriptions(): Promise<void> {
+        if (!this.cacheValid) {
+            return;
+        }
+
+        for (const [toolName, tool] of this.agentTools) {
+            if (!tool.getDescription) {
+                continue;
+            }
+
+            const cachedTool = this.toolsCache[toolName];
+            if (!cachedTool) {
+                continue;
+            }
+
+            try {
+                const fallbackDescription = tool.description.trim() ? tool.description : '';
+                const dynamicDescription = await tool.getDescription(
+                    this.buildToolExecutionContext({})
+                );
+                cachedTool.description = dynamicDescription.trim()
+                    ? dynamicDescription
+                    : fallbackDescription;
+            } catch (error) {
+                this.logger.warn(
+                    `Failed to refresh dynamic description for '${toolName}': ${
+                        error instanceof Error ? error.message : String(error)
+                    }`
+                );
+            }
+        }
     }
 
     /**
@@ -1034,11 +1072,48 @@ export class ToolManager {
         this.contributorContextFactory = factory ?? undefined;
     }
 
-    async buildContributorContext(): Promise<DynamicContributorContext> {
+    async buildContributorContext(options?: {
+        sessionId?: string | null;
+    }): Promise<DynamicContributorContext> {
         const baseWorkspace = this.currentWorkspace ?? null;
+        const sessionId =
+            typeof options?.sessionId === 'string' && options.sessionId.length > 0
+                ? options.sessionId
+                : undefined;
+        let sessionPromptContributors: NonNullable<
+            NonNullable<DynamicContributorContext['session']>['systemPromptContributors']
+        > = [];
+        if (sessionId !== undefined && this.sessionManager) {
+            try {
+                sessionPromptContributors =
+                    await this.sessionManager.getSessionSystemPromptContributors(sessionId);
+            } catch (error) {
+                if (
+                    error instanceof DextoRuntimeError &&
+                    error.scope === ErrorScope.SESSION &&
+                    error.type === ErrorType.NOT_FOUND
+                ) {
+                    this.logger.debug('Session not found while building contributor context', {
+                        sessionId,
+                    });
+                } else {
+                    throw error;
+                }
+            }
+        }
         const baseContext: DynamicContributorContext = {
             mcpManager: this.mcpManager,
             workspace: baseWorkspace,
+            ...(sessionId !== undefined
+                ? {
+                      session: {
+                          id: sessionId,
+                          ...(sessionPromptContributors.length > 0
+                              ? { systemPromptContributors: sessionPromptContributors }
+                              : {}),
+                      },
+                  }
+                : {}),
         };
 
         if (!this.contributorContextFactory) {
@@ -1053,11 +1128,14 @@ export class ToolManager {
                 overrides.environment !== undefined
                     ? overrides.environment
                     : baseContext.environment;
+            const session =
+                overrides.session !== undefined ? overrides.session : baseContext.session;
             const mcpManager = overrides.mcpManager ?? baseContext.mcpManager;
             return {
                 mcpManager,
                 workspace,
                 ...(environment !== undefined ? { environment } : {}),
+                ...(session !== undefined ? { session } : {}),
             };
         } catch (error) {
             this.logger.warn(
@@ -1184,9 +1262,27 @@ export class ToolManager {
 
         // Add local tools
         for (const [toolName, tool] of this.agentTools) {
+            let description = tool.description || 'No description provided';
+            if (tool.getDescription) {
+                try {
+                    const dynamicDescription = await tool.getDescription(
+                        this.buildToolExecutionContext({})
+                    );
+                    if (dynamicDescription.trim()) {
+                        description = dynamicDescription;
+                    }
+                } catch (error) {
+                    this.logger.warn(
+                        `Failed to build dynamic description for '${toolName}': ${
+                            error instanceof Error ? error.message : String(error)
+                        }`
+                    );
+                }
+            }
+
             allTools[toolName] = {
                 name: toolName,
-                description: tool.description || 'No description provided',
+                description,
                 parameters: wrapToolParametersSchema(
                     convertZodSchemaToJsonSchema(tool.inputSchema, this.logger)
                 ),
@@ -1222,6 +1318,7 @@ export class ToolManager {
      */
     async getAllTools(): Promise<ToolSet> {
         if (this.cacheValid) {
+            await this.refreshDynamicToolDescriptions();
             return this.toolsCache;
         }
 

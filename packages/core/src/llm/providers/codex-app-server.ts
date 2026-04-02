@@ -1,6 +1,8 @@
 /* global ReadableStream */
 
+import * as fs from 'node:fs';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import path from 'node:path';
 import { createInterface, type Interface } from 'node:readline';
 import type {
     JSONSchema7,
@@ -14,6 +16,7 @@ import type {
 } from '@ai-sdk/provider';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { ErrorScope, ErrorType } from '../../errors/types.js';
+import { getDextoGlobalPath } from '../../utils/path.js';
 import { safeStringify } from '../../utils/safe-stringify.js';
 import { LLMErrorCode } from '../error-codes.js';
 import { LLMError } from '../errors.js';
@@ -114,6 +117,10 @@ type CodexClientInfo = {
     version: string;
 };
 
+type MissingCodexCliError = NodeJS.ErrnoException & {
+    isMissingCodexError?: boolean;
+};
+
 export interface CodexAppServerClientOptions {
     command?: string;
     cwd?: string;
@@ -171,6 +178,7 @@ const DEFAULT_CLIENT_INFO: CodexClientInfo = {
     title: 'Dexto',
     version: '1.0.0',
 };
+const MANAGED_CODEX_BINARY = process.platform === 'win32' ? 'codex.cmd' : 'codex';
 const CODEX_DEVELOPER_INSTRUCTIONS = [
     'You are providing model responses for a host application.',
     'Treat the provided input as the full conversation transcript.',
@@ -210,6 +218,52 @@ function getArray(value: unknown): unknown[] | null {
 
 function normalizeError(error: unknown): Error {
     return error instanceof Error ? error : createCodexClientRuntimeError(String(error));
+}
+
+function isMissingCodexCliError(error: Error): boolean {
+    const missingCodexError = error as MissingCodexCliError;
+    if (missingCodexError.isMissingCodexError === true) {
+        return true;
+    }
+
+    const code = missingCodexError.code;
+    return (
+        error.message.includes('Codex CLI not found on PATH') ||
+        (code === 'ENOENT' &&
+            (error.message.includes('spawn codex ENOENT') ||
+                error.message.includes("Codex CLI command '")))
+    );
+}
+
+function normalizeCodexStartupError(error: unknown, command: string): Error {
+    const normalized = normalizeError(error);
+    const errno = normalized as NodeJS.ErrnoException;
+    if (errno.code !== 'ENOENT' || !normalized.message.includes(`spawn ${command} ENOENT`)) {
+        return normalized;
+    }
+
+    const message =
+        command === 'codex'
+            ? 'Codex CLI not found on PATH. Install Codex to use ChatGPT Login in Dexto.'
+            : `Codex CLI command '${command}' not found on PATH. Install Codex to use ChatGPT Login in Dexto.`;
+    const startupError = new Error(message) as MissingCodexCliError;
+    startupError.code = 'ENOENT';
+    startupError.isMissingCodexError = true;
+    return startupError;
+}
+
+function getManagedCodexCommand(): string | null {
+    try {
+        const candidate = path.join(
+            getDextoGlobalPath('deps'),
+            'node_modules',
+            '.bin',
+            MANAGED_CODEX_BINARY
+        );
+        return fs.existsSync(candidate) ? candidate : null;
+    } catch {
+        return null;
+    }
 }
 
 function parseCodexAccount(value: unknown): CodexAccount | null {
@@ -796,7 +850,7 @@ function toCodexFailureMessage(error: unknown, modelId: string): Error {
     }
 
     const normalized = normalizeError(error);
-    if (normalized.message.includes('spawn codex ENOENT')) {
+    if (isMissingCodexCliError(normalized)) {
         return LLMError.missingConfig(
             'openai-compatible',
             'the Codex CLI on PATH (install Codex to use ChatGPT Login in Dexto)'
@@ -899,7 +953,7 @@ export class CodexAppServerClient {
     private closed = false;
 
     private constructor(options: CodexAppServerClientOptions = {}) {
-        this.command = options.command ?? 'codex';
+        this.command = options.command ?? getManagedCodexCommand() ?? 'codex';
         this.cwd = options.cwd;
         this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
         this.clientInfo = options.clientInfo ?? DEFAULT_CLIENT_INFO;
@@ -1178,7 +1232,7 @@ export class CodexAppServerClient {
         child.stderr.on('data', drainStderr);
 
         child.on('error', (error) => {
-            this.rejectPending(error);
+            this.rejectPending(normalizeCodexStartupError(error, this.command));
         });
 
         child.on('exit', (code, signal) => {

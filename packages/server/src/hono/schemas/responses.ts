@@ -27,21 +27,203 @@
  * See routes/sessions.ts, routes/search.ts for examples with TODO comments.
  */
 
-import { z } from 'zod';
-import { LLMConfigBaseSchema as CoreLLMConfigBaseSchema, LLM_PROVIDERS } from '@dexto/core';
+import { z } from '@hono/zod-openapi';
+import {
+    LLM_PRICING_STATUSES,
+    LLMConfigBaseSchema as CoreLLMConfigBaseSchema,
+    LLM_PROVIDERS,
+    SUPPORTED_FILE_TYPES,
+    type ContentPart as CoreContentPart,
+    type InternalMessage as CoreInternalMessage,
+} from '@dexto/core';
 
-// TODO: Implement shared error response schemas for OpenAPI documentation.
-// Currently, 404 and other error responses lack body schemas because @hono/zod-openapi
-// enforces strict type matching between route definitions and handlers. When a 404 schema
-// is defined, TypeScript expects handler return types to be a union of all response types,
-// but the type system tries to match every return against every schema instead of by status code.
-//
-// Solution: Create a typed helper or wrapper that:
-// 1. Defines a shared ErrorResponseSchema (e.g., { error: string, code?: string })
-// 2. Properly types handlers to return discriminated unions by status code
-// 3. Can be reused across all routes for consistent error documentation
-//
-// See: https://github.com/honojs/middleware/tree/main/packages/zod-openapi for patterns
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+// zod-to-openapi cannot emit the recursive JsonValue union from ZodLazy directly.
+// We use a generator-safe placeholder here and rewrite it into the accurate
+// recursive OpenAPI component in scripts/generate-openapi-spec.ts.
+const JsonValueOpenApiPlaceholder = {
+    type: 'object' as const,
+    additionalProperties: true,
+    description: 'Any JSON-serializable value',
+};
+
+export const JsonValueSchema: z.ZodType<JsonValue> = z
+    .lazy(() =>
+        z.union([
+            z.string(),
+            z.number(),
+            z.boolean(),
+            z.null(),
+            z.array(JsonValueSchema),
+            z.record(z.string(), JsonValueSchema),
+        ])
+    )
+    .openapi('JsonValue', JsonValueOpenApiPlaceholder)
+    .describe('Any JSON-serializable value');
+
+export const JsonObjectSchema: z.ZodType<{ [key: string]: JsonValue }> = z
+    .record(z.string(), JsonValueSchema)
+    .openapi('JsonObject', {
+        type: 'object',
+        additionalProperties: true,
+    })
+    .describe('JSON object with arbitrary serializable values');
+
+const JsonSchemaPrimitiveTypeSchema = z
+    .enum(['string', 'number', 'integer', 'boolean', 'object', 'array'])
+    .describe('JSON Schema primitive type');
+
+const JsonSchemaEnumValueSchema = z
+    .union([z.string(), z.number(), z.boolean(), z.null()])
+    .describe('Allowed JSON Schema enum value');
+
+export const JsonSchemaPropertySchema = z
+    .object({
+        type: JsonSchemaPrimitiveTypeSchema.optional().describe('Property type'),
+        description: z.string().optional().describe('Property description'),
+        enum: z.array(JsonSchemaEnumValueSchema).optional().describe('Enum values'),
+        default: JsonValueSchema.optional().describe('Default value'),
+        format: z.string().optional().describe('JSON Schema format hint'),
+    })
+    .passthrough()
+    .describe('JSON Schema property definition');
+
+export const ToolInputSchema = z
+    .object({
+        type: z.literal('object').optional().describe('Schema type, always "object" when present'),
+        properties: z
+            .record(z.string(), JsonSchemaPropertySchema)
+            .optional()
+            .describe('Property definitions'),
+        required: z.array(z.string()).optional().describe('Required property names'),
+    })
+    .passthrough()
+    .describe('JSON Schema for tool input parameters');
+
+export const IssueSchema = z
+    .object({
+        code: z.string().describe('Machine-readable issue code'),
+        message: z.string().describe('Human-readable issue message'),
+        scope: z.string().describe('Domain that produced the issue'),
+        type: z.string().describe('Error type used for HTTP status mapping'),
+        severity: z.enum(['error', 'warning']).describe('Issue severity'),
+        path: z
+            .array(z.union([z.string(), z.number()]))
+            .optional()
+            .describe('Optional location for the issue'),
+        context: JsonValueSchema.optional().describe('Optional structured issue context'),
+    })
+    .strict()
+    .describe('Structured validation or runtime issue');
+
+export const ApiErrorResponseSchema = z
+    .object({
+        name: z.string().optional().describe('Optional error class name'),
+        message: z.string().describe('Human-readable error message'),
+        code: z.string().optional().describe('Machine-readable error code'),
+        scope: z.string().optional().describe('Domain that produced the error'),
+        type: z.string().optional().describe('Error type used for HTTP status mapping'),
+        severity: z
+            .enum(['error', 'warning'])
+            .optional()
+            .describe('Optional error severity for lightweight failures'),
+        endpoint: z.string().describe('Request path that failed'),
+        method: z.string().describe('HTTP method for the failed request'),
+        traceId: z.string().optional().describe('Optional trace identifier'),
+        recovery: z
+            .union([z.string(), z.array(z.string())])
+            .optional()
+            .describe('Optional recovery guidance'),
+        context: JsonValueSchema.optional().describe('Optional structured error context'),
+        issues: z.array(IssueSchema).optional().describe('Validation issues when present'),
+        errorCount: z.number().int().nonnegative().optional().describe('Number of errors'),
+        warningCount: z.number().int().nonnegative().optional().describe('Number of warnings'),
+        stack: z.string().optional().describe('Development-only stack trace'),
+    })
+    .strict()
+    .describe('Standard API error response');
+
+export const BadRequestErrorResponse = {
+    description: 'Validation or request error',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
+
+export const PaymentRequiredErrorResponse = {
+    description: 'Payment required',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
+
+export const ForbiddenErrorResponse = {
+    description: 'Forbidden',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
+
+export const NotFoundErrorResponse = {
+    description: 'Resource not found',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
+
+export const TimeoutErrorResponse = {
+    description: 'Request timed out',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
+
+export const ConflictErrorResponse = {
+    description: 'Conflict',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
+
+export const RateLimitErrorResponse = {
+    description: 'Rate limited',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
+
+export const InternalErrorResponse = {
+    description: 'Internal server error',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
+
+export const UpstreamErrorResponse = {
+    description: 'Upstream service failure',
+    content: {
+        'application/json': {
+            schema: ApiErrorResponseSchema,
+        },
+    },
+} as const;
 
 // ============================================================================
 // Imports from @dexto/core - Reusable schemas
@@ -84,6 +266,31 @@ export const FilePartSchema = z
     .strict()
     .describe('File content part');
 
+export const ResourcePartSchema = z
+    .object({
+        type: z.literal('resource').describe('Part type: resource'),
+        uri: z.string().describe('Canonical resource reference'),
+        name: z.string().describe('Display name for the resource'),
+        mimeType: z.string().describe('MIME type of the resource'),
+        kind: z
+            .enum(['text', 'image', 'audio', 'video', 'binary'])
+            .describe('Resource kind for rendering and prompt projection'),
+        size: z.number().int().nonnegative().optional().describe('Size in bytes'),
+        metadata: z
+            .object({
+                mtimeMs: z.number().nonnegative().optional().describe('mtime in ms'),
+                source: z
+                    .enum(['filesystem', 'upload', 'generated', 'tool', 'remote'])
+                    .optional()
+                    .describe('How the resource was created'),
+            })
+            .strict()
+            .optional()
+            .describe('Optional resource metadata'),
+    })
+    .strict()
+    .describe('Canonical resource reference part');
+
 export const UIResourcePartSchema = z
     .object({
         type: z.literal('ui-resource').describe('Part type: ui-resource'),
@@ -117,9 +324,163 @@ export const ContentPartSchema = z
         TextPartSchema,
         ImagePartSchema,
         FilePartSchema,
+        ResourcePartSchema,
         UIResourcePartSchema,
     ])
-    .describe('Message content part (text, image, file, or UI resource)');
+    .describe('Message content part (text, image, file, resource, or UI resource)');
+
+export const RequestContentPartSchema = z
+    .discriminatedUnion('type', [TextPartSchema, ImagePartSchema, FilePartSchema])
+    .describe('Request message content part (text, image, or file)');
+
+export const RequestContentSchema = z
+    .union([z.string(), z.array(RequestContentPartSchema)])
+    .describe('Message content - string for text, or ContentPart[] for multimodal');
+
+function serializeBinaryValue(value: string | Uint8Array | Buffer | ArrayBuffer | URL): string {
+    if (typeof value === 'string') {
+        return value;
+    }
+    if (value instanceof URL) {
+        return value.toString();
+    }
+    if (value instanceof ArrayBuffer) {
+        return Buffer.from(new Uint8Array(value)).toString('base64');
+    }
+    return Buffer.from(value).toString('base64');
+}
+
+function toApiResourceMetadata(
+    metadata: Extract<CoreContentPart, { type: 'resource' }>['metadata'] | undefined
+) {
+    if (!metadata) {
+        return undefined;
+    }
+
+    const sanitized = {
+        ...(metadata.mtimeMs !== undefined ? { mtimeMs: metadata.mtimeMs } : {}),
+        ...(metadata.source !== undefined ? { source: metadata.source } : {}),
+    };
+
+    return Object.keys(sanitized).length > 0 ? sanitized : undefined;
+}
+
+export function toApiInternalMessage(
+    message: CoreInternalMessage
+): z.output<typeof InternalMessageSchema> {
+    return {
+        ...(message.id !== undefined ? { id: message.id } : {}),
+        role: message.role,
+        ...(message.timestamp !== undefined ? { timestamp: message.timestamp } : {}),
+        content: Array.isArray(message.content)
+            ? message.content.map((part) => toApiContentPart(part))
+            : message.content,
+        ...('reasoning' in message && message.reasoning !== undefined
+            ? { reasoning: message.reasoning }
+            : {}),
+        ...('tokenUsage' in message && message.tokenUsage !== undefined
+            ? { tokenUsage: message.tokenUsage }
+            : {}),
+        ...('estimatedCost' in message && message.estimatedCost !== undefined
+            ? { estimatedCost: message.estimatedCost }
+            : {}),
+        ...('pricingStatus' in message && message.pricingStatus !== undefined
+            ? { pricingStatus: message.pricingStatus }
+            : {}),
+        ...('usageScopeId' in message && message.usageScopeId !== undefined
+            ? { usageScopeId: message.usageScopeId }
+            : {}),
+        ...('model' in message && message.model !== undefined ? { model: message.model } : {}),
+        ...('provider' in message && message.provider !== undefined
+            ? { provider: message.provider }
+            : {}),
+        ...('toolCalls' in message && message.toolCalls !== undefined
+            ? { toolCalls: message.toolCalls }
+            : {}),
+        ...('toolCallId' in message && message.toolCallId !== undefined
+            ? { toolCallId: message.toolCallId }
+            : {}),
+        ...('name' in message && message.name !== undefined ? { name: message.name } : {}),
+        ...('success' in message && message.success !== undefined
+            ? { success: message.success }
+            : {}),
+    };
+}
+
+export function toContentInput(
+    rawContent: z.output<typeof RequestContentSchema>
+): CoreContentPart[] {
+    if (typeof rawContent === 'string') {
+        return [{ type: 'text', text: rawContent }];
+    }
+
+    return rawContent.map((part) => {
+        switch (part.type) {
+            case 'text':
+                return {
+                    type: 'text',
+                    text: part.text,
+                };
+            case 'image':
+                return {
+                    type: 'image',
+                    image: part.image,
+                    ...(part.mimeType !== undefined ? { mimeType: part.mimeType } : {}),
+                };
+            case 'file':
+                return {
+                    type: 'file',
+                    data: part.data,
+                    mimeType: part.mimeType,
+                    ...(part.filename !== undefined ? { filename: part.filename } : {}),
+                };
+        }
+    });
+}
+
+export function toApiContentPart(part: CoreContentPart): z.output<typeof ContentPartSchema> {
+    switch (part.type) {
+        case 'text':
+            return {
+                type: 'text',
+                text: part.text,
+            };
+        case 'image':
+            return {
+                type: 'image',
+                image: serializeBinaryValue(part.image),
+                ...(part.mimeType !== undefined ? { mimeType: part.mimeType } : {}),
+            };
+        case 'file':
+            return {
+                type: 'file',
+                data: serializeBinaryValue(part.data),
+                mimeType: part.mimeType,
+                ...(part.filename !== undefined ? { filename: part.filename } : {}),
+            };
+        case 'resource':
+            return {
+                type: 'resource',
+                uri: part.uri,
+                name: part.name,
+                mimeType: part.mimeType,
+                kind: part.kind,
+                ...(part.size !== undefined ? { size: part.size } : {}),
+                ...(toApiResourceMetadata(part.metadata) !== undefined
+                    ? { metadata: toApiResourceMetadata(part.metadata) }
+                    : {}),
+            };
+        case 'ui-resource':
+            return {
+                type: 'ui-resource',
+                uri: part.uri,
+                mimeType: part.mimeType,
+                ...(part.content !== undefined ? { content: part.content } : {}),
+                ...(part.blob !== undefined ? { blob: part.blob } : {}),
+                ...(part.metadata !== undefined ? { metadata: part.metadata } : {}),
+            };
+    }
+}
 
 export const ToolCallSchema = z
     .object({
@@ -148,10 +509,26 @@ export const TokenUsageSchema = z
             .nonnegative()
             .optional()
             .describe('Number of reasoning tokens'),
+        cacheReadTokens: z
+            .number()
+            .int()
+            .nonnegative()
+            .optional()
+            .describe('Number of cache read tokens'),
+        cacheWriteTokens: z
+            .number()
+            .int()
+            .nonnegative()
+            .optional()
+            .describe('Number of cache write tokens'),
         totalTokens: z.number().int().nonnegative().optional().describe('Total tokens used'),
     })
     .strict()
     .describe('Token usage accounting');
+
+export const PricingStatusSchema = z
+    .enum(LLM_PRICING_STATUSES)
+    .describe('Whether pricing was resolved for this response');
 
 export const InternalMessageSchema = z
     .object({
@@ -165,6 +542,18 @@ export const InternalMessageSchema = z
             .describe('Message content (string, null, or array of parts)'),
         reasoning: z.string().optional().describe('Optional model reasoning text'),
         tokenUsage: TokenUsageSchema.optional().describe('Optional token usage accounting'),
+        estimatedCost: z
+            .number()
+            .nonnegative()
+            .optional()
+            .describe('Estimated cost in USD for this response'),
+        pricingStatus: PricingStatusSchema.optional().describe(
+            'Whether pricing was resolved for this response'
+        ),
+        usageScopeId: z
+            .string()
+            .optional()
+            .describe('Optional usage scope identifier for runtime-scoped metering'),
         model: z.string().optional().describe('Model identifier for assistant messages'),
         provider: z
             .enum(LLM_PROVIDERS)
@@ -186,6 +575,7 @@ export type TextPart = z.output<typeof TextPartSchema>;
 export type ImagePart = z.output<typeof ImagePartSchema>;
 export type FilePart = z.output<typeof FilePartSchema>;
 export type ContentPart = z.output<typeof ContentPartSchema>;
+export type RequestContentPart = z.output<typeof RequestContentPartSchema>;
 export type ToolCall = z.output<typeof ToolCallSchema>;
 export type TokenUsage = z.output<typeof TokenUsageSchema>;
 export type InternalMessage = z.output<typeof InternalMessageSchema>;
@@ -232,17 +622,19 @@ export { ResourceConfigSchema } from '@dexto/core';
 
 // --- Session Schemas ---
 
-export const SessionTokenUsageSchema = z
+export const SessionTokenUsageSchema = TokenUsageSchema.required().describe(
+    'Session-level token usage (all fields required for cumulative totals)'
+);
+
+export const SessionUsageTrackingSchema = z
     .object({
-        inputTokens: z.number().int().nonnegative().describe('Number of input tokens'),
-        outputTokens: z.number().int().nonnegative().describe('Number of output tokens'),
-        reasoningTokens: z.number().int().nonnegative().describe('Number of reasoning tokens'),
-        cacheReadTokens: z.number().int().nonnegative().describe('Number of cache read tokens'),
-        cacheWriteTokens: z.number().int().nonnegative().describe('Number of cache write tokens'),
-        totalTokens: z.number().int().nonnegative().describe('Total tokens used'),
+        hasUntrackedChatGPTLoginUsage: z
+            .boolean()
+            .optional()
+            .describe('Whether this session includes known untracked ChatGPT Login usage'),
     })
     .strict()
-    .describe('Session-level token usage (all fields required for cumulative totals)');
+    .describe('Usage tracking caveats for a session');
 
 export const ModelStatisticsSchema = z
     .object({
@@ -260,6 +652,53 @@ export const ModelStatisticsSchema = z
     })
     .strict()
     .describe('Per-model statistics within a session');
+
+export const UsageSummarySchema = z
+    .object({
+        tokenUsage: SessionTokenUsageSchema.describe(
+            'Aggregate token usage for the selected scope'
+        ),
+        estimatedCost: z
+            .number()
+            .nonnegative()
+            .describe('Total estimated cost in USD for the selected scope'),
+        hasUnpricedResponses: z
+            .boolean()
+            .describe(
+                'Whether any response in the selected scope has usage but no resolved pricing'
+            ),
+        modelStats: z
+            .array(
+                z
+                    .object({
+                        provider: z.string().describe('LLM provider identifier'),
+                        model: z.string().describe('Model identifier'),
+                        messageCount: z
+                            .number()
+                            .int()
+                            .nonnegative()
+                            .describe('Number of responses using this model in the selected scope'),
+                        tokenUsage: SessionTokenUsageSchema.describe(
+                            'Token usage for this model in the selected scope'
+                        ),
+                        estimatedCost: z
+                            .number()
+                            .nonnegative()
+                            .describe('Estimated cost in USD for this model in the selected scope'),
+                    })
+                    .strict()
+            )
+            .optional()
+            .describe('Per-model usage statistics within the selected scope'),
+    })
+    .strict()
+    .describe('Usage summary for a session or session scope');
+
+export const ScopedUsageSummarySchema = UsageSummarySchema.extend({
+    scopeId: z.string().describe('Usage scope identifier'),
+})
+    .strict()
+    .describe('Usage summary for a specific scope within a session');
 
 export const SessionMetadataSchema = z
     .object({
@@ -294,6 +733,9 @@ export const SessionMetadataSchema = z
             .array(ModelStatisticsSchema)
             .optional()
             .describe('Per-model usage statistics (for multi-model sessions)'),
+        usageTracking: SessionUsageTrackingSchema.optional().describe(
+            'Known caveats or gaps in usage tracking for this session'
+        ),
         workspaceId: z.string().optional().nullable().describe('Associated workspace ID, if any'),
         parentSessionId: z
             .string()
@@ -306,6 +748,7 @@ export const SessionMetadataSchema = z
 
 export type SessionTokenUsage = z.output<typeof SessionTokenUsageSchema>;
 export type ModelStatistics = z.output<typeof ModelStatisticsSchema>;
+export type SessionUsageTracking = z.output<typeof SessionUsageTrackingSchema>;
 export type SessionMetadata = z.output<typeof SessionMetadataSchema>;
 
 // --- Workspace Schemas ---
@@ -328,7 +771,7 @@ export type Workspace = z.output<typeof WorkspaceSchema>;
 export const ScheduleTaskSchema = z
     .object({
         instruction: z.string().describe('Instruction to execute'),
-        metadata: z.record(z.unknown()).optional().describe('Optional task metadata'),
+        metadata: JsonObjectSchema.optional().describe('Optional task metadata'),
     })
     .strict()
     .describe('Schedule task definition');
@@ -474,7 +917,7 @@ export const CatalogModelInfoSchema = z
         maxInputTokens: z.number().int().positive().describe('Maximum input tokens'),
         default: z.boolean().optional().describe('Whether this is a default model'),
         supportedFileTypes: z
-            .array(z.enum(['audio', 'pdf', 'image']))
+            .array(z.enum(SUPPORTED_FILE_TYPES))
             .describe('File types this model supports'),
         displayName: z.string().optional().describe('Human-readable display name'),
         pricing: z
@@ -506,7 +949,7 @@ export const ProviderCatalogSchema = z
         supportsBaseURL: z.boolean().describe('Whether custom base URLs are supported'),
         models: z.array(CatalogModelInfoSchema).describe('Models available from this provider'),
         supportedFileTypes: z
-            .array(z.enum(['audio', 'pdf', 'image']))
+            .array(z.enum(SUPPORTED_FILE_TYPES))
             .describe('Provider-level file type support'),
     })
     .strict()
@@ -561,7 +1004,7 @@ export const ResourceSchema = z
             .optional()
             .describe('Last modified timestamp (ISO 8601 string)'),
         metadata: z
-            .record(z.unknown())
+            .record(z.string(), JsonValueSchema)
             .optional()
             .describe('Additional metadata specific to the resource type'),
     })
@@ -576,7 +1019,7 @@ export const ToolSchema = z
     .object({
         name: z.string().describe('Tool name'),
         description: z.string().describe('Tool description'),
-        inputSchema: z.record(z.unknown()).describe('JSON Schema for tool input parameters'),
+        inputSchema: ToolInputSchema.describe('JSON Schema for tool input parameters'),
     })
     .strict()
     .describe('Tool metadata');
@@ -605,6 +1048,22 @@ export const PromptDefinitionSchema = z
             .array(PromptArgumentSchema)
             .optional()
             .describe('Array of argument definitions'),
+        disableModelInvocation: z
+            .boolean()
+            .optional()
+            .describe('Exclude from auto-invocation list in system prompt'),
+        userInvocable: z.boolean().optional().describe('Whether to show in slash command menu'),
+        allowedTools: z
+            .array(z.string())
+            .optional()
+            .describe('Tools to auto-approve when this prompt is active'),
+        toolkits: z.array(z.string()).optional().describe('Toolkits to load when invoked'),
+        model: z.string().optional().describe('Model to use when this prompt is invoked'),
+        context: z
+            .enum(['inline', 'fork'])
+            .optional()
+            .describe('Execution context for this prompt'),
+        agent: z.string().optional().describe('Agent ID to use for fork execution'),
     })
     .strict()
     .describe('Prompt definition (MCP-compliant)');
@@ -620,8 +1079,26 @@ export const PromptInfoSchema = z
             .array(PromptArgumentSchema)
             .optional()
             .describe('Array of argument definitions'),
+        disableModelInvocation: z
+            .boolean()
+            .optional()
+            .describe('Exclude from auto-invocation list in system prompt'),
+        userInvocable: z.boolean().optional().describe('Whether to show in slash command menu'),
+        allowedTools: z
+            .array(z.string())
+            .optional()
+            .describe('Tools to auto-approve when this prompt is active'),
+        toolkits: z.array(z.string()).optional().describe('Toolkits to load when invoked'),
+        model: z.string().optional().describe('Model to use when this prompt is invoked'),
+        context: z
+            .enum(['inline', 'fork'])
+            .optional()
+            .describe('Execution context for this prompt'),
+        agent: z.string().optional().describe('Agent ID to use for fork execution'),
         source: z.enum(['mcp', 'config', 'custom']).describe('Source of the prompt'),
-        metadata: z.record(z.unknown()).optional().describe('Additional metadata'),
+        displayName: z.string().optional().describe('Base display name set by provider'),
+        commandName: z.string().optional().describe('Collision-resolved slash command name'),
+        metadata: JsonObjectSchema.optional().describe('Additional metadata'),
     })
     .strict()
     .describe('Enhanced prompt information');
@@ -666,7 +1143,7 @@ export const ErrorResponseSchema = z
             .object({
                 message: z.string().describe('Error message'),
                 code: z.string().optional().describe('Error code'),
-                details: z.unknown().optional().describe('Additional error details'),
+                details: JsonValueSchema.optional().describe('Additional error details'),
             })
             .strict()
             .describe('Error details'),
@@ -683,7 +1160,7 @@ export const StandardErrorEnvelopeSchema = z
         message: z.string().describe('Error message'),
         scope: z.string().describe('Error scope'),
         type: z.string().describe('Error type'),
-        context: z.unknown().optional().describe('Error context'),
+        context: JsonValueSchema.optional().describe('Error context'),
         recovery: z
             .union([z.string(), z.array(z.string())])
             .optional()

@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Dexto API",
-    "version": "1.6.13",
+    "version": "1.6.21",
     "description": "OpenAPI spec for the Dexto REST API server"
   },
   "servers": [
@@ -104,7 +104,42 @@
     }
   ],
   "components": {
-    "schemas": {},
+    "schemas": {
+      "JsonValue": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JsonValue"
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            }
+          }
+        ],
+        "nullable": true,
+        "description": "Any JSON-serializable value"
+      },
+      "JsonObject": {
+        "type": "object",
+        "description": "JSON object with arbitrary serializable values",
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        }
+      }
+    },
     "parameters": {}
   },
   "paths": {

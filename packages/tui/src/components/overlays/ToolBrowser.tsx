@@ -17,16 +17,16 @@ import React, {
 } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import type { DextoAgent } from '@dexto/core';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
 import { writeToClipboard } from '../../utils/clipboardUtils.js';
 import { getMaxVisibleItemsForTerminalRows } from '../../utils/overlaySizing.js';
 import { HintBar } from '../shared/HintBar.js';
+import type { TuiAgentBackend } from '../../agent-backend.js';
 
 interface ToolBrowserProps {
     isVisible: boolean;
     onClose: () => void;
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
     sessionId: string | null;
 }
 

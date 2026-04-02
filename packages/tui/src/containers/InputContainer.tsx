@@ -7,7 +7,7 @@
  */
 
 import React, { useCallback, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
-import type { DextoAgent, ContentPart, ImagePart, TextPart, QueuedMessage } from '@dexto/core';
+import type { ContentPart, ImagePart, TextPart, QueuedMessage } from '@dexto/core';
 import { getReasoningProfile } from '@dexto/core';
 import { InputArea, type OverlayTrigger } from '../components/input/InputArea.js';
 import { InputService, processStream } from '../services/index.js';
@@ -27,6 +27,12 @@ import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
 import { captureAnalytics } from '../host/index.js';
 import { getOverlayPresentation } from '../utils/overlayPresentation.js';
+import {
+    supportsAttachments,
+    supportsReasoningCycle,
+    supportsResources,
+    type TuiAgentBackend,
+} from '../agent-backend.js';
 
 /** Type for pending session creation promise */
 type SessionCreationResult = { id: string };
@@ -65,7 +71,7 @@ interface InputContainerProps {
     setApprovalQueue: React.Dispatch<React.SetStateAction<ApprovalRequest[]>>;
     /** Setter for todo items (for todo tool updates via processStream) */
     setTodos: React.Dispatch<React.SetStateAction<TodoItem[]>>;
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
     inputService: InputService;
     /** Source agent config file path (if available) */
     configFilePath: string | null;
@@ -257,10 +263,13 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 } else if (trigger === 'slash-autocomplete') {
                     setUi((prev) => ({ ...prev, activeOverlay: 'slash-autocomplete' }));
                 } else if (trigger === 'resource-autocomplete') {
+                    if (!supportsResources(agent)) {
+                        return;
+                    }
                     setUi((prev) => ({ ...prev, activeOverlay: 'resource-autocomplete' }));
                 }
             },
-            [setUi, approval]
+            [setUi, approval, agent]
         );
 
         const handleCycleReasoningVariant = useCallback(() => {
@@ -527,7 +536,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 // Check if this command should show an interactive overlay
                 if (parsed.type === 'command' && parsed.command) {
                     const { getCommandOverlay } = await import('../utils/commandOverlays.js');
-                    const overlay = getCommandOverlay(parsed.command, parsed.args || []);
+                    const overlay = getCommandOverlay(parsed.command, parsed.args || [], agent);
                     if (overlay) {
                         setUi((prev) => ({
                             ...prev,
@@ -903,7 +912,7 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 onTriggerOverlay={handleTriggerOverlay}
                 onKeyboardScroll={onKeyboardScroll}
                 imageCount={input.images.length}
-                onImagePaste={handleImagePaste}
+                onImagePaste={supportsAttachments(agent) ? handleImagePaste : undefined}
                 images={input.images}
                 onImageRemove={handleImageRemove}
                 pastedBlocks={input.pastedBlocks}
@@ -912,7 +921,9 @@ export const InputContainer = forwardRef<InputContainerHandle, InputContainerPro
                 onPasteBlockRemove={handlePasteBlockRemove}
                 highlightQuery={ui.historySearch.isActive ? ui.historySearch.query : undefined}
                 onCycleReasoningVariant={
-                    ui.activeOverlay === 'none' ? handleCycleReasoningVariant : undefined
+                    ui.activeOverlay === 'none' && supportsReasoningCycle(agent)
+                        ? handleCycleReasoningVariant
+                        : undefined
                 }
             />
         );

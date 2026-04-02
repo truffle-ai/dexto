@@ -1177,11 +1177,41 @@ describe('fileTypesToMimePatterns', () => {
         expect(fileTypesToMimePatterns(['video'], mockLogger)).toEqual(['video/*']);
     });
 
+    test('should convert document file type', () => {
+        expect(fileTypesToMimePatterns(['document'], mockLogger)).toEqual([
+            'text/*',
+            'application/json',
+            'application/xml',
+            'application/msword',
+            'application/rtf',
+            'application/vnd.oasis.opendocument.text',
+            'application/vnd.ms-powerpoint',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ]);
+    });
+
     test('should convert multiple file types', () => {
-        expect(fileTypesToMimePatterns(['image', 'pdf', 'audio'], mockLogger)).toEqual([
+        expect(
+            fileTypesToMimePatterns(['image', 'pdf', 'audio', 'video', 'document'], mockLogger)
+        ).toEqual([
             'image/*',
             'application/pdf',
             'audio/*',
+            'video/*',
+            'text/*',
+            'application/json',
+            'application/xml',
+            'application/msword',
+            'application/rtf',
+            'application/vnd.oasis.opendocument.text',
+            'application/vnd.ms-powerpoint',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         ]);
     });
 
@@ -1425,6 +1455,43 @@ describe('expandBlobReferences', () => {
             image: 'imagedata',
             mimeType: 'image/png',
         });
+    });
+
+    test('should demote older binary media to placeholders when prompt expansion is disabled', async () => {
+        const resourceManager = {
+            read: vi.fn(async (_uri: string) => {
+                return {
+                    contents: [{ blob: 'imagedata', mimeType: 'image/png' }],
+                    _meta: { size: 2048, originalName: 'older-image.png' },
+                };
+            }),
+        } as unknown as import('../resources/index.js').ResourceManager;
+
+        const result = await expandBlobReferences(
+            [{ type: 'image', image: '@blob:abc123def456', mimeType: 'image/png' }],
+            resourceManager,
+            mockLogger,
+            ['image/*'],
+            false
+        );
+
+        expect(result).toEqual([{ type: 'text', text: '[Image: older-image.png (2 KB)]' }]);
+    });
+
+    test('should still expand text blobs when prompt media expansion is disabled', async () => {
+        const resourceManager = createMockResourceManager({
+            abc123def456: { text: 'Long text attachment', mimeType: 'text/plain' },
+        });
+
+        const result = await expandBlobReferences(
+            [{ type: 'text', text: '@blob:abc123def456' }],
+            resourceManager,
+            mockLogger,
+            ['text/plain'],
+            false
+        );
+
+        expect(result).toEqual([{ type: 'text', text: 'Long text attachment' }]);
     });
 });
 

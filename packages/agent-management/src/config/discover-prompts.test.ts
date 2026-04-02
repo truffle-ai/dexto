@@ -34,10 +34,11 @@ import { getDextoGlobalPath } from '../utils/path.js';
 
 describe('discoverAgentInstructionFile', () => {
     const originalCwd = process.cwd;
+    const searchDir = '/test/project';
 
     beforeEach(() => {
         vi.mocked(fs.readdirSync).mockReset();
-        process.cwd = vi.fn(() => '/test/project');
+        process.cwd = vi.fn(() => searchDir);
     });
 
     afterEach(() => {
@@ -52,7 +53,7 @@ describe('discoverAgentInstructionFile', () => {
                 'package.json',
             ] as any);
 
-            const result = discoverAgentInstructionFile();
+            const result = discoverAgentInstructionFile(searchDir);
 
             expect(result).toBe('/test/project/CLAUDE.md');
         });
@@ -64,7 +65,7 @@ describe('discoverAgentInstructionFile', () => {
                 'package.json',
             ] as any);
 
-            const result = discoverAgentInstructionFile();
+            const result = discoverAgentInstructionFile(searchDir);
 
             expect(result).toBe('/test/project/claude.md');
         });
@@ -76,7 +77,7 @@ describe('discoverAgentInstructionFile', () => {
                 'package.json',
             ] as any);
 
-            const result = discoverAgentInstructionFile();
+            const result = discoverAgentInstructionFile(searchDir);
 
             expect(result).toBe('/test/project/Claude.md');
         });
@@ -84,7 +85,7 @@ describe('discoverAgentInstructionFile', () => {
         it('should find AGENTS.md (uppercase)', () => {
             vi.mocked(fs.readdirSync).mockReturnValue(['AGENTS.md', 'other.txt'] as any);
 
-            const result = discoverAgentInstructionFile();
+            const result = discoverAgentInstructionFile(searchDir);
 
             expect(result).toBe('/test/project/AGENTS.md');
         });
@@ -92,7 +93,7 @@ describe('discoverAgentInstructionFile', () => {
         it('should find Gemini.md (mixed case)', () => {
             vi.mocked(fs.readdirSync).mockReturnValue(['Gemini.md', 'other.txt'] as any);
 
-            const result = discoverAgentInstructionFile();
+            const result = discoverAgentInstructionFile(searchDir);
 
             expect(result).toBe('/test/project/Gemini.md');
         });
@@ -106,7 +107,7 @@ describe('discoverAgentInstructionFile', () => {
                 'GEMINI.md',
             ] as any);
 
-            const result = discoverAgentInstructionFile();
+            const result = discoverAgentInstructionFile(searchDir);
 
             expect(result).toBe('/test/project/AGENTS.md');
         });
@@ -114,7 +115,7 @@ describe('discoverAgentInstructionFile', () => {
         it('should prefer CLAUDE.md over GEMINI.md when no AGENTS.md', () => {
             vi.mocked(fs.readdirSync).mockReturnValue(['GEMINI.md', 'CLAUDE.md'] as any);
 
-            const result = discoverAgentInstructionFile();
+            const result = discoverAgentInstructionFile(searchDir);
 
             expect(result).toBe('/test/project/CLAUDE.md');
         });
@@ -122,7 +123,7 @@ describe('discoverAgentInstructionFile', () => {
         it('should return GEMINI.md when only option', () => {
             vi.mocked(fs.readdirSync).mockReturnValue(['GEMINI.md', 'other.txt'] as any);
 
-            const result = discoverAgentInstructionFile();
+            const result = discoverAgentInstructionFile(searchDir);
 
             expect(result).toBe('/test/project/GEMINI.md');
         });
@@ -130,7 +131,7 @@ describe('discoverAgentInstructionFile', () => {
         it('should prefer agents.md over claude.md (lowercase)', () => {
             vi.mocked(fs.readdirSync).mockReturnValue(['claude.md', 'agents.md'] as any);
 
-            const result = discoverAgentInstructionFile();
+            const result = discoverAgentInstructionFile(searchDir);
 
             expect(result).toBe('/test/project/agents.md');
         });
@@ -140,7 +141,7 @@ describe('discoverAgentInstructionFile', () => {
         it('should return null when no instruction files exist', () => {
             vi.mocked(fs.readdirSync).mockReturnValue(['README.md', 'package.json', 'src'] as any);
 
-            const result = discoverAgentInstructionFile();
+            const result = discoverAgentInstructionFile(searchDir);
 
             expect(result).toBeNull();
         });
@@ -148,7 +149,7 @@ describe('discoverAgentInstructionFile', () => {
         it('should return null when directory is empty', () => {
             vi.mocked(fs.readdirSync).mockReturnValue([] as any);
 
-            const result = discoverAgentInstructionFile();
+            const result = discoverAgentInstructionFile(searchDir);
 
             expect(result).toBeNull();
         });
@@ -158,7 +159,7 @@ describe('discoverAgentInstructionFile', () => {
                 throw new Error('ENOENT: no such file or directory');
             });
 
-            const result = discoverAgentInstructionFile();
+            const result = discoverAgentInstructionFile(searchDir);
 
             expect(result).toBeNull();
         });
@@ -170,10 +171,37 @@ describe('discoverAgentInstructionFile', () => {
             // should use the actual casing from the filesystem
             vi.mocked(fs.readdirSync).mockReturnValue(['CLAUDE.MD'] as any);
 
-            const result = discoverAgentInstructionFile();
+            const result = discoverAgentInstructionFile(searchDir);
 
             expect(result).toBe('/test/project/CLAUDE.MD');
         });
+    });
+
+    it('should search a provided workspace root instead of process.cwd()', () => {
+        vi.mocked(fs.readdirSync).mockImplementation((dir) => {
+            if (dir === '/test/workspace') {
+                return ['AGENTS.md'] as any;
+            }
+            return [] as any;
+        });
+
+        const result = discoverAgentInstructionFile('/test/workspace');
+
+        expect(result).toBe('/test/workspace/AGENTS.md');
+    });
+
+    it('resolves relative search directories to absolute paths', () => {
+        process.cwd = vi.fn(() => '/test/project');
+        vi.mocked(fs.readdirSync).mockImplementation((dir) => {
+            if (dir === '/test/project/workspace') {
+                return ['AGENTS.md'] as any;
+            }
+            return [] as any;
+        });
+
+        const result = discoverAgentInstructionFile('./workspace');
+
+        expect(result).toBe('/test/project/workspace/AGENTS.md');
     });
 });
 
@@ -242,6 +270,29 @@ describe('discoverCommandPrompts', () => {
                 type: 'file',
                 file: '/test/project/.dexto/commands/test.md',
             });
+        });
+
+        it('should discover commands from a provided workspace root instead of process.cwd()', () => {
+            vi.mocked(getExecutionContext).mockReturnValue('global-cli');
+            vi.mocked(fs.existsSync).mockImplementation(
+                (p) => p === '/test/workspace/.dexto/commands'
+            );
+            vi.mocked(fs.readdirSync).mockImplementation((dir) => {
+                if (dir === '/test/workspace/.dexto/commands') {
+                    return [createDirent('review.md', true)] as any;
+                }
+                return [];
+            });
+            process.cwd = vi.fn(() => '/some/other/place');
+
+            const result = discoverCommandPrompts('/test/workspace');
+
+            expect(result).toEqual([
+                {
+                    type: 'file',
+                    file: '/test/workspace/.dexto/commands/review.md',
+                },
+            ]);
         });
     });
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Paperclip, File, FileAudio } from 'lucide-react';
+import { Paperclip, File, FileAudio, FileText, Film } from 'lucide-react';
 import { Button } from '../ui/button';
 import {
     DropdownMenu,
@@ -14,11 +14,15 @@ interface AttachButtonProps {
     onImageAttach: () => void;
     onPdfAttach: () => void;
     onAudioAttach: () => void;
+    onVideoAttach: () => void;
+    onDocumentAttach: () => void;
     className?: string;
     supports?: {
         image?: boolean;
         pdf?: boolean;
         audio?: boolean;
+        video?: boolean;
+        document?: boolean;
     };
     /** Use lg breakpoint instead of md for responsive text */
     useLargeBreakpoint?: boolean;
@@ -28,6 +32,8 @@ export function AttachButton({
     onImageAttach,
     onPdfAttach,
     onAudioAttach,
+    onVideoAttach,
+    onDocumentAttach,
     className,
     supports,
     useLargeBreakpoint = false,
@@ -36,6 +42,8 @@ export function AttachButton({
     const imageSupported = supports?.image !== false; // default to true if unknown
     const pdfSupported = supports?.pdf !== false; // default to true if unknown
     const audioSupported = supports?.audio !== false;
+    const videoSupported = supports?.video !== false;
+    const documentSupported = supports?.document !== false;
     return (
         <DropdownMenu open={open} onOpenChange={setOpen}>
             <DropdownMenuTrigger asChild>
@@ -108,6 +116,30 @@ export function AttachButton({
                 </DropdownMenuItem>
                 <DropdownMenuItem
                     onClick={() => {
+                        if (!documentSupported) return;
+                        onDocumentAttach();
+                        setOpen(false);
+                    }}
+                    className={!documentSupported ? 'opacity-50 cursor-not-allowed' : undefined}
+                    aria-disabled={!documentSupported}
+                >
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <div className="flex items-center">
+                                    <FileText className="h-4 w-4 mr-2" /> Document
+                                </div>
+                            </TooltipTrigger>
+                            {!documentSupported && (
+                                <TooltipContent side="bottom">
+                                    Unsupported for this model
+                                </TooltipContent>
+                            )}
+                        </Tooltip>
+                    </TooltipProvider>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                    onClick={() => {
                         if (!audioSupported) return;
                         onAudioAttach();
                         setOpen(false);
@@ -123,6 +155,30 @@ export function AttachButton({
                                 </div>
                             </TooltipTrigger>
                             {!audioSupported && (
+                                <TooltipContent side="bottom">
+                                    Unsupported for this model
+                                </TooltipContent>
+                            )}
+                        </Tooltip>
+                    </TooltipProvider>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                    onClick={() => {
+                        if (!videoSupported) return;
+                        onVideoAttach();
+                        setOpen(false);
+                    }}
+                    className={!videoSupported ? 'opacity-50 cursor-not-allowed' : undefined}
+                    aria-disabled={!videoSupported}
+                >
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <div className="flex items-center">
+                                    <Film className="h-4 w-4 mr-2" /> Video file
+                                </div>
+                            </TooltipTrigger>
+                            {!videoSupported && (
                                 <TooltipContent side="bottom">
                                     Unsupported for this model
                                 </TooltipContent>

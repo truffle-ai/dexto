@@ -10,7 +10,13 @@ import {
 } from 'ai';
 import { trace } from '@opentelemetry/api';
 import { ContextManager } from '../../context/manager.js';
-import type { TextPart, ImagePart, FilePart, UIResourcePart } from '../../context/types.js';
+import type {
+    TextPart,
+    ImagePart,
+    FilePart,
+    ResourcePart,
+    UIResourcePart,
+} from '../../context/types.js';
 import { ToolManager } from '../../tools/tool-manager.js';
 import { ToolSet } from '../../tools/types.js';
 import type { ToolPresentationSnapshotV1 } from '../../tools/types.js';
@@ -99,6 +105,7 @@ export class TurnExecutor {
             maxOutputTokens?: number | undefined;
             temperature?: number | undefined;
             baseURL?: string | undefined;
+            usageScopeId?: string | undefined;
             // Provider-specific options
             reasoning?: LLMReasoningConfig | undefined;
         },
@@ -132,6 +139,9 @@ export class TurnExecutor {
         return {
             provider: this.llmContext.provider,
             model: this.llmContext.model,
+            ...(this.config.usageScopeId !== undefined && {
+                usageScopeId: this.config.usageScopeId,
+            }),
             ...(estimatedInputTokens !== undefined && { estimatedInputTokens }),
             ...(reasoning?.reasoningVariant !== undefined && {
                 reasoningVariant: reasoning.reasoningVariant,
@@ -973,18 +983,18 @@ export class TurnExecutor {
      * Estimates tokens for tool message content using simple heuristic (length/4).
      * Used for pruning decisions only - actual token counts come from API.
      *
-     * Tool message content is always Array<TextPart | ImagePart | FilePart | UIResourcePart>
+     * Tool message content is always Array<TextPart | ImagePart | FilePart | ResourcePart | UIResourcePart>
      * after sanitization via SanitizedToolResult.
      */
     private estimateToolTokens(
-        content: Array<TextPart | ImagePart | FilePart | UIResourcePart>
+        content: Array<TextPart | ImagePart | FilePart | ResourcePart | UIResourcePart>
     ): number {
         return content.reduce((sum, part) => {
             if (part.type === 'text') {
                 return sum + Math.ceil(part.text.length / 4);
             }
             // Images/files contribute ~1000 tokens estimate
-            if (part.type === 'image' || part.type === 'file') {
+            if (part.type === 'image' || part.type === 'file' || part.type === 'resource') {
                 return sum + 1000;
             }
             // UIResourcePart - minimal token contribution

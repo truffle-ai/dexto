@@ -14,6 +14,7 @@ import * as p from '@clack/prompts';
 type SelectOptions = Parameters<typeof p.select>[0];
 type TextOptions = Parameters<typeof p.text>[0];
 type ConfirmOptions = Parameters<typeof p.confirm>[0];
+type MultiselectOptions = Parameters<typeof p.multiselect>[0];
 
 // =============================================================================
 // LINEAR FLOW HELPERS (cancel = exit)
@@ -85,4 +86,20 @@ export async function confirmOrExit(
         process.exit(0);
     }
     return result;
+}
+
+/**
+ * Multiselect prompt that exits on cancel.
+ * Use for linear flows where cancel should abort the entire operation.
+ */
+export async function multiselectOrExit<T extends string>(
+    options: MultiselectOptions,
+    cancelMessage = 'Cancelled'
+): Promise<T[]> {
+    const result = await p.multiselect(options);
+    if (p.isCancel(result)) {
+        p.cancel(cancelMessage);
+        process.exit(0);
+    }
+    return result as T[];
 }

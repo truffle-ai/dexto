@@ -1,9 +1,13 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { DextoAgent } from '@dexto/core';
+import { DextoRuntimeError, ErrorType } from '@dexto/core';
 import { WebhookEventSubscriber } from '../../events/webhook-subscriber.js';
 import type { WebhookConfig } from '../../events/webhook-types.js';
-import type { Context } from 'hono';
-type GetAgentFn = (ctx: Context) => DextoAgent | Promise<DextoAgent>;
+import {
+    ApiErrorResponseSchema,
+    BadRequestErrorResponse,
+    InternalErrorResponse,
+} from '../schemas/responses.js';
+import type { GetAgentFn, OpenAPIRouteSchema } from '../types.js';
 
 // Response schemas
 const WebhookResponseSchema = z
@@ -11,7 +15,7 @@ const WebhookResponseSchema = z
         id: z.string().describe('Unique webhook identifier'),
         url: z.string().url().describe('Webhook URL'),
         description: z.string().optional().describe('Webhook description'),
-        createdAt: z.union([z.date(), z.number()]).describe('Creation timestamp (Date or Unix ms)'),
+        createdAt: z.string().datetime().describe('Creation timestamp (ISO 8601)'),
     })
     .strict()
     .describe('Webhook response object');
@@ -37,137 +41,154 @@ const WebhookBodySchema = z
     })
     .describe('Request body for registering a webhook');
 
+const registerRoute = createRoute({
+    method: 'post',
+    path: '/webhooks',
+    summary: 'Register Webhook',
+    description: 'Registers a new webhook endpoint to receive agent events',
+    tags: ['webhooks'],
+    request: { body: { content: { 'application/json': { schema: WebhookBodySchema } } } },
+    responses: {
+        201: {
+            description: 'Webhook registered',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            webhook: WebhookResponseSchema.describe('Registered webhook details'),
+                        })
+                        .strict(),
+                },
+            },
+        },
+        400: BadRequestErrorResponse,
+        500: InternalErrorResponse,
+    },
+});
+
+const listRoute = createRoute({
+    method: 'get',
+    path: '/webhooks',
+    summary: 'List Webhooks',
+    description: 'Retrieves a list of all registered webhooks',
+    tags: ['webhooks'],
+    responses: {
+        200: {
+            description: 'List webhooks',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            webhooks: z
+                                .array(WebhookResponseSchema)
+                                .describe('Array of registered webhooks'),
+                        })
+                        .strict(),
+                },
+            },
+        },
+        500: InternalErrorResponse,
+    },
+});
+
+const getRoute = createRoute({
+    method: 'get',
+    path: '/webhooks/{webhookId}',
+    summary: 'Get Webhook Details',
+    description: 'Fetches details for a specific webhook',
+    tags: ['webhooks'],
+    request: { params: z.object({ webhookId: z.string().describe('The webhook identifier') }) },
+    responses: {
+        200: {
+            description: 'Webhook',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            webhook: WebhookResponseSchema.describe('Webhook details'),
+                        })
+                        .strict(),
+                },
+            },
+        },
+        404: {
+            description: 'Not found',
+            content: { 'application/json': { schema: ApiErrorResponseSchema } },
+        },
+    },
+});
+
+const deleteRoute = createRoute({
+    method: 'delete',
+    path: '/webhooks/{webhookId}',
+    summary: 'Delete Webhook',
+    description: 'Permanently removes a webhook endpoint. This action cannot be undone',
+    tags: ['webhooks'],
+    request: { params: z.object({ webhookId: z.string().describe('The webhook identifier') }) },
+    responses: {
+        200: {
+            description: 'Removed',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            status: z
+                                .literal('removed')
+                                .describe('Operation status indicating successful removal'),
+                            webhookId: z.string().describe('ID of the removed webhook'),
+                        })
+                        .strict(),
+                },
+            },
+        },
+        404: {
+            description: 'Not found',
+            content: { 'application/json': { schema: ApiErrorResponseSchema } },
+        },
+    },
+});
+
+const testRoute = createRoute({
+    method: 'post',
+    path: '/webhooks/{webhookId}/test',
+    summary: 'Test Webhook',
+    description: 'Sends a sample event to test webhook connectivity and configuration',
+    tags: ['webhooks'],
+    request: { params: z.object({ webhookId: z.string().describe('The webhook identifier') }) },
+    responses: {
+        200: {
+            description: 'Test result',
+            content: {
+                'application/json': {
+                    schema: z
+                        .object({
+                            test: z
+                                .literal('completed')
+                                .describe('Test status indicating completion'),
+                            result: WebhookTestResultSchema.describe('Test execution results'),
+                        })
+                        .strict(),
+                },
+            },
+        },
+        404: {
+            description: 'Not found',
+            content: { 'application/json': { schema: ApiErrorResponseSchema } },
+        },
+    },
+});
+
 export function createWebhooksRouter(
     getAgent: GetAgentFn,
     webhookSubscriber: WebhookEventSubscriber
 ) {
     const app = new OpenAPIHono();
 
-    const registerRoute = createRoute({
-        method: 'post',
-        path: '/webhooks',
-        summary: 'Register Webhook',
-        description: 'Registers a new webhook endpoint to receive agent events',
-        tags: ['webhooks'],
-        request: { body: { content: { 'application/json': { schema: WebhookBodySchema } } } },
-        responses: {
-            201: {
-                description: 'Webhook registered',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                webhook: WebhookResponseSchema.describe(
-                                    'Registered webhook details'
-                                ),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-        },
-    });
-
-    const listRoute = createRoute({
-        method: 'get',
-        path: '/webhooks',
-        summary: 'List Webhooks',
-        description: 'Retrieves a list of all registered webhooks',
-        tags: ['webhooks'],
-        responses: {
-            200: {
-                description: 'List webhooks',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                webhooks: z
-                                    .array(WebhookResponseSchema)
-                                    .describe('Array of registered webhooks'),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-        },
-    });
-
-    const getRoute = createRoute({
-        method: 'get',
-        path: '/webhooks/{webhookId}',
-        summary: 'Get Webhook Details',
-        description: 'Fetches details for a specific webhook',
-        tags: ['webhooks'],
-        request: { params: z.object({ webhookId: z.string().describe('The webhook identifier') }) },
-        responses: {
-            200: {
-                description: 'Webhook',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                webhook: WebhookResponseSchema.describe('Webhook details'),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-            404: { description: 'Not found' },
-        },
-    });
-
-    const deleteRoute = createRoute({
-        method: 'delete',
-        path: '/webhooks/{webhookId}',
-        summary: 'Delete Webhook',
-        description: 'Permanently removes a webhook endpoint. This action cannot be undone',
-        tags: ['webhooks'],
-        request: { params: z.object({ webhookId: z.string().describe('The webhook identifier') }) },
-        responses: {
-            200: {
-                description: 'Removed',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                status: z
-                                    .literal('removed')
-                                    .describe('Operation status indicating successful removal'),
-                                webhookId: z.string().describe('ID of the removed webhook'),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-            404: { description: 'Not found' },
-        },
-    });
-
-    const testRoute = createRoute({
-        method: 'post',
-        path: '/webhooks/{webhookId}/test',
-        summary: 'Test Webhook',
-        description: 'Sends a sample event to test webhook connectivity and configuration',
-        tags: ['webhooks'],
-        request: { params: z.object({ webhookId: z.string().describe('The webhook identifier') }) },
-        responses: {
-            200: {
-                description: 'Test result',
-                content: {
-                    'application/json': {
-                        schema: z
-                            .object({
-                                test: z
-                                    .literal('completed')
-                                    .describe('Test status indicating completion'),
-                                result: WebhookTestResultSchema.describe('Test execution results'),
-                            })
-                            .strict(),
-                    },
-                },
-            },
-            404: { description: 'Not found' },
-        },
+    const serializeWebhook = (webhook: WebhookConfig) => ({
+        id: webhook.id,
+        url: webhook.url,
+        description: webhook.description,
+        createdAt: webhook.createdAt.toISOString(),
     });
 
     return app
@@ -189,51 +210,51 @@ export function createWebhooksRouter(
 
             return ctx.json(
                 {
-                    webhook: {
-                        id: webhook.id,
-                        url: webhook.url,
-                        description: webhook.description,
-                        createdAt: webhook.createdAt,
-                    },
+                    webhook: serializeWebhook(webhook),
                 },
                 201
             );
         })
         .openapi(listRoute, async (ctx) => {
-            const webhooks = webhookSubscriber.getWebhooks().map((webhook) => ({
-                id: webhook.id,
-                url: webhook.url,
-                description: webhook.description,
-                createdAt: webhook.createdAt,
-            }));
+            const webhooks = webhookSubscriber.getWebhooks().map(serializeWebhook);
 
-            return ctx.json({ webhooks });
+            return ctx.json({ webhooks }, 200);
         })
         .openapi(getRoute, (ctx) => {
             const { webhookId } = ctx.req.valid('param');
             const webhook = webhookSubscriber.getWebhook(webhookId);
             if (!webhook) {
-                return ctx.json({ error: 'Webhook not found' }, 404);
+                throw new DextoRuntimeError(
+                    'webhook_not_found',
+                    'webhook',
+                    ErrorType.NOT_FOUND,
+                    'Webhook not found',
+                    { webhookId }
+                );
             }
 
-            return ctx.json({
-                webhook: {
-                    id: webhook.id,
-                    url: webhook.url,
-                    description: webhook.description,
-                    createdAt: webhook.createdAt,
+            return ctx.json(
+                {
+                    webhook: serializeWebhook(webhook),
                 },
-            });
+                200
+            );
         })
         .openapi(deleteRoute, async (ctx) => {
             const agent = await getAgent(ctx);
             const { webhookId } = ctx.req.valid('param');
             const removed = webhookSubscriber.removeWebhook(webhookId);
             if (!removed) {
-                return ctx.json({ error: 'Webhook not found' }, 404);
+                throw new DextoRuntimeError(
+                    'webhook_not_found',
+                    'webhook',
+                    ErrorType.NOT_FOUND,
+                    'Webhook not found',
+                    { webhookId }
+                );
             }
             agent.logger.info(`Webhook removed: ${webhookId}`);
-            return ctx.json({ status: 'removed', webhookId });
+            return ctx.json({ status: 'removed' as const, webhookId }, 200);
         })
         .openapi(testRoute, async (ctx) => {
             const agent = await getAgent(ctx);
@@ -241,20 +262,47 @@ export function createWebhooksRouter(
             const webhook = webhookSubscriber.getWebhook(webhookId);
 
             if (!webhook) {
-                return ctx.json({ error: 'Webhook not found' }, 404);
+                throw new DextoRuntimeError(
+                    'webhook_not_found',
+                    'webhook',
+                    ErrorType.NOT_FOUND,
+                    'Webhook not found',
+                    { webhookId }
+                );
             }
 
             agent.logger.info(`Testing webhook: ${webhookId}`);
             const result = await webhookSubscriber.testWebhook(webhookId);
 
-            return ctx.json({
-                test: 'completed',
-                result: {
-                    success: result.success,
-                    statusCode: result.statusCode,
-                    responseTime: result.responseTime,
-                    error: result.error,
+            return ctx.json(
+                {
+                    test: 'completed' as const,
+                    result: {
+                        success: result.success,
+                        statusCode: result.statusCode,
+                        responseTime: result.responseTime,
+                        error: result.error,
+                    },
                 },
-            });
+                200
+            );
         });
 }
+
+type WebhookIdParamInput = { param: { webhookId: string } };
+
+type RegisterRouteSchema = OpenAPIRouteSchema<
+    typeof registerRoute,
+    { json: z.input<typeof WebhookBodySchema> }
+>;
+type ListRouteSchema = OpenAPIRouteSchema<typeof listRoute, {}>;
+type GetRouteSchema = OpenAPIRouteSchema<typeof getRoute, WebhookIdParamInput>;
+type DeleteRouteSchema = OpenAPIRouteSchema<typeof deleteRoute, WebhookIdParamInput>;
+type TestRouteSchema = OpenAPIRouteSchema<typeof testRoute, WebhookIdParamInput>;
+
+export type WebhooksRouterSchema =
+    | RegisterRouteSchema
+    | ListRouteSchema
+    | GetRouteSchema
+    | DeleteRouteSchema
+    | TestRouteSchema;

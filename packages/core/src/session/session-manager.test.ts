@@ -478,6 +478,61 @@ describe('SessionManager', () => {
             expect(createSessionSpy).toHaveBeenCalledWith('mock-uuid-123');
         });
 
+        test('should preserve session prompt contributors when forking a session', async () => {
+            const parentSessionId = 'parent-session-with-contributors';
+            const parentSessionData = {
+                id: parentSessionId,
+                createdAt: 1000,
+                lastActivity: 2000,
+                messageCount: 1,
+                metadata: {
+                    title: 'Parent title',
+                    systemPromptContributors: [
+                        {
+                            id: 'peer-origin',
+                            priority: 0,
+                            content: 'Reply to the originating human thread.',
+                        },
+                    ],
+                },
+            };
+
+            mockStorageManager.database.get.mockImplementation((key: string) => {
+                if (key === `session:${parentSessionId}`) {
+                    return Promise.resolve(parentSessionData);
+                }
+                if (key === 'session:mock-uuid-123') {
+                    return Promise.resolve(undefined);
+                }
+                return Promise.resolve(undefined);
+            });
+            mockStorageManager.database.getRange.mockResolvedValueOnce([]);
+
+            const mockChildSession = { id: 'mock-uuid-123' } as any;
+            const createSessionSpy = vi
+                .spyOn(sessionManager, 'createSession')
+                .mockResolvedValue(mockChildSession);
+
+            await sessionManager.forkSession(parentSessionId);
+
+            expect(mockStorageManager.database.set).toHaveBeenCalledWith(
+                'session:mock-uuid-123',
+                expect.objectContaining({
+                    metadata: {
+                        title: 'Fork: Parent title',
+                        systemPromptContributors: [
+                            {
+                                id: 'peer-origin',
+                                priority: 0,
+                                content: 'Reply to the originating human thread.',
+                            },
+                        ],
+                    },
+                })
+            );
+            expect(createSessionSpy).toHaveBeenCalledWith('mock-uuid-123');
+        });
+
         test('should throw not found when forking a non-existent parent session', async () => {
             mockStorageManager.database.get.mockResolvedValue(undefined);
 
@@ -682,6 +737,299 @@ describe('SessionManager', () => {
             expect(config).toEqual({
                 maxSessions: 10,
                 sessionTTL: 1800000,
+            });
+        });
+
+        test('stores and retrieves session system prompt contributors', async () => {
+            const sessionId = 'test-session';
+            const sessionKey = `session:${sessionId}`;
+            let storedSessionData: SessionData = {
+                ...mockSessionData,
+                metadata: {},
+            };
+            mockStorageManager.database.get.mockImplementation(async (key: string) =>
+                key === sessionKey ? JSON.parse(JSON.stringify(storedSessionData)) : null
+            );
+            mockStorageManager.database.set.mockImplementation(
+                async (key: string, value: SessionData) => {
+                    if (key === sessionKey) {
+                        storedSessionData = JSON.parse(JSON.stringify(value));
+                    }
+                }
+            );
+
+            const replaced = await sessionManager.upsertSessionSystemPromptContributor(sessionId, {
+                id: 'peer-origin',
+                priority: 0,
+                content: 'Reply to the originating human thread.',
+            });
+            const contributors = await sessionManager.getSessionSystemPromptContributors(sessionId);
+
+            expect(replaced).toBe(false);
+            expect(contributors).toEqual([
+                {
+                    id: 'peer-origin',
+                    priority: 0,
+                    content: 'Reply to the originating human thread.',
+                },
+            ]);
+            expect(mockStorageManager.database.set).toHaveBeenCalledWith(
+                `session:${sessionId}`,
+                expect.objectContaining({
+                    metadata: {
+                        systemPromptContributors: [
+                            {
+                                id: 'peer-origin',
+                                priority: 0,
+                                content: 'Reply to the originating human thread.',
+                            },
+                        ],
+                    },
+                })
+            );
+        });
+
+        test('removes session system prompt contributors by id', async () => {
+            const sessionId = 'test-session';
+            const sessionKey = `session:${sessionId}`;
+            let storedSessionData: SessionData = {
+                ...mockSessionData,
+                metadata: {
+                    systemPromptContributors: [
+                        {
+                            id: 'peer-origin',
+                            priority: 0,
+                            content: 'Reply to the originating human thread.',
+                        },
+                    ],
+                },
+            };
+            mockStorageManager.database.get.mockImplementation(async (key: string) =>
+                key === sessionKey ? JSON.parse(JSON.stringify(storedSessionData)) : null
+            );
+            mockStorageManager.database.set.mockImplementation(
+                async (key: string, value: SessionData) => {
+                    if (key === sessionKey) {
+                        storedSessionData = JSON.parse(JSON.stringify(value));
+                    }
+                }
+            );
+
+            const removed = await sessionManager.removeSessionSystemPromptContributor(
+                sessionId,
+                'peer-origin'
+            );
+
+            expect(removed).toBe(true);
+            expect(mockStorageManager.database.set).toHaveBeenCalledWith(
+                `session:${sessionId}`,
+                expect.objectContaining({
+                    metadata: {
+                        systemPromptContributors: [],
+                    },
+                })
+            );
+        });
+
+        test('serializes concurrent session prompt contributor mutations per session', async () => {
+            const sessionId = 'test-session';
+            const sessionKey = `session:${sessionId}`;
+            let storedSessionData: SessionData = {
+                ...mockSessionData,
+                metadata: {},
+            };
+            let setCalls = 0;
+            let releaseFirstWrite: (() => void) | undefined;
+            const firstWriteReleased = new Promise<void>((resolve) => {
+                releaseFirstWrite = resolve;
+            });
+
+            mockStorageManager.database.get.mockImplementation(async (key: string) =>
+                key === sessionKey ? JSON.parse(JSON.stringify(storedSessionData)) : null
+            );
+            mockStorageManager.database.set.mockImplementation(
+                async (key: string, value: SessionData) => {
+                    if (key !== sessionKey) {
+                        return;
+                    }
+
+                    setCalls += 1;
+                    if (setCalls === 1) {
+                        await firstWriteReleased;
+                    }
+
+                    storedSessionData = JSON.parse(JSON.stringify(value));
+                }
+            );
+
+            const firstMutation = sessionManager.upsertSessionSystemPromptContributor(sessionId, {
+                id: 'alpha',
+                priority: 10,
+                content: 'Contributor A',
+            });
+            const secondMutation = sessionManager.upsertSessionSystemPromptContributor(sessionId, {
+                id: 'beta',
+                priority: 20,
+                content: 'Contributor B',
+            });
+
+            if (!releaseFirstWrite) {
+                throw new Error('Expected first contributor write gate to be initialized.');
+            }
+            releaseFirstWrite();
+
+            await Promise.all([firstMutation, secondMutation]);
+
+            expect(storedSessionData.metadata?.systemPromptContributors).toEqual([
+                {
+                    id: 'alpha',
+                    priority: 10,
+                    content: 'Contributor A',
+                },
+                {
+                    id: 'beta',
+                    priority: 20,
+                    content: 'Contributor B',
+                },
+            ]);
+        });
+
+        test('serializes contributor and message-count mutations through the shared session lock', async () => {
+            const sessionId = 'test-session';
+            const sessionKey = `session:${sessionId}`;
+            let storedSessionData: SessionData = {
+                ...mockSessionData,
+                metadata: {},
+            };
+            let setCalls = 0;
+            let releaseFirstWrite: (() => void) | undefined;
+            const firstWriteReleased = new Promise<void>((resolve) => {
+                releaseFirstWrite = resolve;
+            });
+
+            mockStorageManager.database.get.mockImplementation(async (key: string) =>
+                key === sessionKey ? JSON.parse(JSON.stringify(storedSessionData)) : null
+            );
+            mockStorageManager.database.set.mockImplementation(
+                async (key: string, value: SessionData) => {
+                    if (key !== sessionKey) {
+                        return;
+                    }
+
+                    setCalls += 1;
+                    if (setCalls === 1) {
+                        await firstWriteReleased;
+                    }
+
+                    storedSessionData = JSON.parse(JSON.stringify(value));
+                }
+            );
+
+            const contributorMutation = sessionManager.upsertSessionSystemPromptContributor(
+                sessionId,
+                {
+                    id: 'peer-origin',
+                    priority: 0,
+                    content: 'Reply to the originating human thread.',
+                }
+            );
+            const messageCountMutation = sessionManager.incrementMessageCount(sessionId);
+
+            if (!releaseFirstWrite) {
+                throw new Error('Expected first session write gate to be initialized.');
+            }
+            releaseFirstWrite();
+
+            await Promise.all([contributorMutation, messageCountMutation]);
+
+            expect(storedSessionData.messageCount).toBe(mockSessionData.messageCount + 1);
+            expect(storedSessionData.metadata?.systemPromptContributors).toEqual([
+                {
+                    id: 'peer-origin',
+                    priority: 0,
+                    content: 'Reply to the originating human thread.',
+                },
+            ]);
+        });
+
+        test('continues queued contributor mutations after an earlier mutation fails', async () => {
+            const sessionId = 'test-session';
+            const sessionKey = `session:${sessionId}`;
+            let storedSessionData: SessionData = {
+                ...mockSessionData,
+                metadata: {},
+            };
+            let getCalls = 0;
+
+            mockStorageManager.database.get.mockImplementation(async (key: string) => {
+                if (key !== sessionKey) {
+                    return null;
+                }
+
+                getCalls += 1;
+                if (getCalls === 1) {
+                    return {
+                        ...storedSessionData,
+                        metadata: {
+                            systemPromptContributors: [{ id: 'invalid' }],
+                        },
+                    };
+                }
+
+                return JSON.parse(JSON.stringify(storedSessionData));
+            });
+            mockStorageManager.database.set.mockImplementation(
+                async (key: string, value: SessionData) => {
+                    if (key === sessionKey) {
+                        storedSessionData = JSON.parse(JSON.stringify(value));
+                    }
+                }
+            );
+
+            await expect(
+                sessionManager.upsertSessionSystemPromptContributor(sessionId, {
+                    id: 'alpha',
+                    priority: 10,
+                    content: 'Contributor A',
+                })
+            ).rejects.toMatchObject({
+                code: SessionErrorCode.SESSION_STORAGE_FAILED,
+                scope: ErrorScope.SESSION,
+                type: ErrorType.SYSTEM,
+            });
+
+            await expect(
+                sessionManager.upsertSessionSystemPromptContributor(sessionId, {
+                    id: 'beta',
+                    priority: 20,
+                    content: 'Contributor B',
+                })
+            ).resolves.toBe(false);
+
+            expect(storedSessionData.metadata?.systemPromptContributors).toEqual([
+                {
+                    id: 'beta',
+                    priority: 20,
+                    content: 'Contributor B',
+                },
+            ]);
+        });
+
+        test('converts invalid stored contributors into typed storage failures', async () => {
+            const sessionId = 'test-session';
+            mockStorageManager.database.get.mockResolvedValue({
+                ...mockSessionData,
+                metadata: {
+                    systemPromptContributors: [{ id: 'invalid' }],
+                },
+            });
+
+            await expect(
+                sessionManager.getSessionSystemPromptContributors(sessionId)
+            ).rejects.toMatchObject({
+                code: SessionErrorCode.SESSION_STORAGE_FAILED,
+                scope: ErrorScope.SESSION,
+                type: ErrorType.SYSTEM,
             });
         });
 

@@ -3,7 +3,8 @@ import { getPort } from '../../utils/port-utils.js';
 import type { MainModeContext } from './context.js';
 
 export async function runWebMode(context: MainModeContext): Promise<void> {
-    const { agent, opts, derivedAgentId, resolvedPath, getVersionCheckResult } = context;
+    const { agent, opts, workspaceRoot, derivedAgentId, resolvedPath, getVersionCheckResult } =
+        context;
 
     const [{ resolveWebRoot }, { startHonoApiServer }, { getWebUIAnalyticsConfig }] =
         await Promise.all([
@@ -48,6 +49,7 @@ export async function runWebMode(context: MainModeContext): Promise<void> {
         agent.config.agentCard || {},
         derivedAgentId,
         resolvedPath,
+        workspaceRoot,
         webRoot,
         webUIConfig
     );

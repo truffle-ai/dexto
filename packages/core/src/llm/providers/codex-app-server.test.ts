@@ -8,6 +8,7 @@ import type {
 } from '@ai-sdk/provider';
 import { DextoRuntimeError } from '../../errors/DextoRuntimeError.js';
 import { LLMErrorCode } from '../error-codes.js';
+import * as pathUtils from '../../utils/path.js';
 import { CodexAppServerClient, createCodexLanguageModel } from './codex-app-server.js';
 
 type TestNotification = {
@@ -316,6 +317,33 @@ describe('createCodexLanguageModel', () => {
         );
     });
 
+    it('passes the configured cwd through to the Codex client and thread start', async () => {
+        const mock = createMockClient();
+        const createSpy = vi
+            .spyOn(CodexAppServerClient, 'create')
+            .mockResolvedValue(mock.client as unknown as CodexAppServerClient);
+
+        const model = createCodexLanguageModel({
+            modelId: 'gpt-5.4',
+            baseURL: 'codex://chatgpt',
+            cwd: '/tmp/dexto-cloud',
+        });
+
+        const execution = await model.doStream(createCallOptions());
+        await execution.stream.cancel();
+
+        expect(createSpy).toHaveBeenCalledWith(
+            expect.objectContaining({
+                cwd: '/tmp/dexto-cloud',
+            })
+        );
+        expect(mock.client.startEphemeralThread).toHaveBeenCalledWith(
+            expect.objectContaining({
+                cwd: '/tmp/dexto-cloud',
+            })
+        );
+    });
+
     it('removes the abort listener after the stream finishes', async () => {
         const mock = createMockClient();
         vi.spyOn(CodexAppServerClient, 'create').mockResolvedValue(
@@ -516,7 +544,9 @@ describe('createCodexLanguageModel', () => {
     });
 
     it('maps Codex startup failures through the standard LLM error path', async () => {
-        vi.spyOn(CodexAppServerClient, 'create').mockRejectedValue(new Error('spawn codex ENOENT'));
+        const error = new Error('spawn codex ENOENT') as NodeJS.ErrnoException;
+        error.code = 'ENOENT';
+        vi.spyOn(CodexAppServerClient, 'create').mockRejectedValue(error);
 
         const model = createCodexLanguageModel({
             modelId: 'gpt-5.4',
@@ -527,6 +557,54 @@ describe('createCodexLanguageModel', () => {
             code: LLMErrorCode.CONFIG_MISSING,
             message: expect.stringContaining('Codex CLI on PATH'),
         });
+    });
+
+    it('maps normalized custom-command startup failures through the missing-config path', async () => {
+        const error = new Error(
+            "Codex CLI command '/tmp/codex' not found on PATH. Install Codex to use ChatGPT Login in Dexto."
+        ) as NodeJS.ErrnoException & { isMissingCodexError?: boolean };
+        error.code = 'ENOENT';
+        error.isMissingCodexError = true;
+        vi.spyOn(CodexAppServerClient, 'create').mockRejectedValue(error);
+
+        const model = createCodexLanguageModel({
+            modelId: 'gpt-5.4',
+            baseURL: 'codex://chatgpt',
+        });
+
+        await expect(model.doStream(createCallOptions())).rejects.toMatchObject({
+            code: LLMErrorCode.CONFIG_MISSING,
+            message: expect.stringContaining('Codex CLI on PATH'),
+        });
+    });
+
+    it('does not misclassify generic ENOENT spawn failures as missing Codex', async () => {
+        const error = new Error('spawn /tmp/invalid-cwd ENOENT') as NodeJS.ErrnoException;
+        error.code = 'ENOENT';
+        vi.spyOn(CodexAppServerClient, 'create').mockRejectedValue(error);
+
+        const model = createCodexLanguageModel({
+            modelId: 'gpt-5.4',
+            baseURL: 'codex://chatgpt',
+        });
+
+        await expect(model.doStream(createCallOptions())).rejects.toMatchObject({
+            code: LLMErrorCode.GENERATION_FAILED,
+            message: expect.stringContaining('spawn /tmp/invalid-cwd ENOENT'),
+        });
+    });
+
+    it('falls back to the default codex command when managed-path resolution throws', () => {
+        vi.spyOn(pathUtils, 'getDextoGlobalPath').mockImplementation(() => {
+            throw new Error('path resolution failed');
+        });
+
+        const ClientCtor = CodexAppServerClient as unknown as {
+            new (options?: unknown): CodexAppServerClient;
+        };
+        const client = new ClientCtor();
+
+        expect((client as unknown as Record<string, unknown>)['command']).toBe('codex');
     });
 
     it('fails fast when waiting on notifications after the client is closed', async () => {

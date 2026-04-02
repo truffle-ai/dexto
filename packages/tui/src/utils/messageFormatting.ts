@@ -6,7 +6,6 @@
 import path from 'path';
 import os from 'os';
 import type {
-    DextoAgent,
     InternalMessage,
     ContentPart,
     ToolCall,
@@ -14,6 +13,7 @@ import type {
 } from '@dexto/core';
 import { isTextPart, isAssistantMessage, isToolMessage } from '@dexto/core';
 import type { Message, ExternalTriggerStyledData } from '../state/types.js';
+import { supportsStartupInfo, type TuiAgentBackend } from '../agent-backend.js';
 
 const HIDDEN_TOOL_NAMES = new Set(['wait_for']);
 
@@ -639,7 +639,19 @@ export function convertHistoryToUIMessages(
 /**
  * Collects startup information for display in header
  */
-export async function getStartupInfo(agent: DextoAgent, sessionId: string | null) {
+export async function getStartupInfo(agent: TuiAgentBackend, sessionId: string | null) {
+    if (!supportsStartupInfo(agent)) {
+        return {
+            connectedServers: {
+                count: 0,
+                names: [],
+            },
+            failedConnections: [],
+            toolCount: 0,
+            logFile: null,
+        };
+    }
+
     const connectedServers = agent.mcpManager.getClients();
     const failedConnections = agent.mcpManager.getFailedConnections();
     const tools = await agent.getAllTools();

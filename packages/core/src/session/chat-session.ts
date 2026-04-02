@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { createDatabaseHistoryProvider } from './history/factory.js';
 import { createLLMService } from '../llm/services/factory.js';
 import type { ContextManager } from '../context/index.js';
@@ -25,7 +26,7 @@ import { HookErrorCode } from '../hooks/error-codes.js';
 import type { InternalMessage, ContentPart } from '../context/types.js';
 import type { UserMessageInput } from './message-queue.js';
 import type { ContentInput } from '../agent/types.js';
-import { getModelPricing, calculateCost } from '../llm/registry/index.js';
+import { getUsagePricingMetadata, hasMeaningfulTokenUsage } from '../llm/usage-metadata.js';
 import type { CompactionStrategy } from '../context/compaction/types.js';
 import type { LlmAuthResolver } from '../llm/auth/types.js';
 import { parseCodexBaseURL } from '../llm/providers/codex-base-url.js';
@@ -120,23 +121,6 @@ export class ChatSession {
      */
     private currentRunController: AbortController | null = null;
 
-    private isMeaningfulTokenUsage(
-        tokenUsage: SessionEventMap['llm:response']['tokenUsage']
-    ): boolean {
-        if (!tokenUsage) {
-            return false;
-        }
-
-        return (
-            (tokenUsage.inputTokens ?? 0) > 0 ||
-            (tokenUsage.outputTokens ?? 0) > 0 ||
-            (tokenUsage.reasoningTokens ?? 0) > 0 ||
-            (tokenUsage.cacheReadTokens ?? 0) > 0 ||
-            (tokenUsage.cacheWriteTokens ?? 0) > 0 ||
-            (tokenUsage.totalTokens ?? 0) > 0
-        );
-    }
-
     public readonly logger: Logger;
 
     /**
@@ -162,6 +146,7 @@ export class ChatSession {
             hookManager: HookManager;
             mcpManager: MCPManager;
             sessionManager: import('./session-manager.js').SessionManager;
+            workspaceManager?: import('../workspace/manager.js').WorkspaceManager;
             compactionStrategy: CompactionStrategy | null;
             llmAuthResolver?: LlmAuthResolver | null;
         },
@@ -234,7 +219,7 @@ export class ChatSession {
                 const isChatGPTLogin =
                     llmConfig.provider === 'openai-compatible' &&
                     parseCodexBaseURL(llmConfig.baseURL)?.authMode === 'chatgpt';
-                const hasMeaningfulUsage = this.isMeaningfulTokenUsage(payload.tokenUsage);
+                const hasMeaningfulUsage = hasMeaningfulTokenUsage(payload.tokenUsage);
 
                 if (isChatGPTLogin && !hasMeaningfulUsage) {
                     this.services.sessionManager
@@ -253,16 +238,20 @@ export class ChatSession {
                     model: payload.model ?? llmConfig.model,
                 };
 
-                // Calculate cost if pricing is available (using the actual model from payload)
-                let cost: number | undefined;
-                const pricing = getModelPricing(modelInfo.provider, modelInfo.model);
-                if (pricing) {
-                    cost = calculateCost(payload.tokenUsage, pricing);
-                }
+                const pricingMetadata = getUsagePricingMetadata({
+                    provider: modelInfo.provider,
+                    model: modelInfo.model,
+                    tokenUsage: payload.tokenUsage,
+                });
 
                 // Fire and forget - don't block the event flow
                 this.services.sessionManager
-                    .accumulateTokenUsage(this.id, payload.tokenUsage, cost, modelInfo)
+                    .accumulateTokenUsage(
+                        this.id,
+                        payload.tokenUsage,
+                        payload.estimatedCost ?? pricingMetadata.estimatedCost,
+                        modelInfo
+                    )
                     .catch((err) => {
                         this.logger.warn(
                             `Failed to accumulate token usage: ${err instanceof Error ? err.message : String(err)}`
@@ -281,6 +270,7 @@ export class ChatSession {
         // Get current effective configuration for this session from state manager
         const runtimeConfig = this.services.stateManager.getRuntimeConfig(this.id);
         const llmConfig = runtimeConfig.llm;
+        const workspace = await this.services.workspaceManager?.getWorkspace();
 
         // Create session-specific history provider directly with database backend
         // This persists across LLM switches to maintain conversation history
@@ -303,8 +293,12 @@ export class ChatSession {
             this.id,
             this.services.resourceManager, // Pass ResourceManager for blob storage
             this.logger, // Pass logger for dependency injection
-            compactionStrategy, // Pass compaction strategy
-            this.services.llmAuthResolver ?? null
+            {
+                usageScopeId: runtimeConfig.usageScopeId,
+                compactionStrategy,
+                cwd: workspace?.path,
+                authResolver: this.services.llmAuthResolver ?? null,
+            }
         );
 
         this.logger.debug(`ChatSession ${this.id}: Services initialized with storage`);
@@ -327,18 +321,24 @@ export class ChatSession {
         _imageData?: { image: string; mimeType: string },
         _fileData?: { data: string; mimeType: string; filename?: string }
     ): Promise<void> {
+        const timestamp = Date.now();
+
         // Create redacted user message (do not persist sensitive content or attachments)
         // When content is blocked by policy (abusive language, inappropriate content, etc.),
         // we shouldn't store the original content to comply with data minimization principles
         const userMessage: InternalMessage = {
+            id: randomUUID(),
             role: 'user',
+            timestamp,
             content: [{ type: 'text', text: '[Blocked by content policy: input redacted]' }],
         };
 
         // Create assistant error message
         const errorContent = `Error: ${errorMessage}`;
         const assistantMessage: InternalMessage = {
+            id: randomUUID(),
             role: 'assistant',
+            timestamp: timestamp + 1,
             content: [{ type: 'text', text: errorContent }],
         };
 
@@ -354,6 +354,7 @@ export class ChatSession {
             content: errorContent,
             provider: llmConfig.provider,
             model: llmConfig.model,
+            ...(assistantMessage.id && { messageId: assistantMessage.id }),
         });
     }
 
@@ -670,6 +671,8 @@ export class ChatSession {
      */
     public async switchLLM(newLLMConfig: ValidatedLLMConfig): Promise<void> {
         try {
+            const runtimeConfig = this.services.stateManager.getRuntimeConfig(this.id);
+            const workspace = await this.services.workspaceManager?.getWorkspace();
             // Reuse the agent-provided compaction strategy (if any)
             const compactionStrategy = this.services.compactionStrategy;
 
@@ -684,8 +687,12 @@ export class ChatSession {
                 this.id,
                 this.services.resourceManager,
                 this.logger,
-                compactionStrategy, // Pass compaction strategy
-                this.services.llmAuthResolver ?? null
+                {
+                    usageScopeId: runtimeConfig.usageScopeId,
+                    compactionStrategy,
+                    cwd: workspace?.path,
+                    authResolver: this.services.llmAuthResolver ?? null,
+                }
             );
 
             // Replace the LLM service

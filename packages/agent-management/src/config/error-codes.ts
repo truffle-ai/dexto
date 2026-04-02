@@ -13,6 +13,7 @@ export enum ConfigErrorCode {
 
     // Resolution errors
     NO_PROJECT_DEFAULT = 'config_no_project_default',
+    INVALID_PROJECT_PRIMARY = 'config_invalid_project_primary',
     NO_GLOBAL_PREFERENCES = 'config_no_global_preferences',
     SETUP_INCOMPLETE = 'config_setup_incomplete',
     BUNDLED_NOT_FOUND = 'config_bundled_not_found',

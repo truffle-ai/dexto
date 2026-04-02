@@ -362,8 +362,14 @@ describe('File Support Functions', () => {
                 'pdf',
                 'image',
                 'audio',
+                'video',
+                'document',
             ]);
-            expect(getSupportedFileTypesForModel('openai', 'gpt-5')).toEqual(['pdf', 'image']);
+            expect(getSupportedFileTypesForModel('openai', 'gpt-5')).toEqual([
+                'pdf',
+                'image',
+                'document',
+            ]);
         });
 
         it('returns empty array for models without file support', () => {
@@ -375,6 +381,8 @@ describe('File Support Functions', () => {
                 'pdf',
                 'image',
                 'audio',
+                'video',
+                'document',
             ]);
         });
 
@@ -395,6 +403,8 @@ describe('File Support Functions', () => {
         it('returns true for supported model-file combinations', () => {
             expect(modelSupportsFileType('google', 'gemini-3-flash-preview', 'audio')).toBe(true);
             expect(modelSupportsFileType('openai', 'gpt-5', 'pdf')).toBe(true);
+            expect(modelSupportsFileType('google', 'gemini-3-flash-preview', 'video')).toBe(true);
+            expect(modelSupportsFileType('openai', 'gpt-5', 'document')).toBe(true);
         });
 
         it('returns false for unsupported model-file combinations', () => {
@@ -405,6 +415,10 @@ describe('File Support Functions', () => {
             expect(modelSupportsFileType('openai-compatible', 'custom-model', 'pdf')).toBe(true);
             expect(modelSupportsFileType('openai-compatible', 'custom-model', 'image')).toBe(true);
             expect(modelSupportsFileType('openai-compatible', 'custom-model', 'audio')).toBe(true);
+            expect(modelSupportsFileType('openai-compatible', 'custom-model', 'video')).toBe(true);
+            expect(modelSupportsFileType('openai-compatible', 'custom-model', 'document')).toBe(
+                true
+            );
         });
 
         it('throws error for unknown model', () => {
@@ -428,6 +442,26 @@ describe('File Support Functions', () => {
             expect(result.isSupported).toBe(true);
             expect(result.fileType).toBe('audio');
             expect(result.error).toBeUndefined();
+        });
+
+        it('validates video and document files correctly', () => {
+            expect(
+                validateModelFileSupport('google', 'gemini-3-flash-preview', 'video/mp4')
+            ).toMatchObject({
+                isSupported: true,
+                fileType: 'video',
+            });
+
+            expect(
+                validateModelFileSupport(
+                    'openai',
+                    'gpt-5',
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                )
+            ).toMatchObject({
+                isSupported: true,
+                fileType: 'document',
+            });
         });
 
         it('rejects unsupported files with descriptive error', () => {
@@ -641,6 +675,8 @@ describe('Provider-Specific Tests', () => {
                 'pdf',
                 'image',
                 'audio',
+                'video',
+                'document',
             ]);
         });
     });
@@ -660,6 +696,8 @@ describe('Provider-Specific Tests', () => {
                 'pdf',
                 'image',
                 'audio',
+                'video',
+                'document',
             ]);
         });
     });

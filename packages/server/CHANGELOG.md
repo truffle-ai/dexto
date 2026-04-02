@@ -1,5 +1,116 @@
 # @dexto/server
 
+## 1.6.21
+
+### Patch Changes
+
+- f70d03c: Fix recursive JSON OpenAPI docs to match runtime contracts and tighten MCP tool input typing.
+- 5123a32: Tighten OpenAPI route contracts and preserve emitted Hono client response types for non-2xx JSON branches.
+- c51501e: Fix local server smoke regressions in prompt/resource serialization, A2A task cancel handling, and custom agent install/switch registry behavior.
+- Updated dependencies [c51501e]
+- Updated dependencies [80608eb]
+    - @dexto/agent-management@1.6.21
+    - @dexto/image-local@1.6.21
+    - @dexto/core@1.6.21
+    - @dexto/storage@1.6.21
+    - @dexto/agent-config@1.6.21
+    - @dexto/tools-scheduler@1.6.21
+
+## 1.6.20
+
+### Patch Changes
+
+- 059b3d1: Patch release for the recent Hono contract cleanup and package export fix.
+    - `@dexto/server`: publish the Hono inference contract/schema cleanup so downstream typed clients stop seeing opaque response shapes.
+    - `@dexto/agent-management`: publish the `exports["."].types` fix so NodeNext consumers resolve declarations correctly.
+
+- Updated dependencies [059b3d1]
+    - @dexto/agent-management@1.6.20
+    - @dexto/image-local@1.6.20
+    - @dexto/core@1.6.20
+    - @dexto/storage@1.6.20
+    - @dexto/agent-config@1.6.20
+    - @dexto/tools-scheduler@1.6.20
+
+## 1.6.19
+
+### Patch Changes
+
+- Updated dependencies [aa54df6]
+- Updated dependencies [015dd4f]
+    - @dexto/core@1.6.19
+    - @dexto/agent-config@1.6.19
+    - @dexto/agent-management@1.6.19
+    - @dexto/image-local@1.6.19
+    - @dexto/storage@1.6.19
+    - @dexto/tools-scheduler@1.6.19
+
+## 1.6.18
+
+### Patch Changes
+
+- 3d4fb3d: Pass explicit usage scope IDs through agent creation, LLM execution, and session load responses.
+- beb8efa: Add session prompt contributors allowing adding and injecting context into at a session level.
+- Updated dependencies [29bd887]
+- Updated dependencies [3d4fb3d]
+- Updated dependencies [beb8efa]
+    - @dexto/agent-management@1.6.18
+    - @dexto/core@1.6.18
+    - @dexto/agent-config@1.6.18
+    - @dexto/image-local@1.6.18
+    - @dexto/storage@1.6.18
+    - @dexto/tools-scheduler@1.6.18
+
+## 1.6.17
+
+### Patch Changes
+
+- 2b4603a: Add direct cloud-agent chat support to the CLI, including agent selection, shared Ink UI support through a backend adapter layer, and cloud session,
+  streaming, approval, and cancel flows. Also align cloud behavior with the local CLI for command availability, approval handling, and context clearing.
+- 302d1c3: Improve LLM usage delivery safety and summary completeness.
+- Updated dependencies [302d1c3]
+    - @dexto/core@1.6.17
+    - @dexto/agent-config@1.6.17
+    - @dexto/agent-management@1.6.17
+    - @dexto/image-local@1.6.17
+    - @dexto/storage@1.6.17
+    - @dexto/tools-scheduler@1.6.17
+
+## 1.6.16
+
+### Patch Changes
+
+- Updated dependencies [11acdc1]
+    - @dexto/core@1.6.16
+    - @dexto/agent-config@1.6.16
+    - @dexto/agent-management@1.6.16
+    - @dexto/image-local@1.6.16
+    - @dexto/storage@1.6.16
+    - @dexto/tools-scheduler@1.6.16
+
+## 1.6.15
+
+### Patch Changes
+
+- Updated dependencies [6a490b0]
+    - @dexto/agent-management@1.6.15
+    - @dexto/core@1.6.15
+    - @dexto/image-local@1.6.15
+    - @dexto/agent-config@1.6.15
+    - @dexto/storage@1.6.15
+    - @dexto/tools-scheduler@1.6.15
+
+## 1.6.14
+
+### Patch Changes
+
+- @dexto/core@1.6.14
+- @dexto/storage@1.6.14
+- @dexto/agent-config@1.6.14
+- @dexto/agent-management@1.6.14
+- @dexto/image-local@1.6.14
+- @dexto/tools-scheduler@1.6.14
+
 ## 1.6.13
 
 ### Patch Changes

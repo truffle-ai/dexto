@@ -1,10 +1,39 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { GetAgentFn } from '../index.js';
+import { InternalErrorResponse } from '../schemas/responses.js';
+import type { GetAgentFn, OpenAPIRouteSchema } from '../types.js';
 import {
     isDextoAuthEnabled,
     isDextoAuthenticated,
     canUseDextoProvider,
 } from '@dexto/agent-management';
+
+const DextoAuthStatusResponseSchema = z
+    .object({
+        enabled: z.boolean().describe('Whether dexto auth feature is enabled'),
+        authenticated: z.boolean().describe('Whether user is authenticated with dexto'),
+        canUse: z.boolean().describe('Whether user can use dexto (authenticated AND has API key)'),
+    })
+    .describe('Dexto auth status response');
+
+const statusRoute = createRoute({
+    method: 'get',
+    path: '/dexto-auth/status',
+    summary: 'Dexto Auth Status',
+    description:
+        'Returns dexto authentication status. Used by Web UI to check if user can use dexto features.',
+    tags: ['auth'],
+    responses: {
+        200: {
+            description: 'Dexto auth status',
+            content: {
+                'application/json': {
+                    schema: DextoAuthStatusResponseSchema,
+                },
+            },
+        },
+        500: InternalErrorResponse,
+    },
+});
 
 /**
  * Dexto authentication status routes.
@@ -13,53 +42,34 @@ import {
 export function createDextoAuthRouter(_getAgent: GetAgentFn) {
     const app = new OpenAPIHono();
 
-    const statusRoute = createRoute({
-        method: 'get',
-        path: '/dexto-auth/status',
-        summary: 'Dexto Auth Status',
-        description:
-            'Returns dexto authentication status. Used by Web UI to check if user can use dexto features.',
-        tags: ['auth'],
-        responses: {
-            200: {
-                description: 'Dexto auth status',
-                content: {
-                    'application/json': {
-                        schema: z.object({
-                            enabled: z.boolean().describe('Whether dexto auth feature is enabled'),
-                            authenticated: z
-                                .boolean()
-                                .describe('Whether user is authenticated with dexto'),
-                            canUse: z
-                                .boolean()
-                                .describe(
-                                    'Whether user can use dexto (authenticated AND has API key)'
-                                ),
-                        }),
-                    },
-                },
-            },
-        },
-    });
-
     return app.openapi(statusRoute, async (c) => {
         const enabled = isDextoAuthEnabled();
 
         if (!enabled) {
-            return c.json({
-                enabled: false,
-                authenticated: false,
-                canUse: false,
-            });
+            return c.json(
+                {
+                    enabled: false,
+                    authenticated: false,
+                    canUse: false,
+                },
+                200
+            );
         }
 
         const authenticated = await isDextoAuthenticated();
         const canUse = await canUseDextoProvider();
 
-        return c.json({
-            enabled,
-            authenticated,
-            canUse,
-        });
+        return c.json(
+            {
+                enabled,
+                authenticated,
+                canUse,
+            },
+            200
+        );
     });
 }
+
+type StatusRouteSchema = OpenAPIRouteSchema<typeof statusRoute, {}>;
+
+export type DextoAuthRouterSchema = StatusRouteSchema;

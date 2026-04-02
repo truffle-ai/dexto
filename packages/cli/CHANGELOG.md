@@ -1,5 +1,155 @@
 # dexto
 
+## 1.6.21
+
+### Patch Changes
+
+- 80608eb: Simplify first-run setup and default Dexto to CLI.
+- Updated dependencies [f70d03c]
+- Updated dependencies [5123a32]
+- Updated dependencies [c51501e]
+- Updated dependencies [80608eb]
+    - @dexto/server@1.6.21
+    - @dexto/client-sdk@1.6.21
+    - @dexto/agent-management@1.6.21
+    - @dexto/analytics@1.6.21
+    - @dexto/image-local@1.6.21
+    - @dexto/image-logger-agent@1.6.21
+    - @dexto/tui@1.6.21
+    - @dexto/core@1.6.21
+    - @dexto/storage@1.6.21
+    - @dexto/agent-config@1.6.21
+    - @dexto/registry@1.6.21
+
+## 1.6.20
+
+### Patch Changes
+
+- Updated dependencies [059b3d1]
+    - @dexto/server@1.6.20
+    - @dexto/agent-management@1.6.20
+    - @dexto/client-sdk@1.6.20
+    - @dexto/analytics@1.6.20
+    - @dexto/image-local@1.6.20
+    - @dexto/image-logger-agent@1.6.20
+    - @dexto/tui@1.6.20
+    - @dexto/core@1.6.20
+    - @dexto/storage@1.6.20
+    - @dexto/agent-config@1.6.20
+    - @dexto/registry@1.6.20
+
+## 1.6.19
+
+### Patch Changes
+
+- aa54df6: Replace browser-facing approval enums with const-list exports and string-union types.
+- 015dd4f: Align workspace root resolution across Dexto and Codex, and ensure the CLI always stops the agent if workspace setup fails during startup.
+- Updated dependencies [aa54df6]
+- Updated dependencies [015dd4f]
+    - @dexto/core@1.6.19
+    - @dexto/agent-config@1.6.19
+    - @dexto/agent-management@1.6.19
+    - @dexto/analytics@1.6.19
+    - @dexto/client-sdk@1.6.19
+    - @dexto/image-local@1.6.19
+    - @dexto/image-logger-agent@1.6.19
+    - @dexto/server@1.6.19
+    - @dexto/storage@1.6.19
+    - @dexto/tui@1.6.19
+    - @dexto/registry@1.6.19
+
+## 1.6.18
+
+### Patch Changes
+
+- 29bd887: Update create-skill and formalized convention for new skill bundles in workspaces. Updated `dexto init` to initialize with create-skill default.
+- 3d4fb3d: Pass explicit usage scope IDs through agent creation, LLM execution, and session load responses.
+- Updated dependencies [29bd887]
+- Updated dependencies [3d4fb3d]
+- Updated dependencies [beb8efa]
+    - @dexto/agent-management@1.6.18
+    - @dexto/core@1.6.18
+    - @dexto/agent-config@1.6.18
+    - @dexto/server@1.6.18
+    - @dexto/analytics@1.6.18
+    - @dexto/image-local@1.6.18
+    - @dexto/image-logger-agent@1.6.18
+    - @dexto/tui@1.6.18
+    - @dexto/client-sdk@1.6.18
+    - @dexto/storage@1.6.18
+    - @dexto/registry@1.6.18
+
+## 1.6.17
+
+### Patch Changes
+
+- 2b4603a: Add direct cloud-agent chat support to the CLI, including agent selection, shared Ink UI support through a backend adapter layer, and cloud session,
+  streaming, approval, and cancel flows. Also align cloud behavior with the local CLI for command availability, approval handling, and context clearing.
+- Updated dependencies [2b4603a]
+- Updated dependencies [302d1c3]
+    - @dexto/server@1.6.17
+    - @dexto/tui@1.6.17
+    - @dexto/core@1.6.17
+    - @dexto/client-sdk@1.6.17
+    - @dexto/agent-config@1.6.17
+    - @dexto/agent-management@1.6.17
+    - @dexto/analytics@1.6.17
+    - @dexto/image-local@1.6.17
+    - @dexto/image-logger-agent@1.6.17
+    - @dexto/storage@1.6.17
+    - @dexto/registry@1.6.17
+
+## 1.6.16
+
+### Patch Changes
+
+- 11acdc1: Add codex dependency resolution for ChatGPT login.
+- 70c42a6: Add interactive agent creation wizard with multi-step prompts for agent name, system prompt (generated or custom), tool-bundle selection, and editor integration.
+- Updated dependencies [11acdc1]
+    - @dexto/core@1.6.16
+    - @dexto/agent-config@1.6.16
+    - @dexto/agent-management@1.6.16
+    - @dexto/analytics@1.6.16
+    - @dexto/image-local@1.6.16
+    - @dexto/image-logger-agent@1.6.16
+    - @dexto/server@1.6.16
+    - @dexto/storage@1.6.16
+    - @dexto/tui@1.6.16
+    - @dexto/registry@1.6.16
+
+## 1.6.15
+
+### Patch Changes
+
+- 6a490b0: Added `dexto init` commands for scaffolding AGENTS.md, agents/ and skills/.
+- Updated dependencies [6a490b0]
+    - @dexto/agent-management@1.6.15
+    - @dexto/core@1.6.15
+    - @dexto/analytics@1.6.15
+    - @dexto/image-local@1.6.15
+    - @dexto/image-logger-agent@1.6.15
+    - @dexto/server@1.6.15
+    - @dexto/tui@1.6.15
+    - @dexto/agent-config@1.6.15
+    - @dexto/storage@1.6.15
+    - @dexto/registry@1.6.15
+
+## 1.6.14
+
+### Patch Changes
+
+- 2095786: Add `list` and `open` subcommands to `dexto deploy`. Update the login default host url.
+    - @dexto/core@1.6.14
+    - @dexto/storage@1.6.14
+    - @dexto/agent-config@1.6.14
+    - @dexto/agent-management@1.6.14
+    - @dexto/analytics@1.6.14
+    - @dexto/registry@1.6.14
+    - @dexto/server@1.6.14
+    - @dexto/image-local@1.6.14
+    - @dexto/image-logger-agent@1.6.14
+    - @dexto/tui@1.6.14
+
 ## 1.6.13
 
 ### Patch Changes

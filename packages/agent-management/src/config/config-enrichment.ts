@@ -17,6 +17,7 @@ import { getDextoPath } from '../utils/path.js';
 import type { AgentConfig } from '@dexto/agent-config';
 import * as path from 'path';
 import { discoverCommandPrompts, discoverAgentInstructionFile } from './discover-prompts.js';
+import { findDextoProjectRoot } from '../utils/execution-context.js';
 import {
     discoverClaudeCodePlugins,
     loadClaudeCodePlugin,
@@ -90,6 +91,32 @@ export interface EnrichAgentConfigOptions {
      * Useful when configs may be loaded from varying working directories.
      */
     forceStoragePaths?: boolean;
+    /**
+     * Explicit workspace root to use for workspace-scoped discovery (skills, AGENTS.md).
+     * When omitted, enrichment falls back to the selected config path and then the ambient cwd.
+     */
+    workspaceRoot?: string | undefined;
+}
+
+function resolveEnrichmentWorkspaceRoot(
+    configPath: string | undefined,
+    explicitWorkspaceRoot: string | undefined
+): string {
+    if (explicitWorkspaceRoot) {
+        return path.resolve(explicitWorkspaceRoot);
+    }
+
+    if (configPath) {
+        const resolvedConfigDir = path.dirname(path.resolve(configPath));
+        const configProjectRoot = findDextoProjectRoot(resolvedConfigDir);
+        if (configProjectRoot) {
+            return configProjectRoot;
+        }
+
+        return resolvedConfigDir;
+    }
+
+    return findDextoProjectRoot() ?? process.cwd();
 }
 
 /**
@@ -121,13 +148,15 @@ export function enrichAgentConfig(
         skipPluginDiscovery = false,
         bundledPlugins = [],
         forceStoragePaths = false,
+        workspaceRoot: explicitWorkspaceRoot,
     } = opts;
     const agentId = deriveAgentId(config, configPath);
+    const workspaceRoot = resolveEnrichmentWorkspaceRoot(configPath, explicitWorkspaceRoot);
 
     // Generate per-agent paths
     // Note: file logging is session-scoped (see core SessionManager) so we don't set a per-agent log file here.
-    const dbPath = getDextoPath('database', `${agentId}.db`);
-    const blobPath = getDextoPath('blobs', agentId);
+    const dbPath = getDextoPath('database', `${agentId}.db`, workspaceRoot);
+    const blobPath = getDextoPath('blobs', agentId, workspaceRoot);
 
     // Create enriched config (shallow copy with deep updates)
     const enriched: AgentConfig = {
@@ -200,7 +229,7 @@ export function enrichAgentConfig(
     // in the future, per-agent backup paths can be generated here.
 
     // Discover and merge command prompts from commands/ directories
-    const discoveredPrompts = discoverCommandPrompts();
+    const discoveredPrompts = discoverCommandPrompts(workspaceRoot);
     if (discoveredPrompts.length > 0) {
         // Merge discovered prompts with existing config prompts
         // Config prompts take precedence - deduplicate by file path to avoid
@@ -235,7 +264,7 @@ export function enrichAgentConfig(
             }
         }
 
-        const discoveredPlugins = discoverClaudeCodePlugins(undefined, bundledPlugins);
+        const discoveredPlugins = discoverClaudeCodePlugins(workspaceRoot, bundledPlugins);
         for (const plugin of discoveredPlugins) {
             const loaded = loadClaudeCodePlugin(plugin);
 
@@ -277,12 +306,13 @@ export function enrichAgentConfig(
             }
         }
 
-        // Discover standalone skills from ~/.agents/skills/, ~/.dexto/skills/,
-        // <cwd>/.agents/skills/, and <cwd>/.dexto/skills/
+        // Discover standalone skills from <projectRoot>/skills/,
+        // <projectRoot>/.agents/skills/, <projectRoot>/.dexto/skills/,
+        // ~/.agents/skills/, and ~/.dexto/skills/
         // These are bare skill directories with SKILL.md files (not full plugins)
         // Unlike plugin commands, standalone skills don't need namespace prefixing -
         // the id from frontmatter or directory name is used directly.
-        const standaloneSkills = discoverStandaloneSkills();
+        const standaloneSkills = discoverStandaloneSkills(workspaceRoot);
         for (const skill of standaloneSkills) {
             const resolvedPath = path.resolve(skill.skillFile);
             if (existingPromptPaths.has(resolvedPath)) {
@@ -305,9 +335,11 @@ export function enrichAgentConfig(
     const shouldDiscoverAgentInstructions =
         config.agentFile?.discoverInCwd !== undefined ? config.agentFile.discoverInCwd : true;
 
-    // Discover agent instruction file (AGENTS.md, CLAUDE.md, GEMINI.md) in cwd
+    // Discover agent instruction file (AGENTS.md, CLAUDE.md, GEMINI.md) at the workspace root
     // Add as a file contributor to system prompt if found
-    const instructionFile = shouldDiscoverAgentInstructions ? discoverAgentInstructionFile() : null;
+    const instructionFile = shouldDiscoverAgentInstructions
+        ? discoverAgentInstructionFile(workspaceRoot)
+        : null;
     if (instructionFile) {
         // Add file contributor to system prompt config
         // Use a low priority (5) so it runs early but after any base prompt

@@ -9,12 +9,12 @@
  */
 
 import { Box, Text } from 'ink';
-import type { DextoAgent } from '@dexto/core';
 import { usePhraseCycler } from '../hooks/usePhraseCycler.js';
 import { useElapsedTime } from '../hooks/useElapsedTime.js';
 import { useTokenCounter } from '../hooks/useTokenCounter.js';
 import { useAnimationTick } from '../hooks/useAnimationTick.js';
 import { BRAILLE_SPINNER_FRAMES } from '../constants/spinnerFrames.js';
+import type { TuiAgentBackend } from '../agent-backend.js';
 
 function StatusSpinner({ enabled, color }: { enabled: boolean; color: string }) {
     const tick = useAnimationTick({ enabled, intervalMs: 80 });
@@ -23,7 +23,7 @@ function StatusSpinner({ enabled, color }: { enabled: boolean; color: string }) 
 }
 
 interface StatusBarProps {
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
     isProcessing: boolean;
     isThinking: boolean;
     isCompacting: boolean;

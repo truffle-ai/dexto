@@ -640,6 +640,32 @@ describe('ConfigPromptProvider', () => {
             expect(prompt?.toolkits).toEqual(['creator-tools']);
         });
 
+        test('captures bundled MCP servers for skill bundles', async () => {
+            const config = makeAgentConfig([
+                {
+                    type: 'file',
+                    file: join(FIXTURES_DIR, 'my-test-skill', 'SKILL.md'),
+                    showInStarters: false,
+                },
+            ]);
+
+            const provider = new ConfigPromptProvider(config, mockLogger);
+            const list = await provider.listPrompts();
+            const prompt = list.prompts.find((item) => item.name === 'config:my-test-skill');
+            const mcpServers = prompt?.metadata?.mcpServers as
+                | Record<string, Record<string, unknown>>
+                | undefined;
+
+            expect(mcpServers).toBeDefined();
+            expect(mcpServers?.skill_fixture_echo).toMatchObject({
+                type: 'stdio',
+                command: 'node',
+            });
+            expect(mcpServers?.skill_fixture_echo?.args).toEqual([
+                join(FIXTURES_DIR, 'my-test-skill', 'scripts', 'fixture-echo-server.mjs'),
+            ]);
+        });
+
         test('preserves allowed-tools from inline prompts', async () => {
             const config = makeAgentConfig([
                 {

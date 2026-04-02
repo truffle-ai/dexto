@@ -15,6 +15,8 @@
 #   ./quality-checks.sh typecheck          - Run typecheck, show last 200 lines on failure (default)
 #   ./quality-checks.sh typecheck 150      - Run typecheck, show last 150 lines on failure
 #   ./quality-checks.sh typecheck all      - Run typecheck, show all output on failure
+#   ./quality-checks.sh hono-inference     - Run Hono client inference check, show last 200 lines on failure (default)
+#   ./quality-checks.sh hono-inference all - Run Hono client inference check, show all output on failure
 #   ./quality-checks.sh all                - Run all checks in order (default: 200 lines)
 #   ./quality-checks.sh all 100            - Run all checks, show last 100 lines on failure
 #   ./quality-checks.sh all all            - Run all checks, show all output on failure
@@ -77,6 +79,9 @@ case "$CHECK_TYPE" in
   typecheck)
     run_check "pnpm run typecheck" "Typecheck" "$OUTPUT_LINES"
     ;;
+  hono-inference)
+    run_check "pnpm run hono:check-inference" "Hono Inference" "$OUTPUT_LINES"
+    ;;
   openapi-docs)
     run_check "pnpm run sync-openapi-docs:check" "OpenAPI Docs" "$OUTPUT_LINES"
     ;;
@@ -86,13 +91,14 @@ case "$CHECK_TYPE" in
     run_check "pnpm test" "Tests" "$OUTPUT_LINES"
     run_check "pnpm run lint -- --max-warnings=0" "Lint" "$OUTPUT_LINES"
     run_check "pnpm run typecheck" "Typecheck" "$OUTPUT_LINES"
+    run_check "pnpm run hono:check-inference" "Hono Inference" "$OUTPUT_LINES"
     echo ""
     echo "All quality checks passed! ✨"
     ;;
   *)
     echo "Error: Unknown check type '$CHECK_TYPE'"
     echo ""
-    echo "Usage: $0 {build|test|lint|typecheck|openapi-docs|all} [lines|all]"
+    echo "Usage: $0 {build|test|lint|typecheck|hono-inference|openapi-docs|all} [lines|all]"
     echo "Examples:"
     echo "  $0 build          - Show last 200 lines on failure (default)"
     echo "  $0 build 100      - Show last 100 lines on failure"

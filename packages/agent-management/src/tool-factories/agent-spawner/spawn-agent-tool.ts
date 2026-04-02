@@ -13,8 +13,8 @@ import type { AgentSpawnerRuntime } from './runtime.js';
 /**
  * Build dynamic tool description based on available agents from registry
  */
-function buildDescription(service: AgentSpawnerRuntime): string {
-    const availableAgents = service.getAvailableAgents();
+async function buildDescription(service: AgentSpawnerRuntime): Promise<string> {
+    const availableAgents = await service.getAvailableAgents();
 
     if (availableAgents.length === 0) {
         return `Spawn a sub-agent to handle a specific task. The sub-agent executes the task and returns the result.
@@ -58,7 +58,8 @@ export function createSpawnAgentTool(
     return {
         id: 'spawn_agent',
         aliases: ['task'],
-        description: buildDescription(service),
+        description: 'Spawn a sub-agent to handle a task and return its result.',
+        getDescription: () => buildDescription(service),
 
         presentation: {
             describeHeader: (input) => {

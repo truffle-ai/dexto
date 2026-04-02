@@ -18,11 +18,12 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useApp } from 'ink';
 import type { UIState, InputState, SessionState, OverlayType, Message } from '../state/types.js';
 import type { ApprovalRequest } from '../components/ApprovalPrompt.js';
-import type { DextoAgent, QueuedMessage } from '@dexto/core';
+import type { QueuedMessage } from '@dexto/core';
 import { useKeypress, type Key as RawKey } from './useKeypress.js';
 import { enableMouseEvents, disableMouseEvents } from '../utils/mouse.js';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
 import { generateMessageId } from '../utils/idGenerator.js';
+import type { TuiAgentBackend } from '../agent-backend.js';
 
 /** Time window for double Ctrl+C to exit (in milliseconds) */
 const EXIT_WARNING_TIMEOUT = 3000;
@@ -122,7 +123,7 @@ export interface UseInputOrchestratorProps {
     setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
     setPendingMessages: React.Dispatch<React.SetStateAction<Message[]>>;
     setQueuedMessages: React.Dispatch<React.SetStateAction<QueuedMessage[]>>;
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
     handlers: InputHandlers;
 }
 

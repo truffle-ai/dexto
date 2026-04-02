@@ -176,3 +176,59 @@ export function extractErrorDetails(errorData: Partial<DextoErrorResponse>): {
         method,
     };
 }
+
+export class ApiError extends Error {
+    constructor(
+        message: string,
+        public status: number
+    ) {
+        super(message);
+        this.name = 'ApiError';
+    }
+}
+
+export async function throwApiError(
+    response: Response,
+    fallbackMessage = `Request failed (${response.status})`
+): Promise<never> {
+    const bodyText = await response.text().catch(() => '');
+
+    if (bodyText.trim().length === 0) {
+        throw new ApiError(fallbackMessage, response.status);
+    }
+
+    try {
+        const parsed = JSON.parse(bodyText) as Partial<DextoErrorResponse>;
+        throw new ApiError(extractErrorMessage(parsed, fallbackMessage), response.status);
+    } catch (error) {
+        if (error instanceof ApiError) {
+            throw error;
+        }
+    }
+
+    throw new ApiError(bodyText, response.status);
+}
+
+type ApiResponseLike = Response & {
+    json(): Promise<unknown>;
+};
+
+type SuccessResponse<TResponse extends ApiResponseLike> =
+    Extract<TResponse, { ok: true }> extends never ? TResponse : Extract<TResponse, { ok: true }>;
+
+type SuccessResponseJson<TResponse extends ApiResponseLike> = Awaited<
+    ReturnType<SuccessResponse<TResponse>['json']>
+>;
+
+export async function parseApiResponse<TResponse extends ApiResponseLike>(
+    responseOrPromise: TResponse | Promise<TResponse>,
+    fallbackMessage?: string
+): Promise<SuccessResponseJson<TResponse>> {
+    const response = await responseOrPromise;
+
+    if (!response.ok) {
+        return await throwApiError(response, fallbackMessage);
+    }
+
+    return (await response.json()) as SuccessResponseJson<TResponse>;
+}

@@ -3,16 +3,17 @@
 // This will become the primary location once core services accept paths via initialization
 
 import { walkUpDirectories } from './fs-walk.js';
-import { existsSync, readFileSync, realpathSync, statSync } from 'fs';
+import { existsSync, readFileSync, realpathSync, readdirSync, statSync } from 'fs';
 import * as path from 'path';
 
 export type ExecutionContext = 'dexto-source' | 'dexto-project' | 'global-cli';
 
-const FORCED_PROJECT_ROOT_MARKERS = [
+const DIRECT_PROJECT_ROOT_MARKERS = [
     path.join('.dexto', 'deploy.json'),
     path.join('.dexto', 'cloud', 'bootstrap.json'),
     'coding-agent.yml',
     'coding-agent.yaml',
+    path.join('agents', 'registry.json'),
     path.join('agents', 'agent-registry.json'),
     path.join('agents', 'coding-agent.yml'),
     path.join('agents', 'coding-agent.yaml'),
@@ -22,8 +23,69 @@ const FORCED_PROJECT_ROOT_MARKERS = [
     path.join('src', 'dexto', 'agents', 'coding-agent.yaml'),
 ] as const;
 
-function hasForcedProjectRootMarker(dirPath: string): boolean {
-    return FORCED_PROJECT_ROOT_MARKERS.some((relativePath) =>
+function getCaseInsensitiveRootFilename(dirPath: string, filename: string): string | null {
+    try {
+        return (
+            readdirSync(dirPath).find((entry) => entry.toLowerCase() === filename.toLowerCase()) ??
+            null
+        );
+    } catch {
+        return null;
+    }
+}
+
+function hasWorkspaceAuthoringDirectory(dirPath: string, name: 'agents' | 'skills'): boolean {
+    try {
+        return statSync(path.join(dirPath, name)).isDirectory();
+    } catch {
+        return false;
+    }
+}
+
+function hasDextoWorkspaceAgentsFile(dirPath: string): boolean {
+    const agentsFilename = getCaseInsensitiveRootFilename(dirPath, 'agents.md');
+    if (!agentsFilename) {
+        return false;
+    }
+
+    try {
+        const content = readFileSync(path.join(dirPath, agentsFilename), 'utf-8').toLowerCase();
+        return content.includes('dexto workspace') || content.includes('dexto-workspace');
+    } catch {
+        return false;
+    }
+}
+
+function hasWorkspaceScaffoldMarker(dirPath: string): boolean {
+    return (
+        hasDextoWorkspaceAgentsFile(dirPath) &&
+        (hasWorkspaceAuthoringDirectory(dirPath, 'agents') ||
+            hasWorkspaceAuthoringDirectory(dirPath, 'skills'))
+    );
+}
+
+function readPackageName(dirPath: string): string | null {
+    const packageJsonPath = path.join(dirPath, 'package.json');
+
+    try {
+        const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+        return typeof pkg.name === 'string' ? pkg.name : null;
+    } catch {
+        return null;
+    }
+}
+
+function isInternalDextoPackage(dirPath: string): boolean {
+    const packageName = readPackageName(dirPath);
+    return packageName === 'dexto' || packageName?.startsWith('@dexto/') === true;
+}
+
+function hasProjectRootMarker(dirPath: string): boolean {
+    if (hasWorkspaceScaffoldMarker(dirPath)) {
+        return true;
+    }
+
+    return DIRECT_PROJECT_ROOT_MARKERS.some((relativePath) =>
         existsSync(path.join(dirPath, relativePath))
     );
 }
@@ -44,7 +106,7 @@ function getForcedProjectRoot(): string | null {
         if (
             isDextoProjectDirectory(root) ||
             isDextoSourceDirectory(root) ||
-            hasForcedProjectRootMarker(root)
+            hasProjectRootMarker(root)
         ) {
             return root;
         }
@@ -61,15 +123,7 @@ function getForcedProjectRoot(): string | null {
  * @returns True if directory contains the dexto source monorepo (top-level).
  */
 function isDextoSourceDirectory(dirPath: string): boolean {
-    const packageJsonPath = path.join(dirPath, 'package.json');
-
-    try {
-        const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-        // Monorepo root must be named 'dexto-monorepo'. No other names are treated as source root.
-        return pkg.name === 'dexto-monorepo';
-    } catch {
-        return false;
-    }
+    return readPackageName(dirPath) === 'dexto-monorepo';
 }
 
 /**
@@ -78,17 +132,20 @@ function isDextoSourceDirectory(dirPath: string): boolean {
  * @returns True if directory has dexto as dependency but is not dexto source
  */
 function isDextoProjectDirectory(dirPath: string): boolean {
-    const packageJsonPath = path.join(dirPath, 'package.json');
+    if (isDextoSourceDirectory(dirPath)) {
+        return false;
+    }
+
+    if (isInternalDextoPackage(dirPath)) {
+        return false;
+    }
+
+    if (hasProjectRootMarker(dirPath)) {
+        return true;
+    }
 
     try {
-        const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-
-        // Not internal dexto packages themselves
-        if (pkg.name === 'dexto' || pkg.name === '@dexto/core' || pkg.name === '@dexto/webui') {
-            return false;
-        }
-
-        // Check if has dexto or @dexto/core as dependency
+        const pkg = JSON.parse(readFileSync(path.join(dirPath, 'package.json'), 'utf-8'));
         const allDeps = {
             ...(pkg.dependencies ?? {}),
             ...(pkg.devDependencies ?? {}),

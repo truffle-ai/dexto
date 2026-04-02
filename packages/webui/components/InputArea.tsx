@@ -14,7 +14,7 @@ import { useCurrentSessionId, useSessionProcessing } from '@/lib/stores';
 import { useCurrentLLM } from './hooks/useCurrentLLM';
 import { useLLMCatalog } from './hooks/useLLM';
 import ResourceAutocomplete from './ResourceAutocomplete';
-import type { ResourceMetadata as UIResourceMetadata } from '@dexto/core';
+import type { ResourceMetadata as UIResourceMetadata, SupportedFileType } from '@dexto/core';
 import { useResources } from './hooks/useResources';
 import SlashCommandAutocomplete from './SlashCommandAutocomplete';
 import { isTextPart, isImagePart, isFilePart } from '../types';
@@ -35,6 +35,7 @@ import {
     generateAttachmentId,
     estimateBase64Size,
     formatFileSize,
+    getFileTypeCategory,
 } from '../lib/attachment-utils.js';
 
 interface InputAreaProps {
@@ -59,6 +60,8 @@ export default function InputArea({
     const fileInputRef = useRef<HTMLInputElement>(null);
     const pdfInputRef = useRef<HTMLInputElement>(null);
     const audioInputRef = useRef<HTMLInputElement>(null);
+    const videoInputRef = useRef<HTMLInputElement>(null);
+    const documentInputRef = useRef<HTMLInputElement>(null);
 
     // TODO(unify-fonts): Defer autosize until fonts are ready to avoid
     // initial one-line height jump due to font swap metrics. Remove this
@@ -107,7 +110,7 @@ export default function InputArea({
     // LLM selector state
     const [modelSwitchError, setModelSwitchError] = useState<string | null>(null);
     const [fileUploadError, setFileUploadError] = useState<string | null>(null);
-    const [supportedFileTypes, setSupportedFileTypes] = useState<string[]>([]);
+    const [supportedFileTypes, setSupportedFileTypes] = useState<SupportedFileType[] | null>(null);
 
     // Resources (for @ mention autocomplete)
     const { resources, loading: resourcesLoading, refresh: refreshResources } = useResources();
@@ -192,16 +195,33 @@ export default function InputArea({
 
     // Fetch model capabilities (supported file types) via dedicated endpoint
     // This handles gateway providers (dexto-nova, openrouter) by resolving to underlying model capabilities
-    const { data: capabilities } = useModelCapabilities(currentLLM?.provider, currentLLM?.model);
+    const {
+        data: capabilities,
+        isPending: capabilitiesPending,
+        isError: capabilitiesError,
+    } = useModelCapabilities(currentLLM?.provider, currentLLM?.model);
 
     // Extract supported file types from capabilities
     useEffect(() => {
-        if (capabilities?.supportedFileTypes) {
+        if (
+            !currentLLM?.provider ||
+            !currentLLM?.model ||
+            capabilitiesPending ||
+            capabilitiesError
+        ) {
+            setSupportedFileTypes(null);
+        } else if (capabilities?.supportedFileTypes) {
             setSupportedFileTypes(capabilities.supportedFileTypes);
         } else {
             setSupportedFileTypes([]);
         }
-    }, [capabilities]);
+    }, [
+        capabilities,
+        capabilitiesError,
+        capabilitiesPending,
+        currentLLM?.model,
+        currentLLM?.provider,
+    ]);
 
     // NOTE: We intentionally do not manually resize the textarea. We rely on
     // CSS max-height + overflow to keep layout stable.
@@ -659,29 +679,23 @@ export default function InputArea({
 
             // Check file type against supported types
             // Always validate against default safe types for security
-            const fileCategory = file.type.startsWith('image/')
-                ? 'image'
-                : file.type.startsWith('audio/')
-                  ? 'audio'
-                  : file.type === 'application/pdf'
-                    ? 'pdf'
-                    : null;
+            const fileCategory = getFileTypeCategory(file.type, file.name);
 
             // Security check: reject if not in default safe types
             const isInDefaultSafeTypes =
-                fileCategory && DEFAULT_SAFE_FILE_TYPES.includes(fileCategory);
+                fileCategory !== 'other' && DEFAULT_SAFE_FILE_TYPES.includes(fileCategory);
             if (!isInDefaultSafeTypes) {
                 rejectedFiles.push({ file, reason: 'type_unsupported' });
                 errors.push({
                     filename: file.name,
-                    reason: `File type not supported. Only images, PDFs, and audio files are allowed.`,
+                    reason: `File type not supported. Only images, PDFs, audio, video, and document files are allowed.`,
                 });
                 continue;
             }
 
             // Additional check: if model capabilities are loaded, validate against them
-            if (supportedFileTypes.length > 0) {
-                const isSupported = fileCategory && supportedFileTypes.includes(fileCategory);
+            if (supportedFileTypes !== null) {
+                const isSupported = supportedFileTypes.includes(fileCategory);
 
                 if (!isSupported) {
                     rejectedFiles.push({ file, reason: 'type_unsupported' });
@@ -691,7 +705,11 @@ export default function InputArea({
                     if (catalogData && 'models' in catalogData) {
                         const models = catalogData.models;
                         for (const model of models) {
-                            if (fileCategory && model.supportedFileTypes?.includes(fileCategory)) {
+                            if (
+                                (model.supportedFileTypes as string[] | undefined)?.includes(
+                                    fileCategory
+                                )
+                            ) {
                                 compatibleModels.push(`${model.provider}/${model.name}`);
                             }
                         }
@@ -995,6 +1013,8 @@ export default function InputArea({
     const triggerFileInput = () => fileInputRef.current?.click();
     const triggerPdfInput = () => pdfInputRef.current?.click();
     const triggerAudioInput = () => audioInputRef.current?.click();
+    const triggerVideoInput = () => videoInputRef.current?.click();
+    const triggerDocumentInput = () => documentInputRef.current?.click();
 
     // Clear model switch error when user starts typing
     useEffect(() => {
@@ -1007,6 +1027,22 @@ export default function InputArea({
     }, [text, modelSwitchError, fileUploadError]);
 
     const handleAudioFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+
+        await handleFilesAdded(files, 'button');
+        e.target.value = '';
+    };
+
+    const handleVideoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+
+        await handleFilesAdded(files, 'button');
+        e.target.value = '';
+    };
+
+    const handleDocumentFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || []);
         if (files.length === 0) return;
 
@@ -1266,17 +1302,29 @@ export default function InputArea({
                                             onImageAttach={triggerFileInput}
                                             onPdfAttach={triggerPdfInput}
                                             onAudioAttach={triggerAudioInput}
+                                            onVideoAttach={triggerVideoInput}
+                                            onDocumentAttach={triggerDocumentInput}
                                             supports={{
-                                                // If not yet loaded (length===0), pass undefined so AttachButton defaults to enabled
-                                                image: supportedFileTypes.length
-                                                    ? supportedFileTypes.includes('image')
-                                                    : undefined,
-                                                pdf: supportedFileTypes.length
-                                                    ? supportedFileTypes.includes('pdf')
-                                                    : undefined,
-                                                audio: supportedFileTypes.length
-                                                    ? supportedFileTypes.includes('audio')
-                                                    : undefined,
+                                                image:
+                                                    supportedFileTypes === null
+                                                        ? undefined
+                                                        : supportedFileTypes.includes('image'),
+                                                pdf:
+                                                    supportedFileTypes === null
+                                                        ? undefined
+                                                        : supportedFileTypes.includes('pdf'),
+                                                audio:
+                                                    supportedFileTypes === null
+                                                        ? undefined
+                                                        : supportedFileTypes.includes('audio'),
+                                                video:
+                                                    supportedFileTypes === null
+                                                        ? undefined
+                                                        : supportedFileTypes.includes('video'),
+                                                document:
+                                                    supportedFileTypes === null
+                                                        ? undefined
+                                                        : supportedFileTypes.includes('document'),
                                             }}
                                             useLargeBreakpoint={isSessionsPanelOpen}
                                         />
@@ -1287,7 +1335,7 @@ export default function InputArea({
                                                 isRecording ? stopRecording : startRecording
                                             }
                                             disabled={
-                                                supportedFileTypes.length > 0 &&
+                                                supportedFileTypes !== null &&
                                                 !supportedFileTypes.includes('audio')
                                             }
                                             useLargeBreakpoint={isSessionsPanelOpen}
@@ -1365,6 +1413,24 @@ export default function InputArea({
                     multiple
                     className="hidden"
                     onChange={handleAudioFileChange}
+                />
+                <input
+                    ref={videoInputRef}
+                    type="file"
+                    id="video-upload"
+                    accept="video/*"
+                    multiple
+                    className="hidden"
+                    onChange={handleVideoFileChange}
+                />
+                <input
+                    ref={documentInputRef}
+                    type="file"
+                    id="document-upload"
+                    accept=".txt,.md,.json,.html,.xml,.doc,.docx,.rtf,.odt,.ppt,.pptx,.csv,.tsv,.xls,.xlsx,.iif,text/*,application/json,application/xml,text/xml,text/csv,text/tab-separated-values,application/msword,application/rtf,text/rtf,application/vnd.oasis.opendocument.text,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    multiple
+                    className="hidden"
+                    onChange={handleDocumentFileChange}
                 />
 
                 <CreatePromptModal

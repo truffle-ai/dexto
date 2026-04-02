@@ -6,9 +6,9 @@ import { ToolManager } from '../tools/tool-manager.js';
 import { SystemPromptManager } from '../systemPrompt/manager.js';
 import { SkillsContributor } from '../systemPrompt/contributors.js';
 import { ResourceManager, expandMessageReferences } from '../resources/index.js';
-import { expandBlobReferences } from '../context/utils.js';
+import { expandBlobReferences, fileTypesToMimePatterns } from '../context/utils.js';
 import { StorageManager } from '../storage/index.js';
-import type { InternalMessage } from '../context/types.js';
+import type { ContentPart, InternalMessage } from '../context/types.js';
 import { PromptManager } from '../prompts/index.js';
 import type { PromptsConfig } from '../prompts/schemas.js';
 import { AgentStateManager } from './state-manager.js';
@@ -40,22 +40,26 @@ import {
     getDefaultModelForProvider,
     getProviderFromModel,
     getAllModelsForProvider,
+    getSupportedFileTypesForModel,
 } from '../llm/registry/index.js';
 import type { ModelInfo } from '../llm/registry/index.js';
 import type { LLMProvider } from '../llm/types.js';
 import { createAgentServices } from '../utils/service-initializer.js';
 import { LLMConfigSchema, LLMUpdatesSchema } from '../llm/schemas.js';
 import type { LLMUpdates, ValidatedLLMConfig } from '../llm/schemas.js';
+import { summarizeAssistantUsage } from '../llm/usage-summary.js';
 import { ServersConfigSchema } from '../mcp/schemas.js';
 import { MemoriesConfigSchema } from '../memory/schemas.js';
 import { PromptsSchema } from '../prompts/schemas.js';
 import { ResourcesConfigSchema } from '../resources/schemas.js';
 import { SessionConfigSchema } from '../session/schemas.js';
 import { SystemPromptConfigSchema } from '../systemPrompt/schemas.js';
+import { SessionPromptContributorSchema } from '../systemPrompt/schemas.js';
 import { ElicitationConfigSchema, PermissionsConfigSchema } from '../tools/schemas.js';
 import { OtelConfigurationSchema } from '../telemetry/schemas.js';
 import { AgentCardSchema } from './schemas.js';
 import type { AgentRuntimeSettings, DextoAgentConfigInput } from './runtime-config.js';
+import { UsageScopeIdSchema } from '../llm/usage-scope.js';
 import {
     AgentEventBus,
     type AgentEventMap,
@@ -239,6 +243,9 @@ export class DextoAgent {
             elicitation: ElicitationConfigSchema.parse(options.elicitation ?? {}),
             resources: ResourcesConfigSchema.parse(options.resources ?? []),
             prompts: PromptsSchema.parse(options.prompts),
+            ...(options.usageScopeId !== undefined && {
+                usageScopeId: UsageScopeIdSchema.parse(options.usageScopeId),
+            }),
             ...(options.agentCard !== undefined && {
                 agentCard: AgentCardSchema.parse(options.agentCard),
             }),
@@ -835,6 +842,8 @@ export class DextoAgent {
             inputTokens: 0,
             outputTokens: 0,
             totalTokens: 0,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
         };
         const usage = responseEvent.tokenUsage ?? defaultUsage;
 
@@ -844,6 +853,14 @@ export class DextoAgent {
             usage: usage as import('./types.js').TokenUsage,
             toolCalls,
             sessionId,
+            ...(responseEvent.messageId && { messageId: responseEvent.messageId }),
+            ...(responseEvent.usageScopeId && { usageScopeId: responseEvent.usageScopeId }),
+            ...(responseEvent.provider && { provider: responseEvent.provider }),
+            ...(responseEvent.model && { model: responseEvent.model }),
+            ...(responseEvent.estimatedCost !== undefined && {
+                estimatedCost: responseEvent.estimatedCost,
+            }),
+            ...(responseEvent.pricingStatus && { pricingStatus: responseEvent.pricingStatus }),
         };
     }
 
@@ -1156,59 +1173,88 @@ export class DextoAgent {
                         `DextoAgent.stream: sessionId=${sessionId}, textLength=${textContent?.length ?? 0}, imageCount=${imageParts.length}, fileCount=${fileParts.length}`
                     );
 
-                    // Validate ALL inputs early using session-specific config
-                    // Validate text first (once)
-                    const textValidation = validateInputForLLM(
-                        { text: textContent },
-                        { provider: llmConfig.provider, model: llmConfig.model },
-                        this.logger
-                    );
-                    ensureOk(textValidation, this.logger);
+                    const validatePromptContentParts = (
+                        parts: import('./types.js').ContentPart[]
+                    ) => {
+                        const currentTextParts = parts.filter(
+                            (part): part is import('./types.js').TextPart => part.type === 'text'
+                        );
+                        const currentText = currentTextParts.map((part) => part.text).join('\n');
+                        const currentImageParts = parts.filter(
+                            (part): part is import('./types.js').ImagePart => part.type === 'image'
+                        );
+                        const currentFileParts = parts.filter(
+                            (part): part is import('./types.js').FilePart => part.type === 'file'
+                        );
 
-                    // Validate each image
-                    for (const imagePart of imageParts) {
-                        const imageValidation = validateInputForLLM(
-                            {
-                                imageData: {
-                                    image:
-                                        typeof imagePart.image === 'string'
-                                            ? imagePart.image
-                                            : imagePart.image.toString(),
-                                    mimeType: imagePart.mimeType || 'image/png',
-                                },
-                            },
+                        const textValidation = validateInputForLLM(
+                            { text: currentText },
                             { provider: llmConfig.provider, model: llmConfig.model },
                             this.logger
                         );
-                        ensureOk(imageValidation, this.logger);
-                    }
+                        ensureOk(textValidation, this.logger);
 
-                    // Validate each file
-                    for (const filePart of fileParts) {
-                        const fileValidation = validateInputForLLM(
-                            {
-                                fileData: {
-                                    data:
-                                        typeof filePart.data === 'string'
-                                            ? filePart.data
-                                            : filePart.data.toString(),
-                                    mimeType: filePart.mimeType,
+                        for (const imagePart of currentImageParts) {
+                            const imageValidation = validateInputForLLM(
+                                {
+                                    imageData: {
+                                        image:
+                                            typeof imagePart.image === 'string'
+                                                ? imagePart.image
+                                                : imagePart.image.toString(),
+                                        mimeType: imagePart.mimeType || 'image/png',
+                                    },
                                 },
-                            },
-                            { provider: llmConfig.provider, model: llmConfig.model },
+                                { provider: llmConfig.provider, model: llmConfig.model },
+                                this.logger
+                            );
+                            ensureOk(imageValidation, this.logger);
+                        }
+
+                        for (const filePart of currentFileParts) {
+                            const fileValidation = validateInputForLLM(
+                                {
+                                    fileData: {
+                                        data:
+                                            typeof filePart.data === 'string'
+                                                ? filePart.data
+                                                : filePart.data.toString(),
+                                        mimeType: filePart.mimeType,
+                                    },
+                                },
+                                { provider: llmConfig.provider, model: llmConfig.model },
+                                this.logger
+                            );
+                            ensureOk(fileValidation, this.logger);
+                        }
+                    };
+
+                    let allowedMediaTypes: string[] | undefined = llmConfig.allowedMediaTypes;
+                    if (!allowedMediaTypes) {
+                        allowedMediaTypes = fileTypesToMimePatterns(
+                            getSupportedFileTypesForModel(llmConfig.provider, llmConfig.model),
                             this.logger
                         );
-                        ensureOk(fileValidation, this.logger);
                     }
 
-                    // Expand @resource mentions - returns ALL images as ContentPart[]
+                    if (contentParts.some((part) => part.type === 'resource')) {
+                        contentParts = await expandBlobReferences(
+                            contentParts,
+                            this.resourceManager,
+                            this.logger,
+                            allowedMediaTypes
+                        );
+                    }
+
+                    // Expand @resource mentions into canonical resource references for prompt projection
                     if (textContent.includes('@')) {
                         try {
                             const resources = await this.resourceManager.list();
                             const expansion = await expandMessageReferences(
                                 textContent,
                                 resources,
-                                (uri) => this.resourceManager.read(uri)
+                                (uri) => this.resourceManager.read(uri),
+                                allowedMediaTypes
                             );
 
                             // Warn about unresolved references
@@ -1242,15 +1288,23 @@ export class DextoAgent {
                                 });
                             }
 
-                            // Add ALL extracted images to content parts
-                            for (const img of expansion.extractedImages) {
-                                contentParts.push({
-                                    type: 'image',
-                                    image: img.image,
-                                    mimeType: img.mimeType,
-                                });
+                            for (const resource of expansion.extractedResources) {
+                                if (resource.kind === 'image') {
+                                    contentParts.push({
+                                        type: 'image',
+                                        image: resource.data,
+                                        mimeType: resource.mimeType,
+                                    });
+                                } else {
+                                    contentParts.push({
+                                        type: 'file',
+                                        data: resource.data,
+                                        mimeType: resource.mimeType,
+                                        filename: resource.name,
+                                    });
+                                }
                                 this.logger.debug(
-                                    `Added extracted image: ${img.name} (${img.mimeType})`
+                                    `Added extracted resource: ${resource.name} (${resource.mimeType})`
                                 );
                             }
                         } catch (error) {
@@ -1265,7 +1319,7 @@ export class DextoAgent {
                         (p) => p.type === 'text' && p.text.trim()
                     );
                     const hasMediaContent = contentParts.some(
-                        (p) => p.type === 'image' || p.type === 'file'
+                        (p) => p.type === 'image' || p.type === 'file' || p.type === 'resource'
                     );
                     if (!hasTextContent && !hasMediaContent) {
                         this.logger.warn(
@@ -1273,6 +1327,9 @@ export class DextoAgent {
                         );
                         contentParts = [{ type: 'text', text: textContent }];
                     }
+
+                    // Validate the final prompt projection after any @resource expansion.
+                    validatePromptContentParts(contentParts);
 
                     // Get or create session
                     const session: ChatSession =
@@ -1710,32 +1767,157 @@ export class DextoAgent {
      * @returns Promise that resolves to the session's conversation history
      * @throws Error if session doesn't exist
      */
-    public async getSessionHistory(sessionId: string): Promise<InternalMessage[]> {
+    public async getSessionHistory(
+        sessionId: string,
+        options?: { expandBlobReferences?: boolean }
+    ): Promise<InternalMessage[]> {
         this.ensureStarted();
         const session = await this.sessionManager.getSession(sessionId);
         if (!session) {
             throw SessionError.notFound(sessionId);
         }
         const history = await session.getHistory();
-        if (!this.resourceManager) {
+        const expandBlobReferencesByDefault = options?.expandBlobReferences ?? true;
+        if (!this.resourceManager || !expandBlobReferencesByDefault) {
             return history;
         }
 
         return (await Promise.all(
-            history.map(async (message) => ({
-                ...message,
-                content: await expandBlobReferences(
-                    message.content,
-                    this.resourceManager,
-                    this.logger
-                ).catch((error) => {
+            history.map(async (message): Promise<InternalMessage> => {
+                if (!Array.isArray(message.content)) {
+                    return message;
+                }
+
+                try {
+                    const expandedContent = (
+                        await Promise.all(
+                            message.content.map(async (part): Promise<ContentPart[]> => {
+                                try {
+                                    if (
+                                        part.type === 'text' &&
+                                        typeof part.text === 'string' &&
+                                        part.text.includes('@blob:')
+                                    ) {
+                                        return await expandBlobReferences(
+                                            [part],
+                                            this.resourceManager,
+                                            this.logger
+                                        );
+                                    }
+
+                                    if (
+                                        part.type === 'image' &&
+                                        typeof part.image === 'string' &&
+                                        part.image.startsWith('@blob:')
+                                    ) {
+                                        const result = await this.resourceManager.read(
+                                            part.image.slice(1)
+                                        );
+                                        for (const item of result.contents) {
+                                            if (
+                                                typeof item === 'object' &&
+                                                item !== null &&
+                                                'blob' in item &&
+                                                typeof item.blob === 'string'
+                                            ) {
+                                                return [
+                                                    {
+                                                        type: 'image',
+                                                        image: item.blob,
+                                                        ...(typeof item.mimeType === 'string'
+                                                            ? { mimeType: item.mimeType }
+                                                            : part.mimeType !== undefined
+                                                              ? { mimeType: part.mimeType }
+                                                              : {}),
+                                                    } satisfies ContentPart,
+                                                ];
+                                            }
+                                        }
+                                    }
+
+                                    if (
+                                        part.type === 'file' &&
+                                        typeof part.data === 'string' &&
+                                        part.data.startsWith('@blob:')
+                                    ) {
+                                        const result = await this.resourceManager.read(
+                                            part.data.slice(1)
+                                        );
+                                        for (const item of result.contents) {
+                                            if (
+                                                typeof item === 'object' &&
+                                                item !== null &&
+                                                'blob' in item &&
+                                                typeof item.blob === 'string'
+                                            ) {
+                                                return [
+                                                    {
+                                                        type: 'file',
+                                                        data: item.blob,
+                                                        mimeType:
+                                                            typeof item.mimeType === 'string'
+                                                                ? item.mimeType
+                                                                : part.mimeType,
+                                                        ...('filename' in item &&
+                                                        typeof item.filename === 'string'
+                                                            ? { filename: item.filename }
+                                                            : part.filename !== undefined
+                                                              ? { filename: part.filename }
+                                                              : {}),
+                                                    } satisfies ContentPart,
+                                                ];
+                                            }
+                                        }
+                                    }
+
+                                    if (
+                                        part.type === 'resource' &&
+                                        typeof part.uri === 'string' &&
+                                        part.uri.startsWith('blob:')
+                                    ) {
+                                        // Keep filesystem resources path-backed for UI rehydration.
+                                        // Blob resources are already owned by the runtime, so expand
+                                        // them here to avoid requiring a second resource fetch.
+                                        return await expandBlobReferences(
+                                            [part],
+                                            this.resourceManager,
+                                            this.logger
+                                        );
+                                    }
+
+                                    return [part];
+                                } catch (error) {
+                                    this.logger.warn(
+                                        `Failed to expand blob content part in message: ${error instanceof Error ? error.message : String(error)}`
+                                    );
+                                    return [part];
+                                }
+                            })
+                        )
+                    ).flat();
+
+                    return {
+                        ...message,
+                        content: expandedContent,
+                    } as InternalMessage;
+                } catch (error) {
                     this.logger.warn(
                         `Failed to expand blob references in message: ${error instanceof Error ? error.message : String(error)}`
                     );
-                    return message.content; // Return original content on error
-                }),
-            }))
+                    return message;
+                }
+            })
         )) as InternalMessage[];
+    }
+
+    public async getSessionUsageSummary(sessionId: string, usageScopeId?: string) {
+        this.ensureStarted();
+        const session = await this.sessionManager.getSession(sessionId);
+        if (!session) {
+            throw SessionError.notFound(sessionId);
+        }
+
+        return summarizeAssistantUsage(await session.getHistory(), usageScopeId);
     }
 
     /**
@@ -1886,7 +2068,7 @@ export class DextoAgent {
 
         // Get full context estimate BEFORE compaction (includes system prompt, tools, messages)
         // This uses the same calculation as /context command for consistency
-        const contributorContext = await this.toolManager.buildContributorContext();
+        const contributorContext = await this.toolManager.buildContributorContext({ sessionId });
         const tools = await llmService.getEnabledTools();
         const beforeEstimate = await contextManager.getContextTokenEstimate(
             contributorContext,
@@ -2027,7 +2209,7 @@ export class DextoAgent {
         const contextManager = session.getContextManager();
 
         // Get token estimate using ContextManager's method (single source of truth)
-        const contributorContext = await this.toolManager.buildContributorContext();
+        const contributorContext = await this.toolManager.buildContributorContext({ sessionId });
         const llmService = session.getLLMService();
         const tools = await llmService.getEnabledTools();
 
@@ -3039,6 +3221,7 @@ export class DextoAgent {
      * Useful for debugging prompt issues, inspecting what context the AI receives,
      * and understanding how dynamic content is being incorporated.
      *
+     * @param sessionId Optional session identifier to include session-scoped contributors
      * @returns Promise resolving to the complete system prompt string
      *
      * @example
@@ -3054,10 +3237,72 @@ export class DextoAgent {
      * }
      * ```
      */
-    public async getSystemPrompt(): Promise<string> {
+    public async getSystemPrompt(sessionId?: string): Promise<string> {
         this.ensureStarted();
-        const context = await this.toolManager.buildContributorContext();
+        if (sessionId !== undefined && (!sessionId || typeof sessionId !== 'string')) {
+            throw AgentError.apiValidationError(
+                'sessionId must be a non-empty string when provided'
+            );
+        }
+        const context = await this.toolManager.buildContributorContext(
+            sessionId !== undefined ? { sessionId } : undefined
+        );
         return await this.systemPromptManager.build(context);
+    }
+
+    public async getSessionSystemPromptContributors(sessionId: string) {
+        this.ensureStarted();
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+
+        return await this.sessionManager.getSessionSystemPromptContributors(sessionId);
+    }
+
+    public async upsertSessionSystemPromptContributor(
+        sessionId: string,
+        contributor: unknown
+    ): Promise<{ replaced: boolean }> {
+        this.ensureStarted();
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+
+        const parseResult = SessionPromptContributorSchema.safeParse(contributor);
+        const parsedContributor = parseResult.success
+            ? parseResult.data
+            : ensureOk(fail(zodToIssues(parseResult.error, 'error')), this.logger);
+        const replaced = await this.sessionManager.upsertSessionSystemPromptContributor(
+            sessionId,
+            parsedContributor
+        );
+        return { replaced };
+    }
+
+    public async removeSessionSystemPromptContributor(
+        sessionId: string,
+        contributorId: string
+    ): Promise<boolean> {
+        this.ensureStarted();
+        if (!sessionId || typeof sessionId !== 'string') {
+            throw AgentError.apiValidationError(
+                'sessionId is required and must be a non-empty string'
+            );
+        }
+        if (!contributorId || typeof contributorId !== 'string') {
+            throw AgentError.apiValidationError(
+                'contributorId is required and must be a non-empty string'
+            );
+        }
+
+        return await this.sessionManager.removeSessionSystemPromptContributor(
+            sessionId,
+            contributorId
+        );
     }
 
     /**

@@ -22,6 +22,7 @@ export type ProviderCatalog = {
     primaryEnvVar: string;
     supportsBaseURL: boolean;
     models: ModelInfo[];
+    supportedFileTypes: SupportedFileType[];
 };
 
 export type CatalogResponse = { providers: Record<LLMProvider, ProviderCatalog> };

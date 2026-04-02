@@ -9,20 +9,28 @@ const {
     mockDeployWorkspace,
     mockFindDextoProjectRoot,
     mockGetCloudAgent,
+    mockLoadAgentConfig,
+    mockListCloudAgents,
     mockLoadDeployConfig,
     mockLoadWorkspaceDeployLink,
+    mockOpenBrowser,
     mockOutro,
     mockRemoveWorkspaceDeployLink,
     mockSaveWorkspaceDeployLink,
     mockSpinner,
+    mockStartCloudChatCli,
+    mockValidateAgentConfig,
 } = vi.hoisted(() => ({
     mockCreateWorkspaceSnapshot: vi.fn(),
     mockDeleteCloudAgent: vi.fn(),
     mockDeployWorkspace: vi.fn(),
     mockFindDextoProjectRoot: vi.fn(),
     mockGetCloudAgent: vi.fn(),
+    mockLoadAgentConfig: vi.fn(),
+    mockListCloudAgents: vi.fn(),
     mockLoadDeployConfig: vi.fn(),
     mockLoadWorkspaceDeployLink: vi.fn(),
+    mockOpenBrowser: vi.fn(),
     mockOutro: vi.fn(),
     mockRemoveWorkspaceDeployLink: vi.fn(),
     mockSaveWorkspaceDeployLink: vi.fn(),
@@ -31,10 +39,13 @@ const {
         stop: vi.fn(),
         message: vi.fn(),
     },
+    mockStartCloudChatCli: vi.fn(),
+    mockValidateAgentConfig: vi.fn(),
 }));
 
 vi.mock('@dexto/agent-management', () => ({
     findDextoProjectRoot: mockFindDextoProjectRoot,
+    loadAgentConfig: mockLoadAgentConfig,
 }));
 
 vi.mock('@clack/prompts', () => ({
@@ -66,6 +77,7 @@ vi.mock('./client.js', () => ({
     createDeployClient: vi.fn(() => ({
         deployWorkspace: mockDeployWorkspace,
         getCloudAgent: mockGetCloudAgent,
+        listCloudAgents: mockListCloudAgents,
         stopCloudAgent: vi.fn(),
         deleteCloudAgent: mockDeleteCloudAgent,
     })),
@@ -88,8 +100,20 @@ vi.mock('./state.js', () => ({
     removeWorkspaceDeployLink: mockRemoveWorkspaceDeployLink,
 }));
 
+vi.mock('open', () => ({
+    default: mockOpenBrowser,
+}));
+
 vi.mock('./snapshot.js', () => ({
     createWorkspaceSnapshot: mockCreateWorkspaceSnapshot,
+}));
+
+vi.mock('../../cloud-chat.js', () => ({
+    startCloudChatCli: mockStartCloudChatCli,
+}));
+
+vi.mock('../../utils/config-validation.js', () => ({
+    validateAgentConfig: mockValidateAgentConfig,
 }));
 
 function createTempDir(): string {
@@ -113,6 +137,10 @@ describe('deploy command', () => {
         });
         mockLoadWorkspaceDeployLink.mockResolvedValue(null);
         mockFindDextoProjectRoot.mockReturnValue(null);
+        mockOpenBrowser.mockResolvedValue(undefined);
+        mockLoadAgentConfig.mockResolvedValue({
+            llm: { provider: 'openai', model: 'gpt-5.3-codex', apiKey: '$OPENAI_API_KEY' },
+        });
         mockDeployWorkspace.mockResolvedValue({
             cloudAgentId: 'cloud-agent-a',
             agentUrl: 'https://sandbox.dexto.ai/api/cloud-agents/cloud-agent-a/agent',
@@ -125,6 +153,29 @@ describe('deploy command', () => {
             cloudAgentId: 'cloud-agent-a',
             agentUrl: 'https://sandbox.dexto.ai/api/cloud-agents/cloud-agent-a/agent',
             state: { status: 'ready' },
+        });
+        mockListCloudAgents.mockResolvedValue([
+            {
+                cloudAgentId: 'cloud-agent-a',
+                name: 'Workspace Alpha',
+                agentUrl: 'https://sandbox.dexto.ai/api/cloud-agents/cloud-agent-a/agent',
+                state: { status: 'ready' },
+            },
+            {
+                cloudAgentId: 'cloud-agent-b',
+                name: null,
+                agentUrl: 'https://sandbox.dexto.ai/api/cloud-agents/cloud-agent-b/agent',
+                state: { status: 'stopped' },
+            },
+        ]);
+        mockSaveWorkspaceDeployLink.mockResolvedValue(undefined);
+        mockRemoveWorkspaceDeployLink.mockResolvedValue(undefined);
+        mockValidateAgentConfig.mockResolvedValue({
+            success: true,
+            config: {
+                llm: { provider: 'openai', model: 'gpt-5.3-codex', apiKey: '$OPENAI_API_KEY' },
+            },
+            warnings: [],
         });
     });
 
@@ -169,6 +220,53 @@ describe('deploy command', () => {
         expect(cleanup).toHaveBeenCalled();
     });
 
+    it('validates workspace agents before uploading the workspace snapshot', async () => {
+        mockLoadDeployConfig.mockResolvedValue({
+            version: 1,
+            agent: { type: 'workspace', path: 'agents/review-agent/review-agent.yml' },
+            exclude: [],
+        });
+        const cleanup = vi.fn().mockResolvedValue(undefined);
+        mockCreateWorkspaceSnapshot.mockResolvedValue({
+            archivePath: '/tmp/workspace.tgz',
+            cleanup,
+        });
+        const { resolveWorkspaceDeployAgentPath } = await import('./config.js');
+        vi.mocked(resolveWorkspaceDeployAgentPath).mockReturnValue(
+            path.join(tempDir, 'agents', 'review-agent', 'review-agent.yml')
+        );
+        fs.mkdirSync(path.join(tempDir, 'agents', 'review-agent'), { recursive: true });
+        fs.writeFileSync(
+            path.join(tempDir, 'agents', 'review-agent', 'review-agent.yml'),
+            'llm: {}'
+        );
+        mockValidateAgentConfig.mockResolvedValueOnce({
+            success: false,
+            errors: ['llm.model: unsupported model'],
+        });
+
+        const { handleDeployCommand } = await import('./index.js');
+
+        await expect(handleDeployCommand()).rejects.toThrow(
+            'Workspace agent validation failed for agents/review-agent/review-agent.yml'
+        );
+
+        expect(mockLoadAgentConfig).toHaveBeenCalledWith(
+            path.join(tempDir, 'agents', 'review-agent', 'review-agent.yml')
+        );
+        expect(mockValidateAgentConfig).toHaveBeenCalledWith(
+            expect.any(Object),
+            false,
+            expect.objectContaining({
+                agentPath: 'agents/review-agent/review-agent.yml',
+                credentialPolicy: 'error',
+            })
+        );
+        expect(mockCreateWorkspaceSnapshot).not.toHaveBeenCalled();
+        expect(mockDeployWorkspace).not.toHaveBeenCalled();
+        expect(cleanup).not.toHaveBeenCalled();
+    });
+
     it('warns when delete succeeds but local link state cannot be removed', async () => {
         mockLoadWorkspaceDeployLink.mockResolvedValue({
             cloudAgentId: 'cloud-agent-a',
@@ -206,5 +304,38 @@ describe('deploy command', () => {
         await expect(handleDeployStatusCommand()).resolves.toBeUndefined();
 
         expect(mockLoadWorkspaceDeployLink).toHaveBeenCalledWith(projectRoot);
+    });
+
+    it('lists cloud deployments and highlights the linked workspace deployment', async () => {
+        mockLoadWorkspaceDeployLink.mockResolvedValue({
+            cloudAgentId: 'cloud-agent-a',
+            updatedAt: new Date().toISOString(),
+        });
+
+        const { handleDeployListCommand } = await import('./index.js');
+
+        await expect(handleDeployListCommand()).resolves.toBeUndefined();
+
+        expect(mockListCloudAgents).toHaveBeenCalledTimes(1);
+        expect(mockOutro).toHaveBeenCalledWith(expect.stringContaining('Cloud deployments'));
+        expect(mockOutro).toHaveBeenCalledWith(expect.stringContaining('Linked to this workspace'));
+        expect(mockOutro).toHaveBeenCalledWith(expect.stringContaining('Workspace Alpha'));
+        expect(mockOutro).toHaveBeenCalledWith(expect.stringContaining('cloud-agent-b'));
+    });
+
+    it('opens the dashboard for the linked deployment', async () => {
+        mockLoadWorkspaceDeployLink.mockResolvedValue({
+            cloudAgentId: 'cloud-agent-a',
+            updatedAt: new Date().toISOString(),
+        });
+
+        const { handleDeployOpenCommand } = await import('./index.js');
+
+        await expect(handleDeployOpenCommand()).resolves.toBeUndefined();
+
+        expect(mockOpenBrowser).toHaveBeenCalledWith('https://app.dexto.ai/cloud-agent-a');
+        expect(mockOutro).toHaveBeenCalledWith(
+            expect.stringContaining('Opened dashboard for cloud-agent-a')
+        );
     });
 });

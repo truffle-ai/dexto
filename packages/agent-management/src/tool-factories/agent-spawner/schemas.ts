@@ -62,8 +62,9 @@ export const AgentSpawnerConfigSchema = z
         allowSpawning: z.boolean().default(true).describe('Whether agent spawning is enabled'),
 
         /**
-         * List of agent IDs from the registry that this parent can spawn.
-         * If not provided, any registry agent can be spawned.
+         * List of agent IDs that this parent can spawn from the current inventory.
+         * The current inventory is workspace agents by default, plus global agents
+         * only when the workspace registry opts into them.
          *
          * Example:
          * ```yaml
@@ -75,7 +76,9 @@ export const AgentSpawnerConfigSchema = z
         allowedAgents: z
             .array(z.string().min(1))
             .optional()
-            .describe('Agent IDs from registry that can be spawned (omit to allow all)'),
+            .describe(
+                'Agent IDs from the resolved inventory that can be spawned (omit to allow all in-scope agents)'
+            ),
 
         /**
          * Agent IDs that should have their tools auto-approved.

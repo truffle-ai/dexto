@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "skill_echo_demo": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "scripts/echo-mcp-server.mjs"
+      ]
+    }
+  }
+}

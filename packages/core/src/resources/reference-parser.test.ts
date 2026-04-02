@@ -118,6 +118,18 @@ describe('expandMessageReferences', () => {
             description: 'Test file',
             source: 'internal',
         },
+        'fs:///demo.mp4': {
+            uri: 'fs:///demo.mp4',
+            name: 'demo.mp4',
+            description: 'Demo video',
+            source: 'internal',
+        },
+        'fs:///voice.mp3': {
+            uri: 'fs:///voice.mp3',
+            name: 'voice.mp3',
+            description: 'Voice note',
+            source: 'internal',
+        },
     };
 
     const mockResourceReader = async (uri: string): Promise<ReadResourceResult> => {
@@ -130,6 +142,36 @@ describe('expandMessageReferences', () => {
                         text: 'File content here',
                     },
                 ],
+            };
+        }
+        if (uri === 'fs:///demo.mp4') {
+            return {
+                contents: [
+                    {
+                        uri,
+                        mimeType: 'video/mp4',
+                        blob: 'videodata',
+                    },
+                ],
+                _meta: {
+                    size: 4096,
+                    originalName: 'demo.mp4',
+                },
+            };
+        }
+        if (uri === 'fs:///voice.mp3') {
+            return {
+                contents: [
+                    {
+                        uri,
+                        mimeType: 'audio/mpeg',
+                        blob: 'audiodata',
+                    },
+                ],
+                _meta: {
+                    size: 2048,
+                    originalName: 'voice.mp3',
+                },
             };
         }
         throw new Error(`Resource not found: ${uri}`);
@@ -168,6 +210,40 @@ describe('expandMessageReferences', () => {
         expect(result.expandedReferences).toHaveLength(1);
         expect(result.expandedMessage).toContain('File content here');
         expect(result.expandedMessage).toContain('user@example.com');
+    });
+
+    it('should derive extracted media kind case-insensitively from mime type', async () => {
+        const mixedCaseReader = async (uri: string): Promise<ReadResourceResult> => {
+            if (uri !== 'fs:///demo.mp4') {
+                throw new Error(`Resource not found: ${uri}`);
+            }
+
+            return {
+                contents: [
+                    {
+                        uri,
+                        mimeType: 'VIDEO/MP4',
+                        blob: 'videodata',
+                    },
+                ],
+                _meta: {
+                    size: 4096,
+                    originalName: 'demo.mp4',
+                },
+            };
+        };
+
+        const result = await expandMessageReferences(
+            'Check @<fs:///demo.mp4>',
+            mockResourceSet,
+            mixedCaseReader
+        );
+
+        expect(result.extractedResources).toHaveLength(1);
+        expect(result.extractedResources[0]).toMatchObject({
+            mimeType: 'VIDEO/MP4',
+            kind: 'video',
+        });
     });
 
     it('should preserve multiple email addresses', async () => {
@@ -227,5 +303,46 @@ describe('expandMessageReferences', () => {
         expect(result.expandedReferences).toHaveLength(1);
         expect(result.expandedMessage).toContain('File content here');
         expect(result.expandedMessage).toContain('contact@email.com');
+    });
+
+    it('should extract supported non-image media into canonical resource refs', async () => {
+        const result = await expandMessageReferences(
+            'Check @<fs:///demo.mp4> and @<fs:///voice.mp3>',
+            mockResourceSet,
+            mockResourceReader,
+            ['video/*', 'audio/*']
+        );
+
+        expect(result.expandedMessage).toBe('Check and');
+        expect(result.extractedResources).toEqual([
+            {
+                uri: '/demo.mp4',
+                data: 'videodata',
+                mimeType: 'video/mp4',
+                name: 'demo.mp4',
+                kind: 'video',
+                size: 4096,
+            },
+            {
+                uri: '/voice.mp3',
+                data: 'audiodata',
+                mimeType: 'audio/mpeg',
+                name: 'voice.mp3',
+                kind: 'audio',
+                size: 2048,
+            },
+        ]);
+    });
+
+    it('should leave unsupported media on the placeholder expansion path', async () => {
+        const result = await expandMessageReferences(
+            'Check @<fs:///demo.mp4>',
+            mockResourceSet,
+            mockResourceReader,
+            ['image/*']
+        );
+
+        expect(result.extractedResources).toEqual([]);
+        expect(result.expandedMessage).toContain('[Binary content: video/mp4');
     });
 });

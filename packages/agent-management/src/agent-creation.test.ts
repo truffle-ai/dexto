@@ -4,6 +4,15 @@ import type { AgentConfig } from '@dexto/agent-config';
 const loadImageMock = vi.fn(async (_specifier: string) => ({ defaults: {} }));
 const resolveServicesFromConfigMock = vi.fn(async () => ({}));
 const enrichAgentConfigMock = vi.fn((config: unknown) => config);
+const toDextoAgentOptionsMock = vi.fn(
+    (options: {
+        config?: Record<string, unknown> | undefined;
+        runtimeOverrides?: Record<string, unknown> | undefined;
+    }) => ({
+        ...(options.config ?? {}),
+        ...(options.runtimeOverrides ?? {}),
+    })
+);
 
 vi.mock('@dexto/agent-config', () => ({
     AgentConfigSchema: { parse: (config: unknown) => config },
@@ -11,7 +20,7 @@ vi.mock('@dexto/agent-config', () => ({
     cleanNullValues: (config: unknown) => config,
     loadImage: loadImageMock,
     resolveServicesFromConfig: resolveServicesFromConfigMock,
-    toDextoAgentOptions: (options: unknown) => options,
+    toDextoAgentOptions: toDextoAgentOptionsMock,
 }));
 
 vi.mock('@dexto/core', () => {
@@ -98,5 +107,21 @@ describe('createDextoAgentFromConfig', () => {
         expect(
             enrichedConfig.tools?.find((entry) => entry.type === 'builtin-tools')
         ).toBeUndefined();
+    });
+
+    it('passes runtime overrides through to DextoAgent construction', async () => {
+        const { createDextoAgentFromConfig } = await import('./agent-creation.js');
+
+        const config = {
+            llm: { provider: 'openai', model: 'gpt-4o', apiKey: 'test' },
+        } as unknown as AgentConfig;
+
+        const agent = await createDextoAgentFromConfig({
+            config,
+            runtimeOverrides: { usageScopeId: 'cloud-agent-1' },
+        });
+
+        expect(agent).toBeDefined();
+        expect(agent).toHaveProperty('options.usageScopeId', 'cloud-agent-1');
     });
 });

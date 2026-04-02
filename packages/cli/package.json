@@ -1,6 +1,6 @@
 {
   "name": "dexto",
-  "version": "1.6.13",
+  "version": "1.6.21",
   "type": "module",
   "bin": {
     "dexto": "./dist/index.js"
@@ -10,6 +10,7 @@
     "@dexto/agent-config": "workspace:*",
     "@dexto/agent-management": "workspace:*",
     "@dexto/analytics": "workspace:*",
+    "@dexto/client-sdk": "workspace:*",
     "@dexto/core": "workspace:*",
     "@dexto/image-local": "workspace:*",
     "@dexto/image-logger-agent": "workspace:*",
@@ -17,7 +18,7 @@
     "@dexto/server": "workspace:*",
     "@dexto/storage": "workspace:*",
     "@dexto/tui": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@modelcontextprotocol/sdk": "^1.28.0",
     "@opentelemetry/instrumentation-http": "^0.210.0",
     "@opentelemetry/instrumentation-undici": "^0.20.0",
     "@opentelemetry/core": "^1.28.0",
@@ -33,16 +34,16 @@
     "commander": "^11.1.0",
     "dotenv": "^16.4.7",
     "fs-extra": "^11.3.0",
-    "hono": "^4.11.10",
+    "hono": "^4.12.9",
     "ioredis": "^5.7.0",
-    "minimatch": "^10.2.2",
+    "minimatch": "^10.2.3",
     "open": "^10.2.0",
     "pg": "^8.15.4",
     "posthog-node": "^4.2.1",
-    "tar": "^7.4.3",
+    "tar": "^7.5.11",
     "tsx": "^4.19.2",
     "ws": "^8.18.1",
-    "yaml": "^2.7.1",
+    "yaml": "^2.8.3",
     "zod": "^3.25.0"
   },
   "scripts": {

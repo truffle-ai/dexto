@@ -136,6 +136,33 @@ describe('discoverStandaloneSkills', () => {
     });
 
     describe('skill discovery from project directory', () => {
+        it('should discover skills from <cwd>/skills/', () => {
+            vi.mocked(fs.existsSync).mockImplementation((p) => {
+                if (p === '/test/project/skills') return true;
+                if (p === '/test/project/skills/my-project-skill/SKILL.md') return true;
+                return false;
+            });
+
+            vi.mocked(fs.readdirSync).mockImplementation((dir) => {
+                if (dir === '/test/project/skills') {
+                    return [createDirent('my-project-skill', true)] as unknown as ReturnType<
+                        typeof fs.readdirSync
+                    >;
+                }
+                return [];
+            });
+
+            const result = discoverStandaloneSkills();
+
+            expect(result).toHaveLength(1);
+            expect(result[0]).toMatchObject({
+                name: 'my-project-skill',
+                path: '/test/project/skills/my-project-skill',
+                skillFile: '/test/project/skills/my-project-skill/SKILL.md',
+                source: 'project',
+            });
+        });
+
         it('should discover skills from <cwd>/.agents/skills/', () => {
             vi.mocked(fs.existsSync).mockImplementation((p) => {
                 if (p === '/test/project/.agents/skills') return true;
@@ -245,6 +272,42 @@ describe('discoverStandaloneSkills', () => {
             expect(result).toHaveLength(1);
             expect(result[0]!.path).toBe('/test/project/.agents/skills/shared-skill');
         });
+
+        it('should prefer top-level skills over hidden project skills with same name', () => {
+            vi.mocked(fs.existsSync).mockImplementation((p) => {
+                if (p === '/test/project/skills') return true;
+                if (p === '/test/project/skills/shared-skill/SKILL.md') return true;
+                if (p === '/test/project/.agents/skills') return true;
+                if (p === '/test/project/.agents/skills/shared-skill/SKILL.md') return true;
+                if (p === '/test/project/.dexto/skills') return true;
+                if (p === '/test/project/.dexto/skills/shared-skill/SKILL.md') return true;
+                return false;
+            });
+
+            vi.mocked(fs.readdirSync).mockImplementation((dir) => {
+                if (dir === '/test/project/skills') {
+                    return [createDirent('shared-skill', true)] as unknown as ReturnType<
+                        typeof fs.readdirSync
+                    >;
+                }
+                if (dir === '/test/project/.agents/skills') {
+                    return [createDirent('shared-skill', true)] as unknown as ReturnType<
+                        typeof fs.readdirSync
+                    >;
+                }
+                if (dir === '/test/project/.dexto/skills') {
+                    return [createDirent('shared-skill', true)] as unknown as ReturnType<
+                        typeof fs.readdirSync
+                    >;
+                }
+                return [];
+            });
+
+            const result = discoverStandaloneSkills();
+
+            expect(result).toHaveLength(1);
+            expect(result[0]!.path).toBe('/test/project/skills/shared-skill');
+        });
     });
 
     describe('edge cases', () => {
@@ -350,6 +413,7 @@ describe('getSkillSearchPaths', () => {
         const paths = getSkillSearchPaths();
 
         expect(paths).toEqual([
+            '/test/project/skills',
             '/test/project/.agents/skills',
             '/test/project/.dexto/skills',
             '/home/user/.agents/skills',

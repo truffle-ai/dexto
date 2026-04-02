@@ -10,11 +10,11 @@ import React, {
 import { Box, Text } from 'ink';
 import type { Key } from '../hooks/useInputOrchestrator.js';
 import type { PromptInfo } from '@dexto/core';
-import type { DextoAgent } from '@dexto/core';
-import { getAllCommands } from '../interactive-commands/commands.js';
+import { getAvailableCommands } from '../interactive-commands/commands.js';
 import type { CommandDefinition } from '../interactive-commands/command-parser.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { getMaxVisibleItemsForTerminalRows } from '../utils/overlaySizing.js';
+import { supportsPrompts, type TuiAgentBackend } from '../agent-backend.js';
 
 export interface SlashCommandAutocompleteHandle {
     handleInput: (input: string, key: Key) => boolean;
@@ -28,7 +28,7 @@ interface SlashCommandAutocompleteProps {
     onLoadIntoInput?: (command: string) => void; // For Tab - loads command into input
     onSubmitRaw?: ((text: string) => Promise<void> | void) | undefined; // For Enter with no matches - submit raw text
     onClose: () => void;
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
 }
 
 interface PromptItem extends PromptInfo {
@@ -196,14 +196,15 @@ const SlashCommandAutocompleteInner = forwardRef<
         const fetchCommands = async () => {
             try {
                 // Fetch prompts
-                const promptSet = await agent.listPrompts();
-                const promptList: PromptItem[] = Object.values(promptSet).map((p) => ({
-                    ...p,
-                    kind: 'prompt' as const,
-                }));
+                const promptList: PromptItem[] = supportsPrompts(agent)
+                    ? Object.values(await agent.listPrompts()).map((p) => ({
+                          ...p,
+                          kind: 'prompt' as const,
+                      }))
+                    : [];
 
                 // Fetch system commands
-                const allCommands = getAllCommands();
+                const allCommands = getAvailableCommands(agent);
                 const commandList: SystemCommandItem[] = allCommands.map((cmd) => ({
                     kind: 'system' as const,
                     name: cmd.name,

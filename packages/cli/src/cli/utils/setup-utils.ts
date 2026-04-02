@@ -1,11 +1,26 @@
 // packages/cli/src/cli/utils/setup-utils.ts
 
 import {
+    findDextoProjectRoot,
+    findProjectRegistryPathSync,
     globalPreferencesExist,
     loadGlobalPreferences,
     type GlobalPreferences,
 } from '@dexto/agent-management';
 import { getExecutionContext } from '@dexto/core';
+import { existsSync, statSync } from 'node:fs';
+import path from 'node:path';
+
+const PROJECT_LOCAL_CODING_AGENT_RELATIVE_PATHS = [
+    path.join('agents', 'coding-agent', 'coding-agent.yml'),
+    path.join('agents', 'coding-agent', 'coding-agent.yaml'),
+    'coding-agent.yml',
+    'coding-agent.yaml',
+    path.join('agents', 'coding-agent.yml'),
+    path.join('agents', 'coding-agent.yaml'),
+    path.join('src', 'dexto', 'agents', 'coding-agent.yml'),
+    path.join('src', 'dexto', 'agents', 'coding-agent.yaml'),
+] as const;
 
 /**
  * Check if this is a first-time user (no preferences file exists)
@@ -26,6 +41,17 @@ export interface SetupState {
     preferences: GlobalPreferences | null;
 }
 
+function hasProjectLocalStartupConfig(projectRoot: string): boolean {
+    if (findProjectRegistryPathSync(projectRoot)) {
+        return true;
+    }
+
+    return PROJECT_LOCAL_CODING_AGENT_RELATIVE_PATHS.some((relativePath) => {
+        const absolutePath = path.join(projectRoot, relativePath);
+        return existsSync(absolutePath) && statSync(absolutePath).isFile();
+    });
+}
+
 /**
  * Get detailed setup state including pending items
  * @returns Setup state with detailed flags
@@ -44,15 +70,17 @@ export async function getSetupState(): Promise<SetupState> {
         };
     }
 
-    // Project context: skip (might have project-local config)
     if (context === 'dexto-project') {
-        return {
-            needsSetup: false,
-            isFirstTime: false,
-            apiKeyPending: false,
-            baseURLPending: false,
-            preferences: null,
-        };
+        const projectRoot = findDextoProjectRoot();
+        if (projectRoot && hasProjectLocalStartupConfig(projectRoot)) {
+            return {
+                needsSetup: false,
+                isFirstTime: false,
+                apiKeyPending: false,
+                baseURLPending: false,
+                preferences: null,
+            };
+        }
     }
 
     // First-time user (no preferences)
@@ -116,9 +144,8 @@ export async function getSetupState(): Promise<SetupState> {
  * Check if user requires setup (missing, corrupted, or incomplete preferences)
  * Context-aware:
  * - Dev mode (source + DEXTO_DEV_MODE): Skip setup, uses repo configs
- * - Project context: Skip setup (might have project-local config)
- * - First-time user (source/global-cli): Require setup
- * - Has preferences (source/global-cli): Validate them
+ * - First-time user: Require setup
+ * - Has preferences: Validate them
  * @returns true if setup is required
  */
 export async function requiresSetup(): Promise<boolean> {

@@ -97,6 +97,73 @@ describe('getDextoPath', () => {
             }
         });
     });
+
+    describe('workspace markers without package.json', () => {
+        it('uses project-local paths for AGENTS.md workspaces with authored directories', () => {
+            tempDir = createTempDirStructure({
+                'AGENTS.md': '# Dexto Workspace',
+                'skills/.gitkeep': '',
+            });
+
+            const result = getDextoPath('logs', 'workspace.log', tempDir);
+
+            expect(result).toBe(path.join(tempDir, '.dexto', 'logs', 'workspace.log'));
+        });
+
+        it('falls back to global paths for generic AGENTS.md plus authored directories', () => {
+            tempDir = createTempDirStructure({
+                'AGENTS.md': '# Generic instructions',
+                'skills/.gitkeep': '',
+            });
+
+            const result = getDextoPath('logs', 'workspace.log', tempDir);
+
+            expect(result).toBe(path.join(homedir(), '.dexto', 'logs', 'workspace.log'));
+        });
+
+        it('falls back to global paths for skills/ alone', () => {
+            tempDir = createTempDirStructure({
+                'skills/release-check/SKILL.md': '# Release Check',
+            });
+            const nestedDir = path.join(tempDir, 'nested');
+            fs.mkdirSync(nestedDir, { recursive: true });
+
+            const result = getDextoPath('logs', 'workspace.log', nestedDir);
+
+            expect(result).toBe(path.join(homedir(), '.dexto', 'logs', 'workspace.log'));
+        });
+
+        it('falls back to global paths for arbitrary agents/ YAML without an explicit registry', () => {
+            tempDir = createTempDirStructure({
+                'agents/reviewer/reviewer.yml': 'agentCard:\n  name: Reviewer\n',
+            });
+            const nestedDir = path.join(tempDir, 'nested');
+            fs.mkdirSync(nestedDir, { recursive: true });
+
+            const result = getDextoPath('logs', 'workspace.log', nestedDir);
+
+            expect(result).toBe(path.join(homedir(), '.dexto', 'logs', 'workspace.log'));
+        });
+
+        it('uses project-local paths for agents/registry.json workspaces', () => {
+            tempDir = createTempDirStructure({
+                'agents/registry.json': JSON.stringify({
+                    agents: [
+                        {
+                            id: 'review-agent',
+                            name: 'Review Agent',
+                            description: 'Primary workspace agent',
+                            configPath: './review-agent/review-agent.yml',
+                        },
+                    ],
+                }),
+            });
+
+            const result = getDextoPath('logs', 'workspace.log', tempDir);
+
+            expect(result).toBe(path.join(tempDir, '.dexto', 'logs', 'workspace.log'));
+        });
+    });
 });
 
 describe('getDextoGlobalPath', () => {

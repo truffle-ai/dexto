@@ -18,6 +18,7 @@ This guide covers the **CLI Tool** commands. For slash commands available during
 
 - Talk to any LLM in your terminal or browser
 - Create long-lived AI agents with tools, knowledge, and memories
+- Turn any folder into a Dexto workspace with authored agents and skills
 - Deploy agents locally or on the cloud
 - Build custom integrations with Discord, Telegram, Slack, etc.
 - Scaffold new AI applications with `dexto create-app`
@@ -88,6 +89,44 @@ This command will:
 4. Install dependencies
 5. Generate example files
 
+### `init` - Initialize a Dexto Workspace
+
+Turn the current folder into a Dexto workspace with visible authored folders for agents and skills.
+
+```bash
+# Initialize the current folder
+dexto init
+
+# Create a workspace agent (interactive if you omit the id)
+dexto init agent
+dexto init agent review-agent
+
+# Create and auto-link a subagent to the current primary agent
+dexto init agent explore-agent --subagent
+
+# Set or change the workspace primary agent
+dexto init primary review-agent
+
+# Create a workspace skill
+dexto init skill code-review
+
+# Inspect the current workspace config and deploy preview
+dexto init status
+```
+
+**What `dexto init` creates:**
+- `AGENTS.md`
+- `agents/`
+- `skills/`
+- `skills/create-skill/` as a starter skill bundle for authoring more skills
+
+**What the follow-up commands do:**
+- `dexto init agent` creates `agents/<id>/<id>.yml`
+- The first non-subagent agent becomes the workspace primary by default
+- `dexto init agent --subagent` creates a subagent and links it to the current primary agent when one exists
+- `dexto init skill <id>` creates `skills/<id>/SKILL.md` plus `handlers/`, `scripts/`, `mcps/`, and `references/`
+- `dexto init status` shows the current workspace structure, primary agent, skills, and what `dexto deploy` would use
+
 ### `init-app` - Initialize Existing TypeScript App
 
 Add Dexto to an existing TypeScript project.
@@ -126,6 +165,12 @@ Deploy the current folder to a cloud sandbox and keep it linked to that deployme
 # First deploy from any folder
 dexto deploy
 
+# List cloud deployments on your account
+dexto deploy list
+
+# Open the linked deployment in the dashboard
+dexto deploy open
+
 # Inspect the linked deployment
 dexto deploy status
 
@@ -138,8 +183,8 @@ dexto deploy delete
 
 **How first-run deploy works:**
 - Creates `.dexto/deploy.json` in the current workspace
-- Uses the default cloud agent when the folder does not define a primary workspace agent
-- Automatically uses a workspace agent when `agents/coding-agent.yml` exists
+- Uses the primary workspace agent from `agents/registry.json` when the workspace defines one
+- Falls back to the default cloud agent when the workspace does not define a primary workspace agent
 - Uploads the workspace snapshot and links the current folder to the created cloud deployment
 
 **Authentication:**
@@ -166,7 +211,7 @@ Workspace agent:
   "version": 1,
   "agent": {
     "type": "workspace",
-    "path": "agents/coding-agent.yml"
+    "path": "agents/review-agent/review-agent.yml"
   },
   "exclude": [".git", "node_modules", "dist", ".next", ".turbo", ".env*"]
 }
@@ -174,7 +219,8 @@ Workspace agent:
 
 **Notes:**
 - `dexto deploy` deploys the whole workspace, not just git-tracked files
-- `dexto deploy status`, `stop`, and `delete` work from the linked workspace folder
+- `dexto deploy status`, `open`, `stop`, and `delete` work from the linked workspace folder
+- `dexto deploy list` shows account deployments and highlights the one linked to the current folder
 - Dashboard links are printed after deploy and status so you can inspect the cloud workspace directly
 
 ### `agents install` - Install Agents
@@ -536,9 +582,15 @@ git diff | dexto -p "generate a conventional commit message for these changes"
 # Deploy any folder with the managed cloud agent
 dexto deploy
 
-# Deploy a repo that already defines agents/coding-agent.yml
+# List your cloud deployments
+dexto deploy list
+
+# Deploy a repo that already defines a workspace primary agent
 cd my-project
 dexto deploy
+
+# Open the linked deployment in the dashboard
+dexto deploy open
 
 # Check the linked deployment later
 dexto deploy status

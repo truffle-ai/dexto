@@ -1,6 +1,6 @@
 import chalk from 'chalk';
-import type { DextoAgent } from '@dexto/core';
 import type { StyledOutput, SendMessageMarker } from '../services/CommandService.js';
+import type { TuiAgentBackend } from '../agent-backend.js';
 
 export interface CommandResult {
     type: 'command' | 'prompt';
@@ -37,7 +37,7 @@ export interface CommandDefinition {
     subcommands?: CommandDefinition[];
     handler: (
         args: string[],
-        agent: DextoAgent,
+        agent: TuiAgentBackend,
         ctx: CommandContext
     ) => Promise<CommandHandlerResult>;
 }

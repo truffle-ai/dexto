@@ -13,7 +13,15 @@ import type {
     LLMProvider,
     ToolPresentationSnapshotV1,
 } from '@dexto/core';
-import type { TextPart, ImagePart, AudioPart, FilePart, FileData, UIResourcePart } from '@/types';
+import type {
+    TextPart,
+    ImagePart,
+    AudioPart,
+    FilePart,
+    FileData,
+    ResourcePart,
+    UIResourcePart,
+} from '@/types';
 
 // =============================================================================
 // Types
@@ -59,7 +67,10 @@ export interface Message extends Omit<InternalMessage, 'content' | 'role'> {
     id: string;
     role: UIMessageRole;
     createdAt: number;
-    content: string | null | Array<TextPart | ImagePart | AudioPart | FilePart | UIResourcePart>;
+    content:
+        | string
+        | null
+        | Array<TextPart | ImagePart | AudioPart | FilePart | ResourcePart | UIResourcePart>;
 
     // User attachments
     imageData?: { image: string; mimeType: string };

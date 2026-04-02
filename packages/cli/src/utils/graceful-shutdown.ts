@@ -1,5 +1,8 @@
-import type { DextoAgent } from '@dexto/core';
 import { logger } from '@dexto/core';
+
+interface ShutdownTarget {
+    stop?: (() => Promise<void>) | undefined;
+}
 
 export interface GracefulShutdownOptions {
     /**
@@ -15,7 +18,7 @@ export interface GracefulShutdownOptions {
 }
 
 export function registerGracefulShutdown(
-    getCurrentAgent: () => DextoAgent,
+    getCurrentAgent: () => ShutdownTarget,
     options: GracefulShutdownOptions = {}
 ): void {
     const { inkMode = false, forceExitTimeout = 3000 } = options;
@@ -35,7 +38,9 @@ export function registerGracefulShutdown(
         logger.info(`Received ${signal}, shutting down gracefully...`);
         try {
             const agent = getCurrentAgent();
-            await agent.stop();
+            if (typeof agent.stop === 'function') {
+                await agent.stop();
+            }
             process.exit(0);
         } catch (error) {
             logger.error(
@@ -99,7 +104,9 @@ export function registerGracefulShutdown(
             isShuttingDown = true;
             try {
                 const agent = getCurrentAgent();
-                await agent.stop();
+                if (typeof agent.stop === 'function') {
+                    await agent.stop();
+                }
             } catch (innerError) {
                 logger.error(
                     `Error during shutdown initiated by uncaughtException: ${innerError instanceof Error ? innerError.message : String(innerError)}`,
@@ -116,7 +123,9 @@ export function registerGracefulShutdown(
             isShuttingDown = true;
             try {
                 const agent = getCurrentAgent();
-                await agent.stop();
+                if (typeof agent.stop === 'function') {
+                    await agent.stop();
+                }
             } catch (innerError) {
                 logger.error(
                     `Error during shutdown initiated by unhandledRejection: ${innerError instanceof Error ? innerError.message : String(innerError)}`,

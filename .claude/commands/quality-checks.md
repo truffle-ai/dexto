@@ -1,5 +1,5 @@
 ---
-description: "Run all quality checks (build, test, lint, typecheck) before completing tasks"
+description: "Run all quality checks (build, test, lint, typecheck, Hono inference) before completing tasks"
 allowed-tools: ["bash"]
 ---
 
@@ -13,6 +13,7 @@ Runs all pre-commit validation checks to ensure code quality before task complet
 2. **Tests** - Ensure all tests pass (unit + integration)
 3. **Lint** - Check code style and conventions
 4. **Typecheck** - Validate TypeScript types
+5. **Hono Inference** - Ensure exported typed Hono clients still infer concrete JSON payloads
 
 ## Usage
 
@@ -32,6 +33,7 @@ bash scripts/quality-checks.sh build
 bash scripts/quality-checks.sh test
 bash scripts/quality-checks.sh lint
 bash scripts/quality-checks.sh typecheck
+bash scripts/quality-checks.sh hono-inference
 
 # Control output on failure (optional second argument)
 bash scripts/quality-checks.sh build 100      # Show last 100 lines
@@ -52,6 +54,7 @@ bash scripts/quality-checks.sh all all        # Show all output on failure
 2. Test check: `bash scripts/quality-checks.sh test`
 3. Lint check: `bash scripts/quality-checks.sh lint`
 4. Typecheck: `bash scripts/quality-checks.sh typecheck`
+5. Hono inference: `bash scripts/quality-checks.sh hono-inference`
 
 **Default behavior:**
 - Shows last 200 lines on failure (usually sufficient)
@@ -83,6 +86,7 @@ Running quality checks...
 ✅ Tests passed
 ✅ Lint passed
 ✅ Typecheck passed
+✅ Hono Inference passed
 
 All quality checks passed! ✨
 ```
@@ -103,6 +107,7 @@ Running quality checks...
 - **Before creating commits** - Ensures clean history
 - **After major refactoring** - Verify nothing broke
 - **Before requesting PR review** - Save reviewer time
+- **After changing any Hono route/client contract** - Catch inference regressions before downstream repos do
 
 ## Notes
 

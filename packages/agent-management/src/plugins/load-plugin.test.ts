@@ -191,7 +191,19 @@ describe('loadClaudeCodePlugin', () => {
 
             const result = loadClaudeCodePlugin(plugin);
 
-            expect(result.mcpConfig).toEqual(mcpConfig);
+            expect(result.mcpConfig).toEqual({
+                mcpServers: {
+                    'test-server': {
+                        type: 'stdio',
+                        enabled: true,
+                        command: 'node',
+                        args: ['server.js'],
+                        env: {},
+                        timeout: 30000,
+                        connectionMode: 'lenient',
+                    },
+                },
+            });
         });
 
         it('should return undefined mcpConfig when .mcp.json is absent', () => {
@@ -247,6 +259,10 @@ describe('loadClaudeCodePlugin', () => {
                     linear: {
                         type: 'http',
                         url: 'https://mcp.linear.app/mcp',
+                        headers: {},
+                        enabled: true,
+                        timeout: 30000,
+                        connectionMode: 'lenient',
                     },
                 },
             });
@@ -276,8 +292,12 @@ describe('loadClaudeCodePlugin', () => {
                 mcpServers: {
                     playwright: {
                         type: 'stdio',
+                        enabled: true,
                         command: 'npx',
                         args: ['@playwright/mcp@latest'],
+                        env: {},
+                        timeout: 30000,
+                        connectionMode: 'lenient',
                     },
                 },
             });
@@ -305,8 +325,12 @@ describe('loadClaudeCodePlugin', () => {
                 mcpServers: {
                     filesystem: {
                         type: 'stdio',
+                        enabled: true,
                         command: 'npx',
                         args: ['@modelcontextprotocol/server-filesystem'],
+                        env: {},
+                        timeout: 30000,
+                        connectionMode: 'lenient',
                     },
                 },
             });
@@ -369,7 +393,15 @@ describe('loadClaudeCodePlugin', () => {
 
             vi.mocked(fs.readFileSync).mockImplementation((p) => {
                 if (String(p).endsWith('.mcp.json')) {
-                    return JSON.stringify({ mcpServers: { test: {} } });
+                    return JSON.stringify({
+                        mcpServers: {
+                            test: {
+                                type: 'stdio',
+                                command: 'node',
+                                args: ['server.js'],
+                            },
+                        },
+                    });
                 }
                 return '# Content';
             });

@@ -11,16 +11,16 @@ import {
     getReasoningProfile,
     parseCodexBaseURL,
     type CodexRateLimitSnapshot,
-    type DextoAgent,
 } from '@dexto/core';
 import { getLLMProviderDisplayName } from '../utils/llm-provider-display.js';
 import {
     getChatGPTRateLimitHint,
     shouldShowChatGPTRateLimitHint,
 } from '../utils/chatgpt-rate-limit.js';
+import { supportsContextStats, type TuiAgentBackend } from '../agent-backend.js';
 
 interface FooterProps {
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
     sessionId: string | null;
     modelName: string;
     cwd?: string;
@@ -81,6 +81,11 @@ export function Footer({
           : 'yellow';
 
     useEffect(() => {
+        if (!supportsContextStats(agent)) {
+            setContextLeft(null);
+            return;
+        }
+
         if (!sessionId) {
             setContextLeft(null);
             return;

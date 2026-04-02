@@ -11,6 +11,7 @@ import type { ApprovalManager } from '../approval/manager.js';
 import type { AllowedToolsProvider } from './confirmation/allowed-tools-provider/types.js';
 import { ApprovalStatus, ApprovalType } from '../approval/types.js';
 import { createMockLogger } from '../logger/v2/test-utils.js';
+import { SessionError } from '../session/errors.js';
 
 // Mock logger
 vi.mock('../logger/index.js', () => ({
@@ -150,6 +151,134 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             );
 
             expect(toolManager.getToolSource('mcp--')).toBe('unknown'); // Prefix but no name
+        });
+    });
+
+    describe('Contributor Context', () => {
+        it('includes session context when a session id is provided', async () => {
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [],
+                mockLogger
+            );
+
+            const context = await toolManager.buildContributorContext({
+                sessionId: 'session-123',
+            });
+
+            expect(context.session).toEqual({ id: 'session-123' });
+        });
+
+        it('preserves session context when contributor overrides add environment data', async () => {
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [],
+                mockLogger
+            );
+
+            toolManager.setContributorContextFactory(() => ({
+                environment: {
+                    cwd: '/workspace',
+                    platform: 'linux',
+                },
+            }));
+
+            const context = await toolManager.buildContributorContext({
+                sessionId: 'session-456',
+            });
+
+            expect(context.session).toEqual({ id: 'session-456' });
+            expect(context.environment).toEqual({
+                cwd: '/workspace',
+                platform: 'linux',
+            });
+        });
+
+        it('includes session prompt contributors when session manager support is configured', async () => {
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [],
+                mockLogger
+            );
+
+            toolManager.setHookSupport(
+                {} as any,
+                {
+                    getSessionSystemPromptContributors: vi.fn().mockResolvedValue([
+                        {
+                            id: 'peer-origin',
+                            priority: 0,
+                            content: 'Reply to the originating peer.',
+                        },
+                    ]),
+                } as any,
+                {} as any
+            );
+
+            const context = await toolManager.buildContributorContext({
+                sessionId: 'session-789',
+            });
+
+            expect(context.session).toEqual({
+                id: 'session-789',
+                systemPromptContributors: [
+                    {
+                        id: 'peer-origin',
+                        priority: 0,
+                        content: 'Reply to the originating peer.',
+                    },
+                ],
+            });
+        });
+
+        it('gracefully ignores missing sessions when building contributor context', async () => {
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [],
+                mockLogger
+            );
+
+            toolManager.setHookSupport(
+                {} as any,
+                {
+                    getSessionSystemPromptContributors: vi
+                        .fn()
+                        .mockRejectedValue(SessionError.notFound('missing-session')),
+                } as any,
+                {} as any
+            );
+
+            const context = await toolManager.buildContributorContext({
+                sessionId: 'missing-session',
+            });
+
+            expect(context.session).toEqual({ id: 'missing-session' });
+            expect(mockLogger.debug).toHaveBeenCalledWith(
+                'Session not found while building contributor context',
+                {
+                    sessionId: 'missing-session',
+                }
+            );
         });
     });
 
@@ -1054,6 +1183,41 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
     });
 
     describe('Cache Management Logic', () => {
+        it('uses dynamic tool descriptions when provided', async () => {
+            const getDescription = vi.fn().mockReturnValue('Dynamic description');
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    {
+                        id: 'dynamic_tool',
+                        description: 'Static description',
+                        getDescription,
+                        inputSchema: z.object({}).strict(),
+                        execute: vi.fn(),
+                    },
+                ] as any,
+                mockLogger
+            );
+
+            toolManager.setToolExecutionContextFactory((baseContext) => ({
+                ...baseContext,
+                agent: {} as any,
+                services: {} as any,
+            }));
+
+            const tools = await toolManager.getAllTools();
+
+            expect(tools['dynamic_tool']?.description).toBe('Dynamic description');
+            expect(getDescription).toHaveBeenCalledTimes(1);
+        });
+
         it('should cache tool discovery results', async () => {
             const tools = {
                 test_tool: { name: 'test_tool', description: 'Test', parameters: {} },
@@ -1077,6 +1241,86 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             await toolManager.getAllTools();
 
             expect(mockMcpManager.getAllTools).toHaveBeenCalledTimes(1);
+        });
+
+        it('refreshes dynamic local tool descriptions even when the tool cache is warm', async () => {
+            const getDescription = vi
+                .fn()
+                .mockResolvedValueOnce('Workspace agents: review-agent')
+                .mockResolvedValueOnce('Workspace agents: explore-agent');
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    {
+                        id: 'spawn_agent',
+                        description: 'Static description',
+                        getDescription,
+                        inputSchema: z.object({}).strict(),
+                        execute: vi.fn(),
+                    },
+                ] as any,
+                mockLogger
+            );
+
+            toolManager.setToolExecutionContextFactory((baseContext) => ({
+                ...baseContext,
+                agent: {} as any,
+                services: {} as any,
+            }));
+
+            const firstDescription = (await toolManager.getAllTools())['spawn_agent']?.description;
+            const secondDescription = (await toolManager.getAllTools())['spawn_agent']?.description;
+
+            expect(firstDescription).toBe('Workspace agents: review-agent');
+            expect(secondDescription).toBe('Workspace agents: explore-agent');
+            expect(mockMcpManager.getAllTools).toHaveBeenCalledTimes(1);
+            expect(getDescription).toHaveBeenCalledTimes(2);
+        });
+
+        it('falls back to the static description when a dynamic description becomes blank', async () => {
+            const getDescription = vi
+                .fn()
+                .mockResolvedValueOnce('Workspace agents: review-agent')
+                .mockResolvedValueOnce('   ');
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [
+                    {
+                        id: 'spawn_agent',
+                        description: 'Static description',
+                        getDescription,
+                        inputSchema: z.object({}).strict(),
+                        execute: vi.fn(),
+                    },
+                ] as any,
+                mockLogger
+            );
+
+            toolManager.setToolExecutionContextFactory((baseContext) => ({
+                ...baseContext,
+                agent: {} as any,
+                services: {} as any,
+            }));
+
+            const firstDescription = (await toolManager.getAllTools())['spawn_agent']?.description;
+            const secondDescription = (await toolManager.getAllTools())['spawn_agent']?.description;
+
+            expect(firstDescription).toBe('Workspace agents: review-agent');
+            expect(secondDescription).toBe('Static description');
         });
 
         it('should invalidate cache on refresh', async () => {
@@ -1103,6 +1347,63 @@ describe('ToolManager - Unit Tests (Pure Logic)', () => {
             await toolManager.refresh();
 
             // Second call should fetch again
+            await toolManager.getAllTools();
+
+            expect(mockMcpManager.getAllTools).toHaveBeenCalledTimes(2);
+        });
+
+        it('invalidates cache when the workspace changes', async () => {
+            mockMcpManager.getAllTools = vi.fn().mockResolvedValue({});
+            let workspaceChangedListener:
+                | ((payload: {
+                      workspace: {
+                          id: string;
+                          path: string;
+                          createdAt: number;
+                          lastActiveAt: number;
+                      } | null;
+                  }) => void)
+                | undefined;
+            mockAgentEventBus.on = vi.fn((eventName, listener) => {
+                if (eventName === 'workspace:changed') {
+                    workspaceChangedListener = listener as typeof workspaceChangedListener;
+                }
+                return mockAgentEventBus;
+            }) as any;
+
+            const toolManager = new ToolManager(
+                mockMcpManager,
+                mockApprovalManager,
+                mockAllowedToolsProvider,
+                'manual',
+                mockAgentEventBus,
+                { alwaysAllow: [], alwaysDeny: [] },
+                [],
+                mockLogger
+            );
+
+            await toolManager.setWorkspaceManager({
+                getWorkspace: vi.fn().mockResolvedValue({
+                    id: 'workspace-1',
+                    path: '/tmp/workspace-one',
+                    createdAt: 1,
+                    lastActiveAt: 1,
+                }),
+            } as any);
+
+            await toolManager.getAllTools();
+
+            expect(workspaceChangedListener).toBeTypeOf('function');
+
+            workspaceChangedListener?.({
+                workspace: {
+                    id: 'workspace-2',
+                    path: '/tmp/workspace-two',
+                    createdAt: 2,
+                    lastActiveAt: 2,
+                },
+            });
+
             await toolManager.getAllTools();
 
             expect(mockMcpManager.getAllTools).toHaveBeenCalledTimes(2);

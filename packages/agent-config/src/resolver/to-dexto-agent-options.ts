@@ -6,10 +6,11 @@ export interface ToDextoAgentOptionsInput {
     config: ValidatedAgentConfig;
     services: ResolvedServices;
     overrides?: InitializeServicesOptions | undefined;
+    runtimeOverrides?: Pick<DextoAgentOptions, 'usageScopeId'> | undefined;
 }
 
 export function toDextoAgentOptions(options: ToDextoAgentOptionsInput): DextoAgentOptions {
-    const { config, services, overrides } = options;
+    const { config, services, overrides, runtimeOverrides } = options;
 
     return {
         agentId: config.agentId,
@@ -31,6 +32,7 @@ export function toDextoAgentOptions(options: ToDextoAgentOptionsInput): DextoAge
         toolkitLoader: services.toolkitLoader,
         hooks: services.hooks,
         compaction: services.compaction,
+        ...(runtimeOverrides ? runtimeOverrides : {}),
         ...(overrides ? { overrides } : {}),
     };
 }

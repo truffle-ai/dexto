@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle, XCircle, Copy } from 'lucide-react';
+import { CheckCircle, XCircle, Copy, Download, File, FileAudio, FileVideo } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { ToolResult as ToolResultType } from '@dexto/core';
 
@@ -9,71 +9,210 @@ interface ToolResultProps {
     onCopyResult?: () => void;
 }
 
+type MediaResultItem =
+    | {
+          kind: 'image';
+          src: string;
+          mimeType?: string;
+          filename?: string;
+      }
+    | {
+          kind: 'audio';
+          src: string;
+          mimeType: string;
+          filename?: string;
+      }
+    | {
+          kind: 'video';
+          src: string;
+          mimeType: string;
+          filename?: string;
+      }
+    | {
+          kind: 'file';
+          src: string;
+          mimeType: string;
+          filename?: string;
+      };
+
+function toDataUrl(base64: string, mimeType: string): string {
+    return `data:${mimeType};base64,${base64}`;
+}
+
+function extractMediaItems(data: unknown): MediaResultItem[] {
+    if (!data || typeof data !== 'object') {
+        return [];
+    }
+
+    const obj = data as Record<string, unknown>;
+
+    if (
+        typeof obj.image === 'string' &&
+        typeof obj.mimeType === 'string' &&
+        obj.mimeType.startsWith('image/')
+    ) {
+        return [
+            {
+                kind: 'image',
+                src: toDataUrl(obj.image, obj.mimeType),
+                mimeType: obj.mimeType,
+                filename: typeof obj.filename === 'string' ? obj.filename : undefined,
+            },
+        ];
+    }
+
+    if (typeof obj.data === 'string' && typeof obj.mimeType === 'string') {
+        const src = toDataUrl(obj.data, obj.mimeType);
+        if (obj.mimeType.startsWith('audio/')) {
+            return [
+                {
+                    kind: 'audio',
+                    src,
+                    mimeType: obj.mimeType,
+                    filename: typeof obj.filename === 'string' ? obj.filename : undefined,
+                },
+            ];
+        }
+        if (obj.mimeType.startsWith('video/')) {
+            return [
+                {
+                    kind: 'video',
+                    src,
+                    mimeType: obj.mimeType,
+                    filename: typeof obj.filename === 'string' ? obj.filename : undefined,
+                },
+            ];
+        }
+        return [
+            {
+                kind: 'file',
+                src,
+                mimeType: obj.mimeType,
+                filename: typeof obj.filename === 'string' ? obj.filename : undefined,
+            },
+        ];
+    }
+
+    if (Array.isArray(obj.content)) {
+        return obj.content.flatMap((item): MediaResultItem[] => {
+            if (!item || typeof item !== 'object') {
+                return [];
+            }
+
+            const mimeType = typeof item.mimeType === 'string' ? item.mimeType : undefined;
+            const filename = typeof item.filename === 'string' ? item.filename : undefined;
+            const base64 =
+                typeof item.data === 'string'
+                    ? item.data
+                    : typeof item.blob === 'string'
+                      ? item.blob
+                      : undefined;
+
+            if (item.type === 'image' && base64 && mimeType) {
+                return [{ kind: 'image', src: toDataUrl(base64, mimeType), mimeType, filename }];
+            }
+
+            if (item.type === 'file' && base64 && mimeType) {
+                const src = toDataUrl(base64, mimeType);
+                if (mimeType.startsWith('audio/')) {
+                    return [{ kind: 'audio', src, mimeType, filename }];
+                }
+                if (mimeType.startsWith('video/')) {
+                    return [{ kind: 'video', src, mimeType, filename }];
+                }
+                return [{ kind: 'file', src, mimeType, filename }];
+            }
+
+            return [];
+        });
+    }
+
+    return [];
+}
+
 export function ToolResult({ result, toolName, onCopyResult }: ToolResultProps) {
     const renderResultContent = () => {
-        // Check if this is an image result by examining the data structure
-        const isImageResult =
-            result.data &&
-            typeof result.data === 'object' &&
-            (Array.isArray(result.data) ||
-                (typeof result.data === 'object' && Array.isArray((result.data as any).content)));
+        const mediaItems = extractMediaItems(result.data);
 
-        if (isImageResult && result.data) {
-            let imgSrc = '';
-            let imagePart: { data?: string; mimeType?: string; type?: string } | null = null;
-            let nonImageParts: any[] = [];
+        if (mediaItems.length > 0) {
+            return (
+                <div className="space-y-3">
+                    {mediaItems.map((item, idx) => {
+                        if (item.kind === 'image') {
+                            return (
+                                <img
+                                    key={idx}
+                                    src={item.src}
+                                    alt={item.filename || 'Tool result'}
+                                    className="my-2 max-h-96 w-auto rounded-lg border border-border shadow-sm"
+                                />
+                            );
+                        }
 
-            if (Array.isArray(result.data)) {
-                imagePart = result.data.find((part) => part && part.type === 'image');
-                if (imagePart && typeof imagePart.data === 'string' && imagePart.mimeType) {
-                    imgSrc = `data:${imagePart.mimeType};base64,${imagePart.data}`;
-                }
-            } else if (
-                result.data &&
-                typeof result.data === 'object' &&
-                Array.isArray((result.data as any).content)
-            ) {
-                const partsArray = (result.data as any).content as any[];
-                imagePart = partsArray.find((part) => part && part.type === 'image');
-                if (imagePart && typeof imagePart.data === 'string' && imagePart.mimeType) {
-                    imgSrc = `data:${imagePart.mimeType};base64,${imagePart.data}`;
-                }
-                nonImageParts = partsArray.filter((part) => part && part.type !== 'image');
-            } else if (typeof result.data === 'string') {
-                if (result.data.startsWith('data:image')) {
-                    imgSrc = result.data;
-                } else if (
-                    result.data.startsWith('http://') ||
-                    result.data.startsWith('https://')
-                ) {
-                    imgSrc = result.data;
-                }
-            }
+                        if (item.kind === 'audio') {
+                            return (
+                                <div
+                                    key={idx}
+                                    className="flex items-center gap-3 rounded-lg border border-border bg-muted/50 p-3"
+                                >
+                                    <FileAudio className="h-5 w-5 text-muted-foreground" />
+                                    <audio controls src={item.src} className="h-8 flex-1" />
+                                    {item.filename && (
+                                        <span className="max-w-[180px] truncate text-sm text-muted-foreground">
+                                            {item.filename}
+                                        </span>
+                                    )}
+                                </div>
+                            );
+                        }
 
-            if (imgSrc) {
-                return (
-                    <img
-                        src={imgSrc}
-                        alt="Tool result"
-                        className="my-2 max-h-96 w-auto rounded-lg border border-border shadow-sm"
-                    />
-                );
-            } else if (nonImageParts.length > 0) {
-                return (
-                    <div className="space-y-3">
-                        {nonImageParts.map((part, idx) => (
-                            <pre
+                        if (item.kind === 'video') {
+                            return (
+                                <div
+                                    key={idx}
+                                    className="space-y-2 rounded-lg border border-border bg-muted/50 p-3"
+                                >
+                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                        <FileVideo className="h-4 w-4" />
+                                        <span>{item.filename || item.mimeType}</span>
+                                    </div>
+                                    <video
+                                        controls
+                                        src={item.src}
+                                        className="w-full max-h-96 rounded-lg bg-black"
+                                        preload="metadata"
+                                    />
+                                </div>
+                            );
+                        }
+
+                        return (
+                            <div
                                 key={idx}
-                                className="whitespace-pre-wrap text-sm bg-muted/50 p-3 rounded-md border border-border font-mono overflow-x-auto max-h-64"
+                                className="flex items-center gap-3 rounded-lg border border-border bg-muted/50 p-3"
                             >
-                                {typeof part === 'object'
-                                    ? JSON.stringify(part, null, 2)
-                                    : String(part)}
-                            </pre>
-                        ))}
-                    </div>
-                );
-            }
+                                <File className="h-5 w-5 text-muted-foreground" />
+                                <div className="min-w-0 flex-1">
+                                    <div className="truncate text-sm font-medium">
+                                        {item.filename || 'file'}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                        {item.mimeType}
+                                    </div>
+                                </div>
+                                <a
+                                    href={item.src}
+                                    download={item.filename || 'tool-result.bin'}
+                                    className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                                >
+                                    <Download className="h-3 w-3" />
+                                    Download
+                                </a>
+                            </div>
+                        );
+                    })}
+                </div>
+            );
         }
 
         // Default result rendering

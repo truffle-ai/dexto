@@ -38,7 +38,7 @@ export function createReadFileTool(
         id: 'read_file',
         aliases: ['read'],
         description:
-            'Read the contents of a file with optional pagination. Returns file content, line count, encoding, and whether the output was truncated. Use limit and offset parameters for large files to read specific sections. This tool is for reading files within allowed paths only.',
+            'Read the UTF-8 text contents of a file with optional pagination. Returns file content, line count, encoding, MIME type, and whether the output was truncated. Use limit and offset parameters for large files to read specific sections. Use read_media_file for image, audio, video, PDF, and other binary files.',
         inputSchema: ReadFileInputSchema,
 
         presentation: {

@@ -3,11 +3,11 @@
  * Handles command parsing and execution
  */
 
-import type { DextoAgent } from '@dexto/core';
 import { parseInput } from '../utils/inputParsing.js';
 import { executeCommand } from '../interactive-commands/commands.js';
 import type { CommandResult } from '../interactive-commands/command-parser.js';
 import type { StyledMessageType, StyledData } from '../state/types.js';
+import type { TuiAgentBackend } from '../agent-backend.js';
 
 /**
  * Styled output for command execution
@@ -88,7 +88,7 @@ export class CommandService {
     async executeCommand(
         command: string,
         args: string[],
-        agent: DextoAgent,
+        agent: TuiAgentBackend,
         sessionId?: string,
         configFilePath?: string | null
     ): Promise<CommandExecutionResult> {

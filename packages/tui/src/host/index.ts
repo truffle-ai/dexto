@@ -1,5 +1,11 @@
-type TuiAgentHandle = object;
-type TuiProviderId = string;
+import type { LLMProvider } from '@dexto/core';
+import type { TuiAgentBackend } from '../agent-backend.js';
+
+export interface TuiShutdownHandle {
+    stop?: (() => Promise<void>) | undefined;
+}
+
+type TuiProviderId = LLMProvider | string;
 
 export interface TuiAuthConfig {
     token?: string | undefined;
@@ -49,7 +55,7 @@ export interface TuiPersistedLoginResult {
 
 export interface TuiRuntimeServices {
     registerGracefulShutdown?: (
-        getAgent: () => TuiAgentHandle,
+        getAgent: () => TuiShutdownHandle,
         options: { inkMode: boolean }
     ) => void;
     capture?: (event: string, properties?: Record<string, unknown>) => void;
@@ -100,7 +106,7 @@ function missingHostMethod(methodName: string): Error {
 }
 
 export function registerGracefulShutdown(
-    getAgent: () => TuiAgentHandle,
+    getAgent: () => TuiAgentBackend,
     options: { inkMode: boolean }
 ): void {
     runtimeServices.registerGracefulShutdown?.(getAgent, options);

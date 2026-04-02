@@ -13,14 +13,14 @@ import React, {
 } from 'react';
 import { Box, Text } from 'ink';
 import type { Key } from '../../hooks/useInputOrchestrator.js';
-import type { DextoAgent } from '@dexto/core';
 import type { SearchResult } from '@dexto/core';
+import type { TuiAgentBackend } from '../../agent-backend.js';
 
 export interface SearchOverlayProps {
     isVisible: boolean;
     onClose: () => void;
     onSelectResult?: (result: SearchResult) => void;
-    agent: DextoAgent;
+    agent: TuiAgentBackend;
 }
 
 export interface SearchOverlayHandle {

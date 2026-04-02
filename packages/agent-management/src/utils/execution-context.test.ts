@@ -194,6 +194,81 @@ describe('Execution Context Detection', () => {
         });
     });
 
+    describe('Workspace markers without package.json', () => {
+        it('treats Dexto workspace AGENTS.md plus authored workspace directories as a dexto-project marker', () => {
+            tempDir = createTempDirStructure({
+                'AGENTS.md': '# Dexto Workspace\n',
+                'skills/.gitkeep': '',
+            });
+            const nestedDir = path.join(tempDir, 'nested');
+            fs.mkdirSync(nestedDir, { recursive: true });
+
+            expect(getExecutionContext(tempDir)).toBe('dexto-project');
+            expect(findDextoProjectRoot(nestedDir)).toBe(tempDir);
+        });
+
+        it('does not treat skills/*/SKILL.md alone as a dexto-project marker', () => {
+            tempDir = createTempDirStructure({
+                'skills/release-check/SKILL.md': '# Release Check',
+            });
+            const srcDir = path.join(tempDir, 'src');
+            fs.mkdirSync(srcDir, { recursive: true });
+
+            expect(getExecutionContext(tempDir)).toBe('global-cli');
+            expect(findDextoProjectRoot(srcDir)).toBeNull();
+        });
+
+        it('does not treat arbitrary agents/<id>/<id>.yml as a dexto-project marker', () => {
+            tempDir = createTempDirStructure({
+                'agents/reviewer/reviewer.yml': 'agentCard:\n  name: Reviewer\n',
+            });
+            const nestedDir = path.join(tempDir, 'nested');
+            fs.mkdirSync(nestedDir, { recursive: true });
+
+            expect(getExecutionContext(tempDir)).toBe('global-cli');
+            expect(findDextoProjectRoot(nestedDir)).toBeNull();
+        });
+
+        it('treats agents/registry.json as a dexto-project marker', () => {
+            tempDir = createTempDirStructure({
+                'agents/registry.json': JSON.stringify({
+                    agents: [
+                        {
+                            id: 'coding-agent',
+                            name: 'Coding Agent',
+                            description: 'Primary workspace agent',
+                            configPath: 'coding-agent/coding-agent.yml',
+                        },
+                    ],
+                }),
+            });
+            const nestedDir = path.join(tempDir, 'nested');
+            fs.mkdirSync(nestedDir, { recursive: true });
+
+            expect(getExecutionContext(tempDir)).toBe('dexto-project');
+            expect(findDextoProjectRoot(nestedDir)).toBe(tempDir);
+        });
+
+        it('does not treat AGENTS.md alone as a dexto-project marker', () => {
+            tempDir = createTempDirStructure({
+                'AGENTS.md': '# Generic agent instructions',
+            });
+
+            expect(getExecutionContext(tempDir)).toBe('global-cli');
+            expect(findDextoProjectRoot(tempDir)).toBeNull();
+        });
+
+        it('does not treat generic AGENTS.md plus authored directories as a dexto-project marker', () => {
+            tempDir = createTempDirStructure({
+                'AGENTS.md': '# Generic agent instructions',
+                'skills/.gitkeep': '',
+            });
+
+            expect(getExecutionContext(tempDir)).toBe('global-cli');
+            expect(findDextoProjectRoot(tempDir)).toBeNull();
+        });
+    });
+
     describe('Forced project root override', () => {
         beforeEach(() => {
             tempDir = createTempDirStructure({

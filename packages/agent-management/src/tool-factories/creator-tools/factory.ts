@@ -6,6 +6,7 @@ import {
     ToolError,
     defineTool,
     assertValidPromptName,
+    loadBundledMcpConfigFromDirectory,
     type Tool,
     type ToolExecutionContext,
     type PromptsConfig,
@@ -74,6 +75,13 @@ const SkillListInputSchema = z
     })
     .strict();
 
+const SkillRefreshInputSchema = z
+    .object({
+        id: z.string().min(1).describe('Skill id to refresh in the running agent session.'),
+        scope: z.enum(['global', 'workspace']).optional(),
+    })
+    .strict();
+
 const SkillSearchInputSchema = z
     .object({
         query: z
@@ -128,6 +136,8 @@ type ToolCatalogEntry = {
     source: 'local' | 'mcp';
 };
 
+const SKILL_RESOURCE_DIRECTORIES = ['handlers', 'scripts', 'mcps', 'references'] as const;
+
 function normalizeSkillQuery(value: string): string {
     return value
         .toLowerCase()
@@ -160,13 +170,42 @@ function resolveWorkspaceBasePath(context: ToolExecutionContext): string {
 
 function resolveWorkspaceSkillDirs(context: ToolExecutionContext): {
     primary: string;
+    secondary: string;
     legacy: string;
 } {
     const base = resolveWorkspaceBasePath(context);
     return {
-        primary: path.join(base, '.agents', 'skills'),
+        primary: path.join(base, 'skills'),
+        secondary: path.join(base, '.agents', 'skills'),
         legacy: path.join(base, '.dexto', 'skills'),
     };
+}
+
+function findRegisteredSkillFile(
+    skillId: string,
+    context: ToolExecutionContext
+): string | undefined {
+    const prompts = context.agent?.getEffectiveConfig().prompts;
+    if (!Array.isArray(prompts)) {
+        return undefined;
+    }
+
+    for (const prompt of prompts) {
+        if (!prompt || typeof prompt !== 'object' || prompt.type !== 'file') {
+            continue;
+        }
+
+        const filePath = typeof prompt.file === 'string' ? prompt.file : undefined;
+        if (!filePath || path.basename(filePath) !== 'SKILL.md') {
+            continue;
+        }
+
+        if (path.basename(path.dirname(filePath)) === skillId) {
+            return filePath;
+        }
+    }
+
+    return undefined;
 }
 
 function resolveSkillBaseDirectory(
@@ -195,18 +234,26 @@ async function pathExists(filePath: string): Promise<boolean> {
 }
 
 async function resolveSkillUpdateDirectory(
-    input: z.output<typeof SkillUpdateInputSchema>,
+    input: {
+        id: string;
+        scope?: 'global' | 'workspace' | undefined;
+    },
     context: ToolExecutionContext
 ): Promise<{ baseDir: string; scope: 'global' | 'workspace' }> {
     if (input.scope === 'global') {
         return resolveSkillBaseDirectory('global', context);
     }
 
-    const { primary, legacy } = resolveWorkspaceSkillDirs(context);
+    const { primary, secondary, legacy } = resolveWorkspaceSkillDirs(context);
     const skillId = input.id.trim();
     const primaryFile = path.join(primary, skillId, 'SKILL.md');
     if (await pathExists(primaryFile)) {
         return { baseDir: primary, scope: 'workspace' };
+    }
+
+    const secondaryFile = path.join(secondary, skillId, 'SKILL.md');
+    if (await pathExists(secondaryFile)) {
+        return { baseDir: secondary, scope: 'workspace' };
     }
 
     const legacyFile = path.join(legacy, skillId, 'SKILL.md');
@@ -215,6 +262,45 @@ async function resolveSkillUpdateDirectory(
     }
 
     return { baseDir: primary, scope: 'workspace' };
+}
+
+async function resolveExistingSkillLocation(
+    input: {
+        id: string;
+        scope?: 'global' | 'workspace' | undefined;
+    },
+    context: ToolExecutionContext
+): Promise<{
+    baseDir: string;
+    scope: 'global' | 'workspace';
+    skillDir: string;
+    skillFile: string;
+}> {
+    if (input.scope !== 'global') {
+        const registeredSkillFile = findRegisteredSkillFile(input.id.trim(), context);
+        if (registeredSkillFile) {
+            const skillDir = path.dirname(registeredSkillFile);
+            const baseDir = path.dirname(skillDir);
+            ensurePathWithinBase(baseDir, skillDir, 'skill_refresh');
+            return {
+                baseDir,
+                scope: 'workspace',
+                skillDir,
+                skillFile: registeredSkillFile,
+            };
+        }
+    }
+
+    const { baseDir, scope } = await resolveSkillUpdateDirectory(input, context);
+    const skillDir = path.join(baseDir, input.id.trim());
+    ensurePathWithinBase(baseDir, skillDir, 'skill_refresh');
+    const skillFile = path.join(skillDir, 'SKILL.md');
+    return {
+        baseDir,
+        scope,
+        skillDir,
+        skillFile,
+    };
 }
 
 function ensurePathWithinBase(baseDir: string, targetDir: string, toolId: string): void {
@@ -276,6 +362,7 @@ function buildSkillMarkdownFromParts(options: {
 }): string {
     const id = options.id.trim();
     const title = titleizeSkillId(id) || id;
+    const body = normalizeSkillBody(options.content);
     const lines: string[] = ['---'];
 
     lines.push(formatFrontmatterLine('name', id));
@@ -287,8 +374,18 @@ function buildSkillMarkdownFromParts(options: {
         lines.push(formatFrontmatterList('allowed-tools', options.allowedTools));
     }
 
-    lines.push('---', '', `# ${title}`, '', options.content.trim());
+    lines.push('---', '', `# ${title}`);
+    if (body.length > 0) {
+        lines.push('', body);
+    }
     return lines.join('\n').replace(/\n{3,}/g, '\n\n');
+}
+
+function normalizeSkillBody(content: string): string {
+    const trimmed = content.trim();
+    const withoutFrontmatter = trimmed.replace(/^---\s*\n[\s\S]*?\n---\s*\n?/, '').trimStart();
+    const withoutLeadingH1 = withoutFrontmatter.replace(/^#\s+[^\n]+(?:\n+|$)/, '').trimStart();
+    return withoutLeadingH1.trim();
 }
 
 function buildSkillMarkdown(input: ResolvedSkillCreateInput): string {
@@ -371,6 +468,41 @@ async function refreshAgentPrompts(
     return true;
 }
 
+function buildSkillBundleNotes(bundledMcpServers: string[]): string[] {
+    const notes = [
+        'Creating or editing files under mcps/ only defines bundled MCP config. It does not implement or verify the target MCP server.',
+        'After editing SKILL.md or bundled MCP files with non-creator tools, run skill_refresh so the current session sees the latest skill content and MCP metadata.',
+    ];
+
+    if (bundledMcpServers.length > 0) {
+        notes.push(
+            'Bundled MCP config is present. Only describe the skill as shipping a real MCP when the config points at a bundled runnable server or a verified external command/package.'
+        );
+    }
+
+    return notes;
+}
+
+function inspectSkillBundle(
+    skillDir: string,
+    skillId: string
+): {
+    bundledMcpServers: string[];
+    bundledMcpWarnings: string[];
+    notes: string[];
+} {
+    const bundledMcpResult = loadBundledMcpConfigFromDirectory(skillDir, skillId, {
+        scanNestedMcps: true,
+    });
+    const bundledMcpServers = Object.keys(bundledMcpResult.mcpServers ?? {});
+
+    return {
+        bundledMcpServers,
+        bundledMcpWarnings: bundledMcpResult.warnings,
+        notes: buildSkillBundleNotes(bundledMcpServers),
+    };
+}
+
 export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
     configSchema: CreatorToolsConfigSchema,
     metadata: {
@@ -384,7 +516,7 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
         const skillCreateTool = defineTool({
             id: 'skill_create',
             description:
-                'Create a standalone SKILL.md file and register it with the running agent. Provide id, description, content, and optional toolkits/allowedTools.',
+                'Create a standalone SKILL.md file, scaffold bundled resource directories, and register it with the running agent. This scaffolds mcps/ but does not implement or verify an MCP server.',
             inputSchema: SkillCreateInputSchema,
             execute: async (input, context) => {
                 const resolvedInput = resolveSkillCreateInput(input);
@@ -410,9 +542,15 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                 const markdown = buildSkillMarkdown(resolvedInput);
                 await fs.mkdir(skillDir, { recursive: true });
                 await fs.writeFile(skillFile, markdown, 'utf-8');
+                await Promise.all(
+                    SKILL_RESOURCE_DIRECTORIES.map((directory) =>
+                        fs.mkdir(path.join(skillDir, directory), { recursive: true })
+                    )
+                );
 
                 const refreshed = await refreshAgentPrompts(context, skillFile);
                 const displayName = titleizeSkillId(skillId) || skillId;
+                const bundleDetails = inspectSkillBundle(skillDir, skillId);
 
                 return {
                     created: true,
@@ -421,7 +559,11 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                     description: resolvedInput.description.trim(),
                     scope,
                     path: skillFile,
+                    resourceDirectories: SKILL_RESOURCE_DIRECTORIES.map((directory) =>
+                        path.join(skillDir, directory)
+                    ),
                     promptsRefreshed: refreshed,
+                    ...bundleDetails,
                 };
             },
         });
@@ -437,11 +579,10 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                     hint: 'Use kebab-case skill ids (e.g., release-notes)',
                 });
 
-                const { baseDir, scope } = await resolveSkillUpdateDirectory(input, context);
-                const skillDir = path.join(baseDir, skillId);
-                ensurePathWithinBase(baseDir, skillDir, 'skill_update');
-
-                const skillFile = path.join(skillDir, 'SKILL.md');
+                const { scope, skillDir, skillFile } = await resolveExistingSkillLocation(
+                    input,
+                    context
+                );
                 const exists = await pathExists(skillFile);
                 if (!exists) {
                     throw ToolError.validationFailed(
@@ -473,6 +614,7 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
 
                 await fs.writeFile(skillFile, markdown, 'utf-8');
                 const refreshed = await refreshAgentPrompts(context, skillFile);
+                const bundleDetails = inspectSkillBundle(skillDir, skillId);
 
                 return {
                     updated: true,
@@ -481,6 +623,51 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
                     scope,
                     path: skillFile,
                     promptsRefreshed: refreshed,
+                    ...bundleDetails,
+                };
+            },
+        });
+
+        const skillRefreshTool = defineTool({
+            id: 'skill_refresh',
+            description:
+                'Refresh one standalone skill bundle in the current session after editing SKILL.md, mcps/, scripts/, or references/. Rebuilds prompt metadata so bundled MCP servers can be discovered without restarting.',
+            inputSchema: SkillRefreshInputSchema,
+            execute: async (input, context) => {
+                const skillId = input.id.trim();
+                assertValidPromptName(skillId, {
+                    context: 'skill_refresh',
+                    hint: 'Use kebab-case skill ids (e.g., release-notes)',
+                });
+
+                if (!context.agent) {
+                    throw ToolError.configInvalid(
+                        'skill_refresh requires ToolExecutionContext.agent'
+                    );
+                }
+
+                const { scope, skillDir, skillFile } = await resolveExistingSkillLocation(
+                    input,
+                    context
+                );
+                const exists = await pathExists(skillFile);
+                if (!exists) {
+                    throw ToolError.validationFailed(
+                        'skill_refresh',
+                        `Skill not found at ${skillFile}`
+                    );
+                }
+
+                const refreshed = await refreshAgentPrompts(context, skillFile);
+                const bundleDetails = inspectSkillBundle(skillDir, skillId);
+
+                return {
+                    refreshed: true,
+                    id: skillId,
+                    scope,
+                    path: skillFile,
+                    promptsRefreshed: refreshed,
+                    ...bundleDetails,
                 };
             },
         });
@@ -617,6 +804,7 @@ export const creatorToolsFactory: ToolFactory<CreatorToolsConfig> = {
         const toolCreators: Record<CreatorToolName, () => Tool> = {
             skill_create: () => skillCreateTool,
             skill_update: () => skillUpdateTool,
+            skill_refresh: () => skillRefreshTool,
             skill_search: () => skillSearchTool,
             skill_list: () => skillListTool,
             tool_catalog: () => toolCatalogTool,

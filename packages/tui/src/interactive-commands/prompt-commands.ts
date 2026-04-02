@@ -10,10 +10,11 @@
  * - /<prompt-name> [args] - Direct prompt execution (auto-generated for each prompt)
  */
 
-import type { DextoAgent, PromptInfo } from '@dexto/core';
+import type { PromptInfo } from '@dexto/core';
 import type { CommandDefinition, CommandContext, CommandHandlerResult } from './command-parser.js';
 import { formatForInkCli } from './utils/format-output.js';
 import { createSendMessageMarker, type StyledOutput } from '../services/index.js';
+import type { TuiAgentBackend } from '../agent-backend.js';
 // Avoid depending on core types to keep CLI typecheck independent of build
 
 /**
@@ -27,7 +28,7 @@ export const promptCommands: CommandDefinition[] = [
         category: 'Prompt Management',
         handler: async (
             _args: string[],
-            agent: DextoAgent,
+            agent: TuiAgentBackend,
             _ctx: CommandContext
         ): Promise<CommandHandlerResult> => {
             try {
@@ -55,7 +56,7 @@ export const promptCommands: CommandDefinition[] = [
         category: 'Prompt Management',
         handler: async (
             _args: string[],
-            agent: DextoAgent,
+            agent: TuiAgentBackend,
             _ctx: CommandContext
         ): Promise<boolean | string> => {
             try {
@@ -170,7 +171,7 @@ function createPromptCommand(promptInfo: PromptInfo): CommandDefinition {
         category: 'Dynamic Prompts',
         handler: async (
             args: string[],
-            agent: DextoAgent,
+            agent: TuiAgentBackend,
             ctx: CommandContext
         ): Promise<CommandHandlerResult> => {
             try {
@@ -313,7 +314,9 @@ ${finalText.trim()}`;
  * Filters out prompts with `userInvocable: false` as these are not intended
  * for direct user invocation via slash commands.
  */
-export async function getDynamicPromptCommands(agent: DextoAgent): Promise<CommandDefinition[]> {
+export async function getDynamicPromptCommands(
+    agent: TuiAgentBackend
+): Promise<CommandDefinition[]> {
     try {
         const prompts = await agent.listPrompts();
         // Filter out prompts that are not user-invocable (userInvocable: false)

@@ -13,6 +13,7 @@ export interface MainModeOptions {
 export interface MainModeContext {
     agent: DextoAgent;
     opts: MainModeOptions;
+    workspaceRoot: string;
     validatedConfig: ValidatedAgentConfig;
     resolvedPath: string;
     derivedAgentId: string;

@@ -137,6 +137,15 @@ export interface ModelPricing {
     unit?: 'per_million_tokens';
 }
 
+export interface TokenUsageCostBreakdown {
+    inputUsd: number;
+    outputUsd: number;
+    reasoningUsd: number;
+    cacheReadUsd: number;
+    cacheWriteUsd: number;
+    totalUsd: number;
+}
+
 export type ModelModality = 'text' | 'audio' | 'image' | 'video' | 'pdf';
 
 export interface ModelModalities {
@@ -202,13 +211,45 @@ export const MIME_TYPE_TO_FILE_TYPE: Record<string, SupportedFileType> = {
     'audio/ogg': 'audio',
     'audio/m4a': 'audio',
     'audio/aac': 'audio',
+    'video/mp4': 'video',
+    'video/webm': 'video',
+    'video/ogg': 'video',
+    'video/quicktime': 'video',
+    'video/x-msvideo': 'video',
+    'video/x-matroska': 'video',
     // Common image MIME types
     'image/jpeg': 'image',
     'image/jpg': 'image',
     'image/png': 'image',
     'image/webp': 'image',
     'image/gif': 'image',
+    // Common document, presentation, and spreadsheet MIME types
+    'text/plain': 'document',
+    'text/markdown': 'document',
+    'text/html': 'document',
+    'text/xml': 'document',
+    'text/csv': 'document',
+    'text/tab-separated-values': 'document',
+    'application/json': 'document',
+    'application/xml': 'document',
+    'application/msword': 'document',
+    'application/rtf': 'document',
+    'text/rtf': 'document',
+    'application/vnd.oasis.opendocument.text': 'document',
+    'application/vnd.ms-powerpoint': 'document',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'document',
+    'application/vnd.ms-excel': 'document',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'document',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'document',
 };
+
+const GENERIC_UPLOAD_FILE_TYPES: SupportedFileType[] = [
+    'pdf',
+    'image',
+    'audio',
+    'video',
+    'document',
+];
 
 // Helper function to get array of allowed MIME types
 export function getAllowedMimeTypes(): string[] {
@@ -263,7 +304,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = (() => {
     registry['openai-compatible'] = {
         models: [], // Empty - accepts any model name for custom endpoints
         baseURLSupport: 'required',
-        supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types for custom endpoints
+        supportedFileTypes: GENERIC_UPLOAD_FILE_TYPES, // Allow all generic file categories for custom endpoints
         supportsCustomModels: true,
     };
 
@@ -271,7 +312,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = (() => {
     registry.openrouter = {
         ...registry.openrouter,
         baseURLSupport: 'none',
-        supportedFileTypes: ['pdf', 'image', 'audio'], // Allow all types - user assumes responsibility
+        supportedFileTypes: GENERIC_UPLOAD_FILE_TYPES, // Allow all generic file categories - user assumes responsibility
         supportsCustomModels: true,
         supportsAllRegistryModels: true,
     };
@@ -280,7 +321,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = (() => {
     registry.litellm = {
         models: [],
         baseURLSupport: 'required',
-        supportedFileTypes: ['pdf', 'image', 'audio'],
+        supportedFileTypes: GENERIC_UPLOAD_FILE_TYPES,
         supportsCustomModels: true,
     };
 
@@ -288,7 +329,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = (() => {
     registry.glama = {
         models: [],
         baseURLSupport: 'none',
-        supportedFileTypes: ['pdf', 'image', 'audio'],
+        supportedFileTypes: GENERIC_UPLOAD_FILE_TYPES,
         supportsCustomModels: true,
     };
 
@@ -393,7 +434,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = (() => {
                 name: 'openai/gpt-5.2',
                 displayName: 'GPT-5.2',
                 maxInputTokens: 400000,
-                supportedFileTypes: ['pdf', 'image'],
+                supportedFileTypes: ['pdf', 'image', 'document'],
                 pricing: {
                     inputPerM: 1.75,
                     outputPerM: 14.0,
@@ -406,7 +447,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = (() => {
                 name: 'openai/gpt-5.2-codex',
                 displayName: 'GPT-5.2 Codex',
                 maxInputTokens: 400000,
-                supportedFileTypes: ['pdf', 'image'],
+                supportedFileTypes: ['pdf', 'image', 'document'],
                 pricing: {
                     inputPerM: 1.75,
                     outputPerM: 14.0,
@@ -420,13 +461,13 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = (() => {
                 name: 'google/gemini-3-pro-preview',
                 displayName: 'Gemini 3 Pro',
                 maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'image', 'audio'],
+                supportedFileTypes: ['pdf', 'image', 'audio', 'video', 'document'],
             },
             {
                 name: 'google/gemini-3-flash-preview',
                 displayName: 'Gemini 3 Flash',
                 maxInputTokens: 1048576,
-                supportedFileTypes: ['pdf', 'image', 'audio'],
+                supportedFileTypes: ['pdf', 'image', 'audio', 'video', 'document'],
             },
             // Free models (via OpenRouter)
             {
@@ -480,7 +521,7 @@ export const LLM_REGISTRY: Record<LLMProvider, ProviderInfo> = (() => {
             },
         ],
         baseURLSupport: 'none',
-        supportedFileTypes: ['pdf', 'image', 'audio'],
+        supportedFileTypes: GENERIC_UPLOAD_FILE_TYPES,
         supportsCustomModels: true,
         supportsAllRegistryModels: true,
     };
@@ -1337,13 +1378,33 @@ export function isReasoningCapableModel(model: string, provider?: LLMProvider): 
  * @returns Cost in USD.
  */
 export function calculateCost(usage: TokenUsage, pricing: ModelPricing): number {
-    const inputCost = ((usage.inputTokens ?? 0) * pricing.inputPerM) / 1_000_000;
-    const outputCost = ((usage.outputTokens ?? 0) * pricing.outputPerM) / 1_000_000;
-    const cacheReadCost = ((usage.cacheReadTokens ?? 0) * (pricing.cacheReadPerM ?? 0)) / 1_000_000;
-    const cacheWriteCost =
-        ((usage.cacheWriteTokens ?? 0) * (pricing.cacheWritePerM ?? 0)) / 1_000_000;
-    // Charge reasoning tokens at output rate
-    const reasoningCost = ((usage.reasoningTokens ?? 0) * pricing.outputPerM) / 1_000_000;
+    return calculateCostBreakdown(usage, pricing).totalUsd;
+}
 
-    return inputCost + outputCost + cacheReadCost + cacheWriteCost + reasoningCost;
+export function calculateCostBreakdown(
+    usage: TokenUsage,
+    pricing: ModelPricing
+): TokenUsageCostBreakdown {
+    // TODO(llm-pricing): Normalize provider-specific reasoning token semantics before this
+    // helper runs. OpenAI reports reasoning tokens separately, while some providers may
+    // include them in output tokens. This function assumes the buckets are already additive.
+    // Pricing assumes tokenUsage buckets are already additive. Provider-specific normalization
+    // (for example whether reasoning tokens are separate from or included in output tokens)
+    // must happen before usage reaches this helper.
+    const inputUsd = ((usage.inputTokens ?? 0) * pricing.inputPerM) / 1_000_000;
+    const outputUsd = ((usage.outputTokens ?? 0) * pricing.outputPerM) / 1_000_000;
+    const cacheReadUsd = ((usage.cacheReadTokens ?? 0) * (pricing.cacheReadPerM ?? 0)) / 1_000_000;
+    const cacheWriteUsd =
+        ((usage.cacheWriteTokens ?? 0) * (pricing.cacheWritePerM ?? 0)) / 1_000_000;
+    const reasoningUsd =
+        ((usage.reasoningTokens ?? 0) * (pricing.reasoningPerM ?? pricing.outputPerM)) / 1_000_000;
+
+    return {
+        inputUsd,
+        outputUsd,
+        reasoningUsd,
+        cacheReadUsd,
+        cacheWriteUsd,
+        totalUsd: inputUsd + outputUsd + cacheReadUsd + cacheWriteUsd + reasoningUsd,
+    };
 }

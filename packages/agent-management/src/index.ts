@@ -39,6 +39,29 @@ export {
 
 // Agent manager (simple registry-based lifecycle management)
 export { AgentManager, type AgentMetadata } from './AgentManager.js';
+export {
+    ProjectRegistryEntrySchema,
+    ProjectRegistrySchema,
+    getProjectRegistryPath,
+    getProjectRegistryCandidatePaths,
+    findProjectRegistryPath,
+    findProjectRegistryPathSync,
+    readProjectRegistry,
+    readProjectRegistrySync,
+    loadProjectRegistry,
+    loadProjectRegistrySync,
+    getDefaultProjectRegistryEntry,
+    resolveProjectRegistryEntryConfigPath,
+    resolveProjectRegistryEntryConfigPathSync,
+    resolveProjectRegistryEntry,
+    resolveProjectRegistryAgentPath,
+    resolveDefaultProjectRegistryAgentPath,
+    ProjectRegistryError,
+    isProjectRegistryError,
+    type ProjectRegistryEntry,
+    type ProjectRegistry,
+    type ProjectRegistryErrorCode,
+} from './project-registry.js';
 
 // Installation utilities
 export {

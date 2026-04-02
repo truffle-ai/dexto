@@ -35,12 +35,64 @@ export function estimateBase64Size(base64: string): number {
  * Get the file type category based on MIME type.
  *
  * @param mimeType - MIME type string
- * @returns Category: 'image', 'audio', 'pdf', or 'other'
+ * @returns Category: 'image', 'audio', 'video', 'pdf', 'document', or 'other'
  */
-export function getFileTypeCategory(mimeType: string): 'image' | 'audio' | 'pdf' | 'other' {
-    if (mimeType.startsWith('image/')) return 'image';
-    if (mimeType.startsWith('audio/')) return 'audio';
-    if (mimeType === 'application/pdf') return 'pdf';
+export function getFileTypeCategory(
+    mimeType: string,
+    filename?: string
+): 'image' | 'audio' | 'video' | 'pdf' | 'document' | 'other' {
+    const normalizedMimeType = mimeType.toLowerCase();
+
+    if (normalizedMimeType.startsWith('image/')) return 'image';
+    if (normalizedMimeType.startsWith('audio/')) return 'audio';
+    if (normalizedMimeType.startsWith('video/')) return 'video';
+    if (normalizedMimeType === 'application/pdf') return 'pdf';
+
+    if (
+        normalizedMimeType.startsWith('text/') ||
+        normalizedMimeType === 'application/json' ||
+        normalizedMimeType === 'application/xml' ||
+        normalizedMimeType === 'application/msword' ||
+        normalizedMimeType === 'application/rtf' ||
+        normalizedMimeType === 'text/rtf' ||
+        normalizedMimeType === 'application/vnd.oasis.opendocument.text' ||
+        normalizedMimeType === 'application/vnd.ms-powerpoint' ||
+        normalizedMimeType ===
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
+        normalizedMimeType === 'application/vnd.ms-excel' ||
+        normalizedMimeType ===
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+        normalizedMimeType ===
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ) {
+        return 'document';
+    }
+
+    const extension = filename?.toLowerCase().split('.').pop();
+    if (
+        extension &&
+        [
+            'txt',
+            'md',
+            'json',
+            'html',
+            'xml',
+            'doc',
+            'docx',
+            'rtf',
+            'odt',
+            'ppt',
+            'pptx',
+            'csv',
+            'tsv',
+            'xls',
+            'xlsx',
+            'iif',
+        ].includes(extension)
+    ) {
+        return 'document';
+    }
+
     return 'other';
 }
 

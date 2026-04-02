@@ -27,11 +27,13 @@ import {
     type CodexRateLimitSnapshot,
 } from '../providers/codex-app-server.js';
 import { isCodexBaseURL } from '../providers/codex-base-url.js';
+import { findDextoProjectRoot } from '../../utils/execution-context.js';
 import {
     ANTHROPIC_BETA_HEADER,
     ANTHROPIC_INTERLEAVED_THINKING_BETA,
 } from '../reasoning/anthropic-betas.js';
 import { supportsAnthropicInterleavedThinking } from '../reasoning/anthropic-thinking.js';
+import type { CompactionStrategy } from '../../context/compaction/types.js';
 
 function isLanguageModel(value: unknown): value is LanguageModel {
     if (!value || typeof value !== 'object') return false;
@@ -60,8 +62,25 @@ export interface DextoProviderContext {
     clientSource?: 'cli' | 'web' | 'sdk';
     /** Optional runtime auth resolver (profiles, OAuth, etc.) */
     authResolver?: LlmAuthResolver | null;
+    /** Working directory for providers that need an explicit workspace root. */
+    cwd?: string;
     /** Optional callback for ChatGPT Login rate-limit status updates from Codex. */
     onCodexRateLimitStatus?: (snapshot: CodexRateLimitSnapshot) => void;
+}
+
+export interface CreateLLMServiceOptions {
+    usageScopeId?: string | undefined;
+    compactionStrategy?: CompactionStrategy | null | undefined;
+    cwd?: string | undefined;
+    authResolver?: LlmAuthResolver | null | undefined;
+}
+
+function resolveProviderWorkingDirectory(explicitCwd?: string): string {
+    if (explicitCwd && explicitCwd.trim().length > 0) {
+        return explicitCwd;
+    }
+
+    return findDextoProjectRoot(process.cwd()) ?? process.cwd();
 }
 
 /**
@@ -115,6 +134,7 @@ export function createVercelModel(
                 return createCodexLanguageModel({
                     modelId: model,
                     baseURL: compatibleBaseURL,
+                    cwd: resolveProviderWorkingDirectory(context?.cwd),
                     ...(context?.onCodexRateLimitStatus
                         ? { onRateLimitStatus: context.onCodexRateLimitStatus }
                         : {}),
@@ -444,8 +464,7 @@ export function createVercelModel(
  * @param sessionId Session ID
  * @param resourceManager Resource manager for blob storage and resource access
  * @param logger Logger instance for dependency injection
- * @param compactionStrategy Optional compaction strategy for context management
- * @param compactionConfig Optional compaction configuration for thresholds
+ * @param options Session-scoped runtime options
  * @returns VercelLLMService instance
  */
 export function createLLMService(
@@ -457,12 +476,14 @@ export function createLLMService(
     sessionId: string,
     resourceManager: import('../../resources/index.js').ResourceManager,
     logger: Logger,
-    compactionStrategy?: import('../../context/compaction/types.js').CompactionStrategy | null,
-    authResolver?: LlmAuthResolver | null
+    options: CreateLLMServiceOptions = {}
 ): VercelLLMService {
+    const { usageScopeId, compactionStrategy } = options;
+
     const model = createVercelModel(config, {
         sessionId,
-        authResolver: authResolver ?? null,
+        ...(options.cwd !== undefined ? { cwd: options.cwd } : {}),
+        authResolver: options.authResolver ?? null,
         onCodexRateLimitStatus: (snapshot) => {
             sessionEventBus.emit('llm:rate-limit-status', {
                 provider: config.provider,
@@ -482,6 +503,7 @@ export function createLLMService(
         sessionId,
         resourceManager,
         logger,
+        usageScopeId,
         compactionStrategy
     );
 }

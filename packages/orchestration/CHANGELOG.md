@@ -1,5 +1,61 @@
 # @dexto/orchestration
 
+## 1.6.21
+
+### Patch Changes
+
+- @dexto/core@1.6.21
+
+## 1.6.20
+
+### Patch Changes
+
+- @dexto/core@1.6.20
+
+## 1.6.19
+
+### Patch Changes
+
+- Updated dependencies [aa54df6]
+- Updated dependencies [015dd4f]
+    - @dexto/core@1.6.19
+
+## 1.6.18
+
+### Patch Changes
+
+- Updated dependencies [29bd887]
+- Updated dependencies [3d4fb3d]
+- Updated dependencies [beb8efa]
+    - @dexto/core@1.6.18
+
+## 1.6.17
+
+### Patch Changes
+
+- Updated dependencies [302d1c3]
+    - @dexto/core@1.6.17
+
+## 1.6.16
+
+### Patch Changes
+
+- Updated dependencies [11acdc1]
+    - @dexto/core@1.6.16
+
+## 1.6.15
+
+### Patch Changes
+
+- Updated dependencies [6a490b0]
+    - @dexto/core@1.6.15
+
+## 1.6.14
+
+### Patch Changes
+
+- @dexto/core@1.6.14
+
 ## 1.6.13
 
 ### Patch Changes

@@ -4,6 +4,8 @@ export * from './hono/start-server.js';
 export type { DextoApp } from './hono/types.js';
 export * from './events/webhook-subscriber.js';
 export * from './events/a2a-sse-subscriber.js';
+export * from './events/usage-event-subscriber.js';
+export * from './events/usage-event-types.js';
 export * from './events/webhook-types.js';
 export * from './events/types.js';
 export * from './mcp/mcp-handler.js';
