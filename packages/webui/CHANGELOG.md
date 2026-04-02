@@ -1,5 +1,23 @@
 # @dexto/webui
 
+## 1.6.22
+
+### Patch Changes
+
+- a87712a: Fix session streaming, cancellation, and Dexto auth fallback handling.
+- 3bf5549: Add media-aware filesystem reads and resource-backed multimodal handling.
+
+    This expands supported file type capabilities for audio, video, and document inputs, preserves resource references for history and UI rehydration, and updates prompt/session handling to project multimodal content more reliably across core, server, and WebUI flows.
+
+- Updated dependencies [a87712a]
+- Updated dependencies [3bf5549]
+    - @dexto/core@1.6.22
+    - @dexto/agent-config@1.6.22
+    - @dexto/client-sdk@1.6.22
+    - @dexto/analytics@1.6.22
+    - @dexto/registry@1.6.22
+    - @dexto/storage@1.6.22
+
 ## 1.6.21
 
 ### Patch Changes
