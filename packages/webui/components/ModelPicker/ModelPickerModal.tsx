@@ -74,7 +74,7 @@ const CUSTOM_PROVIDER_SUPPORTED_FILE_TYPES: Partial<
     litellm: GENERIC_UPLOAD_FILE_TYPES,
     glama: GENERIC_UPLOAD_FILE_TYPES,
     'dexto-nova': GENERIC_UPLOAD_FILE_TYPES,
-    bedrock: [],
+    'amazon-bedrock': [],
     ollama: ['image'],
     local: [],
 };

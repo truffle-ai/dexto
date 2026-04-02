@@ -49,6 +49,7 @@ import { useResources } from './hooks/useResources';
 import type { ResourceMetadata } from '@dexto/core';
 import { parseResourceReferences, resolveResourceReferences } from '@dexto/core';
 import { type ApprovalEvent } from './ApprovalRequestHandler';
+import type { ApprovalFormData } from './hooks/useApprovals';
 import { ToolCallTimeline } from './ToolCallTimeline';
 import { TodoPanel } from './TodoPanel';
 
@@ -60,7 +61,7 @@ interface MessageListProps {
     activeError?: ErrorMessage | null;
     onDismissError?: () => void;
     pendingApproval?: ApprovalEvent | null;
-    onApprovalApprove?: (formData?: Record<string, any>, rememberChoice?: boolean) => void;
+    onApprovalApprove?: (formData?: ApprovalFormData, rememberChoice?: boolean) => void;
     onApprovalDeny?: () => void;
     /**
      * Optional ref to the outer content container so parents can observe size

@@ -1,5 +1,5 @@
 import { useEffect, useCallback } from 'react';
-import { useSubmitApproval } from './hooks/useApprovals';
+import { useSubmitApproval, type ApprovalFormData } from './hooks/useApprovals';
 import type { ApprovalRequest } from '@dexto/core';
 import { ApprovalStatus } from '@dexto/core';
 import { useSessionStore } from '@/lib/stores/sessionStore';
@@ -10,13 +10,13 @@ export type ApprovalEvent = ApprovalRequest;
 
 interface ApprovalRequestHandlerProps {
     onApprovalRequest?: (approval: ApprovalEvent | null) => void;
-    onApprove?: (formData?: Record<string, unknown>, rememberChoice?: boolean) => void;
+    onApprove?: (formData?: ApprovalFormData, rememberChoice?: boolean) => void;
     onDeny?: () => void;
     onHandlersReady?: (handlers: ApprovalHandlers) => void;
 }
 
 export interface ApprovalHandlers {
-    onApprove: (formData?: Record<string, unknown>, rememberChoice?: boolean) => void;
+    onApprove: (formData?: ApprovalFormData, rememberChoice?: boolean) => void;
     onDeny: () => void;
 }
 
@@ -52,7 +52,7 @@ export function ApprovalRequestHandler({
 
     // Send approval response via API
     const sendResponse = useCallback(
-        async (approved: boolean, formData?: Record<string, unknown>, rememberChoice?: boolean) => {
+        async (approved: boolean, formData?: ApprovalFormData, rememberChoice?: boolean) => {
             if (!currentApproval) return;
 
             const { approvalId } = currentApproval;
@@ -89,7 +89,7 @@ export function ApprovalRequestHandler({
     );
 
     const handleApprove = useCallback(
-        (formData?: Record<string, unknown>, rememberChoice?: boolean) => {
+        (formData?: ApprovalFormData, rememberChoice?: boolean) => {
             sendResponse(true, formData, rememberChoice);
             externalOnApprove?.(formData, rememberChoice);
         },

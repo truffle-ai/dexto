@@ -1,5 +1,6 @@
 import {
     AgentEventBus,
+    LLM_PROVIDERS,
     logger,
     type ContentPart,
     type AgentEventMap,
@@ -9,6 +10,7 @@ import {
     type SearchOptions,
     type SearchResponse,
     type SearchResult,
+    type LLMProvider,
     type SessionMetadata,
     type StreamingEvent,
 } from '@dexto/core';
@@ -66,27 +68,12 @@ const CLOUD_SUPPORTED_COMMANDS = [
     'sounds',
 ] as const;
 
-type KnownProvider = ReturnType<DextoAgent['getCurrentLLMConfig']>['provider'];
+type KnownProvider = Extract<
+    ReturnType<DextoAgent['getCurrentLLMConfig']>['provider'],
+    LLMProvider
+>;
 
-const KNOWN_PROVIDERS = new Set<KnownProvider>([
-    'openai',
-    'openai-compatible',
-    'anthropic',
-    'google',
-    'groq',
-    'xai',
-    'cohere',
-    'minimax',
-    'glm',
-    'openrouter',
-    'litellm',
-    'glama',
-    'vertex',
-    'bedrock',
-    'local',
-    'ollama',
-    'dexto-nova',
-]);
+const KNOWN_PROVIDERS = new Set<KnownProvider>(LLM_PROVIDERS);
 
 function getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);

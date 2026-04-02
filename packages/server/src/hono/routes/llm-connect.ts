@@ -6,6 +6,7 @@ import {
     deleteLlmAuthProfile,
     setDefaultLlmAuthProfile,
 } from '@dexto/agent-management';
+import { BadRequestErrorResponse, InternalErrorResponse } from '../schemas/responses.js';
 
 const ProfileRedactedSchema = z
     .object({
@@ -70,6 +71,7 @@ export function createLlmConnectRouter() {
                 description: 'Provider/method catalog',
                 content: { 'application/json': { schema: ProvidersResponseSchema } },
             },
+            500: InternalErrorResponse,
         },
     });
 
@@ -84,6 +86,7 @@ export function createLlmConnectRouter() {
                 description: 'Profiles + defaults',
                 content: { 'application/json': { schema: ProfilesResponseSchema } },
             },
+            500: InternalErrorResponse,
         },
     });
 
@@ -106,6 +109,8 @@ export function createLlmConnectRouter() {
                     },
                 },
             },
+            400: BadRequestErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
@@ -128,12 +133,14 @@ export function createLlmConnectRouter() {
                     },
                 },
             },
+            400: BadRequestErrorResponse,
+            500: InternalErrorResponse,
         },
     });
 
     return app
         .openapi(providersRoute, (ctx) => {
-            return ctx.json({ providers: CONNECT_PROVIDERS });
+            return ctx.json({ providers: CONNECT_PROVIDERS }, 200);
         })
         .openapi(profilesRoute, async (ctx) => {
             const store = await loadLlmAuthProfilesStore();
@@ -151,16 +158,16 @@ export function createLlmConnectRouter() {
                     : {}),
             }));
 
-            return ctx.json({ defaults: store.defaults, profiles });
+            return ctx.json({ defaults: store.defaults, profiles }, 200);
         })
         .openapi(deleteProfileRoute, async (ctx) => {
             const { profileId } = ctx.req.valid('param');
             const ok = await deleteLlmAuthProfile(profileId);
-            return ctx.json({ ok });
+            return ctx.json({ ok }, 200);
         })
         .openapi(setDefaultRoute, async (ctx) => {
             const { providerId, profileId } = ctx.req.valid('json');
             await setDefaultLlmAuthProfile({ providerId, profileId });
-            return ctx.json({ ok: true as const });
+            return ctx.json({ ok: true as const }, 200);
         });
 }

@@ -273,7 +273,7 @@ function getSupportedFileTypesFromModel(
     const supportsDocumentInputs =
         (provider === 'openai' &&
             (inputModalities.includes('image') || inputModalities.includes('pdf'))) ||
-        ((provider === 'google' || provider === 'vertex') &&
+        ((provider === 'google' || provider === 'google-vertex') &&
             (inputModalities.includes('image') ||
                 inputModalities.includes('audio') ||
                 inputModalities.includes('video') ||

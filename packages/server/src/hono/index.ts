@@ -147,7 +147,10 @@ type HealthSchema = MergeSchemaPath<
 >;
 type DiscoverySchema = MergeSchemaPath<ExtractSchema<ReturnType<typeof createA2aRouter>>, '/'>;
 type JsonRpcSchema = MergeSchemaPath<ExtractSchema<ReturnType<typeof createA2AJsonRpcRouter>>, '/'>;
-type LlmConnectRouterSchema = ExtractSchema<ReturnType<typeof createLlmConnectRouter>>;
+// Keep /llm/connect routes out of the exported typed client surface for now.
+// They remain mounted at runtime and in OpenAPI docs, but extracting the full Hono schema here
+// currently triggers TS2589 during server declaration emit.
+type LlmConnectRouterSchema = never;
 
 type ConversationRouterSchema =
     | GreetingRouterSchema

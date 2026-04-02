@@ -26,6 +26,7 @@ import ServersPanel from './ServersPanel';
 import SessionPanel from './SessionPanel';
 import MemoryPanel from './MemoryPanel';
 import { ApprovalRequestHandler, type ApprovalEvent } from './ApprovalRequestHandler';
+import type { ApprovalFormData } from './hooks/useApprovals';
 import GlobalSearchModal from './GlobalSearchModal';
 import CustomizePanel from './AgentEditor/CustomizePanel';
 import { Button } from './ui/button';
@@ -140,7 +141,7 @@ export default function ChatApp({ sessionId }: ChatAppProps = {}) {
     // Approval state (for inline rendering in message stream)
     const [pendingApproval, setPendingApproval] = useState<ApprovalEvent | null>(null);
     const [approvalHandlers, setApprovalHandlers] = useState<{
-        onApprove: (formData?: Record<string, any>, rememberChoice?: boolean) => void;
+        onApprove: (formData?: ApprovalFormData, rememberChoice?: boolean) => void;
         onDeny: () => void;
     } | null>(null);
 

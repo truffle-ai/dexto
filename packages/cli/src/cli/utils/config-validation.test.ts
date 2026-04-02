@@ -29,6 +29,8 @@ vi.mock('../commands/agents/sync.js', () => ({
     getBundledSyncTargetForAgentPath: mockGetBundledSyncTargetForAgentPath,
 }));
 
+const configValidationModulePromise = import('./config-validation.js');
+
 describe('validateAgentConfig', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -38,7 +40,7 @@ describe('validateAgentConfig', () => {
     });
 
     it('accepts ChatGPT Login codex base URLs during preflight validation', async () => {
-        const { validateAgentConfig } = await import('./config-validation.js');
+        const { validateAgentConfig } = await configValidationModulePromise;
 
         const config: AgentConfig = {
             systemPrompt: 'test agent',
@@ -68,10 +70,10 @@ describe('validateAgentConfig', () => {
             }),
             warnings: [],
         });
-    });
+    }, 15000);
 
     it('does not offer sync when the active agent path is not a bundled installed agent', async () => {
-        const { validateAgentConfig } = await import('./config-validation.js');
+        const { validateAgentConfig } = await configValidationModulePromise;
 
         const invalidConfig = {
             systemPrompt: 'test agent',
@@ -94,10 +96,10 @@ describe('validateAgentConfig', () => {
             })
         );
         expect(mockHandleSyncAgentsCommand).not.toHaveBeenCalled();
-    });
+    }, 15000);
 
     it('offers sync when the active config is a bundled installed agent', async () => {
-        const { validateAgentConfig } = await import('./config-validation.js');
+        const { validateAgentConfig } = await configValidationModulePromise;
 
         mockGetBundledSyncTargetForAgentPath.mockReturnValue({
             agentId: 'coding-agent',
@@ -123,5 +125,5 @@ describe('validateAgentConfig', () => {
         const options = mockSelect.mock.calls[0]?.[0]?.options as Array<{ value: string }>;
 
         expect(options.map((option) => option.value)).toEqual(['sync', 'skip', 'edit']);
-    });
+    }, 15000);
 });

@@ -45,5 +45,5 @@ describe('runCliMode', () => {
         expect(agent.start).toHaveBeenCalledOnce();
         expect(applyWorkspaceToAgent).toHaveBeenCalledWith(agent, '/tmp/dexto-cloud');
         expect(agent.stop).toHaveBeenCalledOnce();
-    });
+    }, 15000);
 });

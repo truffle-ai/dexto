@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, test, expect } from 'vitest';
-import { LLM_PROVIDERS, PROVIDER_API_KEY_MAP } from '@dexto/core';
+import { LLM_PROVIDERS, getApiKeyEnvVarsForProvider } from '@dexto/core';
 import {
     applyCLIOverrides,
     applyStartupLLMFallback,
@@ -238,7 +238,10 @@ describe('applyUserPreferences', () => {
 describe('applyStartupLLMFallback', () => {
     const originalProviderEnv = new Map<string, string | undefined>();
     const fallbackProviderEnvVars = new Set(
-        [...Object.values(PROVIDER_API_KEY_MAP).flat(), 'OPENAI_BASE_URL'].filter(Boolean)
+        [
+            ...LLM_PROVIDERS.flatMap((provider) => getApiKeyEnvVarsForProvider(provider)),
+            'OPENAI_BASE_URL',
+        ].filter(Boolean)
     );
 
     const bundledCodingAgentConfig: AgentConfig = {

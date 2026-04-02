@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
 import { CodePreview } from './CodePreview';
 import type { ToolDisplayData, ToolPresentationSnapshotV1 } from '@dexto/core';
+import type { ApprovalFormData } from './hooks/useApprovals';
 
 /**
  * Sub-agent progress data for spawn_agent tool calls
@@ -41,7 +42,7 @@ export interface ToolCallTimelineProps {
     approvalStatus?: 'pending' | 'approved' | 'rejected';
     displayData?: ToolDisplayData;
     subAgentProgress?: SubAgentProgress;
-    onApprove?: (formData?: Record<string, unknown>, rememberChoice?: boolean) => void;
+    onApprove?: (formData?: ApprovalFormData, rememberChoice?: boolean) => void;
     onReject?: () => void;
 }
 

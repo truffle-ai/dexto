@@ -2,7 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { client } from '@/lib/client';
 import { queryKeys } from '@/lib/queryKeys';
 
-type ApprovalPayload = Parameters<(typeof client.api.approvals)[':approvalId']['$post']>[0]['json'];
+export type ApprovalPayload = Parameters<
+    (typeof client.api.approvals)[':approvalId']['$post']
+>[0]['json'];
+export type ApprovalFormData = NonNullable<ApprovalPayload['formData']>;
 
 export function useSubmitApproval() {
     const queryClient = useQueryClient();
