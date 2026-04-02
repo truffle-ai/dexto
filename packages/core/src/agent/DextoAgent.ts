@@ -933,9 +933,13 @@ export class DextoAgent {
             event: StreamingEventName;
             listener: Function;
         }> = [];
+        let detachDisconnectAbortListener: (() => void) | undefined;
 
         // Cleanup function to remove all listeners and stream controller
         const cleanupListeners = () => {
+            detachDisconnectAbortListener?.();
+            detachDisconnectAbortListener = undefined;
+
             if (listeners.length === 0) {
                 return; // Already cleaned up
             }
@@ -957,6 +961,8 @@ export class DextoAgent {
                 controller.abort();
             };
             disconnectSignal.addEventListener('abort', abortHandler, { once: true });
+            detachDisconnectAbortListener = () =>
+                disconnectSignal.removeEventListener('abort', abortHandler);
         }
 
         // TODO: Simplify these explicit subscriptions while keeping full type safety.

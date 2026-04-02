@@ -13,7 +13,7 @@ const AUTH_CONFIG_FILE = 'auth.json';
 
 /**
  * Minimal schema for checking auth status.
- * We only need to verify token exists and hasn't expired.
+ * We only need enough state to tell whether Dexto auth is still usable.
  */
 const AuthConfigSchema = z
     .object({
@@ -65,7 +65,7 @@ async function loadAuthConfig(): Promise<AuthConfig | null> {
 
 /**
  * Check if user is authenticated with Dexto.
- * Returns true if auth.json exists with valid (non-expired) token.
+ * Returns true when auth.json contains usable Dexto auth state.
  */
 export async function isDextoAuthenticated(): Promise<boolean> {
     return (await loadAuthConfig()) !== null;
@@ -92,7 +92,7 @@ export async function getDextoApiKeyFromAuth(): Promise<string | null> {
 /**
  * Check if user can use Dexto provider.
  * Requires BOTH:
- * 1. User is authenticated (valid auth token)
+ * 1. User has usable Dexto auth state (token, refresh-backed login, or stored API key)
  * 2. Has DEXTO_API_KEY (from auth config or environment)
  */
 export async function canUseDextoProvider(): Promise<boolean> {

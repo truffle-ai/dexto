@@ -10,7 +10,6 @@ import { useChatContext } from './hooks/ChatContext';
 export type ApprovalEvent = ApprovalRequest;
 
 interface ApprovalRequestHandlerProps {
-    onApprovalRequest?: (approval: ApprovalEvent | null) => void;
     onApprove?: (formData?: Record<string, unknown>, rememberChoice?: boolean) => void;
     onDeny?: () => void;
     onHandlersReady?: (handlers: ApprovalHandlers) => void;
@@ -27,7 +26,6 @@ export interface ApprovalHandlers {
  * Sends responses back through API via useSubmitApproval
  */
 export function ApprovalRequestHandler({
-    onApprovalRequest,
     onApprove: externalOnApprove,
     onDeny: externalOnDeny,
     onHandlersReady,
@@ -45,11 +43,6 @@ export function ApprovalRequestHandler({
             pendingApproval.sessionId === currentSessionId)
             ? pendingApproval
             : null;
-
-    // Notify parent component when approval state changes
-    useEffect(() => {
-        onApprovalRequest?.(currentApproval);
-    }, [currentApproval, onApprovalRequest]);
 
     // Send approval response via API
     const sendResponse = useCallback(

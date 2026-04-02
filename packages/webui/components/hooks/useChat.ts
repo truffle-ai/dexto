@@ -125,11 +125,7 @@ export function useChat(
         [queryClient]
     );
 
-    // Track message IDs for error anchoring
-    const lastUserMessageIdRef = useRef<string | null>(null);
     const lastMessageIdRef = useRef<string | null>(null);
-    // Map callId to message index for O(1) tool result pairing
-    const pendingToolCallsRef = useRef<Map<string, number>>(new Map());
 
     // Keep analytics ref updated
     useEffect(() => {
@@ -286,12 +282,7 @@ export function useChat(
             abortControllersRef.current.set(sessionId, abortController);
 
             try {
-                const eventsEndpoint = client.api.sessions[':sessionId'] as unknown as {
-                    events: {
-                        $get: (args: { param: { sessionId: string } }) => Promise<Response>;
-                    };
-                };
-                const response = await eventsEndpoint.events.$get({
+                const response = await client.api.sessions[':sessionId'].events.$get({
                     param: { sessionId },
                 });
 
@@ -349,7 +340,6 @@ export function useChat(
 
             // Add user message to state with attachments
             const userId = generateUniqueId();
-            lastUserMessageIdRef.current = userId;
             lastMessageIdRef.current = userId; // Track for error anchoring
 
             const messageContent = resolveMessageContent(content, attachments);
@@ -417,9 +407,7 @@ export function useChat(
 
         // Note: Messages are now in chatStore, not local state
         useChatStore.getState().setError(sessionId, null);
-        lastUserMessageIdRef.current = null;
         lastMessageIdRef.current = null;
-        pendingToolCallsRef.current.clear();
         useChatStore.getState().setProcessing(sessionId, false);
     }, []);
 
@@ -443,7 +431,6 @@ export function useChat(
             abortSession(sessionId);
 
             // UI state will be updated when server sends run:complete event
-            pendingToolCallsRef.current.clear();
         },
         [abortSession]
     );
