@@ -1,5 +1,19 @@
 # @dexto/tui
 
+## 1.6.22
+
+### Patch Changes
+
+- 3bf5549: Add media-aware filesystem reads and resource-backed multimodal handling.
+
+    This expands supported file type capabilities for audio, video, and document inputs, preserves resource references for history and UI rehydration, and updates prompt/session handling to project multimodal content more reliably across core, server, and WebUI flows.
+
+- Updated dependencies [a87712a]
+- Updated dependencies [3bf5549]
+    - @dexto/agent-management@1.6.22
+    - @dexto/core@1.6.22
+    - @dexto/registry@1.6.22
+
 ## 1.6.21
 
 ### Patch Changes

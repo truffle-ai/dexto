@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Star, HelpCircle, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
-import type { ProviderCatalog, ModelInfo } from './types';
+import { getModelDisplayName, type ProviderCatalog, type ModelInfo } from './types';
 import { cn } from '../../lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import type { LLMProvider } from '@dexto/core';
@@ -111,7 +111,7 @@ export function ProviderSection({
                 {isExpanded && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-2">
                         {models.map((model) => {
-                            const displayName = model.displayName || model.name;
+                            const displayName = getModelDisplayName(model);
                             const isActive = isCurrentModel(model.name);
                             const favorite = isFavorite(model.name);
                             const hasApiKey = provider.hasApiKey;

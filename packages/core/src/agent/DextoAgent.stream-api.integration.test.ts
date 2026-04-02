@@ -15,7 +15,10 @@ import type { StreamingEvent } from '../events/index.js';
  */
 
 describe('DextoAgent.generate() API', () => {
-    const skipTests = !requiresApiKey('openai');
+    const RUN_EXTERNAL_LLM_TESTS =
+        process.env.DEXTO_RUN_EXTERNAL_LLM_TESTS === 'true' ||
+        process.env.DEXTO_RUN_EXTERNAL_LLM_TESTS === '1';
+    const skipTests = !RUN_EXTERNAL_LLM_TESTS || !requiresApiKey('openai');
     const t = skipTests ? test.skip : test.concurrent;
 
     t(
@@ -109,7 +112,10 @@ describe('DextoAgent.generate() API', () => {
 });
 
 describe('DextoAgent.stream() API', () => {
-    const skipTests = !requiresApiKey('openai');
+    const RUN_EXTERNAL_LLM_TESTS =
+        process.env.DEXTO_RUN_EXTERNAL_LLM_TESTS === 'true' ||
+        process.env.DEXTO_RUN_EXTERNAL_LLM_TESTS === '1';
+    const skipTests = !RUN_EXTERNAL_LLM_TESTS || !requiresApiKey('openai');
     const t = skipTests ? test.skip : test.concurrent;
 
     t(
@@ -280,7 +286,10 @@ describe('DextoAgent.stream() API', () => {
 });
 
 describe('DextoAgent API Compatibility', () => {
-    const skipTests = !requiresApiKey('openai');
+    const RUN_EXTERNAL_LLM_TESTS =
+        process.env.DEXTO_RUN_EXTERNAL_LLM_TESTS === 'true' ||
+        process.env.DEXTO_RUN_EXTERNAL_LLM_TESTS === '1';
+    const skipTests = !RUN_EXTERNAL_LLM_TESTS || !requiresApiKey('openai');
     const t = skipTests ? test.skip : test.concurrent;
 
     t(

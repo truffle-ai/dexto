@@ -38,9 +38,49 @@ export type CurrentLLMConfigResponse = {
     };
 };
 
+export function getModelDisplayName(
+    model: {
+        name?: string | null;
+        displayName?: string | null;
+    },
+    fallback: string = 'Unknown model'
+): string {
+    const displayName =
+        typeof model.displayName === 'string' ? model.displayName.trim() : undefined;
+    if (displayName) {
+        return displayName;
+    }
+
+    const name = typeof model.name === 'string' ? model.name.trim() : undefined;
+    if (name) {
+        return name;
+    }
+
+    return fallback;
+}
+
 export function favKey(provider: string, model: string, baseURL?: string) {
     const key = `${provider}|${model}`;
     return baseURL ? `${key}|${baseURL}` : key;
+}
+
+export function parseFavoriteKey(
+    value: string
+): { provider: string; model: string; baseURL?: string } | null {
+    if (typeof value !== 'string') {
+        return null;
+    }
+
+    const [providerRaw, modelRaw, ...baseURLParts] = value.split('|');
+    const provider = providerRaw?.trim();
+    const model = modelRaw?.trim();
+
+    if (!provider || !model) {
+        return null;
+    }
+
+    const baseURL = baseURLParts.join('|').trim();
+    return baseURL ? { provider, model, baseURL } : { provider, model };
 }
 
 export function validateBaseURL(url: string): { isValid: boolean; error?: string } {

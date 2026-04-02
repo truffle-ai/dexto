@@ -1,9 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
+import { ReadableStream } from 'node:stream/web';
 import type { DextoAgent } from '@dexto/core';
 import { createSessionsRouter } from './sessions.js';
+import type { SessionSseEventSubscriber } from '../../events/session-sse-subscriber.js';
+
+function createSessionSseSubscriber(): SessionSseEventSubscriber {
+    return {
+        subscribe: () => {},
+        createStream: () => new ReadableStream(),
+        cleanup: () => {},
+    } as unknown as SessionSseEventSubscriber;
+}
 
 function createAgent() {
     const clearContext = vi.fn(async () => {});
+    const listSessions = vi.fn(async () => ['session-1']);
+    const isSessionBusy = vi.fn(async () => true);
     const getSessionSystemPromptContributors = vi.fn(async () => [
         {
             id: 'peer-origin',
@@ -18,11 +30,15 @@ function createAgent() {
     return {
         agent: {
             clearContext,
+            listSessions,
+            isSessionBusy,
             getSessionSystemPromptContributors,
             upsertSessionSystemPromptContributor,
             removeSessionSystemPromptContributor,
         } as unknown as DextoAgent,
         clearContext,
+        listSessions,
+        isSessionBusy,
         getSessionSystemPromptContributors,
         upsertSessionSystemPromptContributor,
         removeSessionSystemPromptContributor,
@@ -32,7 +48,7 @@ function createAgent() {
 describe('createSessionsRouter', () => {
     it('clears session context without resetting the session', async () => {
         const { agent, clearContext } = createAgent();
-        const app = createSessionsRouter(async () => agent);
+        const app = createSessionsRouter(async () => agent, createSessionSseSubscriber());
 
         const response = await app.request('/sessions/session-1/clear-context', {
             method: 'POST',
@@ -48,7 +64,7 @@ describe('createSessionsRouter', () => {
 
     it('lists session system prompt contributors', async () => {
         const { agent, getSessionSystemPromptContributors } = createAgent();
-        const app = createSessionsRouter(async () => agent);
+        const app = createSessionsRouter(async () => agent, createSessionSseSubscriber());
 
         const response = await app.request('/sessions/session-1/system-prompt/contributors');
 
@@ -64,9 +80,27 @@ describe('createSessionsRouter', () => {
         });
     });
 
+    it('attaches to busy session event streams', async () => {
+        const { agent, listSessions, isSessionBusy } = createAgent();
+        const createStream = vi.fn(() => new ReadableStream());
+        const app = createSessionsRouter(async () => agent, {
+            subscribe: () => {},
+            createStream,
+            cleanup: () => {},
+        } as unknown as SessionSseEventSubscriber);
+
+        const response = await app.request('/sessions/session-1/events');
+
+        expect(response.status).toBe(200);
+        expect(response.headers.get('content-type')).toBe('text/event-stream');
+        expect(listSessions).toHaveBeenCalled();
+        expect(isSessionBusy).toHaveBeenCalledWith('session-1');
+        expect(createStream).toHaveBeenCalledWith('session-1');
+    });
+
     it('upserts session system prompt contributors', async () => {
         const { agent, upsertSessionSystemPromptContributor } = createAgent();
-        const app = createSessionsRouter(async () => agent);
+        const app = createSessionsRouter(async () => agent, createSessionSseSubscriber());
 
         const response = await app.request('/sessions/session-1/system-prompt/contributors', {
             method: 'POST',
@@ -98,7 +132,7 @@ describe('createSessionsRouter', () => {
 
     it('rejects enabled contributor updates without content at the schema boundary', async () => {
         const { agent, upsertSessionSystemPromptContributor } = createAgent();
-        const app = createSessionsRouter(async () => agent);
+        const app = createSessionsRouter(async () => agent, createSessionSseSubscriber());
 
         const response = await app.request('/sessions/session-1/system-prompt/contributors', {
             method: 'POST',
@@ -131,7 +165,7 @@ describe('createSessionsRouter', () => {
 
     it('rejects non-integer contributor priority at the schema boundary', async () => {
         const { agent, upsertSessionSystemPromptContributor } = createAgent();
-        const app = createSessionsRouter(async () => agent);
+        const app = createSessionsRouter(async () => agent, createSessionSseSubscriber());
 
         const response = await app.request('/sessions/session-1/system-prompt/contributors', {
             method: 'POST',
@@ -165,7 +199,7 @@ describe('createSessionsRouter', () => {
 
     it('removes session system prompt contributors when disabled', async () => {
         const { agent, removeSessionSystemPromptContributor } = createAgent();
-        const app = createSessionsRouter(async () => agent);
+        const app = createSessionsRouter(async () => agent, createSessionSseSubscriber());
 
         const response = await app.request('/sessions/session-1/system-prompt/contributors', {
             method: 'POST',
@@ -192,7 +226,7 @@ describe('createSessionsRouter', () => {
 
     it('rejects contributor content that becomes empty after truncation', async () => {
         const { agent, upsertSessionSystemPromptContributor } = createAgent();
-        const app = createSessionsRouter(async () => agent);
+        const app = createSessionsRouter(async () => agent, createSessionSseSubscriber());
 
         const response = await app.request('/sessions/session-1/system-prompt/contributors', {
             method: 'POST',

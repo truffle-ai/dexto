@@ -10,7 +10,6 @@ import React, {
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useChat, Message, UIUserMessage, UIAssistantMessage, UIToolMessage } from './useChat';
-import { useApproval } from './ApprovalContext';
 import { usePendingApprovals } from './useApprovals';
 import type { FilePart, ImagePart, ResourcePart, TextPart, UIResourcePart } from '../../types';
 import type { SanitizedToolResult, ApprovalRequest } from '@dexto/core';
@@ -18,6 +17,7 @@ import { getResourceKind } from '@dexto/core';
 import { useAnalytics } from '@/lib/analytics/index.js';
 import { queryKeys } from '@/lib/queryKeys.js';
 import { client } from '@/lib/client.js';
+import { eventBus } from '@/lib/events/EventBus.js';
 import { useMutation } from '@tanstack/react-query';
 import {
     useAgentStore,
@@ -28,6 +28,10 @@ import {
     useSessionMessages,
 } from '@/lib/stores/index.js';
 import type { Attachment } from '../../lib/attachment-types.js';
+import {
+    mergeSessionProcessingState,
+    resolveRestoredSessionActivity,
+} from './session-processing.js';
 
 // Helper to get history endpoint type (workaround for string literal path)
 type HistoryEndpoint = (typeof client.api.sessions)[':sessionId']['history'];
@@ -46,8 +50,37 @@ interface ChatContextType {
     reset: () => void;
     switchSession: (sessionId: string) => void;
     loadSessionHistory: (sessionId: string) => Promise<void>;
+    ensureSessionEventStream: (sessionId?: string) => Promise<void>;
     returnToWelcome: () => void;
     cancel: (sessionId?: string) => void;
+}
+
+async function fetchSessionActivityState(
+    sessionId: string
+): Promise<{ isBusy: boolean; hasPendingApprovals: boolean }> {
+    const sessionResponse = await client.api.sessions[':sessionId'].load.$get({
+        param: { sessionId },
+    });
+
+    if (!sessionResponse.ok) {
+        throw new Error(`Failed to fetch session activity: ${sessionResponse.status}`);
+    }
+
+    const sessionData = await sessionResponse.json();
+    const approvalsResponse = await client.api.approvals
+        .$get({
+            query: { sessionId },
+        })
+        .catch(() => null);
+    const approvalsData =
+        approvalsResponse && approvalsResponse.ok
+            ? await approvalsResponse.json()
+            : { approvals: [] };
+
+    return {
+        isBusy: sessionData.session.isBusy,
+        hasPendingApprovals: approvalsData.approvals.length > 0,
+    };
 }
 
 // Helper function to fetch and convert session history to UI messages
@@ -328,13 +361,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     // useChat hook manages abort controllers internally
     const {
+        attachSessionStream: originalAttachSessionStream,
         sendMessage: originalSendMessage,
         reset: originalReset,
         cancel,
     } = useChat(currentSessionIdRef, sessionAbortControllersRef);
 
     // Restore pending approvals when session changes (e.g., after page refresh)
-    const { handleApprovalRequest } = useApproval();
     const { data: pendingApprovalsData } = usePendingApprovals(currentSessionId);
     const restoredApprovalsRef = useRef<Set<string>>(new Set());
 
@@ -353,21 +386,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             // Mark as restored before calling handler to prevent duplicates
             restoredApprovalsRef.current.add(approval.approvalId);
 
-            // Convert API response format to ApprovalRequest format
-            // TODO: The API returns a simplified format without full metadata because
-            // ApprovalCoordinator only tracks approval IDs, not the full request data.
-            // To fix properly: store full ApprovalRequest in ApprovalCoordinator when
-            // requests are created, then return that data from GET /api/approvals.
-            handleApprovalRequest({
+            // Replay restored approvals through the normal event pipeline so the
+            // inline tool-message approval UI stays the single render path.
+            const restoredApproval = {
                 approvalId: approval.approvalId,
                 type: approval.type,
                 sessionId: approval.sessionId,
                 timeout: approval.timeout,
                 timestamp: new Date(approval.timestamp),
                 metadata: approval.metadata,
-            } as ApprovalRequest);
+            } as ApprovalRequest;
+
+            eventBus.dispatch({
+                name: 'approval:request',
+                ...restoredApproval,
+            });
         }
-    }, [pendingApprovalsData, handleApprovalRequest]);
+    }, [pendingApprovalsData]);
 
     // Clear restored approvals tracking when session changes
     useEffect(() => {
@@ -499,6 +534,59 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         ]
     );
 
+    const ensureSessionEventStream = useCallback(
+        async (sessionId?: string) => {
+            const targetSessionId = sessionId ?? currentSessionIdRef.current ?? undefined;
+            if (!targetSessionId) {
+                return;
+            }
+
+            const reconcileSessionActivity = async (): Promise<boolean | null> => {
+                try {
+                    const activity = await fetchSessionActivityState(targetSessionId);
+                    const restoredActivity = resolveRestoredSessionActivity(activity);
+                    useChatStore
+                        .getState()
+                        .setProcessing(targetSessionId, restoredActivity.processing);
+
+                    if (restoredActivity.status === 'awaiting_approval') {
+                        useAgentStore.getState().setAwaitingApproval(targetSessionId);
+                    } else if (restoredActivity.status === 'thinking') {
+                        useAgentStore.getState().setThinking(targetSessionId);
+                    } else if (useAgentStore.getState().isActiveForSession(targetSessionId)) {
+                        useAgentStore.getState().setIdle();
+                    }
+
+                    return restoredActivity.processing;
+                } catch (error) {
+                    console.warn('Failed to reconcile session activity state:', error);
+                    return null;
+                }
+            };
+
+            let attemptsRemaining = 1;
+            while (true) {
+                try {
+                    const result = await originalAttachSessionStream(targetSessionId);
+                    if (result === 'attached' || result === 'already-attached') {
+                        return;
+                    }
+                } catch (error) {
+                    console.warn('Failed to attach to session event stream:', error);
+                }
+
+                const shouldKeepTrying = await reconcileSessionActivity();
+                if (shouldKeepTrying !== true || attemptsRemaining === 0) {
+                    return;
+                }
+
+                attemptsRemaining -= 1;
+                await new Promise((resolve) => setTimeout(resolve, 500));
+            }
+        },
+        [originalAttachSessionStream]
+    );
+
     // Enhanced reset with session support
     const reset = useCallback(() => {
         if (currentSessionId) {
@@ -537,23 +625,25 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             const currentMessages = useChatStore.getState().getMessages(currentSessionId);
             const hasSessionMsgs = currentMessages.some((m) => m.sessionId === currentSessionId);
             if (!hasSessionMsgs) {
-                useChatStore
-                    .getState()
-                    .setMessages(currentSessionId, sessionHistoryData.messages as any);
+                useChatStore.getState().setMessages(currentSessionId, sessionHistoryData.messages);
             }
-            // Cancel any active run on page refresh (we can't reconnect to the stream)
+            const currentProcessing = useChatStore
+                .getState()
+                .getSessionState(currentSessionId).processing;
+            useChatStore
+                .getState()
+                .setProcessing(
+                    currentSessionId,
+                    mergeSessionProcessingState(sessionHistoryData.isBusy, currentProcessing)
+                );
             if (sessionHistoryData.isBusy) {
-                // Reset agent state since we're cancelling - we won't receive run:complete event
-                useAgentStore.getState().setIdle();
-                client.api.sessions[':sessionId'].cancel
-                    .$post({
-                        param: { sessionId: currentSessionId },
-                        json: { clearQueue: true },
-                    })
-                    .catch((e: unknown) => console.warn('Failed to cancel busy session:', e));
+                if (!pendingApprovalsData?.approvals.length) {
+                    useAgentStore.getState().setThinking(currentSessionId);
+                }
+                void ensureSessionEventStream(currentSessionId);
             }
         }
-    }, [sessionHistoryData, currentSessionId]);
+    }, [sessionHistoryData, currentSessionId, pendingApprovalsData, ensureSessionEventStream]);
 
     const loadSessionHistory = useCallback(
         async (sessionId: string) => {
@@ -574,34 +664,45 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 const currentMessages = useChatStore.getState().getMessages(sessionId);
                 const hasSessionMsgs = currentMessages.some((m) => m.sessionId === sessionId);
                 if (!hasSessionMsgs) {
-                    // Populate chatStore with history (cast to compatible type)
-                    useChatStore.getState().initFromHistory(sessionId, result.messages as any);
+                    useChatStore.getState().initFromHistory(sessionId, result.messages);
                 }
 
-                // Cancel any active run on page refresh (we can't reconnect to the stream)
-                // This ensures clean state - user can see history and send new messages
-                // TODO: Implement stream reconnection instead of cancelling
-                // - Add GET /sessions/{sessionId}/events SSE endpoint for listen-only mode
-                // - Connect to event stream when isBusy=true to resume receiving updates
+                const currentProcessing = useChatStore
+                    .getState()
+                    .getSessionState(sessionId).processing;
+                useChatStore
+                    .getState()
+                    .setProcessing(
+                        sessionId,
+                        mergeSessionProcessingState(result.isBusy, currentProcessing)
+                    );
                 if (result.isBusy) {
-                    // Reset agent state since we're cancelling - we won't receive run:complete event
-                    useAgentStore.getState().setIdle();
-                    try {
-                        await client.api.sessions[':sessionId'].cancel.$post({
-                            param: { sessionId },
-                            json: { clearQueue: true }, // Hard cancel - clear queue too
-                        });
-                    } catch (e) {
-                        console.warn('Failed to cancel busy session on load:', e);
-                    }
+                    void ensureSessionEventStream(sessionId);
                 }
             } catch (error) {
                 console.error('Error loading session history:', error);
                 useChatStore.getState().clearMessages(sessionId);
             }
         },
-        [queryClient]
+        [queryClient, ensureSessionEventStream]
     );
+
+    useEffect(() => {
+        sessionAbortControllersRef.current.forEach((controller, sessionId) => {
+            if (!currentSessionId || sessionId !== currentSessionId) {
+                controller.abort();
+                sessionAbortControllersRef.current.delete(sessionId);
+            }
+        });
+    }, [currentSessionId]);
+
+    useEffect(() => {
+        const abortControllers = sessionAbortControllersRef.current;
+        return () => {
+            abortControllers.forEach((controller) => controller.abort());
+            abortControllers.clear();
+        };
+    }, []);
 
     // Switch to a different session and load it on the backend
     const switchSession = useCallback(
@@ -679,6 +780,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 reset,
                 switchSession,
                 loadSessionHistory,
+                ensureSessionEventStream,
                 returnToWelcome,
                 cancel,
             }}

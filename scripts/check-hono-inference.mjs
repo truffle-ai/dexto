@@ -169,7 +169,12 @@ function readCheckerSuppressions() {
         .filter((line) => line !== 'scripts/check-hono-inference.mjs');
 
     for (const relativePath of trackedFiles) {
-        const source = readFileSync(path.resolve(repoRoot, relativePath), 'utf8');
+        const absolutePath = path.resolve(repoRoot, relativePath);
+        if (!existsSync(absolutePath)) {
+            continue;
+        }
+
+        const source = readFileSync(absolutePath, 'utf8');
         const lines = source.split('\n');
 
         for (let index = 0; index < lines.length; index += 1) {

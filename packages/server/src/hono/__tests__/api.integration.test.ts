@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { TextDecoder } from 'node:util';
 import type { StreamingEvent } from '@dexto/core';
+import { ApprovalType } from '@dexto/core';
 import {
     createTestAgent,
     startTestServer,
@@ -1101,9 +1102,11 @@ describe('Hono API Integration Tests', () => {
             ];
 
             agent.stream = async function (
+                this: typeof agent,
                 _message: string,
                 _options
             ): Promise<AsyncIterableIterator<StreamingEvent>> {
+                expect(this).toBe(agent);
                 async function* generator() {
                     for (const event of fakeEvents) {
                         yield event;
@@ -1152,6 +1155,149 @@ describe('Hono API Integration Tests', () => {
                 expect(received).toContain('"usageScopeId":"cloud-agent-1"');
                 expect(received).toContain('"estimatedCost":0.0001');
                 expect(received).toContain('"pricingStatus":"estimated"');
+            } finally {
+                agent.stream = originalStream;
+            }
+        });
+
+        it('POST /api/message-stream forwards approval requests without waiting for later stream events', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+
+            const sessionId = 'stream-session-approval-live';
+            const agent = testServer.agent;
+            const originalStream = agent.stream;
+
+            const approvalRequest: StreamingEvent = {
+                name: 'approval:request',
+                approvalId: 'approval-live-1',
+                sessionId,
+                type: ApprovalType.DIRECTORY_ACCESS,
+                timestamp: new Date(),
+                timeout: 120000,
+                metadata: {
+                    toolName: 'read_media_file',
+                    path: '/tmp/test.png',
+                    parentDir: '/tmp',
+                    operation: 'read',
+                },
+            };
+
+            agent.stream = async function (
+                this: typeof agent,
+                _message: string,
+                _sessionId: string,
+                _options
+            ): Promise<AsyncIterableIterator<StreamingEvent>> {
+                expect(this).toBe(agent);
+                let emitted = false;
+                const iterator: AsyncIterableIterator<StreamingEvent> = {
+                    [Symbol.asyncIterator]() {
+                        return iterator;
+                    },
+                    async next() {
+                        if (!emitted) {
+                            emitted = true;
+                            return { done: false, value: approvalRequest };
+                        }
+                        return { done: true, value: undefined };
+                    },
+                };
+                return iterator;
+            } as typeof agent.stream;
+
+            try {
+                await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', { sessionId });
+
+                const response = await fetch(`${testServer.baseUrl}/api/message-stream`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sessionId,
+                        content: 'Inspect this image',
+                    }),
+                });
+
+                expect(response.status).toBe(200);
+                expect(response.headers.get('content-type')).toBe('text/event-stream');
+
+                const streamed = await response.text();
+                expect(streamed).toContain('event: approval:request');
+                expect(streamed).toContain('"approvalId":"approval-live-1"');
+                expect(streamed).toContain('"toolName":"read_media_file"');
+            } finally {
+                agent.stream = originalStream;
+            }
+        });
+
+        it('POST /api/message-stream aborts the disconnect signal when the client disconnects', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+
+            const sessionId = 'stream-session-disconnect';
+            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', { sessionId });
+
+            const agent = testServer.agent;
+            const originalStream = agent.stream;
+            let disconnectSignal: AbortSignal | undefined;
+
+            agent.stream = async function (
+                this: typeof agent,
+                _message: string,
+                _sessionId: string,
+                options?: Parameters<typeof agent.stream>[2] & { disconnectSignal?: AbortSignal }
+            ): Promise<AsyncIterableIterator<StreamingEvent>> {
+                expect(this).toBe(agent);
+                disconnectSignal = options?.disconnectSignal;
+
+                let emitted = false;
+                const iterator: AsyncIterableIterator<StreamingEvent> = {
+                    [Symbol.asyncIterator]() {
+                        return iterator;
+                    },
+                    async next() {
+                        if (!emitted) {
+                            emitted = true;
+                            return {
+                                done: false,
+                                value: {
+                                    name: 'llm:thinking',
+                                    sessionId,
+                                },
+                            };
+                        }
+
+                        await new Promise<void>((resolve) => {
+                            disconnectSignal?.addEventListener('abort', () => resolve(), {
+                                once: true,
+                            });
+                        });
+                        return { done: true, value: undefined };
+                    },
+                };
+                return iterator;
+            } as typeof agent.stream;
+
+            try {
+                const requestAbortController = new AbortController();
+                const response = await fetch(`${testServer.baseUrl}/api/message-stream`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: requestAbortController.signal,
+                    body: JSON.stringify({
+                        sessionId,
+                        content: 'Stay open until disconnect',
+                    }),
+                });
+
+                expect(response.status).toBe(200);
+                const reader = response.body?.getReader();
+                if (!reader) throw new Error('Response does not contain a readable body');
+
+                await reader.read();
+                requestAbortController.abort();
+
+                await vi.waitFor(() => {
+                    expect(disconnectSignal?.aborted).toBe(true);
+                });
             } finally {
                 agent.stream = originalStream;
             }

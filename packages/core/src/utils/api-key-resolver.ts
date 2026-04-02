@@ -1,5 +1,7 @@
+import { existsSync, readFileSync } from 'fs';
 import type { LLMProvider } from '../llm/types.js';
 import { PROVIDERS_BY_ID } from '../llm/providers.generated.js';
+import { getDextoGlobalPath } from './path.js';
 
 /**
  * Utility for resolving API keys from environment variables.
@@ -55,6 +57,31 @@ export function getApiKeyEnvVarsForProvider(provider: LLMProvider): string[] {
     return uniqueInOrder([...filtered, ...extras]);
 }
 
+function resolveDextoApiKeyFromAuthConfig(): string | undefined {
+    const authPath = getDextoGlobalPath('auth', 'dexto.json');
+    if (!existsSync(authPath)) {
+        return undefined;
+    }
+
+    try {
+        const parsed = JSON.parse(readFileSync(authPath, 'utf-8')) as {
+            dextoApiKey?: unknown;
+        };
+        const authKey =
+            typeof parsed.dextoApiKey === 'string' ? parsed.dextoApiKey.trim() : undefined;
+        if (!authKey) {
+            return undefined;
+        }
+
+        // Dexto API keys are often bootstrapped into process.env at startup.
+        // Re-reading the auth file here ensures relogin/rotation takes effect without restart.
+        process.env.DEXTO_API_KEY = authKey;
+        return authKey;
+    } catch {
+        return undefined;
+    }
+}
+
 /**
  * Resolves API key for a given provider from environment variables.
  *
@@ -62,6 +89,13 @@ export function getApiKeyEnvVarsForProvider(provider: LLMProvider): string[] {
  * @returns Resolved API key or undefined if not found
  */
 export function resolveApiKeyForProvider(provider: LLMProvider): string | undefined {
+    if (provider === 'dexto-nova') {
+        const authKey = resolveDextoApiKeyFromAuthConfig();
+        if (authKey) {
+            return authKey;
+        }
+    }
+
     const envVars = getApiKeyEnvVarsForProvider(provider);
 
     // Try each environment variable in order of preference

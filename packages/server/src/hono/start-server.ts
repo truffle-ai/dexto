@@ -10,6 +10,8 @@ import { WebhookEventSubscriber } from '../events/webhook-subscriber.js';
 import { A2ASseEventSubscriber } from '../events/a2a-sse-subscriber.js';
 import { ApprovalCoordinator } from '../approval/approval-coordinator.js';
 import { createManualApprovalHandler } from '../approval/manual-approval-handler.js';
+import { wireApprovalCoordinatorToAgent } from '../approval/wire-approval-events.js';
+import { SessionSseEventSubscriber } from '../events/session-sse-subscriber.js';
 
 export type StartDextoServerOptions = {
     /** Port to listen on. Defaults to 3000 or process.env.PORT */
@@ -113,7 +115,9 @@ export async function startDextoServer(
     logger.debug('Creating event infrastructure...');
     const webhookSubscriber = new WebhookEventSubscriber();
     const sseSubscriber = new A2ASseEventSubscriber();
+    const sessionSseSubscriber = new SessionSseEventSubscriber();
     const approvalCoordinator = new ApprovalCoordinator();
+    let approvalEventBridge: AbortController | null = null;
 
     // Create Hono app
     logger.debug('Creating Hono application...');
@@ -123,6 +127,7 @@ export async function startDextoServer(
         approvalCoordinator,
         webhookSubscriber,
         sseSubscriber,
+        sessionSseSubscriber,
         ...(webRoot ? { webRoot } : {}),
         ...(webUIConfig ? { webUIConfig } : {}),
     });
@@ -151,10 +156,13 @@ export async function startDextoServer(
         agent.setApprovalHandler(handler);
     }
 
+    approvalEventBridge = wireApprovalCoordinatorToAgent(agent, approvalCoordinator);
+
     // Wire SSE subscribers to agent event bus
     logger.debug('Wiring event subscribers to agent...');
     agent.registerSubscriber(webhookSubscriber);
     agent.registerSubscriber(sseSubscriber);
+    agent.registerSubscriber(sessionSseSubscriber);
 
     // Start the agent
     logger.info('Starting agent...');
@@ -169,6 +177,8 @@ export async function startDextoServer(
         agentCard,
         stop: async () => {
             logger.info('Stopping Dexto server...');
+            approvalEventBridge?.abort();
+            sessionSseSubscriber.cleanup();
             await agent.stop();
             server.close();
             logger.info('Server stopped', null, 'yellow');

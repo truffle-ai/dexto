@@ -61,6 +61,8 @@ export type ContentInput = string | ContentPart[];
 export interface GenerateOptions {
     /** AbortSignal for cancellation */
     signal?: AbortSignal;
+    /** Optional signal to stop streaming to the caller without cancelling the run itself */
+    disconnectSignal?: AbortSignal;
 }
 
 /**

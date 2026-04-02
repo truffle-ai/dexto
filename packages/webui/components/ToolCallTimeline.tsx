@@ -142,6 +142,12 @@ export function ToolCallTimeline({
     const [detailsExpanded, setDetailsExpanded] = useState(false);
     const [copied, setCopied] = useState(false);
 
+    useEffect(() => {
+        if (isPendingApproval) {
+            setExpanded(true);
+        }
+    }, [isPendingApproval]);
+
     // Auto-collapse after approval is resolved, but keep open if tool has rich UI and succeeded
     useEffect(() => {
         if (requireApproval && approvalStatus && approvalStatus !== 'pending') {
@@ -203,7 +209,8 @@ export function ToolCallTimeline({
     return (
         <div
             className={cn(
-                'my-0.5 rounded-md transition-colors inline-block max-w-full',
+                'my-0.5 rounded-md transition-colors max-w-full',
+                isPendingApproval ? 'block w-full' : 'inline-block',
                 isPendingApproval &&
                     'bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-800/30'
             )}
@@ -213,7 +220,8 @@ export function ToolCallTimeline({
                 onClick={toggleExpanded}
                 disabled={!canExpand}
                 className={cn(
-                    'inline-flex items-center gap-2 p-1.5 text-left rounded-md',
+                    'items-center gap-2 p-1.5 text-left rounded-md',
+                    isPendingApproval ? 'flex w-full' : 'inline-flex',
                     canExpand && 'hover:bg-muted/40 cursor-pointer',
                     !canExpand && 'cursor-default'
                 )}

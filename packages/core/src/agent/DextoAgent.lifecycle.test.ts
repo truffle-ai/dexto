@@ -103,6 +103,7 @@ describe('DextoAgent Lifecycle Management', () => {
             stateManager: {
                 getRuntimeConfig: vi.fn().mockReturnValue(mockValidatedConfig),
                 getLLMConfig: vi.fn().mockReturnValue(mockValidatedConfig.llm),
+                updateLLM: vi.fn(),
             } as any,
             sessionManager: {
                 cleanup: vi.fn(),
@@ -110,6 +111,8 @@ describe('DextoAgent Lifecycle Management', () => {
                 getSession: vi.fn().mockResolvedValue(undefined),
                 createSession: vi.fn().mockResolvedValue({ id: 'test-session' }),
                 incrementMessageCount: vi.fn().mockResolvedValue(undefined),
+                switchLLMForSpecificSession: vi.fn().mockResolvedValue(undefined),
+                switchLLMForAllSessions: vi.fn().mockResolvedValue(undefined),
             } as any,
             workspaceManager: {
                 setWorkspace: vi.fn(),
@@ -371,6 +374,24 @@ describe('DextoAgent Lifecycle Management', () => {
 
             expect(() => agent.isStarted()).not.toThrow();
             expect(() => agent.isStopped()).not.toThrow();
+        });
+
+        test('switchLLM should not update runtime state when the target session is missing', async () => {
+            const agent = createTestAgent(mockValidatedConfig);
+            await agent.start();
+
+            const updateLLM = mockServices.stateManager.updateLLM as ReturnType<typeof vi.fn>;
+            const getSession = mockServices.sessionManager.getSession as ReturnType<typeof vi.fn>;
+            const switchLLMForSpecificSession = mockServices.sessionManager
+                .switchLLMForSpecificSession as ReturnType<typeof vi.fn>;
+
+            getSession.mockResolvedValue(undefined);
+
+            await expect(
+                agent.switchLLM({ model: 'gpt-5-nano' }, 'missing-session')
+            ).rejects.toBeInstanceOf(DextoRuntimeError);
+            expect(updateLLM).not.toHaveBeenCalled();
+            expect(switchLLMForSpecificSession).not.toHaveBeenCalled();
         });
     });
 

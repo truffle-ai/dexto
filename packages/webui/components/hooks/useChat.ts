@@ -50,6 +50,7 @@ export type { Message, ErrorMessage } from '@/lib/stores/chatStore.js';
 export type UIUserMessage = Message & { role: 'user' };
 export type UIAssistantMessage = Message & { role: 'assistant' };
 export type UIToolMessage = Message & { role: 'tool' };
+export type SessionStreamAttachResult = 'attached' | 'already-attached' | 'session-idle';
 
 // =============================================================================
 // Message Type Guards
@@ -124,11 +125,7 @@ export function useChat(
         [queryClient]
     );
 
-    // Track message IDs for error anchoring
-    const lastUserMessageIdRef = useRef<string | null>(null);
     const lastMessageIdRef = useRef<string | null>(null);
-    // Map callId to message index for O(1) tool result pairing
-    const pendingToolCallsRef = useRef<Map<string, number>>(new Map());
 
     // Keep analytics ref updated
     useEffect(() => {
@@ -247,6 +244,86 @@ export function useChat(
         [isForActiveSession, analyticsRef, updateSessionActivity, updateSessionTitle, queryClient]
     );
 
+    const consumeSessionEventStream = useCallback(
+        async (
+            sessionId: string,
+            abortController: AbortController,
+            responsePromise: Promise<Response>
+        ) => {
+            try {
+                const iterator = createMessageStream(responsePromise, {
+                    signal: abortController.signal,
+                });
+
+                for await (const event of iterator) {
+                    processEvent(event);
+                }
+            } finally {
+                const current = abortControllersRef.current.get(sessionId);
+                if (current === abortController) {
+                    abortControllersRef.current.delete(sessionId);
+                }
+            }
+        },
+        [abortControllersRef, processEvent]
+    );
+
+    const attachSessionStream = useCallback(
+        async (sessionId: string): Promise<SessionStreamAttachResult> => {
+            if (!sessionId) {
+                return 'session-idle';
+            }
+
+            if (abortControllersRef.current.has(sessionId)) {
+                return 'already-attached';
+            }
+
+            const abortController = new AbortController();
+            abortControllersRef.current.set(sessionId, abortController);
+
+            try {
+                const response = await client.api.sessions[':sessionId'].events.$get({
+                    param: { sessionId },
+                });
+
+                if (!response.ok) {
+                    if (response.status === 409) {
+                        const current = abortControllersRef.current.get(sessionId);
+                        if (current === abortController) {
+                            abortControllersRef.current.delete(sessionId);
+                        }
+                        return 'session-idle';
+                    }
+                    throw new Error(`Failed to attach to session stream: ${response.status}`);
+                }
+
+                void consumeSessionEventStream(
+                    sessionId,
+                    abortController,
+                    Promise.resolve(response)
+                ).catch((error: unknown) => {
+                    if (error instanceof Error && error.name === 'AbortError') {
+                        return;
+                    }
+                    console.error(
+                        `Session stream error: ${
+                            error instanceof Error ? error.message : String(error)
+                        }`
+                    );
+                });
+
+                return 'attached';
+            } catch (error) {
+                const current = abortControllersRef.current.get(sessionId);
+                if (current === abortController) {
+                    abortControllersRef.current.delete(sessionId);
+                }
+                throw error;
+            }
+        },
+        [abortControllersRef, consumeSessionEventStream]
+    );
+
     const sendMessage = useCallback(
         async (content: string, attachments?: Attachment[], sessionId?: string) => {
             if (!sessionId) {
@@ -263,7 +340,6 @@ export function useChat(
 
             // Add user message to state with attachments
             const userId = generateUniqueId();
-            lastUserMessageIdRef.current = userId;
             lastMessageIdRef.current = userId; // Track for error anchoring
 
             const messageContent = resolveMessageContent(content, attachments);
@@ -290,13 +366,7 @@ export function useChat(
                     },
                 });
 
-                const iterator = createMessageStream(responsePromise, {
-                    signal: abortController.signal,
-                });
-
-                for await (const event of iterator) {
-                    processEvent(event);
-                }
+                await consumeSessionEventStream(sessionId, abortController, responsePromise);
             } catch (error: unknown) {
                 // Handle abort gracefully
                 if (error instanceof Error && error.name === 'AbortError') {
@@ -321,7 +391,7 @@ export function useChat(
                 });
             }
         },
-        [processEvent, abortSession, getAbortController, updateSessionActivity]
+        [abortSession, getAbortController, updateSessionActivity, consumeSessionEventStream]
     );
 
     const reset = useCallback(async (sessionId?: string) => {
@@ -337,9 +407,7 @@ export function useChat(
 
         // Note: Messages are now in chatStore, not local state
         useChatStore.getState().setError(sessionId, null);
-        lastUserMessageIdRef.current = null;
         lastMessageIdRef.current = null;
-        pendingToolCallsRef.current.clear();
         useChatStore.getState().setProcessing(sessionId, false);
     }, []);
 
@@ -360,10 +428,10 @@ export function useChat(
         }
 
         // UI state will be updated when server sends run:complete event
-        pendingToolCallsRef.current.clear();
     }, []);
 
     return {
+        attachSessionStream,
         sendMessage,
         reset,
         cancel,

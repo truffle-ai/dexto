@@ -125,6 +125,49 @@ const PROJECT_REGISTRY_RELATIVE_PATHS = [
     path.join('agents', 'agent-registry.json'),
 ] as const;
 
+function isBundledAgentRegistryShape(parsed: unknown): boolean {
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return false;
+    }
+
+    const candidate = parsed as {
+        version?: unknown;
+        agents?: unknown;
+    };
+
+    return (
+        typeof candidate.version === 'string' &&
+        candidate.agents !== null &&
+        typeof candidate.agents === 'object' &&
+        !Array.isArray(candidate.agents)
+    );
+}
+
+async function shouldIgnoreProjectRegistryCandidate(registryPath: string): Promise<boolean> {
+    if (path.basename(registryPath) !== 'agent-registry.json') {
+        return false;
+    }
+
+    try {
+        const content = await fs.readFile(registryPath, 'utf-8');
+        return isBundledAgentRegistryShape(JSON.parse(content));
+    } catch {
+        return false;
+    }
+}
+
+function shouldIgnoreProjectRegistryCandidateSync(registryPath: string): boolean {
+    if (path.basename(registryPath) !== 'agent-registry.json') {
+        return false;
+    }
+
+    try {
+        return isBundledAgentRegistryShape(JSON.parse(readFileSync(registryPath, 'utf-8')));
+    } catch {
+        return false;
+    }
+}
+
 export function getProjectRegistryPath(projectRoot: string): string {
     return path.join(projectRoot, 'agents', 'registry.json');
 }
@@ -139,6 +182,9 @@ export async function findProjectRegistryPath(projectRoot: string): Promise<stri
     for (const registryPath of getProjectRegistryCandidatePaths(projectRoot)) {
         try {
             if ((await fs.stat(registryPath)).isFile()) {
+                if (await shouldIgnoreProjectRegistryCandidate(registryPath)) {
+                    continue;
+                }
                 return registryPath;
             }
         } catch (error) {
@@ -159,6 +205,9 @@ export function findProjectRegistryPathSync(projectRoot: string): string | null 
     for (const registryPath of getProjectRegistryCandidatePaths(projectRoot)) {
         try {
             if (existsSync(registryPath) && statSync(registryPath).isFile()) {
+                if (shouldIgnoreProjectRegistryCandidateSync(registryPath)) {
+                    continue;
+                }
                 return registryPath;
             }
         } catch (error) {

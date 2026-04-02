@@ -5,7 +5,7 @@ import { getDextoApiKey, isAuthenticated } from '../auth/index.js';
 /**
  * Check if user can use Dexto provider.
  * Requires BOTH:
- * 1. User is authenticated (valid auth token from dexto login)
+ * 1. User has usable Dexto auth state from `dexto login`
  * 2. Has DEXTO_API_KEY (from auth config or environment)
  */
 export async function canUseDextoProvider(): Promise<boolean> {

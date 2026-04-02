@@ -43,6 +43,7 @@ import {
 } from './routes/static.js';
 import { WebhookEventSubscriber } from '../events/webhook-subscriber.js';
 import { A2ASseEventSubscriber } from '../events/a2a-sse-subscriber.js';
+import { SessionSseEventSubscriber } from '../events/session-sse-subscriber.js';
 import { handleHonoError } from './middleware/error.js';
 import { prettyJsonMiddleware, redactionMiddleware } from './middleware/redaction.js';
 import { createCorsMiddleware } from './middleware/cors.js';
@@ -129,6 +130,7 @@ export type CreateDextoAppOptions = {
     approvalCoordinator: ApprovalCoordinator;
     webhookSubscriber: WebhookEventSubscriber;
     sseSubscriber: A2ASseEventSubscriber;
+    sessionSseSubscriber: SessionSseEventSubscriber;
     agentsContext?: AgentsRouterContext;
     /** Absolute path to WebUI build output. If provided, static files will be served. */
     webRoot?: string;
@@ -204,6 +206,7 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
         approvalCoordinator,
         webhookSubscriber,
         sseSubscriber,
+        sessionSseSubscriber,
         agentsContext,
         webRoot,
         webUIConfig,
@@ -259,7 +262,7 @@ export function createDextoApp(options: CreateDextoAppOptions): DextoApp {
         [routePrefix, createGreetingRouter(getAgent)],
         [routePrefix, createMessagesRouter(getAgent, approvalCoordinator)],
         [routePrefix, createLlmRouter(getAgent)],
-        [routePrefix, createSessionsRouter(getAgent)],
+        [routePrefix, createSessionsRouter(getAgent, sessionSseSubscriber)],
         [routePrefix, createSearchRouter(getAgent)],
         [routePrefix, createMcpRouter(getAgent, resolvedGetAgentConfigPath)],
         [routePrefix, createWebhooksRouter(getAgent, webhookSubscriber)],
