@@ -1228,6 +1228,80 @@ describe('Hono API Integration Tests', () => {
                 agent.stream = originalStream;
             }
         });
+
+        it('POST /api/message-stream aborts the disconnect signal when the client disconnects', async () => {
+            if (!testServer) throw new Error('Test server not initialized');
+
+            const sessionId = 'stream-session-disconnect';
+            await httpRequest(testServer.baseUrl, 'POST', '/api/sessions', { sessionId });
+
+            const agent = testServer.agent;
+            const originalStream = agent.stream;
+            let disconnectSignal: AbortSignal | undefined;
+
+            agent.stream = async function (
+                this: typeof agent,
+                _message: string,
+                _sessionId: string,
+                options?: Parameters<typeof agent.stream>[2] & { disconnectSignal?: AbortSignal }
+            ): Promise<AsyncIterableIterator<StreamingEvent>> {
+                expect(this).toBe(agent);
+                disconnectSignal = options?.disconnectSignal;
+
+                let emitted = false;
+                const iterator: AsyncIterableIterator<StreamingEvent> = {
+                    [Symbol.asyncIterator]() {
+                        return iterator;
+                    },
+                    async next() {
+                        if (!emitted) {
+                            emitted = true;
+                            return {
+                                done: false,
+                                value: {
+                                    name: 'llm:thinking',
+                                    sessionId,
+                                },
+                            };
+                        }
+
+                        await new Promise<void>((resolve) => {
+                            disconnectSignal?.addEventListener('abort', () => resolve(), {
+                                once: true,
+                            });
+                        });
+                        return { done: true, value: undefined };
+                    },
+                };
+                return iterator;
+            } as typeof agent.stream;
+
+            try {
+                const requestAbortController = new AbortController();
+                const response = await fetch(`${testServer.baseUrl}/api/message-stream`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: requestAbortController.signal,
+                    body: JSON.stringify({
+                        sessionId,
+                        content: 'Stay open until disconnect',
+                    }),
+                });
+
+                expect(response.status).toBe(200);
+                const reader = response.body?.getReader();
+                if (!reader) throw new Error('Response does not contain a readable body');
+
+                await reader.read();
+                requestAbortController.abort();
+
+                await vi.waitFor(() => {
+                    expect(disconnectSignal?.aborted).toBe(true);
+                });
+            } finally {
+                agent.stream = originalStream;
+            }
+        });
     });
 
     describe('Queue Routes', () => {

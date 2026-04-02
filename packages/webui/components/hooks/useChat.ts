@@ -50,6 +50,7 @@ export type { Message, ErrorMessage } from '@/lib/stores/chatStore.js';
 export type UIUserMessage = Message & { role: 'user' };
 export type UIAssistantMessage = Message & { role: 'assistant' };
 export type UIToolMessage = Message & { role: 'tool' };
+export type SessionStreamAttachResult = 'attached' | 'already-attached' | 'session-idle';
 
 // =============================================================================
 // Message Type Guards
@@ -272,29 +273,36 @@ export function useChat(
     );
 
     const attachSessionStream = useCallback(
-        async (sessionId: string) => {
+        async (sessionId: string): Promise<SessionStreamAttachResult> => {
             if (!sessionId) {
-                return;
+                return 'session-idle';
             }
 
             if (abortControllersRef.current.has(sessionId)) {
-                return;
+                return 'already-attached';
             }
 
             const abortController = new AbortController();
             abortControllersRef.current.set(sessionId, abortController);
 
-            const eventsEndpoint = client.api.sessions[':sessionId'] as unknown as {
-                events: {
-                    $get: (args: { param: { sessionId: string } }) => Promise<Response>;
-                };
-            };
-            const response = await eventsEndpoint.events.$get({
-                param: { sessionId },
-            });
-
             try {
+                const eventsEndpoint = client.api.sessions[':sessionId'] as unknown as {
+                    events: {
+                        $get: (args: { param: { sessionId: string } }) => Promise<Response>;
+                    };
+                };
+                const response = await eventsEndpoint.events.$get({
+                    param: { sessionId },
+                });
+
                 if (!response.ok) {
+                    if (response.status === 409) {
+                        const current = abortControllersRef.current.get(sessionId);
+                        if (current === abortController) {
+                            abortControllersRef.current.delete(sessionId);
+                        }
+                        return 'session-idle';
+                    }
                     throw new Error(`Failed to attach to session stream: ${response.status}`);
                 }
 
@@ -312,6 +320,8 @@ export function useChat(
                         }`
                     );
                 });
+
+                return 'attached';
             } catch (error) {
                 const current = abortControllersRef.current.get(sessionId);
                 if (current === abortController) {

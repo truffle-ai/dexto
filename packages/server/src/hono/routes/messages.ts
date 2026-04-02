@@ -305,6 +305,7 @@ export function createMessagesRouter(getAgent: GetAgentFn, _approvalCoordinator?
             // Create abort controller for cleanup
             const abortController = new AbortController();
             const { signal } = abortController;
+            const requestDisconnectSignal = ctx.req.raw.signal;
 
             // Keep the underlying run alive if the browser disconnects so approvals and
             // completion can survive reloads. The disconnect signal only stops relaying
@@ -323,6 +324,17 @@ export function createMessagesRouter(getAgent: GetAgentFn, _approvalCoordinator?
 
             // Use Hono's streamSSE helper which handles backpressure correctly
             return streamSSE(ctx, async (stream) => {
+                const abortOnDisconnect = () => {
+                    abortController.abort();
+                };
+                stream.onAbort(abortOnDisconnect);
+                requestDisconnectSignal.addEventListener('abort', abortOnDisconnect, {
+                    once: true,
+                });
+                if (requestDisconnectSignal.aborted) {
+                    abortOnDisconnect();
+                }
+
                 let writeChain = Promise.resolve();
                 const enqueueSSEWrite = (event: string, data: unknown) => {
                     writeChain = writeChain
@@ -374,6 +386,7 @@ export function createMessagesRouter(getAgent: GetAgentFn, _approvalCoordinator?
                         sessionId,
                     });
                 } finally {
+                    requestDisconnectSignal.removeEventListener('abort', abortOnDisconnect);
                     abortController.abort(); // Cleanup subscriptions
                     await writeChain;
                 }

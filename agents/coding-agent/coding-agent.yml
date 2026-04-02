@@ -117,8 +117,8 @@ permissions:
     # Tools that never require approval (safe, read-only operations)
     alwaysAllow:
       - ask_user
-      # - read_file      # Read files without approval
-      # - read_media_file      # Read files without approval
+      - read_file      # Read files without approval
+      - read_media_file      # Read files without approval
       - glob_files     # Search for files without approval
       - grep_content   # Search within files without approval
       - bash_output    # Check background process output

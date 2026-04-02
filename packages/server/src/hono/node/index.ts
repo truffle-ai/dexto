@@ -33,6 +33,14 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
     const webhookSubscriber = app.webhookSubscriber;
 
     const server = createServer(async (req, res) => {
+        const disconnectController = new AbortController();
+        const abortOnDisconnect = () => {
+            disconnectController.abort();
+        };
+
+        req.on('aborted', abortOnDisconnect);
+        res.on('close', abortOnDisconnect);
+
         try {
             if (options.mcpHandlers && req.url?.startsWith('/mcp')) {
                 if (req.method === 'GET') {
@@ -70,14 +78,17 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
                 }
             }
 
-            const request = await toRequest(req);
+            const request = await toRequest(req, disconnectController.signal);
             const response = await app.fetch(request);
-            await sendNodeResponse(res, response);
+            await sendNodeResponse(res, response, disconnectController.signal);
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             logger.error(`Unhandled error in Node bridge: ${message}`, { error });
             res.statusCode = 500;
             res.end('Internal Server Error');
+        } finally {
+            req.off('aborted', abortOnDisconnect);
+            res.off('close', abortOnDisconnect);
         }
     });
 
@@ -103,7 +114,7 @@ export function createNodeServer(app: DextoApp, options: NodeBridgeOptions): Nod
     return result;
 }
 
-async function toRequest(req: IncomingMessage): Promise<FetchRequest> {
+async function toRequest(req: IncomingMessage, signal: AbortSignal): Promise<FetchRequest> {
     const protocol = (req.socket as any)?.encrypted ? 'https' : 'http';
     const host = req.headers.host ?? 'localhost';
     const url = new URL(req.url ?? '/', `${protocol}://${host}`);
@@ -126,11 +137,12 @@ async function toRequest(req: IncomingMessage): Promise<FetchRequest> {
         method,
         headers,
         body: body ?? undefined,
+        signal,
         duplex: body ? 'half' : undefined,
     } as RequestInit);
 }
 
-async function sendNodeResponse(res: ServerResponse, response: Response) {
+async function sendNodeResponse(res: ServerResponse, response: Response, signal: AbortSignal) {
     res.statusCode = response.status;
     response.headers.forEach((value, key) => {
         if (key.toLowerCase() === 'content-length') {
@@ -147,8 +159,44 @@ async function sendNodeResponse(res: ServerResponse, response: Response) {
     const webStream = response.body as unknown as NodeReadableStream<any>;
     const readable = Readable.fromWeb(webStream);
     await new Promise<void>((resolve, reject) => {
-        readable.on('error', reject);
-        res.on('finish', resolve);
+        let settled = false;
+        const settle = (callback: () => void) => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            cleanup();
+            callback();
+        };
+        const cleanup = () => {
+            readable.off('error', handleError);
+            readable.off('close', handleReadableClose);
+            res.off('finish', handleFinish);
+            res.off('close', handleClose);
+            signal.removeEventListener('abort', handleAbort);
+        };
+        const handleError = (error: Error) => {
+            settle(() => reject(error));
+        };
+        const handleReadableClose = () => {
+            settle(resolve);
+        };
+        const handleFinish = () => {
+            settle(resolve);
+        };
+        const handleAbort = () => {
+            readable.destroy();
+        };
+        const handleClose = () => {
+            readable.destroy();
+            settle(resolve);
+        };
+
+        readable.on('error', handleError);
+        readable.on('close', handleReadableClose);
+        res.on('finish', handleFinish);
+        res.on('close', handleClose);
+        signal.addEventListener('abort', handleAbort, { once: true });
         readable.pipe(res);
     });
 }

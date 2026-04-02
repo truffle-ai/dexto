@@ -28,7 +28,10 @@ import {
     useSessionMessages,
 } from '@/lib/stores/index.js';
 import type { Attachment } from '../../lib/attachment-types.js';
-import { mergeSessionProcessingState } from './session-processing.js';
+import {
+    mergeSessionProcessingState,
+    resolveRestoredSessionActivity,
+} from './session-processing.js';
 
 // Helper to get history endpoint type (workaround for string literal path)
 type HistoryEndpoint = (typeof client.api.sessions)[':sessionId']['history'];
@@ -50,6 +53,34 @@ interface ChatContextType {
     ensureSessionEventStream: (sessionId?: string) => Promise<void>;
     returnToWelcome: () => void;
     cancel: (sessionId?: string) => void;
+}
+
+async function fetchSessionActivityState(
+    sessionId: string
+): Promise<{ isBusy: boolean; hasPendingApprovals: boolean }> {
+    const sessionResponse = await client.api.sessions[':sessionId'].load.$get({
+        param: { sessionId },
+    });
+
+    if (!sessionResponse.ok) {
+        throw new Error(`Failed to fetch session activity: ${sessionResponse.status}`);
+    }
+
+    const sessionData = await sessionResponse.json();
+    const approvalsResponse = await client.api.approvals
+        .$get({
+            query: { sessionId },
+        })
+        .catch(() => null);
+    const approvalsData =
+        approvalsResponse && approvalsResponse.ok
+            ? await approvalsResponse.json()
+            : { approvals: [] };
+
+    return {
+        isBusy: sessionData.session.isBusy,
+        hasPendingApprovals: approvalsData.approvals.length > 0,
+    };
 }
 
 // Helper function to fetch and convert session history to UI messages
@@ -510,10 +541,47 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 return;
             }
 
-            try {
-                await originalAttachSessionStream(targetSessionId);
-            } catch (error) {
-                console.warn('Failed to attach to session event stream:', error);
+            const reconcileSessionActivity = async (): Promise<boolean | null> => {
+                try {
+                    const activity = await fetchSessionActivityState(targetSessionId);
+                    const restoredActivity = resolveRestoredSessionActivity(activity);
+                    useChatStore
+                        .getState()
+                        .setProcessing(targetSessionId, restoredActivity.processing);
+
+                    if (restoredActivity.status === 'awaiting_approval') {
+                        useAgentStore.getState().setAwaitingApproval(targetSessionId);
+                    } else if (restoredActivity.status === 'thinking') {
+                        useAgentStore.getState().setThinking(targetSessionId);
+                    } else if (useAgentStore.getState().isActiveForSession(targetSessionId)) {
+                        useAgentStore.getState().setIdle();
+                    }
+
+                    return restoredActivity.processing;
+                } catch (error) {
+                    console.warn('Failed to reconcile session activity state:', error);
+                    return null;
+                }
+            };
+
+            let attemptsRemaining = 1;
+            while (true) {
+                try {
+                    const result = await originalAttachSessionStream(targetSessionId);
+                    if (result === 'attached' || result === 'already-attached') {
+                        return;
+                    }
+                } catch (error) {
+                    console.warn('Failed to attach to session event stream:', error);
+                }
+
+                const shouldKeepTrying = await reconcileSessionActivity();
+                if (shouldKeepTrying !== true || attemptsRemaining === 0) {
+                    return;
+                }
+
+                attemptsRemaining -= 1;
+                await new Promise((resolve) => setTimeout(resolve, 500));
             }
         },
         [originalAttachSessionStream]
