@@ -411,29 +411,24 @@ export function useChat(
         useChatStore.getState().setProcessing(sessionId, false);
     }, []);
 
-    const cancel = useCallback(
-        async (sessionId?: string, clearQueue: boolean = false) => {
-            if (!sessionId) return;
+    const cancel = useCallback(async (sessionId?: string, clearQueue: boolean = false) => {
+        if (!sessionId) return;
 
-            // Tell server to cancel the LLM stream
-            // Soft cancel (default): Only cancel current response, queued messages continue
-            // Hard cancel (clearQueue=true): Cancel current response AND clear all queued messages
-            try {
-                await client.api.sessions[':sessionId'].cancel.$post({
-                    param: { sessionId },
-                    json: { clearQueue },
-                });
-            } catch (err) {
-                // Server cancel is best-effort - log but don't throw
-                console.warn('Failed to cancel server-side:', err);
-            }
+        // Tell server to cancel the LLM stream
+        // Soft cancel (default): Only cancel current response, queued messages continue
+        // Hard cancel (clearQueue=true): Cancel current response AND clear all queued messages
+        try {
+            await client.api.sessions[':sessionId'].cancel.$post({
+                param: { sessionId },
+                json: { clearQueue },
+            });
+        } catch (err) {
+            // Server cancel is best-effort - log but don't throw
+            console.warn('Failed to cancel server-side:', err);
+        }
 
-            abortSession(sessionId);
-
-            // UI state will be updated when server sends run:complete event
-        },
-        [abortSession]
-    );
+        // UI state will be updated when server sends run:complete event
+    }, []);
 
     return {
         attachSessionStream,
